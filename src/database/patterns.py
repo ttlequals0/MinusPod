@@ -78,10 +78,7 @@ class PatternMixin:
         return [_row_with_category(dict(row)) for row in cursor.fetchall()]
 
     def find_patterns_by_community_ids(self, community_ids: list[str]) -> dict[str, dict]:
-        """Batch lookup: return {community_id: pattern_row} for the given ids.
-
-        Avoids the N+1 pattern when applying a manifest.
-        """
+        """Batch lookup of {community_id: pattern_row}, avoiding N+1 when applying a manifest."""
         if not community_ids:
             return {}
         conn = self.get_connection()
@@ -93,11 +90,7 @@ class PatternMixin:
         return {row['community_id']: _row_with_category(dict(row)) for row in cursor.fetchall()}
 
     def get_active_pattern_sponsors(self) -> set:
-        """Return a lowercase set of sponsor names with active patterns.
-
-        Preloaded once per detection pass so Gate B sponsor-is-known checks
-        avoid N+1 queries over the loop.
-        """
+        """Lowercase set of sponsor names with active patterns, preloaded once per detection pass for Gate B."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT DISTINCT LOWER(ks.name) AS s
@@ -180,12 +173,9 @@ class PatternMixin:
                           content_hash: str = None,
                           category: str = None,
                           community_last_confirmed_at: str = None) -> int:
-        """Insert an ad pattern on the caller's connection without committing.
-        Lets a multi-statement caller (e.g. replace-mode import) own the
-        transaction boundary so the whole batch is atomic. Returns pattern ID.
+        """Insert an ad pattern on the caller's connection without committing, so a multi-statement caller (e.g. replace-mode import) owns the transaction. Returns pattern ID.
 
-        category is stored as given (including None -> NULL); readers return
-        NULL as None, so omitting it here leaves the pattern uncategorized."""
+        category is stored as given (None -> NULL, i.e. uncategorized)."""
         network_id = normalize_network_id(network_id)
         cursor = conn.execute(
             """INSERT INTO ad_patterns
@@ -377,13 +367,11 @@ class PatternMixin:
             return self._delete_ad_pattern_conn(conn, pattern_id)
 
     def delete_all_community_patterns(self) -> int:
-        """Hard-delete every pattern with source='community'. Returns the
-        rowcount. `protected_from_sync` is ignored; the flag guards sync
-        reconciliation, not an explicit operator purge.
+        """Hard-delete every pattern with source='community'. Returns the rowcount.
 
-        Also deletes audio_fingerprints rows that point at the doomed
-        patterns. The FK cascades, but only on a connection with
-        foreign_keys on, so the delete stays explicit.
+        `protected_from_sync` is ignored: it guards sync reconciliation, not an
+        operator purge. audio_fingerprints rows are deleted explicitly because the
+        FK cascade only works on a connection with foreign_keys on.
         """
         invalidate_pattern_catalog_scope()
         conn = self.get_connection()
@@ -408,9 +396,9 @@ class PatternMixin:
                                    addressing_mode: str = None) -> int:
         """Create a pattern correction record. Returns correction ID.
 
-        source_hold_reason records which hold gate produced a
-        false_positive correction (e.g. 'differential_uncorroborated'), so
-        the text can later be excluded from cross-episode FP matching.
+        source_hold_reason records which hold gate produced a false_positive
+        (e.g. 'differential_uncorroborated') so its text can be excluded from
+        cross-episode FP matching.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -432,11 +420,8 @@ class PatternMixin:
                                         bounds_start: float, bounds_end: float) -> int:
         """Delete corrections that conflict with a new correction being submitted.
 
-        When user confirms or adjusts an ad, delete false_positive corrections
-        for the same bounds.
-        When user rejects an ad, delete confirm corrections for same bounds.
-
-        Returns number of deleted rows.
+        A confirm or adjustment deletes false_positive corrections for the same
+        bounds; a rejection deletes confirm corrections. Returns deleted row count.
         """
         # Determine the conflicting type
         if correction_type in ('confirm', 'boundary_adjustment'):
@@ -460,10 +445,8 @@ class PatternMixin:
                     parsed = json.loads(row['original_bounds'])
                     fp_start = float(parsed.get('start', 0))
                     fp_end = float(parsed.get('end', 0))
-                    # Same-span check, both directions (50% threshold, as
-                    # the validator): the rows conflict only when each span
-                    # mostly covers the other, so a rejection extending well
-                    # past the asserted span survives.
+                    # Same-span check in both directions (50% threshold, as the
+                    # validator): a rejection extending well past the span survives.
                     overlap_start = max(bounds_start, fp_start)
                     overlap_end = min(bounds_end, fp_end)
                     overlap = max(0, overlap_end - overlap_start)
@@ -702,7 +685,7 @@ class PatternMixin:
                                        episode_id: str) -> list[dict]:
         """Get false_positive corrections for an episode with parsed bounds.
 
-        Returns list of dicts with 'start' and 'end' keys for easy overlap checking.
+        Returns dicts with 'start' and 'end' keys.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -722,9 +705,8 @@ class PatternMixin:
                                   episode_id: str) -> list[dict]:
         """Get confirmed corrections for an episode with parsed bounds.
 
-        Results are newest first so the latest user decision wins when
-        corrections overlap. Both confirm and boundary_adjustment keep an ad;
-        a trimmed confirm or boundary adjustment also carries the exact
+        Newest first so the latest decision wins on overlap. Confirm and
+        boundary_adjustment both keep an ad; a trimmed one also carries the
         user-approved bounds in ``confirmed_span``.
         """
         conn = self.get_connection()
@@ -762,14 +744,12 @@ class PatternMixin:
         """Get correction bounds for positional prior learning.
 
         Returns dicts with episode_id, correction_type, start, end. create,
-        boundary_adjustment, and trimmed-confirm corrections use
-        corrected_bounds; false_positive and plain confirm use
-        original_bounds. boundary_adjustment rows also carry
-        orig_start/orig_end (the bounds of the marker the user adjusted) so
-        the learner can match the adjustment to its marker. Rows without
-        valid bounds are skipped. Only corrections for episode_ids are
-        returned, keeping the query bounded to the learning window. Pass-2
-        auto-filed confirms are excluded so the prior never learns its own output.
+        boundary_adjustment and trimmed-confirm use corrected_bounds;
+        false_positive and plain confirm use original_bounds. boundary_adjustment
+        also carries orig_start/orig_end so the learner can match it to its marker.
+        Rows without valid bounds are skipped, and the query is limited to
+        episode_ids. Pass-2 auto-filed confirms are excluded so the prior never
+        learns its own output.
         """
         if not episode_ids:
             return []
@@ -814,12 +794,9 @@ class PatternMixin:
         return results
 
     def get_podcast_false_positive_texts(self, podcast_slug: str, limit: int = 100) -> list[dict]:
-        """Get all false positive texts for a podcast for cross-episode matching.
+        """False positive texts for a podcast, for cross-episode matching.
 
-        Returns list of dicts with:
-        - text: The rejected segment text
-        - episode_id: Which episode it came from
-        - start, end: Original time bounds
+        Dicts carry text (rejected segment), episode_id and original start/end.
         """
         conn = self.get_connection()
         cursor = conn.execute(f'''
@@ -857,23 +834,16 @@ class PatternMixin:
 
 
 def suppress_differential_fp_texts(db) -> int:
-    """One-shot backfill (2.76.0): suppress false-positive correction text
-    that came from a rejected dai_differential hold.
+    """One-shot backfill (2.76.0): suppress false-positive correction text from a rejected dai_differential hold.
 
-    Rejecting a differential-hold marker (the user or an auto-reject
-    confirming it was not an ad) still leaves the marker in
-    episode_details.ad_markers_json with detection_stage=='dai_differential'
-    even after hold_reason is popped. Before this backfill, that rejection's
-    text_snippet was scraped into cross-episode FP text matching the same
-    as any other false_positive correction, poisoning future differential
-    matching on other episodes with text that was only ever a hold
-    candidate, not a confirmed false positive of a real detector.
+    A rejected differential-hold marker stays in episode_details.ad_markers_json
+    with detection_stage=='dai_differential' even after hold_reason is popped, so
+    its text_snippet was feeding cross-episode FP matching and poisoning other
+    episodes with text that was only ever a hold candidate.
 
-    For every false_positive correction with a text_snippet, loads the
-    correction's episode markers and sets fp_suppressed=1 when
-    original_bounds match (tolerance 0.5s on both edges) a marker whose
-    detection_stage == 'dai_differential'. Never deletes rows. Returns the
-    count suppressed.
+    Sets fp_suppressed=1 on every false_positive correction whose original_bounds
+    match (0.5s tolerance on both edges) such a marker. Never deletes rows.
+    Returns the count suppressed.
     """
     conn = db.get_connection()
     rows = conn.execute(

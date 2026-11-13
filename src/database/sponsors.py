@@ -101,7 +101,7 @@ class SponsorMixin:
     def get_sponsors_by_tag(self, tag: str, active_only: bool = True) -> list[dict]:
         """Return sponsors whose tags JSON array contains the given tag.
 
-        SQLite json_each is used to avoid loading every row into Python.
+        Uses SQLite json_each instead of loading every row into Python.
         """
         conn = self.get_connection()
         query = (
@@ -116,8 +116,7 @@ class SponsorMixin:
         return [dict(row) for row in cursor.fetchall()]
 
     def hard_delete_known_sponsor(self, sponsor_id: int) -> tuple:
-        """Permanently remove a known sponsor. Linked ad_patterns are unlinked
-        (sponsor_id set NULL), not deleted, so no pattern data is lost.
+        """Permanently remove a known sponsor; linked ad_patterns are unlinked (sponsor_id NULL), not deleted.
 
         Returns (deleted, unlinked_patterns).
         """

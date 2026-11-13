@@ -132,15 +132,12 @@ def _date_range_clauses(column, from_date, to_date) -> tuple[list, list]:
 
 def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
                           provider=None, model=None) -> tuple[str, list]:
-    """WHERE-clause fragment (leading ' AND ...') and params for the
-    model-usage/episode-cost list queries. Shared so both endpoints filter
-    identically on created_at range, podcast, provider, and model.
+    """WHERE fragment (leading ' AND ...') and params shared by the model-usage and episode-cost lists.
 
-    Dates are treated as whole UTC days with a half-open range
-    (created_at >= day-start AND created_at < next-day-start), so the final
-    second of the selected day is included regardless of whether the caller
-    sends a bare date, a whole-second, or a fractional-second timestamp
-    (textual comparison otherwise dropped 'T23:59:59Z' under 'T23:59:59.999Z')."""
+    Dates are whole UTC days in a half-open range (created_at >= day-start AND
+    < next-day-start), so the day's final second is kept whether the caller sends
+    a bare date or a whole- or fractional-second timestamp (textual comparison
+    dropped 'T23:59:59Z' under 'T23:59:59.999Z')."""
     clauses, params = _date_range_clauses('created_at', from_date, to_date)
     if podcast_slug:
         clauses.append("podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)")
@@ -332,8 +329,7 @@ class StatsMixin:
     def _bump_stat(self, conn, key: str, delta: float, clamp_zero: bool = False) -> None:
         """Upsert a delta into the stats key/value table.
 
-        clamp_zero=True floors the resulting value at 0 (for stats that must
-        never go negative); caller still commits.
+        clamp_zero=True floors the value at 0; caller still commits.
         """
         # excluded.value is the (possibly floored) insert value, not the raw
         # delta, so the UPDATE branch needs delta passed again separately or
@@ -352,10 +348,9 @@ class StatsMixin:
     def _bump_stats(self, conn, deltas: list[tuple[str, float]]) -> None:
         """Upsert several non-clamped stat deltas in one statement.
 
-        Every LLM call bumps the same three global rows, so sending them
-        separately triples the write statements each call holds the single
-        SQLite write lock for. No clamp_zero: use _bump_stat for a stat that
-        must not go negative.
+        Every LLM call bumps the same three global rows; one statement avoids
+        tripling the writes held under the write lock. No clamp_zero: use
+        _bump_stat for a stat that must not go negative.
         """
         if not deltas:
             return
@@ -421,11 +416,9 @@ class StatsMixin:
     def _resolve_model_rate(self, conn, model_id: str, match_key: str = '') -> ModelRate | None:
         """Resolve current per-mtok rates for a model.
 
-        Returns a ModelRate, or None when no operator override, exact catalog match, or
-        prefix match resolves a rate. Resolution: operator override -> exact
-        match_key -> prefix match. `revision` identifies the resolved rate's
-        provenance ('override' or '<source>:<updated_at>') so callers can
-        snapshot what priced a call.
+        Returns a ModelRate, or None when nothing resolves. Order: operator
+        override, exact match_key, prefix match. `revision` records provenance
+        ('override' or '<source>:<updated_at>') so callers can snapshot what priced a call.
         """
         if not match_key:
             match_key = normalize_model_key(model_id)
@@ -444,13 +437,11 @@ class StatsMixin:
         )
         row = cursor.fetchone()
 
-        # Prefix match fallback -- match_key must cover >= 80% of lookup key length
-        # to prevent short keys matching distinct longer models (e.g. 'gpt4o' must not match 'gpt4omini').
-        # Version-crossing guard: refuse a prefix match when the first unmatched
-        # character of the LOOKUP key after the matched prefix is a DIGIT
-        # (e.g. lookup 'claudeopus48' must not match row 'claudeopus4' -- Opus 4.8
-        # vs Opus 4.0, distinct pricing generations). 'claude37sonnetthinking'
-        # still matches row 'claude37sonnet' because the next char is a letter.
+        # Prefix match fallback: match_key must cover >= 80% of the lookup key length so
+        # short keys don't match distinct longer models ('gpt4o' vs 'gpt4omini').
+        # Version-crossing guard: refuse when the first unmatched lookup character is a
+        # digit ('claudeopus48' must not match 'claudeopus4', distinct pricing
+        # generations); 'claude37sonnetthinking' still matches 'claude37sonnet'.
         if not row:
             cursor = conn.execute(
                 """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok,
@@ -504,8 +495,7 @@ class StatsMixin:
                                     cost: float) -> None:
         """Upsert the per-model token_usage row and bump global stats.
 
-        Conn-taking so finalize_llm_attempt writes counters inside its own
-        transaction. Caller commits.
+        Takes a conn so finalize_llm_attempt writes counters in its own transaction; caller commits.
         """
         match_key = normalize_model_key(model_id)
         conn.execute(
@@ -548,16 +538,13 @@ class StatsMixin:
                             reserved_tokens=None, caps=None,
                             logical_call_id=None, cleanup_run_id=None,
                             cleanup_pattern_id=None, dispatch_count=1) -> dict:
-        """Reserve one request against the manual caps by inserting its
-        in_flight ledger row, or refuse when a cap is already met.
+        """Reserve one request against the manual caps by inserting its in_flight ledger row, or refuse at a cap.
 
-        The row IS the reservation: the window count and the insert share one
-        BEGIN IMMEDIATE transaction, so concurrent gunicorn workers cannot all
-        read room under the cap and then all dispatch. `caps` is
-        {rpm, rpd, tpm, minute_since, day_since}; omit it (the probe, tests)
-        to insert unconditionally. Returns
-        {'attempt_id', 'blocked', 'oldest'}, with attempt_id None when
-        blocked names the cap that refused it.
+        The row is the reservation: the window count and insert share one BEGIN
+        IMMEDIATE transaction, so concurrent gunicorn workers cannot all see room and
+        dispatch. `caps` is {rpm, rpd, tpm, minute_since, day_since}; omit it (probe,
+        tests) to insert unconditionally. Returns {'attempt_id', 'blocked', 'oldest'};
+        attempt_id is None when blocked names the refusing cap.
         """
         attempt_id = str(uuid.uuid4())
         row = (attempt_id, logical_call_id, run_id, cleanup_run_id, cleanup_pattern_id,
@@ -717,10 +704,9 @@ class StatsMixin:
                                   since_iso: str) -> int:
         """SDK dispatches for one (provider, slot) with created_at >= since_iso.
 
-        Counts dispatch_count, not rows: one ledger attempt can make several
-        outbound requests when a provider adapter retries for compatibility.
-        NULL credential_slot (historical rows) reads as 'primary'. Backs the
-        manual per-provider RPM/RPD throttle.
+        Counts dispatch_count, not rows: an adapter retry makes several requests
+        per attempt. NULL credential_slot (historical rows) reads as 'primary'.
+        Backs the manual per-provider RPM/RPD throttle.
         """
         return self._count_llm_dispatches(
             self.get_connection(), provider_key, credential_slot, since_iso)
@@ -738,9 +724,8 @@ class StatsMixin:
         """Tokens charged to one (provider, slot) with created_at >= since_iso.
 
         Reservation-based: an in-flight row counts its dispatch-time estimate
-        (prompt + max_tokens) and a finalized row its actual usage, so a
-        single large call cannot cross the TPM cap unseen. NULL slot reads as
-        'primary'.
+        (prompt + max_tokens), a finalized row its actual usage, so one large call
+        cannot cross the TPM cap unseen. NULL slot reads as 'primary'.
         """
         return self._sum_llm_tokens(
             self.get_connection(), provider_key, credential_slot, since_iso)
@@ -762,14 +747,13 @@ class StatsMixin:
                              call_latency_ms=None, actual_dispatch_count=None) -> float:
         """Finalize one ledger attempt and derive counters when billable.
 
-        Cost/cost_source: provider_reported_cost_usd wins when given
-        ('provider_reported'); else a resolved rate over known tokens
-        ('estimated', or 'explicit_zero' when the resolved rate is 0/0);
-        else 'unknown' with cost_usd left NULL. Counters (token_usage +
-        global stats) are derived in this same transaction only when the
-        attempt meets _ledger_row_is_billable. Missing usage on success
-        remains visible as unknown cost; reported cost on failure still
-        counts. Cancelled and unbilled failures update the ledger row only.
+        Cost/cost_source: provider_reported_cost_usd wins ('provider_reported'); else a
+        resolved rate over known tokens ('estimated', or 'explicit_zero' for a 0/0
+        rate); else 'unknown' with cost_usd NULL. Counters (token_usage + global
+        stats) update in this transaction only if the attempt meets
+        _ledger_row_is_billable. Missing usage on success stays visible as unknown
+        cost; reported cost on failure still counts. Cancelled and unbilled failures
+        update the ledger row only.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -901,9 +885,9 @@ class StatsMixin:
                                            call_latency_ms=None) -> float:
         """finalize_llm_attempt fed from a provider response object.
 
-        Guards every field a client may leave unset or set to the wrong type,
-        so the dispatch path and the rate-limit probe extract usage, returned
-        model, and provider-reported cost identically. Returns the cost.
+        Guards every field a client may leave unset or mistype, so the dispatch
+        path and rate-limit probe extract usage, model and cost identically.
+        Returns the cost.
         """
         usage = getattr(response, 'usage', None)
         if not isinstance(usage, dict):
@@ -934,10 +918,9 @@ class StatsMixin:
     def get_run_usage_totals(self, run_id: str) -> dict:
         """Sum one run's finalized billable ledger rows.
 
-        The single source for run totals: processing_history and provider
-        reconcile both read this instead of separately re-deriving from a
-        live in-process accumulator, so a late-finishing pool worker can
-        never diverge from what was actually billed.
+        Single source for run totals: processing_history and provider reconcile read
+        this rather than a live in-process accumulator, so a late pool worker cannot
+        diverge from what was billed.
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -984,10 +967,9 @@ class StatsMixin:
         return totals
 
     def get_run_provider_spend(self, run_id: str, provider_key: str) -> int:
-        """MicroUSD spend of one run's finalized billable ledger rows for one
-        provider. Backs provider budget reconcile so it reads the same
-        ledger sum as get_run_usage_totals, not a second independent
-        re-derivation.
+        """MicroUSD spend of one run's finalized billable ledger rows for one provider.
+
+        Backs budget reconcile so it reads the same ledger sum as get_run_usage_totals.
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -1008,11 +990,10 @@ class StatsMixin:
 
     def get_ledger_filter_options(self, *, from_date: str = None, to_date: str = None,
                                   podcast_slug: str = None) -> list[dict]:
-        """Distinct (provider, model) pairs in the billable ledger for the
-        Stats filter dropdowns, ordered by provider then model, dropping rows
-        with a null provider or model. Same finalized/billable/date scope as
-        the list endpoints so a value past the first list page stays
-        selectable."""
+        """Distinct (provider, model) pairs in the billable ledger for the Stats filter dropdowns.
+
+        Ordered by provider then model, null rows dropped. Same scope as the list
+        endpoints so a value past the first page stays selectable."""
         conn = self.get_connection()
         filter_sql, filter_params = _build_ledger_filters(
             from_date, to_date, podcast_slug)
@@ -1027,11 +1008,11 @@ class StatsMixin:
                 for r in rows if r['provider_key'] and r['configured_model']]
 
     def run_provider_spend_is_incomplete(self, run_id: str, provider_key: str) -> bool:
-        """True when this run has a billable call for the provider whose cost
-        is unknown (cost_usd IS NULL). Budget reconcile keeps a conservative
-        reservation in that case instead of settling on a known-only subtotal
-        that understates spend. Same billable predicate as
-        get_run_provider_spend, so an all-zero row never counts as missing."""
+        """True when the run has a billable call for the provider with unknown cost (cost_usd IS NULL).
+
+        Budget reconcile then keeps a conservative reservation rather than settling
+        on an understated subtotal. Same billable predicate as get_run_provider_spend,
+        so an all-zero row never counts as missing."""
         conn = self.get_connection()
         row = conn.execute(
             f"""SELECT 1 FROM llm_call_usage
@@ -1047,14 +1028,12 @@ class StatsMixin:
 
         Returns {run_id: [{phaseKey, invokingPass, provider, configuredModel,
         returnedModel, inputTokens, outputTokens, cacheReadTokens,
-        cacheWriteTokens, reasoningTokens, costUsd, costSource}, ...]}, one
-        row per distinct (phase_key, invoking_pass, provider_key,
-        configured_model): a retried/fallback phase naturally yields
-        several rows since a fallback changes configured_model. Only
-        finalized billable rows count (the same predicate get_run_usage_totals
-        uses), so a run's phase costs always sum to that run's subtotal.
-        A group containing an 'unknown' cost_source row reports costUsd=None
-        and costSource='unknown' rather than silently understating the total.
+        cacheWriteTokens, reasoningTokens, costUsd, costSource}, ...]}, one row per
+        distinct (phase_key, invoking_pass, provider_key, configured_model); a
+        fallback changes configured_model, so a retried phase yields several rows.
+        Only finalized billable rows count (as in get_run_usage_totals), so phase
+        costs sum to the run subtotal. A group with an 'unknown' cost_source row
+        reports costUsd=None and costSource='unknown' instead of understating.
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -1121,13 +1100,11 @@ class StatsMixin:
         return result
 
     def get_episode_cumulative_usage(self, podcast_id: int, episode_id: str) -> dict:
-        """Sum ALL finalized billable ledger rows for this episode across
-        every attempt/run: lifetime spend, not just the latest run.
-        Mirrors get_run_usage_totals's convention: cost_usd sums only rows
-        with a known cost; unknown-cost rows still count toward tokens.
-        ``hasUnknownCost`` is true when any contributing row's cost is
-        unknown, so callers know costUsd may understate the true total
-        instead of silently trusting a partial sum.
+        """Sum all finalized billable ledger rows for this episode across every run (lifetime spend).
+
+        As in get_run_usage_totals, cost_usd sums only known-cost rows while
+        unknown-cost rows still count toward tokens. ``hasUnknownCost`` flags that
+        costUsd may understate the total.
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -1164,11 +1141,9 @@ class StatsMixin:
                               model: str = None) -> tuple[list[dict], int]:
         """Paginated spend-by-(provider, model) breakdown over the ledger.
 
-        Same provider+model grouped across every episode; an identical
-        model id under two providers stays two separate rows because
-        provider_key is part of the GROUP BY. unknownCostCount counts
-        billable rows whose cost could not be resolved (cost_usd NULL),
-        so an unpriced model's spend is visibly incomplete rather than $0.
+        Grouped across every episode; the same model id under two providers stays
+        two rows (provider_key is in the GROUP BY). unknownCostCount counts billable
+        rows with cost_usd NULL, so an unpriced model shows as incomplete, not $0.
         """
         conn = self.get_connection()
         offset = max(0, (max(1, page) - 1) * limit)
@@ -1543,15 +1518,13 @@ class StatsMixin:
                                model: str = None) -> tuple[list[dict], int]:
         """Paginated per-episode cost breakdown over the ledger.
 
-        The provider/model filter never reorders which run is latest.
-        latestRunCostUsd and lastActivityAt always describe the episode's
-        actual latest run, honoring the from/to date window. cumulativeCostUsd,
-        runCount, and modelsUsed do respect provider/model, the same way
-        they narrow model-usage rows; so does which episodes are listed.
+        The provider/model filter never changes which run is latest:
+        latestRunCostUsd and lastActivityAt describe the actual latest run within
+        the from/to window. cumulativeCostUsd, runCount, modelsUsed and which
+        episodes are listed do respect provider/model.
 
-        One page reads the ledger once: the provider/model filter rides along
-        as a per-row flag on a single base pass, and the per-episode model
-        aggregates join the already-paginated key set.
+        One page reads the ledger once: the filter is a per-row flag on a single
+        base pass and the per-episode model aggregates join the paginated key set.
         """
         conn = self.get_connection()
         offset = max(0, (max(1, page) - 1) * limit)
@@ -1769,11 +1742,9 @@ class StatsMixin:
                                    run_id: str = None) -> int:
         """Record a processing attempt in history. Returns history entry ID.
 
-        ``processing_stats`` is the pipeline's per-run stats dict (#519),
-        serialized here so callers never handle the JSON encoding.
-        ``run_id`` links this row to its llm_call_usage attempts for the
-        phase-cost breakdown; None for call sites outside a bound run
-        (recuts, offline-queue expiry) or before this column existed."""
+        ``processing_stats`` is the per-run stats dict (#519), JSON-encoded here.
+        ``run_id`` links the row to its llm_call_usage attempts for the phase-cost
+        breakdown; None outside a bound run (recuts, offline-queue expiry)."""
         conn = self.get_connection()
 
         # Calculate reprocess number (count existing entries + 1)
@@ -1831,7 +1802,7 @@ class StatsMixin:
     def get_episode_processing_runs(self, podcast_id: int, episode_id: str) -> list:
         """All processing-history rows for one episode, oldest first.
 
-        Feeds the episode page's per-run Processing stats section (#519).
+        Feeds the per-run Processing stats section (#519).
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -2001,12 +1972,7 @@ class StatsMixin:
 
     def iter_processing_history_rows(self, status_filter: str = None,
                                      podcast_slug: str = None):
-        """Generator that yields per-row dicts without materialising the
-        whole result set in memory.
-
-        Intended for streaming export endpoints; the underlying sqlite3
-        cursor is iterated lazily so the peak memory footprint stays near
-        one row's worth regardless of table size.
+        """Yield per-row dicts lazily for streaming exports, keeping memory near one row.
         """
         conn = self.get_connection()
         where_sql, params = _history_where(status_filter, podcast_slug)
@@ -2031,9 +1997,9 @@ class StatsMixin:
     def get_latest_completed_processing(self) -> dict | None:
         """Get the most recent completed processing history entry with episode durations.
 
-        Returns a dict with keys: episode_id, podcast_slug, episode_title,
-        processing_duration_seconds, llm_cost, ads_detected,
-        original_duration, new_duration, podcast_title. Returns None if no completed entries.
+        Keys: episode_id, podcast_slug, episode_title, processing_duration_seconds,
+        llm_cost, ads_detected, original_duration, new_duration, podcast_title.
+        None if there are no completed entries.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -2263,8 +2229,8 @@ class StatsMixin:
                            episode_id: str = None) -> dict:
         """Aggregate ad reviewer stats from ad_reviewer_log.
 
-        Filters: podcast_slug joins to podcasts.slug; episode_id is the raw
-        episodes table id. Either, both, or neither may be set.
+        Filters: podcast_slug joins to podcasts.slug; episode_id is the raw episodes
+        id. Either, both or neither may be set.
         """
         conn = self.get_connection()
         where: list[str] = []
@@ -2279,10 +2245,8 @@ class StatsMixin:
             params.append(podcast_slug)
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
-        # SQL-side aggregation so we don't pull every row into Python.
-        # avg shift uses (|delta_start| + |delta_end|) / 2 across all adjust
-        # rows; SQLite's AVG handles the per-row mean and we compute the
-        # numerator inline.
+        # SQL-side aggregation. Avg shift is (|delta_start| + |delta_end|) / 2 across
+        # adjust rows: AVG does the mean over the inline numerator.
         agg_rows = conn.execute(
             f"""
             SELECT verdict, pass, COUNT(*) AS n,
@@ -2371,14 +2335,11 @@ class StatsMixin:
                                ads_dropped_invalid_ref: int | None = None,
                                ads_dropped_out_of_window: int | None = None,
                                ads_dropped_too_long: int | None = None) -> None:
-        """Record one addressing-mode sample to addressing_log (random
-        addressing mode A/B tracking).
+        """Record one addressing-mode sample to addressing_log (random addressing mode A/B tracking).
 
-        One row per detection/verification pass that judged at least one
-        window. The yield keywords are optional; omitted they store NULL,
-        which marks the row as carrying no yield data (pre-2.92 rows look
-        the same way). Callers wrap this in try/except; stats must never
-        fail a detection pass.
+        One row per detection/verification pass that judged a window. Omitted yield
+        keywords store NULL, meaning no yield data (as for pre-2.92 rows). Callers
+        wrap this in try/except; stats must never fail a detection pass.
         """
         conn = self.get_connection()
         conn.execute(
@@ -2396,12 +2357,10 @@ class StatsMixin:
         conn.commit()
 
     def get_addressing_stats(self, podcast_slug: str = None) -> dict:
-        """Aggregate per-effective-mode LLM contract compliance from
-        addressing_log.
+        """Aggregate per-effective-mode LLM contract compliance from addressing_log.
 
-        Always includes both 'timestamps' and 'segment_ids' keys, zeroed
-        when a mode has no rows, so the UI never has to guess whether a
-        mode is unconfigured vs simply unused.
+        Always includes 'timestamps' and 'segment_ids', zeroed when a mode has no
+        rows, so the UI can tell unconfigured from unused.
         """
         conn = self.get_connection()
         where_clause = ""

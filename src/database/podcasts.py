@@ -27,11 +27,9 @@ def normalize_network_id(value):
 logger = logging.getLogger(__name__)
 
 
-# Per-status episode counts folded into the existing LEFT JOIN aggregation so
-# feed listings surface them without extra queries (#466). Derived from the
-# enum so a new status cannot be silently dropped. COMPLETED is the API alias
-# (not a DB value) and PROCESSED already aggregates as processed_count, so
-# both are excluded from the extra SUMs.
+# Per-status episode counts folded into the LEFT JOIN aggregation (#466), derived
+# from the enum so a new status is not dropped. COMPLETED is an API alias and
+# PROCESSED already aggregates as processed_count, so both are excluded.
 EPISODE_STATUSES = tuple(
     s.value for s in EpisodeStatus
     if s not in (EpisodeStatus.COMPLETED, EpisodeStatus.PROCESSED)
@@ -48,8 +46,8 @@ def podping_declaration_columns(uses_podping: bool | None,
                                 hive_accounts: list[str] | None) -> dict:
     """A parsed <podcast:podping> declaration as podcasts-table columns.
 
-    Stamps podping_checked_at so a feed with no tag is distinguishable from one
-    never read: both leave podping_uses NULL.
+    Stamps podping_checked_at to tell a feed with no tag from one never read
+    (both leave podping_uses NULL).
     """
     return {
         'podping_uses': None if uses_podping is None else int(uses_podping),
@@ -60,10 +58,9 @@ def podping_declaration_columns(uses_podping: bool | None,
 
 
 def effective_retention_days(override, global_days: int) -> int:
-    """Single source of retention precedence: per-feed override when
-    non-NULL, else the global window. Used by the per-feed resolver and
-    the bulk sweep grouping so the rule cannot be edited in one place
-    and silently diverge in the other."""
+    """Single source of retention precedence: the per-feed override when non-NULL, else the global window.
+
+    Shared by the per-feed resolver and the bulk sweep so the two cannot diverge."""
     return int(override) if override is not None else int(global_days)
 
 
@@ -129,8 +126,7 @@ class PodcastMixin:
     def get_all_podcasts(self) -> list[dict]:
         """Get all podcasts with episode counts, unbounded.
 
-        Kept unbounded (no LIMIT/OFFSET) for callers that need every feed in
-        one pass, such as OPML export or the all-feeds refresh count. Use
+        For callers needing every feed (OPML export, refresh count); use
         get_podcasts_page for a paginated view.
         """
         conn = self.get_connection()
@@ -164,9 +160,8 @@ class PodcastMixin:
     def get_custom_network_overrides(self) -> list[str]:
         """Distinct non-empty network_id_override values across all podcasts.
 
-        These are operator-typed free-text network names that act as both the id
-        and the display label. Surfacing them lets a network created on one feed
-        appear in the network dropdown of every other feed.
+        Operator-typed network names act as both id and label; listing them lets a
+        network created on one feed appear in every other feed's dropdown.
         """
         conn = self.get_connection()
         cursor = conn.execute("""
@@ -215,13 +210,12 @@ class PodcastMixin:
         return row['last_checked_at'] if row else None
 
     def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
-        """Subscribed feeds not attempted within interval_seconds, oldest
-        attempt first, capped at limit. Keyed off last_refresh_attempt_at (not
-        last_checked_at) so a failing feed, which records no success, still
-        retries once per interval instead of monopolizing every tick. Never-
-        attempted feeds (NULL) sort first. Local and recents feeds are not
-        fetched from upstream, so they are excluded. The timestamp is a fixed-
-        width UTC ISO string, so the string compare is chronological."""
+        """Subscribed feeds not attempted within interval_seconds, oldest attempt first, capped at limit.
+
+        Keyed off last_refresh_attempt_at (not last_checked_at) so a failing feed
+        still retries once per interval instead of monopolizing every tick. Never-
+        attempted feeds (NULL) sort first; local and recents feeds are excluded.
+        The timestamp is fixed-width UTC ISO, so string compare is chronological."""
         cutoff = (datetime.now(timezone.utc)
                   - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
         rows = self.get_connection().execute(
@@ -245,10 +239,10 @@ class PodcastMixin:
         ).fetchone()[0]
 
     def get_feeds_min_last_checked_at(self) -> str | None:
-        """Oldest successful refresh across subscribed feeds that have refreshed
-        at least once, or None when none have. Backs the dashboard's 'all feeds
-        fresh as of T' indicator. A feed that succeeded before but is now failing
-        keeps its old timestamp and holds this back (honest staleness); a feed
+        """Oldest successful refresh across subscribed feeds that have refreshed, or None.
+
+        Backs the dashboard's 'all feeds fresh as of T' indicator. A feed that now
+        fails keeps its old timestamp and holds this back (honest staleness); one
         that never succeeded is ignored rather than pinning it to empty."""
         return self.get_connection().execute(
             "SELECT MIN(last_checked_at) FROM podcasts "
@@ -265,15 +259,14 @@ class PodcastMixin:
         ).fetchone()[0]
 
     def get_podcast_slug(self, podcast_id: int) -> str | None:
-        """Slug for a podcast id -- cheap single-column lookup."""
+        """Slug for a podcast id (cheap single-column lookup)."""
         conn = self.get_connection()
         row = conn.execute(
             "SELECT slug FROM podcasts WHERE id = ?", (podcast_id,)).fetchone()
         return row['slug'] if row else None
 
     def get_podcast_detection_mode(self, slug: str) -> str | None:
-        """Per-feed detection_mode column only -- a cheap single-row lookup that
-        skips the episode aggregation get_podcast_by_slug runs."""
+        """Per-feed detection_mode only, skipping the episode aggregation get_podcast_by_slug runs."""
         conn = self.get_connection()
         cursor = conn.execute(
             "SELECT detection_mode FROM podcasts WHERE slug = ?", (slug,))
@@ -322,8 +315,7 @@ class PodcastMixin:
     def get_podcast_cue_settings_overrides(self, podcast_id: int) -> dict:
         """Per-feed cue knob overrides plus boundary-snap flags in one query.
 
-        Returns a dict with keys matching the DB column names. Each value is
-        the raw DB value (None means NULL / no override set).
+        Keys match the DB column names; values are raw (None means no override).
         """
         cols = (self._CUE_OVERRIDE_COLS + self._SNAP_FLAG_COLS
                 + self._HELD_REVIEW_COLS + self._DIFFERENTIAL_COLS)
@@ -339,7 +331,7 @@ class PodcastMixin:
         return dict(row)
 
     def get_podcast_cue_score_override(self, podcast_id: int) -> float | None:
-        """Per-feed cue_template_score_override column only -- cheap id-based lookup."""
+        """Per-feed cue_template_score_override only (cheap id-based lookup)."""
         conn = self.get_connection()
         cursor = conn.execute(
             "SELECT cue_template_score_override FROM podcasts WHERE id = ?", (podcast_id,))
@@ -353,8 +345,8 @@ class PodcastMixin:
                         feed_type: str = 'subscribed', conn=None) -> int:
         """Create a new podcast. Returns podcast ID.
 
-        New feeds get own_episode_guids=1 (#598); existing rows stay NULL.
-        feed_type is immutable after creation (not in update_podcast's whitelist).
+        New feeds get own_episode_guids=1 (#598). feed_type is immutable after
+        creation (not in update_podcast's whitelist).
         """
         own_conn = conn is None
         if own_conn:
@@ -449,12 +441,10 @@ class PodcastMixin:
     def clear_refresh_failure_state(self, slug: str):
         """Reset the refresh-failure columns after a successful refresh.
 
-        Most feeds are already clean, and a guarded UPDATE still takes the
-        write lock to evaluate its WHERE, so during a sweep that queues behind
-        every other writer for as long as the lock is held. The read decides
-        first: in WAL a reader never waits on a writer, so a clean feed now
-        costs no lock at all. The UPDATE keeps its own guard, since a
-        concurrent refresh may have written a failure since this read.
+        Most feeds are already clean, and even a guarded UPDATE takes the write
+        lock, queuing behind other writers during a sweep. A WAL read never waits
+        on a writer, so it decides first and clean feeds take no lock. The UPDATE
+        keeps its guard since a refresh may have written a failure since the read.
         """
         self._clear_failure_columns(
             slug, 'refresh_failure_count',
@@ -488,8 +478,7 @@ class PodcastMixin:
         """Return the source breakdown of a podcast's tags.
 
         Returns {'effective': [...], 'rss': [...], 'episode': [...], 'user': [...]}.
-        `rss` is derived as (tags - user_tags - episode_tags) and may include
-        any RSS-extracted tag from past parses.
+        `rss` is derived as tags - user_tags - episode_tags.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -532,16 +521,14 @@ class PodcastMixin:
                          user_tags: list[str] = None) -> bool:
         """Recompute and persist podcasts.tags as union of provided + episode tags.
 
-        Pass `rss_tags` to update the RSS-derived layer (caller decides which
-        subset is RSS-only), or `user_tags` for the user-mutable layer. The
-        denormalized `tags` field is rewritten to the union of (rss_tags, the
-        existing user_tags or the override, and all episodes.tags for this podcast).
+        Pass `rss_tags` to update the RSS-derived layer or `user_tags` for the
+        user-mutable layer. `tags` is rewritten to the union of rss_tags, the
+        existing user_tags (or the override) and all episodes.tags for this podcast.
 
-        Fast pre-check: when `rss_tags` is provided and is already a subset of
-        the row's current `tags` AND `user_tags` is not changing, skip the
-        episode-aggregation pass entirely. This is the dominant case on the
-        feed-refresh hot path -- a 300-episode podcast paid one SELECT + 300
-        JSON parses every 15 minutes for nothing.
+        Fast pre-check: when `rss_tags` is already a subset of the current `tags`
+        and `user_tags` is unchanged, skip the episode aggregation. This is the
+        common feed-refresh case, which otherwise cost one SELECT plus a JSON
+        parse per episode every 15 minutes.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -559,10 +546,8 @@ class PodcastMixin:
         except (ValueError, TypeError):
             current_all = set()
 
-        # Fast path: RSS-only update where the incoming set is already covered
-        # by the existing union and the user layer isn't being touched. The
-        # episode-level aggregation can only grow the union, so if the RSS
-        # tags are already present we know the final union won't shrink.
+        # Fast path: RSS-only update already covered by the existing union, user layer
+        # untouched. Episode aggregation can only grow the union, so it cannot shrink.
         if (
             user_tags is None
             and rss_tags is not None
@@ -606,18 +591,15 @@ class PodcastMixin:
     def delete_podcast(self, slug: str, *, commit: bool = True) -> bool:
         """Delete podcast and all associated data.
 
-        Child tables keyed on ``podcasts(id)`` cascade. Four do not:
-        ``ad_patterns``, ``ad_reviewer_log``, and ``addressing_log`` hold the
-        slug as plain TEXT with no foreign key, and ``pattern_corrections``
-        hangs off ``ad_patterns`` without one. ``audio_fingerprints`` does
-        cascade, but only when the connection has foreign_keys on, so it
-        stays explicit. Slugs are reused when a feed is re-added, so a
-        surviving podcast-scoped pattern would be inherited by whatever feed
-        takes the slug next, applying one show's learning to another.
+        Child tables keyed on ``podcasts(id)`` cascade. Four do not: ``ad_patterns``,
+        ``ad_reviewer_log`` and ``addressing_log`` hold the slug as plain TEXT, and
+        ``pattern_corrections`` hangs off ``ad_patterns`` without a FK.
+        ``audio_fingerprints`` cascades only with foreign_keys on, so it is deleted
+        explicitly. Slugs are reused when a feed is re-added, so a surviving
+        podcast-scoped pattern would apply one show's learning to the next feed.
 
-        Patterns at wider scope keep their rows: their ``podcast_id`` only
-        records where the pattern was first seen, and the learning still
-        applies elsewhere. Those are detached instead of deleted.
+        Wider-scope patterns keep their rows (``podcast_id`` only records where they
+        were first seen) and are detached instead of deleted.
         """
         conn = self.get_connection()
 
@@ -663,16 +645,7 @@ class PodcastMixin:
         return cursor.rowcount > 0
 
     def update_podcast_etag(self, slug: str, etag: str, last_modified: str) -> bool:
-        """Update ETag and Last-Modified header for conditional GET support.
-
-        Args:
-            slug: Podcast slug
-            etag: ETag header value from RSS server
-            last_modified: Last-Modified header value from RSS server
-
-        Returns:
-            True if update succeeded
-        """
+        """Store the RSS server's ETag and Last-Modified values for conditional GET; True on success."""
         return self.update_podcast(slug, etag=etag, last_modified_header=last_modified)
 
     def set_last_podping_at(self, slug: str) -> None:
@@ -707,9 +680,8 @@ class PodcastMixin:
     def clear_all_podcast_etags(self) -> int:
         """Null every podcast's conditional-GET validators in one statement.
 
-        Used when a global setting changes the served RSS body (feed auth key
-        state) so the next scheduled refresh fully re-renders every feed
-        instead of 304-skipping. Returns the number of rows touched.
+        Used when a global setting changes the served RSS body (feed auth key state)
+        so the next refresh re-renders every feed instead of 304-skipping. Returns rows touched.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -741,10 +713,7 @@ class PodcastMixin:
 
     def is_only_expose_processed_for_podcast(self, slug: str,
                                              podcast: dict | None = None) -> bool:
-        """Resolve only_expose_processed_episodes for a podcast: per-feed
-        value if non-NULL (0=off, 1=on), else the
-        only_expose_processed_default global setting, else False.
-        """
+        """Resolve only_expose_processed_episodes: per-feed value if non-NULL, else the only_expose_processed_default setting, else False."""
         if podcast is None:
             podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('only_expose_processed_episodes') if podcast else None
@@ -764,10 +733,7 @@ class PodcastMixin:
 
     def resolve_detect_show_segments(self, slug: str,
                                      podcast: dict | None = None) -> bool:
-        """Resolve detect_show_segments for a podcast: per-feed value if
-        non-NULL (0=off, 1=on), else the detect_show_segments global
-        setting, else False.
-        """
+        """Resolve detect_show_segments: per-feed value if non-NULL, else the global setting, else False."""
         if podcast is None:
             podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('detect_show_segments') if podcast else None
@@ -780,12 +746,9 @@ class PodcastMixin:
         """Retention window for one feed, in days.
 
         Per-feed retention_days_override wins when non-NULL, else the global
-        retention_days setting. 0 or less means never delete, matching what
-        the global setting already does, so an archived feed is just a feed
-        whose resolved window is 0.
-
-        Precedence itself lives in effective_retention_days so the bulk
-        sweep in maintenance.py and this per-feed resolver cannot drift.
+        retention_days. 0 or less means never delete, so an archived feed is one
+        whose resolved window is 0. Precedence lives in effective_retention_days,
+        shared with the bulk sweep in maintenance.py.
         """
         if podcast is None:
             podcast = self.get_podcast_row(slug)
@@ -800,9 +763,8 @@ class PodcastMixin:
                                     podcast: dict | None = None) -> bool:
         """Whether to retain the pre-cut original for one feed.
 
-        Per-feed keep_original_audio_override wins when non-NULL (0=off,
-        1=on), else the global keep_original_audio setting, which defaults
-        to on when unset.
+        Per-feed keep_original_audio_override wins when non-NULL, else the global
+        keep_original_audio setting (on when unset).
         """
         if podcast is None:
             podcast = self.get_podcast_row(slug)
@@ -826,9 +788,9 @@ class PodcastMixin:
 
     def resolve_segment_actions(self, slug: str, podcast: dict | None = None,
                                 global_actions: dict[str, str] | None = None) -> dict[str, str]:
-        """Full map for every SEGMENT_CATEGORIES key: per-feed override ->
-        global setting -> DEFAULT_SEGMENT_ACTION; malformed JSON is treated
-        as unset. Pass global_actions (resolved) to skip the query for many feeds.
+        """Map for every SEGMENT_CATEGORIES key: per-feed override, then global setting, then DEFAULT_SEGMENT_ACTION.
+
+        Malformed JSON counts as unset. Pass resolved global_actions to skip the query across many feeds.
         """
         if podcast is None:
             podcast = self.get_podcast_row(slug)

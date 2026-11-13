@@ -1,16 +1,12 @@
 """SQL DDL constants for MinusPod database schema.
 
-TABLE_DDL: per-table CREATE TABLE IF NOT EXISTS statements, keyed by table
-name. Single source of truth for current table shapes: SCHEMA_SQL is composed
-from these, and SchemaMixin._create_new_tables_only executes a subset of them
-on existing databases. Historical migration blocks that intentionally embed an
-older table shape (pre-ALTER) keep their own inline DDL.
+TABLE_DDL: per-table CREATE TABLE IF NOT EXISTS statements keyed by table name,
+the single source of current table shapes. SCHEMA_SQL is composed from them and
+SchemaMixin._create_new_tables_only runs a subset on existing databases. Historical
+migration blocks that embed an older (pre-ALTER) shape keep their own inline DDL.
 
-SCHEMA_SQL: Full initial schema (CREATE TABLE / CREATE INDEX) executed on
-fresh databases via conn.executescript(SCHEMA_SQL).
-
-This module is import-only (no behavior). SCHEMA_SQL is re-exported by
-database.schema for backward compatibility with all existing call sites.
+SCHEMA_SQL: full initial schema run on fresh databases via conn.executescript.
+Import-only (no behavior); re-exported by database.schema.
 """
 
 TABLE_DDL = {}
@@ -833,12 +829,11 @@ TABLE_DDL['podping_hosts'] = """CREATE TABLE IF NOT EXISTS podping_hosts (
     ping_count INTEGER NOT NULL DEFAULT 0
 )"""
 
-# addressing_log: one row per detection/verification pass that judged at
-# least one window, recording whether the effective addressing mode's
-# contract was honored (random addressing mode A/B tracking). No FK on
-# podcast_slug -- same reasoning as ad_reviewer_log (see delete_podcast):
-# it's an analytics trail, not something that should vanish or get
-# reassigned to a different show when a slug is reused.
+# addressing_log: one row per detection/verification pass that judged a window,
+# recording whether the effective addressing mode's contract was honored (random
+# addressing mode A/B tracking). No FK on podcast_slug, as with ad_reviewer_log
+# (see delete_podcast): it is an analytics trail that must not vanish or move to
+# a different show when a slug is reused.
 TABLE_DDL['addressing_log'] = """CREATE TABLE IF NOT EXISTS addressing_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),

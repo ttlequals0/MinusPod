@@ -413,8 +413,8 @@ class FingerprintMatchMixin:
     def _planned_with_rejections(marker: dict, slug: str, episode_id: str, rejections: dict) -> list[tuple]:
         """A marker's planned members; a rejection of any member's pattern covers all of them.
 
-        A demoted marker keeps only members that majority-overlap a rejection. Adds the shared spans to
-        rejections so the row loop marks each member rejected.
+        A demoted marker keeps only members that majority-overlap a rejection. Shared
+        spans are added to rejections so the row loop marks each member rejected.
         """
         planned = plan_fingerprint_matches([marker]) or plan_demoted_fingerprint_matches([marker])
         demoted = not plan_fingerprint_matches([marker])
@@ -433,8 +433,7 @@ class FingerprintMatchMixin:
     def _stored_rejections(self, episode_ids: set | None = None) -> dict:
         """{(pattern_id, slug, episode_id): [(start, end, rejected_at)]} from false-positive corrections, oldest first.
 
-        rejected_at is None for a correction without a readable time. episode_ids limits the read.
-        """
+        rejected_at is None without a readable time; episode_ids limits the read."""
         found = {}
         conn = self.get_connection()
         base = """SELECT c.pattern_id, p.slug, c.episode_id, c.original_bounds, c.created_at, c.id

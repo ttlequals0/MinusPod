@@ -85,10 +85,7 @@ class MaintenanceMixin:
         }
 
     def vacuum(self) -> int:
-        """Run SQLITE VACUUM to reclaim disk space and compact WAL.
-
-        Returns duration in milliseconds.
-        """
+        """Run SQLite VACUUM to reclaim disk space and compact WAL; returns duration in ms."""
         start = time.time()
         conn = self.get_connection()
         # VACUUM cannot run inside a transaction
@@ -109,15 +106,12 @@ class MaintenanceMixin:
         return (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
 
     def _retention_groups(self, conn) -> tuple[dict[int, list[str]], dict[str, bool]]:
-        """(resolved retention window -> slugs sharing it, slug -> retains
-        originals), from one query over podcasts.
+        """(resolved retention window -> slugs sharing it, slug -> retains originals), from one query over podcasts.
 
-        Feeds cluster into a handful of distinct windows, so grouping keeps
-        the sweep to one query per window instead of one per feed. Precedence
-        is delegated to the same helpers the per-feed resolvers use so the
-        two paths cannot drift. The keep-original map rides along because
-        resolving it per slug would cost one podcast aggregate each, on
-        every cleanup tick.
+        Feeds cluster into few distinct windows, so the sweep runs one query per
+        window, not per feed. Precedence uses the per-feed resolvers' helpers so the
+        two paths cannot drift. The keep-original map rides along to avoid a podcast
+        aggregate per slug on every cleanup tick.
         """
         from database.podcasts import (
             effective_keep_original, effective_retention_days)
@@ -145,10 +139,9 @@ class MaintenanceMixin:
     def _resolve_original_retention(self, retention_days: int):
         """Return original_retention_days if the pre-pass should run, else None.
 
-        The pre-pass is meaningful only when a smaller original window is
-        set; every other shape collapses to the main pass's existing
-        behaviour. Whether originals exist at all is per-feed now, so
-        callers filter slugs by resolve_keep_original_audio first.
+        The pre-pass matters only when a smaller original window is set; every
+        other shape collapses to the main pass. Whether originals exist is
+        per-feed, so callers filter slugs by resolve_keep_original_audio first.
         """
         raw = self.get_setting('original_retention_days')
         if not raw:
@@ -163,13 +156,10 @@ class MaintenanceMixin:
 
     def _cleanup_originals_only(self, conn, slugs: list[str],
                                 retention_days: int, storage) -> tuple[int, float]:
-        """Drop the retained original for episodes past their original
-        retention window but still within the main processed retention.
+        """Drop the retained original for episodes past their original retention but within the main one.
 
-        `slugs` are the feeds sharing this retention window that also retain
-        originals; feeds with keep-original off never had one to sweep.
-
-        Returns (count dropped, MB freed) for log reporting.
+        `slugs` are feeds sharing this window that also retain originals.
+        Returns (count dropped, MB freed).
         """
         if not slugs:
             return 0, 0.0
@@ -180,10 +170,8 @@ class MaintenanceMixin:
         original_cutoff = self._retention_cutoff_str(original_days)
         processed_cutoff = self._retention_cutoff_str(retention_days)
 
-        # Episodes whose original is past its retention window but whose
-        # processed file is still inside its window. processed_at >=
-        # processed_cutoff keeps us from double-handling rows the main
-        # pass is about to fully reset.
+        # Original past its window, processed file still inside it; the
+        # processed_cutoff bound skips rows the main pass is about to reset.
         rows = []
         for chunk in _chunked(slugs):
             placeholders = ','.join('?' * len(chunk))
@@ -199,9 +187,8 @@ class MaintenanceMixin:
                 (original_cutoff, processed_cutoff, *chunk),
             ).fetchall())
 
-        # NOTE: no original_file IS NOT NULL predicate -- episodes processed
-        # before that column existed can have an original on disk with a
-        # NULL column, and they still need sweeping.
+        # Note: no original_file IS NOT NULL predicate, since episodes processed
+        # before that column existed can have an original on disk with a NULL column.
         dropped = 0
         freed_bytes = 0
         cleared_ids = []
@@ -218,10 +205,8 @@ class MaintenanceMixin:
                 cleared_ids.append(row['id'])
 
         if cleared_ids:
-            # Keep the column truthful: the Ad Review play button and the
-            # original.mp3 route both key on original_file, so leaving it
-            # set after deleting the file yields dead play buttons (#517).
-            # Chunked: SQLite caps bound variables per statement.
+            # Clear original_file so the Ad Review play button and original.mp3 route
+            # don't point at a deleted file (#517). Chunked for SQLite's variable cap.
             for i in range(0, len(cleared_ids), 500):
                 chunk = cleared_ids[i:i + 500]
                 placeholders = ','.join('?' * len(chunk))
@@ -242,15 +227,12 @@ class MaintenanceMixin:
     def cleanup_old_episodes(self, force_all: bool = False, storage=None) -> tuple[int, float]:
         """Reset episodes with files older than retention_days back to 'discovered'.
 
-        Deletes audio files and episode_details. Never deletes episode rows.
-        force_all=True resets ALL episodes with files regardless of age.
-        Returns (count reset, MB freed).
+        Deletes audio files and episode_details, never episode rows. force_all=True
+        resets every episode with files regardless of age. Returns (count reset, MB freed).
 
-        When `original_retention_days < retention_days`, this method first
-        runs an original-only sweep that deletes just the retained pre-cut
-        original for episodes whose original retention has elapsed but
-        whose processed file is still within the main retention window.
-        The episode stays processed; only the original file is freed.
+        When `original_retention_days < retention_days`, an original-only sweep runs
+        first, freeing just the retained pre-cut original of episodes past their
+        original retention while the processed file stays.
         """
         if storage is None:
             raise ValueError("storage is required for cleanup_old_episodes")
@@ -266,10 +248,8 @@ class MaintenanceMixin:
                 if retention_days <= 0:
                     continue
 
-                # First pass: original-only deletion when the operator set a
-                # shorter retention for the pre-cut copy. Gated up front: on
-                # the default install (original_retention_days unset) it is
-                # a no-op and the keep-original filter would be pure waste.
+                # First pass: original-only deletion for a shorter pre-cut retention.
+                # Gated up front since it is a no-op when original_retention_days is unset.
                 if self._resolve_original_retention(retention_days) is not None:
                     self._cleanup_originals_only(
                         conn, [s for s in slugs if keep_by_slug.get(s)],
@@ -289,12 +269,9 @@ class MaintenanceMixin:
                         (cutoff_str, *chunk),
                     ).fetchall())
         else:
-            # An explicit wipe still honours archive mode: retention_days_override
-            # of 0 is a deliberate "never delete this feed", not an inherited
-            # default, so it outranks the operator-triggered sweep. Local
-            # feeds hold the only copy of their audio (no upstream to
-            # re-download), so they are exempt the same way the scheduled
-            # sweep exempts them in _retention_groups.
+            # An explicit wipe still honours archive mode: retention_days_override of 0
+            # is a deliberate "never delete this feed". Local feeds hold the only copy
+            # of their audio, so they are exempt as in _retention_groups.
             episodes_to_reset = conn.execute(
                 """SELECT e.episode_id, p.slug
                    FROM episodes e
@@ -330,13 +307,11 @@ class MaintenanceMixin:
     def deduplicate_patterns(self) -> int:
         """Remove duplicate patterns, merging stats into the highest-tier survivor.
 
-        Duplicates are patterns with the same text_template and podcast_id,
-        regardless of sponsor (sponsor variations are merged together).
-        Precedence: active over disabled first, so a switched-off row cannot
-        delete the live one; then user or community over auto-learned; then
-        confirmation count. A duplicate's audio fingerprint moves to the
-        survivor, with its match history, when the survivor has none of its own
-        and its audio was not deleted.
+        Duplicates share text_template and podcast_id, regardless of sponsor.
+        Precedence: active over disabled (a switched-off row must not delete the
+        live one), then user or community over auto-learned, then confirmation
+        count. A duplicate's audio fingerprint and match history move to the
+        survivor when it has none and the audio was not deleted.
 
         Returns count of duplicates removed."""
         conn = self.get_connection()
@@ -452,11 +427,8 @@ class MaintenanceMixin:
     def backfill_patterns_from_corrections(self) -> int:
         """Create patterns from existing 'confirm' corrections that have no pattern_id.
 
-        This retroactively learns from user confirmations that were submitted
-        before the pattern learning feature existed.
-        Returns count of patterns created.
-
-        Uses utils.time.parse_timestamp and utils.text.extract_text_in_range.
+        Retroactively learns from confirmations submitted before pattern learning
+        existed. Returns count of patterns created.
         """
         conn = self.get_connection()
         created_count = 0
@@ -574,10 +546,9 @@ class MaintenanceMixin:
             sponsor = SponsorService.extract_sponsor_from_text(pattern['text_template'])
             if not sponsor:
                 continue
-            # Require the canonical sponsor name (not just an alias) to
-            # appear as a whole word in the text. Alias-only matches caused
-            # the 2.2.7 Zyn cascade where every transcript containing
-            # 'Zinn' (Howard Zinn etc.) got relabeled as the Zyn brand.
+            # Require the canonical sponsor name, not just an alias, as a whole word.
+            # Alias-only matches caused a 2.2.7 cascade relabeling unrelated
+            # transcripts that merely contained a short alias.
             if not re.search(r'\b' + re.escape(sponsor) + r'\b',
                              pattern['text_template'], re.IGNORECASE):
                 continue

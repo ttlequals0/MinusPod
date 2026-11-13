@@ -13,10 +13,8 @@ from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
-# Priority boosts (#625): applied on top of the feed's base queue_priority
-# (10 high / 0 normal / -10 low) at enqueue time. These are the fallback
-# defaults; operators can change the stored queue_*_boost settings, and
-# compute_queue_priority reads through to them on every enqueue.
+# Priority boosts (#625) on top of the feed's queue_priority (10 high / 0 normal /
+# -10 low) at enqueue. Fallback defaults: stored queue_*_boost settings override them.
 FRESH_EPISODE_BOOST = 5
 MANUAL_REQUEST_BOOST = 20
 BULK_REQUEST_BOOST = 0
@@ -46,8 +44,7 @@ def _resolve_boost(key: str, fallback: int) -> int:
 def resolve_queue_boosts() -> dict[str, int]:
     """Stored boost settings with per-key fallback to the constants.
 
-    Inline import: database.queue is part of the Database mixin family, so a
-    module-level Database import would be circular.
+    Inline import: a module-level Database import would be circular.
     """
     return {key: _resolve_boost(key, fallback) for key, fallback in _BOOST_SETTINGS}
 
@@ -114,13 +111,11 @@ QUEUE_INSERT_CHUNK = 50
 
 def compute_queue_priority(feed_priority, published_at_iso, manual=False,
                             bulk=False, now=None, apply_fresh_boost=True):
-    """Base feed priority plus boosts for fresh episodes, manual requests,
-    and bulk operations.
+    """Base feed priority plus boosts for fresh episodes, manual requests and bulk operations.
 
-    ``manual`` is a single-episode user action (reprocess, JIT play);
-    ``bulk`` is backlog work (Reprocess All, segment re-renders), which
-    defaults to no boost so it cannot starve manual requests or fresh
-    releases. Boost sizes are operator-configurable settings.
+    ``manual`` is a single-episode user action (reprocess, JIT play); ``bulk`` is
+    backlog work (Reprocess All, segment re-renders) that gets no boost by default,
+    so it cannot starve manual requests or fresh releases.
     """
     boosts = resolve_queue_boosts()
     p = int(feed_priority or 0)
@@ -151,9 +146,8 @@ class QueueMixin:
                                             podcast: dict | None = None) -> bool:
         """Check if auto-process is enabled for a specific podcast.
 
-        podcast: an already-fetched row, so a caller that needs other columns
-        too does not pay for a second get_podcast_row query.
-        Returns: True if enabled (considering both global and podcast-level settings)
+        podcast: an already-fetched row, avoiding a second get_podcast_row query.
+        Returns True if enabled under both global and podcast-level settings.
         """
         # Check global setting first
         global_enabled = self.is_auto_process_enabled()
@@ -248,11 +242,10 @@ class QueueMixin:
                                       priority: int = 0) -> int | None:
         """Add or reset an episode in the auto-process queue to 'pending'.
 
-        Unlike queue_episode_for_processing (which skips already-queued rows),
-        this method reopens a completed or failed row. Its attempt counter is
-        reset with it; a row already pending keeps its count, so a client
-        polling a busy play request cannot restart the retry ladder.  Used by bulk process/reprocess actions
-        so re-queuing is reliable regardless of prior queue history.
+        Unlike queue_episode_for_processing (which skips already-queued rows), this
+        reopens a completed or failed row and resets its attempts. A row already
+        pending keeps its count, so a client polling a busy play request cannot
+        restart the retry ladder. Used by bulk process/reprocess actions.
 
         Returns queue row ID or None on failure.
         """
@@ -411,8 +404,8 @@ class QueueMixin:
                                     offset: int = 0) -> list[dict]:
         """Pending queue rows in dequeue order, capped at `limit` from `offset`.
 
-        Each row carries total_pending (the uncapped count) and the feed and episode
-        processing-mode columns, so the hold gating scan needs no per-row lookup.
+        Rows carry total_pending (the uncapped count) and the feed and episode
+        processing-mode columns, so hold gating needs no per-row lookup.
         """
         cte, params = self._ordered_pending()
         cursor = self.get_connection().execute(
@@ -437,14 +430,11 @@ class QueueMixin:
     def set_queue_row_priority(self, slug: str, episode_id: str,
                                priority: int | None = None,
                                delta: int | None = None) -> int | None:
-        """Set or nudge one pending row's priority; returns the stored value,
-        or None when the episode has no pending row.
+        """Set or nudge one pending row's priority; returns the stored value, or None without a pending row.
 
-        Direct write: unlike the MAX() monotonic rule in
-        upsert_episode_for_processing, this can raise or lower. A delta is
-        applied in SQL so two nudges racing on a stale read cannot cancel
-        each other out. Re-enqueueing (MAX rule) and a feed-level
-        queuePriority change (restamp_pending_priorities) still override it.
+        Unlike the monotonic MAX() rule in upsert_episode_for_processing this can
+        lower. A delta is applied in SQL so racing nudges on a stale read cannot
+        cancel out. Re-enqueueing and restamp_pending_priorities still override it.
         """
         expr, value = ('?', priority) if delta is None else ('priority + ?', delta)
         where = ("""WHERE episode_id = ? AND status = 'pending'
@@ -486,18 +476,14 @@ class QueueMixin:
     def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
 
-        Closes the SELECT-then-mark gap of a separate select and update: the
-        conditional ``UPDATE ... WHERE status='pending'`` plus the rowcount
-        guard means only one consumer can win a given row (SQLite serializes
-        the writes), so the dequeue is safe even if a second queue consumer is
-        ever added. Returns the claimed row (status='processing'), or None if
-        the queue is empty. On the rare lost race it tries the next pending row.
+        The conditional ``UPDATE ... WHERE status='pending'`` plus rowcount guard
+        lets only one consumer win a row (SQLite serializes writes), closing the
+        select-then-mark gap even with a second consumer. Returns the claimed row,
+        or None if the queue is empty; on a lost race it tries the next row.
 
-        ``exclude_episodes`` skips individual (slug, episode_id) pairs whose
-        required LLM account is rate-limit held. It is per episode rather than
-        per feed because a pass-through override is: one feed can hold blocked
-        and eligible rows at once, and skipping the feed starves the eligible
-        ones.
+        ``exclude_episodes`` skips (slug, episode_id) pairs whose LLM account is
+        rate-limit held. Per episode, not per feed, because a pass-through override
+        lets one feed hold blocked and eligible rows, and skipping it starves the latter.
         """
         conn = self.get_connection()
         cte, params = self._ordered_pending(list(exclude_episodes or []))
@@ -534,9 +520,8 @@ class QueueMixin:
                              expect_status: str = None) -> bool:
         """Write a queue row's status. Returns whether a row changed.
 
-        Private: callers reporting on a claim they hold go through
-        close_claimed_queue_row, whose guard keeps a mid-run requeue alive.
-        ``expect_status`` is that guard.
+        Private: callers holding a claim use close_claimed_queue_row, whose
+        ``expect_status`` guard keeps a mid-run requeue alive.
         """
         conn = self.get_connection()
         where = 'WHERE id = ?'
@@ -569,9 +554,8 @@ class QueueMixin:
                                 error_message: str = None) -> bool:
         """Report a drainer verdict on a row this claim still holds.
 
-        The write is skipped when something re-queued the episode mid-run
-        (degraded re-detect, low-ad-yield rerun), so that rerun survives.
-        Returns whether a row changed.
+        Skipped when something re-queued the episode mid-run (degraded re-detect,
+        low-ad-yield rerun), so that rerun survives. Returns whether a row changed.
         """
         return self._update_queue_status(queue_id, status, error_message,
                                          expect_status='processing')
@@ -579,9 +563,8 @@ class QueueMixin:
     def reopen_claimed_queue_row(self, slug: str, episode_id: str) -> bool:
         """Put an episode's claimed ('processing') queue row back to pending.
 
-        Keeps priority, created_at and attempts, so the episode returns to
-        the position it was claimed from. Returns False when no claimed row
-        exists (a run started outside the queue processor).
+        Keeps priority, created_at and attempts, so it returns to its old position.
+        Returns False when no claimed row exists (run started outside the queue processor).
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -605,13 +588,10 @@ class QueueMixin:
     def close_queue_rows_for_episode(self, slug: str, episode_id: str) -> int:
         """Mark any non-terminal queue rows for this episode as completed.
 
-        Guards the double-trigger bug where a manual
-        POST /episodes/<id>/reprocess finishes the job but leaves the
-        background-enqueued row in auto_process_queue still pending,
-        which then caused the queue processor to re-run the same episode.
-        Safe to call on every successful finalize -- the UPDATE is a
-        no-op when there is no matching pending/processing/failed row.
-        Returns the number of rows touched.
+        Prevents a double trigger: a manual reprocess finishing while the
+        background-enqueued row stays pending would make the queue processor re-run
+        the episode. Safe on every successful finalize (no-op without a matching
+        pending/processing/failed row). Returns rows touched.
         """
         podcast = self.get_podcast_row(slug)
         if not podcast:
@@ -718,22 +698,18 @@ class QueueMixin:
                                    exclude_running=None) -> tuple[int, int]:
         """Reset queue items stuck in 'processing' for too long.
 
-        This catches orphaned queue items where the worker crashed or was killed
-        without properly updating the status. Items exceeding max_attempts are
-        marked as 'failed' permanently. Items under max_attempts are reset to
-        'pending' WITHOUT incrementing attempts -- orphan resets are not failures.
-        Only actual processing failures (in _handle_processing_failure) increment
-        the attempts counter.
+        Catches orphans left by a worker crash or kill. Items at max_attempts are
+        marked 'failed'; others reset to 'pending' without incrementing attempts,
+        since an orphan reset is not a failure (only _handle_processing_failure
+        increments).
 
         Args:
-            stuck_minutes: Minutes after which a 'processing' item is considered orphaned
-            max_attempts: Maximum retry attempts before marking as permanently failed
-            exclude_running: (slug, episode_id) pairs holding a live processing
-                slot. Age alone cannot tell a slow run from a crash, so these
-                rows are left claimed however stale updated_at looks.
+            stuck_minutes: Minutes after which a 'processing' item counts as orphaned
+            max_attempts: Retry limit before marking permanently failed
+            exclude_running: (slug, episode_id) pairs holding a live processing slot.
+                Age cannot tell a slow run from a crash, so these stay claimed.
 
-        Returns:
-            Tuple of (reset_count, failed_count)
+        Returns (reset_count, failed_count).
         """
         conn = self.get_connection()
 
@@ -786,9 +762,9 @@ class QueueMixin:
     def reset_failed_queue_items(self, max_retries: int = 4, max_age_hours: int = 48) -> int:
         """Reset failed queue items eligible for automatic retry with backoff.
 
-        Backoff ladder at the default max_retries=4: initial + 3 retries, 5m/15m/30m apart.
-        Only resets where episode status is 'failed' (not 'permanently_failed'),
-        retry_count < max_retries, and the item failed within max_age_hours.
+        Default max_retries=4 gives initial + 3 retries, 5m/15m/30m apart. Resets only
+        episodes with status 'failed' (not 'permanently_failed'), retry_count <
+        max_retries and a failure within max_age_hours.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -827,11 +803,9 @@ class QueueMixin:
     def mark_episode_pending_recut(self, slug: str, episode_id: str) -> None:
         """Stamp an episode as having unapplied review decisions.
 
-        Idempotent and first-write-wins: the stamp marks when the episode
-        first went stale, so several edits over an afternoon still recut once.
-        On an episode mid-run the stamp is bumped to now instead, so the
-        run's completion (which clears only stamps older than its own start)
-        cannot swallow a decision its cut list never saw.
+        Idempotent, first-write-wins, so several edits still recut once. Mid-run the
+        stamp is bumped to now instead, so the run's completion (which clears only
+        stamps older than its start) cannot swallow a decision its cuts never saw.
         """
         now = utc_now_iso()
         conn = self.get_connection()
@@ -850,8 +824,8 @@ class QueueMixin:
                                     before: str | None = None) -> None:
         """Drop the stamp once a recut has applied the decisions.
 
-        `before` clears only a stamp at or before that time, so a completed
-        run cannot swallow a decision recorded after it started.
+        `before` clears only a stamp at or before that time, so a decision recorded
+        after a run started survives.
         """
         conn = self.get_connection()
         conn.execute(
@@ -867,16 +841,14 @@ class QueueMixin:
                                    slug: str | None = None) -> list[dict]:
         """Episodes with unapplied review decisions, oldest stamp first.
 
-        `slug` scopes the result to one feed, so a feed page can apply its own
-        pending recuts without touching the rest of the queue.
+        `slug` scopes the result to one feed.
         """
         conn = self.get_connection()
-        # has_segments/has_transcript/has_markers mirror the recut preconditions cheaply
-        # (string tests, not JSON parses: this backs a polled endpoint and
-        # segments run to hundreds of KB): segments must be a non-empty list,
-        # markers only present ('[]' recuts fine, restoring the original).
-        # has_queue_row separates an episode whose own run is coming from one
-        # left 'pending' by a cleared queue, which nothing will run.
+        # has_segments/has_transcript/has_markers cheaply mirror the recut preconditions
+        # with string tests (polled endpoint, segments run to hundreds of KB): segments
+        # must be a non-empty list, markers only present ('[]' recuts fine).
+        # has_queue_row separates an episode with a run coming from one left 'pending'
+        # by a cleared queue.
         cursor = conn.execute(
             f"""SELECT e.episode_id, e.title, e.status, e.original_url,
                       e.pending_recut_at, p.slug AS podcast_slug,
@@ -941,10 +913,9 @@ class QueueMixin:
     def expire_deferred_episodes(self, ttl_hours: int) -> list[dict]:
         """Fail deferred episodes whose TTL has run out.
 
-        Rows are marked permanently_failed (a plain 'failed' would be
-        resurrected by the reset_failed_queue_items retry ladder) and the
-        matching auto_process_queue row is closed the same way. Returns the
-        expired rows so the caller can fire failure webhooks.
+        Marked permanently_failed (a plain 'failed' would be resurrected by the
+        reset_failed_queue_items retry ladder), and the matching queue row is closed
+        too. Returns the expired rows for failure webhooks.
         """
         conn = self.get_connection()
         rows = conn.execute(

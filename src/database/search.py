@@ -255,12 +255,8 @@ class SearchMixin:
     def _rebuild_search_index_locked(self) -> int:
         """Rebuild the FTS5 search index from scratch.
 
-        Indexes:
-        - Episodes: title, description, transcript
-        - Podcasts: title, description
-        - Patterns: text, sponsor
-        - Sponsors: name, aliases
-
+        Indexes episodes (title, description, transcript), podcasts (title,
+        description), patterns (text, sponsor) and sponsors (name, aliases).
         Returns count of indexed items.
         """
         conn = self.get_connection()

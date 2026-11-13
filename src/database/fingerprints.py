@@ -104,10 +104,9 @@ class FingerprintMixin:
         return cursor.rowcount > 0
 
     def delete_pattern_audio(self, pattern_id: int) -> bool:
-        """Delete a pattern's fingerprint and match history and mark its audio removed, atomically.
+        """Atomically delete a pattern's fingerprint and match history and mark its audio removed.
 
-        False, with nothing changed, when the pattern has no fingerprint.
-        """
+        Returns False, changing nothing, when the pattern has no fingerprint."""
         with self.transaction(immediate=True) as conn:
             deleted = conn.execute(
                 "DELETE FROM audio_fingerprints WHERE pattern_id = ?", (pattern_id,)

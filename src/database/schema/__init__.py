@@ -541,10 +541,10 @@ class SchemaMixin(DeferredUpgradeMixin):
         self._add_column_if_missing(
             conn, 'model_pricing', 'cache_read_cost_per_mtok', 'REAL', pricing_cols)
 
-        # -- Episodes table columns --
+        # Episodes table columns
         self._add_episode_columns(conn)
 
-        # -- Episode details table columns --
+        # Episode details table columns
         det_cols = self._get_table_columns(conn, 'episode_details')
 
         # Renames (legacy column names)
@@ -577,7 +577,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)
 
-        # -- Podcasts table columns --
+        # Podcasts table columns
         pod_cols = self._get_table_columns(conn, 'podcasts')
         podcasts_migrations = [
             ('network_id', 'TEXT'),
@@ -772,7 +772,7 @@ class SchemaMixin(DeferredUpgradeMixin):
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending "
                              "ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL")
 
-        # -- audio_cue_templates table columns --
+        # audio_cue_templates table columns
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
         act_migrations = [
             ('score_threshold', 'REAL'),
@@ -782,7 +782,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         for col, definition in act_migrations:
             self._add_column_if_missing(conn, 'audio_cue_templates', col, definition, act_cols)
 
-        # -- pattern_corrections table columns --
+        # pattern_corrections table columns
         # Provenance + suppression for false-positive text used in
         # cross-episode text-pattern matching (2.76.0). source_hold_reason
         # records which hold gate produced a false_positive correction;
@@ -929,7 +929,7 @@ class SchemaMixin(DeferredUpgradeMixin):
 
         self._dedup_orphan_discovered_episodes(conn)
 
-        # -- Addressing log columns (per-mode yield and waste) --
+        # Addressing log columns (per-mode yield and waste)
         # Nullable on purpose: NULL marks rows from before yield recording
         # existed, so aggregates can exclude them from yield denominators.
         if self._table_exists(conn, 'addressing_log'):
@@ -944,7 +944,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         self._add_column_if_missing(
             conn, 'ad_reviewer_log', 'addressing_mode', 'TEXT', rl_cols)
 
-        # -- Ad patterns table columns --
+        # Ad patterns table columns
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'avg_duration', 'REAL', ap_cols)
         self._add_column_if_missing(conn, 'ad_patterns', 'duration_samples', 'INTEGER DEFAULT 0', ap_cols)
