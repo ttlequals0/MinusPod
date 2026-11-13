@@ -44,6 +44,20 @@ const CLEANUP_ACTION_LABELS: Record<string, string> = {
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
+function SortDirButton({ sortDir, onClick, noun }: { sortDir: 'asc' | 'desc'; onClick: () => void; noun?: string }) {
+  const target = sortDir === 'asc' ? 'descending' : 'ascending';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={noun ? `Sort ${noun} ${target}` : `Sort ${target}`}
+      className={`${btnBase} ${btnSecondary} min-w-11`}
+    >
+      {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
+    </button>
+  );
+}
+
 // Label + value only, no background used inside an already-shaded parent
 // (e.g. the addressing-mode card), where a second background would nest a
 // card inside a card.
@@ -222,14 +236,7 @@ function ModelUsageTable({
             <option value="knownCostUsd">Known spend</option>
             <option value="unknownCostCount">Unpriced calls</option>
           </select>
-          <button
-            type="button"
-            onClick={() => onSort(sortField)}
-            aria-label={sortDir === 'asc' ? 'Sort model usage descending' : 'Sort model usage ascending'}
-            className={`${btnBase} ${btnSecondary} min-w-11`}
-          >
-            {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
-          </button>
+          <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} noun="model usage" />
         </div>
         {items.length === 0 ? (
           <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
@@ -514,14 +521,7 @@ function EpisodeCostTable({
               <option key={option.field} value={option.field}>{option.label}</option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={() => onSort(sortField)}
-            aria-label={sortDir === 'asc' ? 'Sort descending' : 'Sort ascending'}
-            className={`${btnBase} ${btnSecondary} min-w-11`}
-          >
-            {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
-          </button>
+          <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} />
         </div>
         {items.length === 0 ? (
           <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
