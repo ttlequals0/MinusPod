@@ -1208,6 +1208,19 @@ class EpisodeMixin:
         ).fetchone()
         return row is not None
 
+    def get_episode_ids_with_transcript(self, slug: str) -> set[str]:
+        """episode_ids of a feed with a saved non-empty transcript; the batch form
+        of has_transcript (same truthiness rule) for per-episode loops."""
+        rows = self.get_connection().execute(
+            "SELECT e.episode_id FROM episode_details d "
+            "JOIN episodes e ON e.id = d.episode_id "
+            "JOIN podcasts p ON p.id = e.podcast_id "
+            "WHERE p.slug = ? AND d.transcript_text IS NOT NULL "
+            "AND d.transcript_text != ''",
+            (slug,)
+        ).fetchall()
+        return {row['episode_id'] for row in rows}
+
     def get_recent_ad_yields(self, podcast_id: int, exclude_episode_id: str,
                              limit: int = 5) -> list[float]:
         """Seconds of ad time removed from the feed's most recently processed
