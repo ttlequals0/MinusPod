@@ -414,11 +414,12 @@ def _min_time(fn, text):
 def test_redaction_time_doubles_linearly(name):
     build = _DOUBLING_SHAPES[name]
     n = 500000 // (len(build(2)) - len(build(1)))
-    small_text, large_text = build(n), build(2 * n)
+    # 4x the input: linear time is 4x and quadratic 16x, so 8 leaves a 2x margin for timer noise.
+    small_text, large_text = build(n // 2), build(2 * n)
     assert len(large_text) < _MAX_INPUT_CHARS
     small, large = _min_times([small_text, large_text])
     assert large < 1.0 and small < 1.0
-    assert large / max(small, 1e-3) < 3, (name, small, large)
+    assert large / max(small, 1e-3) < 8, (name, small, large)
 
 
 @pytest.mark.parametrize("text,expected", [
