@@ -877,15 +877,29 @@ def _clipped_run(al, accepted):
     return max(parts, key=lambda p: int(al.good[p[0]:p[1]].sum()), default=None)
 
 
+def _episode_span(cand):
+    """(lo, hi) episode points of a candidate's span."""
+    al = cand.alignment
+    return al.ep_base + al.span[0], al.ep_base + al.span[1]
+
+
 def _resolve_overlaps(candidates, fps, window, min_points):
     """Best match per stretch of time; a lower-ranked overlapping match keeps a long enough remainder."""
     accepted, spans = [], []
-    # A partial match is ranked after full ones, so a longer composite pattern cannot take a full match's ad
-    order = sorted(candidates, key=lambda c: (c.match.partial, -c.score, -c.match.coverage,
+    full = [(c.match.pattern_id, *_episode_span(c)) for c in candidates if not c.match.partial]
+
+    def yields(c):
+        # A partial match gives way to a full match of another pattern covering half its span or more
+        if not c.match.partial:
+            return False
+        lo, hi = _episode_span(c)
+        return any(pid != c.match.pattern_id and 2 * (min(hi, f_hi) - max(lo, f_lo)) >= hi - lo
+                   for pid, f_lo, f_hi in full)
+    order = sorted(candidates, key=lambda c: (yields(c), -c.score, -c.match.coverage,
                                               -c.match.similarity, c.match.start))
     for cand in order:
         al, m = cand.alignment, cand.match
-        lo, hi = al.ep_base + al.span[0], al.ep_base + al.span[1]
+        lo, hi = _episode_span(cand)
         if any(lo < a_hi and hi > a_lo for a_lo, a_hi in spans):
             run = _clipped_run(al, spans)
             if run is None:
@@ -990,12 +1004,14 @@ def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
     pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
 
     def verdict():
-        reason = _pattern_profile(pat_arr).unmatchable_reason
-        if reason:
-            return reason
+        profile = _pattern_profile(pat_arr)
+        if profile.unmatchable_reason:
+            return profile.unmatchable_reason
         coverage = FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0] if min_coverage is None else min_coverage
         ceiling = fingerprint_coverage_ceiling(pat_arr)
-        if ceiling < coverage - 1e-9:
+        # Enough evidence for a partial match makes the coverage ceiling irrelevant
+        partial_ok = float(profile.novelty.sum()) >= FINGERPRINT_PARTIAL_EVIDENCE_S * FINGERPRINT_NOMINAL_FPS - 1e-9
+        if ceiling < coverage - 1e-9 and not partial_ok:
             return f"at most {ceiling:.0%} coverage reachable, {coverage:.0%} needed"
         # A pause can leave pieces too short to count, so the pattern must also find itself
         if not match_fingerprints(pat_arr, len(pat_arr) / FINGERPRINT_NOMINAL_FPS,

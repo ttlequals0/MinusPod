@@ -226,7 +226,8 @@ def test_distinctive_audio_is_stored(fp, temp_db, pattern, audio, monkeypatch):
 
 def test_minimum_coverage_setting_decides_distinctiveness(fp, temp_db, pattern, audio, monkeypatch):
     rng = random.Random(3)
-    _generating(fp, monkeypatch, [rng.getrandbits(32) for _ in range(300)] + [7] * 100)
+    # Under 20 s of evidence, so the coverage ceiling still decides
+    _generating(fp, monkeypatch, [rng.getrandbits(32) for _ in range(150)] + [7] * 50)
     assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
     temp_db.set_setting('fingerprint_min_coverage', '0.9')
     assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).skipped_reason == 'not_distinctive'
