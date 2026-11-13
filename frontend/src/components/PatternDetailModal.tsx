@@ -22,6 +22,13 @@ import CloseButton from './CloseButton';
 import StatTile from './StatTile';
 import { DemoDisabled } from './DemoDisabled';
 import PatternAudioSection from './PatternAudioSection';
+import PageTabs from './PageTabs';
+
+type DialogTab = 'details' | 'audio';
+const DIALOG_TABS = [
+  { value: 'details', label: 'Details' },
+  { value: 'audio', label: 'Audio' },
+] as const;
 
 // 44px icon buttons below sm, text buttons from sm
 
@@ -34,6 +41,7 @@ interface PatternDetailModalProps {
 function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
+  const [tab, setTab] = useState<DialogTab>('details');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editedPattern, setEditedPattern] = useState({
     text_template: pattern.text_template || '',
@@ -56,7 +64,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 400)}px`;
-  }, [isEditing, editedPattern.text_template]);
+  }, [isEditing, tab, editedPattern.text_template]);
 
   // Fetch sponsors for autocomplete
   const { data: sponsors } = useQuery({
@@ -128,16 +136,22 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   return (
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full"
       header={(
-        <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-            <h2 className="text-lg font-semibold text-foreground">
-              Pattern #{pattern.id}
-            </h2>
-            <ScopeBadge pattern={pattern} />
-            <SegmentCategoryBadge category={pattern.category} />
+        <div className="w-full min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+              <h2 className="text-lg font-semibold text-foreground">
+                Pattern #{pattern.id}
+              </h2>
+              <ScopeBadge pattern={pattern} />
+              <SegmentCategoryBadge category={pattern.category} />
+            </div>
+            <CloseButton onClick={requestClose} label="Close dialog" className="shrink-0" />
           </div>
-          <CloseButton onClick={requestClose} label="Close dialog" className="shrink-0" />
-        </>
+          {/* -mb-[17px] lays the tab rule over the header rule below the 16px padding */}
+          <div className="mt-3 -mb-[17px]">
+            <PageTabs id="pattern-dialog" label="Pattern sections" tabs={DIALOG_TABS} active={tab} onChange={setTab} flush />
+          </div>
+        </div>
       )}
       footer={(
         <div className={`flex flex-nowrap items-start justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
@@ -221,7 +235,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   Close
                 </button>
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => { setTab('details'); setIsEditing(true); }}
                   className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
                 >
                   Edit
@@ -232,213 +246,215 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         </div>
       )}
     >
-      {/* Content */}
-      <div className="p-4 space-y-4">
-        {/* Stats Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2 sm:gap-4">
-          <StatTile label="Confirmations" value={pattern.confirmation_count} tone="success" />
-          <StatTile label="False positives" value={pattern.false_positive_count} tone="destructive" />
-          <StatTile label="Status" value={pattern.is_active ? 'Active' : 'Inactive'} />
-        </div>
+      <div role="tabpanel" id={`pattern-dialog-panel-${tab}`} aria-labelledby={`pattern-dialog-tab-${tab}`} tabIndex={0}
+        className={`p-4 space-y-4 ${focusRing}`}>
+        {tab === 'audio' ? <PatternAudioSection pattern={pattern} /> : (
+          <>
+            {/* Stats Row */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2 sm:gap-4">
+              <StatTile label="Confirmations" value={pattern.confirmation_count} tone="success" />
+              <StatTile label="False positives" value={pattern.false_positive_count} tone="destructive" />
+              <StatTile label="Status" value={pattern.is_active ? 'Active' : 'Inactive'} />
+            </div>
 
-        {/* Editable Fields */}
-        {isEditing ? (
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="pattern-sponsor" className={labelBase}>
-                Sponsor
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="pattern-sponsor"
-                  type="text"
-                  list="sponsor-suggestions"
-                  value={editedPattern.sponsor}
-                  onChange={(e) => setEditedPattern(prev => ({ ...prev, sponsor: e.target.value }))}
-                  placeholder="Start typing to see suggestions..."
-                  className={`flex-1 min-w-0 ${inputBase}`}
-                />
-                {showAddSponsorButton && (
-                  <button
-                    type="button"
-                    onClick={handleAddSponsor}
-                    disabled={addSponsorMutation.isPending}
-                    className={`${btnBase} ${btnPrimary}`}
+            {/* Editable Fields */}
+            {isEditing ? (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="pattern-sponsor" className={labelBase}>
+                    Sponsor
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="pattern-sponsor"
+                      type="text"
+                      list="sponsor-suggestions"
+                      value={editedPattern.sponsor}
+                      onChange={(e) => setEditedPattern(prev => ({ ...prev, sponsor: e.target.value }))}
+                      placeholder="Start typing to see suggestions..."
+                      className={`flex-1 min-w-0 ${inputBase}`}
+                    />
+                    {showAddSponsorButton && (
+                      <button
+                        type="button"
+                        onClick={handleAddSponsor}
+                        disabled={addSponsorMutation.isPending}
+                        className={`${btnBase} ${btnPrimary}`}
+                      >
+                        <Plus className="w-4 h-4" aria-hidden="true" />
+                        {addSponsorMutation.isPending ? 'Adding...' : 'Add sponsor'}
+                      </button>
+                    )}
+                  </div>
+                  <datalist id="sponsor-suggestions">
+                    {sponsors?.map((s) => (
+                      <option key={s.id} value={s.name} />
+                    ))}
+                  </datalist>
+                  {showAddSponsorButton && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      "{editedPattern.sponsor}" is not in the sponsor list. Select "Add sponsor" to add it.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="pattern-category" className={labelBase}>
+                    Category
+                  </label>
+                  <select
+                    id="pattern-category"
+                    value={editedPattern.category}
+                    onChange={(e) => setEditedPattern(prev => ({
+                      ...prev, category: e.target.value as SegmentCategory | '',
+                    }))}
+                    className={`w-full ${selectBase}`}
+                    aria-describedby="pattern-category-help"
                   >
-                    <Plus className="w-4 h-4" aria-hidden="true" />
-                    {addSponsorMutation.isPending ? 'Adding...' : 'Add sponsor'}
-                  </button>
+                    <option value="">Uncategorized</option>
+                    {SEGMENT_CATEGORIES.map((c) => (
+                      <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
+                        {SEGMENT_CATEGORY_LABELS[c]}
+                      </option>
+                    ))}
+                  </select>
+                  <p id="pattern-category-help" className="text-xs text-muted-foreground mt-1">
+                    Each feed's segment actions decide what happens to matches in
+                    this category. Uncategorized patterns count as Sponsor.
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="pattern-text-template" className={labelBase}>
+                    Text template
+                  </label>
+                  <textarea
+                    id="pattern-text-template"
+                    ref={textTemplateRef}
+                    value={editedPattern.text_template}
+                    onChange={(e) => setEditedPattern(prev => ({ ...prev, text_template: e.target.value }))}
+                    className={`w-full ${textareaBase} font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto`}
+                  />
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <Checkbox
+                    checked={editedPattern.is_active}
+                    onChange={(v) => setEditedPattern(prev => ({ ...prev, is_active: v }))}
+                    label="Active"
+                  />
+                </div>
+
+                {!editedPattern.is_active && (
+                  <div>
+                    <label htmlFor="pattern-disabled-reason" className={labelBase}>
+                      Disabled reason
+                    </label>
+                    <input
+                      id="pattern-disabled-reason"
+                      type="text"
+                      value={editedPattern.disabled_reason}
+                      onChange={(e) => setEditedPattern(prev => ({ ...prev, disabled_reason: e.target.value }))}
+                      placeholder="Reason for disabling..."
+                      className={`w-full ${inputBase}`}
+                    />
+                  </div>
                 )}
               </div>
-              <datalist id="sponsor-suggestions">
-                {sponsors?.map((s) => (
-                  <option key={s.id} value={s.name} />
-                ))}
-              </datalist>
-              {showAddSponsorButton && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  "{editedPattern.sponsor}" is not in the sponsor list. Select "Add sponsor" to add it.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="pattern-category" className={labelBase}>
-                Category
-              </label>
-              <select
-                id="pattern-category"
-                value={editedPattern.category}
-                onChange={(e) => setEditedPattern(prev => ({
-                  ...prev, category: e.target.value as SegmentCategory | '',
-                }))}
-                className={`w-full ${selectBase}`}
-                aria-describedby="pattern-category-help"
-              >
-                <option value="">Uncategorized</option>
-                {SEGMENT_CATEGORIES.map((c) => (
-                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
-                    {SEGMENT_CATEGORY_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-              <p id="pattern-category-help" className="text-xs text-muted-foreground mt-1">
-                Each feed's segment actions decide what happens to matches in
-                this category. Uncategorized patterns count as Sponsor.
-              </p>
-            </div>
-
-            <div>
-              <label htmlFor="pattern-text-template" className={labelBase}>
-                Text template
-              </label>
-              <textarea
-                id="pattern-text-template"
-                ref={textTemplateRef}
-                value={editedPattern.text_template}
-                onChange={(e) => setEditedPattern(prev => ({ ...prev, text_template: e.target.value }))}
-                className={`w-full ${textareaBase} font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto`}
-              />
-            </div>
-
-            <div className="flex items-center gap-4">
-              <Checkbox
-                checked={editedPattern.is_active}
-                onChange={(v) => setEditedPattern(prev => ({ ...prev, is_active: v }))}
-                label="Active"
-              />
-            </div>
-
-            {!editedPattern.is_active && (
-              <div>
-                <label htmlFor="pattern-disabled-reason" className={labelBase}>
-                  Disabled reason
-                </label>
-                <input
-                  id="pattern-disabled-reason"
-                  type="text"
-                  value={editedPattern.disabled_reason}
-                  onChange={(e) => setEditedPattern(prev => ({ ...prev, disabled_reason: e.target.value }))}
-                  placeholder="Reason for disabling..."
-                  className={`w-full ${inputBase}`}
-                />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">
-                Sponsor
-              </div>
-              <div className="text-foreground">
-                {pattern.sponsor || '(Unknown)'}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">
-                Text template
-              </div>
-              <div className="text-sm text-foreground bg-secondary/50 rounded p-3 font-mono whitespace-pre-wrap min-h-[160px] max-h-[400px] overflow-auto">
-                {pattern.text_template || '(No template)'}
-              </div>
-            </div>
-
-            {pattern.intro_variants && (
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">
-                  Intro variants
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Sponsor
+                  </div>
+                  <div className="text-foreground">
+                    {pattern.sponsor || '(Unknown)'}
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {pattern.intro_variants}
+
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                    Text template
+                  </div>
+                  <div className="text-sm text-foreground bg-secondary/50 rounded p-3 font-mono whitespace-pre-wrap min-h-[160px] max-h-[400px] overflow-auto">
+                    {pattern.text_template || '(No template)'}
+                  </div>
                 </div>
+
+                {pattern.intro_variants && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">
+                      Intro variants
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {pattern.intro_variants}
+                    </div>
+                  </div>
+                )}
+
+                {pattern.outro_variants && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">
+                      Outro variants
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {pattern.outro_variants}
+                    </div>
+                  </div>
+                )}
+
+                {pattern.disabled_reason && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">
+                      Disabled reason
+                    </div>
+                    <div className="text-sm text-destructive">
+                      {pattern.disabled_reason}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {pattern.outro_variants && (
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">
-                  Outro variants
+            {/* Metadata */}
+            <div className="border-t border-border pt-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Created:</span>
+                  <span className="ml-2 text-foreground">{formatDate(pattern.created_at)}</span>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {pattern.outro_variants}
+                <div>
+                  <span className="text-muted-foreground">Last matched:</span>
+                  <span className="ml-2 text-foreground">{formatDate(pattern.last_matched_at)}</span>
                 </div>
+                {pattern.dai_platform && (
+                  <div>
+                    <span className="text-muted-foreground">DAI platform:</span>
+                    <span className="ml-2 text-foreground break-words">{pattern.dai_platform}</span>
+                  </div>
+                )}
+                {pattern.podcast_slug && (
+                  <div>
+                    <span className="text-muted-foreground">Podcast:</span>
+                    <Link
+                      to={`/feeds/${pattern.podcast_slug}`}
+                      onClick={onClose}
+                      className={`ml-2 text-primary hover:underline break-all ${focusRing}`}
+                    >
+                      {pattern.podcast_slug}
+                    </Link>
+                  </div>
+                )}
+                {pattern.created_from_episode_id && (
+                  <div>
+                    <span className="text-muted-foreground">Origin episode:</span>
+                    <span className="ml-2 text-foreground font-mono text-xs break-all">{pattern.created_from_episode_id}</span>
+                  </div>
+                )}
               </div>
-            )}
-
-            {pattern.disabled_reason && (
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">
-                  Disabled reason
-                </div>
-                <div className="text-sm text-destructive">
-                  {pattern.disabled_reason}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          </>
         )}
-
-        <PatternAudioSection pattern={pattern} />
-
-        {/* Metadata */}
-        <div className="border-t border-border pt-4 mt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Created:</span>
-              <span className="ml-2 text-foreground">{formatDate(pattern.created_at)}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Last matched:</span>
-              <span className="ml-2 text-foreground">{formatDate(pattern.last_matched_at)}</span>
-            </div>
-            {pattern.dai_platform && (
-              <div>
-                <span className="text-muted-foreground">DAI platform:</span>
-                <span className="ml-2 text-foreground break-words">{pattern.dai_platform}</span>
-              </div>
-            )}
-            {pattern.podcast_slug && (
-              <div>
-                <span className="text-muted-foreground">Podcast:</span>
-                <Link
-                  to={`/feeds/${pattern.podcast_slug}`}
-                  onClick={onClose}
-                  className={`ml-2 text-primary hover:underline break-all ${focusRing}`}
-                >
-                  {pattern.podcast_slug}
-                </Link>
-              </div>
-            )}
-            {pattern.created_from_episode_id && (
-              <div>
-                <span className="text-muted-foreground">Origin episode:</span>
-                <span className="ml-2 text-foreground font-mono text-xs break-all">{pattern.created_from_episode_id}</span>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Error Display */}

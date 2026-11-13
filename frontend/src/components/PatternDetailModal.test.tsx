@@ -98,6 +98,13 @@ function renderModal(pattern: AdPattern, onClose = vi.fn(), onSave = vi.fn()) {
   return { invalidateSpy };
 }
 
+// The audio controls live on the Audio tab.
+function renderAudioModal(...args: Parameters<typeof renderModal>) {
+  const result = renderModal(...args);
+  fireEvent.click(screen.getByRole('tab', { name: 'Audio' }));
+  return result;
+}
+
 const NO_AUDIO = { state: 'none', available: false, counts: { matches: 0, rejected: 0, outOfScope: 0 } };
 
 afterEach(() => {
@@ -248,20 +255,20 @@ const ACTIVE_AUDIO = {
 describe('Audio section', () => {
   it('says the match history is still being filled in only while the backfill runs', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, historyBackfillPending: true });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('Match history is still being filled in.')).toBeDefined();
   });
 
   it('shows no backfill line once the history is complete', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, historyBackfillPending: false });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('91%')).toBeDefined();
     expect(screen.queryByText('Match history is still being filled in.')).toBeNull();
   });
 
   it('shows an active fingerprint with its stats and controls', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('91%')).toBeDefined();
     expect(mockGetPatternAudio).toHaveBeenCalledWith(42);
     expect(screen.getByRole('heading', { name: 'Audio' })).toBeDefined();
@@ -275,26 +282,26 @@ describe('Audio section', () => {
 
   it('lists recent matches under an active fingerprint', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByRole('heading', { name: 'Recent matches' })).toBeDefined();
     expect(await screen.findByText('No matches yet.')).toBeDefined();
   });
 
   it('does not list matches when the pattern has no audio', async () => {
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await screen.findByText('No audio fingerprint.');
     expect(screen.queryByRole('heading', { name: 'Recent matches' })).toBeNull();
   });
 
   it('shows the off state with the switch off', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, state: 'off' });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('Audio off')).toBeDefined();
     expect(screen.getByRole('switch', { name: 'Audio matching' }).getAttribute('aria-checked')).toBe('false');
   });
 
   it('shows the empty state for a pattern without audio', async () => {
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('No audio fingerprint.')).toBeDefined();
     expect(screen.queryByRole('switch', { name: 'Audio matching' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete audio' })).toBeNull();
@@ -302,20 +309,20 @@ describe('Audio section', () => {
 
   it('disables play and says there is no source when nothing is playable', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, available: false, source: null });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('No source audio')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Play source audio' })).toHaveProperty('disabled', true);
   });
 
   it('shows a loading status while the detail loads', () => {
     mockGetPatternAudio.mockReturnValue(new Promise(() => {}));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(screen.getByRole('status', { name: 'Loading audio' })).toBeDefined();
   });
 
   it('shows an error with Retry when the detail fails to load', async () => {
     mockGetPatternAudio.mockRejectedValueOnce(new Error('boom'));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('Could not load audio.')).toBeDefined();
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -324,14 +331,14 @@ describe('Audio section', () => {
 
   it('notes matches found outside the pattern scope', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, counts: { matches: 5, rejected: 0, outOfScope: 3 } });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText("3 matches came from episodes outside this pattern's scope.")).toBeDefined();
   });
 
   it('turns audio off at once and announces it', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockSetPatternAudioEnabled.mockResolvedValue({ ...ACTIVE_AUDIO, state: 'off' });
-    const { invalidateSpy } = renderModal(makePattern());
+    const { invalidateSpy } = renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('switch', { name: 'Audio matching' }));
     expect(mockSetPatternAudioEnabled).toHaveBeenCalledWith(42, false);
     expect((await screen.findByRole('status', { name: 'Audio change' })).textContent).toBe('Audio matching turned off.');
@@ -341,7 +348,7 @@ describe('Audio section', () => {
   it('reverts the switch and shows the error when the change fails', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockSetPatternAudioEnabled.mockRejectedValue(new Error('boom'));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('switch', { name: 'Audio matching' }));
     expect(await screen.findByText('Could not turn audio off.')).toBeDefined();
     expect(screen.getByRole('switch', { name: 'Audio matching' }).getAttribute('aria-checked')).toBe('true');
@@ -351,7 +358,7 @@ describe('Audio section', () => {
   it('confirms before deleting audio, then shows the empty state', async () => {
     mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
     mockDeletePatternAudio.mockResolvedValue(undefined);
-    const { invalidateSpy } = renderModal(makePattern());
+    const { invalidateSpy } = renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
     expect(mockDeletePatternAudio).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog', { name: 'Delete audio?' });
@@ -365,7 +372,7 @@ describe('Audio section', () => {
   it('keeps the audio and shows the error when delete fails', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockDeletePatternAudio.mockRejectedValue(new Error('boom'));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
     expect(await screen.findByText('Could not delete audio.')).toBeDefined();
@@ -376,7 +383,7 @@ describe('Audio section', () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 503, headers: { 'Retry-After': '2' } })));
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Play source audio' }));
     fireEvent.error(document.querySelector('audio') as HTMLAudioElement);
     expect((await screen.findByRole('alert')).textContent).toBe('Audio is being prepared. Try again.');
@@ -389,14 +396,14 @@ describe('Audio section', () => {
 
   it('says that the switch applies immediately', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     expect(await screen.findByText('Applies immediately.')).toBeDefined();
   });
 
   it('moves focus to the Audio heading once the audio is deleted', async () => {
     mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
     mockDeletePatternAudio.mockResolvedValue(undefined);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
     mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
@@ -407,7 +414,7 @@ describe('Audio section', () => {
   it('refetches the detail when a switch change fails, so a vanished fingerprint shows', async () => {
     mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
     mockSetPatternAudioEnabled.mockRejectedValue(new ApiError('none', 404, { code: 'no_audio' }));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('switch', { name: 'Audio matching' }));
     mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
     expect(await screen.findByText('No audio fingerprint.')).toBeDefined();
@@ -416,7 +423,7 @@ describe('Audio section', () => {
   it('refetches the detail when a delete fails', async () => {
     mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
     mockDeletePatternAudio.mockRejectedValue(new ApiError('none', 404, { code: 'no_audio' }));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
     mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
@@ -425,11 +432,11 @@ describe('Audio section', () => {
 
   it('lays the four tiles out two by two below sm and in one row from sm, with date over time at every width', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const tile = (await screen.findByText('Mean match')).closest('[class*="grid"]')?.parentElement as HTMLElement;
     expect(tile.className).toContain('grid-cols-2');
     expect(tile.className).toContain('sm:grid-cols-4');
-    expect(tile.className).toContain('auto-rows-fr');
+    expect(tile.className).not.toContain('auto-rows-fr');
     const parts = formatDateTimeParts(ACTIVE_AUDIO.lastMatchedAt);
     const dateLine = screen.getByText(parts.date);
     const timeLine = screen.getByText(parts.time);
@@ -445,7 +452,7 @@ describe('Add audio to pattern from the source episode', () => {
   it('adds audio from the span the server names and announces it', async () => {
     mockGetPatternAudio.mockResolvedValue(noAudio(SOURCE));
     mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
     await waitFor(() => expect(mockRebuildPatternAudio).toHaveBeenCalledWith(
       42, { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 300, end: 345 },
@@ -457,7 +464,7 @@ describe('Add audio to pattern from the source episode', () => {
   it('moves focus to the Audio heading once the audio is added', async () => {
     mockGetPatternAudio.mockResolvedValueOnce(noAudio(SOURCE)).mockResolvedValue(ACTIVE_AUDIO);
     mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
     await waitFor(() => expect(document.activeElement?.textContent).toBe('Audio'));
   });
@@ -465,22 +472,22 @@ describe('Add audio to pattern from the source episode', () => {
   it('shows the reason when no fingerprint was stored', async () => {
     mockGetPatternAudio.mockResolvedValue(noAudio(SOURCE));
     mockRebuildPatternAudio.mockResolvedValue({ ...NO_AUDIO, fingerprintStored: false, fingerprintSkippedReason: 'segment_too_short' });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
     expect((await screen.findByRole('alert')).textContent).toBe('That selection is too short for an audio fingerprint.');
   });
 
   it('is disabled with a visible reason when the source original is gone', async () => {
     mockGetPatternAudio.mockResolvedValue(noAudio({ ...SOURCE, available: false }));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(screen.getByText('Source audio expired')).toBeDefined();
   });
 
   it('is not offered when the server knows no source', async () => {
-    mockGetPatternAudio.mockResolvedValue(noAudio(null));
-    renderModal(makePattern());
+    mockGetPatternAudio.mockResolvedValue({ ...NO_AUDIO, addSource: null });
+    renderAudioModal(makePattern());
     await screen.findByText('No audio fingerprint.');
     expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
     expect(mockGetEpisode).not.toHaveBeenCalled();
@@ -518,7 +525,7 @@ describe('Edit edges', () => {
   it('opens the editor on the source episode with the built span and saves through the rebuild route', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
-    const { invalidateSpy } = renderModal(makePattern());
+    const { invalidateSpy } = renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     await userEvent.click(opener);
     const editor = await screen.findByRole('dialog', { name: 'Edit edges' });
@@ -540,7 +547,7 @@ describe('Edit edges', () => {
 
   it('loads the source episode only when Edit edges is clicked', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     expect(mockGetEpisode).not.toHaveBeenCalled();
     await userEvent.click(opener);
@@ -552,7 +559,7 @@ describe('Edit edges', () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Play source audio' }));
     fireEvent.playing(document.querySelector('audio') as HTMLAudioElement);
     expect(screen.getByRole('button', { name: 'Pause source audio' })).toBeDefined();
@@ -565,7 +572,7 @@ describe('Edit edges', () => {
   it('bounds the editor at the span end plus 30 s when the episode has no duration', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockGetEpisode.mockResolvedValue({ id: 'a1b2c3d4e5f6', hasOriginalAudio: true, adMarkers: [] });
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     await userEvent.click(opener);
     expect((await screen.findByRole('dialog', { name: 'Edit edges' })).dataset.duration).toBe('85');
@@ -573,7 +580,7 @@ describe('Edit edges', () => {
 
   it('returns focus to Edit edges when the editor closes', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     await userEvent.click(opener);
     await userEvent.click(within(await screen.findByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Cancel' }));
@@ -584,7 +591,7 @@ describe('Edit edges', () => {
   it('shows the reason and keeps the editor open when no fingerprint was stored', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: false, fingerprintSkippedReason: 'not_distinctive' });
-    const { invalidateSpy } = renderModal(makePattern());
+    const { invalidateSpy } = renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     await userEvent.click(opener);
     invalidateSpy.mockClear();
@@ -597,7 +604,7 @@ describe('Edit edges', () => {
   it('shows the server message for a span it refuses', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     mockRebuildPatternAudio.mockRejectedValue(new Error('span must be at most 600 seconds'));
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     await userEvent.click(opener);
     await userEvent.click(within(await screen.findByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
@@ -606,7 +613,7 @@ describe('Edit edges', () => {
 
   it('disables the action and says the source audio expired', async () => {
     mockGetPatternAudio.mockResolvedValue(EXPIRED);
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
     expect((opener as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('Source audio expired')).toBeDefined();
@@ -614,8 +621,86 @@ describe('Edit edges', () => {
   });
 
   it('is not offered without an audio fingerprint', async () => {
-    renderModal(makePattern());
+    renderAudioModal(makePattern());
     await screen.findByText('No audio fingerprint.');
     expect(screen.queryByRole('button', { name: 'Edit edges' })).toBeNull();
+  });
+});
+
+describe('Dialog tabs', () => {
+  it('shows Details first and moves audio into its own tab with tab semantics', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern());
+    const details = screen.getByRole('tab', { name: 'Details' });
+    const audio = screen.getByRole('tab', { name: 'Audio' });
+    expect(details.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(details.id);
+    expect(screen.queryByText('Audio matching')).toBeNull();
+    expect(screen.getByText('Confirmations')).toBeDefined();
+    await userEvent.click(audio);
+    expect(await screen.findByText('Audio matching')).toBeDefined();
+    expect(screen.queryByText('Confirmations')).toBeNull();
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(audio.id);
+  });
+
+  it('moves between tabs with the arrow, Home and End keys', async () => {
+    renderModal(makePattern());
+    const details = screen.getByRole('tab', { name: 'Details' });
+    details.focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Audio' }));
+    await userEvent.keyboard('{Home}');
+    expect(document.activeElement).toBe(details);
+    await userEvent.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: 'Audio' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps the draft while the Audio tab is open', async () => {
+    renderModal(makePattern({ sponsor: 'Acme' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const sponsor = screen.getByLabelText('Sponsor');
+    await userEvent.clear(sponsor);
+    await userEvent.type(sponsor, 'Beta');
+    await userEvent.click(screen.getByRole('tab', { name: 'Audio' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDefined();
+    await userEvent.click(screen.getByRole('tab', { name: 'Details' }));
+    expect((screen.getByLabelText('Sponsor') as HTMLInputElement).value).toBe('Beta');
+  });
+
+  it('opens Details when Edit is chosen from the Audio tab', async () => {
+    renderModal(makePattern());
+    await userEvent.click(screen.getByRole('tab', { name: 'Audio' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('tab', { name: 'Details' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByLabelText('Sponsor')).toBeDefined();
+  });
+});
+
+describe('Audio tab reasons', () => {
+  it('names the other route when no episode can source the audio', async () => {
+    mockGetPatternAudio.mockResolvedValue({ ...NO_AUDIO, addSource: null });
+    renderAudioModal(makePattern());
+    expect(await screen.findByText(/Add audio to pattern" on a text pattern detection in the Detected ads tab or on the episode page/)).toBeDefined();
+  });
+
+  it('does not give that reason when a source is offered', async () => {
+    mockGetPatternAudio.mockResolvedValue({ ...NO_AUDIO, addSource: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 1, end: 9, available: true } });
+    renderAudioModal(makePattern());
+    await screen.findByRole('button', { name: 'Add audio to pattern' });
+    expect(screen.queryByText(/text pattern detection/)).toBeNull();
+  });
+
+  it('says why Edit edges is missing when the fingerprint has no source', async () => {
+    mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, builtFrom: null, source: null, available: false });
+    renderAudioModal(makePattern());
+    expect(await screen.findByText('Edit edges needs source audio.')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Edit edges' })).toBeNull();
+  });
+
+  it('offers Edit edges for a legacy fingerprint whose source the server resolved', async () => {
+    mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, builtFrom: { ...ACTIVE_AUDIO.builtFrom, start: 20, end: 50 } });
+    renderAudioModal(makePattern());
+    expect(await screen.findByRole('button', { name: 'Edit edges' })).toBeDefined();
+    expect(screen.queryByText('Edit edges needs source audio.')).toBeNull();
   });
 });

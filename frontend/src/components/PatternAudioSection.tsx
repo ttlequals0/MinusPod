@@ -150,6 +150,11 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
     body = (
       <>
         <p className="text-sm text-muted-foreground">No audio fingerprint.</p>
+        {!detail.addSource && (
+          <p className="text-sm text-muted-foreground">
+            No episode that still keeps its original audio holds this ad, so use "Add audio to pattern" on a text pattern detection in the Detected ads tab or on the episode page.
+          </p>
+        )}
         {detail.addSource && (
           <AddFromSource
             patternId={pattern.id}
@@ -192,7 +197,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
         )}
         {preview.isLoading() && <p role="status" className="text-sm text-muted-foreground">Loading audio...</p>}
         {playError && <p role="alert" className="text-sm text-destructive">{playError}</p>}
-        <div className="grid grid-cols-2 sm:grid-cols-4 auto-rows-fr gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
           <StatTile label="Matches" value={detail.counts.matches} />
           <StatTile label="Mean match" value={detail.meanSimilarity != null ? formatPercent(detail.meanSimilarity) : '-'} />
           <StatTile label="Not this ad" value={detail.counts.rejected} tone={detail.counts.rejected > 0 ? 'destructive' : 'default'} />
@@ -239,6 +244,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
               )}
             </>
           )}
+          {!built && <span className="text-sm text-muted-foreground">Edit edges needs source audio.</span>}
           <DemoDisabled>
             <button type="button" onClick={() => setShowDelete(true)} className={`${btnBase} ${btnDestructiveOutline}`}>
               Delete audio
@@ -252,7 +258,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   }
 
   return (
-    <section aria-labelledby={headingId} className="border-t border-border pt-4 space-y-3">
+    <section aria-labelledby={headingId} className="space-y-3">
       <h3 id={headingId} ref={headingRef} tabIndex={-1} className={`${subHeading} focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded`}>Audio</h3>
       <p role="status" aria-label="Audio change" className="sr-only">{notice}</p>
       {body}
