@@ -45,7 +45,7 @@ class TestOpmlExportModeValidation:
 
     @patch('api.feeds.get_database')
     def test_default_mode_is_original(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = []
+        mock_db.return_value.get_all_podcast_rows.return_value = []
         response = client.get('/api/v1/feeds/export-opml')
         assert response.status_code == 200
         assert 'minuspod-feeds.opml' in response.headers['Content-Disposition']
@@ -54,7 +54,7 @@ class TestOpmlExportModeValidation:
 class TestOpmlExportPost:
     @patch('api.feeds.get_database')
     def test_post_exports_selected_slugs_in_feed_order(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         mock_db.return_value.get_setting_bool.return_value = False
 
         response = client.post(
@@ -72,7 +72,7 @@ class TestOpmlExportPost:
     @patch('api.feeds.get_database')
     def test_post_accepts_large_slug_list(self, mock_db, client):
         slugs = [f'feed-{index:04}' for index in range(1600)]
-        mock_db.return_value.get_all_podcasts.return_value = [
+        mock_db.return_value.get_all_podcast_rows.return_value = [
             {'slug': slug, 'title': slug, 'source_url': f'https://example.com/{slug}.xml'}
             for slug in slugs
         ]
@@ -91,7 +91,7 @@ class TestOpmlExportPost:
     @pytest.mark.parametrize('slugs', [[], [' ', '\t'], ['missing-show']])
     @patch('api.feeds.get_database')
     def test_post_requires_a_matching_slug(self, mock_db, client, slugs):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.post('/api/v1/feeds/export-opml', json={'slugs': slugs})
         assert response.status_code == 400
         assert 'matched no feeds' in response.get_json()['error']
@@ -102,7 +102,7 @@ class TestOpmlExportOriginalMode:
 
     @patch('api.feeds.get_database')
     def test_original_mode_uses_source_urls(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.get('/api/v1/feeds/export-opml?mode=original')
         assert response.status_code == 200
 
@@ -114,13 +114,13 @@ class TestOpmlExportOriginalMode:
 
     @patch('api.feeds.get_database')
     def test_original_mode_filename(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = []
+        mock_db.return_value.get_all_podcast_rows.return_value = []
         response = client.get('/api/v1/feeds/export-opml?mode=original')
         assert 'minuspod-feeds.opml' in response.headers['Content-Disposition']
 
     @patch('api.feeds.get_database')
     def test_original_mode_title_fallback_to_slug(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = [
+        mock_db.return_value.get_all_podcast_rows.return_value = [
             {'slug': 'untitled-pod', 'title': '', 'source_url': 'https://example.com/feed.xml'},
         ]
         response = client.get('/api/v1/feeds/export-opml?mode=original')
@@ -134,7 +134,7 @@ class TestOpmlExportModifiedMode:
 
     @patch('api.feeds.get_database')
     def test_modified_mode_uses_base_url_and_slug(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         # feed auth off: a bare MagicMock is truthy and would append ?key=
         mock_db.return_value.get_setting_bool.return_value = False
         with patch.dict(os.environ, {'BASE_URL': 'https://pod.example.com'}):
@@ -148,13 +148,13 @@ class TestOpmlExportModifiedMode:
 
     @patch('api.feeds.get_database')
     def test_modified_mode_filename(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = []
+        mock_db.return_value.get_all_podcast_rows.return_value = []
         response = client.get('/api/v1/feeds/export-opml?mode=modified')
         assert 'minuspod-feeds-modified.opml' in response.headers['Content-Disposition']
 
     @patch('api.feeds.get_database')
     def test_modified_mode_strips_trailing_slash(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = [
+        mock_db.return_value.get_all_podcast_rows.return_value = [
             {'slug': 'test-pod', 'title': 'Test', 'source_url': 'https://example.com/feed'},
         ]
         mock_db.return_value.get_setting_bool.return_value = False
@@ -167,7 +167,7 @@ class TestOpmlExportModifiedMode:
 
     @patch('api.feeds.get_database')
     def test_modified_mode_default_base_url(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = [
+        mock_db.return_value.get_all_podcast_rows.return_value = [
             {'slug': 'pod', 'title': 'Pod', 'source_url': ''},
         ]
         mock_db.return_value.get_setting_bool.return_value = False
@@ -183,7 +183,7 @@ class TestOpmlExportSlugFilter:
 
     @patch('api.feeds.get_database')
     def test_slugs_limits_export_to_selected_feeds(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.get('/api/v1/feeds/export-opml?mode=original&slugs=another-show')
         assert response.status_code == 200
         outlines = _parse_opml(response.data).findall('.//outline')
@@ -191,7 +191,7 @@ class TestOpmlExportSlugFilter:
 
     @patch('api.feeds.get_database')
     def test_slugs_keeps_feed_order_and_skips_unknown(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.get(
             '/api/v1/feeds/export-opml?slugs=another-show,%20gone-feed,my-podcast')
         assert response.status_code == 200
@@ -200,7 +200,7 @@ class TestOpmlExportSlugFilter:
 
     @patch('api.feeds.get_database')
     def test_slugs_matching_nothing_returns_400(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         for qs in ('slugs=gone-feed', 'slugs=', 'slugs=,,'):
             response = client.get(f'/api/v1/feeds/export-opml?{qs}')
             assert response.status_code == 400, qs
@@ -208,7 +208,7 @@ class TestOpmlExportSlugFilter:
 
     @patch('api.feeds.get_database')
     def test_no_slugs_param_still_exports_everything(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.get('/api/v1/feeds/export-opml')
         assert len(_parse_opml(response.data).findall('.//outline')) == 2
 
@@ -218,7 +218,7 @@ class TestOpmlExportStructure:
 
     @patch('api.feeds.get_database')
     def test_opml_has_correct_structure(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.get('/api/v1/feeds/export-opml')
 
         root = _parse_opml(response.data)
@@ -229,7 +229,7 @@ class TestOpmlExportStructure:
 
     @patch('api.feeds.get_database')
     def test_outlines_have_required_attributes(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_all_podcast_rows.return_value = _mock_podcasts()
         response = client.get('/api/v1/feeds/export-opml')
 
         root = _parse_opml(response.data)
@@ -242,14 +242,14 @@ class TestOpmlExportStructure:
     @patch('api.feeds.get_database')
     def test_download_is_octet_stream_with_opml_filename(self, mock_db, client):
         # octet-stream (not application/xml) so iOS keeps the .opml extension.
-        mock_db.return_value.get_all_podcasts.return_value = []
+        mock_db.return_value.get_all_podcast_rows.return_value = []
         response = client.get('/api/v1/feeds/export-opml')
         assert 'application/octet-stream' in response.content_type
         assert '.opml' in response.headers['Content-Disposition']
 
     @patch('api.feeds.get_database')
     def test_empty_feeds_exports_valid_opml(self, mock_db, client):
-        mock_db.return_value.get_all_podcasts.return_value = []
+        mock_db.return_value.get_all_podcast_rows.return_value = []
         response = client.get('/api/v1/feeds/export-opml')
         assert response.status_code == 200
         root = _parse_opml(response.data)

@@ -137,6 +137,15 @@ class PodcastMixin:
         cursor = conn.execute(_ALL_PODCASTS_SQL)  # noqa: S608
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_all_podcast_rows(self) -> list[dict]:
+        """Every podcast row, newest first, without the per-feed episode aggregation."""
+        cursor = self.get_connection().execute(
+            "SELECT * FROM podcasts ORDER BY created_at DESC")
+        return [dict(row) for row in cursor.fetchall()]
+
+    def count_podcasts(self) -> int:
+        return self.get_connection().execute("SELECT COUNT(*) FROM podcasts").fetchone()[0]
+
     def get_podcasts_page(self, limit: int, offset: int) -> tuple[list[dict], int]:
         """One page of podcasts with episode counts, plus the total feed count."""
         conn = self.get_connection()

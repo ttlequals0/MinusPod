@@ -1,6 +1,10 @@
 """Id-only podcast lookups use the cheap row accessor, not the episode aggregation."""
 import pytest
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('podcast_row_hot_path_test_')
+
 SLUG = 'example-podcast'
 AGGREGATE_KEYS = {'episode_count', 'processed_count', 'last_episode_date',
                   'awaiting_approval_count'}
@@ -54,3 +58,30 @@ def test_feed_scoped_resolvers_and_keys_skip_the_aggregation(feed):
     assert feed.get_max_episodes_for_podcast(SLUG) == 7
     assert feed.create_feed_subscriber_key(SLUG, 'Phone')
     assert feed.upsert_episode_for_processing(SLUG, 'a1b2c3d4e5f6', 'https://example.com/a.mp3') is not None
+
+
+def test_all_rows_match_the_aggregated_listing(temp_db):
+    for slug in ('zeta', 'alpha', 'mid'):
+        temp_db.create_podcast(slug, f'https://example.com/{slug}.xml', slug.title())
+    temp_db.upsert_episode('mid', 'a1b2c3d4e5f6', title='One')
+    full = temp_db.get_all_podcasts()
+    rows = temp_db.get_all_podcast_rows()
+    assert [r['slug'] for r in rows] == [p['slug'] for p in full]
+    assert all(not (AGGREGATE_KEYS & set(r)) for r in rows)
+    assert [r['id'] for r in rows] == [p['id'] for p in full]
+    assert temp_db.count_podcasts() == len(full) == 3
+
+
+def test_refresh_all_feeds_route_counts_without_the_aggregation(app_client, temp_db, monkeypatch):
+    import main_app.feeds as feeds_module
+    from tests.integration.fingerprint_helpers import csrf
+    temp_db.create_podcast(SLUG, 'https://example.com/feed.xml', 'Example')
+    monkeypatch.setattr(feeds_module, 'refresh_all_feeds', lambda force=False: {'success': True})
+
+    def boom(*_a, **_k):
+        raise AssertionError('get_all_podcasts ran the episode aggregation')
+
+    monkeypatch.setattr(temp_db, 'get_all_podcasts', boom)
+    response = app_client.post('/api/v1/feeds/refresh', json={}, headers=csrf(app_client))
+    assert response.status_code == 200
+    assert response.get_json()['feedCount'] == 1

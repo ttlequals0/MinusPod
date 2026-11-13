@@ -106,7 +106,7 @@ class TestSearchIndexRebuildBackoff:
     def _run_cleanup(self, monkeypatch, *, rebuild, slots=0, last=0.0, full_last=0.0, refresh=None):
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
-        db.get_all_podcasts.return_value = []
+        db.get_all_podcast_rows.return_value = []
         db.rebuild_search_index.side_effect = rebuild
         db.refresh_search_index.side_effect = refresh
         db.get_system_setting.return_value = str(full_last) if full_last else None
@@ -167,7 +167,7 @@ class TestSearchIndexRebuildBackoff:
         the index untouched."""
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
-        db.get_all_podcasts.return_value = []
+        db.get_all_podcast_rows.return_value = []
         monkeypatch.setattr(background, 'db', db)
         monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         last = time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS - 60
@@ -196,7 +196,7 @@ class TestDownloadPruneCadence:
     def _run(self, monkeypatch):
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
-        db.get_all_podcasts.return_value = []
+        db.get_all_podcast_rows.return_value = []
         db.get_setting_int.return_value = 90
         monkeypatch.setattr(background, 'db', db)
         monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)

@@ -1896,7 +1896,7 @@ def export_opml():
         wanted = {slug.strip() for slug in slugs_param.split(',') if slug.strip()} if slugs_param is not None else None
 
     db = get_database()
-    podcasts = db.get_all_podcasts()
+    podcasts = db.get_all_podcast_rows()
     if wanted is not None:
         podcasts = [p for p in podcasts if p['slug'] in wanted]
         if not podcasts:
@@ -2832,13 +2832,13 @@ def refresh_all_feeds():
         from main_app.feeds import refresh_all_feeds as do_refresh
         result = do_refresh(force=force)
 
-        podcasts = db.get_all_podcasts()
+        feed_count = db.count_podcasts()
 
         logger.info(f"Refreshed all feeds (force={force})")
         return json_response({
             'message': ('All feeds refreshed' if result['success']
                         else 'Feed refresh completed with failures'),
-            'feedCount': len(podcasts),
+            'feedCount': feed_count,
             **result,
         }, 200 if result['success'] else 207)
 

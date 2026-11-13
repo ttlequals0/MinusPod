@@ -236,7 +236,7 @@ def run_cleanup():
 
     # Clean orphan podcast directories (podcasts deleted from DB but directories remain)
     try:
-        valid_slugs = {p['slug'] for p in db.get_all_podcasts()}
+        valid_slugs = {p['slug'] for p in db.get_all_podcast_rows()}
         podcast_base = os.path.join(storage.data_dir, 'podcasts')
         if os.path.exists(podcast_base):
             for slug in os.listdir(podcast_base):

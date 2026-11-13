@@ -192,7 +192,7 @@ def test_typesafe_missing_key_cannot_build_or_probe_and_does_not_use_openai_key(
 
 @pytest.mark.parametrize('enabled, mode', [(False, 'off'), (False, 'auto'), (True, 'auto')])
 def test_phase_validation_reads_feeds_only_for_enabled_global_off_mode(temp_db, monkeypatch, enabled, mode):
-    monkeypatch.setattr(temp_db, 'get_all_podcasts',
+    monkeypatch.setattr(temp_db, 'get_all_podcast_rows',
                         lambda: (_ for _ in ()).throw(AssertionError('feed rows cannot affect this mode')))
     systemone_phases._validate_systemone_phase_enables(temp_db, {'chaptersEnabled': enabled, 'chaptersMode': mode})
 

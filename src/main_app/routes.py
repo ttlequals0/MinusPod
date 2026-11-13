@@ -990,7 +990,7 @@ def register_routes(app):
                 f"[{client_ip()}]")
             abort(401)
         base_url = os.getenv('BASE_URL', 'http://localhost:8000')
-        xml = build_opml_xml(db.get_all_podcasts(), mode, base_url, key)
+        xml = build_opml_xml(db.get_all_podcast_rows(), mode, base_url, key)
         feed_logger.info(f"Served OPML via URL (mode={mode})")
         # mimetype (not content_type): Werkzeug appends charset=utf-8 for
         # text/*; passing the charset here too would double it.

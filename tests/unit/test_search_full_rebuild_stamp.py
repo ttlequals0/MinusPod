@@ -58,7 +58,7 @@ def test_a_failed_stamp_write_does_not_fail_the_rebuild():
 def _cleanup(monkeypatch, stored, cached=0, read_error=None):
     db = MagicMock()
     db.cleanup_old_episodes.return_value = (0, 0.0)
-    db.get_all_podcasts.return_value = []
+    db.get_all_podcast_rows.return_value = []
     db.get_system_setting.return_value = stored
     db.get_system_setting.side_effect = read_error
     monkeypatch.setattr(bg, 'db', db)
