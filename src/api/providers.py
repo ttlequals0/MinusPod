@@ -450,6 +450,32 @@ def _whisper_connection_test(saved: dict, body: dict):
     return json_response(result, 200)
 
 
+def _probe_models_for_base(provider, base, saved_key, gate_base):
+    """Validate a tested base URL and probe its models endpoint (#544)."""
+    if base is not None and not isinstance(base, str):
+        return error_response('baseUrl must be a string', 400)
+    if not base or not base.strip():
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Enter a base URL first.'}, 200)
+    base = base.strip()
+    if url_has_userinfo(base):
+        return error_response(BASE_URL_USERINFO_ERROR, 400)
+
+    # The saved API key goes out only when the tested URL points at the
+    # same server as the explicitly saved base URL. Without this gate, any
+    # caller with a session could exfiltrate the stored key by "testing" a
+    # URL they control -- a secret this API otherwise never returns.
+    api_key = saved_key if _same_server(base, gate_base) else ''
+
+    # The real client appends /v1 for Ollama; the probe must match or a
+    # URL that works for episodes would fail the test and vice versa.
+    norm = _normalize_base_url_for_provider(
+        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
+        else PROVIDER_OPENAI_COMPATIBLE, base)
+    return json_response(_probe_models_endpoint(norm, api_key), 200)
+
+
 @api.route('/settings/providers/<provider>/test-connection', methods=['POST'])
 def test_provider_connection(provider):
     """End-to-end probe of a configured external endpoint (#544).
@@ -513,29 +539,7 @@ def test_provider_connection(provider):
         or os.environ.get(cfg['base_env'], '')
 
     base = body['baseUrl'] if 'baseUrl' in body else saved_base
-    if base is not None and not isinstance(base, str):
-        return error_response('baseUrl must be a string', 400)
-    if not base or not base.strip():
-        return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Enter a base URL first.'}, 200)
-    base = base.strip()
-    if url_has_userinfo(base):
-        return error_response(BASE_URL_USERINFO_ERROR, 400)
-
-    # The saved API key goes out only when the tested URL points at the
-    # same server as the explicitly saved base URL. Without this gate, any
-    # caller with a session could exfiltrate the stored key by "testing" a
-    # URL they control -- a secret this API otherwise never returns.
-    api_key = saved_key if _same_server(base, gate_base) else ''
-
-    # The real client appends /v1 for Ollama; the probe must match or a
-    # URL that works for episodes would fail the test and vice versa.
-    norm = _normalize_base_url_for_provider(
-        PROVIDER_OLLAMA if provider == 'ollama'
-        else PROVIDER_OPENAI_COMPATIBLE, base)
-    result = _probe_models_endpoint(norm, api_key)
-    return json_response(result, 200)
+    return _probe_models_for_base(provider, base, saved_key, gate_base)
 
 
 # Provider types the secondary slot accepts, matching VALID_LLM_PROVIDERS
@@ -630,25 +634,7 @@ def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: di
     # Effective default matches llm_route; the key gate below sees only an
     # explicitly saved URL, never that default.
     base = body['baseUrl'] if 'baseUrl' in body else (gate_base or DEFAULT_OPENAI_BASE_URL)
-    if base is not None and not isinstance(base, str):
-        return error_response('baseUrl must be a string', 400)
-    if not base or not base.strip():
-        return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Enter a base URL first.'}, 200)
-    base = base.strip()
-    if url_has_userinfo(base):
-        return error_response(BASE_URL_USERINFO_ERROR, 400)
-
-    # Same anti-exfiltration gate as the primary test-connection route
-    # (#544): the saved key only goes out when the tested URL matches the
-    # explicitly saved base URL.
-    api_key = saved_key if _same_server(base, gate_base) else ''
-
-    norm = _normalize_base_url_for_provider(
-        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
-        else PROVIDER_OPENAI_COMPATIBLE, base)
-    return json_response(_probe_models_endpoint(norm, api_key), 200)
+    return _probe_models_for_base(provider, base, saved_key, gate_base)
 
 
 @api.route('/settings/providers/failover-whisper/test-connection', methods=['POST'])
