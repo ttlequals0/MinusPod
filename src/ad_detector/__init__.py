@@ -2870,7 +2870,9 @@ class AdDetector:
             'pattern_defined': getattr(match, 'defined', False),
         })
         if self.pattern_service and match.pattern_id:
-            self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
+            # A partial audio match found one ad of a composite pattern, not the whole pattern
+            self.pattern_service.record_pattern_match(
+                match.pattern_id, episode_id, promote=not getattr(match, 'partial', False))
             # getattr: FingerprintMatch has no 'absorbed_ids' field.
             for absorbed in getattr(match, 'absorbed_ids', []) or []:
                 self.pattern_service.record_pattern_match(absorbed, episode_id)

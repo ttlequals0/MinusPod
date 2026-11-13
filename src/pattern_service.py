@@ -600,12 +600,13 @@ class PatternService:
         self,
         pattern_id: int,
         episode_id: str = None,
-        observed_duration: float = None
+        observed_duration: float = None,
+        promote: bool = True,
     ) -> None:
         """
         Record that a pattern was matched, updating last_matched_at.
 
-        Also triggers promotion check.
+        Also triggers promotion check unless promote is False.
 
         Args:
             pattern_id: The matched pattern ID
@@ -622,6 +623,9 @@ class PatternService:
             # Update duration running average if provided
             if observed_duration is not None and observed_duration > 0:
                 self.db.update_pattern_duration(pattern_id, observed_duration)
+
+            if not promote:
+                return
 
             # Check if this sponsor qualifies for global promotion
             pattern = self.db.get_ad_pattern_by_id(pattern_id)
