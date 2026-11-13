@@ -1,6 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode, QueueOrder } from './types';
-import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
 import { apiUrl } from '../urlPrefix';
 import { mediaUrl } from '../utils/mediaUrl';
 import { IS_DEMO } from '../demo/flag';
@@ -468,97 +467,42 @@ export async function reprocessEpisode(
   );
 }
 
-export interface UpdateFeedPayload {
-  sourceUrl?: string;
-  // title and p20 are local feeds only; author, explicit and categories also work on YouTube feeds.
-  // The backend rejects them on a subscribed feed.
-  title?: string;
-  description?: string;
-  // null clears the stored value (the backend distinguishes "clear" from
-  // "field omitted"; sending undefined here drops the key from the JSON
-  // body entirely and the old value survives untouched).
+type FeedPatchKey =
+  | 'sourceUrl' | 'title' | 'description' | 'p20' | 'networkId' | 'daiPlatform'
+  | 'networkIdOverride' | 'autoProcessOverride' | 'autoProcessMaxAgeHoursOverride'
+  | 'languageOverride' | 'downloadUserAgentOverride' | 'feedUserAgentOverride' | 'titleOverride'
+  | 'descriptionOverride' | 'detectionNotes' | 'chapterNotes' | 'detectionMode' | 'chaptersMode'
+  | 'differentialFetchMode' | 'chaptersInNotes' | 'reviewLinksInNotes' | 'queuePriority'
+  | 'queueOrder' | 'lowAdYieldAction' | 'episodeLogs' | 'cueTemplateScoreOverride'
+  | 'cueCreateFromPairsOverride' | 'cueCutMatchesOverride' | 'cuePairMinBreakOverride'
+  | 'cuePairMaxBreakOverride' | 'cuePairMaxBreakFractionOverride' | 'cueSnapConfidenceOverride'
+  | 'cueSnapLeadOverride' | 'cueSnapLagOverride' | 'silenceSnapEnabled' | 'spliceVetoEnabled'
+  | 'transitionSnapEnabled' | 'maxAdDurationOverride' | 'youtubeIncludeShorts'
+  | 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride'
+  | 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytHidePrivateOverride'
+  | 'ytTranscribeOverride' | 'maxAdDurationRejectOverride' | 'adDetectionExcludeStartOverride'
+  | 'cueGatedApproval' | 'differentialFetchEnabled' | 'passthroughEnabled' | 'skipAdDetection'
+  | 'processingMode' | 'cueOnlySafety' | 'skipTranscription' | 'maxEpisodes'
+  | 'onlyExposeProcessedEpisodes' | 'requireManualApproval' | 'retentionDaysOverride'
+  | 'keepOriginalAudioOverride' | 'audioReplacementSoundOverride' | 'audioMp3StreamCopyOverride'
+  | 'titleSkipPatterns' | 'descriptionSkipPatterns' | 'descriptionTrimPattern'
+  | 'descriptionTrimMode' | 'titleSkipAction' | 'minDurationSeconds' | 'maxDurationSeconds'
+  | 'segmentCategoryActions' | 'detectShowSegments' | 'ownEpisodeGuids' | 'skipSecondPass'
+  | 'transcriptDifferential';
+
+// title and p20 are local feeds only; author, explicit and categories also work on YouTube feeds.
+// The backend rejects them on a subscribed feed.
+// null clears the stored value (the backend distinguishes "clear" from
+// "field omitted"; sending undefined here drops the key from the JSON
+// body entirely and the old value survives untouched).
+// processingMode is rejected with detectionMode/skipAdDetection/passthroughEnabled, and the
+// cue-only fields outside cue_only. segmentCategoryActions replaces the stored map outright
+// (send the full partial map; null clears every override).
+export type UpdateFeedPayload = Partial<Pick<Feed, FeedPatchKey>> & {
   author?: string | null;
   explicit?: boolean;
   categories?: string[] | null;
-  p20?: Record<string, unknown>;
-  networkId?: string;
-  daiPlatform?: string;
-  networkIdOverride?: string | null;
-  autoProcessOverride?: boolean | null;
-  autoProcessMaxAgeHoursOverride?: number | null;
-  languageOverride?: string | null;
-  downloadUserAgentOverride?: string | null;
-  feedUserAgentOverride?: string | null;
-  titleOverride?: string | null;
-  descriptionOverride?: string | null;
-  detectionNotes?: string | null;
-  chapterNotes?: string | null;
-  detectionMode?: string | null;
-  chaptersMode?: 'auto' | 'generate' | 'off' | null;
-  differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
-  chaptersInNotes?: 'on' | 'off' | null;
-  reviewLinksInNotes?: 'on' | 'off' | null;
-  queuePriority?: 'high' | 'normal' | 'low' | null;
-  queueOrder?: QueueOrder | null;
-  lowAdYieldAction?: LowAdYieldAction | null;
-  episodeLogs?: EpisodeLogsOverride | null;
-  cueTemplateScoreOverride?: number | null;
-  cueCreateFromPairsOverride?: boolean | null;
-  cueCutMatchesOverride?: boolean | null;
-  cuePairMinBreakOverride?: number | null;
-  cuePairMaxBreakOverride?: number | null;
-  cuePairMaxBreakFractionOverride?: number | null;
-  cueSnapConfidenceOverride?: number | null;
-  cueSnapLeadOverride?: number | null;
-  cueSnapLagOverride?: number | null;
-  silenceSnapEnabled?: boolean | null;
-  spliceVetoEnabled?: boolean | null;
-  transitionSnapEnabled?: boolean | null;
-  maxAdDurationOverride?: number | null;
-  youtubeIncludeShorts?: boolean | null;
-  ytProcessDelayMinutesOverride?: number | null;
-  ytProbeAttemptsOverride?: number | null;
-  ytProbeIntervalMinutesOverride?: number | null;
-  ytLlmFallbackOverride?: boolean | null;
-  ytLlmOnTopOverride?: boolean | null;
-  ytCaptionsOverride?: boolean | null;
-  ytHidePrivateOverride?: boolean | null;
-  ytTranscribeOverride?: boolean | null;
-  maxAdDurationRejectOverride?: number | null;
-  adDetectionExcludeStartOverride?: number | null;
-  cueGatedApproval?: boolean | null;
-  differentialFetchEnabled?: boolean | null;
-  passthroughEnabled?: boolean | null;
-  skipAdDetection?: boolean | null;
-  // Single-preset replacement for detectionMode/skipAdDetection/passthroughEnabled.
-  // Rejected by the backend if combined with any of those legacy fields.
-  processingMode?: ProcessingMode;
-  // Cue-only mode fields; the backend rejects them outside cue_only.
-  cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
-  skipTranscription?: boolean | null;
-  maxEpisodes?: number | null;
-  onlyExposeProcessedEpisodes?: boolean | null;
-  requireManualApproval?: boolean | null;
-  retentionDaysOverride?: number | null;
-  keepOriginalAudioOverride?: boolean | null;
-  audioReplacementSoundOverride?: boolean | null;
-  audioMp3StreamCopyOverride?: boolean | null;
-  titleSkipPatterns?: string[];
-  descriptionSkipPatterns?: string[];
-  descriptionTrimPattern?: string | null;
-  descriptionTrimMode?: 'to_end' | 'to_next';
-  titleSkipAction?: 'serve_original' | 'hide' | null;
-  minDurationSeconds?: number | null;
-  maxDurationSeconds?: number | null;
-  // Per-feed segment-action overrides (issue #565). The backend replaces
-  // the stored map outright, so callers must send the full desired partial
-  // map (not just the changed key); null clears every override.
-  segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
-  detectShowSegments?: boolean | null;
-  ownEpisodeGuids?: boolean | null;
-  skipSecondPass?: boolean | null;
-  transcriptDifferential?: boolean | null;
-}
+};
 
 export interface Network {
   id: string;
