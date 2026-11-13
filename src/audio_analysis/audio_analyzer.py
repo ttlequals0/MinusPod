@@ -317,7 +317,7 @@ class AudioAnalyzer:
         try:
             vol_future = pool.submit(run_in_worker_thread(self.volume_analyzer.analyze), audio_path)
 
-            # Audio cue detection (issue #350) -- opt-in. Settings are read per
+            # Audio cue detection (issue #350), opt-in. Settings are read per
             # run so the toggle takes effect without a restart. Runs its own
             # band-passed ffmpeg pass, so only when the experiment is enabled.
             cue_future = None
@@ -332,7 +332,7 @@ class AudioAnalyzer:
                     audio_path,
                 )
 
-            # Silence detection (Phase B) -- per-feed opt-in via silence_snap_enabled.
+            # Silence detection (Phase B), per-feed opt-in via silence_snap_enabled.
             # Runs its own ffmpeg silencedetect pass; skipped when flag is off (default).
             silence_future = None
             if silence_detector:

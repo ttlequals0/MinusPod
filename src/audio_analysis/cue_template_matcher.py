@@ -4,7 +4,7 @@ Each template is a short MFCC matrix the user marked on one episode. This
 detector decodes the full episode to MFCC once, then for every template runs a
 normalized cross-correlation against the episode-MFCC time axis. Each above-
 threshold peak becomes an ``audio_cue`` ``AudioSegmentSignal`` that rides the
-existing pipeline -- prompt injection in ``AudioEnforcer`` and boundary snap
+existing pipeline: prompt injection in ``AudioEnforcer`` and boundary snap
 in ``cue_boundary_snap``.
 
 Why MFCC NCC and not Chromaprint / spectrogram pixel match:
@@ -50,7 +50,7 @@ logger = logging.getLogger('podcast.audio_analysis.cue_template')
 # Default threshold; tuneable via DB setting `audio_cue_template_score`. The
 # value and its rationale live in config.AUDIO_CUE_TEMPLATE_SCORE.
 DEFAULT_MATCH_SCORE = AUDIO_CUE_TEMPLATE_SCORE
-# Max matches we report per template per episode -- bounds prompt size.
+# Max matches we report per template per episode, bounds prompt size.
 MAX_MATCHES_PER_TEMPLATE = 50
 # Episode is decoded in chunks of this many seconds with `OVERLAP_S` overlap
 # so a template straddling a chunk boundary still matches. Keep memory bounded
@@ -332,7 +332,7 @@ class AudioCueTemplateMatcher:
                     ))
                 else:
                     # In [near_miss_floor, threshold): advisory near-miss only.
-                    # Append unconditionally -- finalize() dedupes then caps by
+                    # Append unconditionally; finalize() dedupes then caps by
                     # score so the strongest survive; _peak_pick bounds memory.
                     per_template_near_misses[tpl.template_id].append({
                         'template_id': tpl.template_id,

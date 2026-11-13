@@ -38,7 +38,7 @@ from utils.validation import is_dangerous_slug, is_valid_episode_id
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Planning half -- pure functions only, see module docstring.
+# Planning half: pure functions only, see module docstring.
 # ---------------------------------------------------------------------------
 
 AUDIO_EXTS = {'.mp3'}
@@ -167,7 +167,7 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
 
     anchors = sorted(parsed)
 
-    # strict=False: this is the pairwise idiom -- anchors[1:] is always
+    # strict=False: this is the pairwise idiom; anchors[1:] is always
     # exactly one element shorter than anchors by construction, so the
     # "unequal lengths" strict=True guards against can never fire here.
     for a, b in zip(anchors, anchors[1:], strict=False):
@@ -380,7 +380,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
             audio_stat = audio.stat()
         except OSError:
             # File vanished between listing and stat (e.g. a concurrent
-            # move/delete) -- same guard as the size-filter loop above and
+            # move/delete), same guard as the size-filter loop above and
             # plan_hash: skip this candidate rather than 500ing the whole scan.
             continue
         candidates.append({
@@ -496,7 +496,7 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
 
 
 # ---------------------------------------------------------------------------
-# Commit half -- staging/import-dir moves, embedded artwork, background job.
+# Commit half: staging/import-dir moves, embedded artwork, background job.
 # ---------------------------------------------------------------------------
 
 # Free-space margin required over the plan's total importable bytes before a
@@ -851,7 +851,7 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     except OSError:
         return 'error', 'source audio file no longer present'
     # TOCTOU guard: both size and mtime must still match what the plan
-    # snapshotted at scan time -- size alone would miss an in-place rewrite
+    # snapshotted at scan time; size alone would miss an in-place rewrite
     # that happens to land on the same byte count.
     if (stat_result.st_size != entry.get('bytes')
             or stat_result.st_mtime_ns != entry.get('mtimeNs')):
@@ -1076,7 +1076,7 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     overwrite = bool(plan.get('overwrite'))
     reservations = reservations or {}
     # 'directory'-sourced commit never scanned staging, so it must never
-    # touch it either -- gates the sweep in the finally block below.
+    # touch it either; gates the sweep in the finally block below.
     source = plan.get('source', 'both')
     staging_dir = storage.import_staging_dir(slug)
 

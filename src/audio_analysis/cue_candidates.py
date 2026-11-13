@@ -1,6 +1,6 @@
 """Merge cue-template candidates: within-episode recurrence + cross-episode intro/outro.
 
-Pure -- no Flask/DB imports -- so the candidate-scan worker and unit tests use it
+Pure (no Flask/DB imports) so the candidate-scan worker and unit tests use it
 directly.
 """
 import numpy as np

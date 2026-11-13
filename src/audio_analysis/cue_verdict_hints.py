@@ -5,7 +5,7 @@ too loose (raise it); rejections spread across the score range or overlapping
 confirmed scores mean the capture itself matches the wrong audio (re-capture).
 Rejections at or below the current threshold are ignored: they no longer match
 today, so stale labels recorded under an older, lower threshold cannot keep a
-hint alive. Pure -- no Flask/DB imports -- mirroring cue_threshold_suggest.
+hint alive. Pure (no Flask/DB imports), mirroring cue_threshold_suggest.
 """
 
 from config import AUDIO_CUE_HINT_MIN_REJECTIONS, AUDIO_CUE_HINT_NEAR_BAND

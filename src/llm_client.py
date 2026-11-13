@@ -2610,7 +2610,7 @@ def is_retryable_error(error: Exception) -> bool:
         return False
     if isinstance(error, ProviderRequestRejectedError):
         return False
-    # Structural 429s are never retryable -- the request itself exceeds the
+    # Structural 429s are never retryable; the request itself exceeds the
     # provider's per-minute cap, no amount of backoff will help.
     if isinstance(error, StructuralRateLimitError):
         return False

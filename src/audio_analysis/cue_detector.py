@@ -1,6 +1,6 @@
 """Audio-cue (ding/stinger) detection for ad-break boundaries (issue #350).
 
-Some shows play a short non-spoken sound -- a chime or stinger -- just before
+Some shows play a short non-spoken sound (a chime or stinger) just before
 an ad break. The transcript loses it, so the ad detector flags the ad once the
 spoken sponsor copy starts, a beat late. This detector band-passes the audio to
 the frequency band such cues live in, measures per-frame loudness of that band

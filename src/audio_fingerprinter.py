@@ -290,7 +290,7 @@ def _find_shared_segments(target, siblings, win, similarity, min_matches,
         # skip-past gate below must use this (refinement can pull hi back).
         coarse_capped = hi + step - lo > max_len
         # Fine refinement: retract coarse overshoot, then extend 1 subfp at a time using 4-subfp windows
-        # (a 1-subfp slice is 32 bits -- too noisy at 0.73). Never drops a survivor; count stays coarse.
+        # (a 1-subfp slice is 32 bits, too noisy at 0.73). Never drops a survivor; count stays coarse.
         R = min(4, win)
         fine_limit = max(1, step - 1)
         # Retraction floor: never shrink a coarse-valid run below min_len, else a
@@ -405,7 +405,7 @@ def _discover_repeats(raw_ints, fp_duration, similarity, min_count):
         seg_start = seg_hits[0]
         # Backward extension can walk into a region an earlier (stronger)
         # candidate already claimed; if so this is the same sound seen from a
-        # weaker anchor -- drop it rather than emit an overlapping duplicate.
+        # weaker anchor; drop it rather than emit an overlapping duplicate.
         if claimed[seg_start]:
             continue
         # Grow the segment forward while every occurrence keeps matching. The
@@ -1343,7 +1343,7 @@ class AudioFingerprinter:
         outro_max_len = max(min_len, int(round(outro_max_duration * fps)))
 
         # Head and tail zones are split at the episode midpoint so they never
-        # overlap, even on short episodes -- otherwise one shared segment would be
+        # overlap, even on short episodes; otherwise one shared segment would be
         # emitted as both intro and outro.
         def _head(ints, dur):
             n = len(ints)
@@ -1368,7 +1368,7 @@ class AudioFingerprinter:
         outros = _find_shared_segments(
             t_tail, [_tail(s, d) for s, d in sib_fps],
             win, similarity, min_matches, min_len, outro_max_len)
-        # Keep the runs nearest the episode end -- the true sign-off outro is the
+        # Keep the runs nearest the episode end; the true sign-off outro is the
         # last tail run, not the earliest. (Guard the -0 slice: outros[-0:] is the
         # whole list, which would ignore a max_per_zone of 0.)
         for a, b, count in (outros[-max_per_zone:] if max_per_zone > 0 else []):

@@ -262,7 +262,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
         podcast.get('description_override'), podcast.get('description'), sanitize=True) or ''
     replacement_duration = get_replacement_duration()
     # 'auto' is a Whisper transcription-language pin, not an RSS language
-    # code -- it must never leak into <language>.
+    # code; it must never leak into <language>.
     language = podcast.get('language_override') or 'en'
     if str(language).strip().lower() == 'auto':
         language = 'en'
@@ -295,7 +295,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     locked = locked if locked in ('yes', 'no') else 'yes'
     # owner is an optional contact email on the lock, independent of
     # yes/no (design spec section 6: "locked (default yes, owner email
-    # optional)") -- emitted whenever set, regardless of the locked value.
+    # optional)"), emitted whenever set, regardless of the locked value.
     locked_owner = channel_json.get('locked_owner')
     owner_attr = (f' owner="{rss_parser._escape_xml(str(locked_owner))}"'
                  if locked_owner else '')

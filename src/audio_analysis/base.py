@@ -64,7 +64,7 @@ class AudioAnalysisResult:
     loudness_frames: list[LoudnessFrame] = field(default_factory=list)
     analysis_time_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
-    # Near-miss telemetry (#350). Advisory only -- never signals.
+    # Near-miss telemetry (#350). Advisory only, never signals.
     cue_near_misses: list[dict[str, Any]] = field(default_factory=list)
     # True when the template cue scan ran cleanly, so an empty cue list means
     # "none present" rather than "never looked". Not serialized.
@@ -72,7 +72,7 @@ class AudioAnalysisResult:
     # Per-template {'id', 'label', 'peak_score', 'match_count', 'eff_threshold'}
     # from the matcher pass. Not serialized; the cue_detections rows persist it.
     cue_templates_debug: list[dict[str, Any]] = field(default_factory=list)
-    # Silence spans from silencedetect (Phase B). Advisory only -- never signals.
+    # Silence spans from silencedetect (Phase B). Advisory only, never signals.
     silence_spans: list[dict[str, Any]] = field(default_factory=list)
     # Resolved silence-snap tunables from the analyzer pass; set when silence
     # detection ran so processing.py can reuse them without a second DB read.
@@ -81,7 +81,7 @@ class AudioAnalysisResult:
     # analyzer pass, never by the analyzer itself.
     dai_differential: dict[str, Any] | None = None
     # Splice-evidence payload (spec 2.1): {'version', 'events', 'calibration'}.
-    # None when the detector did not run. Evidence only -- never cuts alone.
+    # None when the detector did not run. Evidence only, never cuts alone.
     splice_evidence: dict[str, Any] | None = None
     # 10 ms abs-max (uint16) from the splice decode; in memory only, never serialized.
     peaks_10ms: np.ndarray | None = None

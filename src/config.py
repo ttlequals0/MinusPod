@@ -875,7 +875,7 @@ AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES = 3
 AUDIO_CUE_SUGGEST_NEAR_MISS_BAND = 0.2
 # The confidence a cue must reach to affect anything downstream (LLM prompt
 # floor, hardcoded). Snap/pair use their own DB-settable floors; this is a
-# display/annotation mirror only -- do NOT rewire audio_enforcer from it here.
+# display/annotation mirror only; do not rewire audio_enforcer from it here.
 AUDIO_CUE_EFFECT_FLOOR = 0.80
 
 # Keep-content (whitelist) detection mode, opt-in per feed, default blacklist. The LLM labels substantive show
@@ -2042,7 +2042,7 @@ def get_pricing_sources(provider: str, base_url: str = '') -> list:
                 dict(_LITELLM_SOURCE),
             ]
 
-    # Unknown domain (including LAN/localhost) -- unfiltered LiteLLM.
+    # Unknown domain (including LAN/localhost), unfiltered LiteLLM.
     return [dict(_LITELLM_SOURCE)]
 
 
@@ -2648,7 +2648,7 @@ MAX_AUDIO_DOWNLOAD_MB_MIN = 1
 LOCAL_UPLOAD_MAX_MB_MIN = 1
 LOCAL_UPLOAD_MAX_MB_MAX = 4096
 LOCAL_UPLOAD_MAX_MB_DEFAULT = 1024
-# Advisory threshold only -- the download cap is the disk-fill guard, so
+# Advisory threshold only; the download cap is the disk-fill guard, so
 # values past 10 GB log a warning but are honored (no hard ceiling; a
 # clamp would regress deployments that deliberately run above it).
 MAX_AUDIO_DOWNLOAD_MB_ADVISORY = 10240
@@ -2661,7 +2661,7 @@ def _db_setting(key: str):
         from database import Database
         return Database().get_setting(key)
     except Exception as e:
-        # WARNING, not debug: a failed read here silently reverts a
+        # Warning, not debug: a failed read here silently reverts a
         # UI-customized value to its env/default for this call.
         _tunable_logger.warning("Could not read setting %s from DB, using env/default: %s", key, e)
         return None
@@ -2746,7 +2746,7 @@ ENV_BACKED_SETTINGS = (
         str(AD_REVIEWER_PARALLEL_ADS_DEFAULT),
         _validate_reviewer_parallel,
     ),
-    # Size caps (issue #491 follow-up): previously env-only knobs. Units
+    # Size caps (issue #491): previously env-only knobs. Units
     # match the historical env vars (bytes for artwork/RSS, MB for audio
     # download) so existing deployments keep working unchanged.
     ('session_lifetime_hours', 'SESSION_LIFETIME_HOURS', '24', _validate_session_lifetime_hours),

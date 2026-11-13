@@ -46,7 +46,7 @@ def speechiness_features(pcm, sample_rate=16000, *,
     pcm = np.asarray(pcm, dtype=np.float32)
     if pcm.size < _N_FFT * 2:
         return 0.0, 0.0, 1.0
-    # Strided frames (matches cue_features.compute_mfcc) -- avoids a per-frame
+    # Strided frames (matches cue_features.compute_mfcc), avoids a per-frame
     # Python list. The guard above guarantees at least one frame.
     n_frames = 1 + (pcm.size - _N_FFT) // _HOP
     idx = np.arange(_N_FFT)[None, :] + _HOP * np.arange(n_frames)[:, None]

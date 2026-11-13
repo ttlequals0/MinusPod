@@ -891,7 +891,7 @@ class AdValidator:
         corrections = []
         confidence = ad.get('confidence', 1.0)
 
-        # Pop stale held/corroboration state -- re-derived on every pass.
+        # Pop stale held/corroboration state, re-derived on every pass.
         remainder_reason = (ad.get('hold_reason') if ad.get('pass2_hold_remainder')
                             else None)
         ad.pop('held_for_review', None)
@@ -968,7 +968,7 @@ class AdValidator:
                     ad['start'] < approved_end and ad['end'] > approved_start)
                 if not overlaps_approved or approved_end <= approved_start:
                     # The detection lies entirely inside user-kept content;
-                    # do not auto-accept -- let normal validation judge it.
+                    # do not auto-accept; let normal validation judge it.
                     auto_accept = False
                 elif (approved_start, approved_end) != (ad['start'], ad['end']):
                     logger.info(
