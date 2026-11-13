@@ -160,6 +160,19 @@ const WINDOW_STEP_SECONDS = 60;
 const CONTEXT_SECONDS = 30;
 const MIN_AD_DURATION = 1.0;
 
+function CategoryOptions() {
+  return (
+    <>
+      <option value="">Uncategorized (counts as Sponsor)</option>
+      {SEGMENT_CATEGORIES.map((c) => (
+        <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
+          {SEGMENT_CATEGORY_LABELS[c]}
+        </option>
+      ))}
+    </>
+  );
+}
+
 // ----------------------------------------------------------------------
 // Playhead cursor -- ref-driven DOM updates from the RAF loop, NOT React
 // state, so position can update at full 60fps without re-rendering the
@@ -1467,12 +1480,7 @@ function AdReviewModal({
                 disabled={lockMultiFields}
                 className={`mt-1 w-full ${selectBase}`}
               >
-                <option value="">Uncategorized (counts as Sponsor)</option>
-                {SEGMENT_CATEGORIES.map((c) => (
-                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
-                    {SEGMENT_CATEGORY_LABELS[c]}
-                  </option>
-                ))}
+                <CategoryOptions />
               </select>
             </label>
             {isMultiSpan ? (
@@ -1580,12 +1588,7 @@ function AdReviewModal({
                 }}
                 className={`${selectBase} max-w-full`}
               >
-                <option value="">Uncategorized (counts as Sponsor)</option>
-                {SEGMENT_CATEGORIES.map((c) => (
-                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
-                    {SEGMENT_CATEGORY_LABELS[c]}
-                  </option>
-                ))}
+                <CategoryOptions />
               </select>
               <span>Decides whether this span is cut, beeped, kept, or marked as a chapter.</span>
             </label>
