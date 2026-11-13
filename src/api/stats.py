@@ -149,17 +149,22 @@ def get_model_usage_stats():
     })
 
 
-@api.route('/stats/systemone', methods=['GET'])
-@log_request
-def get_systemone_stats():
-    """Separate logical native calls from their actual request rows."""
-    db = get_database()
+def _provider_scope_params():
+    """Date, provider and model query params, plus the first invalid date name."""
     params = {
         **_date_scope_params(),
         'provider': request.args.get('provider'),
         'model': request.args.get('model'),
     }
-    invalid = _invalid_date_param(params)
+    return params, _invalid_date_param(params)
+
+
+@api.route('/stats/systemone', methods=['GET'])
+@log_request
+def get_systemone_stats():
+    """Separate logical native calls from their actual request rows."""
+    db = get_database()
+    params, invalid = _provider_scope_params()
     if invalid:
         return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
     return json_response(db.get_systemone_stats(**params))
@@ -170,12 +175,7 @@ def get_systemone_stats():
 def get_llm_stats():
     """Aggregate LLM calls, excluding System One rows."""
     db = get_database()
-    params = {
-        **_date_scope_params(),
-        'provider': request.args.get('provider'),
-        'model': request.args.get('model'),
-    }
-    invalid = _invalid_date_param(params)
+    params, invalid = _provider_scope_params()
     if invalid:
         return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
     return json_response(db.get_llm_stats(**params))

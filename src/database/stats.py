@@ -275,6 +275,19 @@ def _cleanup_usage_summary(rows):
     }
 
 
+def _history_where(status_filter, podcast_slug) -> tuple[str, list]:
+    """WHERE sql and params for the processing_history status/feed filters."""
+    where_clauses = []
+    params = []
+    if status_filter and status_filter in ('completed', 'failed'):
+        where_clauses.append("status = ?")
+        params.append(status_filter)
+    if podcast_slug:
+        where_clauses.append("podcast_slug = ?")
+        params.append(podcast_slug)
+    return (" AND ".join(where_clauses) if where_clauses else "1=1"), params
+
+
 class StatsMixin:
     """Statistics, token usage, and processing history methods."""
 
@@ -1913,19 +1926,7 @@ class StatsMixin:
         """Get processing history with pagination. Returns (entries, total_count)."""
         conn = self.get_connection()
 
-        # Build WHERE clause
-        where_clauses = []
-        params = []
-
-        if status_filter and status_filter in ('completed', 'failed'):
-            where_clauses.append("status = ?")
-            params.append(status_filter)
-
-        if podcast_slug:
-            where_clauses.append("podcast_slug = ?")
-            params.append(podcast_slug)
-
-        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        where_sql, params = _history_where(status_filter, podcast_slug)
 
         # Validate sort column
         valid_sort_cols = ['processed_at', 'podcast_title', 'episode_title',
@@ -2008,15 +2009,7 @@ class StatsMixin:
         one row's worth regardless of table size.
         """
         conn = self.get_connection()
-        where_clauses = []
-        params = []
-        if status_filter and status_filter in ('completed', 'failed'):
-            where_clauses.append("status = ?")
-            params.append(status_filter)
-        if podcast_slug:
-            where_clauses.append("podcast_slug = ?")
-            params.append(podcast_slug)
-        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        where_sql, params = _history_where(status_filter, podcast_slug)
         cursor = conn.execute(
             f"""SELECT *, CASE WHEN json_valid(processing_stats_json)
                             THEN json_extract(processing_stats_json, '$.downloaded_duration')
