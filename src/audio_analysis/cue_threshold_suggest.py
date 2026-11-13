@@ -46,11 +46,10 @@ def _unsupervised_suggest(
     occurrence_scores: list[float],
     effect_floor: float,
 ) -> dict:
-    """Propose a global match threshold from a list of per-occurrence scores.
+    """Propose a global match threshold from per-occurrence scores.
 
-    Returns a dict; on a clean bimodal distribution it carries a numeric
-    ``suggested`` plus cluster stats and an ``effectFloorWarning``; otherwise a
-    low-confidence result with a ``reason``.
+    On a clean bimodal distribution returns ``suggested`` plus cluster stats and an
+    ``effectFloorWarning``; otherwise a low-confidence result with a ``reason``.
     """
     scores = sorted(float(s) for s in occurrence_scores)
     if len(scores) < AUDIO_CUE_SUGGEST_MIN_SIGNAL:
@@ -132,10 +131,9 @@ def suggest_cue_threshold(
 ) -> dict:
     """Propose a global match threshold; verdict labels sharpen it when present.
 
-    Rejected verdicts are known false positives above the current threshold,
-    confirmed ones are known true matches; with enough of both and a clean
-    gap between them the labeled placement replaces the unsupervised
-    gap-find. One-sided labels only nudge the unsupervised result.
+    Rejected verdicts are known false positives, confirmed ones known true matches; with enough
+    of both and a clean gap, the labeled placement replaces the unsupervised gap-find.
+    One-sided labels only nudge the unsupervised result.
     """
     result = _unsupervised_suggest(occurrence_scores, effect_floor)
     rejected = sorted(

@@ -53,8 +53,7 @@ def append_chapters(description, chapters_json) -> str:
 def compose_item_description(description, cuts_json, chapters_json, *, replacement_duration) -> str:
     """Remap description timestamps onto the post-cut timeline, then append the chapter list.
 
-    cuts_json is the raw applied_cuts_json string, parsed only when a token could shift.
-    """
+    cuts_json is the raw applied_cuts_json string, parsed only when a token could shift."""
     if cuts_json and has_chapter_timestamp(description):
         description = remap_description_timestamps(
             description, parse_applied_cuts(cuts_json), replacement_duration=replacement_duration)

@@ -103,10 +103,8 @@ class AudioCueTemplateMatcher:
                 n_coeffs = int(row['n_coeffs'])
                 mfcc = None
                 if self._formant_atten_db > 0 and row.get('pcm_blob'):
-                    # Re-derive the MFCC from the stored PCM under the formant
-                    # profile so template and target share the same weighting (the
-                    # stored mfcc_blob was computed at 0 dB). On any failure fall
-                    # back to that stored blob rather than dropping the template.
+                    # Re-derive the MFCC from stored PCM under the formant profile so template and target
+                    # share a weighting (stored mfcc_blob was computed at 0 dB); on failure keep that blob.
                     try:
                         mfcc = compute_mfcc(
                             int16_bytes_to_pcm(row['pcm_blob']), n_coeffs=n_coeffs,
@@ -157,28 +155,15 @@ class AudioCueTemplateMatcher:
         return bool(self._templates)
 
     def detect(self, audio_path: str) -> list[AudioSegmentSignal]:
-        """Run all templates against the episode at ``audio_path``.
-
-        Production callers want just the signals; debug callers can use
-        :meth:`detect_with_debug` to also receive per-template peak scores.
-        """
+        """Run all templates against the episode at ``audio_path``; :meth:`detect_with_debug` adds per-template peak scores."""
         signals, _ = self.detect_with_debug(audio_path)
         return signals
 
     def detect_with_debug(self, audio_path: str):
         """Like :meth:`detect`, but also returns per-template peak scores.
 
-        Returns ``(signals, debug)`` where ``debug`` is::
-
-            {
-                'templates': [
-                    {'id': int, 'label': str, 'peak_score': float,
-                     'duration_s': float, 'match_count': int},
-                    ...
-                ],
-                'threshold': float,
-                'elapsed_s': float,
-            }
+        Returns ``(signals, debug)``; debug is ``{'templates': [{'id', 'label', 'peak_score',
+        'duration_s', 'match_count'}, ...], 'threshold': float, 'elapsed_s': float}``.
         """
         if not self._templates:
             return [], {'templates': [], 'threshold': self.score_threshold,
@@ -284,10 +269,8 @@ class AudioCueTemplateMatcher:
                     'duration_s': tpl.duration_s,
                     'peak_score': round(per_template_peak_score.get(tpl.template_id, 0.0), 3),
                     'match_count': match_counts[tpl.template_id],
-                    # eff_threshold is what actually gates matches for this template;
-                    # it may differ from the instance score_threshold when a per-template
-                    # override is set. Surface it so callers can report accurate
-                    # pass/fail without comparing against the instance value.
+                    # eff_threshold is what actually gates matches for this template (a per-template override
+                    # may differ from score_threshold); surfaced so callers can report accurate pass/fail.
                     'eff_threshold': tpl.eff_threshold,
                 }
                 for tpl in self._templates
@@ -365,8 +348,7 @@ class AudioCueTemplateMatcher:
     def _dedupe(matches: list[AudioSegmentSignal]) -> list[AudioSegmentSignal]:
         """Drop matches whose start is within 0.25s of a kept higher-score match.
 
-        Templates are short so cross-chunk overlap and near-peaks of the same
-        event can land within a hundred ms of each other.
+        Short templates give cross-chunk overlap and near-peaks of one event within ~100 ms.
         """
         matches.sort(key=lambda s: s.confidence, reverse=True)
         kept: list[AudioSegmentSignal] = []
@@ -382,9 +364,8 @@ class AudioCueTemplateMatcher:
                             kept_signals: list[AudioSegmentSignal]) -> list[dict]:
         """Drop near-misses within 0.25s of a kept signal or a stronger miss.
 
-        Highest-score first so the strongest miss in a cluster survives. A miss
-        that coincides with a kept above-threshold signal is the same event and
-        is dropped -- the signal already tells that story.
+        Highest score first so the strongest miss in a cluster survives; a miss coinciding with a kept
+        signal is the same event.
         """
         signal_starts = [s.start for s in kept_signals]
         misses.sort(key=lambda m: m['score'], reverse=True)
@@ -403,9 +384,8 @@ class AudioCueTemplateMatcher:
 def peak_zncc(haystack: np.ndarray, needle: np.ndarray) -> tuple:
     """Best sliding-ZNCC score of ``needle`` across ``haystack`` and its frame.
 
-    Returns ``(score, frame_index)``; ``(0.0, 0)`` when the haystack is shorter
-    than the needle. Public entry point for cross-module template scoring
-    (the #350 window optimizer) so callers do not bind to ``_sliding_zncc``.
+    Returns ``(score, frame_index)``; ``(0.0, 0)`` when haystack is shorter than needle. Public entry for
+    cross-module scoring (the #350 window optimizer) so callers do not bind to ``_sliding_zncc``.
     """
     if haystack.shape[0] < needle.shape[0]:
         return 0.0, 0
@@ -419,20 +399,14 @@ def peak_zncc(haystack: np.ndarray, needle: np.ndarray) -> tuple:
 def _sliding_zncc(haystack: np.ndarray, needle: np.ndarray) -> np.ndarray:
     """Sliding zero-mean normalized cross-correlation (ZNCC).
 
-    Both inputs are float32 ``(n_frames, n_coeffs)``. Returns a 1D array of
-    length ``haystack.shape[0] - needle.shape[0] + 1`` in ``[-1, 1]``.
+    Inputs are float32 ``(n_frames, n_coeffs)``; returns a 1D array of length
+    ``haystack.shape[0] - needle.shape[0] + 1`` in ``[-1, 1]``. Subtracting each window's per-coefficient
+    mean makes the score invariant to a constant per-coeff offset between template and haystack, which
+    matters because raw MFCCs have small nonzero DC components that differ between a 0.5 s template
+    window and a 10-minute haystack.
 
-    The score subtracts each window's per-coefficient mean before correlating
-    with the (also per-coefficient zero-meaned) needle. That is the standard
-    template-matching score because it is invariant to a constant per-coeff
-    offset between the template and the haystack -- exactly the situation we
-    hit, because raw MFCCs have small but nonzero per-coeff DC components and
-    they differ between a 0.5 s template window and a 10-minute haystack.
-
-    Implementation uses FFT cross-correlation per coefficient
-    (``scipy.signal.fftconvolve``) plus rolling sum-of-squares for the window
-    norm; both are ``O((N+M) log(N+M))`` per coefficient, well below the naive
-    ``O(N*M)`` cost on long episodes.
+    Uses FFT cross-correlation per coefficient (``scipy.signal.fftconvolve``) plus rolling
+    sum-of-squares for the window norm: ``O((N+M) log(N+M))`` per coefficient versus naive ``O(N*M)``.
     """
     n_haystack, n_coeffs = haystack.shape
     n_needle = needle.shape[0]
@@ -465,10 +439,8 @@ def _sliding_zncc(haystack: np.ndarray, needle: np.ndarray) -> np.ndarray:
     window_var_sum = (window_sum_sq - n_needle * (window_mean ** 2)).sum(axis=1)
     window_norm = np.sqrt(np.maximum(window_var_sum, 1e-12))
 
-    # Numerator: sum_c sum_i (window[i,c] - window_mean[c]) * needle_zm[i,c]
-    # The (- window_mean[c]) term drops out because needle_zm sums to zero per
-    # column, so we just correlate the raw haystack column with the zero-mean
-    # needle column.
+    # Numerator: sum_c sum_i (window[i,c] - window_mean[c]) * needle_zm[i,c]. The mean term drops out
+    # because needle_zm sums to zero per column, so correlate the raw haystack column with it.
     numerator = np.zeros(n_out, dtype=np.float64)
     for c in range(n_coeffs):
         corr = fftconvolve(hay_f64[:, c], needle_zm[::-1, c], mode='valid')
@@ -483,7 +455,7 @@ def _peak_pick(scores: np.ndarray, threshold: float,
                suppress_frames: int) -> list[tuple]:
     """Greedy peak picker: take the global max, suppress a window around it, repeat.
 
-    Returns a list of ``(frame_index, score)`` tuples ordered by descending score.
+    Returns ``(frame_index, score)`` tuples ordered by descending score.
     """
     if not scores.size:
         return []

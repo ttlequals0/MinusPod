@@ -52,24 +52,16 @@ class TTLCache:
                 self._cache.clear()
 
     def invalidate_prefix(self, prefix: str):
-        """Invalidate every key starting with `prefix`.
-
-        For caches whose keys namespace several entries under one owner, so
-        the owner can drop all of its entries without tracking them.
-        """
+        """Invalidate every key starting with `prefix`, so an owner can drop its namespaced entries."""
         with self._lock:
             for k in [k for k in self._cache if k.startswith(prefix)]:
                 del self._cache[k]
 
 
-# Upstream-RSS lookups behind serve_episode. A podcast client HEADs every
-# unprocessed episode on each refresh, and each miss used to refetch and
-# reparse the whole upstream feed. The TTL matches the background RSS
-# refresh interval. feeds.py drops a feed's entries when it re-renders that
-# feed, but the cache is per-process: under multiple gunicorn workers only
-# the re-rendering worker sees the invalidation, so the other workers can
-# serve entries up to one TTL stale. That bound is the guarantee, not the
-# invalidation.
+# Upstream-RSS lookups behind serve_episode (clients HEAD every unprocessed episode per refresh).
+# TTL matches the background RSS refresh interval. The cache is per-process: under multiple
+# gunicorn workers only the re-rendering worker sees feeds.py invalidation, so other workers
+# can serve entries up to one TTL stale. That bound is the guarantee.
 EPISODE_LOOKUP_TTL_SECONDS = 15 * 60
 
 # One entry per episode per feed; a fetch caches the whole parsed feed, so

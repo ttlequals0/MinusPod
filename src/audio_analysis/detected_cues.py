@@ -1,5 +1,5 @@
 """Merge persisted audio-cue signals with loud-spot bursts into one candidate
-list for the episode-page "make a template" surface (#350 follow-up).
+list for the episode-page "make a template" surface (#350).
 
 Each candidate is a plain dict the API serializes directly. A loud-spot that
 sits within a small tolerance of an already-detected cue is dropped, since the
@@ -22,8 +22,7 @@ def build_detected_cues(cue_signals: list[dict], loud_spots: list[dict],
                         limit: int = DEFAULT_LIMIT) -> list[dict]:
     """Return merged, source-labeled cue candidates sorted by start time.
 
-    cue_signals: ``audio_cue`` entries from a persisted
-        ``AudioAnalysisResult.to_dict()`` (each ``{'start','end','details': {...}}``).
+    cue_signals: ``audio_cue`` entries from a persisted ``AudioAnalysisResult.to_dict()``.
     loud_spots: ``{'start','end','prominenceDb'}`` bursts from the loud-spot pass.
     """
     items = []

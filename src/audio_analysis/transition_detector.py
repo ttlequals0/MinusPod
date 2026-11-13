@@ -34,12 +34,9 @@ class TransitionPair:
 
 
 class TransitionDetector:
-    """
-    Detects abrupt loudness transitions that indicate DAI ad boundaries.
+    """Detects abrupt loudness jumps that mark DAI ad boundaries and pairs them into candidate ad regions.
 
-    DAI ads are typically mastered independently from the podcast content,
-    causing measurable loudness jumps at insertion points. This detector
-    finds those jumps and pairs them into candidate ad regions.
+    DAI ads are mastered independently of the content, causing measurable jumps at insertion points.
     """
 
     def __init__(
@@ -48,12 +45,7 @@ class TransitionDetector:
         min_ad_duration: float = 15.0,
         max_ad_duration: float = 180.0,
     ):
-        """
-        Args:
-            transition_threshold_db: Minimum dB jump between adjacent frames to flag
-            min_ad_duration: Minimum seconds for a valid ad region
-            max_ad_duration: Maximum seconds for a valid ad region
-        """
+        """transition_threshold_db is the minimum dB jump between adjacent frames; min/max_ad_duration are seconds."""
         self.transition_threshold_db = transition_threshold_db
         self.min_ad_duration = min_ad_duration
         self.max_ad_duration = max_ad_duration
@@ -91,11 +83,9 @@ class TransitionDetector:
     def find_transition_pairs(
         self, transitions: list[TransitionPoint]
     ) -> list[TransitionPair]:
-        """
-        Pair transitions into candidate ad regions.
+        """Pair transitions into candidate ad regions.
 
-        Looks for up->down or down->up pairs within the ad duration window.
-        Each transition can only be used in one pair (greedy matching).
+        Looks for up->down or down->up pairs within the ad duration window; each transition is used in one pair (greedy).
         """
         if len(transitions) < 2:
             return []

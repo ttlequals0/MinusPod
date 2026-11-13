@@ -21,10 +21,8 @@ _SUGGESTED_TYPE = {
 def count_ad_boundary_hits(occurrences, ad_spans, tolerance_s):
     """Count occurrence positions within ``tolerance_s`` of any ad start/end.
 
-    Returns ``(hits, start_hits, end_hits)``. An occurrence near both a start
-    and an end boundary counts as one hit but as neither start- nor end-only,
-    so the phase fractions stay honest. Shared by the within-episode annotator
-    and the sibling-fallback path so "hit" means the same thing in both.
+    Returns ``(hits, start_hits, end_hits)``. An occurrence near both boundaries is one hit but
+    neither start- nor end-only, so the phase fractions stay honest.
     """
     hits = start_hits = end_hits = 0
     for occ in occurrences:
@@ -49,20 +47,12 @@ def annotate_recurring_with_ad_affinity(
 ):
     """Type and re-rank recurring candidates using ad-boundary history.
 
-    For each candidate, count how many of its occurrences land within
-    tolerance_s of any ad start or end boundary (one hit per occurrence even
-    if near both). affinity = hits / count. Typing requires ad_spans non-empty,
-    affinity >= min_fraction, and hits >= 2. Phase classification (start vs end
-    vs boundary) uses the fraction of start-only hits among all hits.
-
-    Annotates adBoundaryHits and boundaryAffinity on each candidate, strips
-    occurrences (internal field), and re-sorts by (-affinity, -count).
-
-    No ad history (empty ad_spans) -> suggestedType=None unchanged.
-
-    Note: past cuts may have been snapped to these same cue sounds, so this
-    annotator has a mild self-confirmation bias -- acceptable given the
-    alternative is no typing at all.
+    affinity = hits / count, where a hit is an occurrence within tolerance_s of any ad start or
+    end. Typing needs non-empty ad_spans, affinity >= min_fraction and hits >= 2; phase (start,
+    end, boundary) comes from the fraction of start-only hits. Sets adBoundaryHits and
+    boundaryAffinity, strips the internal occurrences field and re-sorts by (-affinity, -count).
+    Empty ad_spans leaves suggestedType None. Past cuts may have snapped to these same cues, so
+    this has a mild self-confirmation bias.
     """
     if not ad_spans:
         for c in recurring:
@@ -106,17 +96,12 @@ def annotate_recurring_with_ad_affinity(
 def merge_cue_candidates(recurring, cross_episode, templated_spans=()):
     """Combine within-episode recurrence hits with cross-episode intro/outro hits.
 
-    ``recurring`` items are ``{start,end,count}`` (ad-break stings that repeat
-    within the episode). ``cross_episode`` items are
-    ``{start,end,kind:'intro'|'outro',episodeMatches}`` (segments that recur across
-    sibling episodes). ``templated_spans`` is ``[(start,end), ...]`` of cues already
-    captured as active templates (matched on this episode); a candidate overlapping
-    one is dropped so the scan only surfaces NEW cues. Returns typed candidates
-    carrying a ``suggestedType`` so the capture tool preselects the cue type.
-    The result is non-overlapping: cross-episode hits are considered first
-    (high-value, typed), then recurring (already in descending recurrence order);
-    any candidate overlapping one already kept -- a long shared segment can yield
-    several near-duplicate runs -- is dropped.
+    ``recurring`` items are ``{start,end,count}``; ``cross_episode`` items are
+    ``{start,end,kind:'intro'|'outro',episodeMatches}``. ``templated_spans`` is
+    ``[(start,end), ...]`` of cues already captured as templates; overlapping candidates are
+    dropped so the scan only surfaces new cues. Returns non-overlapping typed candidates with
+    ``suggestedType``: cross-episode hits are considered first, then recurring, and anything
+    overlapping a kept candidate is dropped.
     """
     def _templated(start, end):
         return any(ranges_overlap(start, end, s, e) for s, e in templated_spans)
@@ -149,13 +134,10 @@ def merge_cue_candidates(recurring, cross_episode, templated_spans=()):
 
 
 def mark_dismissed_candidates(candidates, dismissals, target_fp, similarity):
-    """Stamp dismissed/dismissalId on candidates that match a dismissed sound.
+    """Stamp dismissed/dismissalId on candidates matching a dismissed sound; returns the count marked.
 
-    ``dismissals`` carry decoded raw fingerprint ints; each is located in the
-    episode's full fingerprint (``target_fp``) and any candidate whose span
-    overlaps an occurrence is marked in place. Candidates are marked in place
-    rather than removed so cached scan results stay reconcilable. Returns the
-    number of candidates marked.
+    Each dismissal's raw fingerprint ints are located in the episode's full fingerprint
+    (``target_fp``). Candidates are marked in place, not removed, so cached scans stay reconcilable.
     """
     raw_ints, duration = target_fp
     ep_arr = np.asarray(raw_ints, dtype=np.uint32)

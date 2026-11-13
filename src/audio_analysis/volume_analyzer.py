@@ -1,8 +1,6 @@
-"""
-Volume/loudness analysis for detecting dynamically inserted ads.
+"""Volume/loudness analysis for detecting dynamically inserted ads.
 
-Key insight: Dynamically inserted ads are often mastered louder and with
-more compression than host content, causing noticeable volume changes.
+Dynamically inserted ads are often mastered louder and more compressed than host content.
 """
 
 import subprocess
@@ -20,12 +18,7 @@ logger = logging.getLogger('podcast.audio_analysis.volume')
 
 
 class VolumeAnalyzer:
-    """
-    Analyzes volume/loudness patterns to detect ad transitions.
-
-    Uses ffmpeg's ebur128 filter in single-pass mode to measure loudness
-    and detect regions where volume differs significantly from baseline.
-    """
+    """Detects ad transitions from volume/loudness, using ffmpeg's single-pass ebur128 filter against a baseline."""
 
     def __init__(
         self,
@@ -33,27 +26,16 @@ class VolumeAnalyzer:
         anomaly_threshold_db: float = VOLUME_ANOMALY_THRESHOLD_DB,
         min_anomaly_duration: float = 15.0
     ):
-        """
-        Initialize the volume analyzer.
-
-        Args:
-            frame_duration: Analysis window size in seconds for grouping
-            anomaly_threshold_db: dB deviation from baseline to flag as anomaly
-            min_anomaly_duration: Minimum duration to report as anomaly
-        """
+        """frame_duration is the analysis window in seconds; anomaly_threshold_db the dB deviation from
+        baseline flagged as an anomaly; min_anomaly_duration the minimum duration reported."""
         self.frame_duration = frame_duration
         self.anomaly_threshold_db = anomaly_threshold_db
         self.min_anomaly_duration = min_anomaly_duration
 
     def analyze(self, audio_path: str) -> tuple[list[AudioSegmentSignal], float | None, list]:
-        """
-        Analyze audio for volume anomalies using single-pass ebur128.
+        """Analyze audio for volume anomalies using single-pass ebur128.
 
-        Args:
-            audio_path: Path to the audio file
-
-        Returns:
-            Tuple of (list of volume anomaly signals, baseline loudness in LUFS, raw loudness frames)
+        Returns (volume anomaly signals, baseline loudness in LUFS, raw loudness frames).
         """
         if not os.path.exists(audio_path):
             logger.error(f"Audio file not found: {audio_path}")
@@ -93,10 +75,7 @@ class VolumeAnalyzer:
         return anomalies, baseline, frames
 
     def _get_duration(self, audio_path: str) -> float | None:
-        """Get audio duration using ffprobe.
-
-        Delegates to utils.audio.get_audio_duration for consistency.
-        """
+        """Get audio duration using ffprobe (via utils.audio.get_audio_duration)."""
         return get_audio_duration(audio_path)
 
     def _measure_loudness_single_pass(
@@ -104,12 +83,7 @@ class VolumeAnalyzer:
         audio_path: str,
         total_duration: float
     ) -> list[LoudnessFrame]:
-        """
-        Measure loudness using single-pass ebur128 filter.
-
-        This runs ffmpeg once on the entire file, parsing the per-frame
-        loudness measurements from stderr. Much faster than frame-by-frame.
-        """
+        """Measure loudness with one ffmpeg ebur128 pass over the whole file, parsing per-frame values from stderr."""
         try:
             # Run ebur128 with verbose framelog to get per-frame measurements
             # Output format: [Parsed_ebur128_0 @ ...] t: 0.3     M: -23.5 S: -22.1 ...
@@ -121,11 +95,9 @@ class VolumeAnalyzer:
                 '-f', 'null', '-'
             ]
 
-            # Capped, duration-proportional timeout. The component timeout that
-            # wraps this call (ThreadPoolExecutor.future.result) cannot interrupt
-            # a blocking subprocess, so an uncapped timeout let long files stall
-            # the pipeline for hours. tracked_run registers the child so graceful
-            # shutdown can kill it instead of orphaning ffmpeg (audio-1 / audio-2).
+            # Capped, duration-proportional timeout: the wrapping component timeout (future.result) cannot
+            # interrupt a blocking subprocess, so an uncapped one let long files stall the pipeline for
+            # hours. tracked_run registers the child so graceful shutdown can kill it (audio-1 / audio-2).
             timeout = ffmpeg_timeout(total_duration)
             logger.debug(f"Running ebur128 analysis with {timeout}s timeout")
 
@@ -176,11 +148,7 @@ class VolumeAnalyzer:
             return []
 
     def _parse_ebur128_output(self, stderr: str) -> list[tuple[float, float, float]]:
-        """
-        Parse ebur128 verbose output to extract measurements.
-
-        Returns list of (timestamp, momentary_lufs, sample_peak) tuples.
-        """
+        """Parse ebur128 verbose output into (timestamp, momentary_lufs, sample_peak) tuples."""
         measurements = []
 
         # Pattern for ebur128 output lines
@@ -225,11 +193,7 @@ class VolumeAnalyzer:
         measurements: list[tuple[float, float, float]],
         total_duration: float
     ) -> list[LoudnessFrame]:
-        """
-        Group raw measurements into frames of frame_duration seconds.
-
-        Takes average loudness within each frame window.
-        """
+        """Group raw measurements into frame_duration-second frames, averaging loudness within each."""
         if not measurements:
             return []
 

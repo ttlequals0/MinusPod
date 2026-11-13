@@ -33,8 +33,8 @@ def feed_auth_enabled(db) -> bool:
 def active_feed_key(db):
     """The enforced key, or None when auth is disabled or no key is stored.
 
-    Callers emitting URLs use this so keyless serving resumes the moment the
-    feature is disabled, even though the stored key is retained for re-enable.
+    URL emitters use this so keyless serving resumes when the feature is disabled while the
+    stored key is retained for re-enable.
     """
     if not feed_auth_enabled(db):
         return None

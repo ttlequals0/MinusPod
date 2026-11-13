@@ -192,10 +192,9 @@ def ledger_spend(run_id, totals):
 
 def run_spend(run, totals):
     """One finished run's spend as {runId, inputTokens, outputTokens, costUsd,
-    breakdownAvailable, hasUnknownCost}. Uses the ledger subtotal (the same
-    source phase rows reconcile to) when available, else the run's known
-    processing_history total. ``totals`` is this run's entry from
-    get_episode_run_usage_totals, so no second per-run query is needed."""
+    breakdownAvailable, hasUnknownCost}. Uses the ledger subtotal when available, else the
+    run's processing_history total. ``totals`` is this run's entry from
+    get_episode_run_usage_totals, avoiding a second per-run query."""
     if run['breakdownAvailable'] and totals:
         return ledger_spend(run['runId'], totals)
     return {

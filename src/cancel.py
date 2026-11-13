@@ -1,8 +1,4 @@
-"""Cooperative cancellation primitives for in-flight episode processing.
-
-Lightweight module with no Flask/CUDA dependencies so it can be imported
-in unit tests without triggering heavy initialization.
-"""
+"""Cooperative cancellation primitives for in-flight episode processing (no Flask/CUDA deps)."""
 import logging
 import threading
 import time
@@ -77,8 +73,7 @@ def wait_for_cancellation(run_id: str, timeout: float,
                           poll_interval: float = 0.05) -> bool:
     """Wait until the owner has stopped and moved the run to a terminal state.
 
-    A long wait should pass a coarser poll_interval; every poll is a query.
-    """
+    Pass a coarser poll_interval for long waits; every poll is a query."""
     deadline = time.monotonic() + max(0.0, timeout)
     while True:
         try:

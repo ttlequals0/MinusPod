@@ -1,18 +1,16 @@
 """Music/speech discriminator for recurring cue candidates (issue #350).
 
-A common spoken phrase repeats within an episode like an ad-break sting, so the
-fingerprint recurrence scan suggests it. It reads as speech, though: its energy
-sits in the formant band, it is not tonal, and it is gappy (pauses between
-words). A produced sting -- even a bass jingle with a voiceover, like the
-measured WSJ content-transition cue (band ratio 0.32, flatness 0.0003, sustained
-0.90) -- is tonal and/or sustained with energy outside the band.
+A common spoken phrase repeats within an episode like an ad-break sting, so the fingerprint
+recurrence scan suggests it. It reads as speech: its energy sits in the formant band, it is not
+tonal, and it is gappy (pauses between words). A produced sting, even a bass jingle with a
+voiceover like a measured content-transition cue (band ratio 0.32, flatness 0.0003, sustained
+0.90), is tonal and/or sustained with energy outside the band.
 
-So we drop a recurring candidate only when ALL three speech-like conditions hold,
-which keeps musical cues. This is applied to WITHIN-episode recurring candidates
-only; cross-episode intro/outro candidates (often legitimately spoken) are exempt.
+A recurring candidate is dropped only when all three speech-like conditions hold, which keeps
+musical cues. Applies to within-episode recurring candidates only; cross-episode intro/outro
+candidates (often legitimately spoken) are exempt.
 
-numpy + scipy.fft only (no librosa). Decode spans with
-``cue_features.decode_pcm_window``.
+numpy + scipy.fft only (no librosa). Decode spans with ``cue_features.decode_pcm_window``.
 """
 import logging
 
@@ -39,13 +37,11 @@ def speechiness_features(pcm, sample_rate=16000, *,
     """Return ``(speech_band_ratio, spectral_flatness, sustained_frac)`` for a clip.
 
     - speech_band_ratio: share of spectral energy in ``[lo_hz, hi_hz]`` (formants).
-    - spectral_flatness: geometric/arithmetic mean of the power spectrum, averaged
-      over frames (near 0 = tonal/musical, toward 1 = noisy/speech-like).
-    - sustained_frac: fraction of frames whose energy clears a floor (music is
-      continuous; speech is gappy).
+    - spectral_flatness: geometric/arithmetic mean of the power spectrum, averaged over frames
+      (near 0 = tonal/musical, toward 1 = noisy/speech-like).
+    - sustained_frac: fraction of frames whose energy clears a floor (music is continuous, speech gappy).
 
-    Degenerate (too short / silent) clips return music-like values so the caller
-    never drops them -- this filter only removes confident speech.
+    Degenerate (too short / silent) clips return music-like values so they are never dropped.
     """
     pcm = np.asarray(pcm, dtype=np.float32)
     if pcm.size < _N_FFT * 2:
@@ -78,8 +74,7 @@ def is_likely_speech(pcm, sample_rate=16000, *,
                      sustained_max=AUDIO_CUE_SPEECH_SUSTAINED_MAX):
     """True only when a clip looks like plain speech on all three axes.
 
-    Conservative by design (AND of the three conditions) so a tonal or sustained
-    sting, or one with energy outside the formant band, is always kept.
+    AND of the three conditions, so a tonal or sustained sting, or one with energy outside the formant band, is kept.
     """
     ratio, flatness, sustained = speechiness_features(
         pcm, sample_rate, lo_hz=lo_hz, hi_hz=hi_hz)

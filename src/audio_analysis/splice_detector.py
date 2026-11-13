@@ -1,19 +1,15 @@
-"""Splice-evidence detection (spec 2.1).
+"""Splice-evidence detection (spec 2.1) for dynamic ad-insertion splice points.
 
-Detects encoding artifacts that mark dynamic ad-insertion splice points:
+- deep silences: RMS on 10ms frames of an 8kHz mono decode. Runs below -80 dBFS for >= 0.5s are
+  'digital_silence' (encoded zeros); runs below -70 dBFS for >= 1.4s are 'deep_silence'.
+- loudness_steps: level change straddling a silence event, measured on the ebur128 frames the
+  volume pass already produced.
+- spectral_steps: change in energy-weighted spectral centroid/flatness across a silence event.
+  Per-frame values are power-weighted over each side window; naive per-frame means are
+  silence-contaminated and can flip a boundary's sign.
 
-- deep silences: RMS on 10ms frames of an 8kHz mono decode. Runs below
-  -80 dBFS for >= 0.5s are 'digital_silence' (encoded zeros); runs below
-  -70 dBFS for >= 1.4s are 'deep_silence'.
-- loudness_steps: level change straddling a silence event, measured on the
-  ebur128 frames the volume pass already produced.
-- spectral_steps: change in energy-weighted spectral centroid/flatness
-  across a silence event. Per-frame values are power-weighted over each
-  side window; naive per-frame means are silence-contaminated and can flip
-  a boundary's sign.
-
-Evidence only: consumers corroborate, snap, veto, and annotate LLM prompts.
-Nothing here cuts audio on its own.
+Evidence only: consumers corroborate, snap, veto, and annotate LLM prompts. Nothing here cuts
+audio on its own.
 """
 
 import logging

@@ -19,16 +19,7 @@ class SignalType(Enum):
 
 @dataclass
 class AudioSegmentSignal:
-    """
-    Represents an audio signal detected in a time range.
-
-    Attributes:
-        start: Start time in seconds
-        end: End time in seconds
-        signal_type: Type of signal (volume_change, dai_transition_pair, etc.)
-        confidence: Confidence score from 0.0 to 1.0
-        details: Additional analyzer-specific data
-    """
+    """An audio signal in a time range (seconds); confidence is 0.0 to 1.0, details is analyzer-specific."""
     start: float
     end: float
     signal_type: str
@@ -54,15 +45,7 @@ class AudioSegmentSignal:
 
 @dataclass
 class LoudnessFrame:
-    """
-    Loudness measurement for a single analysis frame.
-
-    Attributes:
-        start: Frame start time in seconds
-        end: Frame end time in seconds
-        loudness_lufs: Integrated loudness in LUFS
-        peak_dbfs: True peak in dBFS
-    """
+    """Loudness of one analysis frame: start/end in seconds, integrated LUFS, true peak dBFS."""
     start: float
     end: float
     loudness_lufs: float
@@ -71,15 +54,10 @@ class LoudnessFrame:
 
 @dataclass
 class AudioAnalysisResult:
-    """
-    Combined results from all audio analyzers.
+    """Combined results from all analyzers.
 
-    Attributes:
-        signals: List of all detected audio signals
-        loudness_baseline: Median loudness of the episode in LUFS
-        loudness_frames: Raw loudness frames from volume analysis
-        analysis_time_seconds: How long the analysis took
-        errors: List of any errors that occurred during analysis
+    loudness_baseline is the episode median in LUFS, loudness_frames the raw volume-pass frames,
+    analysis_time_seconds the run time, errors any failures during analysis.
     """
     signals: list[AudioSegmentSignal] = field(default_factory=list)
     loudness_baseline: float | None = None

@@ -69,11 +69,9 @@ class AudioCueDetector:
         self.min_confidence = min_confidence
         self.min_duration = min_duration
         self.max_duration = max_duration
-        # When set, bursts are detected at prominence_db but their EXTENT runs
-        # from where the signal rose above this lower threshold to where it falls
-        # back below it -- capturing the attack/decay of a sustained sting rather
-        # than just the loud middle. None keeps the single-threshold behavior
-        # used by precise live detection.
+        # When set, bursts are detected at prominence_db but their extent runs from where the signal
+        # rose above this lower threshold to where it falls back below, capturing a sustained
+        # sting's attack/decay. None keeps the single-threshold behavior of precise live detection.
         self.release_db = release_db
 
     def detect(self, audio_path: str) -> list[AudioSegmentSignal]:
@@ -84,9 +82,8 @@ class AudioCueDetector:
 
         measurements = self._measure_band_loudness(audio_path)
         if not measurements:
-            # ffmpeg ran but the ebur128 momentary-loudness regex matched no
-            # frames -- a format mismatch, not "no cue". Log so it is not
-            # silently indistinguishable from a clean zero-cue result.
+            # ffmpeg ran but the ebur128 regex matched no frames: a format mismatch, not "no cue".
+            # Log so it is distinguishable from a clean zero-cue result.
             logger.info("Audio cue: 0 in-band frames measured (no momentary-loudness output)")
             return []
 
@@ -188,11 +185,8 @@ class AudioCueDetector:
     ) -> list[AudioSegmentSignal]:
         """Dual-threshold burst detection for the discovery scan.
 
-        A run of frames above the lower ``release_db`` defines a candidate's
-        extent (attack through decay); it is only emitted if the louder
-        ``prominence_db`` detect threshold was crossed somewhere inside it. This
-        captures a sustained sting's full envelope, where the single-threshold
-        path would clip it to just the frames above the detect threshold.
+        A run of frames above ``release_db`` is a candidate's extent (attack through decay), emitted
+        only if ``prominence_db`` was crossed inside it; the single-threshold path would clip it.
         """
         signals: list[AudioSegmentSignal] = []
         run_active = False
@@ -236,10 +230,8 @@ class AudioCueDetector:
         confidence = max(0.6, min(0.98, 0.6 + (peak_prominence - self.prominence_db) / 20.0))
         if confidence < self.min_confidence:
             return
-        # ebur128 momentary loudness integrates over 400ms, so the first
-        # above-threshold frame lags the true acoustic onset; pull the
-        # reported start back so the cue lands on the ding, not after it.
-        # Applied after the duration gates so they judge the measured burst.
+        # ebur128 momentary loudness integrates over 400ms, so the first above-threshold frame lags
+        # the true onset; pull start back so the cue lands on the ding. Runs after the duration gates.
         start = max(0.0, start - AUDIO_CUE_ONSET_LAG_SECONDS)
         signals.append(AudioSegmentSignal(
             start=round(start, 2),

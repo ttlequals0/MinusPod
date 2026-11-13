@@ -1,10 +1,8 @@
-"""Pure aggregation logic for the cross-episode ad review endpoint.
+"""Pure aggregation for the cross-episode ad review endpoint (no Flask/DB imports).
 
-Flattens per-episode ad_markers_json rows into one detection list with a
-computed status (same three-bucket logic as the episode detail endpoint)
-and a resolution derived from corrections: false_positive dismisses, while
+Flattens ad_markers_json rows into one detection list with a three-bucket status (as in the
+episode detail endpoint) and a resolution from corrections: false_positive dismisses;
 confirm and boundary_adjustment (an Edit that kept the ad) confirm.
-Kept free of Flask and DB imports so it can be unit tested directly.
 """
 import math
 
@@ -125,10 +123,7 @@ def summarize_detections(items: list[dict]) -> dict:
 
 
 def summarize_cut_detections(items: list[dict]) -> dict:
-    """Totals for the Detected Ads header, over detections that were cut.
-
-    Callers pass the already-cut subset; this does not filter by status itself.
-    """
+    """Totals for the Detected Ads header. Callers pass the already-cut subset; no status filtering."""
     by_category = {cat: 0 for cat in SEGMENT_CATEGORIES}
     by_category[UNSET_CATEGORY] = 0
     duration = 0.0
@@ -157,9 +152,8 @@ def summarize_cut_detections(items: list[dict]) -> dict:
 def awaits_decision(item: dict) -> bool:
     """True when a person still has a decision to make about this detection.
 
-    A keep or mark marker is settled by feed policy and the corrections
-    endpoint refuses a verdict on it, so listing it would offer an
-    impossible decision.
+    Keep and mark markers are settled by feed policy and the corrections endpoint refuses
+    a verdict on them.
     """
     return (item['status'] in ('pending', 'rejected')
             and item['resolution'] == 'unresolved'

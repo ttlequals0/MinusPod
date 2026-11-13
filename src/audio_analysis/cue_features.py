@@ -16,7 +16,7 @@ Audio path:
 We drop c0 because it tracks frame energy, which differs between user-marked
 windows and matching occurrences after compression/normalization. The first
 13 retained coeffs are ``c1..c13`` in DCT order. No cepstral mean
-normalization is applied -- see the note in :func:`compute_mfcc`.
+normalization is applied, see the note in :func:`compute_mfcc`.
 """
 from __future__ import annotations
 
@@ -96,11 +96,9 @@ def _formant_band_weights(sample_rate: int, n_fft: int, n_mels: int,
                           lo_hz: float, hi_hz: float, atten_db: float) -> np.ndarray:
     """Per-mel-band multiplicative weights that attenuate the ``[lo_hz, hi_hz]`` band.
 
-    Returns shape ``(n_mels,)``: 1.0 for bands centered outside the band,
-    ``10**(-atten_db/20)`` inside, with a raised-cosine ramp (half-octave) on each
-    edge so there is no hard notch. ``atten_db <= 0`` returns an all-ones identity
-    vector so callers can short-circuit. Only bands whose CENTER falls in the band
-    are touched, so sub-band beds and high stings are untouched at any depth.
+    Returns shape ``(n_mels,)``: 1.0 for bands centered outside, ``10**(-atten_db/20)`` inside, with a
+    half-octave raised-cosine ramp per edge (no hard notch). ``atten_db <= 0`` returns all ones so
+    callers can short-circuit. Only bands whose center falls in the band change.
     """
     if not atten_db or atten_db <= 0:
         return np.ones(n_mels, dtype=np.float32)
@@ -135,14 +133,10 @@ def compute_mfcc(samples: np.ndarray, sample_rate: int = SAMPLE_RATE_HZ,
                  formant_hi_hz: float = FORMANT_HI_HZ) -> np.ndarray:
     """Compute MFCC matrix for a mono float32 PCM array in [-1, 1].
 
-    Returns shape ``(n_frames, n_coeffs)`` float32. Returns an empty
-    ``(0, n_coeffs)`` array when the input is too short for even one frame.
-
-    ``formant_atten_db > 0`` multiplicatively down-weights the log-mel bands
-    centered in ``[formant_lo_hz, formant_hi_hz]`` before the DCT, reducing the
-    speech-formant band's influence on the (zero-meaned) ZNCC match so a cue keys
-    on its constant music bed (#350). The default ``0.0`` is a no-op, leaving the
-    output byte-identical to the un-weighted MFCC.
+    Returns ``(n_frames, n_coeffs)`` float32, or an empty ``(0, n_coeffs)`` array when the input is too
+    short for one frame. ``formant_atten_db > 0`` down-weights log-mel bands centered in
+    ``[formant_lo_hz, formant_hi_hz]`` before the DCT so a cue keys on its constant music bed rather
+    than speech formants (#350); the default ``0.0`` is a no-op, byte-identical to the un-weighted MFCC.
     """
     if samples.ndim != 1:
         samples = samples.reshape(-1)
@@ -182,10 +176,9 @@ def compute_mfcc(samples: np.ndarray, sample_rate: int = SAMPLE_RATE_HZ,
     mel_energy = np.maximum(mel_energy, 1e-10)
     log_mel = np.log(mel_energy)
 
-    # Optional voiceover-robust weighting (#350): down-weight the formant band in
-    # the log domain (ZNCC zero-means each coefficient, so a linear/additive scale
-    # would cancel -- only a multiplicative log-mel weight reduces a band's
-    # influence). No-op when formant_atten_db <= 0.
+    # Optional voiceover-robust weighting (#350): down-weight the formant band in the log domain.
+    # ZNCC zero-means each coefficient, so a linear/additive scale would cancel; only a multiplicative
+    # log-mel weight reduces a band's influence. No-op when formant_atten_db <= 0.
     if formant_atten_db and formant_atten_db > 0:
         weights = _formant_band_weights(
             sample_rate, n_fft, N_MELS, formant_lo_hz, formant_hi_hz, formant_atten_db)
@@ -195,14 +188,11 @@ def compute_mfcc(samples: np.ndarray, sample_rate: int = SAMPLE_RATE_HZ,
     cepstrum = dct(log_mel, type=2, axis=1, norm='ortho')
     mfcc = cepstrum[:, 1:1 + n_coeffs].astype(np.float32)
 
-    # No cepstral mean normalization. CMN sounds attractive (it cancels
-    # stationary channel EQ) but applied per-input it normalizes the template
-    # against its own short-window mean and the haystack against its
-    # long-window mean -- two different baselines -- so even the cue's source
-    # episode scores ~0.4 against its own template. The matcher already
-    # zero-means each window before correlating, which is magnitude-invariant;
-    # channel EQ differences across episodes of the same show are typically
-    # small enough that raw MFCCs still score >= 0.8 on a real recurrence.
+    # No cepstral mean normalization: applied per-input it normalizes the template against its own
+    # short-window mean and the haystack against its long-window mean (two baselines), so even the
+    # cue's source episode scores ~0.4 against its own template. The matcher already zero-means each
+    # window, and channel EQ differences across a show's episodes are small enough that raw MFCCs
+    # score >= 0.8 on a real recurrence.
     return mfcc
 
 
@@ -210,10 +200,7 @@ def decode_pcm_window(audio_path: Path | str,
                       start_seconds: float = 0.0,
                       end_seconds: float | None = None,
                       sample_rate: int = SAMPLE_RATE_HZ) -> np.ndarray:
-    """ffmpeg-decode a window of audio to mono float32 in [-1, 1].
-
-    Raises ``RuntimeError`` on ffmpeg failure or empty output.
-    """
+    """ffmpeg-decode a window of audio to mono float32 in [-1, 1]; raises ``RuntimeError`` on failure or empty output."""
     audio_path = Path(audio_path)
     if not audio_path.exists():
         raise RuntimeError(f"audio file not found: {audio_path}")
@@ -242,10 +229,8 @@ def decode_pcm_window(audio_path: Path | str,
 def pcm_to_int16_bytes(pcm: np.ndarray) -> bytes:
     """Pack a mono float32 PCM array in [-1, 1] as little-endian int16 bytes.
 
-    This is the raw-PCM source-of-truth stored alongside the derived MFCC so a
-    template can be re-derived if the MFCC params ever change, and exported as
-    a lossless WAV. Inverse of the ``<i2 / 32768`` decode in
-    :func:`decode_pcm_window`.
+    The raw-PCM source of truth stored beside the derived MFCC, so a template can be re-derived if the
+    MFCC params change and exported as lossless WAV. Inverse of ``<i2 / 32768`` in :func:`decode_pcm_window`.
     """
     clipped = np.clip(pcm, -1.0, 1.0)
     return (clipped * 32767.0).round().astype('<i2').tobytes()
@@ -279,8 +264,7 @@ def _run_ffmpeg_pipe(cmd, input_bytes: bytes | None = None,
                      op_desc: str = 'ffmpeg', timeout: float = FFT_TIMEOUT_S) -> bytes:
     """Run an ffmpeg/ffprobe subprocess and return its stdout bytes.
 
-    ``input_bytes`` is fed on stdin when given (else the command reads a file or
-    needs no input). Raises ``RuntimeError`` on timeout or non-zero exit.
+    ``input_bytes`` is fed on stdin when given. Raises ``RuntimeError`` on timeout or non-zero exit.
     """
     try:
         proc = tracked_run(cmd, input=input_bytes, capture_output=True,
@@ -296,9 +280,8 @@ def _run_ffmpeg_pipe(cmd, input_bytes: bytes | None = None,
 def _probe_audio_stream(data: bytes):
     """Return ``(sample_rate, channels)`` of the first audio stream via ffprobe.
 
-    Used to reject a mismatched stream BEFORE decoding it, so a crafted
-    high-sample-rate / multi-channel file cannot be expanded into an enormous
-    in-memory PCM buffer first.
+    Lets callers reject a mismatched stream before decoding, so a crafted high-rate or multi-channel
+    file cannot expand into a huge in-memory PCM buffer.
     """
     cmd = [
         'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error', '-select_streams', 'a:0',
@@ -328,10 +311,9 @@ def flac_to_wav(flac_bytes: bytes, max_seconds: float,
                 sample_rate: int = SAMPLE_RATE_HZ) -> bytes:
     """Decode a FLAC stream to a 16-bit PCM WAV at its source rate/channels.
 
-    Rejects any stream that is not mono ``sample_rate`` BEFORE decoding (no
-    resampling or downmixing), so a crafted high-rate / multi-channel FLAC
-    cannot blow up into a multi-GB in-memory WAV. ``max_seconds`` additionally
-    bounds the decoded duration as a zip-bomb guard against a long silent FLAC.
+    Rejects any stream that is not mono ``sample_rate`` before decoding (no resampling or downmixing),
+    so a crafted high-rate or multi-channel FLAC cannot become a multi-GB WAV. ``max_seconds`` bounds
+    the decoded duration as a zip-bomb guard against a long silent FLAC.
     """
     sr, channels = _probe_audio_stream(flac_bytes)
     if sr != sample_rate or channels != 1:

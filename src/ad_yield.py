@@ -1,10 +1,8 @@
 """Feed-relative low-ad-yield heuristic (#519), shared by the episode API
 badge and the pipeline's low-ad-yield response policy."""
 
-# A run is flagged only when the feed has an established ad load (average
-# of at least 2 minutes over 3+ recent episodes) and this episode removed
-# under 35% of it. DAI copies served with unfilled slots trip this; so
-# would a real detection miss.
+# Flagged when the feed averages 2+ minutes of ads over 3+ recent episodes and this
+# one removed under 35% of that (unfilled DAI slots trip it, as would a real miss).
 LOW_YIELD_MIN_AVG_SECONDS = 120
 LOW_YIELD_MIN_SAMPLES = 3
 LOW_YIELD_FRACTION = 0.35
@@ -28,14 +26,10 @@ def _detection_suppressed(stats):
 
 
 def low_ad_yield(db, episode, runs):
-    """Compare this episode's removed ad time against the feed's recent
-    average (#519). Returns the comparison dict when far below it.
+    """Return the comparison dict when this episode removed far less ad time than the feed average (#519).
 
-    The check keys on the run that produced the served audio (the latest
-    completed one), not merely the newest history row, so a failed later
-    attempt cannot un-suppress it. Suppressed siblings in the baseline only
-    drag the feed average down, which makes the flag less likely to fire,
-    not more.
+    Keys on the run that produced the served audio (latest completed), so a failed later
+    attempt cannot un-suppress it.
     """
     latest = latest_completed_run(runs) if runs else None
     latest_stats = ((latest or {}).get('stats')) or {}
