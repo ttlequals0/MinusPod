@@ -1,4 +1,5 @@
-"""Rate-limit queue hold (#696): typed 429-with-reset errors, failure-handler requeue, queue pause gate and marker release.
+"""Rate-limit queue hold (#696): typed 429-with-reset errors, failure-handler requeue, queue pause
+gate and marker release.
 
 Binds a temp DATA_DIR before importing main_app, as in test_offline_queue.
 """
@@ -1069,7 +1070,8 @@ class TestProbeRoutesToTheHeldAccount:
 
 
 class TestProbeCoversEveryHeldPair:
-    """One pass must not stop at the first active marker, or a manual cap or in-cadence hold starves every other held pair."""
+    """One pass must not stop at the first active marker, or a manual cap or in-cadence hold starves
+    every other held pair."""
 
     setup_method = TestProbeRoutesToTheHeldAccount.setup_method
     teardown_method = TestProbeRoutesToTheHeldAccount.teardown_method

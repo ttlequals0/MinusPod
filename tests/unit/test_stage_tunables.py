@@ -172,7 +172,8 @@ class TestWindowSizeRange:
 class TestStageTunableReset:
     """reset_setting clears stage-tunable rows instead of silently no-oping (the "Reset All" bug, #351).
 
-    The hardcoded defaults dict once omitted every stage tunable, so reset_setting('reviewer_max_tokens') returned False.
+    The hardcoded defaults dict once omitted every stage tunable, so
+    reset_setting('reviewer_max_tokens') returned False.
     """
 
     def test_reset_clears_numeric_tunable(self, temp_db):

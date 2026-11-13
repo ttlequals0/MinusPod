@@ -1,4 +1,5 @@
-"""Integration tests for the queue hold block on GET /status, which reports what the maintenance tick last observed so the UI can tell an idle queue from a paused or waiting one."""
+"""Integration tests for the queue hold block on GET /status, which reports what the maintenance
+tick last observed so the UI can tell an idle queue from a paused or waiting one."""
 
 import os
 import sys

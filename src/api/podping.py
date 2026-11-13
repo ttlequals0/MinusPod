@@ -55,7 +55,8 @@ def reset_podping_node_settings():
 @log_request
 def list_podping_hosts():
     """Domains seen sending podpings on the Hive chain, newest activity first.
-    Counts are per domain, not per notification: the listener aggregates as it goes, so there is no ping-by-ping history."""
+    Counts are per domain, not per notification: the listener aggregates as it goes, so there is no
+    ping-by-ping history."""
     db = get_database()
     limit = min(max(1, request.args.get('limit', 100, type=int)), 500)
     # Compared per row rather than against a materialized set: the table is

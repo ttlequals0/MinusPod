@@ -1,5 +1,6 @@
 """Per-span replacement duration in timeline mapping: 'remove' spans get the fixed beep clip, 'beep' spans are padded
-to their own length (no shift) unless shorter than the clip; mappers fall back to the scalar argument without the key."""
+to their own length (no shift) unless shorter than the clip; mappers fall back to the scalar
+argument without the key."""
 import pytest
 
 from tests.app_bootstrap import bootstrap

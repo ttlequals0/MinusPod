@@ -1,6 +1,7 @@
 """Integration tests for GET /feeds/<slug>/ad-distribution (issue #360 panel).
 
-Surfaces a feed's historical ad-cut position distribution; setting-independent (data returns with the positional-prior toggle off)."""
+Surfaces a feed's historical ad-cut position distribution; setting-independent (data returns with
+the positional-prior toggle off)."""
 import os
 import sys
 

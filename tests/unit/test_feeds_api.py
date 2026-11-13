@@ -1,6 +1,8 @@
 """Integration tests for the chaptersMode per-feed setting (#560 API surface).
 
-Mirrors test_passthrough_settings_api.py's fixtures. GET echoes the raw chapters_mode column (null when unset); PATCH sets 'auto'/'generate'/'off', null resets, an invalid string is 400 with the column unchanged."""
+Mirrors test_passthrough_settings_api.py's fixtures. GET echoes the raw chapters_mode column (null
+when unset); PATCH sets 'auto'/'generate'/'off', null resets, an invalid string is 400 with the
+column unchanged."""
 import os
 import sqlite3
 import sys

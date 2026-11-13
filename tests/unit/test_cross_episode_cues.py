@@ -1,6 +1,7 @@
 """Tests for cross-episode intro/outro segment detection (pure fingerprint math).
 
-_find_shared_segments finds each contiguous run of the target fingerprint present in at least min_matches sibling fingerprints."""
+_find_shared_segments finds each contiguous run of the target fingerprint present in at least
+min_matches sibling fingerprints."""
 import numpy as np
 
 from audio_fingerprinter import _find_shared_segments

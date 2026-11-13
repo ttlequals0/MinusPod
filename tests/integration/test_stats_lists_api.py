@@ -339,7 +339,9 @@ class TestEpisodeCostStats:
         assert item['unknownCostCount'] == 1
 
     def test_latest_run_is_not_reordered_by_provider_or_model_filter(self, app_client, temp_db):
-        """Filtering to an older run's model must not make it look like the latest: latestRunCostUsd/lastActivityAt always come from the true latest run, while cumulativeCostUsd and modelsUsed narrow to the filtered model."""
+        """Filtering to an older run's model must not make it look like the latest:
+        latestRunCostUsd/lastActivityAt always come from the true latest run, while
+        cumulativeCostUsd and modelsUsed narrow to the filtered model."""
         _authed(app_client)
         podcast_id = temp_db.create_podcast('pod-reorder', 'https://example.com/feed.xml', 'Pod')
         temp_db.upsert_episode('pod-reorder', 'ep1', original_url='https://example.com/e.mp3',

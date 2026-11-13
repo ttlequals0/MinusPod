@@ -28,7 +28,8 @@ def fetch(
     max_episodes: int = 5,
     audio_files: Optional[List[Path]] = None,
 ) -> List[Path]:
-    """Return local paths to episode audio, using *audio_files* directly or downloading up to *max_episodes* enclosures (cached)."""
+    """Return local paths to episode audio, using *audio_files* directly or downloading up to
+    *max_episodes* enclosures (cached)."""
     if audio_files:
         missing = [p for p in audio_files if not Path(p).exists()]
         if missing:

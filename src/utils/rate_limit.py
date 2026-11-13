@@ -180,7 +180,8 @@ def _coerce_error_dict(body: Any) -> dict | None:
 
 
 def _coerce_google_error(body: Any) -> dict | None:
-    """Normalize a Google 429 body to its inner ``error`` dict; plain non-JSON strings give None (callers regex ``str(body)``)."""
+    """Normalize a Google 429 body to its inner ``error`` dict; plain non-JSON strings give None
+    (callers regex ``str(body)``)."""
     return _coerce_error_dict(body)
 
 

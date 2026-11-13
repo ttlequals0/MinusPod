@@ -1,6 +1,8 @@
 """Tests for the parallel ad-detection window executor in src/ad_detector.
 
-Guarantees from the 2.5.23 refactor: parallel_windows=1 matches the original sequential output; parallel_windows=N returns ads in window-position order, not completion order; cost totals match between sequential and parallel runs; the validator rejects out-of-range values via the API."""
+Guarantees from the 2.5.23 refactor: parallel_windows=1 matches the original sequential output;
+parallel_windows=N returns ads in window-position order, not completion order; cost totals match
+between sequential and parallel runs; the validator rejects out-of-range values via the API."""
 import os
 import threading
 import time

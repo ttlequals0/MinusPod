@@ -63,7 +63,9 @@ def _attach_pattern_stats(sponsor_data, stats):
 @api.route('/sponsors/<int:sponsor_id>/tags', methods=['PUT'])
 @log_request
 def update_sponsor_tags(sponsor_id):
-    """Update a sponsor's tags. Body: {tags: ['tag1', ...]}; each is validated against VALID_TAGS (includes 'universal')."""
+    """Update a sponsor's tags.
+
+    Body: {tags: ['tag1', ...]}; each is validated against VALID_TAGS (includes 'universal')."""
     from utils.community_tags import valid_tags
     service = get_sponsor_service()
     sponsor = service.db.get_known_sponsor_by_id(sponsor_id)

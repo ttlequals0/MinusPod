@@ -1,4 +1,5 @@
-"""Tests for the thin-index incremental sync (#400): hash-diff apply gate, generator/client hash equivalence (the highest-risk item), migration backfill, and per-file fetch cap."""
+"""Tests for the thin-index incremental sync (#400): hash-diff apply gate, generator/client hash
+equivalence (the highest-risk item), migration backfill, and per-file fetch cap."""
 import json
 import os
 import sys
@@ -116,7 +117,8 @@ def test_migration_backfills_then_stays_stable(db, monkeypatch):
 
 
 def test_generator_client_hash_equivalence(tmp_path):
-    """The generator's index content_hash must equal content_hash_for_bytes of the published file bytes (the single shared definition).
+    """The generator's index content_hash must equal content_hash_for_bytes of the published file
+    bytes (the single shared definition).
 
     If they diverge, every row re-syncs forever."""
     from tools.generate_manifest import _load_pattern_files

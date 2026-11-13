@@ -196,7 +196,8 @@ def test_upload_mixed_valid_and_rejected(app_client, local_feed):
 
 
 def test_upload_rejects_overlong_basename_without_crashing_batch(app_client, local_feed):
-    """A 300-char filename must not OSError (ENAMETOOLONG) the whole request; it is rejected per-file while valid files still stage."""
+    """A 300-char filename must not OSError (ENAMETOOLONG) the whole request; it is rejected
+    per-file while valid files still stage."""
     slug = local_feed['slug']
     _authed(app_client)
 
@@ -255,7 +256,9 @@ def test_upload_400_on_subscribed_feed(app_client, subscribed_feed):
 def test_upload_exempt_from_default_rate_limit(app_client, local_feed):
     """The blueprint default rate limit (200/min, api/__init__.py) must not apply to this route.
 
-    The UI uploads one file per request, so a batch past 200 files would otherwise 429 partway. Functional check: loops past the limit and expects only 200s; the autouse _reset_rate_limiter fixture keeps the limiter active."""
+    The UI uploads one file per request, so a batch past 200 files would otherwise 429 partway.
+    Functional check: loops past the limit and expects only 200s; the autouse _reset_rate_limiter
+    fixture keeps the limiter active."""
     slug = local_feed['slug']
     _authed(app_client)
 
@@ -358,7 +361,8 @@ def test_commit_stale_hash_409(app_client, local_feed):
 def test_commit_overwrite_mismatch_from_scan_409s(app_client, local_feed):
     """Scanning with overwrite=False then committing with overwrite=True (or vice versa) must 409 as stale.
 
-    plan_hash folds overwrite in, so a commit cannot slip through with an overwrite that differs from the reviewed scan."""
+    plan_hash folds overwrite in, so a commit cannot slip through with an overwrite that differs
+    from the reviewed scan."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -386,7 +390,8 @@ def test_commit_overwrite_mismatch_from_scan_409s(app_client, local_feed):
 def test_commit_files_changed_after_scan_409s_with_files_changed_message(app_client, local_feed):
     """A real content change must 409 with the 'files changed' message.
 
-    Recomputing the hash with the flipped overwrite flag does not match the echoed hash, so the two 409 causes stay distinguishable."""
+    Recomputing the hash with the flipped overwrite flag does not match the echoed hash, so the two
+    409 causes stay distinguishable."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)

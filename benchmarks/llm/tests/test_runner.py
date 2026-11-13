@@ -1,4 +1,5 @@
-"""Runner unit tests for the synchronous building blocks (async fan-out needs real provider APIs, out of scope offline)."""
+"""Runner unit tests for the synchronous building blocks (async fan-out needs real provider APIs,
+out of scope offline)."""
 from __future__ import annotations
 
 import asyncio

@@ -1,6 +1,7 @@
 """Regression gate for module-level `from version import ...` in gunicorn boot modules.
 
-gunicorn only puts /app/src on sys.path, so the repo root (version.py) is not importable at boot; pytest's wider path hides this, so a subprocess reproduces the narrower one."""
+gunicorn only puts /app/src on sys.path, so the repo root (version.py) is not importable at boot;
+pytest's wider path hides this, so a subprocess reproduces the narrower one."""
 import os
 import re
 import subprocess
@@ -47,7 +48,8 @@ def _run_in_container_like_sandbox(code: str) -> subprocess.CompletedProcess:
 
 
 def test_boot_modules_import_with_only_src_on_syspath():
-    """`database` and `main_app` must import with only src on sys.path (gunicorn's boot path, narrower than pytest's)."""
+    """`database` and `main_app` must import with only src on sys.path (gunicorn's boot path,
+    narrower than pytest's)."""
     repo_root_str = str(_REPO_ROOT)
     code = (
         "import sys\n"

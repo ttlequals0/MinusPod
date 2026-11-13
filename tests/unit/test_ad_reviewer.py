@@ -440,7 +440,8 @@ def test_resurrect_prompt_candidate_lines_are_timestamped():
 
 
 def test_final_sentence_anchor_visible_in_prompt():
-    """The timestamped candidate lines put the ad's final-sentence edge (28.4s) in the prompt; the model-side behavior is not tested."""
+    """The timestamped candidate lines put the ad's final-sentence edge (28.4s) in the prompt; the
+    model-side behavior is not tested."""
     reviewer = _build_reviewer({'review_prompt': 'review'})
     prompt = reviewer._build_user_prompt(
         ad={'start': 0.0, 'end': 35.03},
@@ -901,7 +902,8 @@ def test_resurrection_band_dynamic_with_min_cut_confidence():
 # ---------- Held-for-review guard ----------
 
 def test_resurrection_pool_skips_held_ads():
-    """Ads with held_for_review=True never enter the resurrection pool (a held 0.70 sits in the [0.60, 0.80) band and would be un-held)."""
+    """Ads with held_for_review=True never enter the resurrection pool (a held 0.70 sits in the
+    [0.60, 0.80) band and would be un-held)."""
     min_cut = 0.80
     # This ad has in-band confidence but is held; it must be excluded.
     held_ad = {

@@ -19,7 +19,8 @@ class TestApplyOverride:
             prompt + OVERRIDE_HEADER + "Be stricter on intros."
 
     def test_inserts_verbatim_at_placeholder(self):
-        # At an explicit placeholder the text goes in raw, with no header that could countermand the surrounding wording.
+        # At an explicit placeholder the text goes in raw, with no header that could countermand the
+        # surrounding wording.
         prompt = "Rules.\n{override}\nOutput: []"
         out = apply_override(prompt, "Keep cooking-segment sponsors.")
         assert out == "Rules.\nKeep cooking-segment sponsors.\nOutput: []"

@@ -1,7 +1,8 @@
 """Segment category action resolution (#565).
 
 Covers the per-feed -> global -> DEFAULT_SEGMENT_ACTION resolver (resolve_segment_actions in
-src/database/podcasts.py), global-setting PUT validation, the GET /settings defaults block and per-feed PATCH validation.
+src/database/podcasts.py), global-setting PUT validation, the GET /settings defaults block and
+per-feed PATCH validation.
 """
 import json
 

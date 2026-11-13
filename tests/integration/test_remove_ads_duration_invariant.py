@@ -145,7 +145,8 @@ def test_end_of_episode_cut_extends_and_holds_invariant(processor, tmp_path):
 
 
 def test_time_saved_reflects_beep_replacement(processor, tmp_path):
-    """Pins the renderer precondition that keeps production timeSaved beep-aware: the decoded duration reflects the beep-replaced cut, so (original - new_duration) == marker_sum - n*beep.
+    """Pins the renderer precondition that keeps production timeSaved beep-aware: the decoded
+    duration reflects the beep-replaced cut, so (original - new_duration) == marker_sum - n*beep.
 
     Production timeSaved is original_duration - new_duration (processing.py,
     webhook_service.py, api/episodes.py). This test does not exercise those sites; it

@@ -1392,7 +1392,8 @@ class AudioFingerprinter:
         Sibling of discover_cross_episode_cues without the head/tail restriction, so mid-episode stings (e.g. ad-break
         tones) surface alongside intro/outro material. Pass ``target_fingerprint`` (``(raw_ints, duration)``) to reuse a
         fingerprint. Returns ``[{start, end, kind: 'recurring', episodeMatches}]`` (same shape as
-        discover_cross_episode_cues), or [] when fpcalc is unavailable or fewer than ``min_matches`` siblings are usable.
+        discover_cross_episode_cues), or [] when fpcalc is unavailable or fewer than ``min_matches``
+        siblings are usable.
 
         Default max_len_s is AUDIO_CUE_FP_MAX_LEN_SECONDS (30s): mid-episode stings are short and the cap keeps
         false-positive body content out. Default min_duration is AUDIO_CUE_XEP_BODY_MIN_DURATION (2s), not the 3s

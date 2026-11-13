@@ -1,6 +1,8 @@
 """Per-feed title override (#375).
 
-Otherwise a processed feed shows the exact source title, making it easy to tap the ad-laden original. The rename must replace the channel title in the served RSS, survive refreshes, and fall back to the source title when cleared."""
+Otherwise a processed feed shows the exact source title, making it easy to tap the ad-laden
+original. The rename must replace the channel title in the served RSS, survive refreshes, and fall
+back to the source title when cleared."""
 import os
 import sys
 

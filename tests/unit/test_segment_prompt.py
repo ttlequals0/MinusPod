@@ -1,6 +1,7 @@
 """Segment category emission in the detection prompt (#565).
 
-SHOW_SEGMENTS_PROMPT_SECTION is opt-in per podcast (detect_show_segments); merge-seam category normalization always runs.
+SHOW_SEGMENTS_PROMPT_SECTION is opt-in per podcast (detect_show_segments); merge-seam category
+normalization always runs.
 """
 import json
 import logging

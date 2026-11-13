@@ -1,6 +1,7 @@
 """Local episode upload, edit, bulk-edit, delete, and artwork APIs.
 
-Fixture style mirrors test_local_feed_api.py (shared app_client, _authed/_csrf_headers, main_app singleton alignment)."""
+Fixture style mirrors test_local_feed_api.py (shared app_client, _authed/_csrf_headers, main_app
+singleton alignment)."""
 import io
 import json
 import os
@@ -54,7 +55,8 @@ def _reset_rate_limiter():
 
 @pytest.fixture(autouse=True)
 def _align_main_app_singletons(app_client):
-    """See test_local_feed_api.py's identical fixture: main_app.feeds / local_feed_builder freeze db/storage references at import time that can go stale."""
+    """See test_local_feed_api.py's identical fixture: main_app.feeds / local_feed_builder freeze
+    db/storage references at import time that can go stale."""
     import main_app.feeds as mf
     import local_feed_builder as lfb
     from api import get_database, get_storage
@@ -323,7 +325,8 @@ def test_upload_replacing_an_original_leaves_no_valid_peaks_file(app_client, loc
 
 @requires_ffmpeg
 def test_upload_sets_original_file_and_serves_original_audio(app_client, local_feed, real_mp3_bytes):
-    """original_file is set on upload so hasOriginalAudio is true and GET .../original.mp3 200s, not left null until the first processing run."""
+    """original_file is set on upload so hasOriginalAudio is true and GET .../original.mp3 200s, not
+    left null until the first processing run."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -442,7 +445,9 @@ def test_upload_missing_audio_field_400(app_client, local_feed):
 
 @requires_ffmpeg
 def test_upload_persists_embedded_chapters(app_client, local_feed, chaptered_mp3_bytes):
-    """Chapters must be stored: upsert_episode has to run before save_chapters_json (save_episode_details raises ValueError if the episode row is missing; the storage layer swallows it as a warning)."""
+    """Chapters must be stored: upsert_episode has to run before save_chapters_json
+    (save_episode_details raises ValueError if the episode row is missing; the storage layer
+    swallows it as a warning)."""
     slug = local_feed['slug']
     db = local_feed['db']
     _authed(app_client)
@@ -514,7 +519,9 @@ def test_upload_extracts_embedded_artwork_when_none_supplied(
 
 @requires_ffmpeg
 def test_upload_201_body_carries_artwork_url_for_explicit_artwork(app_client, local_feed, real_mp3_bytes):
-    """The 201 body reflects artwork uploaded in the same request: _episode_base_json needs slug/is_local/storage kwargs so the local-artwork fallback (_local_artwork_fallback_url) runs."""
+    """The 201 body reflects artwork uploaded in the same request: _episode_base_json needs
+    slug/is_local/storage kwargs so the local-artwork fallback (_local_artwork_fallback_url)
+    runs."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -630,7 +637,8 @@ def test_patch_single_episode_happy_path(app_client, local_feed):
 
 
 def test_patch_single_episode_response_carries_artwork_url(app_client, local_feed):
-    """The PATCH response carries artworkUrl for an episode with a cached cover (needs the same slug/is_local/storage kwargs as the upload 201 body)."""
+    """The PATCH response carries artworkUrl for an episode with a cached cover (needs the same
+    slug/is_local/storage kwargs as the upload 201 body)."""
     slug = local_feed['slug']
     db = local_feed['db']
     _seed_episode(db, slug, 's01e01')
@@ -725,7 +733,9 @@ def test_patch_single_episode_not_found_404(app_client, local_feed):
 # GET /feeds/<slug>/episodes/<episode_id> (detail)
 
 def test_get_episode_detail_includes_season_and_episode_numbers(app_client, local_feed):
-    """The detail GET (api.episodes.core's get_episode) must echo season/episode numbers like upload/PATCH: the episode id is minted once at upload and never renamed (#625), so parsing it goes stale after an edit."""
+    """The detail GET (api.episodes.core's get_episode) must echo season/episode numbers like
+    upload/PATCH: the episode id is minted once at upload and never renamed (#625), so parsing it
+    goes stale after an edit."""
     slug = local_feed['slug']
     db = local_feed['db']
     _seed_episode(db, slug, 's01e01', season_number=1, episode_number=1)
@@ -898,7 +908,9 @@ def test_episode_deletion_marker_blocks_processing_and_upload(app_client, local_
 
 @requires_ffmpeg
 def test_delete_removes_queue_row_and_reupload_queues_again(app_client, local_feed, real_mp3_bytes):
-    """delete_episode_rows must also drop the auto_process_queue row, or the queue processor resurrects the deleted episode and a re-upload of the same id is blocked (UNIQUE(podcast_id, episode_id) + ON CONFLICT DO NOTHING)."""
+    """delete_episode_rows must also drop the auto_process_queue row, or the queue processor
+    resurrects the deleted episode and a re-upload of the same id is blocked (UNIQUE(podcast_id,
+    episode_id) + ON CONFLICT DO NOTHING)."""
     slug = local_feed['slug']
     db = local_feed['db']
     _seed_episode(db, slug, 's01e01')  # feed non-empty -> next upload queues
@@ -984,7 +996,9 @@ def test_episode_artwork_upload_happy_path(app_client, local_feed):
 
 
 def test_list_and_detail_artwork_url_falls_back_to_local_route(app_client, local_feed):
-    """A local episode's artwork_url column is never populated, so list and detail must fall back to the internal /api/v1 artwork proxy route when a cover is cached (not the feed-key-gated public route: JSON must never carry the feed auth key)."""
+    """A local episode's artwork_url column is never populated, so list and detail must fall back to
+    the internal /api/v1 artwork proxy route when a cover is cached (not the feed-key-gated public
+    route: JSON must never carry the feed auth key)."""
     slug = local_feed['slug']
     db = local_feed['db']
     _seed_episode(db, slug, 's01e01')

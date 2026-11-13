@@ -17,7 +17,8 @@ from .aggregate import (
 
 
 def _plt():
-    """Agg backend with a fixed hashsalt so SVG element ids are stable and unchanged data regenerates byte-identical assets. Pair with _save_svg, which drops the creation date."""
+    """Agg backend with a fixed hashsalt so SVG element ids are stable and unchanged data
+    regenerates byte-identical assets. Pair with _save_svg, which drops the creation date."""
     import matplotlib
     matplotlib.use("Agg")
     matplotlib.rcParams["svg.hashsalt"] = "minuspod-benchmark"
@@ -59,7 +60,8 @@ def _distinct_colors(n: int) -> list[tuple[float, ...]]:
 def _legend_below(fig, n_entries: int, plot_height: float):
     """Put the model legend (one row per model) under the plot, growing the figure to fit.
 
-    Clamping the reserved fraction overlaps the axes once the roster outgrows it, so the figure grows and the plot area stays fixed."""
+    Clamping the reserved fraction overlaps the axes once the roster outgrows it, so the figure
+    grows and the plot area stays fixed."""
     ncol = 1 if n_entries <= 6 else 2 if n_entries <= 30 else 3
     rows = (n_entries + ncol - 1) // ncol
     # Each entry is "model  (F1 x.xxx, $x.xxxx/ep)", so a column needs about

@@ -1,4 +1,5 @@
-"""Terminal boundary snap to splice evidence (docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
+"""Terminal boundary snap to splice evidence
+(docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
 
 Fixture: the reviewer moved a terminal marker's start 11.1s inside the DAI block. The snap recovers the
 extension via the deep-silence event at the true onset, while a content sentence 3s further back blocks

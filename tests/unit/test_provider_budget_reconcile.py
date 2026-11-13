@@ -177,7 +177,8 @@ def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=
 
 
 class TestProviderScopedReservations:
-    """Phases routed to distinct provider types each get their own reservation, reconciled against their own ledger spend."""
+    """Phases routed to distinct provider types each get their own reservation, reconciled against
+    their own ledger spend."""
 
     def test_cross_type_routing_reserves_and_reconciles_each_provider(self):
         required = [('anthropic', 'primary'), ('openrouter', 'secondary')]

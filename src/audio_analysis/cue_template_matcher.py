@@ -155,7 +155,8 @@ class AudioCueTemplateMatcher:
         return bool(self._templates)
 
     def detect(self, audio_path: str) -> list[AudioSegmentSignal]:
-        """Run all templates against the episode at ``audio_path``; :meth:`detect_with_debug` adds per-template peak scores."""
+        """Run all templates against the episode at ``audio_path``; :meth:`detect_with_debug` adds
+        per-template peak scores."""
         signals, _ = self.detect_with_debug(audio_path)
         return signals
 

@@ -16,7 +16,8 @@ requires_ffmpeg = pytest.mark.skipif(
 
 
 def test_export_import_roundtrip_reproduces_mfcc():
-    """The WAV round-trip (export builds a WAV from pcm_blob, import recomputes the MFCC) reproduces an equivalent MFCC within int16 quantization."""
+    """The WAV round-trip (export builds a WAV from pcm_blob, import recomputes the MFCC) reproduces
+    an equivalent MFCC within int16 quantization."""
     rng = np.random.default_rng(0)
     pcm = np.clip(rng.standard_normal(SAMPLE_RATE_HZ // 2), -1, 1).astype(np.float32)
     original_mfcc = compute_mfcc(pcm)

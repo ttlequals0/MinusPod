@@ -1,4 +1,5 @@
-"""Integration tests for /api/v1/settings/providers; skipped outside the Docker container like other integration tests."""
+"""Integration tests for /api/v1/settings/providers; skipped outside the Docker container like other
+integration tests."""
 import os
 import sys
 
@@ -109,7 +110,9 @@ def test_rejected_endpoint_does_not_replace_saved_key(app_client, temp_db, _auth
 
 
 class TestSecondaryModelListing:
-    """GET /settings/models?provider=<type>&slot=secondary: a stage on the secondary slot must discover models with the secondary slot's credentials/base URL, even when its type differs from the primary's."""
+    """GET /settings/models?provider=<type>&slot=secondary: a stage on the secondary slot must
+    discover models with the secondary slot's credentials/base URL, even when its type differs from
+    the primary's."""
 
     def _fake_client_factory(self, calls, models):
         def fake_create_client_for_provider(provider, credential_slot='primary', base_url=None):

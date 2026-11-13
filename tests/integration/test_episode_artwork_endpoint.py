@@ -1,6 +1,7 @@
 """The episode artwork proxy, end to end (#617).
 
-Publishers reject a browser's cross-site Referer, so the cover is fetched server-side and served from MinusPod's origin. The URL is read from the episode row, never the caller."""
+Publishers reject a browser's cross-site Referer, so the cover is fetched server-side and served
+from MinusPod's origin. The URL is read from the episode row, never the caller."""
 from unittest.mock import patch
 
 import pytest

@@ -1,4 +1,5 @@
-"""Unified audio analysis facade: orchestrates volume and transition analysis to provide audio signals for ad detection."""
+"""Unified audio analysis facade: orchestrates volume and transition analysis to provide audio
+signals for ad detection."""
 
 import logging
 import time

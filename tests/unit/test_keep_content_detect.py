@@ -1,6 +1,7 @@
 """Regression tests for AdDetector._detect_keep_content_ads parsing.
 
-The LLM response object (not response.content) was once passed to extract_json_ads_array, raising AttributeError and silently aborting keep-content to blacklist on every episode."""
+The LLM response object (not response.content) was once passed to extract_json_ads_array, raising
+AttributeError and silently aborting keep-content to blacklist on every episode."""
 import json
 from unittest.mock import patch
 

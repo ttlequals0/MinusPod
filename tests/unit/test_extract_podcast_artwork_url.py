@@ -1,6 +1,8 @@
 """Tests for RSSParser.extract_podcast_artwork_url.
 
-Reads channel-level XML directly because feedparser folds the first episode's itunes:image into feed.image.href (seen in the Podcasting 2.0 reference feed). Returns an ordered candidate list (itunes:image, then <image><url>) so a downloader can fall back."""
+Reads channel-level XML directly because feedparser folds the first episode's itunes:image into
+feed.image.href (seen in the Podcasting 2.0 reference feed). Returns an ordered candidate list
+(itunes:image, then <image><url>) so a downloader can fall back."""
 import defusedxml
 defusedxml.defuse_stdlib()
 

@@ -63,7 +63,8 @@ def run(
 
 
 def _threshold_for(info: Dict[str, Any]) -> float:
-    """Return the score threshold for ground truth: the sweep suggestion when confidence is 'high', else AUDIO_CUE_TEMPLATE_SCORE."""
+    """Return the score threshold for ground truth: the sweep suggestion when confidence is 'high',
+    else AUDIO_CUE_TEMPLATE_SCORE."""
     suggestion = info.get("suggestion", {})
     if suggestion.get("confidence") == "high" and suggestion.get("suggested") is not None:
         return float(suggestion["suggested"])

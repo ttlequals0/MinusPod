@@ -1,4 +1,5 @@
-"""merge_cue_candidates combines within-episode recurring sounds with cross-episode intro/outro segments, tagging each with a kind and capture-type hint."""
+"""merge_cue_candidates combines within-episode recurring sounds with cross-episode intro/outro
+segments, tagging each with a kind and capture-type hint."""
 from audio_analysis.cue_candidates import merge_cue_candidates
 from config import AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO
 

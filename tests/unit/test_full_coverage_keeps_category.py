@@ -1,6 +1,8 @@
 """A keep-resolving category must survive a fully covering pattern match.
 
-process_transcript's pattern-merge step must not discard a Claude ad's category when a fingerprint/text_pattern match fully covers it. Independent of the window-dedup fix in test_ad_detector.py::TestDeduplicateWindowAdsActionGate."""
+process_transcript's pattern-merge step must not discard a Claude ad's category when a
+fingerprint/text_pattern match fully covers it. Independent of the window-dedup fix in
+test_ad_detector.py::TestDeduplicateWindowAdsActionGate."""
 import os
 import sys
 from unittest.mock import patch
@@ -104,7 +106,9 @@ def test_intro_fully_covered_by_legacy_pattern_still_survives_as_keep():
 
 
 def test_default_action_map_still_drops_fully_covered_claude_ad():
-    """A plain sponsor-categorized (or uncategorized) Claude ad fully covered by a pattern match is still dropped for the pattern's marker, which adopts the LLM bounds when the pattern overshoots."""
+    """A plain sponsor-categorized (or uncategorized) Claude ad fully covered by a pattern match is
+    still dropped for the pattern's marker, which adopts the LLM bounds when the pattern
+    overshoots."""
     detector = AdDetector(api_key='test-key')
     sponsor_ad = {'start': 10.0, 'end': 150.0, 'confidence': 0.9,
                   'reason': 'Sponsor read'}
@@ -118,7 +122,8 @@ def test_default_action_map_still_drops_fully_covered_claude_ad():
 
 
 def test_no_action_map_preserves_pre_fix_drop_behavior():
-    """With no resolvable action map (module-level callers, cold detector) a fully covered Claude ad is still dropped."""
+    """With no resolvable action map (module-level callers, cold detector) a fully covered Claude ad
+    is still dropped."""
     detector = AdDetector(api_key='test-key')
     detector.db = None
     detector.audio_fingerprinter = None

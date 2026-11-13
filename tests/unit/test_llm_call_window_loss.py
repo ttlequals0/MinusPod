@@ -529,7 +529,8 @@ class TestLostWindowSweep:
         assert sweep_calls == []
 
     def test_sweep_hold_defers_instead_of_crashing(self):
-        """A rate limit hit mid-sweep defers the episode like a held main-loop window instead of raising; already-recovered results still merge.
+        """A rate limit hit mid-sweep defers the episode like a held main-loop window instead of
+        raising; already-recovered results still merge.
 
         `_process_single_window` reports the hold as a failed WindowResult, so the sweep reads it off `last_error`."""
         held = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)

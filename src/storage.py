@@ -402,7 +402,8 @@ class Storage:
                                        chapters: dict, cuts: list) -> None:
         """Atomically persist chapters JSON and the cut list it was generated against.
 
-        One DB statement, so fresh chapters are never paired with stale cuts (which would poison the next recut remap)."""
+        One DB statement, so fresh chapters are never paired with stale cuts (which would poison the
+        next recut remap)."""
         self.db.save_chapters_and_applied_cuts(
             slug, episode_id, json.dumps(chapters), cuts
         )

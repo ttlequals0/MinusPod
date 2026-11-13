@@ -393,7 +393,8 @@ class TestDescriptionAnchorPromptInjection:
 
 
 class TestChapterTunablesAreConfigDriven:
-    """Chapters generator reads per-stage config, not legacy literals (pins against a hardcoded temperature=0.3 returning)."""
+    """Chapters generator reads per-stage config, not legacy literals (pins against a hardcoded
+    temperature=0.3 returning)."""
 
     def test_boundary_temperature_reads_from_config(self, monkeypatch):
         from llm_client import _clear_provider_cache
@@ -599,10 +600,12 @@ class _SplitTextClient:
 
 
 class TestEmptyTopicDetectionDegradation:
-    """A response that succeeds at the API level but yields zero parsed boundaries degrades like a failed detection call on a long episode."""
+    """A response that succeeds at the API level but yields zero parsed boundaries degrades like a
+    failed detection call on a long episode."""
 
     def test_empty_result_on_long_episode_flags_degraded(self, caplog):
-        """A non-empty response with no MM:SS topic lines makes _detect_topic_boundaries return [] without an exception; that must still degrade the run."""
+        """A non-empty response with no MM:SS topic lines makes _detect_topic_boundaries return []
+        without an exception; that must still degrade the run."""
         gen = ChaptersGenerator(api_key='test')
         gen._llm_client = _SplitTextClient()
 

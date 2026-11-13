@@ -1,5 +1,6 @@
 """2.5.13 _cleanup_low_mention_patterns migration: retires false-positive patterns that never matched a real ad.
-Criteria: 1) occurrences<2 AND created_by='auto' AND conf=0 AND fp=0; 2a) sponsor starts with a SPONSOR_REASONING_PREFIXES entry;
+Criteria: 1) occurrences<2 AND created_by='auto' AND conf=0 AND fp=0; 2a) sponsor starts with a
+SPONSOR_REASONING_PREFIXES entry;
 2b) sponsor ends with an LLM-suffix tell; 2c) sponsor not canonical AND no variant in template. Reversible, idempotent
 via low_mention_cleanup_revision; conf>0 patterns must survive."""
 import os

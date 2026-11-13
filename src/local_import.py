@@ -144,7 +144,8 @@ def _parse_aware(value: str) -> datetime:
 
 
 def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
-    """entries sorted ascending by (season, episode); each has 'published_at' (explicit ISO str or None). Fills gaps in place.
+    """entries sorted ascending by (season, episode); each has 'published_at' (explicit ISO str or
+    None). Fills gaps in place.
 
     Explicit dates must be strictly increasing, else return an error string naming both offending episode_ids and
     mark exactly those two entries (``entries[a]['_batch_error'] = True``) so a caller can attribute it to the pair.
@@ -205,7 +206,8 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
 
 
 def plan_hash(sources: list[Path], overwrite: bool = False) -> str:
-    """sha256 over sorted (name, size, mtime_ns) tuples plus the overwrite flag; commit refuses a stale hash (TOCTOU guard).
+    """sha256 over sorted (name, size, mtime_ns) tuples plus the overwrite flag; commit refuses a
+    stale hash (TOCTOU guard).
 
     A source that vanishes between listing and stat (e.g. a running commit's shutil.move racing a scan) is skipped, as
     in the plan-building loop; dropping it changes the hash, which is the staleness a caller must detect. overwrite is
@@ -652,7 +654,8 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
     against the wrong feed), another import is running for this feed (per-feed flock held by any worker), or the
     destination volume lacks ``_FREE_SPACE_MARGIN`` times the plan's importable bytes. Otherwise writes the job state
     as running, captures whether the feed already had episodes (for the initial-import auto-process rule, see
-    ``_commit_entries``) before spawning the thread so its own inserts cannot flip it, and returns ``(True, 'started')``.
+    ``_commit_entries``) before spawning the thread so its own inserts cannot flip it, and returns
+    ``(True, 'started')``.
     The flock is acquired here and held by the thread for the commit; ``_run_commit``'s ``finally`` releases it.
     """
     if plan.get('slug') != slug:
@@ -723,7 +726,8 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
 
 
 def get_import_status(slug: str, storage=None) -> dict:
-    """{'state': 'idle'|'running'|'done'|'error', 'processed': n, 'total': n, 'startedAt': iso|None, 'report': {...} when done/error}.
+    """{'state': 'idle'|'running'|'done'|'error', 'processed': n, 'total': n, 'startedAt': iso|None,
+    'report': {...} when done/error}.
 
     Reads straight off the per-feed state file (no in-process registry), so any worker sees the same state. A slug with
     no state file reads as idle. Self-heals a state file stuck on 'running' whose lock nobody holds (a worker crashed
@@ -766,11 +770,13 @@ def _bump_processed(slug: str, storage) -> None:
 
 def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh,
                 reservations: dict[str, str]) -> None:
-    """Background-thread entry point: run the batch, then flip the job to 'done' (with its report) or, only on an exception
-    escaping the whole batch (not a per-file failure), 'error'. Always releases the lock handed over by ``start_commit``.
+    """Background-thread entry point: run the batch, then flip the job to 'done' or 'error'.
 
-    ``report`` is built here and mutated in place by ``_commit_entries``, so even if something outside the per-entry loop
-    raises (or the call is interrupted: caught as ``BaseException`` so the ``finally`` always leaves a terminal state),
+    'error' only when an exception escapes the whole batch, not on a per-file failure. Always
+    releases the lock handed over by ``start_commit``.
+
+    ``report`` is mutated in place by ``_commit_entries``, so even if something outside the
+    per-entry loop raises (caught as ``BaseException`` so the ``finally`` leaves a terminal state),
     every outcome recorded so far is visible in the stored report alongside the 'error' key.
     """
     report: dict = {'committed': [], 'skipped': [], 'failed': [], 'queued': []}
@@ -835,7 +841,8 @@ def probe_and_save_chapters(storage, slug: str, episode_id: str, final_path) -> 
 def _commit_entry(slug: str, entry: dict, db, storage,
                   overwrite: bool, upserted: list,
                   reservation_id: str | None = None) -> tuple[str, object]:
-    """Commit one plan entry. Returns ('ok', result_dict) or ('error', message); never raises for an ordinary per-file problem.
+    """Commit one plan entry. Returns ('ok', result_dict) or ('error', message); never raises for an
+    ordinary per-file problem.
 
     Appends the episode id to ``upserted`` as soon as the row exists, so the caller's batched indexing still covers it
     if a later step raises. Uses the plan's resolved paths rather than re-resolving by basename: a same-named file in
@@ -1070,7 +1077,8 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     continues), then queue newly imported episodes for auto-process when applicable, rebuild the served RSS once, and
     clean up an emptied staging dir.
 
-    Mutating the caller-owned ``report`` lets ``_run_commit`` expose every outcome recorded so far even if something raises.
+    Mutating the caller-owned ``report`` lets ``_run_commit`` expose every outcome recorded so far
+    even if something raises.
     """
     entries = plan.get('entries', [])
     overwrite = bool(plan.get('overwrite'))
@@ -1171,7 +1179,8 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
 
         local_feed_builder.rebuild_local_feed(slug)
     finally:
-        # Staging is MinusPod-managed: once a commit finishes (even if queueing/rebuild above raised), sweep what is left.
+        # Staging is MinusPod-managed: once a commit finishes (even if queueing/rebuild above
+        # raised), sweep what is left.
         # Committed entries' leftovers are already gone (_commit_entry moves the audio and deletes sidecars), so what
         # remains is (1) files the plan rejected outright (a name that never matched sNNeNN, an empty file, a stray
         # .part), which this sweep removes, and (2) a skipped or errored entry's audio + sidecars, which it keeps

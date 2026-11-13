@@ -1,6 +1,7 @@
 """Persistence and migration tests for episode_details.applied_cuts_json.
 
-None (never persisted) and [] (nothing cut) are distinct: recut skips None and treats [] as an authoritative empty list."""
+None (never persisted) and [] (nothing cut) are distinct: recut skips None and treats [] as an
+authoritative empty list."""
 import json
 
 from database import Database

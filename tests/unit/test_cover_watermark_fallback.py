@@ -1,6 +1,7 @@
 """serve_minuspod_cover fallback behavior.
 
-It is the only public podcast-level artwork route, so it must serve the plain cover when badging is off and never 404 a cached cover because compositing failed."""
+It is the only public podcast-level artwork route, so it must serve the plain cover when badging is
+off and never 404 a cached cover because compositing failed."""
 import io
 from unittest.mock import patch
 

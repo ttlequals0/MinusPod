@@ -325,7 +325,8 @@ def downsample_max(buckets: np.ndarray, factor: int) -> np.ndarray:
 
 
 def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | None:
-    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16; None on failure or audio shorter than one bucket."""
+    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16; None on failure or audio
+    shorter than one bucket."""
     cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-i', str(audio_path),
            '-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ), '-f', 's16le', 'pipe:1']
     chunk_bytes = PEAKS_SAMPLES_PER_BUCKET * 2 * _PEAKS_CHUNK_BUCKETS

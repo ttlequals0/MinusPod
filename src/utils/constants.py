@@ -141,7 +141,8 @@ _POSSESSIVE_LEAD_WORDS = frozenset({
 def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
     """The advertiser in an LLM sponsor slot, or None when it names none.
 
-    Host and credit lead-ins ("Sponsored by Acme") are stripped; prose, structure labels and the show's name are rejected."""
+    Host and credit lead-ins ("Sponsored by Acme") are stripped; prose, structure labels and the
+    show's name are rejected."""
     if not text:
         return None
     label = str(text).strip()

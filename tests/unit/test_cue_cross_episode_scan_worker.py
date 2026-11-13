@@ -1,4 +1,5 @@
-"""Unit tests for _run_cue_cross_episode_scan (#350): payload shape and error path with a mock DB and mocked AudioFingerprinter."""
+"""Unit tests for _run_cue_cross_episode_scan (#350): payload shape and error path with a mock DB
+and mocked AudioFingerprinter."""
 from unittest.mock import MagicMock, patch
 
 

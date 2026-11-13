@@ -1,4 +1,5 @@
-"""Analyzer wiring for splice-evidence detection (docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
+"""Analyzer wiring for splice-evidence detection
+(docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
 
 The detector runs when splice_evidence_enabled is on (default) and is skipped with no db or the flag off
 (result.splice_evidence None); the payload lands on result.splice_evidence and in to_dict(); detector

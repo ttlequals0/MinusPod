@@ -367,7 +367,8 @@ def test_build_import_plan_wide_token_mints_minimal_width_id(tmp_path):
 
 
 def test_build_import_plan_wide_token_and_sidecar_override_collide_as_duplicate(tmp_path):
-    """A wide-token file and a narrow-token file whose sidecar overrides to the same numbers mint the same id and collide as a duplicate in the batch."""
+    """A wide-token file and a narrow-token file whose sidecar overrides to the same numbers mint
+    the same id and collide as a duplicate in the batch."""
     wide = _write(tmp_path / 'S01E0022 - Wide.mp3')
     narrow = _write(tmp_path / 'S01E01 - Narrow.mp3')
     _write_text(tmp_path / 'S01E01 - Narrow.json', '{"season": 1, "episode": 22}')
@@ -442,7 +443,8 @@ def test_build_import_plan_replaces_existing_id_none_when_no_collision(tmp_path)
 
 
 def test_build_import_plan_prefers_exact_spelled_id_when_both_exist(tmp_path):
-    """With both wide (s01e0006) and canonical (s01e06) rows present, replacesExistingId picks the exact-spelled match deterministically, not by set order.
+    """With both wide (s01e0006) and canonical (s01e06) rows present, replacesExistingId picks the
+    exact-spelled match deterministically, not by set order.
 
     The exact match is the safer blind pick: it takes the in-place reset path instead of delete-and-reinsert."""
     audio = _write(tmp_path / 'S01E06 - Pilot.mp3')
@@ -521,7 +523,8 @@ def test_build_import_plan_out_of_order_explicit_anchors_error_all_clean_entries
 
 
 def test_build_import_plan_future_dated_non_final_anchor_errors_batch(tmp_path):
-    """A future-dated explicit sidecar on a non-final entry is caught against the implicit now_iso anchor on the final entry.
+    """A future-dated explicit sidecar on a non-final entry is caught against the implicit now_iso
+    anchor on the final entry.
 
     Only the offending entries (B and the forced-anchor final C) carry the error; unrelated entry A stays clean."""
     a = _write(tmp_path / 'S01E01 - A.mp3')
@@ -614,9 +617,11 @@ def test_plan_hash_order_independent(tmp_path):
 
 
 def test_plan_hash_changes_with_overwrite_flag(tmp_path):
-    """Same files with a different overwrite flag hash differently, so a commit whose overwrite differs from the reviewed scan 409s as stale.
+    """Same files with a different overwrite flag hash differently, so a commit whose overwrite
+    differs from the reviewed scan 409s as stale.
 
-    Overwrite changes which entries error versus commit (a collision errors with it off, overwrites cleanly with it on)."""
+    Overwrite changes which entries error versus commit (a collision errors with it off, overwrites
+    cleanly with it on)."""
     a = _write(tmp_path / 'a.mp3')
     sources = [a]
     assert plan_hash(sources, overwrite=False) != plan_hash(sources, overwrite=True)
@@ -646,7 +651,8 @@ def test_plan_hash_skips_vanished_path_without_raising(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_build_import_plan_batch_error_attributes_only_offending_pair(tmp_path):
-    """An out-of-order explicit-date pair errors only the two offending entries; batchErrors names them and an unrelated synthesized entry stays clean."""
+    """An out-of-order explicit-date pair errors only the two offending entries; batchErrors names
+    them and an unrelated synthesized entry stays clean."""
     e1 = _write(tmp_path / 'S01E01 - One.mp3')
     _write_text(tmp_path / 'S01E01 - One.json',
                json.dumps({'published_at': '2026-02-01T00:00:00Z'}))
@@ -671,7 +677,8 @@ def test_build_import_plan_batch_error_attributes_only_offending_pair(tmp_path):
     # pair): clean, not stamped with an error naming two ids it has no
     # relation to.
     assert entries_by_id['s01e03']['errors'] == []
-    # Only the unrelated entry is importable; the batch still can't commit (batchErrors non-empty), which the caller enforces.
+    # Only the unrelated entry is importable; the batch still can't commit (batchErrors non-empty),
+    # which the caller enforces.
     assert plan['totals']['importable'] == 1
 
 

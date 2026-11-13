@@ -713,7 +713,8 @@ class PodcastMixin:
 
     def is_only_expose_processed_for_podcast(self, slug: str,
                                              podcast: dict | None = None) -> bool:
-        """Resolve only_expose_processed_episodes: per-feed value if non-NULL, else the only_expose_processed_default setting, else False."""
+        """Resolve only_expose_processed_episodes: per-feed value if non-NULL, else the
+        only_expose_processed_default setting, else False."""
         if podcast is None:
             podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('only_expose_processed_episodes') if podcast else None

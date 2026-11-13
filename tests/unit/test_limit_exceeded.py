@@ -1,6 +1,8 @@
 """Tests for the spend/quota limit classifier and its webhook routing.
 
-A billing or usage limit rejection (e.g. OpenRouter key limit, OpenAI insufficient_quota) must fire the Limit Exceeded webhook, not Auth Failure, be non-retryable at window and episode level, and not shadow the transient-429 or Gemini classifiers (#491)."""
+A billing or usage limit rejection (e.g. OpenRouter key limit, OpenAI insufficient_quota) must fire
+the Limit Exceeded webhook, not Auth Failure, be non-retryable at window and episode level, and not
+shadow the transient-429 or Gemini classifiers (#491)."""
 
 import json
 import threading

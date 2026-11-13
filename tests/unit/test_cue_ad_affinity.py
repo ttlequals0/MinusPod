@@ -1,6 +1,7 @@
 """Tests for ad-affinity typing of recurring cue candidates (#350).
 
-Covers annotate_recurring_with_ad_affinity and the sibling-fallback path (_sibling_affinity_fallback and its trigger in _run_cue_candidate_scan) with a stubbed matcher/DB."""
+Covers annotate_recurring_with_ad_affinity and the sibling-fallback path (_sibling_affinity_fallback
+and its trigger in _run_cue_candidate_scan) with a stubbed matcher/DB."""
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch

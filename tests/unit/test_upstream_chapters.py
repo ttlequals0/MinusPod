@@ -1,6 +1,7 @@
 """Upstream podcast:chapters JSON source (#560).
 
-Covers RSS capture of the podcast:chapters URL (rss_parser.extract_episodes) and upstream_chapters.fetch_upstream_chapters.
+Covers RSS capture of the podcast:chapters URL (rss_parser.extract_episodes) and
+upstream_chapters.fetch_upstream_chapters.
 """
 import json
 

@@ -1,4 +1,5 @@
-"""Segment-ID addressing mode: prompt build, sid stamping, response parse/resolve, id-contract-miss counting, report isolation.
+"""Segment-ID addressing mode: prompt build, sid stamping, response parse/resolve, id-contract-miss
+counting, report isolation.
 
 Pins the harness side of MinusPod 2.91.0's 'segment_ids' mode; no benchmark calls are made."""
 from __future__ import annotations
@@ -69,7 +70,8 @@ def test_stamp_id_windows_rejects_boundaries_stale_vs_windows_json(tmp_path, wri
 
 
 def test_stamp_id_windows_rejects_mismatched_index_even_with_matching_boundaries(tmp_path, write_corpus_episode):
-    """A stored window with the right start/end but wrong index must still fail (a positional zip alone cannot catch it)."""
+    """A stored window with the right start/end but wrong index must still fail (a positional zip
+    alone cannot catch it)."""
     ep = _load(tmp_path, write_corpus_episode)
     correct = ep.windows[0]
     ep.windows[0] = Window(index=5, start=correct.start, end=correct.end, transcript_lines=correct.transcript_lines)

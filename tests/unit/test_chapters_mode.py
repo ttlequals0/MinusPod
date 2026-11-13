@@ -597,7 +597,8 @@ def test_fetched_chapters_below_threshold_after_remap_falls_to_generator(monkeyp
 # ---------- Segment-marker hints (ad-break boundary hints) ----------
 
 def test_markers_reach_generator_as_segment_markers_kwarg(monkeypatch):
-    """_generate_assets passes markers to ChaptersGenerator.generate_chapters as segment_markers (AI-generation branch only)."""
+    """_generate_assets passes markers to ChaptersGenerator.generate_chapters as segment_markers
+    (AI-generation branch only)."""
     db = _db(chapters_mode='generate')
     markers = [{'start': 10.0, 'end': 20.0, 'action_applied': 'remove', 'category': 'sponsor'}]
     storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(

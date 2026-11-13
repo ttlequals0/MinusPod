@@ -28,7 +28,8 @@ def client_with_password():
 
 
 def test_status_stream_unauth_gets_auth_failed_event(client_with_password):
-    """Unauthenticated SSE connect gets a single ``auth-failed`` event, not a 401 (EventSource cannot introspect a 401, so it would reconnect-loop)."""
+    """Unauthenticated SSE connect gets a single ``auth-failed`` event, not a 401 (EventSource
+    cannot introspect a 401, so it would reconnect-loop)."""
     response = client_with_password.get(
         '/api/v1/status/stream',
         buffered=True,
@@ -86,7 +87,10 @@ def test_api_openapi_requires_auth(client_with_password):
 
 
 def test_artwork_get_is_exempt(client_with_password):
-    """podcast-app <img> cross-origin GET stays public. No such feed exists, so 404 is expected; reaching the handler at all proves the auth gate did not fire."""
+    """podcast-app <img> cross-origin GET stays public.
+
+    No such feed exists, so 404 is expected; reaching the handler at all proves the auth gate did
+    not fire."""
     response = client_with_password.get('/api/v1/feeds/valid-slug/artwork')
     assert response.status_code in (200, 404)
 

@@ -85,7 +85,8 @@ class TransitionDetector:
     ) -> list[TransitionPair]:
         """Pair transitions into candidate ad regions.
 
-        Looks for up->down or down->up pairs within the ad duration window; each transition is used in one pair (greedy).
+        Looks for up->down or down->up pairs within the ad duration window; each transition is used
+        in one pair (greedy).
         """
         if len(transitions) < 2:
             return []

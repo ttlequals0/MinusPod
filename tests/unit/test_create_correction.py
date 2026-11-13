@@ -220,7 +220,8 @@ def test_global_scope_creates_global_pattern(temp_db):
 
 def test_case_variant_sponsor_resolves_to_existing(temp_db):
     """Creating 'testbrand' after 'TestBrand' reuses the same sponsor_id (case-insensitive lookup).
-    Uses a name outside the community seed list: the migration preloads 255 sponsors and re-inserting one violates UNIQUE."""
+    Uses a name outside the community seed list: the migration preloads 255 sponsors and
+    re-inserting one violates UNIQUE."""
     _make_episode(temp_db)
     sid = temp_db.create_known_sponsor(name='TestBrandPRT')
 

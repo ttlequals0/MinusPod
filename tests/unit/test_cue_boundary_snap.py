@@ -220,7 +220,8 @@ def test_spectral_cue_does_not_snap_edge():
 # ---------------------------------------------------------------------------
 
 def test_nearest_first_beats_farther_higher_confidence_cue():
-    """A cue at 2s distance with conf=0.85 must win over one at 8s with conf=0.99 (nearest-first, not confidence-first)."""
+    """A cue at 2s distance with conf=0.85 must win over one at 8s with conf=0.99 (nearest-first,
+    not confidence-first)."""
     ad_start = 100.0
     # near cue: end=98.0 -> distance = abs(98.0 - 100.0) = 2.0s, conf=0.85
     near = _cue(start=97.5, end=98.0, conf=0.85)
@@ -253,7 +254,8 @@ def test_tie_broken_by_confidence():
 
 
 def test_widened_window_snaps_7s_away_cue():
-    """A cue 7s before the ad start snaps with the new defaults (snap_lead=10.0s) but not the old ones (snap_lead=4.0s, snap_lag=2.0s)."""
+    """A cue 7s before the ad start snaps with the new defaults (snap_lead=10.0s) but not the old
+    ones (snap_lead=4.0s, snap_lag=2.0s)."""
     ads_new = [{'start': 100.0, 'end': 160.0}]
     ads_old = [{'start': 100.0, 'end': 160.0}]
     # cue.end = 93.0 -> distance = 7.0s before ad_start
@@ -300,7 +302,8 @@ def test_single_cue_no_ambiguous_key():
 
 
 def test_settings_plumbing_snap_receives_db_values():
-    """detect._detect_ads_first_pass threads DB lead/lag into snap_ad_boundaries_to_cues (the mock assertion fails if forwarding stops)."""
+    """detect._detect_ads_first_pass threads DB lead/lag into snap_ad_boundaries_to_cues (the mock
+    assertion fails if forwarding stops)."""
     db_lead = 8.0
     db_lag = 3.5
 
@@ -346,7 +349,8 @@ def test_settings_plumbing_snap_receives_db_values():
 
 
 def test_telemetry_out_of_reach_follows_settings():
-    """out_of_reach in build_cue_detection_records uses live lead/lag: a cue 6s away is out_of_reach with tight values, not with wider ones."""
+    """out_of_reach in build_cue_detection_records uses live lead/lag: a cue 6s away is out_of_reach
+    with tight values, not with wider ones."""
     from ad_detector.cue_telemetry import build_cue_detection_records
 
     # One template cue 6s before the ad start; no snap occurred (outcome=none).
@@ -486,7 +490,8 @@ def test_transition_confidence_floor_applies():
 
 
 def test_spectral_transition_cue_never_snaps():
-    """Spectral (non-template) transition-band cues must not snap with allow_transition=True (the is_template_cue gate filters them first)."""
+    """Spectral (non-template) transition-band cues must not snap with allow_transition=True (the
+    is_template_cue gate filters them first)."""
     spectral = AudioSegmentSignal(
         start=98.0, end=99.5, signal_type='audio_cue', confidence=0.9,
         details={

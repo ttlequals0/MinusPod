@@ -200,7 +200,8 @@ def decode_pcm_window(audio_path: Path | str,
                       start_seconds: float = 0.0,
                       end_seconds: float | None = None,
                       sample_rate: int = SAMPLE_RATE_HZ) -> np.ndarray:
-    """ffmpeg-decode a window of audio to mono float32 in [-1, 1]; raises ``RuntimeError`` on failure or empty output."""
+    """ffmpeg-decode a window of audio to mono float32 in [-1, 1]; raises ``RuntimeError`` on
+    failure or empty output."""
     audio_path = Path(audio_path)
     if not audio_path.exists():
         raise RuntimeError(f"audio file not found: {audio_path}")

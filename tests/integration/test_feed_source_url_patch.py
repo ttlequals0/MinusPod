@@ -1,6 +1,8 @@
 """Integration tests for editable source RSS URL (#484).
 
-PATCH /feeds/{slug} accepts sourceUrl: the server fetches and parses the new URL before persisting (typos must not silently break the feed), clears conditional-GET validators and forces an immediate refresh."""
+PATCH /feeds/{slug} accepts sourceUrl: the server fetches and parses the new URL before persisting
+(typos must not silently break the feed), clears conditional-GET validators and forces an immediate
+refresh."""
 import logging
 import os
 import sys

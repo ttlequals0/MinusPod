@@ -91,7 +91,8 @@ def test_delete_feed_cancels_active_run_and_deletes_immediately(app_client):
 
 
 def test_delete_feed_does_not_wedge_on_an_unacknowledging_owner(app_client):
-    """Deletion waits a bounded 2s, then tears down a wedged worker's run row anyway; the worker's next cooperative check aborts cleanly."""
+    """Deletion waits a bounded 2s, then tears down a wedged worker's run row anyway; the worker's
+    next cooperative check aborts cleanly."""
     from api import get_database, get_status_service
     from processing_queue import ProcessingQueue
     from cancel import ProcessingOwnershipLost, _check_cancel

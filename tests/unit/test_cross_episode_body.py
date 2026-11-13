@@ -1,6 +1,8 @@
 """discover_cross_episode_body: full-body recurring-segment discovery.
 
-_find_shared_segments is body-agnostic; this passes the full fingerprint arrays so mid-episode stings are found alongside head/tail ones. Fixtures mirror test_cross_episode_cues.py: synthetic uint32 arrays with planted segments, no fpcalc."""
+_find_shared_segments is body-agnostic; this passes the full fingerprint arrays so mid-episode
+stings are found alongside head/tail ones. Fixtures mirror test_cross_episode_cues.py: synthetic
+uint32 arrays with planted segments, no fpcalc."""
 from unittest.mock import patch
 
 import numpy as np

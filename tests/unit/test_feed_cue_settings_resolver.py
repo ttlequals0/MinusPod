@@ -1,6 +1,7 @@
 """Unit tests for config.resolve_feed_cue_settings.
 
-Per-feed override beats global for each of the 7 knobs, NULL falls back to global then code default, all 7 values come from one db getter call, and a DB exception falls back to defaults."""
+Per-feed override beats global for each of the 7 knobs, NULL falls back to global then code default,
+all 7 values come from one db getter call, and a DB exception falls back to defaults."""
 import os
 import sys
 

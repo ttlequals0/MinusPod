@@ -1,6 +1,8 @@
 """Per-feed cue settings are threaded into _detect_ads_first_pass.
 
-When resolve_feed_cue_settings returns per-feed values they reach synthesize_ads_from_cue_pairs and snap_ad_boundaries_to_cues (pattern of test_cue_boundary_snap.test_settings_plumbing_snap_receives_db_values)."""
+When resolve_feed_cue_settings returns per-feed values they reach synthesize_ads_from_cue_pairs and
+snap_ad_boundaries_to_cues (pattern of
+test_cue_boundary_snap.test_settings_plumbing_snap_receives_db_values)."""
 import os
 import sys
 import tempfile

@@ -1330,7 +1330,8 @@ class AdValidator:
 
     def _make_decision(self, confidence: float, flags: list[str],
                         duration: float = 0.0) -> Decision:
-        """Decide ACCEPT/REVIEW/REJECT from adjusted confidence and flags; duration (seconds) feeds the high-confidence override."""
+        """Decide ACCEPT/REVIEW/REJECT from adjusted confidence and flags; duration (seconds) feeds
+        the high-confidence override."""
         has_errors = any('ERROR' in f for f in flags)
         has_long_error = any('Very long' in f for f in flags)
 
@@ -1462,9 +1463,11 @@ class AdValidator:
                 self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
                 return Decision.REVIEW
 
-        # Rule 4: an uncorroborated vad_gap marker at the episode tail must surface in the pending-review queue, not ship
+        # Rule 4: an uncorroborated vad_gap marker at the episode tail must surface in the
+        # pending-review queue, not ship
         # silently. Fires on REVIEW (clamp already routed it) and on ACCEPT (the empty-text early-return left confidence
-        # unclamped, so 0.80 >= threshold but no stored evidence justifies the cut). A corroborated tail cuts regardless.
+        # unclamped, so 0.80 >= threshold but no stored evidence justifies the cut). A corroborated
+        # tail cuts regardless.
         # Calls the corroboration helper directly so tails with no transcript text still count stored audio evidence.
         if (decision in (Decision.REVIEW, Decision.ACCEPT)
                 and ad.get('detection_stage') == 'vad_gap'

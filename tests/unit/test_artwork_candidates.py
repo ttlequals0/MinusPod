@@ -1,6 +1,7 @@
 """Artwork candidate fallback + status-aware negative cache.
 
-download_artwork tries each extract_podcast_artwork_url candidate, then the cached artwork_url, and memoizes each failure (404 backs off longer than transient errors)."""
+download_artwork tries each extract_podcast_artwork_url candidate, then the cached artwork_url, and
+memoizes each failure (404 backs off longer than transient errors)."""
 import json
 import os
 from datetime import timedelta
@@ -44,7 +45,8 @@ def _mock_response(content_type: str | None = None, body: bytes = b'',
 
 @pytest.fixture(autouse=True)
 def _isolate_storage_singleton():
-    """Save/restore Storage._instance around each test so tmp_path-rooted instances never leak into main_app/api tests."""
+    """Save/restore Storage._instance around each test so tmp_path-rooted instances never leak into
+    main_app/api tests."""
     previous = Storage._instance
     Storage._instance = None
     yield

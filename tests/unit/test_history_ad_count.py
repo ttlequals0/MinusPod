@@ -1,5 +1,6 @@
 """Regression: `_record_history_and_event` ignored ``verification_count``, so the history table and
-EVENT_EPISODE_PROCESSED webhook got the pass-1-only ``ads_detected``; also covers `_log_completion_summary`'s log line."""
+EVENT_EPISODE_PROCESSED webhook got the pass-1-only ``ads_detected``; also covers
+`_log_completion_summary`'s log line."""
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -21,7 +22,8 @@ def _make_token_totals():
 
 
 class TestHistoryAdCountIncludesVerification:
-    """history.ads_detected = pass1_cut_count + verification_count, as shown on the History page, /api/v1/history and the webhook's ``episode.ads_removed``."""
+    """history.ads_detected = pass1_cut_count + verification_count, as shown on the History page,
+    /api/v1/history and the webhook's ``episode.ads_removed``."""
 
     def test_records_total_not_just_pass_1(self):
         db = _make_db()
@@ -66,7 +68,8 @@ class TestHistoryAdCountIncludesVerification:
         assert kwargs['ads_detected'] == 1
 
     def test_zero_pass_1_records_only_verification(self):
-        """Pass-1 reviewer rejected everything but verification found ads (the a1b2c3d4e5f6 scenario): history.ads_detected must reflect the verification cuts, not 0."""
+        """Pass-1 reviewer rejected everything but verification found ads (the a1b2c3d4e5f6
+        scenario): history.ads_detected must reflect the verification cuts, not 0."""
         db = _make_db()
 
         with patch('main_app.pipeline.finalize.fire_event'):
@@ -82,7 +85,8 @@ class TestHistoryAdCountIncludesVerification:
 
 
 class TestCompletionLogLineIncludesVerification:
-    """The "Complete: N ads removed, T.s" log line must report total cuts, not pass-1 only (it once read ``0 ads removed`` when verification re-cut found 1)."""
+    """The "Complete: N ads removed, T.s" log line must report total cuts, not pass-1 only (it once
+    read ``0 ads removed`` when verification re-cut found 1)."""
 
     def test_log_includes_verification_count(self, caplog):
         db = MagicMock()

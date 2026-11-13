@@ -94,7 +94,8 @@ CANONICAL_GAP_SECONDS = 15.0
 def canonicalize_spans(
     spans: list[tuple[float, float]], *, gap: float = CANONICAL_GAP_SECONDS
 ) -> list[tuple[float, float]]:
-    """Merge spans separated by less than `gap` seconds (one span = one contiguous ad break), for predictions and truths alike."""
+    """Merge spans separated by less than `gap` seconds (one span = one contiguous ad break), for
+    predictions and truths alike."""
     if not spans:
         return []
     ordered = sorted(spans)

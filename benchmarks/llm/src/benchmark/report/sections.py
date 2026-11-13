@@ -551,7 +551,8 @@ def _seed_sponsors() -> list[dict] | None:
 def _sponsor_aliases() -> dict | None:
     """Pull SPONSOR_ALIASES from MinusPod at render time.
 
-    This is the post-transcription mishearing-correction map (`a firm` -> `Affirm`), distinct from each SEED_SPONSORS entry's aliases. Returns None if the import fails."""
+    This is the post-transcription mishearing-correction map (`a firm` -> `Affirm`), distinct from
+    each SEED_SPONSORS entry's aliases. Returns None if the import fails."""
     try:
         from utils.constants import SPONSOR_ALIASES  # type: ignore[import-not-found]
     except ImportError:
@@ -768,7 +769,8 @@ def _render_boundary_accuracy(stats: dict[str, ModelStats]) -> str:
 
 
 def _render_calibration_table(calibration: dict[str, list[tuple[float, bool]]]) -> str:
-    """Bin self-reported confidence and show the actual hit rate per bin, exposing overconfident models (e.g., phi-4 reports ~0.95 on detections that are almost always wrong)."""
+    """Bin self-reported confidence and show the actual hit rate per bin, exposing overconfident
+    models (e.g., phi-4 reports ~0.95 on detections that are almost always wrong)."""
     bins = CALIBRATION_BINS
     bin_labels = CALIBRATION_BIN_LABELS
     lines = [

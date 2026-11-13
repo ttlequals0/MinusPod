@@ -84,7 +84,8 @@ def compute_windows(segments: list[dict]) -> list[Window]:
 
 
 def stamp_id_windows(episode: Episode) -> list[list[dict]]:
-    """ID-addressing mode: validate the corpus is fresh, then stamp a global sequential ``sid`` onto ``episode.segments``.
+    """ID-addressing mode: validate the corpus is fresh, then stamp a global sequential ``sid`` onto
+    ``episode.segments``.
 
     Re-runs ``create_windows`` over the unstamped segments and asserts the result
     matches the stored ``windows.json`` (count, index, [start, end) per window). A

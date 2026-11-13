@@ -1,5 +1,6 @@
 """Shared language validation regex and per-feed override lookup: LANGUAGE_CODE_RE must reject region/script subtags
-(e.g. 'pt-br') because faster-whisper raises a fatal ValueError on them; get_feed_language_override keeps paths from drifting."""
+(e.g. 'pt-br') because faster-whisper raises a fatal ValueError on them; get_feed_language_override
+keeps paths from drifting."""
 import os
 import sys
 

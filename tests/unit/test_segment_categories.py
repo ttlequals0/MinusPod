@@ -2,7 +2,8 @@
 
 Covers normalize_segment_category, category stamping in _merge_detection_results (the seam every detection
 stage passes through), raw category passthrough in parse_ads_from_response, get_episode's category/actionApplied
-payload, and the merge gate on the feed's action map so keep-resolving detections never merge into remove-resolving ones.
+payload, and the merge gate on the feed's action map so keep-resolving detections never merge into
+remove-resolving ones.
 """
 import json
 import os

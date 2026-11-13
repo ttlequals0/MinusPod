@@ -1,6 +1,8 @@
-"""Tests for the segment-category cut partition (#565): the remove-vs-beep split for markers reaching the final cut list.
+"""Tests for the segment-category cut partition (#565): the remove-vs-beep split for markers
+reaching the final cut list.
 
-'keep' never reaches it (_partition_keep_ads owns it). Also covers process_episode and recut beep handling, real-ffmpeg remove_ads, and call-site uniformity."""
+'keep' never reaches it (_partition_keep_ads owns it). Also covers process_episode and recut beep
+handling, real-ffmpeg remove_ads, and call-site uniformity."""
 import ast
 import filecmp
 import inspect
@@ -103,7 +105,8 @@ def _cross_promo_ad():
 
 
 def _run_pipeline(first_pass_ads, segment_actions, feed_actions=None):
-    """Drive process_episode's pass-1 flow with every stage but the cut partition mocked (as in test_keep_bypass.py); returns the recorded mocks."""
+    """Drive process_episode's pass-1 flow with every stage but the cut partition mocked (as in
+    test_keep_bypass.py); returns the recorded mocks."""
     podcast_row = {'id': 1, 'slug': 'cut-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
                    'passthrough_enabled': None, 'skip_ad_detection': None,
@@ -314,7 +317,8 @@ class TestAudioProcessorCutPartition:
 
 
 class TestProcessEpisodeCallSiteUniformity:
-    """Every AudioProcessor.process_episode call must pass a beep-derived audio_segments list, so a saved 'beep' marker can never render as a full remove."""
+    """Every AudioProcessor.process_episode call must pass a beep-derived audio_segments list, so a
+    saved 'beep' marker can never render as a full remove."""
 
     def test_every_call_site_passes_audio_segments(self):
         sources = [inspect.getsource(m) for m in (processing, verify, recut)]

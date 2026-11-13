@@ -1,6 +1,8 @@
 """Per-feed retention overrides: archive mode and keep-original.
 
-`retention_days_override` beats the global setting; an override of 0 archives the feed (neither the scheduled sweep nor force_all touches it); feeds on different windows sweep correctly in one run; `keep_original_audio_override` beats the global `keep_original_audio`."""
+`retention_days_override` beats the global setting; an override of 0 archives the feed (neither the
+scheduled sweep nor force_all touches it); feeds on different windows sweep correctly in one run;
+`keep_original_audio_override` beats the global `keep_original_audio`."""
 import os
 import sys
 from datetime import datetime, timedelta, timezone

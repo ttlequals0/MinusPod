@@ -1,6 +1,8 @@
 """Tests for the ENV_BACKED_SETTINGS registry + migration in src/database/schema/__init__.py and src/config.py.
 
-On every boot, is_default=1 rows re-sync to the current env var value and is_default=0 rows are never touched. A one-shot corrective pass flips is_default for divergent is_default=1 rows without changing the stored value, so no data is lost."""
+On every boot, is_default=1 rows re-sync to the current env var value and is_default=0 rows are
+never touched. A one-shot corrective pass flips is_default for divergent is_default=1 rows without
+changing the stored value, so no data is lost."""
 import os
 import sqlite3
 import shutil

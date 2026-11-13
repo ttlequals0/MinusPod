@@ -1,4 +1,5 @@
-"""Rate-limit hold probe: re-checks an active hold instead of waiting out the provider's stated reset, which can be wrong either way.
+"""Rate-limit hold probe: re-checks an active hold instead of waiting out the provider's stated
+reset, which can be wrong either way.
 
 Uses the main_app boot pattern from test_rate_limit_hold.py.
 """

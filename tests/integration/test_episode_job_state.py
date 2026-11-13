@@ -1,6 +1,7 @@
 """Integration tests for the authoritative episode jobState field.
 
-jobState comes from live queue state (auto_process_queue), not stored status, so a 'pending' episode without a queue row reports 'idle'."""
+jobState comes from live queue state (auto_process_queue), not stored status, so a 'pending' episode
+without a queue row reports 'idle'."""
 import os
 import sys
 import tempfile

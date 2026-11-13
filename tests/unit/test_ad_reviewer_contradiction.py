@@ -1,4 +1,5 @@
-"""Reviewer verdict/reasoning contradiction (docs/specs/2026-07-08-ad-splice-detection.md#14-reviewer-verdictreasoning-contradiction-bug-3):
+"""Reviewer verdict/reasoning contradiction
+(docs/specs/2026-07-08-ad-splice-detection.md#14-reviewer-verdictreasoning-contradiction-bug-3):
 _review_single derives confirmed/adjust only from boundary arithmetic and never reads the reason text."""
 import os
 import sys
@@ -746,7 +747,8 @@ def test_negated_phrases_are_not_affirmations(reason):
 
 
 # Affirmed confirm + trim language routes to recovery as adjust: SPONSOR_BLOCK_REASONING affirms the
-# span is an ad but names a sub-span trim. It skips the contradiction hold, spends one recovery call and ships as an accepted adjust.
+# span is an ad but names a sub-span trim. It skips the contradiction hold, spends one recovery call
+# and ships as an accepted adjust.
 
 def _run_affirmed_confirm(followup, reasoning=None, ad=None):
     """Run a review with a confirmed verdict, unchanged bounds and affirming/trim reasoning; the recovery

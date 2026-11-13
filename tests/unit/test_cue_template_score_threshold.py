@@ -1,6 +1,8 @@
 """Unit tests for per-template score_threshold (issue #350).
 
-Precedence: per-template > per-feed > global. Covers gating in both directions, NULL fallback to the instance threshold, the peak-pick floor, update_cue_template set/clear, _template_to_meta_dict scoreThreshold, and PATCH validation."""
+Precedence: per-template > per-feed > global. Covers gating in both directions, NULL fallback to the
+instance threshold, the peak-pick floor, update_cue_template set/clear, _template_to_meta_dict
+scoreThreshold, and PATCH validation."""
 import os
 import sys
 import tempfile
@@ -41,7 +43,8 @@ def _make_row(mfcc: np.ndarray, *, template_id: int = 1,
 # ---------------------------------------------------------------------------
 
 def test_per_template_threshold_blocks_match_below_its_own_threshold():
-    """Per-template threshold 0.999 suppresses a noisy haystack that instance 0.3 would pass (zero _scan_chunk matches)."""
+    """Per-template threshold 0.999 suppresses a noisy haystack that instance 0.3 would pass (zero
+    _scan_chunk matches)."""
     rng = np.random.default_rng(7)
     template = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     # Pure noise: no planted match; scores will be low but could exceed 0.3
@@ -327,7 +330,9 @@ def test_template_to_meta_dict_score_threshold_null():
 def test_suggest_sweep_strips_per_template_thresholds():
     """_run_cue_threshold_scan must clear score_threshold before building the matcher.
 
-    Templates with threshold 0.99 and a haystack scoring ~0.7 (above AUDIO_CUE_SUGGEST_FLOOR) would be hidden by the per-template gate. Builds the sweep matcher directly (mirroring the route) and asserts score_threshold is None after the strip."""
+    Templates with threshold 0.99 and a haystack scoring ~0.7 (above AUDIO_CUE_SUGGEST_FLOOR) would
+    be hidden by the per-template gate. Builds the sweep matcher directly (mirroring the route) and
+    asserts score_threshold is None after the strip."""
     rng = np.random.default_rng(88)
     template_mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     # noise=0.8 produces score ~0.72 (above AUDIO_CUE_SUGGEST_FLOOR ~0.35, below 0.99)

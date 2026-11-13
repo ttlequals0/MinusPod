@@ -1,4 +1,5 @@
-"""Every utils.llm_call dispatch is one ledger attempt: begin_llm_attempt/finalize_llm_attempt are the single writer of billed LLM calls."""
+"""Every utils.llm_call dispatch is one ledger attempt: begin_llm_attempt/finalize_llm_attempt are
+the single writer of billed LLM calls."""
 from unittest.mock import MagicMock, patch
 
 import run_context

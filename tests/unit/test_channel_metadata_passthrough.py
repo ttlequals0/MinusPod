@@ -1,6 +1,7 @@
 """Tests for the iTunes + standard RSS channel-metadata passthrough.
 
-Apple Podcasts and most apps need iTunes channel tags (author, category, explicit, owner) to ingest a feed or show artwork."""
+Apple Podcasts and most apps need iTunes channel tags (author, category, explicit, owner) to ingest
+a feed or show artwork."""
 import re
 
 import defusedxml

@@ -1,4 +1,5 @@
-"""Per-run processing stats capture (#519): history-row stats blob, run accessor, low-ad-yield baseline, RSS itunes:duration."""
+"""Per-run processing stats capture (#519): history-row stats blob, run accessor, low-ad-yield
+baseline, RSS itunes:duration."""
 import json
 
 import pytest

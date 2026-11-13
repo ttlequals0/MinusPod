@@ -1,6 +1,9 @@
 """Deleting a feed leaves nothing behind that points at its slug.
 
-Most child tables cascade from podcasts(id), but ad_patterns, ad_reviewer_log and addressing_log hold the slug as plain TEXT, and audio_fingerprints and pattern_corrections hang off ad_patterns without a foreign key, so they are cleaned by hand. Slugs get reused when a feed is re-added, so a surviving podcast-scoped pattern would leak into the next feed to take the slug."""
+Most child tables cascade from podcasts(id), but ad_patterns, ad_reviewer_log and addressing_log
+hold the slug as plain TEXT, and audio_fingerprints and pattern_corrections hang off ad_patterns
+without a foreign key, so they are cleaned by hand. Slugs get reused when a feed is re-added, so a
+surviving podcast-scoped pattern would leak into the next feed to take the slug."""
 import os
 import sys
 

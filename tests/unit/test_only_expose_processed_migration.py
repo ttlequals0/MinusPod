@@ -1,4 +1,5 @@
-"""Migration of podcasts.only_expose_processed_episodes from INTEGER DEFAULT 0 to plain nullable INTEGER, keeping values."""
+"""Migration of podcasts.only_expose_processed_episodes from INTEGER DEFAULT 0 to plain nullable
+INTEGER, keeping values."""
 
 import sqlite3
 

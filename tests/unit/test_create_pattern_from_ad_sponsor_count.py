@@ -1,6 +1,7 @@
 """Tests for the sponsor-occurrence guard in TextPatternMatcher.create_pattern_from_ad.
 
-Real ads repeat the brand name; a single mention is a host name-drop. Patterns whose sponsor name appears fewer than 2 times (case-insensitive substring) in ad_text are rejected."""
+Real ads repeat the brand name; a single mention is a host name-drop. Patterns whose sponsor name
+appears fewer than 2 times (case-insensitive substring) in ad_text are rejected."""
 import os
 import sys
 
@@ -72,7 +73,8 @@ def test_create_pattern_allowed_when_sponsor_appears_twice(db):
 
 
 def test_create_pattern_allowed_when_brand_lives_inside_url(db):
-    """DeleteMe-style: brand appears only inside joindeleteme.com; the guard counts substrings, not word boundaries, so this passes."""
+    """DeleteMe-style: brand appears only inside joindeleteme.com; the guard counts substrings, not
+    word boundaries, so this passes."""
     matcher = TextPatternMatcher(db=db)
     deleteme_ad = (
         "Use the promo code SHOW at checkout. The only way to get 20% off "

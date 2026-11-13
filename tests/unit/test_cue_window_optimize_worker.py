@@ -1,4 +1,5 @@
-"""Unit tests for the cue window optimizer worker: grid generation, tie-break math, baseline comparison, payload shape (matcher and decode mocked)."""
+"""Unit tests for the cue window optimizer worker: grid generation, tie-break math, baseline
+comparison, payload shape (matcher and decode mocked)."""
 import json
 import os
 import sys

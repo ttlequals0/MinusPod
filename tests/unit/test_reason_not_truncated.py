@@ -1,4 +1,5 @@
-"""The detector's reason text is stored whole (#591), with no 300/150-character cut leaving a literal "..." in the UI."""
+"""The detector's reason text is stored whole (#591), with no 300/150-character cut leaving a
+literal "..." in the UI."""
 import json
 import os
 import sys

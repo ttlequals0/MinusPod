@@ -1,4 +1,5 @@
-"""Unit tests for the CueTemplateMixin DB layer (#350): CRUD, raw-PCM round-trip, and two-tier (podcast / network) scope resolution."""
+"""Unit tests for the CueTemplateMixin DB layer (#350): CRUD, raw-PCM round-trip, and two-tier
+(podcast / network) scope resolution."""
 import numpy as np
 
 from audio_analysis.cue_features import N_COEFFS, serialize_mfcc, pcm_to_int16_bytes

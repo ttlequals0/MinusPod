@@ -1,6 +1,9 @@
 """Regression tests for CDATA-terminator escaping in generated RSS.
 
-Upstream <description> is attacker-influenced and emitted inside ``<![CDATA[...]]>``, which has no escaping, so a literal ``]]>`` closes it early and leaks raw markup. ``RSSParser._escape_cdata`` splits the terminator across two CDATA sections so the text is preserved and the parser never sees a real ``]]>``."""
+Upstream <description> is attacker-influenced and emitted inside ``<![CDATA[...]]>``, which has no
+escaping, so a literal ``]]>`` closes it early and leaks raw markup. ``RSSParser._escape_cdata``
+splits the terminator across two CDATA sections so the text is preserved and the parser never sees a
+real ``]]>``."""
 import xml.dom.minidom as minidom
 
 import defusedxml

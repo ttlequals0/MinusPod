@@ -1,6 +1,8 @@
 """Integration tests for the cue-template REST API (#350).
 
-Exercises the Flask routes via app_client: validation, CRUD, scope promotion, export/import, diagnostic scan/preview, loud-spots and settings validation. Audio routes seed a synthetic original-audio file."""
+Exercises the Flask routes via app_client: validation, CRUD, scope promotion, export/import,
+diagnostic scan/preview, loud-spots and settings validation. Audio routes seed a synthetic
+original-audio file."""
 import io
 import json
 import os

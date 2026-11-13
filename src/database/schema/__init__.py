@@ -3547,7 +3547,9 @@ class SchemaMixin(DeferredUpgradeMixin):
         fallback_by_key = {k: fb for k, _e, fb, _v in ENV_BACKED_SETTINGS}
 
         def _corrective_pass(keys, marker):
-            """One-shot: an is_default=1 row diverging from both the env value and the registry fallback is a past customization from before flag discipline; flip the flag, keep the value.
+            """One-shot: an is_default=1 row diverging from both the env value and the registry
+            fallback is a past customization from before flag discipline; flip the flag, keep the
+            value.
 
             A row still holding the fallback is a schema-seeded default; leaving
             it is_default=1 lets an env var set at the upgrade boot apply via the

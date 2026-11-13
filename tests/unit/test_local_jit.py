@@ -18,7 +18,8 @@ from main_app import app, db, storage  # noqa: E402
 
 # Tests share module-level db/storage singletons that tests.app_bootstrap deliberately leaks across the session;
 # leftovers broke test_offline_queue.py's FIFO assertions (a leaked pending auto_process_queue row). delete_podcast
-# cascades to all FK children (foreign_keys is on), so removing every slug after every test holds even if one fails midway.
+# cascades to all FK children (foreign_keys is on), so removing every slug after every test holds
+# even if one fails midway.
 _ALL_LOCAL_JIT_SLUGS = [
     'archead', 'archead2',
     'locqbusy', 'locproc', 'locfail', 'locperm', 'locmissing',
@@ -233,7 +234,8 @@ def test_head_local_episode_404s_when_nothing_retained():
     assert resp.status_code == 404
 
 
-# GET serve_episode: unprocessed local episodes serve the retained original instead of blocking on the single ProcessingQueue slot.
+# GET serve_episode: unprocessed local episodes serve the retained original instead of blocking on
+# the single ProcessingQueue slot.
 
 def _make_local_podcast_and_episode(slug, episode_id, status, **episode_kwargs):
     db.create_podcast(slug, f'local://{slug}', feed_type='local')
@@ -609,7 +611,8 @@ def test_local_historical_published_version_is_served_when_requested():
 
 
 # Subscribed-feed regression guards: the reprocess-window processed-file preference above and every local-feed
-# branch in serve_episode are local_feed-gated, so a subscribed feed's PROCESSING/PERMANENTLY_FAILED responses stay byte-for-byte unchanged.
+# branch in serve_episode are local_feed-gated, so a subscribed feed's PROCESSING/PERMANENTLY_FAILED
+# responses stay byte-for-byte unchanged.
 
 def test_subscribed_feed_processing_still_503():
     """(11) PROCESSING status still 503s for a subscribed feed."""

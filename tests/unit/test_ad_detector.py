@@ -737,7 +737,8 @@ class TestDeduplicateWindowMergeFlag:
 
 
 class TestSplitConflictingActionSpan:
-    """split_conflicting_action_span is the containment-safe split shared by deduplicate_window_ads and _merge_detection_results (#565)."""
+    """split_conflicting_action_span is the containment-safe split shared by deduplicate_window_ads
+    and _merge_detection_results (#565)."""
 
     def test_no_true_overlap_both_survive_untouched(self):
         last = {'start': 0.0, 'end': 20.0, 'category': 'sponsor'}
@@ -871,7 +872,8 @@ class TestSplitConflictingActionSpan:
         assert entries == [current]
 
     def test_current_nested_inside_last_splits_last_around_it(self):
-        """A longer remove-resolving pattern match fully containing a shorter keep-resolving LLM span must not collapse the nested span."""
+        """A longer remove-resolving pattern match fully containing a shorter keep-resolving LLM
+        span must not collapse the nested span."""
         last = {'start': 0.0, 'end': 166.6, 'category': 'sponsor'}
         current = {'start': 158.0, 'end': 166.6, 'category': 'intro'}
         new_last, entries = split_conflicting_action_span(last, current)
@@ -955,7 +957,8 @@ class TestSplitConflictingActionSpan:
         assert entries[1]['start'] == 50.0 and entries[1]['end'] == 100.0
 
     def test_nested_split_strips_stale_merge_bookkeeping(self):
-        """A last carrying merged_* bookkeeping must not pass stale protected bounds to the split pieces (they would re-absorb carved-out audio)."""
+        """A last carrying merged_* bookkeeping must not pass stale protected bounds to the split
+        pieces (they would re-absorb carved-out audio)."""
         last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor',
                 'merged_distinct_ads': True,
                 'merged_protected_start': 0.0, 'merged_protected_end': 100.0}
@@ -1034,7 +1037,8 @@ class TestDeduplicateWindowAdsActionGate:
         ]
 
     def test_without_action_map_reproduces_the_bug(self):
-        """Without an action_map the intro fuses into the pre-roll (1.3s gap) and the outro into the trailing sponsor ad (4.7s gap)."""
+        """Without an action_map the intro fuses into the pre-roll (1.3s gap) and the outro into the
+        trailing sponsor ad (4.7s gap)."""
         merged = deduplicate_window_ads(self._raw_llm_detections())
         assert len(merged) == 6
         first = merged[0]
@@ -1084,7 +1088,8 @@ class TestDeduplicateWindowAdsActionGate:
 
 
 class TestRemovalCoverageRegions:
-    """removal_coverage_regions excludes keep-resolving pattern regions: they never cut, so they must not shadow a remove-resolving detection."""
+    """removal_coverage_regions excludes keep-resolving pattern regions: they never cut, so they
+    must not shadow a remove-resolving detection."""
 
     ACTION_MAP = {'sponsor': 'remove', 'cross_promo': 'keep',
                   'self_promo': 'keep', 'intro': 'keep', 'outro': 'keep',

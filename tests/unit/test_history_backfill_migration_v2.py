@@ -1,6 +1,10 @@
 """Tests for the v2 backfill of processing_history.ads_detected.
 
-v1 compared ads_detected to episodes.ads_removed_firstpass (the pass-1 detection count, not post-reviewer cuts), so it only fixed episodes where the reviewer rejected zero ads. v2 uses (ads_removed - ads_removed_secondpass), the post-reviewer pass-1 cuts. Case v1 missed: detection=10, kept 6, verification cuts=2, total=8; v1 saw 6 != 10 and skipped, v2 sees 6 == 8 - 2 and corrects to 8."""
+v1 compared ads_detected to episodes.ads_removed_firstpass (the pass-1 detection count, not
+post-reviewer cuts), so it only fixed episodes where the reviewer rejected zero ads. v2 uses
+(ads_removed - ads_removed_secondpass), the post-reviewer pass-1 cuts. Case v1 missed: detection=10,
+kept 6, verification cuts=2, total=8; v1 saw 6 != 10 and skipped, v2 sees 6 == 8 - 2 and corrects to
+8."""
 import os
 import shutil
 import sqlite3

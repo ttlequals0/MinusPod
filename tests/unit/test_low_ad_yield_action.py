@@ -491,7 +491,8 @@ class TestFireLowAdYieldAction:
 
 
 class TestPublishStatusRunIdForwarding:
-    """_publish_status forwards run_id only to a target method whose signature accepts it, so queue_episode (which never took it) is called plainly."""
+    """_publish_status forwards run_id only to a target method whose signature accepts it, so
+    queue_episode (which never took it) is called plainly."""
 
     def test_queue_episode_is_called_without_run_id_and_still_writes(
             self, tmp_path, monkeypatch):

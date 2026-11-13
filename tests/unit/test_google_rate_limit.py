@@ -1,6 +1,8 @@
 """Tests for Gemini/Google 429 handling (issue #435).
 
-Per-minute 429s carry a `retryDelay` in the body and are honored for backoff; free-tier daily quota exhaustion (RESOURCE_EXHAUSTED, PerDay) cannot recover within the run, so it fails fast and never leaks the raw payload to the UI."""
+Per-minute 429s carry a `retryDelay` in the body and are honored for backoff; free-tier daily quota
+exhaustion (RESOURCE_EXHAUSTED, PerDay) cannot recover within the run, so it fails fast and never
+leaks the raw payload to the UI."""
 import json
 
 from tests.app_bootstrap import bootstrap

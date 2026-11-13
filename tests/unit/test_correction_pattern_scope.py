@@ -1,6 +1,8 @@
 """Pattern auto-creation from corrections must store the slug, not the numeric podcast id (PR #196).
 
-Detection reads `ad_patterns.podcast_id` against `podcasts.slug` (`src/database/patterns.py:17`); this pins the two correction paths (`type=confirm`, `type=adjust` with no existing pattern_id) to the slug."""
+Detection reads `ad_patterns.podcast_id` against `podcasts.slug` (`src/database/patterns.py:17`);
+this pins the two correction paths (`type=confirm`, `type=adjust` with no existing pattern_id) to
+the slug."""
 import json
 from unittest.mock import patch, MagicMock
 

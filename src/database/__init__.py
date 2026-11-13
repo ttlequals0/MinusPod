@@ -644,7 +644,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
         return False
 
     def clear_leaked_transaction(self, log, where: str) -> None:
-        """Logged, never-raising rollback_open_transaction, called at request teardown, background loop iterations and the episode processing thread."""
+        """Logged, never-raising rollback_open_transaction, called at request teardown, background
+        loop iterations and the episode processing thread."""
         try:
             if self.rollback_open_transaction():
                 log.warning(f"Rolled back a leaked transaction ({where})")

@@ -61,7 +61,8 @@ def _require_local_feed(db, slug):
 
 
 def _require_local_episode(db, slug, episode_id):
-    """_require_local_feed plus a 404 for a missing episode; returns (podcast, episode, None) or (None, None, error_response)."""
+    """_require_local_feed plus a 404 for a missing episode; returns (podcast, episode, None) or
+    (None, None, error_response)."""
     podcast, err = _require_local_feed(db, slug)
     if err:
         return None, None, err

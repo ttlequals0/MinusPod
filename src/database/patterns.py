@@ -173,7 +173,8 @@ class PatternMixin:
                           content_hash: str = None,
                           category: str = None,
                           community_last_confirmed_at: str = None) -> int:
-        """Insert an ad pattern on the caller's connection without committing, so a multi-statement caller (e.g. replace-mode import) owns the transaction. Returns pattern ID.
+        """Insert an ad pattern on the caller's connection without committing, so a multi-statement
+        caller (e.g. replace-mode import) owns the transaction. Returns pattern ID.
 
         category is stored as given (None -> NULL, i.e. uncategorized)."""
         network_id = normalize_network_id(network_id)

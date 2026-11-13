@@ -1,4 +1,6 @@
-"""Authenticated feeds end-to-end (2.33.0): 401 enforcement on the public feed surface, admin/API exemption, serve_rss self-heal, and the settings/feeds API lifecycle (enable, key exposure, rotation, keyed URLs, OPML)."""
+"""Authenticated feeds end-to-end (2.33.0): 401 enforcement on the public feed surface, admin/API
+exemption, serve_rss self-heal, and the settings/feeds API lifecycle (enable, key exposure,
+rotation, keyed URLs, OPML)."""
 import io
 import re
 from unittest.mock import patch

@@ -1,6 +1,7 @@
 """End-to-end path-traversal tests through the HTTP surface.
 
-test_path_containment covers Storage directly; these confirm a traversal payload cannot reach the filesystem via a request."""
+test_path_containment covers Storage directly; these confirm a traversal payload cannot reach the
+filesystem via a request."""
 import io
 
 import pytest
@@ -149,7 +150,9 @@ def _png_bytes():
 
 
 def test_minuspod_cover_serves_badged_jpeg(client):
-    """The public /episodes/<slug>/cover-minuspod.jpg route (issue #420) serves the badged cover when artwork_watermark_enabled is on, so podcast apps can fetch it from the feed host. Seeds via the storage the handler reads (routes_mod.storage), immune to per-test singleton swaps."""
+    """The public /episodes/<slug>/cover-minuspod.jpg route (issue #420) serves the badged cover
+    when artwork_watermark_enabled is on, so podcast apps can fetch it from the feed host. Seeds via
+    the storage the handler reads (routes_mod.storage), immune to per-test singleton swaps."""
     slug = 'cover-ok'
     st = routes_mod.storage
     st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)

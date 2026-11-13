@@ -199,7 +199,8 @@ def test_pivot_cue_found_at_plant_times(pivot_cue, pivot_haystack):
 
 
 def test_cross_noise_wsj_template_vs_pivot_haystack(wsj_cue, pivot_noise_haystack):
-    """WSJ template must not fire on a Pivot-seeded haystack (peak < 0.60; measured 0.47), so the two jingles are distinct enough for per-feed matching."""
+    """WSJ template must not fire on a Pivot-seeded haystack (peak < 0.60; measured 0.47), so the
+    two jingles are distinct enough for per-feed matching."""
     _, wsj_mfcc, wsj_dur = wsj_cue
     row = _template_row(1, "wsj", wsj_mfcc, wsj_dur)
     # Use a very low threshold so detect_with_debug returns the actual peak

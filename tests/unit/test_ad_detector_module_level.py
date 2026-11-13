@@ -1,6 +1,7 @@
 """Tests for the module-level functions lifted out of AdDetector in 2.0.25.
 
-They back the offline LLM benchmark, which cannot build a full AdDetector (no DB, no LLM client); these tests pin that surface."""
+They back the offline LLM benchmark, which cannot build a full AdDetector (no DB, no LLM client);
+these tests pin that surface."""
 import json
 
 import pytest
@@ -100,7 +101,9 @@ def test_parse_ads_from_response_mixed_flat_and_enveloped():
 def test_parse_ads_from_response_drops_reasoning_sentence_sponsor(bad_sponsor):
     """A reasoning sentence in the sponsor field is dropped; the ad survives.
 
-    Real sponsor names never start with "Inferred from" / "Based on" / "Detected as", exceed 60 characters, or contain meta-substrings like "in transcript". A real brand embedded in the sentence is still surfaced by the downstream fuzzy extractor, intentionally."""
+    Real sponsor names never start with "Inferred from" / "Based on" / "Detected as", exceed 60
+    characters, or contain meta-substrings like "in transcript". A real brand embedded in the
+    sentence is still surfaced by the downstream fuzzy extractor, intentionally."""
     response = json.dumps([{
         "start": 100.0, "end": 160.0,
         "confidence": 0.92, "reason": "ad",

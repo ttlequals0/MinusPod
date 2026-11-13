@@ -1,5 +1,6 @@
 """Segment-category keep-action bypass in pass 1: a marker resolving to 'keep' is persisted with was_cut=False /
-action_applied='keep' and never enters validator/reviewer input, the cut list or held-for-review routing; 'remove' flows through."""
+action_applied='keep' and never enters validator/reviewer input, the cut list or held-for-review
+routing; 'remove' flows through."""
 import json
 import logging
 import os
@@ -716,7 +717,8 @@ class TestKeepMarkersBlockTerminalSnap:
 
 
 class TestLateKeepSafetyNet:
-    """A marker synthesized after the keep partition ran (heuristic pre/post-roll, VAD-gap) with a 'keep' category is caught by
+    """A marker synthesized after the keep partition ran (heuristic pre/post-roll, VAD-gap) with a
+    'keep' category is caught by
     _apply_late_keep_safety_net, the last chance before the cut list reaches the audio processor."""
 
     def test_drops_synthesized_marker_with_keep_resolved_category(self, caplog):
@@ -798,7 +800,8 @@ class TestLateKeepSafetyNet:
 
 class TestLateKeepPartitionBeforeSweeps:
     """A synthesized 'keep' marker from _refine_and_validate is pulled out right after it returns, before the reviewer's
-    resurrection pool and the sweeps. Real functions run via process_episode; only db/storage and the detection stages are mocked."""
+    resurrection pool and the sweeps. Real functions run via process_episode; only db/storage and
+    the detection stages are mocked."""
 
     def test_late_partition_drops_synthesized_marker_end_to_end(self):
         """A synthesized post-roll marker (no category) is caught by the early re-partition and never reaches the audio
@@ -827,7 +830,8 @@ class TestLateKeepPartitionBeforeSweeps:
         assert [s['start'] for s in audio_segments] == [cross_promo['start']]
 
     def test_terminal_snap_does_not_swallow_late_kept_span(self):
-        """Real _snap_terminal_starts in process_episode: a synthesized [70, 85) marker (normalizes to 'sponsor' -> 'keep')
+        """Real _snap_terminal_starts in process_episode: a synthesized [70, 85) marker (normalizes
+        to 'sponsor' -> 'keep')
         precedes a terminal cut at [90, 99) with a silence event at 72.0 in the scan-back window. Without the early
         re-partition the marker reads as safe coverage and the cut's start snaps back to 72.0."""
         terminal_ad = {'start': 90.0, 'end': 99.0, 'category': 'cross_promo',

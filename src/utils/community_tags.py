@@ -257,7 +257,8 @@ def is_tollfree(phone_match: str) -> bool:
 def slugify(name: str) -> str:
     """Lowercase, hyphenated, ASCII-safe slug used for community pattern filenames.
 
-    Shared by the exporter, PR validator, scaffold helper and bundle-split helper so on-disk names match what the validator expects.
+    Shared by the exporter, PR validator, scaffold helper and bundle-split helper so on-disk names
+    match what the validator expects.
     """
     if not isinstance(name, str):
         return 'sponsor'

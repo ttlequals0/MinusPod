@@ -152,7 +152,8 @@ def test_post_local_feed_invalid_slug_400(app_client):
 # POST /feeds (feedType: local) maxEpisodes
 
 def test_post_local_feed_max_episodes_zero_accepted(app_client):
-    """0 means uncapped on a local feed: accepted and stored as-is, not bumped to the subscribed-feed 10-episode floor."""
+    """0 means uncapped on a local feed: accepted and stored as-is, not bumped to the
+    subscribed-feed 10-episode floor."""
     from api import get_database
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -649,7 +650,8 @@ def test_validate_p20_locked_owner_email_shape():
     assert 'email address' in err
 
     # blank/whitespace-only is a delete sentinel: the validator keeps the key with a None value (not omitted)
-    # so a merge site can tell "clear this" from "never sent locked_owner"; _apply_p20_merge turns it into a removed key.
+    # so a merge site can tell "clear this" from "never sent locked_owner"; _apply_p20_merge turns
+    # it into a removed key.
     cleaned, err = _validate_p20({'locked_owner': '   '})
     assert err is None
     assert cleaned == {'locked_owner': None}

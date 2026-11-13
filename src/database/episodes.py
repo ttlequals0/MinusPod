@@ -1466,7 +1466,8 @@ class EpisodeMixin:
                                      exclude_episode_id: str | None = None,
                                      limit: int = 5,
                                      min_duration: float = 60) -> list[list[dict]]:
-        """Original (pre-cut) Whisper segments of the feed's recent processed episodes, newest first, for text recurrence.
+        """Original (pre-cut) Whisper segments of the feed's recent processed episodes, newest
+        first, for text recurrence.
 
         Episodes at or under min_duration seconds are excluded.
         """

@@ -1,6 +1,8 @@
 """Tests for the long-capture nudge (Phase 8, issue #350).
 
-The create-201 response includes longCapture and captureWarnSeconds, and the threshold comes from the config constant. The sensitive test uses a capture just over 5.0s so it fails fast if the constant is ignored or the comparison is inverted."""
+The create-201 response includes longCapture and captureWarnSeconds, and the threshold comes from
+the config constant. The sensitive test uses a capture just over 5.0s so it fails fast if the
+constant is ignored or the comparison is inverted."""
 import os
 import shutil
 import sys

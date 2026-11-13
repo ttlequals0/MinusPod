@@ -1,6 +1,7 @@
 """Only authenticated responses get a session or CSRF cookie.
 
-A cross-site navigation arrives without the SameSite=Strict session cookie, so a fresh anonymous cookie would replace the real one. Public podcast-app endpoints also opt out to stay cacheable."""
+A cross-site navigation arrives without the SameSite=Strict session cookie, so a fresh anonymous
+cookie would replace the real one. Public podcast-app endpoints also opt out to stay cacheable."""
 
 import pytest
 

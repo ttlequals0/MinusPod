@@ -1,6 +1,7 @@
 """Tests for the configurable per-episode download size cap (#493).
 
-The cap (MAX_AUDIO_DOWNLOAD_MB) guards the disk; tripping it raises the typed AudioTooLargeError, not the generic None failure."""
+The cap (MAX_AUDIO_DOWNLOAD_MB) guards the disk; tripping it raises the typed AudioTooLargeError,
+not the generic None failure."""
 import os
 from unittest.mock import MagicMock, patch
 

@@ -400,7 +400,8 @@ class AudioProcessor:
                    ) -> list[dict] | None:
         """Remove ad segments from audio file.
 
-        Returns the applied cut list (see compute_applied_cuts) on success, empty when nothing was cut, or None on failure.
+        Returns the applied cut list (see compute_applied_cuts) on success, empty when nothing was
+        cut, or None on failure.
         """
         if not ad_segments:
             source_chapter_tag(input_path, False)
@@ -555,7 +556,8 @@ class AudioProcessor:
 
             # Remap embedded chapters (ID3v2 CHAP) onto the cut timeline (issue #500): ffmpeg copies the input's
             # chapters by default, with timestamps pointing at the wrong content once ads are removed. Remapped
-            # chapters are injected as an ffmetadata input; otherwise chapters are stripped. A failed probe never gets here.
+            # chapters are injected as an ffmetadata input; otherwise chapters are stripped. A
+            # failed probe never gets here.
             embedded = parse_chapters(render_input.chapters)
             remapped = []
             if embedded:

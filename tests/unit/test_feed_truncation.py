@@ -1,6 +1,7 @@
 """Truncated feed documents must fail the parse, not yield a short entry list.
 
-A body cut mid-element parses to the entries before the cut, silently dropping the rest. Only truncation signatures are rejected: feedparser sets bozo for benign reasons too."""
+A body cut mid-element parses to the entries before the cut, silently dropping the rest. Only
+truncation signatures are rejected: feedparser sets bozo for benign reasons too."""
 
 from tests.app_bootstrap import bootstrap
 

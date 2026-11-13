@@ -1,6 +1,8 @@
 """App-level OPML import-by-URL route /opml/<mode>.opml (2.34.0).
 
-Key-gated on the public feed domain: 200 with a valid key when feed auth is on, 401 without, 404 when feed auth is off or the mode is bad. Also covers the settings API exposing the copyable URLs."""
+Key-gated on the public feed domain: 200 with a valid key when feed auth is on, 401 without, 404
+when feed auth is off or the mode is bad. Also covers the settings API exposing the copyable
+URLs."""
 
 import pytest
 

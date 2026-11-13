@@ -1,4 +1,5 @@
-"""Integration tests for the LLM-only reprocess mode (issue #349) and the authoritative jobState the reprocess/bulk endpoints return alongside status.
+"""Integration tests for the LLM-only reprocess mode (issue #349) and the authoritative jobState the
+reprocess/bulk endpoints return alongside status.
 
 The endpoint reruns ad detection and re-cut from the saved transcript, skipping
 re-transcription, and must refuse when no transcript exists. Most tests exercise

@@ -174,7 +174,8 @@ def test_trial_stdev_multiple():
 
 
 class TestCategoryCompliance:
-    """The prompt marks category REQUIRED but only some providers enforce it; omitted or extra category is tracked per model."""
+    """The prompt marks category REQUIRED but only some providers enforce it; omitted or extra
+    category is tracked per model."""
 
     def test_a_named_category_counts_as_present(self):
         v = schema_audit([{"start": 1.0, "end": 2.0, "category": "sponsor"}])

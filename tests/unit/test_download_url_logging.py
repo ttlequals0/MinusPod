@@ -1,6 +1,7 @@
 """Tests for how much of a download URL reaches the logs.
 
-The host, path and redirect chain are logged; the query string stays opt-in because an enclosure URL often carries a signed CDN token or per-listener tracking id, and logs outlive both."""
+The host, path and redirect chain are logged; the query string stays opt-in because an enclosure URL
+often carries a signed CDN token or per-listener tracking id, and logs outlive both."""
 import logging
 
 import pytest

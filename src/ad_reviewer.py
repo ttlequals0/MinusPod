@@ -883,7 +883,8 @@ def _warn_prose_boundary_mismatch(
     slug: str | None,
     episode_id: str | None,
 ) -> None:
-    """Log when adjust reasoning names a boundary figure far from the emitted number (e.g. 28.4s vs an emitted end of 20.0s).
+    """Log when adjust reasoning names a boundary figure far from the emitted number (e.g. 28.4s vs
+    an emitted end of 20.0s).
 
     Observability only: auto-arbitrating between two model numbers would be guesswork. The regexes key on boundary
     words, not the sentence subject, so a figure landing on any real boundary is treated as context.

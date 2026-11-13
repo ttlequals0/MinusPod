@@ -1,6 +1,7 @@
 """Review decisions accumulate, then apply in one pass per episode.
 
-Each decision only stamps the episode; the apply step decides per episode whether a recut or only a chapter rebuild is needed.
+Each decision only stamps the episode; the apply step decides per episode whether a recut or only a
+chapter rebuild is needed.
 """
 import json
 import os

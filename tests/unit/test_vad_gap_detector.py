@@ -293,7 +293,8 @@ class TestDAISeamRegression:
 class TestOneSidedMidGapRegression:
     """Both sides of a mid-gap must show context to emit a marker.
 
-    One side with a signoff/resume-like phrase and the other neutral chatter used to emit markers that cut 9-44s of content.
+    One side with a signoff/resume-like phrase and the other neutral chatter used to emit markers
+    that cut 9-44s of content.
     """
     def test_one_sided_signoff_no_resume_skipped(self):
         segments = [

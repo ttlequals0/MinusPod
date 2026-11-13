@@ -1,4 +1,5 @@
-"""Reviewer trims stay out of untranscribed audio (a 728.77s-752.55s transcript hole once let the start move to 752.55s)."""
+"""Reviewer trims stay out of untranscribed audio (a 728.77s-752.55s transcript hole once let the
+start move to 752.55s)."""
 from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_untranscribed_gap_test_')

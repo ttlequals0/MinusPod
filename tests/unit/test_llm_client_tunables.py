@@ -878,7 +878,8 @@ class TestAnthropicJsonSchemaStructuredOutput:
 
 
 class TestAnthropicExtendedThinkingTextExtraction:
-    """Extended-thinking responses put a ThinkingBlock first in response.content; the answer is in a later TextBlock (content[0].text would raise AttributeError)."""
+    """Extended-thinking responses put a ThinkingBlock first in response.content; the answer is in a
+    later TextBlock (content[0].text would raise AttributeError)."""
 
     def _thinking_block(self, thinking="internal reasoning..."):
         block = MagicMock(spec=['type', 'thinking'])
