@@ -1,7 +1,8 @@
-"""Run-scoped fences in the pipeline: a 429 with no provider key is scoped
-from the run's route snapshot, the transcriber's shared stats field is read
-atomically, the ownership check runs before any output path is resolved, and
-an aborted run deletes the render it never published.
+"""Run-scoped fences in the pipeline.
+
+A 429 with no provider key is scoped from the run's route snapshot, the transcriber's shared stats field is
+read atomically, the ownership check runs before any output path is resolved, and an aborted run deletes
+the render it never published.
 """
 from contextlib import ExitStack
 from unittest.mock import patch

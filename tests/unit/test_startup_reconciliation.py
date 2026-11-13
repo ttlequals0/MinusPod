@@ -1,14 +1,8 @@
 """Startup processing-state reconciliation clears stale status file entries.
 
-Covers:
-- current_job present -> cleared + episode DB status reset to pending
-- queued_episodes present -> dropped
-- corrupt status file -> treated as empty + warning logged
-- missing status file -> no-op (no crash)
-
-Tests import reconcile_startup_state directly from status_service so they
-do not trigger Flask app initialisation (main_app/__init__.py runs _startup()
-at import time and requires /app/data).
+A current_job is cleared and its episode reset to pending, queued_episodes are dropped, a corrupt status
+file is treated as empty with a warning, and a missing one is a no-op. Imports reconcile_startup_state from
+status_service directly to avoid main_app/__init__.py, which runs _startup() at import and needs /app/data.
 """
 import json
 import os

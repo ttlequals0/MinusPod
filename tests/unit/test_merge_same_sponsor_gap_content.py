@@ -1,14 +1,7 @@
 """Same-sponsor merging must not swallow show content.
 
-Sharing a sponsor used to be enough on its own when two detections sat within
-SHORT_GAP_THRESHOLD of each other. On shows where the host name-drops a
-sponsor through the episode, that merged across the conversation between the
-two mentions. Two detections of 1.9s and 2.6s, 83s apart,
-became one 88s span that was 95 percent show content.
-
-The gap now has to be filler, measured the same way
-merge_ads_across_short_content_gaps measures it, unless the gap itself still
-talks about the sponsor.
+The gap between two detections has to be filler, measured as in
+merge_ads_across_short_content_gaps, unless the gap itself talks about the sponsor.
 """
 import os
 import sys

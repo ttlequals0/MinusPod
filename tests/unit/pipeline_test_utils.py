@@ -34,8 +34,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   assets_side_effect=None, episode_row=None, finalize_side_effect=None):
     """Drive process_episode's pass-1 flow with the stages around the keep partition mocked.
 
-    real_refine_reviewer keeps validation and review live; late_synthesized_ad is appended
-    after the keep partition; held_categories are held instead of cut by the fake validator.
+    late_synthesized_ad is appended after the keep partition; held_categories are held instead of cut.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,

@@ -1,8 +1,7 @@
 """remove_ads logs expected-vs-actual render drift (docs/specs/2026-07-08-ad-splice-detection.md#15-cut-renderer-overshoot-bug-4).
 
-Expected output duration is input - sum(applied cuts) + n_cuts * beep;
-drift beyond RENDER_DRIFT_WARN_SECONDS warns with the applied cut list so
-production overshoot reports are attributable from logs alone.
+Expected duration is input - sum(applied cuts) + n_cuts * beep; drift beyond RENDER_DRIFT_WARN_SECONDS
+warns with the applied cut list.
 """
 import logging
 from unittest.mock import MagicMock

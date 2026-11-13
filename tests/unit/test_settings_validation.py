@@ -186,10 +186,7 @@ class TestResetSettingSecretKeys:
 
 
 class TestReviewerPromptReset:
-    """Issue #301: the Ad Reviewer review/resurrect prompts were missing from
-    reset_setting's defaults dict, so the reset button was a silent no-op and a
-    cleared-then-saved prompt stayed blank forever. These lock in that reset
-    works for all four prompts and that a blank save reverts to default."""
+    """Issue #301: reset_setting covers all four Ad Reviewer prompts, and a blank save reverts to default."""
 
     def test_reset_setting_restores_reviewer_prompt_defaults(self):
         db = database.Database()
@@ -243,10 +240,8 @@ class TestReviewerPromptReset:
 
 
 class TestChapterPromptSettings:
-    """The chapter topic-detection prompt follows the same editable-prompt
-    contract as the four detection/reviewer prompts: GET exposes the default,
-    a blank save reverts to it, and the prompts reset restores both the
-    prompt and its override."""
+    """The chapter topic-detection prompt follows the editable-prompt contract: GET exposes the default,
+    a blank save reverts to it, and the prompts reset restores both prompt and override."""
 
     def _get_settings(self, client):
         resp = client.get('/api/v1/settings')
@@ -375,9 +370,8 @@ class TestSinglePromptReset:
 
 
 class TestWebhookUrlValidation:
-    """Issue #158: webhooks must accept private-IP / non-default-port URLs
-    (the OPERATOR_CONFIGURED trust posture used by LLM and Whisper base URLs)
-    while still blocking cloud metadata IPs and bad schemes.
+    """Issue #158: webhooks accept private-IP / non-default-port URLs (the OPERATOR_CONFIGURED trust posture
+    of LLM and Whisper base URLs) while still blocking cloud metadata IPs and bad schemes.
     """
 
     def test_create_webhook_allows_private_ip_url(self, client):
@@ -1459,11 +1453,7 @@ class TestSecondaryProviderChangeLiftsRateLimitHold:
 
 
 class TestAudioBitrateValidation:
-    """audioBitrate round-trip + validation.
-
-    Regression: GET /settings omitted audioBitrate and PUT had no apply phase,
-    so the frontend selector silently did nothing.
-    """
+    """audioBitrate round-trip + validation (GET /settings once omitted it and PUT had no apply phase)."""
 
     def _get_settings(self, client):
         resp = client.get('/api/v1/settings')
@@ -1594,9 +1584,7 @@ class TestArtworkBadgePositionValidation:
 class TestSkipFlacCompressionValidation:
     """skipFlacCompression boolean round-trip + reset.
 
-    The toggle lives in `_apply_whisper_fields` and only matters when the
-    Whisper API backend is selected, but the setting itself is global so it
-    is exercised here regardless of backend.
+    The toggle lives in `_apply_whisper_fields` but the setting is global, so it is exercised regardless of backend.
     """
 
     def _get_settings(self, client):

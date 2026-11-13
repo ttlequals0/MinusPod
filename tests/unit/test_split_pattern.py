@@ -1,10 +1,7 @@
-"""Regression tests for TextPatternMatcher.split_pattern (issue #563).
+"""TextPatternMatcher.split_pattern (#563), refactored onto the shared split_template_text helper.
 
-split_pattern was refactored to use the shared split_template_text helper.
-These tests pin: no-op on a single-sponsor pattern, multi-sponsor split with
-inheritance + parent disable, and the overlap-dedupe fix (the known defect
-where "brought to you by" nested inside "this episode is brought to you by"
-used to register a spurious extra split point).
+Pins: no-op on a single-sponsor pattern, multi-sponsor split with inheritance + parent disable, and overlap
+dedupe ("brought to you by" nested in "this episode is brought to you by" must not add a split point).
 """
 import os
 import sys
@@ -168,12 +165,9 @@ def test_split_rolls_back_all_pattern_rows_if_a_child_fails(db, monkeypatch):
 
 
 def test_overlap_dedupe_fix_preserves_full_leading_phrase(db):
-    # "brought to you by" nests inside "this episode is brought to you by":
-    # pre-fix, these registered as two adjacent split points 17 chars apart,
-    # slicing the Acme segment's text to start mid-phrase at "brought to you
-    # by Acme..." (losing "this episode is") while dropping a spurious
-    # 17-char fragment. The fix dedupes them to one split point so the Acme
-    # segment keeps the phrase (and the preceding filler) intact.
+    # "brought to you by" nests inside "this episode is brought to you by". Without dedupe they register as
+    # two split points 17 chars apart, slicing the Acme segment to start mid-phrase; deduped, it keeps the
+    # phrase and preceding filler intact.
     filler = "word " * 20
     text = (
         f"{filler}this episode is brought to you by Acme, your favorite "

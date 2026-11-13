@@ -1,8 +1,7 @@
 """Per-feed GUID scheme in the served RSS (#598).
 
-modify_feed(own_episode_guids=True) must emit the MinusPod episode id as
-each item's <guid isPermaLink="false">, matching the DB-appended items;
-off (the default) must pass upstream GUIDs through byte-identically.
+modify_feed(own_episode_guids=True) emits the MinusPod episode id as each item's
+<guid isPermaLink="false">; off (the default) passes upstream GUIDs through byte-identically.
 """
 import os
 import re

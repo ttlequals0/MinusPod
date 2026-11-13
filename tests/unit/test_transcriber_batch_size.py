@@ -1,13 +1,9 @@
 """Per-device batch-size ceiling for transcription.
 
-local.BATCH_SIZE_TIERS picks a batch size from audio duration alone, so on a card
-where the top tier never fits, every short episode paid two CUDA OOM failures
-before settling. The ceiling records the size a downshifted run completed at,
-so later episodes start at a size proven to fit. The value is stored with the
-device name, since a ceiling for one GPU says nothing about another. After
-BATCH_CEILING_TTL_DAYS the next run probes one size up, so a transient OOM
-cannot pin every later episode at a smaller size for good, while a genuine
-ceiling costs one OOM retry per expiry and is then re-recorded.
+local.BATCH_SIZE_TIERS picks a size from audio duration alone, so where the top tier never fits every short
+episode paid two CUDA OOM failures. The ceiling records the size a downshifted run completed at, stored with
+the device name (one GPU's ceiling says nothing about another). After BATCH_CEILING_TTL_DAYS the next run
+probes one size up, so a transient OOM cannot pin a smaller size for good.
 """
 
 import json
@@ -22,11 +18,9 @@ from transcriber import Transcriber, local  # noqa: E402
 from utils.time import parse_iso_utc  # noqa: E402
 
 def _db():
-    """Resolve the singleton per call, the same way the code under test does.
+    """Resolve the singleton per call, as the code under test does.
 
-    A module-level instance captured at import can point at an earlier test
-    module's data dir once another module re-bootstraps, so writes here would
-    land somewhere the transcriber never reads.
+    A module-level instance captured at import can point at an earlier test module's data dir after a re-bootstrap.
     """
     return database.Database()
 

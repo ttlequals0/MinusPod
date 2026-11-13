@@ -111,10 +111,9 @@ def _admissions_for(provider_keys, deny=None):
 
 
 def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=False):
-    """Drives process_episode through a full non-skip-detection run with
-    every ad-detection/verification stage stubbed to a no-op, isolating the
-    provider-reservation lifecycle at Stage 3 and finalize. Mirrors
-    test_skip_second_pass.py's harness."""
+    """Run process_episode through a full non-skip-detection run with detection/verification stages stubbed.
+
+    Isolates the provider-reservation lifecycle at Stage 3 and finalize; same harness as test_skip_second_pass.py."""
     podcast_row = {'id': 1, 'slug': 'budget-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
                    'passthrough_enabled': None, 'skip_ad_detection': None,
@@ -178,10 +177,7 @@ def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=
 
 
 class TestProviderScopedReservations:
-    """A run's phases can route to distinct provider TYPES (cross-provider
-    secondary routing); each distinct provider_key must get its own
-    reservation and be reconciled against its own ledger spend, not folded
-    into (or excluded from) the primary's."""
+    """Phases routed to distinct provider types each get their own reservation, reconciled against their own ledger spend."""
 
     def test_cross_type_routing_reserves_and_reconciles_each_provider(self):
         required = [('anthropic', 'primary'), ('openrouter', 'secondary')]

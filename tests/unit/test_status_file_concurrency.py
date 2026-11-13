@@ -1,8 +1,7 @@
 """The shared status file survives concurrent writers.
 
-Writers shared one temp filename and only a threading.Lock, so gunicorn
-workers corrupted each other's writes and lost each other's updates. These
-tests fork to get real cross-process contention.
+Writers once shared one temp filename and only a threading.Lock, so gunicorn workers corrupted each
+other's writes. These tests fork to get real cross-process contention.
 """
 import json
 import multiprocessing

@@ -1,15 +1,10 @@
 """Transcription OOM stats, GPU admission guard, and no-false-success health.
 
-A GPU-OOM retry must (a) record the outcome (final batch size, retry count,
-device, retry-success) so it can ride beside the per-phase LLM breakdown in
-processing_stats_json, (b) release GPU memory between attempts and on
-exhaustion rather than leaking VRAM into the next episode, (c) preserve the
-CUDA cause so the episode retry classifier stops futile retries while
-get_local_transcriber_health() reports the transcriber unavailable,
-(d) bound concurrent local CUDA transcriptions so two runs cannot
-double-allocate VRAM on the same device, and (e) reach /system/status from
-any gunicorn worker, which means the outcome lives in shared state and the
-reading follows the configured backend.
+A GPU-OOM retry must (a) record the outcome (final batch size, retry count, device, retry-success) for
+processing_stats_json, (b) release GPU memory between attempts and on exhaustion, (c) preserve the CUDA
+cause so the episode retry classifier stops futile retries and get_local_transcriber_health() reports
+unavailable, (d) bound concurrent local CUDA transcriptions so two runs cannot double-allocate VRAM, and
+(e) reach /system/status from any gunicorn worker via shared state, following the configured backend.
 """
 
 import json

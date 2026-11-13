@@ -1,8 +1,4 @@
-"""Tests for _default_session_cookie_secure helper (issue #460).
-
-The helper is extracted from the SESSION_COOKIE_SECURE config assembly so it is
-unit-testable independently of the Flask app startup sequence.
-"""
+"""_default_session_cookie_secure helper (#460), tested independently of Flask app startup."""
 from utils.session_defaults import _default_session_cookie_secure as fn
 
 

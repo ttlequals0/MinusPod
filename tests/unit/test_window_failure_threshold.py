@@ -1,8 +1,7 @@
-"""Tests for the detection-window failure-ratio hold threshold.
+"""Detection-window failure-ratio hold threshold.
 
-A quarter (default) of a pass's windows failing now returns the same
-failure envelope as an all-windows-failed run, so processing.py fails
-the episode as retryable instead of publishing with unexamined gaps.
+When a quarter (default) of a pass's windows fail, the pass returns the same failure envelope as an
+all-windows-failed run, so processing.py fails the episode as retryable instead of publishing with unexamined gaps.
 """
 from unittest.mock import patch
 

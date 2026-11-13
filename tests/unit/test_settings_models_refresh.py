@@ -1,8 +1,7 @@
 """POST /settings/models/refresh: per-slot catalog refresh.
 
-The reviewer's Refresh models button has to reach whichever slot a stage is
-routed to, so the endpoint takes an optional {"slot": ...} body. A call with
-no body must behave exactly as it did before the slot existed.
+The endpoint takes an optional {"slot": ...} body so the reviewer's Refresh models button reaches its own slot;
+no body behaves as before slots existed.
 """
 import json
 from unittest.mock import MagicMock, patch

@@ -1,20 +1,13 @@
-"""Tests for recut re-resolution against current segment-category action
-maps, and the feed-wide re-render endpoint (issue #565).
+"""Recut re-resolution against current segment-category action maps, and the feed-wide re-render endpoint (#565).
 
-Part A drives _recut_episode directly (audio processor mocked, no ffmpeg)
-to assert marker-level cut/keep outcomes when the action map has changed
-since the marker was last processed: a previously-cut marker whose category
-now resolves 'keep' must not cut even after a force-accepted user approval
-(no timestamp to compare, so keep wins unconditionally); a previously-kept
-marker can now cut if its category resolves 'remove'/'beep'; action_applied
-is restamped from the current map, not the stale stored value; an
-all-remove map recuts unchanged.
+Part A drives _recut_episode (audio processor mocked) when the action map changed since a marker was
+processed: a previously-cut marker now resolving 'keep' must not cut, even after a force-accepted approval;
+a previously-kept marker can cut if it now resolves 'remove'/'beep'; action_applied is restamped from the
+current map; an all-remove map recuts unchanged.
 
-Part B drives POST /feeds/<slug>/rerender-segments through the real Flask
-app (start_background_processing mocked, no real processing thread starts):
-only processed episodes with a retained original, saved segments, and ad
-detections are queued; the response reports {queued, skipped}; CSRF is
-enforced like sibling POST endpoints.
+Part B drives POST /feeds/<slug>/rerender-segments through the Flask app (start_background_processing mocked):
+only processed episodes with a retained original, saved segments and ad detections are queued; the response
+reports {queued, skipped}; CSRF is enforced.
 """
 from unittest.mock import patch
 

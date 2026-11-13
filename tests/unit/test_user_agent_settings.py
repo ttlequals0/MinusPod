@@ -78,9 +78,8 @@ def test_invalid_stored_setting_falls_back_to_the_default():
 def test_reset_leaves_no_row_so_the_env_var_still_wins(monkeypatch):
     """Reset must clear the row, not freeze the current default into one.
 
-    A stored row wins over the env-backed default in _resolve, so writing the
-    resolved default on reset would pin the string this install first saw and
-    silently ignore both DOWNLOAD_USER_AGENT and a later shipped bump.
+    A stored row wins over the env-backed default in _resolve, so writing the resolved default would pin it
+    and ignore DOWNLOAD_USER_AGENT and later shipped bumps.
     """
     db = Database()
     db.set_setting(user_agent.DOWNLOAD_UA_SETTING, 'CustomAgent/9.9', is_default=False)

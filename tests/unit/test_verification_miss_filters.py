@@ -1,12 +1,8 @@
-"""Tests for the 2.5.13 filter parity in PatternService.record_verification_misses.
+"""Filter parity in PatternService.record_verification_misses.
 
-Pre-2.5.13 the verification-miss path called TextPatternMatcher.create_pattern_from_ad
-with zero filtering. The first-pass learner at
-ad_detector._ad_passes_learning_filters enforced confidence >= 0.85 (0.92 if
-duration > 90s), was_cut == True, and a clean sponsor name. The asymmetry let
-Pattern #354 (example-podcast, Globex, host conversation about meeting Jay) ship.
-
-These tests pin the new filters at the same thresholds so the two auto-pattern
+The verification-miss path once called TextPatternMatcher.create_pattern_from_ad with no filtering, unlike
+the first-pass learner (ad_detector._ad_passes_learning_filters: confidence >= 0.85, or 0.92 if duration
+> 90s; was_cut == True; a clean sponsor name). These tests pin the same thresholds so both auto-pattern
 paths share one trust model.
 """
 import os
@@ -108,10 +104,9 @@ def test_reasoning_sentence_in_reason_is_dropped(db):
 
 
 def test_sponsor_mentioned_once_in_window_is_dropped(db):
-    """The Globex shape exactly: high confidence, no reasoning prefix, sponsor
-    appears once in the transcript window. Real sponsor reads repeat the brand,
-    so the second-line gate at this layer prevents the pattern from being
-    created even if confidence passes."""
+    """High confidence, no reasoning prefix, sponsor appears once in the transcript window.
+
+    Real sponsor reads repeat the brand, so the second-line gate prevents pattern creation even if confidence passes."""
     svc = PatternService(db=db)
     svc.record_verification_misses(
         'example-podcast', 'a1b2c3d4e5f6',

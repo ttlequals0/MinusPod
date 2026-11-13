@@ -541,10 +541,8 @@ class TestWhisperModelSingletonFallback:
 class TestWordTimestampRejectionDetection:
     """_whisper_api_rejects_word_timestamps body-marker matcher.
 
-    Servers reject the ['segment','word'] granularity request inconsistently:
-    OpenAI proper returns HTTP 400, OpenVINO Model Server surfaces it as a 5xx.
-    The helper routes both into the segment-only fallback by inspecting the
-    response body for known markers.
+    Servers reject the ['segment','word'] granularity inconsistently (OpenAI returns 400, OpenVINO Model
+    Server a 5xx); the helper routes both into the segment-only fallback by inspecting the body for markers.
     """
 
     def _resp(self, status, body=''):

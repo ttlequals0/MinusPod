@@ -1,9 +1,4 @@
-"""Tests for held/not-cut counts in Episode Processed notifications.
-
-Covers WebhookPayload -> _build_context field passthrough, email formatter
-row visibility, and the marker-counting helpers used at the Episode
-Processed fire site.
-"""
+"""Held/not-cut counts in Episode Processed notifications: payload passthrough, email rows and marker counting."""
 import os
 import sys
 
@@ -109,10 +104,7 @@ class TestFireSiteCounting:
 
 
 class TestKeepExcludedThroughNotificationPipeline:
-    """The count_not_cut fix must hold end-to-end through the webhook
-    payload and email context, not just at the counting helper: mirrors
-    TestBuildContextCounts/TestEmailFormatterRows above with a keep-action
-    marker mixed into the source list."""
+    """The count_not_cut fix holds through the webhook payload and email context with a keep-action marker mixed in."""
 
     def test_keep_marker_excluded_through_webhook_and_email_context(self):
         markers = [

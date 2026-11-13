@@ -1,8 +1,6 @@
 """StatusService.remove_queued_episode supports cancelling queued episodes.
 
-Regression: clicking Cancel on a queued episode returned 400 because the
-endpoint only accepted status='processing'. The dequeue helper added here
-gives the endpoint a way to drop a queued episode from the display queue.
+The cancel endpoint used to accept only status='processing' and returned 400 for queued episodes.
 """
 import pytest
 
@@ -11,8 +9,7 @@ import pytest
 def status_service(temp_dir, monkeypatch):
     """Fresh StatusService bound to a temp status file.
 
-    Short-circuit the soft-timeout DB lookup so this unit test does not
-    spin up the api package (which loads the full Flask app).
+    Short-circuits the soft-timeout DB lookup so the api package (and the full Flask app) is not loaded.
     """
     import status_service as status_service_mod
     monkeypatch.setattr(status_service_mod, '_get_soft_timeout', lambda: 3600)

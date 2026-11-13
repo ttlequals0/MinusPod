@@ -1,9 +1,8 @@
-"""Tests for the auto-split guard in _resolve_or_create_pattern_from_text
-(issue #563). Manual correction paths (confirm/adjust with no pattern_id)
-call db.create_ad_pattern directly, bypassing the guards in
-create_pattern_from_ad -- this is how oversized multi-sponsor patterns
-formed. The fix runs the resolved text through split_template_text and
-creates one pattern per sponsor segment instead of one oversized pattern.
+"""Auto-split guard in _resolve_or_create_pattern_from_text (#563).
+
+Manual correction paths (confirm/adjust with no pattern_id) call db.create_ad_pattern directly, bypassing
+create_pattern_from_ad's guards. The resolved text goes through split_template_text, creating one pattern
+per sponsor segment instead of one oversized multi-sponsor pattern.
 """
 import logging
 

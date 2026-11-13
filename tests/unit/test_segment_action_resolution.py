@@ -1,10 +1,7 @@
-"""Tests for segment category action resolution (issue #565): the
-per-feed -> global -> DEFAULT_SEGMENT_ACTION resolver, global-setting
-PUT validation, the GET /settings defaults block, and per-feed PATCH
-validation.
+"""Segment category action resolution (#565).
 
-Resolver under test (src/database/podcasts.py):
-- resolve_segment_actions(slug, podcast=None)
+Covers the per-feed -> global -> DEFAULT_SEGMENT_ACTION resolver (resolve_segment_actions in
+src/database/podcasts.py), global-setting PUT validation, the GET /settings defaults block and per-feed PATCH validation.
 """
 import json
 

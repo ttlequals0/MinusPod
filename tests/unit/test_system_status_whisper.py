@@ -1,9 +1,7 @@
 """GET /system/status must report the transcription config actually in use.
 
-The endpoint read WHISPER_MODEL and WHISPER_DEVICE from the environment, so an
-instance transcribing on a remote OpenAI-compatible API still advertised a
-local model on cuda. The DB settings win, the same way GET /settings resolves
-them.
+It used to read WHISPER_MODEL and WHISPER_DEVICE from the environment, so a remote-API instance still
+advertised a local model on cuda. DB settings win, as in GET /settings.
 """
 import pytest
 

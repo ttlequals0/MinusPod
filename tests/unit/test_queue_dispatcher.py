@@ -49,12 +49,10 @@ def _queue(n):
 
 def _run_dispatcher(monkeypatch, pool_factory, sleep=0.2, on_claim=None,
                     idle_wait=0.05, timeout=5):
-    """Run background_queue_processor against a fake claimed-episode wait
-    that sleeps `sleep` seconds per claim, tracking peak concurrency.
+    """Run background_queue_processor against a fake claimed-episode wait, returning the observed peak concurrency.
 
-    on_claim(call_number), if given, runs once per claim (1-based) before the
-    sleep, under the same lock as the peak update, so it can mutate pool
-    state mid-run. Returns the observed peak concurrency.
+    Each claim sleeps `sleep` seconds. on_claim(call_number), if given, runs once per claim (1-based) before
+    the sleep under the peak-update lock, so it can mutate pool state mid-run.
     """
     monkeypatch.setattr(background, 'get_pool', pool_factory)
     registry = ProcessingQueue()

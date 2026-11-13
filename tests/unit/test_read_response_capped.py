@@ -1,9 +1,7 @@
 """Body-completeness enforcement in read_response_capped.
 
-The helper capped the upper bound only: it raised above max_bytes and otherwise
-returned whatever iter_content yielded. A connection truncated mid-body ends the
-iterator without raising, so a short read came back as a successful fetch and
-callers parsed a fragment as if it were the whole document.
+A connection truncated mid-body ends iter_content without raising, so the helper must reject a short
+read as well as one above max_bytes.
 """
 
 import pytest

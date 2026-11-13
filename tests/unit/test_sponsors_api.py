@@ -1,8 +1,6 @@
-"""API-level tests for the sponsors management endpoints (issue #304):
-stats fields in GET responses and hard-delete-with-unlink on DELETE.
+"""Sponsors management endpoints (#304): stats fields in GET responses and hard-delete-with-unlink on DELETE.
 
-No app_password is set, so the session is unauthenticated and CSRF is
-bypassed for mutations (same setup as test_stage_tunables_api).
+No app_password is set, so the session is unauthenticated and CSRF is bypassed (as in test_stage_tunables_api).
 """
 import json
 

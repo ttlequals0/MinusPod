@@ -1,9 +1,7 @@
 """Per-feed override for the zero-splice-evidence veto.
 
-The veto is right for a DAI feed and wrong for one that structurally cannot
-produce splice evidence, such as a host-read archive. The calibration fix
-handles that case on its own; this override is the manual escape hatch, and
-it also covers the reverse, forcing the veto on where the global is off.
+The veto is wrong for a feed that structurally cannot produce splice evidence (e.g. a host-read archive).
+This is the manual escape hatch beside the calibration fix, and can also force the veto on where the global is off.
 """
 import pytest
 

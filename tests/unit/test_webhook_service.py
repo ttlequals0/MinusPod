@@ -414,10 +414,7 @@ class TestLoadWebhooks:
         assert result == webhooks
 
 
-# ---------------------------------------------------------------------------
-# fire_test_event tests: one sample per subscribed event (issue: the test
-# button always sent an Episode Processed sample regardless of subscription)
-# ---------------------------------------------------------------------------
+# fire_test_event tests: one sample per subscribed event, not always an Episode Processed sample
 
 class TestFireTestEvent:
 
@@ -847,9 +844,8 @@ class TestFormatCost:
 
 
 class TestEmailDispatchHooks:
-    """Email is a peer notification channel: it must fire even with zero
-    webhooks configured, must not be blocked by webhook failures (and vice
-    versa), and must inherit the alert dedup window (#491 follow-up)."""
+    """Email is a peer notification channel: it fires even with zero webhooks configured, is not blocked by
+    webhook failures (and vice versa), and inherits the alert dedup window (#491)."""
 
     def setup_method(self):
         webhook_service._last_alert_time.clear()

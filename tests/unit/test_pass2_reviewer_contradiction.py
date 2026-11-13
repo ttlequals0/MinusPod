@@ -1,11 +1,7 @@
-"""Pass-2 reviewer contradiction holds (regression R1).
+"""Pass-2 reviewer contradiction holds.
 
-_apply_pass2_reviewer used to iterate only result.verdicts: an ad the
-reviewer held by contradiction kept its verdict ('confirmed' or 'adjust'),
-fell into the stamp/coerce branches, and STAYED in v_ads_to_cut -- the full
-span cut silently with no pending-review entry. A held ad must divert out of
-the cut list into v_ads_held as an original-coordinate pending marker with
-the same shape pass-1 contradiction holds take.
+An ad held by contradiction must leave v_ads_to_cut for v_ads_held as an original-coordinate pending
+marker, the same shape pass-1 contradiction holds take, instead of being cut silently.
 """
 import os
 import sys

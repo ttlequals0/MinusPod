@@ -1,9 +1,6 @@
-"""Standalone pass-2 verification misses: the confidence-gate fall-through
-that used to silently discard (`else: ad['was_cut'] = False`) now either
-holds the ad for review or auto-cuts it, per verification_miss_* settings.
+"""Standalone pass-2 verification misses either hold the ad for review or auto-cut it, per verification_miss_* settings.
 
-Drives `_gate_verification_ads_by_confidence` directly; these ads overlap no
-pass-1 markers, so they exercise the new bucketing at the bottom of the loop.
+Drives `_gate_verification_ads_by_confidence` directly with ads that overlap no pass-1 markers.
 """
 from tests.app_bootstrap import bootstrap
 
@@ -105,10 +102,8 @@ def test_autocut_disabled_by_default_falls_back_to_hold():
 
 
 def test_miss_overlapping_pass1_held_marker_still_corroborates():
-    """Regression pin: a miss overlapping a pass-1 held differential marker
-    must still follow the existing corroboration path (_corroborates_hold),
-    not the new standalone hold/autocut branch -- shaped like
-    test_corroborating_ad_stamps_hold_and_is_still_dropped."""
+    """A miss overlapping a pass-1 held differential marker follows the corroboration path (_corroborates_hold),
+    not the standalone hold/autocut branch."""
     proc = [_proc(100.0, 249.0, 0.9)]
     orig = [_orig(4875.8, 5024.8, 0.9, sponsor='diff')]
     hold = {

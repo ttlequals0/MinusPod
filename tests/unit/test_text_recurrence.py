@@ -71,10 +71,9 @@ def test_hint_filters_to_window_and_empty_cases():
 
 
 def test_cross_segment_shingles_short_segment_full_coverage():
-    # Regression: verify cross-segment shingles work for boilerplate split
-    # across multiple short segments. 12-word intro split into three 4-word
-    # segments; short segments require 100% coverage to avoid false positives
-    # from connector phrases. dur=4.0 makes total span 12s, passing MIN_SPAN_SECONDS.
+    # Cross-segment shingles must work for boilerplate split across short segments: a 12-word intro in three
+    # 4-word segments. Short segments require 100% coverage to avoid connector-phrase false positives, and
+    # dur=4.0 makes the total span 12s, passing MIN_SPAN_SECONDS.
     seg1 = "welcome to the weekly"
     seg2 = "show where we discuss"
     seg3 = "science and nothing else"

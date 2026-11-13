@@ -1,11 +1,7 @@
-"""Tests for text_pattern_matcher.split_template_text (issue #563).
+"""text_pattern_matcher.split_template_text (#563).
 
-Pure helper: segments ad template text at AD_TRANSITION_PHRASES boundaries,
-returning [{'text': str, 'sponsor': Optional[str]}, ...]. Shared by
-split_pattern (existing patterns) and the manual correction paths
-(_resolve_or_create_pattern_from_text, _submit_correction_create) so
-multi-sponsor text gets split at creation time instead of forming one
-oversized pattern.
+Pure helper: segments ad template text at AD_TRANSITION_PHRASES boundaries into [{'text', 'sponsor'}, ...].
+Shared by split_pattern and the manual correction paths so multi-sponsor text is split at creation time.
 """
 import os
 import sys

@@ -21,10 +21,8 @@ def db(tmp_path):
     Database._instance = None  # type: ignore[attr-defined]
 
 
-# VTT-style transcript. Sentence-per-segment with gaps between, so the trim
-# windows (head 0..20, tail 90..120) line up with the head / tail segments
-# without partially overlapping the middle ad copy. include_partial=True is
-# the default in extract_text_in_range, so any overlap pulls the segment in.
+# VTT-style transcript, one sentence per segment with gaps, so the trim windows (head 0..20, tail 90..120)
+# line up with the head/tail segments. extract_text_in_range defaults to include_partial=True.
 TRANSCRIPT = (
     '[00:00:00.000 --> 00:00:05.000] Welcome to the show.\n'
     '[00:00:30.000 --> 00:00:35.000] This episode is brought to you by Squarespace.\n'
@@ -58,8 +56,8 @@ def _seed_pattern(
 
 
 def test_rewrite_trims_head_and_tail_from_existing_template(db):
-    """The trim splices the head/tail transcript slice out of the existing
-    template -- it does NOT re-extract a new template from the new bounds."""
+    """The trim splices the head/tail transcript slice out of the existing template;
+    it does not re-extract a new template from the new bounds."""
     template = (
         'Welcome to the show. This episode is brought to you by Squarespace. '
         'Visit Squarespace dot com slash show for a free trial. Use code SHOW '

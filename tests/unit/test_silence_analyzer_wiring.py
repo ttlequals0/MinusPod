@@ -1,13 +1,8 @@
-"""Analyzer wiring tests for silence detection (task B2).
+"""Analyzer wiring for silence detection.
 
-Verifies:
-- _load_silence_config returns None when flag is off (default).
-- _load_silence_config returns a SilenceDetector when flag is on.
-- analyze() runs the detector only when resolver returns True.
-- Spans land on result.silence_spans.
-- to_dict() emits 'silence_spans' key only when non-empty.
-- Detector exception -> errors entry, analysis continues (no abort).
-- calculate_component_timeouts includes a decode-sized 'silence' timeout.
+Covers _load_silence_config (None when the flag is off, a SilenceDetector when on), analyze() running the
+detector only when the resolver returns True, spans on result.silence_spans, 'silence_spans' in to_dict()
+only when non-empty, detector exceptions becoming errors entries, and a decode-sized 'silence' timeout.
 """
 import os
 import sys
@@ -85,7 +80,7 @@ def test_load_silence_config_uses_tunables():
 
 
 # ---------------------------------------------------------------------------
-# analyze() integration -- detector invoked / not
+# analyze() integration: detector invoked or not
 # ---------------------------------------------------------------------------
 
 def _make_analyzer(silence_enabled):
@@ -98,10 +93,8 @@ _FAKE_SPANS = [{'start': 10.0, 'end': 12.0, 'duration': 2.0}]
 def _analyze(analyzer, feed_id, silence_detect=None):
     """Run analyze() with the raw component callables stubbed.
 
-    Components are submitted to the shared pool directly (no
-    _run_component_with_timeout wrapper anymore), so the seams are the
-    detector methods themselves. SilenceDetector is instantiated inside
-    _load_silence_config, hence the class-level patch.
+    Components go to the shared pool directly, so the seams are the detector methods. SilenceDetector is
+    instantiated inside _load_silence_config, hence the class-level patch.
     """
     silence_kwargs = ({'side_effect': silence_detect} if callable(silence_detect)
                       else {'return_value': _FAKE_SPANS})
@@ -189,10 +182,8 @@ def test_detector_exception_adds_error_and_continues():
 def test_silence_timeout_is_decode_sized_not_volume_sized():
     """'silence' timeout must match ffmpeg_timeout(), not the volume formula.
 
-    For a 90-minute episode the volume timeout is ~3 minutes (2s/min * 90 =
-    180s, floored to 180s). The silence detector runs a full decode, so its
-    timeout must be at least 5 minutes (the ffmpeg_timeout floor) and scale
-    with the duration -- not the same small value as volume.
+    The silence detector runs a full decode, so for a 90-minute episode its timeout must be at least the
+    5-minute ffmpeg_timeout floor and scale with duration, unlike the ~3-minute volume timeout.
     """
     duration = 90 * 60.0  # 90 minutes in seconds
     timeouts = calculate_component_timeouts(duration)

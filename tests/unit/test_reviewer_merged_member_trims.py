@@ -1,8 +1,7 @@
-"""Reviewer trims on merged ads (issue #750).
+"""Reviewer trims on merged ads (#750).
 
-A merged ad's recorded members decide what a proposal may drop: coarse
-LLM/heuristic members carry padding the reviewer exists to trim, measured
-members must stay covered but for a few seconds of boundary disagreement.
+A merged ad's members decide what a proposal may drop: coarse LLM/heuristic members carry padding the
+reviewer may trim; measured members stay covered but for a few seconds of boundary disagreement.
 """
 from types import SimpleNamespace
 

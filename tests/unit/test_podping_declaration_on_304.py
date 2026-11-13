@@ -1,8 +1,7 @@
-"""A 304 must still get the <podcast:podping> declaration read once.
+"""A 304 must still get the <podcast:podping> declaration read once (#579).
 
-A 304 carries no body, so the declaration cannot be parsed from it. Feeds whose
-RSS rarely changes would otherwise never have the tag ingested, leaving per-feed
-hiveAccount authorization inert (#579).
+A 304 has no body to parse, so feeds that rarely change would never have the tag ingested and per-feed
+hiveAccount authorization would stay inert.
 """
 import os
 import sys
@@ -22,8 +21,7 @@ DECLARATION = {'uses_podping': True, 'hive_accounts': ['podping.aaa']}
 def _refresh(podcast_row, slug):
     """Drive refresh_rss_feed against a 304, returning (db, rss_parser).
 
-    Each test uses its own slug: refresh_rss_feed coalesces repeat attempts on
-    the same slug within 30s.
+    Each test uses its own slug because refresh_rss_feed coalesces repeat attempts on a slug within 30s.
     """
     db = MagicMock()
     rss_parser = MagicMock()

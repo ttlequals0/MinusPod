@@ -1,6 +1,5 @@
-"""Reprocessing an episode must not double-count it in episode-scoped
-stats, while run-scoped stats (ads, cost, tokens) keep counting every
-run (#727).
+"""Reprocessing an episode must not double-count it in episode-scoped stats, while run-scoped stats
+(ads, cost, tokens) keep counting every run (#727).
 """
 
 

@@ -1,7 +1,6 @@
-"""Tests for the foreign-language DAI detector gate.
+"""Foreign-language DAI detector gate.
 
-The gate prevents the heuristic non-English-as-ad detector from running on
-non-English podcasts, where it would false-positive every segment.
+Keeps the heuristic non-English-as-ad detector off non-English podcasts, where it would false-positive every segment.
 """
 import pytest
 

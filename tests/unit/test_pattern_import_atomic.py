@@ -1,10 +1,7 @@
-"""Regression test for atomic replace-mode pattern import (api-settings-patterns-1).
+"""Replace-mode pattern import is atomic (api-settings-patterns-1).
 
-The bug: in replace mode the import deleted every existing pattern first, and the
-delete/create DB helpers committed internally, so the route's outer rollback had
-nothing to undo. A failure mid-import permanently wiped the whole ad_patterns
-table. The fix routes every write through non-committing primitives inside one
-transaction, so a mid-import failure rolls back and pre-existing patterns survive.
+Every write goes through non-committing primitives inside one transaction, so a mid-import failure rolls
+back and pre-existing patterns survive.
 """
 import pytest
 

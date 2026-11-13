@@ -1,8 +1,6 @@
-"""Offline queue (#482): connectivity classification, deferral, TTL expiry,
-and re-drive.
+"""Offline queue (#482): connectivity classification, deferral, TTL expiry and re-drive.
 
-Uses the main_app boot pattern from test_history_ad_count: bind a temp
-DATA_DIR before importing main_app so singletons initialize against it.
+Binds a temp DATA_DIR before importing main_app, as in test_history_ad_count.
 """
 import json
 import socket

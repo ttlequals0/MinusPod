@@ -1,6 +1,6 @@
-"""A multi-line record splits into several Docker log lines, and the
-continuation lines carry no level prefix, so a scraper re-sniffs their level
-from the text and files a logged prompt body as CRITICAL.
+"""A multi-line record splits into several Docker log lines with no level prefix on continuations.
+
+A scraper then re-sniffs their level from the text and files a logged prompt body as CRITICAL.
 """
 import logging
 

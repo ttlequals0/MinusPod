@@ -225,10 +225,8 @@ def test_system_section_mentions_ids_not_timestamps():
 
 
 def test_system_section_supersedes_timestamp_instructions():
-    # The base system prompts (user-editable, stored in DB) still tell the
-    # model to read [Xs] markers and emit numeric start/end; this section
-    # must explicitly override that so ID mode and the base prompt don't
-    # conflict.
+    # The user-editable base prompts still tell the model to read [Xs] markers and emit numeric
+    # start/end; this section must explicitly override that so ID mode does not conflict.
     assert '[Xs]' in SEGMENT_ID_SYSTEM_SECTION
     assert 'Ignore any earlier instruction' in SEGMENT_ID_SYSTEM_SECTION
 
@@ -374,10 +372,8 @@ def _run_window(detector, *, addressing_mode, response_text='',
 
 
 class TestWindowCompliance:
-    """WindowResult.compliant per the definitions in _process_single_window:
-    segment_ids compliance is used_ids; timestamps compliance is a
-    successfully parsed ads array (including a valid empty one); an
-    LLM-failed window is excluded (compliant is None)."""
+    """WindowResult.compliant per _process_single_window: segment_ids uses used_ids; timestamps uses a
+    successfully parsed ads array (a valid empty one counts); an LLM-failed window is None."""
 
     def test_segment_ids_used_ids_is_compliant(self):
         detector = AdDetector(api_key='test-key')

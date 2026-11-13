@@ -1,8 +1,6 @@
-"""Tests for issue #599: per-feed skip of the pass-2 verification scan.
+"""Per-feed skip of the pass-2 verification scan (#599).
 
-Pass 1 still runs and cuts; the second detection sweep over the cut audio does
-not, which roughly halves the per-episode ad-detection LLM spend on feeds that
-do not need it.
+Pass 1 still runs and cuts; the second sweep over the cut audio does not, roughly halving per-episode detection LLM spend.
 """
 import os
 import sqlite3

@@ -90,9 +90,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                   manual_approval=None, settings=None, differential=None):
     """Run stubbed pipeline stages with optional frozen routes and failover state.
 
-    real_detect runs the real first-pass stage; refine_cuts_all marks every ad cut;
-    real_stages names more stages to leave real: refine, reviewer, verify, assets, finalize.
-    settings overrides individual setting reads; differential is the cross-fetch result.
+    real_stages names stages left real: refine, reviewer, verify, assets, finalize.
     """
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))

@@ -1,9 +1,7 @@
-"""Tests for issue #193: BASE_URL must be re-resolved per modify_feed call.
+"""BASE_URL is re-resolved per modify_feed call (#193).
 
-The module-level RSSParser is built once at gunicorn boot, so an operator
-who fixes BASE_URL after boot would never see new enclosure URLs unless
-modify_feed re-reads the env. An explicit base_url= injected by a caller
-(or by tests) must continue to override the env.
+The module-level RSSParser is built once at gunicorn boot, so modify_feed must re-read the env; an
+explicit base_url= from a caller still overrides it.
 """
 
 import re

@@ -1,9 +1,7 @@
-"""Unit tests for the per-feed boundary-snap flag resolvers (Phase B, task B1).
+"""Per-feed boundary-snap flag resolvers.
 
-resolve_silence_snap_enabled:
-- 1 -> True, 0 -> False, NULL -> False (simple opt-in, no global inherit).
-- No db / no podcast_id -> False.
-- DB error -> False with a warning log (fail-open, never raises).
+resolve_silence_snap_enabled: 1 is True; 0 and NULL are False (opt-in, no global inherit); no db or
+podcast_id is False; a DB error is False with a warning log (fail-open, never raises).
 """
 import logging
 import os
@@ -40,7 +38,7 @@ class _ErrorDB:
         raise RuntimeError('db error')
 
 
-# -- Flag set --
+# Flag set
 
 def test_silence_snap_enabled_when_set():
     assert resolve_silence_snap_enabled(_DB(silence=1), 1) is True
@@ -48,7 +46,7 @@ def test_silence_snap_enabled_when_set():
 
 
 
-# -- Explicit 0 reads as off --
+# Explicit 0 reads as off
 
 def test_silence_snap_zero_is_false():
     assert resolve_silence_snap_enabled(_DB(silence=0), 1) is False
@@ -56,7 +54,7 @@ def test_silence_snap_zero_is_false():
 
 
 
-# -- NULL reads as off --
+# NULL reads as off
 
 def test_silence_snap_null_is_false():
     assert resolve_silence_snap_enabled(_DB(), 1) is False
@@ -64,11 +62,11 @@ def test_silence_snap_null_is_false():
 
 
 
-# -- Flags are independent --
+# Flags are independent
 
 
 
-# -- Missing db / podcast_id --
+# Missing db / podcast_id
 
 def test_no_db_is_false():
     assert resolve_silence_snap_enabled(None, 1) is False
@@ -79,7 +77,7 @@ def test_no_podcast_id_is_false():
     assert resolve_silence_snap_enabled(db, None) is False
 
 
-# -- DB error fails open to False with a warning --
+# DB error fails open to False with a warning
 
 def test_silence_snap_error_is_false():
     assert resolve_silence_snap_enabled(_ErrorDB(), 1) is False

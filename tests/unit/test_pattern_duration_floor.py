@@ -1,8 +1,7 @@
-"""Tests for the 2.5.13 lower duration bound in create_pattern_from_ad.
+"""The lower duration bound in create_pattern_from_ad.
 
-Pre-2.5.13 the function only enforced an upper bound (<= 120s). Pattern #356
-(Patreon, 8s, from first-pass Claude detection) shipped because no minimum
-existed. Real sponsor reads almost never fit in under 15 seconds.
+Only an upper bound (<= 120s) used to exist, so very short reads became patterns; real sponsor reads
+almost never fit in under 15 seconds.
 """
 import os
 import sys

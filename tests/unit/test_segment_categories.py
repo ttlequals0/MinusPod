@@ -1,15 +1,8 @@
-"""Tests for segment category constants and provenance (issue #565).
+"""Segment category constants and provenance (#565).
 
-Covers:
-- normalize_segment_category valid/invalid passthrough
-- _merge_detection_results stamps category on every stage's ads (the single
-  seam every detection stage's output passes through)
-- parse_ads_from_response carries the LLM's raw category field through
-  extraction unvalidated (normalization happens at the merge seam)
-- get_episode's marker-to-payload mapping exposes category/actionApplied
-- the merge seam gates on the feed's resolved segment action map, so a
-  keep-resolving detection can never be merged into (and cut with) a
-  remove-resolving one
+Covers normalize_segment_category, category stamping in _merge_detection_results (the seam every detection
+stage passes through), raw category passthrough in parse_ads_from_response, get_episode's category/actionApplied
+payload, and the merge gate on the feed's action map so keep-resolving detections never merge into remove-resolving ones.
 """
 import json
 import os
@@ -181,10 +174,8 @@ def _all_remove_map():
 
 
 class TestMergeGatedOnResolvedAction:
-    """The detection-merge seam must not fold a keep-resolving detection
-    into a remove-resolving one within the 3s adjacency window: that
-    discarded the keep side's category and cut audio no downstream check
-    could see as kept."""
+    """The merge seam must not fold a keep-resolving detection into a remove-resolving one within the 3s
+    adjacency window, which discarded the keep category and cut audio nothing downstream saw as kept."""
 
     def _det(self):
         return AdDetector(api_key='test-key')
@@ -372,11 +363,9 @@ def _example_raw_llm_detections():
 
 
 class TestIntroOutroSurviveFullPipeline:
-    """End-to-end reproduction of one episode: the raw 9 LLM window
-    detections, run through deduplicate_window_ads and
-    _merge_detection_results with the feed's real action map, must keep
-    the intro and outro as distinct 'keep' markers while every other span
-    still resolves to 'remove', so no ad content is left uncut."""
+    """One episode's raw 9 LLM window detections, run through deduplicate_window_ads and _merge_detection_results
+    with the feed's action map, keep intro and outro as distinct 'keep' markers while every other span resolves
+    to 'remove'."""
 
     def test_intro_and_outro_survive_as_keep_markers(self):
         det = AdDetector(api_key='test-key')
@@ -408,10 +397,9 @@ class TestIntroOutroSurviveFullPipeline:
         assert remove_by_start[2385.8]['end'] == 2444.9
 
     def test_all_remove_map_still_cuts_everything(self):
-        """Regression: a default (all-remove) feed's identical raw
-        detections must still merge and cut exactly as before: the
-        category-blind window fusion of intro/outro into their neighbours
-        is only a bug when it discards a keep resolution."""
+        """A default (all-remove) feed's identical raw detections still merge and cut as before.
+
+        Category-blind window fusion of intro/outro into neighbours is only a bug when it discards a keep resolution."""
         det = AdDetector(api_key='test-key')
         all_remove = {cat: 'remove' for cat in EXAMPLE_ACTION_MAP}
 
@@ -433,10 +421,9 @@ class TestIntroOutroSurviveFullPipeline:
 
 
 class TestMergedSpanTakesTheDominantCategory:
-    """A merged span used to keep whichever member sorted first, so a break
-    holding a sponsor read, a self-promo and a cross-promo was labelled by
-    accident. Observed on a real episode: three distinct categories at
-    detection, all four final markers reading sponsor.
+    """A merged span takes its category from its members, not whichever sorted first.
+
+    Otherwise a break holding a sponsor read, a self-promo and a cross-promo ends up labelled sponsor throughout.
     """
 
     def _detector(self):

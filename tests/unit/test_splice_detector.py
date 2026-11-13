@@ -1,9 +1,7 @@
 """SpliceDetector unit tests (docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
 
-Generates synthetic wavs with ffmpeg (deterministic aevalsrc amplitudes):
-a 440 Hz tone, an inserted digital/deep silence, then a louder 880 Hz tone.
-Asserts event detection at known offsets within 0.2s. Skipped when ffmpeg
-is not on PATH (mirrors tests/integration/test_cue_matcher_real_audio.py).
+Builds synthetic ffmpeg wavs (a 440 Hz tone, an inserted digital/deep silence, a louder 880 Hz tone) and
+asserts events at known offsets within 0.2s. Skipped without ffmpeg on PATH.
 """
 import os
 import shutil

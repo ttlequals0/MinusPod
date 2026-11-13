@@ -1,9 +1,7 @@
-"""Tests for SponsorService.apply_transcript_corrections.
+"""SponsorService.apply_transcript_corrections.
 
-Display corrections preserve casing and whitespace outside the matched span.
-Opt-in is by convention: the replacement string must contain at least one
-uppercase character. Lowercase-only replacements (matcher canonicalizations
-like 'ag1') are not applied here.
+Display corrections preserve casing and whitespace outside the matched span. Opt-in is by convention: the
+replacement must contain an uppercase character, so lowercase matcher canonicalizations like 'ag1' are skipped.
 """
 import os
 import sys

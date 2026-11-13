@@ -1,6 +1,5 @@
-"""Write-lock pressure fixes: SQLite allows one writer, so every extra
-statement and every no-op commit lands in the queue that made refresh
-sweeps and LLM calls stall each other for seconds.
+"""Write-lock pressure fixes: SQLite allows one writer, so extra statements and no-op commits queue behind each other
+and made refresh sweeps and LLM calls stall for seconds.
 """
 from concurrent.futures import ThreadPoolExecutor
 

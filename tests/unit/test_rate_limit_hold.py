@@ -1,8 +1,6 @@
-"""Rate-limit queue hold (#696): typed 429-with-reset errors, failure-handler
-requeue, queue pause gate, and marker release.
+"""Rate-limit queue hold (#696): typed 429-with-reset errors, failure-handler requeue, queue pause gate and marker release.
 
-Uses the main_app boot pattern from test_offline_queue: bind a temp DATA_DIR
-before importing main_app so singletons initialize against it.
+Binds a temp DATA_DIR before importing main_app, as in test_offline_queue.
 """
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -429,9 +427,9 @@ class TestStartGate:
 
 
 def _admit_or_refuse(monkeypatch, snapshot, episode_id):
-    """Drive start_background_processing far enough to observe the hold
-    gate's verdict without starting a real run: acquire() is stubbed to
-    fail immediately, so any non-hold refusal proves the gate admitted it.
+    """Drive start_background_processing to observe the hold gate's verdict without a real run.
+
+    acquire() fails immediately, so any non-hold refusal proves the gate admitted it.
     """
     from processing_queue import ProcessingQueue
     monkeypatch.setattr(admission, '_resolve_route_snapshot', lambda: snapshot)
@@ -448,9 +446,9 @@ def _phase_snapshot(**routes):
 
 
 class TestProviderScopedAdmission:
-    """A hold on one provider must not pause a run whose phases all use a
-    different, healthy provider, and a run needing a held provider must be
-    refused before it can spend a call on any other provider it needs.
+    """A hold on one provider must not pause a run whose phases all use a healthy provider.
+
+    A run needing a held provider is refused before it spends a call on any other provider.
     """
 
     def test_hold_on_one_provider_leaves_other_provider_run_admissible(
@@ -475,10 +473,8 @@ class TestProviderScopedAdmission:
 
     def test_no_cross_provider_fallback_when_reviewer_provider_is_held(
             self, monkeypatch, seeded_episode):
-        """Detection/verification/chapters are healthy on provider-b; only
-        the reviewer's provider-a is held. With the reviewer enabled and in
-        use, the run must still be refused wholesale, not started with
-        review silently skipped or rerouted."""
+        """With only the reviewer's provider-a held and the reviewer in use, the run is refused wholesale,
+        not started with review skipped or rerouted."""
         db.set_setting('enable_ad_review', 'true')
         try:
             future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -644,12 +640,10 @@ class TestTick:
 
 
 class TestProviderScopedPauseProbeAndTick:
-    """A single-provider install's real 429s land on a provider-scoped key
-    (record_hold_until(db, 'anthropic', ...)), not the legacy one. The
-    dispatcher's blanket pause, the early-recovery probe, and the tick's
-    cleanup must all still react to that hold exactly as they do for a
-    legacy one. TestPauseGate/TestTick above only exercise
-    record_hold_until(db, None, ...) and would miss this regression.
+    """Provider-scoped holds (a single-provider install's real 429s) are honored like legacy ones.
+
+    The dispatcher's blanket pause, the early-recovery probe and the tick cleanup must react to
+    record_hold_until(db, 'anthropic', ...); TestPauseGate/TestTick only use provider None.
     """
 
     def test_any_active_hold_reports_a_provider_scoped_pause(self, seeded_episode):
@@ -804,10 +798,9 @@ class TestProviderChangeClear:
 
 
 class TestProviderScopedHoldStorage:
-    """record_hold_until/get_active_hold/is_queue_paused directly, with an
-    explicit provider_key: a hold on one provider must not be visible when
-    a different provider is queried, and the legacy unscoped marker must
-    still be honored as a fallback for either.
+    """record_hold_until/get_active_hold/is_queue_paused with an explicit provider_key.
+
+    A hold on one provider is invisible when another is queried; the legacy unscoped marker still applies to either.
     """
 
     def test_record_writes_only_that_providers_key(self, seeded_episode):
@@ -897,10 +890,8 @@ class TestCredentialSlotScopedHolds:
         assert get_active_hold(db, 'anthropic', 'primary') == (None, None)
 
     def test_legacy_type_only_key_falls_back_for_primary_not_secondary(self, seeded_episode):
-        """A hold recorded before slot-scoping (a bare per-provider marker)
-        still blocks primary for one release, but must not bleed onto a
-        secondary account that could not have caused it (secondary did not
-        exist yet)."""
+        """A pre-slot-scoping bare per-provider hold still blocks primary for one release
+        but must not bleed onto a secondary account, which did not exist then."""
         future = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         record_hold_until(db, 'anthropic', future)  # pre-slot-scoping call site
         assert is_queue_paused(db, 'anthropic', 'primary') is True
@@ -972,9 +963,9 @@ class TestActiveHeldPairs:
 
 
 class TestProbeRoutesToTheHeldAccount:
-    """The completion probe must call the (provider, slot) that is actually
-    held, with a model routed there: pairing the detection model setting
-    with the global primary client makes every mixed-provider probe fail and
+    """The completion probe calls the (provider, slot) that is actually held, with a model routed there.
+
+    Pairing the detection model with the global primary client fails every mixed-provider probe and
     charges the failure to the wrong provider.
     """
 
@@ -1078,10 +1069,7 @@ class TestProbeRoutesToTheHeldAccount:
 
 
 class TestProbeCoversEveryHeldPair:
-    """One pass must not stop at the first active marker: a manual cap or a
-    hold still inside its cadence window would otherwise starve every other
-    held pair until wall-clock expiry.
-    """
+    """One pass must not stop at the first active marker, or a manual cap or in-cadence hold starves every other held pair."""
 
     setup_method = TestProbeRoutesToTheHeldAccount.setup_method
     teardown_method = TestProbeRoutesToTheHeldAccount.teardown_method

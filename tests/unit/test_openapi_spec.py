@@ -1,19 +1,6 @@
-"""Validate openapi.yaml at parse-time.
+"""Validate openapi.yaml at parse time: no duplicate keys, expected top-level shape.
 
-Closes the gap that let 2.5.23 ship with four duplicate-key entries in
-the ``PUT /settings/ad-detection`` request body (audioBitrate,
-skipFlacCompression, adDetectionParallelWindows, adReviewerParallelAds
-were each defined twice -- once with the response-side object shape
-and once with the request-side plain shape).
-
-PyYAML's default ``SafeLoader.construct_mapping`` silently keeps the
-last-occurrence value on duplicate keys, so the bug never surfaced
-through normal parsing. The ``StrictDuplicateKeyLoader`` below raises
-on duplicates, which is what we want for a spec file.
-
-The spec is also confirmed to be loadable and to expose the expected
-top-level shape so a future careless edit (e.g. dropping ``paths:``
-or breaking the indentation under ``components.schemas``) fails fast.
+PyYAML's SafeLoader silently keeps the last duplicate key, so StrictDuplicateKeyLoader raises instead.
 """
 import re
 from pathlib import Path
@@ -32,11 +19,7 @@ class _DuplicateKeyError(ValueError):
 
 
 class StrictDuplicateKeyLoader(yaml.SafeLoader):
-    """SafeLoader variant that rejects duplicate keys inside a mapping.
-
-    Default PyYAML behavior is last-occurrence-wins, which masks bugs in
-    spec files where every key is meant to be unique.
-    """
+    """SafeLoader variant that rejects duplicate keys inside a mapping (PyYAML keeps the last one)."""
 
 
 def _construct_mapping_no_duplicates(loader, node, deep=False):
@@ -59,23 +42,14 @@ StrictDuplicateKeyLoader.add_constructor(
 
 
 def test_openapi_yaml_loads():
-    """The spec file parses with the standard SafeLoader.
-
-    Smoke test: catches gross YAML syntax breakage immediately.
-    """
+    """The spec file parses with the standard SafeLoader."""
     with open(SPEC_PATH) as f:
         doc = yaml.safe_load(f)
     assert isinstance(doc, dict)
 
 
 def test_openapi_yaml_has_no_duplicate_keys():
-    """The spec file has no duplicate keys inside any mapping.
-
-    Default PyYAML loaders silently keep the last value on duplicates,
-    which is how 2.5.23 shipped with the same key defined twice in the
-    PUT request body. This test would have failed on that branch and
-    will fail on any future re-introduction.
-    """
+    """The spec file has no duplicate keys inside any mapping."""
     with open(SPEC_PATH) as f:
         try:
             yaml.load(f, Loader=StrictDuplicateKeyLoader)
@@ -84,12 +58,9 @@ def test_openapi_yaml_has_no_duplicate_keys():
 
 
 def test_openapi_has_expected_top_level_shape():
-    """Spec exposes the top-level keys downstream consumers rely on.
+    """Spec exposes the top-level keys consumers rely on.
 
-    Guards against an edit that accidentally renames or drops
-    ``paths`` / ``components`` / ``info.version``. The file carries a fixed
-    placeholder version; the served spec substitutes version.py at request
-    time, so a real number here would only go stale.
+    The file carries a fixed placeholder version; the served spec substitutes version.py at request time.
     """
     with open(SPEC_PATH) as f:
         doc = yaml.safe_load(f)
@@ -114,13 +85,9 @@ def test_strict_loader_actually_catches_duplicate_keys():
 
 
 def test_settings_ad_detection_put_body_uses_request_shapes():
-    """Sanity check that the PUT request body fields are plain types,
-    not the GET response's ``{value, isDefault}`` object shape.
+    """PUT request body fields are plain types, not the GET response's ``{value, isDefault}`` shape.
 
-    Regression test for the specific bug PR #287 / s1shed fork reported
-    and the three matching duplicates this PR fixes. The
-    /settings/ad-detection PUT handler reads e.g. ``data['audioBitrate']``
-    directly as a string, so the spec must describe the string shape.
+    The /settings/ad-detection PUT handler reads e.g. ``data['audioBitrate']`` directly as a string.
     """
     with open(SPEC_PATH) as f:
         doc = yaml.safe_load(f)
@@ -161,9 +128,7 @@ def _enum_values(schema_holder, field):
 def test_string_enums_are_quoted_in_the_spec():
     """YAML 1.1 reads bare on/off/yes/no as booleans.
 
-    An unquoted `on` in an enum makes generated clients send `true`, which
-    every string-valued setting rejects. Checked here rather than by eye
-    because the spec parses fine either way.
+    An unquoted `on` in an enum makes generated clients send `true`, which string-valued settings reject.
     """
     with open(SPEC_PATH) as f:
         doc = yaml.safe_load(f)

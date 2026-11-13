@@ -1,6 +1,5 @@
-"""Manual caps as request reservations (F06): the ledger row IS the
-reservation, every SDK dispatch consumes a count, and TPM reserves an
-estimate at dispatch instead of waiting for recorded usage.
+"""Manual caps as request reservations (F06): the ledger row is the reservation, every SDK dispatch
+consumes a count, and TPM reserves an estimate at dispatch instead of waiting for recorded usage.
 """
 import threading
 from unittest.mock import MagicMock, patch

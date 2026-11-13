@@ -158,11 +158,9 @@ class TestPriorityStamping:
         assert peek_next_queued(temp_db)['priority'] == 10
 
     def test_upsert_raises_priority_when_row_already_pending(self, temp_db):
-        # The guard exists so a background re-upsert cannot stomp a boost.
-        # It must not work in reverse: an auto-queued episode (fresh boost
-        # only) that the user then plays or reprocesses has to climb, or a
-        # bulk backlog pins it for days (PSW #941, 2026-08-27: JIT boost
-        # to 25 was discarded and the episode sat 94th behind 93 rows).
+        # The guard stops a background re-upsert stomping a boost, but must not work in reverse: an
+        # auto-queued episode (fresh boost only) that the user then plays or reprocesses has to climb,
+        # or a bulk backlog pins it for days.
         pid = _create_podcast(temp_db, 'pod-raise')
         _insert_queue_row(temp_db, pid, 'ep1', priority=5, status='pending')
 

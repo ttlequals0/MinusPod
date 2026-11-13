@@ -936,7 +936,7 @@ def test_build_recut_no_merge_across_saved_cut_status_keeps_both_outcomes(monkey
 
 def test_build_recut_previously_cut_review_not_held_by_cue_gate(monkeypatch):
     # A previously-cut ad that re-validates to REVIEW (below threshold) must not
-    # be newly held by the cue-gate fall-through -- it was already published.
+    # be newly held by the cue-gate fall-through; it was already published.
     ads = [{'start': 500.0, 'end': 560.0, 'confidence': 0.60,
             'reason': 'possible sponsor mention', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})

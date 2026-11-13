@@ -1,8 +1,4 @@
-"""The detector's reason text is stored whole (#591).
-
-It used to be cut to 300 characters, and to 150 when combined with a sponsor,
-which put a literal "..." in the UI with no fuller text to expand to.
-"""
+"""The detector's reason text is stored whole (#591), with no 300/150-character cut leaving a literal "..." in the UI."""
 import json
 import os
 import sys

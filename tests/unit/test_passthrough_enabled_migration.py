@@ -1,9 +1,4 @@
-"""Migration test for episodes.passthrough_enabled (#746).
-
-Builds a DB at the pre-#746 episodes schema (column absent), inserts rows,
-then points the Database class at it and asserts the column is added
-additively with no data loss to existing rows.
-"""
+"""Migration for episodes.passthrough_enabled (#746): the column is added to a pre-#746 schema with no data loss."""
 import re
 import sqlite3
 

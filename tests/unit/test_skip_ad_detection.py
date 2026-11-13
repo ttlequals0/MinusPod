@@ -1,9 +1,7 @@
-"""Tests for issue #538: per-feed skip-ad-detection mode.
+"""Per-feed skip-ad-detection mode (#538).
 
-A feed with skip_ad_detection set still gets transcription, chapters, and
-a transcript, but the detection stages (cross-fetch differential, audio
-analysis, first-pass detection, verification pass) are skipped and nothing
-is cut.
+Transcription, chapters and the transcript still happen; the detection stages (cross-fetch differential,
+audio analysis, first-pass detection, verification pass) are skipped and nothing is cut.
 """
 import os
 import sys

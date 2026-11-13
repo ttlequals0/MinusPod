@@ -1,12 +1,8 @@
-"""Per-feed processing mode resolution and plumbing.
+"""Per-feed processing mode resolution and plumbing (#537).
 
-The three per-feed toggles are deliberately independent DB columns
-(issue #537): passthrough_enabled, skip_ad_detection, and
-detection_mode='keep_content'. resolve_feed_processing_mode collapses them
-to one effective mode with the precedence the pipeline has always had by
-branch ordering: passthrough returned before the skip check ran, and a
-skipped detection stage never consulted detection_mode. The truth table
-below is that pre-centralization behavior, verbatim.
+passthrough_enabled, skip_ad_detection and detection_mode='keep_content' are independent DB columns.
+resolve_feed_processing_mode collapses them to one mode; the truth table below pins the original
+branch-order precedence (passthrough before skip, skip never consults detection_mode).
 """
 import os
 import sys
@@ -158,11 +154,8 @@ class TestProcessEpisodeModePlumbing:
         m['detect'].assert_not_called()
         assert m['verify'].call_args.kwargs['skip_verification'] is True
 
-    # The pipeline passes keep_content=None so the detector resolves the
-    # mode from the DB at detection time -- a detection_mode toggle made
-    # during the minutes-long download/transcription window must be honored
-    # (the detector-side resolution is covered by
-    # TestProcessTranscriptKeepContentParam below).
+        # The pipeline passes keep_content=None so the detector resolves the mode from the DB at detection
+        # time; a detection_mode toggle made during the long download/transcription window must be honored.
     def test_keep_content_mode_defers_resolution_to_detector(self):
         m = _run_pipeline(_row(mode=DETECTION_MODE_KEEP_CONTENT))
         assert m['result'] is True
@@ -627,10 +620,10 @@ class TestCueOnlyPipelineWiring:
 
 
 class TestRefineAndValidateHeuristicRollGating:
-    """apply_heuristic_rolls=False (cue_only) must skip regex pre/post-roll
-    and VAD-gap synthesis entirely, since those markers carry no cue or
-    pattern-DB evidence. Calls _refine_and_validate directly with an empty
-    all_ads list so the function returns before touching the validator."""
+    """apply_heuristic_rolls=False (cue_only) skips regex pre/post-roll and VAD-gap synthesis.
+
+    Those markers carry no cue or pattern-DB evidence. Uses an empty all_ads so the validator is never reached.
+    """
 
     def _call(self, **kwargs):
         with patch.object(detect, '_apply_heuristic_rolls') as rolls, \

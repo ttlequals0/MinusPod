@@ -1,7 +1,6 @@
-"""Tests for issue #521: pass-through mode and the feed website link.
+"""Pass-through mode (#521) and the feed website link.
 
-Pass-through feeds download and serve episodes untouched; the website
-link comes from the channel-level RSS <link> captured at refresh.
+Pass-through feeds serve episodes untouched; the website link is the channel-level RSS <link> captured at refresh.
 """
 import os
 import sys
@@ -136,9 +135,8 @@ class TestPassthroughEpisode:
                                      '/data/pt/episodes/ep1.mp3')
 
     def test_none_codec_is_converted(self):
-        # ffprobe could not determine the codec (returns None). The output path
-        # is forced to .mp3, so the bytes must be converted rather than moved
-        # through raw -- otherwise a non-mp3 enclosure is served as audio/mpeg.
+        # ffprobe could not determine the codec (returns None). The output path is forced to .mp3, so the
+        # bytes must be converted rather than moved through raw, or a non-mp3 enclosure is served as audio/mpeg.
         with patch.object(processing, 'AudioProcessor'), \
              patch.object(recut, 'AudioProcessor') as ap_cls:
             ap_cls.return_value.convert_to_mp3.return_value = '/tmp/pt.converted.mp3'

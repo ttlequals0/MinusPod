@@ -1,9 +1,7 @@
-"""Tests for force propagation in refresh_all_feeds.
+"""force propagation in refresh_all_feeds.
 
-The /feeds/refresh API handler accepts {"force": true} and must thread the
-flag down to refresh_rss_feed so the per-feed 30-second coalesce window is
-bypassed. Without this, clicking "Force Refresh All" in the UI is a silent
-no-op for any feed refreshed in the last 30s.
+The /feeds/refresh handler's {"force": true} must reach refresh_rss_feed to bypass the per-feed 30-second
+coalesce window, or "Force Refresh All" is a silent no-op for recently refreshed feeds.
 """
 import unittest
 from unittest.mock import MagicMock, patch

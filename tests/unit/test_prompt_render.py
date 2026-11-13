@@ -171,9 +171,9 @@ def test_migration_is_idempotent(tmp_path):
 
 
 def test_default_flagged_prompts_are_owned_by_the_refresh(tmp_path):
-    """is_default=1 rows belong to the refresh path, which re-points them at
-    the text this version ships. The placeholder backfill never has to touch
-    them, since the shipped prompt already carries the placeholder.
+    """is_default=1 rows belong to the refresh path, so the placeholder backfill never touches them.
+
+    The shipped prompt already carries the placeholder.
     """
     from database import Database
     Database._instance = None
