@@ -99,6 +99,8 @@ FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
 FINGERPRINT_EVIDENCE_FLOOR_S = 2.25
 # Every match needs this much evidence within the edge floor: chance agreement rarely comes that close
 FINGERPRINT_CLOSE_EVIDENCE_S = 2.25
+# Evidence that accepts a run under the minimum coverage as a partial match: one ad of a stored break
+FINGERPRINT_PARTIAL_EVIDENCE_S = 20.0
 # Windows spanned when judging whether a point has support, since chance agreement comes in shorter clusters
 FINGERPRINT_SUPPORT_WINDOWS = 3
 # Window shifts, either way, at which a run is compared with itself to reject steady audio
@@ -468,6 +470,8 @@ class FingerprintMatch:
     contrast_margin: float | None = None
     # True for the part of a match kept after a stronger match took the rest; never sent to the API
     clipped_remainder: bool = False
+    # True when accepted under the minimum coverage on FINGERPRINT_PARTIAL_EVIDENCE_S of evidence
+    partial: bool = False
     # Span in seconds the match passed its gates on, before any clipping
     candidate_span: tuple[float, float] | None = None
 
@@ -809,10 +813,16 @@ def _closest_alignments(alignments, window):
     return [al for *_, al in kept]
 
 
+def _under_coverage(n_good, pat_len, min_coverage):
+    """True when a run's good points cover less of the pattern than min_coverage."""
+    return n_good / pat_len < min_coverage - 1e-9
+
+
 def _rejecting_gate(tally, pat_len, needed, fps, strictness, min_coverage):
     """The first gate a measured alignment fails, or None when it is a match."""
     n_good, similarity, evidence, close = tally
-    if n_good / pat_len < min_coverage - 1e-9:
+    if (_under_coverage(n_good, pat_len, min_coverage)
+            and evidence < FINGERPRINT_PARTIAL_EVIDENCE_S * fps - 1e-9):
         return 'coverage'
     # Chance agreement in unrelated real audio rarely comes this close for long
     if (evidence < needed - 1e-9
@@ -870,8 +880,9 @@ def _clipped_run(al, accepted):
 def _resolve_overlaps(candidates, fps, window, min_points):
     """Best match per stretch of time; a lower-ranked overlapping match keeps a long enough remainder."""
     accepted, spans = [], []
-    order = sorted(candidates, key=lambda c: (-c.score, -c.match.coverage, -c.match.similarity,
-                                              c.match.start))
+    # A partial match is ranked after full ones, so a longer composite pattern cannot take a full match's ad
+    order = sorted(candidates, key=lambda c: (c.match.partial, -c.score, -c.match.coverage,
+                                              -c.match.similarity, c.match.start))
     for cand in order:
         al, m = cand.alignment, cand.match
         lo, hi = al.ep_base + al.span[0], al.ep_base + al.span[1]
@@ -889,7 +900,7 @@ def _resolve_overlaps(candidates, fps, window, min_points):
                                  confidence=similarity, sponsor=m.sponsor, category=m.category,
                                  similarity=similarity, coverage=n_good / cand.pat_len,
                                  contrast_margin=m.contrast_margin, clipped_remainder=True,
-                                 candidate_span=m.candidate_span)
+                                 candidate_span=m.candidate_span, partial=m.partial)
         spans.append((lo, hi))
         accepted.append(m)
     accepted.sort(key=lambda m: m.start)
@@ -920,7 +931,8 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
             continue
         needed = _evidence_needed(novelty, fps)
         # Evidence never exceeds the good point count, so this bound is safe for the prefilter
-        min_good = max(min_coverage * len(pat_arr), needed) - 1e-9
+        min_good = max(min(min_coverage * len(pat_arr), FINGERPRINT_PARTIAL_EVIDENCE_S * fps),
+                       needed) - 1e-9
         offsets, found = _candidate_offsets(pat_arr, informative, index, len(ep_arr))
         if found > len(offsets):
             logger.debug("Fingerprint pattern %s: %d candidate alignments, measuring the first %d",
@@ -948,7 +960,8 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
                 pattern_id=pattern_id, start=lo / fps, end=hi / fps,
                 confidence=similarity, sponsor=sponsor, category=category,
                 similarity=similarity, coverage=coverage, contrast_margin=margin,
-                candidate_span=(lo / fps, hi / fps)), al, len(pat_arr)))
+                candidate_span=(lo / fps, hi / fps),
+                partial=_under_coverage(n_good, len(pat_arr), min_coverage)), al, len(pat_arr)))
     return _resolve_overlaps(candidates, fps, window, min_ad_length_s * fps), measured
 
 
@@ -1044,7 +1057,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     distinctive = profile.unmatchable_reason is None
     out = {'candidates': 0, 'coverage_ceiling': ceiling,
            'matchable': fingerprint_is_matchable(pat_arr, min_coverage=min_coverage),
-           'rejected_by': 'candidates', 'matched': False}
+           'rejected_by': 'candidates', 'matched': False, 'partial': False}
     if not distinctive:
         out['rejected_by'] = 'not_distinctive'
         return out
@@ -1090,6 +1103,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S,
         'contrast_margin': margin, 'contrast_margin_needed': FINGERPRINT_CONTRAST_MARGIN,
         'rejected_by': gate, 'matched': gate is None,
+        'partial': gate is None and _under_coverage(n_good, len(pat_arr), min_coverage),
     })
     return out
 
