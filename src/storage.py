@@ -741,8 +741,8 @@ class Storage:
 
         Mirrors has_artwork's existence-only contract at episode scope.
         Callers that only need a boolean (e.g. deciding whether to emit
-        itunes:image) should use this instead of get_episode_artwork, which
-        reads the full file and bumps its mtime for LRU eviction purposes.
+        itunes:image) should use this: reading the file would bump its mtime
+        for LRU eviction purposes.
         """
         if not is_valid_episode_id(episode_id):
             return False

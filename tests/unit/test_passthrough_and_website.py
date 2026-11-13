@@ -193,6 +193,7 @@ class TestProcessEpisodeBranch:
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = {'id': 1,
                                                    'passthrough_enabled': 1}
+            db.get_podcast_row.return_value = db.get_podcast_by_slug.return_value
             pt.return_value = True
             result = processing.process_episode(
                 'pt-feed', 'ep1', 'https://example.com/ep1.mp3')
@@ -211,6 +212,7 @@ class TestProcessEpisodeBranch:
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = {'id': 1,
                                                    'passthrough_enabled': None}
+            db.get_podcast_row.return_value = db.get_podcast_by_slug.return_value
             processing.process_episode(
                 'pt-feed', 'ep1', 'https://example.com/ep1.mp3')
 
@@ -229,6 +231,7 @@ class TestWebsiteLinkCapture:
             'id': 1, 'etag': None, 'last_modified_header': None,
             'artwork_cached': True,
         }
+        db.get_podcast_row.return_value = db.get_podcast_by_slug.return_value
         db.bulk_upsert_discovered_episodes.return_value = 0
         db.is_auto_process_enabled_for_podcast.return_value = False
         rss_parser.fetch_feed_conditional.return_value = (b'<rss/>', None, None)

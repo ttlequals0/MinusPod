@@ -162,6 +162,7 @@ def _run_pipeline(stack, *, transcribe=None, owner_check=None, required=[]):
 
     mock_db.get_episode.return_value = {}
     mock_db.get_podcast_by_slug.return_value = podcast_row
+    mock_db.get_podcast_row.return_value = podcast_row
     mock_db.get_setting.return_value = 'false'
     mock_db.get_all_settings.return_value = {}
     mock_db.reserve_provider_spend.return_value = {

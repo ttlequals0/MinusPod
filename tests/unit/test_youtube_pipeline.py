@@ -56,6 +56,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
             db = p(processing, 'db')
             db.get_podcast_by_slug.return_value = podcast
+            db.get_podcast_row.return_value = podcast
             db.get_episode.return_value = episode_row or {'episode_id': 'ep1', 'status': 'pending',
                                                            'sb_state': 'probing',
                                                            'youtube_video_id': 'vid000000001',

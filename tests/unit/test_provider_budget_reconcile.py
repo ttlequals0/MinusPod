@@ -158,6 +158,7 @@ def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.reserve_provider_spend.side_effect = (

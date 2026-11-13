@@ -66,6 +66,7 @@ def _run_pipeline(differential_fn, audio_analysis_fn):
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         audio_processor.get_audio_duration.return_value = 100.0

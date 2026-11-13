@@ -125,6 +125,7 @@ class TestFailureClassification:
                 'id': 1, 'etag': None, 'last_modified_header': None,
                 'artwork_cached': True,
             }
+            db.get_podcast_row.return_value = db.get_podcast_by_slug.return_value
             db.bulk_upsert_discovered_episodes.return_value = (0, {}, {})
             db.is_auto_process_enabled_for_podcast.return_value = False
             rss_parser.fetch_feed_conditional.return_value = (

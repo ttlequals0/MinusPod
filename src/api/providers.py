@@ -465,7 +465,7 @@ def _probe_models_for_base(provider, base, saved_key, gate_base):
     # The saved API key goes out only when the tested URL points at the
     # same server as the explicitly saved base URL. Without this gate, any
     # caller with a session could exfiltrate the stored key by "testing" a
-    # URL they control -- a secret this API otherwise never returns.
+    # URL they control, a secret this API otherwise never returns.
     api_key = saved_key if _same_server(base, gate_base) else ''
 
     # The real client appends /v1 for Ollama; the probe must match or a

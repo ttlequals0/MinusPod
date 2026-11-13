@@ -486,7 +486,7 @@ class QueueMixin:
     def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
 
-        Closes the SELECT-then-mark gap in get_next_queued_episode: the
+        Closes the SELECT-then-mark gap of a separate select and update: the
         conditional ``UPDATE ... WHERE status='pending'`` plus the rowcount
         guard means only one consumer can win a given row (SQLite serializes
         the writes), so the dequeue is safe even if a second queue consumer is

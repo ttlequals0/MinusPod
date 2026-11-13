@@ -101,6 +101,7 @@ def _stub_db(monkeypatch, ep):
     monkeypatch.setattr(db, 'get_episode',
                         lambda s, e: {'ad_markers_json': json.dumps(ep['markers'])})
     monkeypatch.setattr(db, 'get_podcast_by_slug', lambda s: {'id': 1})
+    monkeypatch.setattr(db, 'get_podcast_row', lambda s: {'id': 1})
     monkeypatch.setattr(db, 'get_episode_corrections', lambda p, e: corrections)
     monkeypatch.setattr(db, 'get_false_positive_corrections',
                         lambda p, e: [b for c in corrections

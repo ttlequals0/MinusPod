@@ -128,6 +128,7 @@ class TestProcessEpisodeModePlumbing:
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = _row(
                 pt=1, skip=1, mode=DETECTION_MODE_KEEP_CONTENT)
+            db.get_podcast_row.return_value = db.get_podcast_by_slug.return_value
             pt.return_value = True
             result = processing.process_episode(
                 'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
@@ -144,6 +145,7 @@ class TestProcessEpisodeModePlumbing:
              patch.object(processing, 'start_episode_token_tracking'):
             db.get_episode.return_value = {'passthrough_enabled': 1}
             db.get_podcast_by_slug.return_value = _row()
+            db.get_podcast_row.return_value = db.get_podcast_by_slug.return_value
             pt.return_value = True
             result = processing.process_episode(
                 'mode-feed', 'ep1', 'https://example.com/ep1.mp3')

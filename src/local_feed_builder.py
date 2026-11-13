@@ -243,10 +243,8 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
     if episode_number:
         lines.append(f'  <itunes:episode>{_safe_int_or_escaped(episode_number)}</itunes:episode>')
 
-    # Existence-only check (no read, no LRU touch) -- get_episode_artwork
-    # would read the full cached image off disk and bump its mtime just to
-    # answer a boolean, corrupting the artwork cache's LRU eviction order
-    # on every render.
+    # Existence-only check (no read, no LRU touch): reading the cached image
+    # would bump its mtime on every render and corrupt LRU eviction order.
     if storage_.has_episode_artwork(slug, ep_id):
         key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
         artwork_url = f"{base}/episodes/{slug}/{ep_id}/artwork{key_suffix}"

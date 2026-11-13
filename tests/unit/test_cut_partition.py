@@ -180,6 +180,7 @@ def _run_pipeline(first_pass_ads, segment_actions, feed_actions=None):
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
