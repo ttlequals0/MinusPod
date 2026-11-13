@@ -369,12 +369,12 @@ def probe_transcription_endpoint(base_url: str, api_key: str = '',
             result['detail'] = (f'The endpoint requires an API key '
                                 f'(HTTP {status}). The test sends the saved '
                                 'key, and only when the tested URL matches '
-                                'the saved one -- save your key and base '
+                                'the saved one. Save your key and base '
                                 'URL, then test again.')
     elif status == 404:
         result['detail'] = ('The server is running, but there is no '
                             'transcription endpoint at this path (HTTP 404). '
-                            'Check the path in the base URL -- for example, '
+                            'Check the path in the base URL: for example, '
                             'OpenVINO Model Server uses /v3.')
     else:
         result['detail'] = rejected_detail(status, body_bytes)
