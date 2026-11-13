@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import re
 import sqlite3
 import subprocess
@@ -40,6 +41,8 @@ GATE_SCORE = 0.70
 BAND_LOW = 0.65
 CLOSE_EVIDENCE_LIMIT_S = 3.0
 EDGE_TOLERANCE_S = 1.0
+NO_ALIGNMENT = 'no alignment'
+EXPLAIN_MARGIN_S = 10.0  # episode kept around an old match when explaining its position
 # Report threshold for weak new matches; equal to GATE_SCORE (the old matcher gate) by coincidence.
 LOW_SIMILARITY = 0.70
 LOW_COVERAGE = 0.6
@@ -58,9 +61,14 @@ GATE_TEXT = (
     "Release gate: the release does not go ahead if the new matcher loses a match the old "
     "matcher made in scope with an old score of 0.70 or more (the old matcher's own "
     "similarity over min(10 s, stored length) at its start), unless explain_match names the "
-    "rejecting gate and the reason is accepted, or if a kept remainder of a clipped match lies "
-    "outside that match's own span. A lost match that another pattern's new match covers by more "
-    "than half is listed as superseded and does not block. Old matches scoring 0.65 to 0.70 are "
+    "rejecting gate at the old match's own position and the reason is accepted, or if a kept "
+    "remainder of a clipped match lies outside that match's own span. A lost match for which "
+    "explain_match finds no alignment at the old position, even on the old span alone, is listed as "
+    "explained with the gate shown as \"no alignment\" and needs the same acceptance. A lost match is listed as "
+    "superseded and does not block when the union of other patterns' new matches covers more than "
+    "half of its span, measured at the alignment explain_match finds at the old position (the "
+    "stored span when there is none). A lost match whose old position passes every gate and "
+    "is not so covered blocks, with the overlapping other match named. Old matches scoring 0.65 to 0.70 are "
     "listed with explain_match output and a verdict column left for the maintainer, and do not block.")
 
 
@@ -174,6 +182,8 @@ def load_settings(conn):
 
 def load_patterns(conn, decode):
     """Active enabled fingerprints with scope fields, decoded; same filter as the product."""
+    # A database from before the upgrade has no enabled column; every fingerprint is on.
+    has_enabled = any(c[1] == 'enabled' for c in conn.execute("PRAGMA table_info(audio_fingerprints)"))
     rows = conn.execute(
         """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,
                   COALESCE(ks.segment_category, ap.category) AS category,
@@ -181,9 +191,13 @@ def load_patterns(conn, decode):
            FROM audio_fingerprints af
            JOIN ad_patterns ap ON af.pattern_id = ap.id
            LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
-           WHERE ap.is_active = 1 AND af.enabled = 1""").fetchall()
+           WHERE ap.is_active = 1""").fetchall()
+    off = ({r[0] for r in conn.execute("SELECT pattern_id FROM audio_fingerprints WHERE enabled = 0")}
+           if has_enabled else set())
     patterns = []
     for r in rows:
+        if r['pattern_id'] in off:
+            continue
         data = r['fingerprint']
         ints = decode(data.decode('utf-8', 'ignore') if isinstance(data, bytes) else str(data))
         patterns.append({**dict(r), 'ints': ints})
@@ -299,27 +313,67 @@ def _edge_row(kind, ref, start, end):
             'undershoot': -out_start > EDGE_TOLERANCE_S or -out_end > EDGE_TOLERANCE_S}
 
 
-def _explain(ep_ints, fp_duration, pattern, settings):
+def _explain(ep_ints, fp_duration, pattern, settings, window=None):
+    """explain_match over the episode, or over window=(start_s, end_s) with times shifted back."""
+    shift = 0.0
+    if window is not None:
+        fps = len(ep_ints) / fp_duration
+        lo = max(0, int(window[0] * fps))
+        hi = min(len(ep_ints), int(math.ceil(window[1] * fps)))
+        ep_ints, fp_duration, shift = ep_ints[lo:hi], (hi - lo) / fps, lo / fps
     try:
-        return af.explain_match(
+        out = af.explain_match(
             ep_ints, fp_duration, pattern,
             strictness=settings['fingerprint_match_strictness'],
             min_coverage=settings['fingerprint_min_coverage'],
             gap_tolerance_s=settings['fingerprint_gap_tolerance_s'])
     except Exception as e:  # keep the run going; the row says why
         return {'error': f'{type(e).__name__}: {e}', 'matched': False, 'rejected_by': None}
+    if 'start' in out:
+        out['start'] += shift
+        out['end'] += shift
+    return out
 
 
-def classify_loss(old, ex, superseded):
+def _union_share(span, matches):
+    """Share of span covered by the union of the matches."""
+    lo, hi = span
+    pieces = sorted((max(lo, m.start), min(hi, m.end)) for m in matches if m.end > lo and m.start < hi)
+    covered, edge = 0.0, lo
+    for a, b in pieces:
+        covered += max(0.0, b - max(a, edge))
+        edge = max(edge, b)
+    return covered / (hi - lo) if hi > lo else 0.0
+
+
+def _old_position_span(old, ex):
+    """The alignment explain_match measured at the old match's position, else the old span."""
+    if ex and 'start' in ex and _overlap(ex['start'], ex['end'], old.start, old.end) > 0:
+        return ex['start'], ex['end']
+    return old.start, old.end
+
+
+def _no_alignment(old, ex):
+    """True when explain_match measured nothing at the old match's position."""
+    if 'start' in ex:
+        return _overlap(ex['start'], ex['end'], old.start, old.end) <= 0
+    return ex.get('rejected_by') in ('candidates', 'coverage')
+
+
+def classify_loss(old, ex, superseded, others=()):
     """('superseded', why), ('explained', gate) or ('unexplained', reason) for a lost old match."""
     if superseded:
-        return 'superseded', "another pattern's new match covers more than half of it"
+        return 'superseded', "other patterns' new matches cover more than half of it"
     if ex is None or 'error' in ex:
         return 'unexplained', 'explain_match unavailable'
+    if _no_alignment(old, ex):
+        return 'explained', NO_ALIGNMENT
     if ex.get('matched') or ex.get('rejected_by') is None:
-        return 'unexplained', 'explain_match accepts it but the scan returned none'
-    if 'start' in ex and _overlap(ex['start'], ex['end'], old.start, old.end) <= 0:
-        return 'unexplained', 'explain_match measured a different place'
+        reason = 'explain_match accepts it but the scan returned none'
+        if others:
+            reason += '; overlapped by ' + ', '.join(f'pattern {n.pattern_id} at {n.start:.1f}-{n.end:.1f} s'
+                                                     for n in others)
+        return 'unexplained', reason
     return 'explained', ex['rejected_by']
 
 
@@ -380,14 +434,22 @@ def compare_episode(ctx, ep, ep_ints, fp_duration, total_duration, old_matcher):
                     'piece_coverage': [n.coverage for n in group]})
             continue
         ex = _explain(ep_ints, fp_duration, (o.pattern_id, p['ints'], p['duration'], p['sponsor'],
-                                              p['category']), settings) if p and p['ints'] is not None else None
-        superseded = any(n.pattern_id != o.pattern_id
-                         and _overlap(n.start, n.end, o.start, o.end) > 0.5 * (o.end - o.start)
-                         for n in new_matches)
-        verdict, reason = classify_loss(o, ex, superseded)
+                                              p['category']), settings,
+                      window=(max(0.0, o.start - EXPLAIN_MARGIN_S), o.end + EXPLAIN_MARGIN_S)
+                      ) if p and p['ints'] is not None else None
+        if ex and 'start' in ex and _overlap(ex['start'], ex['end'], o.start, o.end) <= 0:
+            exact = _explain(ep_ints, fp_duration, (o.pattern_id, p['ints'], p['duration'], p['sponsor'],
+                                                     p['category']), settings, window=(o.start, o.end))
+            if 'start' in exact and _overlap(exact['start'], exact['end'], o.start, o.end) > 0:
+                ex = exact  # the margin let a better alignment outrank the one inside the span
+        others = [n for n in new_matches if n.pattern_id != o.pattern_id
+                  and _overlap(n.start, n.end, *_old_position_span(o, ex)) > 0]
+        superseded = _union_share(_old_position_span(o, ex), others) > 0.5
+        verdict, reason = classify_loss(o, ex, superseded, others)
         res['lost'].append({**base, 'bucket': 'under_10s' if stored < SHORT_PATTERN_S else 'over_10s',
                             'verdict': verdict, 'reason': reason,
-                            'rejected_by': (ex or {}).get('rejected_by'), 'explain': ex})
+                            'rejected_by': reason if verdict == 'explained' else (ex or {}).get('rejected_by'),
+                            'explain': ex})
     for n in new_matches:
         p = by_id.get(n.pattern_id)
         distance = _marker_distance(markers, n.start, n.end)

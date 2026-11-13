@@ -41,7 +41,7 @@ def _fake_old(matches):
 
 def _build(tmp_path, monkeypatch):
     rng = random.Random(7)
-    pat1, pat2 = _ints(rng, 160), _ints(rng, 160)
+    pat1, pat2, pat3 = _ints(rng, 160), _ints(rng, 160), _ints(rng, 160)
     ep = _ints(rng, int(120 * IPS))
     ep[400:560] = pat1
     db = tmp_path / 'copy.db'
@@ -64,8 +64,9 @@ def _build(tmp_path, monkeypatch):
         INSERT INTO known_sponsors VALUES (1, 'Acme', NULL, '[]', 1);
         INSERT INTO ad_patterns VALUES (1, 'global', NULL, NULL, 'local', 1, NULL, 1);
         INSERT INTO ad_patterns VALUES (2, 'global', NULL, NULL, 'local', 1, NULL, 1);
+        INSERT INTO ad_patterns VALUES (3, 'global', NULL, NULL, 'local', 1, NULL, 1);
     """)
-    for pid, pat in ((1, pat1), (2, pat2)):
+    for pid, pat in ((1, pat1), (2, pat2), (3, pat3)):
         c.execute("INSERT INTO audio_fingerprints VALUES (?, ?, 20.0, 1)",
                   (pid, ','.join(map(str, pat)).encode()))
     c.commit()
@@ -112,7 +113,7 @@ def test_gate_passes_with_pairs_only(tmp_path, monkeypatch):
     assert code == 0
     s = json.loads((out / 'report.json').read_text())
     assert s['matched_pairs'] == 1 and s['strictness']['clamped_up'] is True
-    assert s['patterns']['loaded'] == 2
+    assert s['patterns']['loaded'] == 3
 
 
 def test_unexplained_loss_blocks(tmp_path, monkeypatch):
@@ -167,6 +168,64 @@ def test_a_loss_covered_by_another_patterns_match_is_superseded_and_does_not_blo
     assert code == 0 and not s['gate_blocking']
     assert [r['pattern_id'] for r in s['superseded']] == [2]
     assert '## Superseded losses' in md
+
+
+def _explain_at(old_start, start, end, **kw):
+    """explain_match stub with times given in episode seconds, returned relative to the explained window."""
+    base = max(0.0, old_start - cmp.EXPLAIN_MARGIN_S)
+    return lambda *a, **k: {'start': start - base, 'end': end - base, 'matched': False, **kw}
+
+
+def test_pattern_matched_elsewhere_but_rejected_at_the_old_position_is_explained_by_that_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', _explain_at(90.0, 90.0, 99.0, rejected_by='coverage'))
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 90.0, 0.72)], [_new(2, 10.0, 30.0)])
+    assert code == 0 and not s['gate_blocking']
+    assert [r['rejected_by'] for r in s['gate_explained']] == ['coverage']
+
+
+def test_true_disagreement_blocks_and_names_the_overlapping_other_match(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', _explain_at(90.0, 90.0, 110.0, rejected_by=None, matched=True))
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 90.0, 0.72)], [_new(1, 95.0, 100.0)])
+    assert code == 2
+    reason = s['gate_blocking'][0]['reason']
+    assert reason.startswith('explain_match accepts it') and 'pattern 1 at 95.0-100.0 s' in reason
+
+
+def test_no_alignment_at_the_old_position_is_an_explained_loss(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', lambda *a, **k: {'start': -50.0, 'end': -47.0, 'matched': True, 'rejected_by': None})
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 90.0, 0.72)], [])
+    assert code == 0 and not s['gate_blocking']
+    assert [r['rejected_by'] for r in s['gate_explained']] == [cmp.NO_ALIGNMENT]
+
+
+def test_a_rejected_alignment_inside_the_old_span_is_found_when_the_margin_holds_a_better_one(tmp_path, monkeypatch):
+    def explain(ep_ints, *_a, **_k):
+        if len(ep_ints) > 20 * IPS:  # window with margin: best alignment starts after the old span
+            return {'start': 112.0 - 80.0, 'end': 120.0 - 80.0, 'matched': False, 'rejected_by': 'evidence'}
+        return {'start': 0.0, 'end': 6.0, 'matched': False, 'rejected_by': 'coverage'}
+    monkeypatch.setattr(af, 'explain_match', explain)
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 90.0, 0.72)], [])
+    assert code == 0 and [r['rejected_by'] for r in s['gate_explained']] == ['coverage']
+
+
+def test_loss_covered_by_the_union_of_two_patterns_each_under_half_is_superseded(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', _explain_at(50.0, 50.0, 70.0, rejected_by=None, matched=True))
+    new = [_new(1, 50.0, 58.0), _new(3, 58.0, 68.0)]
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 50.0, 0.9)], new)
+    assert code == 0 and [r['pattern_id'] for r in s['superseded']] == [2]
+
+
+def test_loss_is_not_superseded_when_the_union_is_under_half(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', _explain_at(50.0, 50.0, 70.0, rejected_by=None, matched=True))
+    new = [_new(1, 50.0, 54.0), _new(3, 56.0, 60.0)]
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 50.0, 0.9)], new)
+    assert code == 2 and not s['superseded']
+
+
+def test_superseded_is_judged_on_the_measured_span_not_the_stored_length(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', _explain_at(50.0, 50.0, 60.0, rejected_by='coverage'))
+    code, s, _md = _summary(tmp_path, monkeypatch, [_old_match(2, 50.0, 0.9)], [_new(1, 50.0, 56.0)])
+    assert code == 0 and [r['pattern_id'] for r in s['superseded']] == [2]
 
 
 def test_kept_remainders_are_counted_and_one_outside_its_match_fails_the_gate(tmp_path, monkeypatch):
@@ -235,3 +294,39 @@ def test_default_old_ref_loads_and_matches_a_planted_fingerprint():
     found = old.AudioFingerprinter(db=None)._find_matches_fast(
         ep, 300.0, [(1, pat, 10.0, None, None)], 300.0, 600, None)
     assert [m.pattern_id for m in found] == [1]
+
+
+def _pattern_db(with_enabled):
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE known_sponsors (id INTEGER PRIMARY KEY, name TEXT, segment_category TEXT,
+            tags TEXT, is_active INTEGER);
+        CREATE TABLE ad_patterns (id INTEGER PRIMARY KEY, scope TEXT, network_id TEXT, podcast_id TEXT,
+            source TEXT, sponsor_id INTEGER, category TEXT, is_active INTEGER);
+        CREATE TABLE audio_fingerprints (pattern_id INTEGER, fingerprint BLOB, duration REAL);
+        INSERT INTO ad_patterns VALUES (1, 'global', NULL, NULL, 'manual', NULL, 'sponsor', 1);
+        INSERT INTO ad_patterns VALUES (2, 'global', NULL, NULL, 'manual', NULL, 'sponsor', 1);
+    """)
+    if with_enabled:
+        conn.execute("ALTER TABLE audio_fingerprints ADD COLUMN enabled INTEGER")
+    return conn
+
+
+def _decode(text):
+    return [int(x) for x in text.split(',')]
+
+
+def test_load_patterns_without_enabled_column():
+    conn = _pattern_db(with_enabled=False)
+    conn.execute("INSERT INTO audio_fingerprints VALUES (1, ?, 30.0)", (b'7,-8,9',))
+    patterns = cmp.load_patterns(conn, _decode)
+    assert [(p['pattern_id'], p['ints']) for p in patterns] == [(1, [7, -8, 9])]
+
+
+def test_load_patterns_skips_disabled_fingerprint():
+    conn = _pattern_db(with_enabled=True)
+    conn.execute("INSERT INTO audio_fingerprints VALUES (1, ?, 30.0, 1)", (b'1,2',))
+    conn.execute("INSERT INTO audio_fingerprints VALUES (2, ?, 30.0, 0)", (b'3,4',))
+    patterns = cmp.load_patterns(conn, _decode)
+    assert [(p['pattern_id'], p['ints']) for p in patterns] == [(1, [1, 2])]
