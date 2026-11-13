@@ -106,7 +106,7 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         episode = db.get_episode(slug, episode_id)
         if not episode:
             raise RuntimeError('Episode not found')
-        podcast = db.get_podcast_by_slug(slug) or {}
+        podcast = db.get_podcast_row(slug) or {}
         podcast_name = podcast.get('title') or slug
         _regenerate_chapters(db, get_storage(), slug, episode_id, episode,
                              podcast, podcast_name, stamp)

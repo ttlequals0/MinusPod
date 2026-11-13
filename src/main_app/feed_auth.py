@@ -65,7 +65,7 @@ def subscriber_key_id_for_asset(db, slug: str, episode_id: str | None,
         return None
     allowed = db.verify_feed_subscriber_key(slug, token)
     if not allowed and episode_id and db.verify_feed_subscriber_key('recents', token):
-        recents = db.get_podcast_by_slug('recents')
+        recents = db.get_podcast_row('recents')
         allowed = (is_recents_feed(recents) and db.is_recent_processed_episode(
             slug, episode_id, recents_cutoff(recents)))
     return parsed[0] if allowed else None

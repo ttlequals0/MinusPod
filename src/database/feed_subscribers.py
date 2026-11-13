@@ -20,7 +20,7 @@ def parse_subscriber_token(token) -> tuple[str, str] | None:
 
 class FeedSubscriberMixin:
     def create_feed_subscriber_key(self, slug: str, label: str = '') -> dict:
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             raise ValueError('podcast not found')
         key_id = secrets.token_hex(8)

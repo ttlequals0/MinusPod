@@ -187,7 +187,7 @@ def _resolve_podcast_id(slug: str | None) -> int | None:
         return None
     try:
         from database import Database
-        podcast = Database().get_podcast_by_slug(slug)
+        podcast = Database().get_podcast_row(slug)
     except Exception:
         logger.warning(f"Could not resolve podcast_id for slug '{slug}'")
         return None

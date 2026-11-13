@@ -205,6 +205,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         if manual_approval is not None:
             db.requires_manual_approval.return_value = manual_approval
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.reserve_provider_spend.return_value = (
             admission or {'allowed': True, 'reservation_id': 'provider-run-1'})
         # Reconcile now reads the ledger sum, not the in-process accumulator

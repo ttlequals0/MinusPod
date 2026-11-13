@@ -917,7 +917,7 @@ def _clear_queue_row(db, slug: str, episode_id: str,
     reset (same SQL pattern as database.episodes.delete_episode_rows), so a
     stale queued/processing row from the previous import cannot resurrect
     against the freshly re-imported file."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return
     conn = db.get_connection()
@@ -1053,7 +1053,7 @@ def _commit_entry(slug: str, entry: dict, db, storage,
                 slug, [episode_id], commit=commit)
             _clear_queue_row(db, slug, episode_id, commit=commit)
         elif existing is not None:
-            podcast = db.get_podcast_by_slug(slug)
+            podcast = db.get_podcast_row(slug)
             conn = db.get_connection()
             conn.execute(
                 "DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",

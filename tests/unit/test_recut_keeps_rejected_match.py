@@ -45,7 +45,7 @@ def test_a_rejected_match_stays_rejected_through_a_recut(temp_db, monkeypatch):
 
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'ad_markers_json': json.dumps(stored)})
-    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(processing.db, 'get_podcast_cue_settings_overrides', lambda pid: {})
     monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda podcast_id, eid: [])

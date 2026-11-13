@@ -184,7 +184,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         if queue.owns(run_id, allow_cancel_requested=True):
             audio_logger.info(f"[{slug}:{episode_id}] Cancelled - cleaning up partial files")
             try:
-                podcast_row = db.get_podcast_by_slug(slug)
+                podcast_row = db.get_podcast_row(slug)
                 still_owned, replacement_published = (
                     _cleanup_cancelled_processing_output(
                         slug, episode_id, run_id, queue, episode_at_start,
@@ -743,7 +743,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # the integer DB PK used by the reviewer's episode_meta. Re-fetch
             # the row here: download+transcription can take minutes, and tag
             # edits made meanwhile must be visible to pattern eligibility.
-            podcast_row_for_ctx = db.get_podcast_by_slug(slug)
+            podcast_row_for_ctx = db.get_podcast_row(slug)
             podcast_tags_for_ctx = None
             if podcast_row_for_ctx and podcast_row_for_ctx.get('tags'):
                 try:

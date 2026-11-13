@@ -993,7 +993,7 @@ def build_preview(db, document, scope, selected_feeds=None):
             cue_templates = []
             podcast = None
             if current is not None:
-                podcast = db.get_podcast_by_slug(slug)
+                podcast = db.get_podcast_row(slug)
                 cue_templates = db.list_cue_templates_for_feed_ui(podcast['id']) if podcast else []
             if cue_only_missing_roles_for_feed(db, podcast['id'] if podcast else None, cue_templates):
                 warnings.append(f'{slug} uses cue-only processing and needs enabled start and end cue templates on the destination.')
@@ -1540,7 +1540,7 @@ def _after_feed_commit(db, slugs, priority_changes, refresh_slugs):
             continue
         try:
             db.update_podcast_etag(slug, None, None)
-            podcast = db.get_podcast_by_slug(slug)
+            podcast = db.get_podcast_row(slug)
             if podcast:
                 outcome = refresh_rss_feed(slug, podcast.get('source_url'), force=True)
                 if not outcome.success:

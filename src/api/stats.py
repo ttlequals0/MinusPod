@@ -333,7 +333,7 @@ def get_spend_attempts():
 
     podcast_id = -1
     if slug and episode_id:
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         if not podcast:
             return error_response('Feed not found', 404)
         podcast_id = podcast['id']

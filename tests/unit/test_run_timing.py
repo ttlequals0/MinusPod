@@ -267,7 +267,7 @@ def test_worker_thread_propagates_ffmpeg_time_to_submitting_run(monkeypatch):
 def test_failed_history_persists_partial_timings(monkeypatch):
     captured = {}
     fake_db = SimpleNamespace(
-        get_podcast_by_slug=lambda slug: {'id': 7, 'title': 'Example'},
+        get_podcast_row=lambda slug: {'id': 7, 'title': 'Example'},
         get_run_usage_totals=lambda run_id: {
             'input_tokens': 0, 'output_tokens': 0, 'cost_usd': 0,
         },

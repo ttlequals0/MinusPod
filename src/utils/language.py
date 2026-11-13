@@ -18,7 +18,7 @@ def get_feed_language_override(db, slug: str | None) -> str | None:
     if not db or not slug:
         return None
     try:
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
     except Exception:
         return None
     if not podcast:

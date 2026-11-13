@@ -184,7 +184,7 @@ class EpisodeMixin:
         conn = self.get_connection()
 
         # Get podcast ID
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return [], 0
 
@@ -247,7 +247,7 @@ class EpisodeMixin:
 
     def has_episodes(self, slug: str) -> bool:
         """Whether a podcast has any episode rows at all, of any status."""
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return False
         conn = self.get_connection()
@@ -323,7 +323,7 @@ class EpisodeMixin:
         {'id': episode_id, 'title': title}.
         """
         empty = {'previous': None, 'next': None}
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return empty
         podcast_id = podcast['id']
@@ -365,7 +365,7 @@ class EpisodeMixin:
         """
         conn = self.get_connection()
         if podcast_id is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
             if not podcast:
                 return {}, {}
             podcast_id = podcast['id']
@@ -392,7 +392,7 @@ class EpisodeMixin:
             kwargs['published_at'] = normalize_published_at(kwargs['published_at'])
 
         # Get podcast ID
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             raise PodcastNotFoundError(f"Podcast not found: {slug}")
 
@@ -1592,7 +1592,7 @@ class EpisodeMixin:
         if not episode_ids:
             return
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return
         placeholders = ','.join('?' for _ in episode_ids)
@@ -1930,7 +1930,7 @@ class EpisodeMixin:
         if not episode_ids:
             return 0
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return 0
         placeholders = ','.join('?' for _ in episode_ids)
@@ -1955,7 +1955,7 @@ class EpisodeMixin:
         """
         if not episode_ids:
             return 0
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return 0
         value = 1 if enabled else 0
@@ -2065,7 +2065,7 @@ class EpisodeMixin:
                                         episode_ids: list[str]) -> None:
         if not episode_ids:
             return
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return
         placeholders = ','.join('?' for _ in episode_ids)
@@ -2092,7 +2092,7 @@ class EpisodeMixin:
         deleted.
         """
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast or not episode_ids:
             return 0
 

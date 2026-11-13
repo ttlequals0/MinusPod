@@ -1365,7 +1365,7 @@ def _add_local_feed(data, db):
 
     if slug == RECENTS_SLUG:
         return error_response(f'"{RECENTS_SLUG}" is reserved for the recents feed', 400)
-    existing = db.get_podcast_by_slug(slug)
+    existing = db.get_podcast_row(slug)
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
 
@@ -1464,7 +1464,7 @@ def _add_youtube_feed(data, db):
     slug = (data.get('slug') or '').strip() or make_slug(title)
     if not slug or not is_valid_slug(slug) or slug == RECENTS_SLUG:
         return error_response(f'Invalid slug "{slug}"', 400)
-    if db.get_podcast_by_slug(slug):
+    if db.get_podcast_row(slug):
         return error_response(f'Feed with slug "{slug}" already exists', 409)
     canonical = yt_urls.canonical_source_url(kind, source_id)
     if any(p['source_url'] == canonical for p in db.get_podcast_feed_urls()):
@@ -1610,7 +1610,7 @@ def add_feed():
     db = get_database()
 
     # Check if slug already exists
-    existing = db.get_podcast_by_slug(slug)
+    existing = db.get_podcast_row(slug)
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
 
@@ -1829,7 +1829,7 @@ def import_opml():
             continue
 
         # Check if slug already exists
-        existing = db.get_podcast_by_slug(slug)
+        existing = db.get_podcast_row(slug)
         if existing:
             skipped.append({'url': source_url, 'slug': slug, 'reason': 'Already exists'})
             continue
@@ -1852,7 +1852,7 @@ def import_opml():
         try:
             from main_app.feeds import refresh_rss_feed
             for feed in imported[:5]:  # Limit to first 5 to avoid overload
-                podcast = db.get_podcast_by_slug(feed['slug'])
+                podcast = db.get_podcast_row(feed['slug'])
                 if podcast:
                     refresh_rss_feed(feed['slug'], podcast['source_url'])
         except Exception as e:
@@ -1932,7 +1932,7 @@ def list_all_feed_subscriber_keys():
 @log_request
 def list_feed_subscriber_keys(slug):
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     return json_response({'keys': db.list_feed_subscriber_keys(slug)})
 
@@ -2480,7 +2480,7 @@ def update_feed(slug):
             # the new network with stranded templates.
             with db.transaction(immediate=True) as conn:
                 db.update_podcast(slug, conn=conn, **updates)
-                fresh = db.get_podcast_by_slug(slug)
+                fresh = db.get_podcast_row(slug)
                 effective_network = fresh.get('network_id_override') or fresh.get('network_id') or None
                 db.retag_network_cue_templates(fresh['id'], effective_network, conn=conn)
         else:
@@ -2612,7 +2612,7 @@ def delete_feed(slug):
     db = get_database()
     storage = get_storage()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -2767,7 +2767,7 @@ def refresh_feed(slug):
     """
     db = get_database()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -2794,7 +2794,7 @@ def refresh_feed(slug):
             return error_response(outcome.error or 'Feed refresh failed', status)
 
         # Get updated info
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         episodes, total = db.get_episodes(slug)
 
         logger.info(f"Refreshed feed: {slug}")
@@ -3008,7 +3008,7 @@ def get_feed_tags(slug):
     Output: {effective: [...], rss: [...], episode: [...], user: [...]}
     """
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     return json_response(db.get_podcast_tags(slug))
 
@@ -3022,7 +3022,7 @@ def get_ad_distribution(slug):
     be enabled): purely informational for the feed detail panel.
     """
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
 
     dist = compute_ad_distribution(db, slug)
@@ -3056,7 +3056,7 @@ def update_feed_tags(slug):
     """
     from utils.community_tags import valid_tags
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     data = request.get_json() or {}
     user_tags = data.get('user_tags')

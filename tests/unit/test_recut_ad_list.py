@@ -55,6 +55,7 @@ def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
         'corrected_bounds': {'start': 105.0, 'end': 150.0},
     }]
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
     recut._apply_boundary_adjustments('slug', 'ep', ads)
@@ -81,6 +82,7 @@ def test_apply_boundary_adjustments_narrows_the_merge_records(monkeypatch):
         'corrected_bounds': {'start': 105.0, 'end': 130.0},
     }]
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
 
@@ -100,6 +102,7 @@ def test_apply_boundary_adjustments_skips_unmatched(monkeypatch):
         'corrected_bounds': {'start': 905.0, 'end': 940.0},
     }]
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
     recut._apply_boundary_adjustments('slug', 'ep', ads)
@@ -119,6 +122,7 @@ def test_apply_boundary_adjustments_newest_wins(monkeypatch):
          'corrected_bounds': {'start': 101.0, 'end': 159.0}},
     ]
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
     recut._apply_boundary_adjustments('slug', 'ep', ads)
@@ -135,6 +139,7 @@ def _boundary_adjustment(orig_start, orig_end, piece_start, piece_end):
 
 def _pin_corrections(monkeypatch, corrections):
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
 
@@ -554,6 +559,7 @@ def test_build_recut_ad_list_drops_rejected(monkeypatch):
     ]
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': json.dumps(ads)})
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections',
@@ -579,6 +585,7 @@ def test_build_recut_ad_list_keeps_confirmed(monkeypatch):
     ads = [{'start': 30.0, 'end': 90.0, 'confidence': 0.40, 'sponsor': 'A', 'reason': 'maybe an ad for A'}]
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': json.dumps(ads)})
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(
@@ -597,6 +604,7 @@ def test_build_recut_ad_list_keeps_manual_add(monkeypatch):
             'sponsor': 'Manual Co', 'reason': 'Manual Co: manually added ad'}]
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': json.dumps(ads)})
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(
@@ -623,6 +631,8 @@ def test_recut_gates_stored_transcript_spans_on_toggle(monkeypatch, toggle, expe
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'ad_markers_json': json.dumps(ads)})
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug',
+                        lambda slug: {'id': 42, 'transcript_differential': toggle})
+    monkeypatch.setattr(processing.db, 'get_podcast_row',
                         lambda slug: {'id': 42, 'transcript_differential': toggle})
     monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda podcast_id, eid: [])
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections',
@@ -674,6 +684,8 @@ def _stub_recut_db(monkeypatch, ads, fp=None, confirmed=None, overrides=None):
                         lambda podcast_id, eid: confirmed or [])
     # Simulate per-feed settings overrides (or empty = both unset)
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug',
+                        lambda s: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row',
                         lambda s: {'id': 42})
     monkeypatch.setattr(processing.db, 'get_podcast_cue_settings_overrides',
                         lambda pid: overrides or {})
@@ -1316,6 +1328,7 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
         db.get_podcast_by_slug.return_value = {'id': 1}
+        db.get_podcast_row.return_value = {'id': 1}
         db.get_original_segments.return_value = [
             {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
             for t in range(0, 60, 5)]
@@ -1360,6 +1373,7 @@ def test_build_recut_ad_list_keeps_kept_markers_out_of_validation(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'ad_markers_json': json.dumps([kept, sponsor])})
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42})
     monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda p, e: [])
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections', lambda p, e: [])
     monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda p, e: [])
@@ -1437,6 +1451,7 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path, ret
             db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                            'ad_markers_json': json.dumps(markers)}
             db.get_podcast_by_slug.return_value = {'id': 1}
+            db.get_podcast_row.return_value = {'id': 1}
             db.get_original_segments.return_value = [
                 {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
                 for t in range(0, 90, 5)]
@@ -1614,6 +1629,7 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retai
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
         db.get_podcast_by_slug.return_value = {'id': 1}
+        db.get_podcast_row.return_value = {'id': 1}
         db.get_original_segments.return_value = [
             {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
             for t in range(0, 60, 5)]

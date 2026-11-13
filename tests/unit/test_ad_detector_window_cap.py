@@ -103,26 +103,26 @@ def test_cap_falls_back_to_the_constant_when_the_db_errors():
 def _detector_with_feed(feed_id=7, **db_kwargs):
     detector = AdDetector(api_key='test-key')
     detector.db = _FakeDb(**db_kwargs)
-    detector.db.get_podcast_by_slug = MagicMock(return_value={'id': feed_id})
+    detector.db.get_podcast_row = MagicMock(return_value={'id': feed_id})
     return detector
 
 
 def test_detector_resolves_the_feed_cap_from_the_slug():
     detector = _detector_with_feed(hold=600.0)
     assert detector._window_ad_cap('example-podcast', None) == 600.0
-    detector.db.get_podcast_by_slug.assert_called_once_with('example-podcast')
+    detector.db.get_podcast_row.assert_called_once_with('example-podcast')
 
 
 def test_detector_keeps_an_explicit_cap_override():
     detector = _detector_with_feed(hold=600.0)
     assert detector._window_ad_cap('example-podcast', 300.0) == 300.0
-    detector.db.get_podcast_by_slug.assert_not_called()
+    detector.db.get_podcast_row.assert_not_called()
 
 
 def test_detector_without_a_slug_or_feed_falls_back_to_the_global_cap():
     detector = _detector_with_feed(window=500.0)
     assert detector._window_ad_cap(None, None) is None
-    detector.db.get_podcast_by_slug.return_value = None
+    detector.db.get_podcast_row.return_value = None
     assert detector._window_ad_cap('example-podcast', None) == 500.0
 
 

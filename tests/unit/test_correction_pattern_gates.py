@@ -48,6 +48,7 @@ def _mock_db(transcript):
     db = MagicMock()
     db.get_transcript_for_timestamps.return_value = transcript
     db.get_podcast_by_slug.return_value = {'id': 42, 'slug': SLUG}
+    db.get_podcast_row.return_value = {'id': 42, 'slug': SLUG}
     db.find_pattern_by_text.return_value = None
     db.get_known_sponsor_by_name.return_value = None
     db.get_ad_patterns.return_value = []

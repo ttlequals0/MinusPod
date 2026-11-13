@@ -27,6 +27,7 @@ from main_app.pipeline.finalize import _record_history_and_event, _log_completio
 def _make_db():
     db = MagicMock()
     db.get_podcast_by_slug.return_value = {'id': 42, 'title': 'Daily Show'}
+    db.get_podcast_row.return_value = {'id': 42, 'title': 'Daily Show'}
     return db
 
 

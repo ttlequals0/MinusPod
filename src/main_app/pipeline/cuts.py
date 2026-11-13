@@ -419,7 +419,7 @@ def _finalize_user_confirmed_bounds(
     if not ads_to_remove:
         return ads_to_remove
     if confirmed_corrections is None:
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         corrections = (db.get_confirmed_corrections(podcast['id'], episode_id)
                        if podcast else [])
     else:

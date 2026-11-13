@@ -215,7 +215,7 @@ def reprocess_all_episodes(slug):
     if not _mode_allowed(mode, 'batch'):
         return error_response('Invalid mode. Use "reprocess", "full", or "llm"', 400)
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -299,7 +299,7 @@ def bulk_episode_action(slug):
     db = get_database()
     storage = get_storage()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -497,7 +497,7 @@ def set_episodes_passthrough(slug):
     """
     db = get_database()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -589,7 +589,7 @@ def retry_ad_detection(slug, episode_id):
     db = get_database()
     storage = get_storage()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
     # Per-episode override included (#746): an episode marked pass-through
@@ -928,7 +928,7 @@ def set_episode_queue_priority(slug, episode_id):
             f'Value must be between {QUEUE_PRIORITY_MIN} and {QUEUE_PRIORITY_MAX}', 400)
 
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     stored = db.set_queue_row_priority(slug, episode_id, priority=priority, delta=delta)
     if stored is None:
@@ -1051,7 +1051,7 @@ def apply_pending_recuts():
     for row in db.get_episodes_pending_recut(slug=scope):
         slug, episode_id = row['podcast_slug'], row['episode_id']
         episode = db.get_episode(slug, episode_id)
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         if not episode or not podcast:
             skipped += 1
             continue
@@ -1157,7 +1157,7 @@ def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
             'jobState': common._episode_job_state(db, slug, episode_id, episode['status']),
         }, 409)
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Podcast not found', 404)
 

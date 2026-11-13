@@ -194,7 +194,7 @@ def list_cue_templates(slug):
     managed on the feed that created it).
     """
     db = get_database()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
     rows = db.list_cue_templates_for_feed_ui(podcast['id'])
@@ -228,7 +228,7 @@ def create_cue_template(slug):
     """
     db = get_database()
     storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
 
@@ -775,7 +775,7 @@ def import_cue_template(slug):
     are hard-rejected (no resampling).
     """
     db = get_database()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
 
@@ -1492,7 +1492,7 @@ def cue_threshold_suggest(slug):
     (multi-episode decode); the client polls status 'scanning'|'ready'|'error'."""
     db = get_database()
     storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
     data = request.get_json(silent=True) or {}
@@ -1626,7 +1626,7 @@ def cue_cross_episode_scan(slug):
 
     db = get_database()
     storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
     podcast_id = podcast['id']
@@ -2009,7 +2009,7 @@ def cue_window_optimize(slug, template_id):
     """
     db = get_database()
     storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
 
@@ -2178,7 +2178,7 @@ def dismiss_cue_candidate(slug, episode_id):
 def list_cue_candidate_dismissals_route(slug):
     """The feed's dismissed sounds, newest first (undo targets for the UI)."""
     db = get_database()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
     return json_response({'dismissals': [

@@ -45,7 +45,7 @@ def set_cue_detection_verdict(detection_id):
 def get_cue_detections_advisory(slug):
     """Per-feed cue health: outcome/verdict counts, score range, confirm rate."""
     db = get_database()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
     payload = db.cue_feed_advisory(podcast['id'])

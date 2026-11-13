@@ -666,6 +666,7 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = []
     db.get_podcast_by_slug.return_value = {'id': 42}
+    db.get_podcast_row.return_value = {'id': 42}
     db.get_podcast_cue_settings_overrides.return_value = {'max_ad_duration_override': 60.0}
     db.get_episode_audio_analysis.return_value = None
     db.get_episode_dai_differential.return_value = None

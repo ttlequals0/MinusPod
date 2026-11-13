@@ -30,6 +30,7 @@ def _mock_db(markers):
     db = MagicMock()
     db.get_transcript_for_timestamps.return_value = AD_TEXT
     db.get_podcast_by_slug.return_value = {'id': 99, 'slug': SLUG}
+    db.get_podcast_row.return_value = {'id': 99, 'slug': SLUG}
     db.get_episode.return_value = {'ad_markers_json': json.dumps(markers)}
     db.get_setting_float.side_effect = lambda key, default=None: default
     db.get_setting_bool.side_effect = lambda key, default=None: default

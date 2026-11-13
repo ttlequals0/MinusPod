@@ -152,7 +152,7 @@ class QueueMixin:
         """Check if auto-process is enabled for a specific podcast.
 
         podcast: an already-fetched row, so a caller that needs other columns
-        too does not pay for a second get_podcast_by_slug query.
+        too does not pay for a second get_podcast_row query.
         Returns: True if enabled (considering both global and podcast-level settings)
         """
         # Check global setting first
@@ -160,7 +160,7 @@ class QueueMixin:
 
         # Get podcast-level override
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         if not podcast:
             return global_enabled
 
@@ -258,7 +258,7 @@ class QueueMixin:
         """
         conn = self.get_connection()
 
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             logger.error(f"Cannot upsert episode for processing: podcast not found: {slug}")
             return None
@@ -613,7 +613,7 @@ class QueueMixin:
         no-op when there is no matching pending/processing/failed row.
         Returns the number of rows touched.
         """
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return 0
         conn = self.get_connection()

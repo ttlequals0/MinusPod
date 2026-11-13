@@ -413,7 +413,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
         return 0
     filed = 0
     try:
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         if not podcast:
             return 0
         # Same preconditions the recut API enforces; without the retained

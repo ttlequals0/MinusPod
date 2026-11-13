@@ -695,7 +695,7 @@ class PatternService:
                         dai_platform=dai_platform,
                         network_id=network_id
                     )
-                    row = self.db.get_podcast_by_slug(podcast_id)
+                    row = self.db.get_podcast_row(podcast_id)
                     if row:
                         effective_network = row.get('network_id_override') or row.get('network_id') or None
                         self.db.retag_network_cue_templates(

@@ -1063,6 +1063,7 @@ def _feed_db():
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = []
     db.get_podcast_by_slug.return_value = {'id': 7}
+    db.get_podcast_row.return_value = {'id': 7}
     return db
 
 
@@ -1269,6 +1270,7 @@ def _run_fold_branch(recut_result=True, recut_mutates=False):
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = {'id': 1, 'slug': 'fold-feed'}
+        db.get_podcast_row.return_value = {'id': 1, 'slug': 'fold-feed'}
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = {}

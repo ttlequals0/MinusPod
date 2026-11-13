@@ -336,7 +336,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
                         run_stats=None):
     """Write one processing-history row for this episode. Returns False when
     the podcast row is missing (nothing written); raises on DB write failure."""
-    podcast_data = db.get_podcast_by_slug(slug)
+    podcast_data = db.get_podcast_row(slug)
     if not podcast_data:
         return False
     stats = dict(run_stats or {})

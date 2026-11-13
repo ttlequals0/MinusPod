@@ -39,7 +39,7 @@ audio_logger = logging.getLogger('podcast.audio')
 def _apply_boundary_adjustments(slug, episode_id, all_ads):
     """Override ad bounds with the user's boundary_adjustment corrections so a
     recut cuts the adjusted spans. Newest wins; unmatched corrections are skipped."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
     adjusted = set()
     applied = 0

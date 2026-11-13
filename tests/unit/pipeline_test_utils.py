@@ -119,6 +119,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
 
         db.get_episode.return_value = episode_row or {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.get_podcast_cue_settings_overrides.return_value = {}
         db.get_setting.side_effect = lambda key: (
             'true' if real_refine_reviewer and key == 'enable_ad_review'

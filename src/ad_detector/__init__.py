@@ -1085,7 +1085,7 @@ class AdDetector:
         """Longest single window detection kept: the caller's override, else the feed's resolved cap."""
         if override is not None or not slug or not self.db:
             return override
-        row = self.db.get_podcast_by_slug(slug)
+        row = self.db.get_podcast_row(slug)
         return resolve_window_ad_cap(self.db, (row or {}).get('id'))
 
     def _resolve_segment_action_map(self, slug: str) -> dict[str, str] | None:
@@ -2429,7 +2429,7 @@ class AdDetector:
             episode_description = ctx.episode_description
             podcast_tags = ctx.podcast_tags
         elif self.db and slug:
-            podcast_row = self.db.get_podcast_by_slug(slug)
+            podcast_row = self.db.get_podcast_row(slug)
             podcast_db_id = podcast_row['id'] if podcast_row else None
         network_id = self.db.get_effective_network_id(slug) if self.db and slug else None
         if action_map is None:

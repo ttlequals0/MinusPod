@@ -352,7 +352,7 @@ class _PatternDb:
     def get_false_positive_corrections(self, podcast_id, episode_id):
         return []
 
-    def get_podcast_by_slug(self, slug):
+    def get_podcast_row(self, slug):
         return {'id': 1}
 
     def get_podcast_false_positive_texts(self, slug):

@@ -44,7 +44,7 @@ def _run_audio_analysis(slug, episode_id, audio_path, force_cue_detection=False)
     try:
         # Resolve the feed PK so the cue analyzer can pick a per-feed template
         # matcher when the user has marked any (issue #350).
-        podcast_row = db.get_podcast_by_slug(slug)
+        podcast_row = db.get_podcast_row(slug)
         feed_id = podcast_row.get('id') if podcast_row else None
         result = audio_analyzer.analyze(
             audio_path,

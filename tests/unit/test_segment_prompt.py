@@ -23,7 +23,7 @@ from llm_client import LLMClient, LLMResponse
 
 
 class _FakeDb:
-    """Minimal db stub: get_setting for no-override, get_podcast_by_slug
+    """Minimal db stub: get_setting for no-override, get_podcast_row
     for the detect_show_segments flag, resolve_segment_actions for the
     category-miss warning gate."""
 
@@ -38,7 +38,7 @@ class _FakeDb:
             return self._system_prompt
         return None
 
-    def get_podcast_by_slug(self, slug):
+    def get_podcast_row(self, slug):
         if slug is None:
             return None
         return {'slug': slug, 'detect_show_segments': self._detect_show_segments}
@@ -158,7 +158,7 @@ class TestPromptComposition:
 
     def test_section_absent_when_no_podcast_row(self):
         det = _detector(detect_show_segments=True)
-        # slug=None -> get_podcast_by_slug short-circuits to no row.
+        # slug=None -> get_podcast_row short-circuits to no row.
         prompt = det._build_detection_system_prompt(None)
         assert SHOW_SEGMENTS_PROMPT_SECTION not in prompt
 

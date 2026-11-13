@@ -95,7 +95,7 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
     """
     try:
         if podcast is None:
-            podcast = db.get_podcast_by_slug(slug)
+            podcast = db.get_podcast_row(slug)
         if not podcast:
             return
         now = datetime.now(timezone.utc)
@@ -806,7 +806,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
 def refresh_single_feed(slug: str) -> bool:
     """Refresh one feed by slug. Used by the podping listener; the background
     scheduler staggers feeds through refresh_due_feeds instead."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast or not podcast.get('source_url'):
         return False
     if is_local_feed(podcast):

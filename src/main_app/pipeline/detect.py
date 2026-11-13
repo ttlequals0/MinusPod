@@ -461,7 +461,7 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
 
 def _load_user_corrections(slug, episode_id, db):
     """Load FP and confirmed corrections for the episode and log counts."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     podcast_id = podcast['id'] if podcast else None
     false_positive_corrections = db.get_false_positive_corrections(
         podcast_id, episode_id) if podcast_id is not None else []

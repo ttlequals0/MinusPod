@@ -932,7 +932,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         corrected_bounds={'start': start, 'end': end},
         text_snippet=text_template[:500],
         sponsor_id=sponsor_id,
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=db.get_podcast_row(slug)['id'],
     )
 
     logger.info(
@@ -1011,7 +1011,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
         transcript or '', original_start, original_end)
     pieces = build_split_pieces(spans, original_start, original_end, points)
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     podcast_id_str = slug if podcast else None
 
     new_markers = []
@@ -1057,7 +1057,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             original_bounds=bounds if i == 0 else None,
             corrected_bounds=bounds,
             text_snippet=piece['text'][:500],
-            podcast_id=db.get_podcast_by_slug(slug)['id'],
+            podcast_id=db.get_podcast_row(slug)['id'],
             addressing_mode=marker.get('addressing_mode'),
         )
 
@@ -1112,7 +1112,7 @@ def _resolve_or_create_pattern_from_text(
     reviewed marker's segment category (#565), so a confirmed interaction or
     self-promo span is not learned as a sponsor pattern.
     """
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     podcast_id_str = slug if podcast else None
 
     existing_pattern = db.find_pattern_by_text(ad_text, podcast_id_str)
@@ -1300,7 +1300,7 @@ def _handle_confirm_correction(
     outcomes = store_patterns_audio(
         db, slug, episode_id, pattern_ids, eff_start, eff_end, text=resolved_text)
 
-    podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
+    podcast_id = (podcast or db.get_podcast_row(slug))['id']
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
@@ -1376,7 +1376,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
             db.update_ad_pattern(pattern_id, false_positive_count=new_count)
             logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
 
-    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'false_positive', original_start, original_end)
+    deleted = db.delete_conflicting_corrections(db.get_podcast_row(slug)['id'], episode_id, 'false_positive', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting confirm correction(s) for {slug}/{episode_id}")
 
@@ -1387,7 +1387,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
         original_bounds={'start': original_start, 'end': original_end},
         text_snippet=text_snippet,
         source_hold_reason=source_hold_reason,
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=db.get_podcast_row(slug)['id'],
         addressing_mode=addressing_mode,
     )
 
@@ -1665,7 +1665,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     # user is asserting is ad. The pre-adjustment bounds can cover an
     # unrelated overlapping span whose rejection must survive.
     deleted = db.delete_conflicting_corrections(
-        db.get_podcast_by_slug(slug)['id'], episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
+        db.get_podcast_row(slug)['id'], episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
     if deleted:
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
@@ -1679,7 +1679,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
         text_snippet=adjusted_text,
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=db.get_podcast_row(slug)['id'],
         addressing_mode=addressing_mode,
     )
 

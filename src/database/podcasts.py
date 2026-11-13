@@ -718,7 +718,7 @@ class PodcastMixin:
         the max_feed_episodes global setting, else DEFAULT_MAX_FEED_EPISODES.
         """
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('max_episodes') if podcast else None
         if per_feed:
             return int(per_feed)
@@ -737,7 +737,7 @@ class PodcastMixin:
         only_expose_processed_default global setting, else False.
         """
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('only_expose_processed_episodes') if podcast else None
         if per_feed is not None:
             return bool(per_feed)
@@ -747,7 +747,7 @@ class PodcastMixin:
                                  podcast: dict | None = None) -> bool:
         """Per-feed require_manual_approval if non-NULL, else the global default."""
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('require_manual_approval') if podcast else None
         if per_feed is not None:
             return bool(per_feed)
@@ -760,7 +760,7 @@ class PodcastMixin:
         setting, else False.
         """
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('detect_show_segments') if podcast else None
         if per_feed is not None:
             return bool(per_feed)
@@ -779,7 +779,7 @@ class PodcastMixin:
         sweep in maintenance.py and this per-feed resolver cannot drift.
         """
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('retention_days_override') if podcast else None
         try:
             global_days = int(self.get_setting('retention_days') or '30')
@@ -796,7 +796,7 @@ class PodcastMixin:
         to on when unset.
         """
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         per_feed = podcast.get('keep_original_audio_override') if podcast else None
         global_keep = (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
         return effective_keep_original(per_feed, global_keep)
@@ -804,7 +804,7 @@ class PodcastMixin:
     def resolve_audio_output(self, slug: str, podcast: dict | None = None) -> dict:
         """Resolve sound and stream-copy choices for one feed."""
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         resolved = {}
         for name, default in (
                 ('replacement_sound', DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED),
@@ -822,7 +822,7 @@ class PodcastMixin:
         as unset. Pass global_actions (resolved) to skip the query for many feeds.
         """
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         if global_actions is None:
             global_actions = resolve_segment_category_actions_map(
                 self.get_setting('segment_category_actions'))
