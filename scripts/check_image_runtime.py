@@ -10,6 +10,9 @@ from concurrent.futures import ThreadPoolExecutor
 import socket
 from pathlib import Path
 
+# CVE-2026-18374 (fopen ccs= overflow) is fixed in this Ubuntu glibc.
+MIN_LIBC6 = '2.43-2ubuntu2.7'
+
 
 def run(*args):
     return subprocess.run(args, check=True, text=True, capture_output=True).stdout
@@ -21,6 +24,8 @@ parser.add_argument('--expected-families', nargs='+', default=[
 ])
 options = parser.parse_args()
 assert os.getuid() == 1000
+installed_libc6 = run('dpkg-query', '-W', '-f=${Version}', 'libc6')
+subprocess.run(['dpkg', '--compare-versions', installed_libc6, 'ge', MIN_LIBC6], check=True)
 provenance = {}
 for record in sorted(Path('/usr/share/minuspod').glob('*-security/built-packages.json')):
     run('/opt/venv/bin/python', str(record.parent / 'build_media_security_packages.py'), '--verify-installed')
@@ -77,6 +82,7 @@ with tempfile.TemporaryDirectory() as directory:
     text_handle = libc.fopen(str(text).encode(), b'r,ccs=UTF-8')
     assert text_handle and libc.fgetwc(text_handle) == ord('o')
     assert libc.fclose(text_handle) == 0
+    assert not libc.fopen(str(text).encode(), b'r,ccs=')
     cairo = ctypes.CDLL('libcairo.so.2')
     cairo.cairo_image_surface_create.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
     cairo.cairo_image_surface_create.restype = ctypes.c_void_p

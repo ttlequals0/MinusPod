@@ -68,6 +68,8 @@ RUN : "$MINUSPOD_VERSION" && apt-get update && apt-get install -y --no-install-r
     tzdata \
     unzip \
     && apt-get upgrade -y \
+    # CVE-2026-18374 fix ships in Ubuntu glibc 2.43-2ubuntu2.7
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libc6)" ge 2.43-2ubuntu2.7 \
     && rm -rf /usr/lib/python3/dist-packages/cryptography* \
               /usr/lib/python3/dist-packages/PyJWT* \
               /usr/lib/python3/dist-packages/jwt* \
