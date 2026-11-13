@@ -285,8 +285,6 @@ class AudioAnalyzer:
     def analyze(
         self,
         audio_path: str,
-        transcript_segments: list[dict] | None = None,
-        run_parallel: bool = False,
         status_callback: Callable | None = None,
         feed_id: int | None = None,
         force_cue_detection: bool = False,
@@ -296,8 +294,6 @@ class AudioAnalyzer:
 
         Args:
             audio_path: Path to the audio file
-            transcript_segments: Optional transcript (unused, kept for API compat)
-            run_parallel: Unused (kept for API compatibility)
             status_callback: Optional callback(stage, progress) for status updates
             feed_id: Optional feed PK; when set, selects the per-feed cue
                 template matcher over the spectral fallback (issue #350)

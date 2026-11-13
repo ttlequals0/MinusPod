@@ -14,7 +14,7 @@ bootstrap('chapters_generator_test_')
 
 import chapters_generator
 from chapters_generator import (
-    ChaptersGenerator, _parse_description_anchors, TOPIC_DETECTION_TEMPERATURE,
+    ChaptersGenerator, _parse_description_anchors,
     build_segment_hints,
 )
 from llm_client import ProviderRateLimitedError
@@ -390,23 +390,6 @@ class TestDescriptionAnchorPromptInjection:
         assert 'Candidate boundaries from show notes:' not in prompt
         assert 'Episode description:' in prompt
         assert 'A discussion about modern podcasting' in prompt
-
-
-class TestTopicDetectionTemperature:
-    """Topic detection runs at the low TOPIC_DETECTION_TEMPERATURE constant."""
-
-    def test_temperature_passed_to_llm(self):
-        assert TOPIC_DETECTION_TEMPERATURE == 0.1
-
-        gen, stub = _make_generator_with_stub(canned_text='')
-        gen._detect_topic_boundaries(
-            transcript='[00:00] x',
-            start_time=0.0,
-            end_time=1800.0,
-            num_splits=3,
-        )
-        assert stub.calls, 'LLM must have been called'
-        assert stub.calls[-1]['temperature'] == TOPIC_DETECTION_TEMPERATURE
 
 
 class TestChapterTunablesAreConfigDriven:

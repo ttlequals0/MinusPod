@@ -48,7 +48,6 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detect
         feed_id = podcast_row.get('id') if podcast_row else None
         result = audio_analyzer.analyze(
             audio_path,
-            transcript_segments=segments,
             feed_id=feed_id,
             force_cue_detection=force_cue_detection,
             status_callback=lambda stage, progress: common._publish_status(

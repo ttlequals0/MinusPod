@@ -38,7 +38,6 @@ from utils.pattern_scope import pattern_passes_scope  # noqa: E402
 DEFAULT_OLD_REF = 'v2.101.34'
 OLD_MODULE_NAME = '_fingerprint_matcher_old'
 GATE_SCORE = 0.70
-BAND_LOW = 0.65
 CLOSE_EVIDENCE_LIMIT_S = 3.0
 EDGE_TOLERANCE_S = 1.0
 NO_ALIGNMENT = 'no alignment'
@@ -480,13 +479,6 @@ def compare_episode(ctx, ep, ep_ints, fp_duration, total_duration, old_matcher):
             close = ex['close_evidence_s']
         res['gained'].append({**row, 'confirmed_by_marker': marker is not None, 'close_evidence_s': close})
     return res
-
-
-def _counts(rows, key):
-    out = {}
-    for r in rows:
-        out[r[key]] = out.get(r[key], 0) + 1
-    return out
 
 
 def _timing(values):

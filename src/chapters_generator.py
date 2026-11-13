@@ -34,10 +34,6 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
-# Topic-detection LLM temperature. Low value keeps boundary choices reproducible
-# across reruns of the same transcript (title generation uses its own temperature).
-TOPIC_DETECTION_TEMPERATURE = 0.1
-
 # Patterns for MM:SS timestamps embedded in episode descriptions.
 _TIMESTAMP_PATTERNS = (
     re.compile(r'(?:^|\n)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-:]*\s*(.+?)(?=\n|$)'),

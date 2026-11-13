@@ -246,7 +246,3 @@ def recheck_auth(db) -> AuthState:
         holder = _holder(create=True)
         holder.state, holder.pending, holder.failed = None, False, True
         raise
-
-
-def revoke_sessions(db) -> int:
-    return db.increment_setting_int(AUTH_GENERATION_KEY)
