@@ -133,22 +133,20 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
 
 
 def _proposed_span_agrees(hold, orig_ad):
-    """True when the hold carries the reviewer's own proposed ad sub-span
-    and the pass-2 ad names essentially the same audio (IoU of the two
-    sub-spans at or above PASS2_AUTOAPPROVE_PROPOSED_IOU). Two independent
-    signals agreeing on a sub-span corroborates regardless of how much of
-    the (padded) hold either one covers. Reasons in
-    PASS2_COVERAGE_ONLY_HOLD_REASONS never take this path."""
+    """True when the hold carries the reviewer's proposed ad sub-span and the
+    pass-2 ad names essentially the same audio (IoU at or above
+    PASS2_AUTOAPPROVE_PROPOSED_IOU). Two independent signals agreeing on a
+    sub-span corroborate regardless of how much of the (padded) hold either
+    covers. Reasons in PASS2_COVERAGE_ONLY_HOLD_REASONS never take this path."""
     if hold.get('hold_reason') in PASS2_COVERAGE_ONLY_HOLD_REASONS:
         return False
     p_start = hold.get('reviewer_proposed_start')
     p_end = hold.get('reviewer_proposed_end')
     if p_start is None or p_end is None or p_end <= p_start:
         return False
-    # The proposed span must actually reach into the hold: a reviewer that
-    # relocated the ad entirely outside the held span is not corroborating
-    # the hold, and intersecting a disjoint span would invert the stamped
-    # bounds and file a degenerate confirm.
+    # The proposed span must reach into the hold: a reviewer that relocated the
+    # ad outside the held span is not corroborating it, and intersecting a
+    # disjoint span would invert the stamped bounds and file a degenerate confirm.
     if overlap_seconds(p_start, p_end, hold['start'], hold['end']) <= 0:
         return False
     inter = overlap_seconds(orig_ad['start'], orig_ad['end'], p_start, p_end)
@@ -158,12 +156,13 @@ def _proposed_span_agrees(hold, orig_ad):
 
 def _corroborates_hold(overlapping, orig_ad, confidence,
                         min_cut_confidence):
-    """True when a confident non-held pass-2 ad is the independent
-    corroboration a held span was waiting for: it overlaps exactly that one
-    pending marker, and either covers nearly all of it while sitting mostly
-    inside it (an estimated hold needs only containment), or agrees with the
-    reviewer's own proposed sub-span (see _proposed_span_agrees). The ad is
-    still dropped (pending audio is never cut mid-pipeline); the hold is
+    """True when a confident non-held pass-2 ad is the independent corroboration
+    a held span was waiting for.
+
+    It overlaps exactly that one pending marker and either covers nearly all of
+    it while sitting mostly inside it (an estimated hold needs only containment)
+    or agrees with the reviewer's proposed sub-span (_proposed_span_agrees). The
+    ad is still dropped (pending audio is never cut mid-pipeline); the hold is
     stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
@@ -186,11 +185,11 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
 
 
 def _corroborated_span(hold, orig_ad):
-    """The sub-span the corroboration attests, clamped inside the hold: the
-    reviewer's proposed span when that is what agreed with the pass-2 ad
-    (_proposed_span_agrees), else the hold itself. Either way intersected
-    with the pass-2 ad's own bounds, since the ad never attests audio
-    outside itself."""
+    """The sub-span the corroboration attests, clamped inside the hold.
+
+    The reviewer's proposed span when that agreed with the pass-2 ad
+    (_proposed_span_agrees), else the hold itself; either way intersected with
+    the pass-2 ad's own bounds, since the ad never attests audio outside itself."""
     lo, hi = hold['start'], hold['end']
     if _proposed_span_agrees(hold, orig_ad):
         lo = max(lo, hold['reviewer_proposed_start'])
@@ -309,10 +308,11 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                                           fragment_policy=None, conflicts=None):
     """Split paired pass-2 candidates around protected processed spans.
 
-    ``carved_labels`` are original-time {start, end, label} spans naming the
-    outcome of each carved-off part; without them carved parts are not recorded.
-    ``fragment_policy`` 'keep' turns a fragment inside a beep into a conflict hold
-    appended to ``conflicts``, 'hold' drops it; both drop short unmeasured fragments.
+    ``carved_labels`` are original-time {start, end, label} spans naming each
+    carved-off part's outcome; without them carved parts are not recorded.
+    ``fragment_policy`` 'keep' turns a fragment inside a beep into a conflict
+    hold appended to ``conflicts``, 'hold' drops it; both drop short unmeasured
+    fragments.
     """
     ledger = ledger or Pass2Ledger()
     if not barriers_processed:
@@ -485,8 +485,7 @@ def _run_candidate_stages(slug, episode_id, processed, original, barriers, prote
                           validate, gate, holds=None, hold_overlaps=None, ledger=None):
     """Validation then gate; returns (processed, original, gate result).
 
-    With holds=None the gate sees no holds, so a fragment validation moved into one is dropped.
-    """
+    With holds=None the gate sees no holds, so a fragment validation moved into one is dropped."""
     ledger = ledger or Pass2Ledger()
     try:
         processed, original = validate(processed, original, barriers)
@@ -573,37 +572,31 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     pass-2-supported span inside a hold the fast path could not corroborate,
     for a review that may release only that span. A hold can have several.
 
-    Held ads (held_for_review=True) divert to v_ads_held as original-coord
-    twins with was_cut=False. They must NOT enter v_ads_for_ui: that list
-    feeds all_cuts_for_assets (transcript/chapter mapping) and the pass-2
-    reviewer's accepted pool. Contamination would corrupt both.
+    Held ads (held_for_review=True) divert to v_ads_held as original-coord twins
+    with was_cut=False. They must not enter v_ads_for_ui: that list feeds
+    all_cuts_for_assets (transcript/chapter mapping) and the pass-2 reviewer's
+    accepted pool, and contamination would corrupt both.
 
     ``pass1_held_markers`` are pass-1 marker dicts held for review (original
-    coordinates). A pass-2 cut overlapping one is ALWAYS dropped -- cutting
-    would destroy audio the hold protects, and a second held marker would
-    double-count pending_review_count. When the dropped ad corroborates a
-    releasable hold (see _corroborates_hold), the hold's
-    marker dict is stamped pass2_corroborated in place so
-    _file_corroborated_hold_approvals can approve it through the standard
-    human-approval path, before the run finalizes, and the run's own recut
-    cuts it. corroborated_count is the number of newly stamped markers (they
-    need a re-save).
+    coordinates). A pass-2 cut overlapping one is always dropped: cutting would
+    destroy audio the hold protects, and a second held marker would double-count
+    pending_review_count. When the dropped ad corroborates a releasable hold
+    (see _corroborates_hold), the hold's marker dict is stamped
+    pass2_corroborated in place so _file_corroborated_hold_approvals can approve
+    it through the human-approval path before the run finalizes, and the run's
+    recut cuts it. corroborated_count is the number of newly stamped markers
+    (they need a re-save).
 
-    Note: verification ads can never carry cue evidence (snap is pass-1 only),
-    so on a cue-gated feed every pass-2 proposal is held -- intended
-    conservative behavior, documented here.
+    Verification ads never carry cue evidence (snap is pass-1 only), so on a
+    cue-gated feed every pass-2 proposal is held, intentionally.
 
-    A standalone miss (below min_cut_confidence, overlapping no pass-1
-    marker) used to be silently discarded. It now either auto-cuts (when
-    ``verification_miss_autocut_min_confidence`` is enabled, i.e. > 0, and
-    the ad clears it -- routed into v_ads_to_cut exactly like a gated cut
-    ad) or, failing that, is held for review when it clears
-    ``verification_miss_hold_min_confidence`` (HOLD_REASON_VERIFICATION_MISS,
-    diverted to v_ads_held same as any other held ad). Below both floors it
-    is still discarded, now with a log line naming what was dropped and why.
-    Missing kwargs fall back to the settings-registry defaults so direct
-    callers (tests, ad-hoc gate invocations) get the same behavior as an
-    unconfigured install.
+    A standalone miss (below min_cut_confidence, overlapping no pass-1 marker)
+    either auto-cuts (``verification_miss_autocut_min_confidence`` > 0 and the
+    ad clears it; routed into v_ads_to_cut like a gated cut) or is held for
+    review when it clears ``verification_miss_hold_min_confidence``
+    (HOLD_REASON_VERIFICATION_MISS, diverted to v_ads_held). Below both floors
+    it is discarded with a log line. Missing kwargs fall back to the
+    settings-registry defaults, matching an unconfigured install.
 
     ``hold_overlaps``, when a list, receives a pre-gate copy of each hold-overlapping
     (processed, original) pair so the caller can keep its parts outside the hold.
@@ -625,9 +618,9 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     word_edges = WordEdges(segments)
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
-        # Checked before the pass-1 overlap below so a held ad can never
-        # corroborate a hold into auto-approval; one that repeats a pass-1
-        # span folds into it at the marker merge seam instead.
+        # Checked before the pass-1 overlap below so a held ad can never corroborate
+        # a hold into auto-approval; one repeating a pass-1 span folds into it at the
+        # marker merge seam instead.
         if ad.get('held_for_review'):
             orig_ad['was_cut'] = False
             orig_ad['held_for_review'] = True
@@ -646,21 +639,20 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                 hold_overlaps.append((dict(ad), dict(orig_ad)))
             ledger.record_carved(orig_ad, labelled_spans(overlapping, 'covered:pass1_hold'))
             ledger.supersede(orig_ad)
-            # A pass-2 cut overlapping a pass-1 held span would destroy the
-            # audio the hold protects; drop it (never cut). The pass-1 held
-            # marker already represents the region, so no second held marker
-            # either -- that would double-count pending_review_count.
+            # A pass-2 cut overlapping a pass-1 held span would destroy the audio
+            # the hold protects; drop it (never cut). The pass-1 held marker
+            # already represents the region, so no second held marker either, or
+            # pending_review_count would double-count.
             if _corroborates_hold(overlapping, orig_ad,
                                    confidence, min_cut_confidence):
                 hold = overlapping[0]
                 if not hold.get('pass2_corroborated'):
                     hold['pass2_corroborated'] = True
-                    # The corroborated sub-span: what pass 2 actually attested
-                    # as ad, clamped inside the hold (or, when the reviewer's
-                    # own proposed span is what agreed, clamped inside that
-                    # instead). The auto-approve confirm is trimmed to this,
-                    # so hold padding the detection excluded is never cut on
-                    # the detection's authority.
+                    # The corroborated sub-span: what pass 2 attested as ad,
+                    # clamped inside the hold (or inside the reviewer's proposed
+                    # span when that is what agreed). The auto-approve confirm is
+                    # trimmed to this, so hold padding the detection excluded is
+                    # never cut on the detection's authority.
                     hold['pass2_corroborated_span'] = _corroborated_span(
                         hold, orig_ad)
                     flags = hold.setdefault('validation', {}).setdefault('flags', [])
@@ -695,11 +687,10 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             orig_ad['detection_stage'] = 'verification'
             v_ads_for_ui.append(orig_ad)
             continue
-        # Standalone miss: below min_cut_confidence, overlaps no pass-1
-        # marker. Deliberately re-reads raw confidence rather than reusing
-        # ``confidence`` (which prefers the validator's adjusted_confidence)
-        # -- this bucketing is a distinct, more conservative decision from
-        # the primary cut gate above.
+        # Standalone miss: below min_cut_confidence, overlaps no pass-1 marker.
+        # Deliberately re-reads raw confidence rather than ``confidence`` (which
+        # prefers the validator's adjusted_confidence): this bucketing is a
+        # distinct, more conservative decision from the primary cut gate above.
         conf = float(ad.get('confidence') or 0.0)
         if (verification_miss_autocut_min_confidence > 0
                 and conf >= verification_miss_autocut_min_confidence):
@@ -740,8 +731,8 @@ def labelled_spans(markers, label):
 def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):
     """True when ``ad`` falls inside one of the cuts ffmpeg applied.
 
-    ``total_duration`` clamps the ad to the audio bounds first: applied cuts
-    are clamped (compute_applied_cuts), so an ad whose end overruns the file
+    ``total_duration`` clamps the ad to the audio bounds first: applied cuts are
+    clamped (compute_applied_cuts), so an ad whose end overruns the file
     (Whisper's last segment vs ffprobe) would never match its own cut.
     """
     start = max(0.0, ad['start'])
@@ -756,17 +747,17 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                pass1_cuts=None, ledger=None):
     """Drop pass-2 ads the recut did not actually remove (e.g. <10s filtered).
 
-    Mutates v_ads_to_cut / v_ads_for_ui in place so the count and the UI list
-    only claim cuts that exist in the audio. Merged-away ads still count: a
-    merged span covers its members.
+    Mutates v_ads_to_cut / v_ads_for_ui in place so the count and UI list only
+    claim cuts that exist in the audio. Merged-away ads still count: a merged
+    span covers its members.
     """
     ledger = ledger or Pass2Ledger()
     twin = {id(p): o for p, o in zip(verification_ads_processed,
                                      verification_ads_original, strict=True)}
     # Action reconciliation can replace a candidate with split copies after
     # validation. Prefer the final cut/UI pairing so a short split fragment
-    # filtered by AudioProcessor also removes its exact UI marker. Not
-    # strict: a cut can legitimately lack a UI twin (e.g. merged spans).
+    # filtered by AudioProcessor also removes its exact UI marker. Not strict: a
+    # cut can legitimately lack a UI twin (e.g. merged spans).
     twin.update({id(p): o for p, o in zip(v_ads_to_cut, v_ads_for_ui,
                                           strict=False)})
     ts_map = None

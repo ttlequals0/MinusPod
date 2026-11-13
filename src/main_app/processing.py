@@ -266,14 +266,13 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     if is_background_follower():
         return False, "queue_only"
 
-    # Rate-limit hold (#696): the one choke point every start goes through,
-    # so a Play or Reprocess waits in the queue like the rest. Provider- and
-    # slot-scoped: checked against every (provider, credential_slot) this
-    # run's phases would use, so a run needing only healthy accounts is
-    # admitted even while a different provider or a different account on
-    # the same provider is held, and a run needing a held account is
-    # refused before it can spend a call on a healthy one it cannot finish
-    # with. Mode-scoped too: a run that makes no LLM call is never refused.
+    # Rate-limit hold (#696): the one choke point every start goes through, so a
+    # Play or Reprocess waits in the queue like the rest. Provider- and
+    # slot-scoped: checked against every (provider, credential_slot) this run's
+    # phases would use, so a run needing only healthy accounts is admitted while
+    # another provider or account is held, and one needing a held account is
+    # refused before spending a call it cannot finish. Mode-scoped too: a run
+    # that makes no LLM call is never refused.
     required_providers = admission._required_providers_for_admission(slug, episode_id)
     if required_providers is None:
         if is_queue_paused(db):
@@ -412,16 +411,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if detection_notes:
         audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(detection_notes)} chars)")
 
-    # Effective mode: a per-episode pass-through override (#746) wins over
-    # the feed mode; otherwise the feed mode's own precedence (passthrough >
-    # skip-detection > keep-content > cue_only > standard) applies. The
-    # branches below check the resolved mode, never the raw columns.
+    # Effective mode: a per-episode pass-through override (#746) wins over the
+    # feed mode, whose own precedence is passthrough > skip-detection >
+    # keep-content > cue_only > standard. Branches below check the resolved
+    # mode, never the raw columns.
     processing_mode = resolve_processing_mode(podcast_settings, episode_data)
 
-    # Pass-through (#521): the feed opted out of processing entirely.
-    # Full and AI reprocesses also land here while the toggle is on; the
-    # per-episode Recut action branches earlier and still works on
-    # episodes that have retained originals and markers.
+    # Pass-through (#521): the feed opted out of processing entirely. Full and
+    # AI reprocesses also land here while the toggle is on; the per-episode
+    # Recut action branches earlier and still works on episodes with retained
+    # originals and markers.
     if processing_mode == PROCESSING_MODE_PASSTHROUGH:
         return recut._passthrough_episode(slug, episode_id, episode_url,
                                      episode_title, podcast_name,
@@ -456,10 +455,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     except Exception as exc:
         audio_logger.debug(f"pre-run failover probe skipped: {exc}")
 
-    # Per-run pipeline stats (#519), recorded as JSON with the history row
-    # and renamed to API casing in api/episodes/core.py. Defined before the try
-    # so the failure handler can persist whatever was gathered up to the
-    # point of failure.
+    # Per-run pipeline stats (#519), stored as JSON with the history row and
+    # renamed to API casing in api/episodes/core.py. Defined before the try so
+    # the failure handler can persist what was gathered up to the failure.
     run_stats = {'mode': reprocess_mode or 'auto'}
     if skip_detection:
         run_stats['detection_skipped'] = True
@@ -521,10 +519,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 db.release_provider_spend(rid)
 
     def _fire_post_completion_actions():
-        # Closes over this run's fixed identifiers. Both hooks decline runs
-        # that are not theirs, so both success exits call this unguarded.
-        # episode_data is the pre-run snapshot, so the degraded guard sees
-        # the row as it stood before this run.
+        # Closes over this run's fixed identifiers. Both hooks decline runs that
+        # are not theirs, so both success exits call this unguarded. episode_data
+        # is the pre-run snapshot, so the degraded guard sees the row as it was.
         finalize._maybe_enqueue_degraded_redetect(
             slug, episode_id, episode_url, episode_title, podcast_name,
             episode_description, episode_published_at, episode_data, run_stats)
@@ -570,10 +567,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             and not transcribe._forced_transcription_already_done(
                 slug, episode_id,
                 (episode_data or {}).get('reprocess_requested_at')))
-        # Reset first: last_transcription_stats is a shared-singleton field
-        # (see transcriber.Transcriber.__init__), so a stale value from an
-        # earlier episode must not be mistaken for this run's outcome when
-        # transcription is skipped or an existing transcript is reused.
+        # Reset first: last_transcription_stats is a shared-singleton field (see
+        # transcriber.Transcriber.__init__), so a stale value from an earlier
+        # episode must not be read as this run's outcome when transcription is
+        # skipped or an existing transcript is reused.
         transcriber.last_transcription_stats = None
         transcribe_outcome = {}
         yt_run = None
@@ -622,10 +619,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 preloaded_segments=yt_run.segments if yt_run else None)
         finally:
             # Recorded even when _download_and_transcribe raises (OOM
-            # exhaustion): the failure handler's history row still gets the
-            # batch/retry/device context, not just a bare error string.
-            # One read plus a copy: a concurrent run can replace or mutate
-            # the shared singleton field between two reads of it.
+            # exhaustion), so the failure handler's history row keeps the
+            # batch/retry/device context. One read plus a copy: a concurrent run
+            # can mutate the shared singleton field between two reads.
             transcription_stats = transcriber.last_transcription_stats
             if transcription_stats is not None:
                 run_stats['transcription'] = dict(transcription_stats)
@@ -646,13 +642,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
         # Started after transcription so the natural delay separates the two
-        # fetches, but run on a worker thread so audio analysis (stage 2)
-        # proceeds concurrently: the result is only consumed by first-pass
-        # detection (stage 3), so the join happens after stage 2. Non-fatal.
-        # Its only consumer is ad detection, so a skip-detection feed also
-        # skips the second fetch. Thread-safe: the fetch reads audio_path and
-        # uses only thread-local db connections plus the lock-guarded
-        # status_service; audio analysis shares no mutable state with it.
+        # fetches, on a worker thread so audio analysis (stage 2) runs
+        # concurrently; only first-pass detection (stage 3) consumes the result,
+        # so the join happens after stage 2. Non-fatal. A skip-detection feed
+        # skips the second fetch. Thread-safe: it reads audio_path and uses only
+        # thread-local db connections plus the lock-guarded status_service.
         dai_differential = None
         # Rebuilt from the differential once detection runs; the skip and
         # cue-only paths reach the late keep partition without it.
@@ -682,11 +676,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 except BaseException as e:
                     diff_outcome['error'] = e
 
-            # daemon + abandonment is deliberate: if the episode fails before
-            # the join, the in-flight fetch finishes in the background (at
-            # worst persisting a soon-overwritten error differential) and a
-            # daemon thread never blocks interpreter/SIGTERM shutdown the way
-            # concurrent.futures' atexit join of non-daemon workers would.
+            # daemon + abandonment is deliberate: if the episode fails before the
+            # join, the in-flight fetch finishes in the background (at worst
+            # persisting a soon-overwritten error differential), and a daemon
+            # thread never blocks shutdown the way an atexit join of non-daemon
+            # workers would.
             diff_thread = threading.Thread(
                 target=run_context.run_in_worker_thread(_diff_worker), daemon=True,
                 name=f"dai-diff-{slug}-{episode_id}")
@@ -708,11 +702,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             force_cue_detection=cue_only)
             finally:
                 signals._publish_primary_cues(primary_cue_future, audio_analysis_result)
-            # Block on the differential fetch before its result is consumed.
-            # No timeout: the serial call blocked until fetch_and_diff's own
-            # internal timeouts resolved, and the join preserves that. An
-            # exception from the fetch (it is documented never to raise, but
-            # reproduce the old call-site semantics anyway) re-raises here.
+            # Block on the differential fetch before its result is consumed. No
+            # timeout: the earlier serial call blocked until fetch_and_diff's own
+            # timeouts resolved, and the join preserves that. An exception from
+            # the fetch (documented never to raise) re-raises here.
             if diff_thread is not None:
                 diff_thread.join()
                 if 'error' in diff_outcome:
@@ -739,10 +732,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                 f"{current_pass}:{stage}", percent)
 
             # Build the per-episode immutable context once. Podcast tags drive
-            # the matcher's community-pattern eligibility check; podcast_id is
-            # the integer DB PK used by the reviewer's episode_meta. Re-fetch
-            # the row here: download+transcription can take minutes, and tag
-            # edits made meanwhile must be visible to pattern eligibility.
+            # community-pattern eligibility; podcast_id is the integer DB PK used
+            # by the reviewer's episode_meta. Re-fetch the row: download and
+            # transcription take minutes and tag edits meanwhile must be visible.
             podcast_row_for_ctx = db.get_podcast_row(slug)
             podcast_tags_for_ctx = None
             if podcast_row_for_ctx and podcast_row_for_ctx.get('tags'):
@@ -885,10 +877,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 all_ads = first_pass_ads.copy()
 
-                # Keep/mark-action bypass: pull keep-like markers out before
-                # the validator/reviewer see them, so the resurrection pool
-                # (which iterates all_ads_with_validation) never resurrects
-                # one. Merged back into the saved marker list below.
+                # Keep/mark-action bypass: pull keep-like markers out before the
+                # validator/reviewer see them, so the resurrection pool (which
+                # iterates all_ads_with_validation) never resurrects one. Merged
+                # back into the saved marker list below.
                 keep_override = keep_rules._make_keep_differential_override(dai_differential)
                 keep_ads, all_ads = keep_rules._partition_keep_ads(
                     all_ads, segment_actions, keep_override)
@@ -931,12 +923,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                           (podcast_settings or {}).get('description_trim_mode')),
                     )
 
-                # Late keep partition: _refine_and_validate's heuristic
-                # pre/post-roll and VAD-gap markers are synthesized after the
-                # early partition above ran, so a keep-resolving one can
-                # still be sitting here unstamped. Catch it now, before the
-                # reviewer's resurrection pool and the terminal-snap/
-                # tail-completion sweeps see it, and join it to keep_ads.
+                # Late keep partition: _refine_and_validate synthesizes heuristic
+                # pre/post-roll and VAD-gap markers after the early partition, so
+                # a keep-resolving one may still be unstamped here. Catch it before
+                # the reviewer's resurrection pool and the terminal-snap/
+                # tail-completion sweeps, and join it to keep_ads.
                 late_keep_ads, all_ads_with_validation = keep_rules._partition_keep_ads(
                     all_ads_with_validation, segment_actions, keep_override)
                 if late_keep_ads:
@@ -1049,8 +1040,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must
-            # use that list, not the requested one. 'beep' is derived here,
-            # not stored, so persisted marker dicts never carry that flag.
+            # use that list, not the requested one. 'beep' is derived here, not
+            # stored, so persisted marker dicts never carry that flag.
             audio_segments = [dict(ad, beep=(ad['action_applied'] == 'beep'))
                               for ad in ads_to_remove]
             # keep_ads barrier the render for the same reason as on the
@@ -1123,9 +1114,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             _check_cancel(cancel_event, slug, episode_id)
 
             # Stage 6b: Optional loudness normalization (second ffmpeg pass).
-            # Applied only to the FINAL settled output so the cut path
-            # (filter_complex) and the ad-detection audio analyzers see
-            # uncompressed dynamics.
+            # Applied only to the final settled output so the cut path
+            # (filter_complex) and the ad-detection analyzers see uncompressed
+            # dynamics.
             normalize_raw = db.get_setting('audio_normalize_enabled')
             if (normalize_raw or 'false').lower() == 'true':
                 run_stats['normalization_skipped'] = False
@@ -1154,11 +1145,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['normalization_skipped'] = True
             _check_cancel(cancel_event, slug, episode_id)
 
-            # Merge pass 2 ads into combined list for UI.
-            # v_ads_held (held-for-review and category-kept originals) merge
-            # here too so every uncut pass-2 marker survives persistence. They
-            # stay separate from v_ads_for_ui so the reviewer pool and asset
-            # mapping are never contaminated with uncut ads.
+            # Merge pass 2 ads into the combined UI list. v_ads_held (held and
+            # category-kept originals) merge too so every uncut pass-2 marker
+            # survives persistence; they stay separate from v_ads_for_ui so the
+            # reviewer pool and asset mapping never see uncut ads.
             merge_v = verify._dedupe_pass2_markers(
                 verify._stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
             # A pass-2 marker repeating a span pass 1 already persisted folds
@@ -1236,10 +1226,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             usage = run.failover_usage() if run else None
             if usage:
                 run_stats['failover'] = usage
-            # File the confirms before finalizing so the recut below applies
-            # them in this run: two finalizes wrote two history rows and
-            # notified twice for one reprocess.
-            # A matched chapter's trim marker rides the same single in-run recut.
+            # File the confirms before finalizing so the recut below applies them
+            # in this run (two finalizes wrote two history rows and notified
+            # twice for one reprocess). A matched chapter's trim marker rides the
+            # same single in-run recut.
             approvals_filed = verify._file_corroborated_hold_approvals(
                 slug, episode_id, all_ads_with_validation,
                 corrections=user_corrections)

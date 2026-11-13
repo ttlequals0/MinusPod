@@ -64,9 +64,9 @@ audio_logger = logging.getLogger('podcast.audio')
 def _dedupe_pass2_markers(markers):
     """Drop repeats of the same pass-2 span so a marker cannot persist twice.
 
-    v_ads_for_ui and v_ads_held are merged by concatenation, so a marker that
-    reaches both lists would be saved twice and render as duplicate review
-    cards. Identity is the rounded span plus hold reason; the first wins.
+    v_ads_for_ui and v_ads_held are merged by concatenation, so a marker in
+    both lists would render as duplicate review cards. Identity is the rounded
+    span plus hold reason; the first wins.
     """
     seen = set()
     unique = []
@@ -109,9 +109,8 @@ def _merge_pass2_markers(all_ads, pass2_markers):
 def _stamp_pass2_marker_categories(markers):
     """Validate the category on pass-2 markers at save time.
 
-    Pass-2 markers never route through the pass-1 merge seam, so an
-    unrecognized value would persist and an absent one must stay absent.
-    Mutates in place; returns markers for chaining.
+    Pass-2 markers skip the pass-1 merge seam, so an unrecognized value would
+    persist and an absent one must stay absent. Mutates in place; returns markers.
     """
     for m in markers:
         if m.get('category') in SEGMENT_CATEGORIES:
@@ -145,18 +144,17 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
                                       differential_override=None):
     """Apply the feed's category actions to paired pass-2 candidates.
 
-    Pass 2 has parallel processed/original coordinate lists, so its keep
-    partition cannot reuse the single-list pass-1 helper. Kept candidates are
-    removed from both detection lists before validation and reviewer routing;
-    both coordinate copies are returned so the processed marker can protect a
-    kept tail from the validator's end-of-episode extension while the original
-    marker is persisted. Remaining candidates remain unstamped until confidence
-    gating and review decide which ones the recut will actually render.
+    Pass 2 has parallel processed/original coordinate lists, so the single-list
+    pass-1 keep partition cannot be reused. Kept candidates leave both lists
+    before validation and reviewer routing; both coordinate copies are returned
+    so the processed marker can protect a kept tail from the validator's
+    end-of-episode extension while the original is persisted. Remaining
+    candidates stay unstamped until gating and review decide what the recut
+    renders.
 
-    The same two standing overrides as pass 1 apply: a defined pattern, or a
-    span overlapping a measured differential region. The differential test
-    uses the original marker, since the regions are in original-audio
-    coordinates while the processed marker is not.
+    The same two overrides as pass 1 apply: a defined pattern, or a span
+    overlapping a measured differential region. The differential test uses the
+    original marker, since regions are in original-audio coordinates.
 
     Returns ``(remaining_processed, remaining_original, kept_processed,
     kept_original)``.
@@ -203,10 +201,10 @@ def _exclude_category_kept_spans(processed_ads, original_ads,
                                   kept_original=None):
     """Subtract category-kept pass-2 spans from remaining candidates.
 
-    Heuristic roll detection can overlap an LLM marker whose category action
-    is keep. Split the candidate on the processed timeline, then remap each
-    surviving fragment to original coordinates so validation, recutting, and
-    the UI retain paired markers without cutting through the kept audio.
+    Heuristic roll detection can overlap a keep-action LLM marker. Split the
+    candidate on the processed timeline, then remap each fragment to original
+    coordinates so validation, recutting and the UI keep paired markers without
+    cutting through kept audio.
     """
     return _split_pass2_candidates_around_spans(
         processed_ads, original_ads, kept_processed, pass1_cuts,
@@ -218,9 +216,8 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
     """Make actual pass-2 cuts disjoint when their render actions differ.
 
     A beep preserves timeline duration while remove shrinks it, so overlapping
-    spans cannot both reach ffmpeg. Beep is explicit protected replacement
-    intent: split remove candidates around the beep spans, then restore a
-    time-ordered paired list for recutting and UI persistence.
+    spans cannot both reach ffmpeg. Beep is protected replacement intent: split
+    remove candidates around beep spans, then restore a time-ordered paired list.
     """
     if len(processed_cuts) != len(original_cuts):
         raise ValueError(
@@ -273,23 +270,22 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 segment_actions=None,
                                 keep_barriers_processed=None, ledger=None,
                                 false_positive_corrections=(), podcast_name=None):
-    """Validate pass-2 ad candidates against processed-coordinate validator.
+    """Validate pass-2 ad candidates against the processed-coordinate validator.
 
     Maps the run's user FP corrections from original to processed coordinates,
-    then filters both processed and original ad lists by validator decision.
-    ``processed_duration`` is the real (ffprobe) duration of the pass-1
-    output; the validator clamps and extends trailing ads against it. Falls
-    back to the last transcript segment's end when not provided.
+    then filters both processed and original lists by validator decision.
+    ``processed_duration`` is the real (ffprobe) duration of the pass-1 output,
+    which the validator clamps and extends trailing ads against; falls back to
+    the last transcript segment's end.
 
-    ``max_ad_duration_override`` and ``cue_gate_enabled`` are passed through
-    from the per-feed resolvers (one read, done by the caller). Note:
-    verification ads can never carry cue evidence (snap is pass-1 only), so on
-    a cue-gated feed every pass-2 proposal will be held -- intended conservative
-    behavior.
+    ``max_ad_duration_override`` and ``cue_gate_enabled`` come from the
+    per-feed resolvers (read once by the caller). Verification ads never carry
+    cue evidence (snap is pass-1 only), so on a cue-gated feed every pass-2
+    proposal is held, intentionally.
 
-    ``keep_barriers_processed`` holds the hard protected ranges on the processed
-    timeline. Validator-only copies stay in the ordered span list so a
-    removable candidate cannot be merged or extended through them.
+    ``keep_barriers_processed`` holds hard protected ranges on the processed
+    timeline. Validator-only copies stay in the ordered span list so a removable
+    candidate cannot be merged or extended through them.
 
     ``ledger`` records rejected candidates, those merged into a sibling and
     those clamped away past the end of the audio.
@@ -318,10 +314,9 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         # Whisper's last segment end approximates the file duration but can
         # over- or under-run it; only used when the ffprobe probe failed.
         processed_duration = verification_segments[-1]['end']
-    # No positional_prior here: pass 2 runs in processed-audio coordinates
-    # (post-cut timeline), so zones learned on original durations do not map.
-    # splice_veto=False: pass 2 has no audio analysis, so the splice veto
-    # could never corroborate and its settings reads are skipped.
+    # No positional_prior: pass 2 runs in processed-audio coordinates, so zones
+    # learned on original durations do not map. splice_veto=False: with no audio
+    # analysis the veto could never corroborate, so its settings reads are skipped.
     v_validator = detect._build_validator(
         processed_duration, verification_segments,
         episode_description,
@@ -335,11 +330,9 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     )
 
     # Pair each processed candidate with its original-coords twin before
-    # validation: validate() sorts, merges and drops ads, so positional
-    # indexing against the unvalidated original list mispairs. The shallow
-    # ad.copy() inside validate() carries the reference through; a merge
-    # keeps the surviving ad's twin and drops the absorbed one, so the
-    # original list mirrors the processed list 1:1.
+    # validation: validate() sorts, merges and drops ads, so positional indexing
+    # against the unvalidated original list mispairs. The shallow ad.copy() in
+    # validate() carries the reference through; a merge keeps the survivor's twin.
     for proc, orig in zip(verification_ads_processed, verification_ads_original, strict=True):
         proc['_orig_twin'] = orig
 
@@ -402,8 +395,7 @@ def _pass2_confirm_span(marker):
 def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
     """File the confirm corrections for pass-2-corroborated holds.
 
-    Returns the count filed; the caller owns the recut that applies them, so
-    the pipeline can fold them into its own and finalize once."""
+    Returns the count filed; the caller owns the recut that applies them."""
     holds = [m for m in markers or []
              if m.get('pass2_corroborated') and is_pending_review(m)
              and (m.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS
@@ -521,10 +513,9 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
 def _pass2_cuts_in_original(recut_applied, pass1_cuts):
     """Map the cuts the recut actually rendered back to original coordinates.
 
-    Asset timestamp math credits one replacement beep per span, so it must
-    see the rendered cut list (compute_applied_cuts output, one beep each),
-    not the pre-merge UI ad list -- gap-merged pass-2 ads received a single
-    beep in the audio.
+    Asset timestamp math credits one replacement beep per span, so it must see
+    the rendered cut list (compute_applied_cuts output), not the pre-merge UI ad
+    list: gap-merged pass-2 ads received a single beep.
     """
     if not recut_applied:
         return []
@@ -745,8 +736,7 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
 def _render_barriers(hard, markers, rendered_cuts=(), pass1_cuts=None):
     """Render kwargs: cuts clip at hard ranges and never bridge or extend over a pending hold.
 
-    With pass1_cuts the holds are mapped onto the pass-1 output timeline, where hard already is.
-    """
+    With pass1_cuts the holds map onto the pass-1 output timeline, where hard already is."""
     seen = {id(cut) for cut in rendered_cuts}
     holds = []
     for m in markers or []:
@@ -763,9 +753,9 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                             cut_barriers=None, hard_barriers=None):
     """Re-cut the pass-1 processed audio with verification ads.
 
-    Returns (processed_path, recut_applied, recut_ok) where recut_applied is
-    the cut list ffmpeg actually applied. recut_ok is False if the re-cut
-    failed (caller should clear v_ads_for_ui).
+    Returns (processed_path, recut_applied, recut_ok): recut_applied is the cut
+    list ffmpeg applied; recut_ok is False if the re-cut failed (caller should
+    clear v_ads_for_ui).
     """
     # 'beep' is derived from action_applied, same as the pass-1 call site,
     # so a marker stamped beep in an earlier pass renders as beep here too
@@ -800,29 +790,29 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             differential_override=None, run_stats=None,
                             original_audio_path=None, pass1_markers=None,
                             pass1_reviewer_rejects=None, *, false_positive_corrections):
-    """Pipeline stage: Run verification (second pass) on processed audio.
+    """Pipeline stage: run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
-    compute_applied_cuts), not the requested list -- every use here is
-    processed-to-original timestamp mapping.
+    compute_applied_cuts), not the requested list, since every use here maps
+    processed to original timestamps.
 
     ``pass1_held_markers`` are pass-1 markers held for review (original
     coordinates); a pass-2 cut overlapping one is dropped so the protected
-    region survives. A corroborating re-detection of a differential hold
-    stamps the marker dict pass2_corroborated in place so the run files the
-    approval before it finalizes.
+    region survives. A corroborating re-detection of a differential hold stamps
+    the marker dict pass2_corroborated in place so the run files the approval
+    before it finalizes.
 
     ``pass1_kept_markers`` are pass-1 markers with a keep-like action_applied;
     a verification finding overlapping one is dropped before it can be cut,
     held, or logged as a miss (see _exclude_kept_spans_from_verification).
 
     When an eligible pass-2 cut joins a pass-1 cut, ``pass1_cuts`` is mutated
-    only after a successful original-audio rerender. It then holds the final
+    only after a successful original-audio rerender, then holds the final
     rendered union and is the sole cut authority for downstream assets.
 
-    ``skip_verification`` covers both opt-outs the caller resolves: skipping
-    ad detection (#538), which would otherwise still pay for a second LLM
-    scan, and the per-feed skip of pass 2 alone (#599).
+    ``skip_verification`` covers both opt-outs the caller resolves: skipping ad
+    detection (#538), which would otherwise pay for a second LLM scan, and the
+    per-feed skip of pass 2 alone (#599).
 
     Returns (verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held,
     processed_path, verification_cue_count, verification_ok,
@@ -1003,10 +993,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
 
-            # Real duration of the pass-1 output, probed once: validation
-            # clamps and extends trailing ads against it (Whisper's last
-            # segment end can over- or under-run the file), and the recut
-            # coverage check below needs the same pre-recut bounds.
+            # Real duration of the pass-1 output, probed once: validation clamps
+            # and extends trailing ads against it (Whisper's last segment end can
+            # over- or under-run the file) and the recut coverage check needs the
+            # same pre-recut bounds.
             processed_duration = local_audio_processor.get_audio_duration(processed_path)
 
             def validate(processed, original, barriers):
