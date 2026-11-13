@@ -1,9 +1,7 @@
-"""Local-feed episode upload, edit, bulk-edit, delete, and per-episode
-artwork upload APIs (#625 Task 8).
+"""Local-feed episode upload, edit, bulk-edit, delete and per-episode artwork upload APIs (#625).
 
-Local feeds (``podcasts.feed_type == 'local'``) have no upstream RSS to
-source episode content or edits from, so these routes exist only there --
-a subscribed feed 400s.
+Local feeds (``podcasts.feed_type == 'local'``) have no upstream RSS, so these routes exist
+only there; a subscribed feed 400s.
 """
 import json
 import hashlib
@@ -40,26 +38,19 @@ logger = logging.getLogger('podcast.api')
 
 MAX_BULK_EPISODES = 500
 
-# Cap on the in-memory artwork read (upload/PATCH artwork fields). The
-# single-episode-upload route's request cap is widened to 1 GB for the
-# audio field (see api/__init__.py's _widen_upload_cap), so an unbounded
-# .stream.read() on the co-located artwork field would let a client force
-# up to that much into memory just for the image part.
+# Cap on the in-memory artwork read. The single-episode upload route's request cap is
+# widened to 1 GB for the audio field (api/__init__.py _widen_upload_cap), so an unbounded
+# read of the artwork field would let a client force that much into memory.
 MAX_EPISODE_ARTWORK_BYTES = 10 * 1024 * 1024
 
-# Episode-level (p20_item_json) tags. Channel-level p20 (podcasts.p20_channel_json,
-# see api/feeds.py's _validate_p20) additionally supports funding/license/txt,
-# but local_feed_builder only ever reads person/location off an episode row
-# (build_local_feed_xml's per-item emitter, local_feed_builder.py:163-164).
+# Episode-level (p20_item_json) tags. Channel-level p20 also supports funding/license/txt,
+# but local_feed_builder only reads person/location off an episode row.
 _ITEM_P20_TAGS = ('person', 'location')
 
 
 def _require_local_feed(db, slug):
-    """Fetch the podcast row, 404 if missing, 400 if not a local feed.
-
-    Returns (podcast, None) on success or (None, error_response) to return
-    directly from the caller.
-    """
+    """Fetch the podcast row; 404 if missing, 400 if not a local feed.
+    Returns (podcast, None) or (None, error_response) for the caller to return."""
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return None, error_response('Feed not found', 404)
@@ -70,10 +61,7 @@ def _require_local_feed(db, slug):
 
 
 def _require_local_episode(db, slug, episode_id):
-    """_require_local_feed plus a 404 for a missing episode.
-
-    Returns (podcast, episode, None) or (None, None, error_response).
-    """
+    """_require_local_feed plus a 404 for a missing episode; returns (podcast, episode, None) or (None, None, error_response)."""
     podcast, err = _require_local_feed(db, slug)
     if err:
         return None, None, err
@@ -89,11 +77,10 @@ def _rebuild(slug, podcast=None):
 
 
 def _parse_int_field(source, name, default=None):
-    """Parse an integer from a form/dict-like source. Returns (value, error).
+    """Parse an integer from a form/dict-like source; returns (value, error).
 
-    Unlike Flask's ``request.form.get(name, type=int)``, an unparsable value
-    is a 400 rather than silently falling back to ``default`` -- a typo'd
-    season/episode number must not be swallowed.
+    Unlike ``request.form.get(name, type=int)``, an unparsable value is a 400 rather than
+    silently falling back to ``default``, so a typo'd season/episode number is not swallowed.
     """
     raw = source.get(name)
     if raw is None or raw == '':
@@ -105,11 +92,8 @@ def _parse_int_field(source, name, default=None):
 
 
 def _parse_published_at(value):
-    """Validate + normalize an ISO 8601 (tz-aware) publishedAt string.
-
-    Returns (normalized_iso_or_None, error). ``None`` input is valid (field
-    omitted / clearing not applicable here) and passes through as None.
-    """
+    """Validate and normalize an ISO 8601 (tz-aware) publishedAt string.
+    Returns (normalized_iso_or_None, error); a None input is valid and passes through."""
     if value is None:
         return None, None
     if not isinstance(value, str) or not value.strip():
@@ -124,19 +108,17 @@ def _parse_published_at(value):
 
 
 def _read_capped(file_storage, max_bytes):
-    """Read at most ``max_bytes + 1`` bytes from a Werkzeug FileStorage
-    stream -- never buffers more than that regardless of how large the
-    underlying request is. Returns (data, too_large); when too_large is
-    True, ``data`` must be discarded rather than persisted."""
+    """Read at most ``max_bytes + 1`` bytes from a Werkzeug FileStorage stream, never
+    buffering more however large the request is. Returns (data, too_large); discard
+    ``data`` when too_large."""
     data = file_storage.stream.read(max_bytes + 1)
     return data, len(data) > max_bytes
 
 
 def _validate_p20_item(value):
-    """Validate a client-supplied episode-level p20 object (person/location
-    only). Returns (cleaned_dict_or_None, error). Reuses feeds.py's
-    per-item validator and local_feed_builder's attr whitelists rather than
-    duplicating either."""
+    """Validate a client-supplied episode-level p20 object (person/location only);
+    returns (cleaned_dict_or_None, error). Reuses feeds.py's per-item validator and
+    local_feed_builder's attr whitelists."""
     if not isinstance(value, dict):
         return None, 'p20 must be an object'
     tag_attrs = _p20_tag_attrs()
@@ -152,21 +134,17 @@ def _validate_p20_item(value):
     return cleaned, None
 
 
-# Fields a single/bulk PATCH may set. Bulk entries additionally carry
-# 'episodeId' (the routing key, not an update field) -- callers pass that
-# through allowed_extra_keys rather than folding it in here, so this set
-# stays the same list _build_episode_updates below actually understands.
+# Fields a single/bulk PATCH may set. Bulk entries also carry 'episodeId' (the routing
+# key), passed via allowed_extra_keys so this set stays what _build_episode_updates understands.
 _EPISODE_PATCH_KEYS = frozenset({'title', 'description', 'season', 'episode',
                                  'publishedAt', 'p20'})
 
 
 def _build_episode_updates(data, *, allowed_extra_keys=frozenset()):
-    """Validate the shared PATCH fields (single + bulk). Returns
-    (db_kwargs, error).
+    """Validate the shared PATCH fields (single + bulk); returns (db_kwargs, error).
 
-    Fail-closed on an unrecognized key -- a typo like 'publishedat' 400s
-    naming the key instead of silently no-oping, matching the import
-    sidecar's own fail-closed unknown-key behavior (validate_sidecar)."""
+    Fails closed on an unrecognized key: a typo like 'publishedat' 400s naming the key
+    instead of silently no-oping, matching the import sidecar (validate_sidecar)."""
     unknown = set(data) - _EPISODE_PATCH_KEYS - allowed_extra_keys
     if unknown:
         return None, f"unknown field(s): {', '.join(sorted(unknown))}"
@@ -215,16 +193,12 @@ def _build_episode_updates(data, *, allowed_extra_keys=frozenset()):
 def upload_local_episode(slug):
     """Upload a single episode's audio into a local feed.
 
-    Derives episode_id = s{season:02d}e{episode:02d}; season defaults to 1,
-    episode defaults to 1 + the highest existing episode_number in that
-    season. Never overwrites an existing id (409). No title -> defaults to
-    'Episode {n}', matching the import path's fallback. When no artwork
-    field is supplied, embedded cover art is extracted from the audio file
-    the same way the import path's _commit_entry does.
+    episode_id is s{season:02d}e{episode:02d}; season defaults to 1 and episode to 1 + the
+    highest existing episode_number in that season. Never overwrites an id (409). Title
+    defaults to 'Episode {n}' like the import path; with no artwork field, embedded cover
+    art is extracted from the audio as _commit_entry does.
 
-    No dedicated rate limit here (unlike the other mutating routes): a 1 GB
-    audio upload already self-limits request throughput far below anything
-    a per-minute counter would add.
+    No dedicated rate limit: a 1 GB upload already self-limits request throughput.
     """
     db = get_database()
     storage = get_storage()
@@ -295,11 +269,9 @@ def upload_local_episode(slug):
 
     _, total_before = db.get_episodes(slug, status='all', limit=1)
 
-    # get_original_path -> get_podcast_dir already creates the episodes/
-    # subdirectory. The tempfile is created in that SAME directory so the
-    # later shutil.move is a same-filesystem rename rather than a
-    # cross-device copy -- doubling disk usage and I/O time on a 1 GB
-    # upload if DATA_DIR and the system tmp dir are on different mounts.
+    # get_original_path already creates the episodes/ subdirectory. The tempfile goes in
+    # that same directory so the later shutil.move is a same-filesystem rename, not a
+    # cross-device copy that doubles disk usage and I/O on a 1 GB upload.
     final_path = storage.get_original_path(slug, episode_id)
     tmp_fd, tmp_name = tempfile.mkstemp(suffix='.mp3', dir=str(final_path.parent))
     os.close(tmp_fd)
@@ -366,10 +338,8 @@ def upload_local_episode(slug):
             storage.save_episode_artwork(slug, episode_id, artwork_bytes,
                                          artwork_content_type, evict=False)
         else:
-            # No artwork field supplied: fall back to whatever cover art is
-            # embedded in the audio itself, exactly like the import path's
-            # _commit_entry -- otherwise an upload never gets a cover unless
-            # the caller happens to also POST one separately.
+            # No artwork field: fall back to cover art embedded in the audio, like the
+            # import path's _commit_entry, so an upload gets a cover without a separate POST.
             embedded = extract_embedded_artwork(str(final_path))
             if embedded:
                 image_data, mime = embedded
@@ -395,11 +365,8 @@ def upload_local_episode(slug):
 
     episode = db.get_episode(slug, episode_id)
     # slug/is_local/storage are required for the local-artwork fallback
-    # (_local_artwork_fallback_url): omitting them (as this call used to)
-    # left artworkUrl null in this 201 body even when artwork was just
-    # saved above -- storage.has_episode_artwork is never consulted without
-    # them, regardless of upload order. An immediate GET (list/detail, both
-    # of which pass these) would then show the artwork the 201 body missed.
+    # (_local_artwork_fallback_url); without them artworkUrl is null in this 201 body even
+    # when artwork was just saved, while a later GET shows it.
     response = _episode_base_json(
         episode, slug=slug, is_local=True, storage=storage,
         title_skip_patterns=podcast.get('title_skip_patterns'),
@@ -417,9 +384,8 @@ def upload_local_episode(slug):
 def patch_local_episode(slug, episode_id):
     """Edit a local episode's title/description/season/episode/publishedAt/p20.
 
-    ``season``/``episode`` only change season_number/episode_number -- the
-    episode_id (already minted from the original season/episode at upload
-    time) is never renamed.
+    ``season``/``episode`` only change season_number/episode_number; the episode_id minted
+    at upload is never renamed.
     """
     db = get_database()
     storage = get_storage()
@@ -441,9 +407,8 @@ def patch_local_episode(slug, episode_id):
     _rebuild(slug, podcast=podcast)
 
     updated = db.get_episode(slug, episode_id)
-    # Same slug/is_local/storage fix as the POST 201 body above -- without
-    # them the local-artwork fallback never runs and this response always
-    # shows artworkUrl null, even for an episode with a cached cover.
+    # Same slug/is_local/storage need as the POST 201 body above: without them the
+    # local-artwork fallback never runs and artworkUrl is null even with a cached cover.
     response = _episode_base_json(
         updated, slug=slug, is_local=True, storage=storage,
         title_skip_patterns=podcast.get('title_skip_patterns'),
@@ -509,9 +474,8 @@ def bulk_patch_local_episodes(slug):
 def delete_local_episode(slug, episode_id):
     """Hard-delete a local episode: files + row (see delete_episode_rows).
 
-    Unlike the subscribed-feed episode delete (which resets to 'discovered'
-    for the next refresh to rediscover), a local feed has no upstream to
-    rediscover from, so the row is dropped entirely.
+    A subscribed-feed delete resets to 'discovered' for the next refresh to rediscover; a
+    local feed has no upstream, so the row is dropped entirely.
     """
     db = get_database()
     storage = get_storage()
@@ -546,9 +510,8 @@ def delete_local_episode(slug, episode_id):
 
     deleted = db.delete_episode_rows(slug, [episode_id], storage)
 
-    # delete_episode_rows already drops the auto_process_queue row; also
-    # drop it from the live display queue (a separate, in-memory/JSON
-    # status store) so a still-queued-but-not-yet-claimed entry doesn't
+    # delete_episode_rows already drops the auto_process_queue row; also drop it from the
+    # live display queue (a separate in-memory/JSON store) so a queued entry does not
     # linger in the UI for a row that no longer exists.
     get_status_service().remove_queued_episode(slug, episode_id)
 
@@ -585,8 +548,7 @@ def upload_local_episode_artwork(slug, episode_id):
     if content_type not in ('image/jpeg', 'image/png'):
         return error_response('artwork must be a JPEG or PNG image', 400)
 
-    # evict=False: the only copy of this cover -- see upload_local_episode's
-    # identical note.
+    # evict=False: the only copy of this cover (see upload_local_episode).
     if not storage.save_episode_artwork(slug, episode_id, raw, content_type, evict=False):
         return error_response('Failed to save artwork', 500)
 
@@ -594,31 +556,27 @@ def upload_local_episode_artwork(slug, episode_id):
     return json_response({'message': 'Artwork uploaded', 'episodeId': episode_id}, 200)
 
 
-# ========== Bulk archive import (#625 Task 11) ==========
+# ========== Bulk archive import (#625) ==========
 
-# Plan-entry keys that resolve to absolute server-side filesystem paths.
-# build_import_plan puts these in each entry for the commit engine to read
-# files by exact resolved path (local_import.py:381-392) -- they must never
-# reach the client, which only needs the basenames (audioFile etc, kept).
+# Plan-entry keys that resolve to absolute server-side paths. build_import_plan includes
+# them for the commit engine, but they must never reach the client, which only needs the
+# basenames (audioFile etc, kept).
 _PLAN_INTERNAL_PATH_KEYS = ('audioPath', 'descriptionPath', 'artworkPath', 'sidecarPath')
 
 _IMPORT_SOURCE_CHOICES = ('staging', 'directory', 'both')
 
-# Most filesystems (ext4, xfs, btrfs, ...) cap a single path component at
-# 255 bytes; an over-long name makes the eventual open()/rename() raise
-# ENAMETOOLONG. Checked up front (in UTF-8 bytes, matching how the kernel
-# counts) so it becomes an ordinary per-file rejection rather than the
-# OSError bubbling out of upload.save() below and 500ing the whole batch.
+# Most filesystems cap a single path component at 255 bytes; a longer name makes
+# open()/rename() raise ENAMETOOLONG. Checked up front (in UTF-8 bytes, as the kernel
+# counts) so it is a per-file rejection rather than an OSError that 500s the whole batch.
 MAX_IMPORT_BASENAME_BYTES = 255
 
 
 def _reject_reason_for_basename(name):
-    """None if ``name`` is safe to use as a staged file's basename, else a
-    human-readable rejection reason. Mirrors is_dangerous_slug's traversal
-    checks (.., /, \\, NUL) plus a dotfile/empty-name/length check --
-    filenames are far more permissive than slugs (spaces, case,
-    punctuation are all fine), so this doesn't reuse is_valid_slug's
-    strict charset."""
+    """None if ``name`` is safe as a staged file's basename, else a human-readable reason.
+
+    Mirrors is_dangerous_slug's traversal checks (.., /, \\, NUL) plus dotfile, empty-name
+    and length checks. Filenames are far more permissive than slugs, so is_valid_slug's
+    strict charset is not reused."""
     if not name:
         return 'empty filename'
     if is_dangerous_slug(name):
@@ -631,10 +589,8 @@ def _reject_reason_for_basename(name):
 
 
 def _collect_import_sources(storage, slug, source):
-    """Files (not directories) under the requested source dir(s), sorted by
-    name for a deterministic plan/hash. Neither staging nor the
-    user-managed import dir is guaranteed to exist -- an absent directory
-    just contributes no files."""
+    """Files (not directories) under the requested source dir(s), sorted by name for a
+    deterministic plan/hash. Either dir may be absent and then contributes no files."""
     dirs = []
     if source in ('staging', 'both'):
         dirs.append(storage.import_staging_dir(slug, create=False))
@@ -650,10 +606,9 @@ def _collect_import_sources(storage, slug, source):
 
 
 def _client_import_plan(plan):
-    """The scan/commit-mismatch response payload: ``plan`` with every
-    entry's internal absolute-path keys stripped (Task 10 review contract
-    -- server filesystem layout must never leave the server). mtimeNs and
-    everything else pass through verbatim."""
+    """The scan/commit-mismatch response payload: ``plan`` with every entry's internal
+    absolute-path keys stripped so the server filesystem layout never leaves the server.
+    mtimeNs and everything else pass through verbatim."""
     entries = [
         {k: v for k, v in entry.items() if k not in _PLAN_INTERNAL_PATH_KEYS}
         for entry in plan['entries']
@@ -699,26 +654,17 @@ def _parse_import_request(data):
 def upload_import_files(slug):
     """Stage one or more archive-import files ahead of scan/commit.
 
-    Multipart, repeated field ``files``; each is saved under its ORIGINAL
-    basename into import_staging_dir(slug, create=True) -- the sNNeNN
-    naming scheme (parsed later by build_import_plan) needs the real
-    filename, not a generated one. A basename containing a path separator,
-    '..', NUL, or that's empty/a dotfile is rejected per-file rather than
-    failing the whole request. Covered by _widen_upload_cap's 1 GB cap
-    (api/__init__.py); no dedicated per-route rate limit for the same
-    reason as upload_local_episode -- a large multipart upload already
-    self-limits. Exempted from the blueprint's default per-IP limits too:
-    the UI uploads a batch one file per request (needed for per-file
-    progress), and a batch past ~200 files would otherwise start 429ing
-    partway through on the default 200/min cap.
+    Multipart, repeated field ``files``; each is saved under its original basename into
+    import_staging_dir(slug, create=True), since the sNNeNN naming scheme (parsed later by
+    build_import_plan) needs the real filename. A basename with a path separator, '..' or
+    NUL, or that is empty or a dotfile, is rejected per file rather than failing the request.
+    Covered by _widen_upload_cap's 1 GB cap. No dedicated rate limit (as upload_local_episode)
+    and exempt from the default per-IP limits: the UI uploads one file per request for
+    progress, so a batch past ~200 files would 429 on the default 200/min cap.
 
-    409s while an import is running for this feed, same guard as
-    ``clear_import_staging``: the commit engine may be sweeping/reading
-    staging by resolved path right now, so writing new files into it mid-
-    commit could race the sweep (a just-uploaded file deleted before the
-    operator ever sees it) or -- for source='both' -- get silently
-    scanned into files that no plan hash the operator reviewed accounted
-    for.
+    409s while an import is running for this feed (same guard as ``clear_import_staging``):
+    the commit engine reads and sweeps staging by resolved path, so new files could race the
+    sweep or, for source='both', be scanned into files no reviewed plan hash accounted for.
     """
     db = get_database()
     storage = get_storage()
@@ -794,10 +740,9 @@ def upload_import_files(slug):
                 raise
             db.cleanup_published_upload_backup(reservation_id)
         except OSError as exc:
-            # Belt-and-suspenders alongside the length check above: any
-            # other filesystem-rejected name (e.g. reserved characters on
-            # a non-POSIX mount) still degrades to a per-file rejection
-            # rather than a 500 for the whole batch.
+            # Belt-and-suspenders alongside the length check above: any other
+            # filesystem-rejected name (e.g. reserved characters on a non-POSIX mount) is
+            # still a per-file rejection rather than a 500 for the batch.
             rejected.append({'file': name, 'reason': f'could not save file: {exc}'})
             continue
         finally:
@@ -855,14 +800,10 @@ def scan_import(slug):
 def commit_import(slug):
     """Start committing a previously scanned plan.
 
-    Re-scans server-side and compares the client-echoed planHash rather
-    than trusting anything the client sends beyond planHash/source/
-    overwrite -- a 409 on mismatch means either the files changed
-    underneath the scan, or this commit's overwrite doesn't match what the
-    reviewed plan was scanned with (plan_hash folds overwrite into the
-    hash for exactly this; see its docstring). The freshly rebuilt
-    server-side plan (with paths) is what's handed to start_commit, never
-    client-supplied entries.
+    Re-scans server-side and compares the client-echoed planHash, trusting nothing else
+    beyond planHash/source/overwrite. A 409 on mismatch means the files changed since the
+    scan or the commit's overwrite differs from the reviewed plan's (plan_hash folds
+    overwrite in). The rebuilt server-side plan, never client entries, goes to start_commit.
     """
     db = get_database()
     storage = get_storage()
@@ -890,13 +831,10 @@ def commit_import(slug):
                              source=source)
     _bind_staging_generation(plan, storage, slug, source)
     if plan['planHash'] != client_hash:
-        # Disambiguate the two ways a hash can go stale: the flag folds
-        # into plan_hash (see its docstring), so a client-echoed hash that
-        # matches what THIS scan would have produced with the opposite
-        # overwrite value means nothing on disk changed -- the checkbox
-        # was just flipped after the scan -- and the operator needs a
-        # different fix (re-scan, not re-check files) than a real content
-        # change would call for.
+        # Disambiguate two ways a hash goes stale: overwrite folds into plan_hash, so a
+        # client hash matching what this scan would produce with the opposite overwrite
+        # means nothing on disk changed and the checkbox was flipped after the scan. The
+        # operator then needs a re-scan, not a re-check of files.
         opposite = {'planHash': plan_hash(sources, not overwrite)}
         _bind_staging_generation(opposite, storage, slug, source)
         if opposite['planHash'] == client_hash:
@@ -938,30 +876,17 @@ def import_status(slug):
 def clear_import_staging(slug):
     """Empty the feed's upload staging directory.
 
-    Staging accumulates across canceled/abandoned import attempts: every
-    upload lands there and only gets cleared by a successful commit (which
-    sweeps committed/rejected files but spares a skipped/errored entry's own
-    files -- see _commit_entries), so a scan after a few canceled tries
-    would otherwise return the union of every file ever staged, not just
-    the operator's latest batch. The UI calls this once, automatically,
-    right before every "Choose files" upload, so each selection stands on
-    its own instead of piling onto whatever was staged before. The UI's own
-    "Add files to staged set" and "Rescan staged files" affordances
-    deliberately skip this call -- they exist specifically to build on or
-    re-read what's already staged (e.g. a corrected sidecar next to an
-    audio file a prior scan spared), not replace it.
+    Staging accumulates across canceled or abandoned imports (only a successful commit
+    clears it, sparing skipped/errored entries' files; see _commit_entries), so a later scan
+    would return every file ever staged. The UI calls this once before every "Choose files"
+    upload so each selection stands alone; "Add files to staged set" and "Rescan staged
+    files" deliberately skip it to build on what is already staged.
 
-    409s while an import is running for this feed: the commit engine reads
-    staged files by their resolved path (build_import_plan's audioPath/
-    etc.), so wiping the directory out from under a live commit would turn
-    in-flight entries into 'source file no longer present' failures
-    instead of leaving the running import alone.
+    409s while an import is running: the commit engine reads staged files by resolved path,
+    so wiping them would turn in-flight entries into 'source file no longer present'.
 
-    Removed per-entry rather than via a single rmtree of the whole
-    directory: a busy bind-mount point (e.g. staging mounted from a
-    network share) can refuse to remove ITSELF while still allowing its
-    contents to go one at a time, so a single stubborn entry must not
-    block every other file from being cleared.
+    Removed per entry, not one rmtree: a busy bind-mount point (e.g. a network share) can
+    refuse to remove itself while letting its contents go one at a time.
     """
     db = get_database()
     storage = get_storage()

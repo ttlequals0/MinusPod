@@ -40,11 +40,9 @@ def _processed_url(slug: str, episode_id: str, version: int,
                    key: str = None) -> str:
     """Build the same-origin processed-audio URL the UI player loads.
 
-    Relative (no host) so the browser fetches it from the UI's own origin, not
-    the public feed domain, which sits behind anti-scraper edge rules that
-    break in-app playback. Matches the transcript/chapters URLs below. Carries
-    a version suffix when set and the feed auth ``key`` so the public route
-    does not 401 while authenticated feeds is enabled.
+    Relative (no host) so it loads from the UI's own origin, since the public feed domain
+    sits behind anti-scraper edge rules that break in-app playback. Carries a version suffix
+    when set and the feed auth ``key`` so the public route does not 401 with feed auth on.
     """
     return episode_public_url(config.URL_PREFIX, slug, episode_id, version, key=key)
 
@@ -174,10 +172,8 @@ def list_episodes(slug):
 
 def _filtered_episodes(db, slug, podcast, *, limit, offset, sort_by, sort_dir,
                        search, selection):
-    """The episodes the feed's filter rules match, paged like get_episodes.
-
-    Only the requested page is loaded as full rows; total counts every match.
-    """
+    """The episodes the feed's filter rules match, paged like get_episodes; only the
+    requested page is loaded as full rows, total counts every match."""
     candidates, _ = db.get_episodes(slug, limit=None, sort_by=sort_by, sort_dir=sort_dir,
                                     search=search, selection=True)
     matched = [ep for ep in candidates if episode_matches_feed_filters(ep, podcast)]
@@ -193,10 +189,8 @@ def _filtered_episodes(db, slug, podcast, *, limit, offset, sort_by, sort_dir,
 def _secure_artwork_url(url):
     """Publisher episode cover, or None when it is not http(s).
 
-    The client turns this into a call to the episode artwork proxy rather
-    than rendering it, and the proxy fetches server-side, so a plain-http
-    cover is no longer a mixed-content problem worth dropping the image
-    over: the browser only ever talks to MinusPod on the page's own scheme.
+    The client calls the episode artwork proxy with it, which fetches server-side, so a
+    plain-http cover is not a mixed-content problem.
     """
     return url if (url or '').startswith(('https://', 'http://')) else None
 
@@ -204,18 +198,12 @@ def _secure_artwork_url(url):
 def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
     """The admin artwork proxy route, or None.
 
-    Local episodes (uploaded/imported) never get an ``artwork_url`` column
-    value -- that column is only ever populated from an upstream RSS item's
-    image, and a local feed has no upstream. When the episode has a cached
-    cover (embedded-art extraction or an explicit upload) but no
-    ``artwork_url``, this falls back to the same-shaped internal proxy route
-    every other consumer of this field gets (``_secure_artwork_url`` returns
-    a plain http(s) URL the client fetches through its own artwork proxy;
-    this returns the analogous same-origin route directly) -- NOT the
-    public, feed-key-gated route local_feed_builder.py emits in the served
-    RSS, which would leak the feed auth key into an ordinary API response.
-    Subscribed-feed episodes are untouched: a missing artwork_url there
-    legitimately means no cover.
+    Local episodes never get an ``artwork_url`` (it is populated only from an upstream RSS
+    item, and a local feed has none). When one has a cached cover (embedded art or upload)
+    but no ``artwork_url``, fall back to the same-origin internal proxy route. Not the
+    public feed-key-gated route local_feed_builder.py emits in the served RSS, which would
+    leak the feed auth key into an API response. Subscribed-feed episodes are untouched:
+    a missing artwork_url there means no cover.
     """
     if not is_local or storage is None:
         return None
@@ -241,15 +229,10 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
                        duration_filters=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
-    Status is mapped for frontend compatibility: 'processed' -> 'completed';
-    discovered/permanently_failed pass through.
-
-    ``slug``/``is_local``/``storage`` are only needed for the local-episode
-    artworkUrl fallback (see _local_artwork_fallback_url) -- omitted, this
-    behaves exactly as before (artworkUrl from the column only). Callers
-    pass a hoisted ``is_local``/``storage`` rather than re-deriving them per
-    episode, so a list response doesn't re-query the podcast row once per
-    row.
+    Status is mapped for the frontend: 'processed' -> 'completed'; discovered/
+    permanently_failed pass through. ``slug``/``is_local``/``storage`` are needed only for
+    the local-episode artworkUrl fallback (see _local_artwork_fallback_url); callers pass a
+    hoisted ``is_local``/``storage`` so a list does not re-query the podcast row per row.
     """
     time_saved = 0
     if ep.get('original_duration') and ep.get('new_duration'):
@@ -314,12 +297,9 @@ def get_episode(slug, episode_id):
     feed_auth_key = get_feed_auth_key(db)
     key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
 
-    # Parse ad markers if present, separating into four buckets:
-    #   pendingReviewMarkers: held_for_review=True and not was_cut (checked FIRST)
-    #   keptMarkers:          action_applied keep-like and not held;
-    #                         actionApplied tells keep from mark.
-    #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held/kept)
-    #   adMarkers:            everything else (accepted cuts)
+    # Ad markers go into four buckets: pendingReviewMarkers (held_for_review and not was_cut,
+    # checked first), keptMarkers (keep-like action_applied, not held; actionApplied tells keep
+    # from mark), rejectedAdMarkers (REJECT or not was_cut, not held/kept), adMarkers (accepted cuts).
     ad_markers = []
     rejected_ad_markers = []
     pending_review_markers = []
@@ -416,12 +396,9 @@ def get_episode(slug, episode_id):
 
     return json_response({
         **base,
-        # Local-feed season/episode numbers (absent/None on a subscribed
-        # feed's episodes). upload_local_episode/patch_local_episode already
-        # echo these back; this GET handler had not, so EpisodeDetail.tsx's
-        # edit form fell back to parsing them out of the episode id -- stale
-        # the moment a season/episode edit changed the DB value without
-        # renaming the id (#625 Task 13 review).
+        # Local-feed season/episode numbers (absent/None on subscribed feeds). Echoed here so
+        # the EpisodeDetail edit form does not parse them out of the episode id, which goes
+        # stale when a season/episode edit changes the DB value without renaming the id (#625).
         'episodeNumber': episode.get('episode_number'),
         'seasonNumber': episode.get('season_number'),
         'originalUrl': episode['original_url'],
@@ -477,15 +454,11 @@ def get_episode(slug, episode_id):
 def get_episode_artwork(slug, episode_id):
     """Serve an episode cover through MinusPod instead of hot-linking it.
 
-    Publishers put hotlink protection in front of their images that rejects
-    any request carrying a cross-site Referer, which is exactly what a
-    browser sends for a hot-linked ``<img>``; the reader gets a 403 and a
-    grey placeholder (issue #617). Fetching server-side sidesteps that
-    whatever form the block takes, and keeps the reader's IP out of the
-    publisher's logs.
-
-    The URL comes from the episode row, never from the caller, so this
-    cannot be aimed at an arbitrary host.
+    Publisher hotlink protection rejects requests with a cross-site Referer, which is what a
+    browser sends for a hot-linked ``<img>``, giving a 403 and grey placeholder (#617).
+    Fetching server-side sidesteps that and keeps the reader's IP out of the publisher's logs.
+    The URL comes from the episode row, never the caller, so it cannot be aimed at an
+    arbitrary host.
     """
     storage = get_storage()
     db = get_database()
@@ -538,9 +511,8 @@ def _missing_log_response(code, message):
 def get_episode_run_log(slug, episode_id, run_number):
     """Return one processing run's pipeline log (#660).
 
-    Query params:
-        format (json|raw, default json) - raw downloads the JSONL file
-        level  (debug|info|warning|error) - minimum level, json only
+    Query: format (json|raw, default json; raw downloads the JSONL file) and level
+    (debug|info|warning|error, minimum level, json only).
     """
     from run_log import TRUNCATION_MARKER, resolve_stored_log_path
     from storage import PathContainmentError
