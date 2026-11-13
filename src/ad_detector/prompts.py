@@ -1,8 +1,7 @@
 """Prompt templates, window framing, and LLM-response parsing.
 
 Pure functions / module-level constants for prompt assembly and response
-parsing. No DB, no LLM client. Split out of ``ad_detector/__init__.py``
-for readability; behavior is unchanged from the pre-split module.
+parsing. No DB, no LLM client. Split out of ``ad_detector/__init__.py``.
 """
 import copy
 import logging
@@ -71,16 +70,14 @@ def create_windows(segments: list[dict], window_size: float = None,
     Args:
         segments: List of transcript segments with 'start', 'end', 'text'
         window_size: Duration of each window in seconds. None resolves the
-            user-configurable 'window_size_seconds' tunable at call time so
-            Settings UI changes take effect without restart.
+            'window_size_seconds' tunable at call time so Settings UI changes
+            apply without restart.
         overlap: Overlap between consecutive windows in seconds. None resolves
-            the user-configurable 'window_overlap_seconds' tunable at call time.
+            the 'window_overlap_seconds' tunable at call time.
 
     Returns:
-        List of window dicts with:
-            - 'start': window start time (absolute)
-            - 'end': window end time (absolute)
-            - 'segments': list of segments in this window
+        List of window dicts with 'start' and 'end' (absolute times) and
+        'segments' (the segments in the window).
     """
     if not segments:
         return []
@@ -95,10 +92,9 @@ def create_windows(segments: list[dict], window_size: float = None,
     step_size = window_size - overlap
     if step_size <= 0:
         # overlap >= window_size never advances window_start and hangs the
-        # detection worker forever. The Settings API cross-field check can be
-        # bypassed via env vars or a direct DB write, so guard here too: fall
-        # back to non-overlapping windows rather than wedge (config-1 /
-        # ad-detection-1).
+        # detection worker. The Settings API cross-field check can be bypassed
+        # via env vars or a direct DB write, so guard here too: fall back to
+        # non-overlapping windows rather than wedge.
         logger.warning(
             "create_windows: window_overlap_seconds (%s) >= window_size_seconds "
             "(%s); falling back to non-overlapping windows to avoid a "
@@ -147,17 +143,14 @@ def format_window_prompt(
     """Build the user prompt for a single ad-detection window.
 
     `description_section` and `audio_context` are pre-built strings so the
-    benchmark can call this without DB or audio-analysis state. Production
-    callers assemble both then pass them in.
+    benchmark can call this without DB or audio-analysis state.
 
     `addressing_mode` selects the window-context rules appended after the
-    header: 'timestamps' (default) emits the original three bullets telling
-    the model to use absolute timestamps, byte-identical to before this
-    parameter existed; 'segment_ids' (issue: hushpod adoption) emits
-    SEGMENT_ID_WINDOW_RULES instead of those bullets -- never both, so the
-    prompt never tells the model to use and never use timestamps in the same
-    message. Callers that never pass it (benchmark, keep-content windows)
-    get 'timestamps' behavior unchanged.
+    header: 'timestamps' (default) emits the original three bullets telling the
+    model to use absolute timestamps; 'segment_ids' emits
+    SEGMENT_ID_WINDOW_RULES instead, never both, so the prompt never tells the
+    model to use and not use timestamps in one message. Callers that never pass
+    it (benchmark, keep-content windows) get 'timestamps'.
     """
     if addressing_mode == "segment_ids":
         transcript = "Transcript (with [{id}] prefix):\n"
@@ -223,9 +216,9 @@ Every ad object must include start_text and end_text. Copy 5-12 consecutive spok
 def get_static_system_prompt() -> str:
     """Return DEFAULT_SYSTEM_PROMPT with the static SEED_SPONSORS list substituted.
 
-    Reproducible from source code -- no DB, env, or wallclock dependency.
-    Used by the offline LLM benchmark. Production reads stored prompts and
-    merges DB-derived sponsors via ``AdDetector.get_system_prompt`` instead.
+    Reproducible from source: no DB, env, or wallclock dependency. Used by the
+    offline LLM benchmark; production reads stored prompts and merges DB-derived
+    sponsors via ``AdDetector.get_system_prompt`` instead.
     """
     from utils.constants import DEFAULT_SYSTEM_PROMPT
     from utils.constants import SEED_SPONSORS
@@ -239,11 +232,11 @@ def get_static_system_prompt() -> str:
 def _flatten_ad_envelopes(ads: list) -> list:
     """Flatten ad-break envelopes the model intermittently emits.
 
-    Instead of a flat list of ad objects, the LLM sometimes wraps each break in
-    an envelope like ``{"ad_break_index": N, "ads": [ {ad}, {ad} ]}``. Such an
-    envelope has no top-level start/end, so the per-ad parser would discard the
-    whole break. Expand any dict whose ``ads`` value is a list into its inner ad
-    objects; pass everything else through unchanged.
+    The LLM sometimes wraps each break in an envelope like
+    ``{"ad_break_index": N, "ads": [ {ad}, {ad} ]}`` instead of a flat list.
+    With no top-level start/end the per-ad parser would discard the whole break,
+    so expand any dict whose ``ads`` value is a list into its inner ad objects
+    and pass everything else through.
     """
     flat = []
     for item in ads:
@@ -313,10 +306,9 @@ def _get_valid_sponsor_value(value):
 def _text_is_duplicate(a: str, b: str) -> bool:
     """Check if two strings are essentially the same text.
 
-    Length has to be comparable first. A bare sponsor name is both a
-    prefix of its own description and a full word subset of it, so
-    without this "Box" swallowed the note explaining the read and left
-    the marker saying only "Box".
+    Length must be comparable first: a bare sponsor name is both a prefix of its
+    own description and a full word subset of it, so without this "Box" swallowed
+    the note explaining the read and left the marker saying only "Box".
     """
     a_lower = a.lower().strip()
     b_lower = b.lower().strip()
@@ -437,9 +429,8 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     """Post-parse normalization shared by the timestamp-mode and segment-id-mode
     parsers: degenerate-range rejection, is_ad/classification filters, sponsor
     name + reason/description extraction, confidence normalization, the
-    duration/evidence gate, and category resolution. ``ad`` still carries all
-    raw LLM fields; ``start``/``end`` are already-resolved seconds (parsed
-    from timestamp fields, or mapped from segment ids). Returns the final ad
+    duration/evidence gate, and category resolution. ``ad`` carries all raw LLM
+    fields; ``start``/``end`` are already-resolved seconds. Returns the final ad
     dict, or None if the candidate is rejected.
     """
     if end <= start:
@@ -557,7 +548,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                 f"reason: {reason[:100] if reason else 'None'}"
             )
             return None
-        # No positive ad evidence -- apply duration gate
+        # No positive ad evidence: apply duration gate
         # Short segments (<CONTENT_DURATION_THRESHOLD) get benefit of doubt
         # Long segments are almost certainly content descriptions
         if duration >= CONTENT_DURATION_THRESHOLD:
@@ -605,14 +596,11 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                               segments: list[dict] | None = None) -> list[dict]:
     """Parse ad segments from Claude's JSON response.
 
-    ``compliance_meta``: optional out-param dict (same pattern as
-    ``run_stats`` elsewhere in the codebase). When given, this sets
-    ``compliance_meta['extraction_failed']`` to True when no JSON ads array
-    could be located or parsed at all, and False when a JSON array was
-    successfully parsed -- including a valid, empty ``[]`` answer. Used by
-    the addressing-mode compliance stats (timestamps effective mode) to
-    distinguish "the model answered with no ads" from "the response wasn't
-    parseable".
+    ``compliance_meta``: optional out-param dict (like ``run_stats`` elsewhere).
+    Sets ``compliance_meta['extraction_failed']`` True when no JSON ads array
+    could be located or parsed at all, False when one parsed, including a valid
+    empty ``[]``. Used by the addressing-mode compliance stats to tell "the
+    model answered with no ads" from "the response wasn't parseable".
 
     Returns:
         List of validated ad dicts with start, end, confidence, reason, end_text
@@ -638,11 +626,10 @@ def parse_ads_from_response(response_text: str, slug: str = None,
             if isinstance(ad, dict):
                 # Log raw ad object for debugging
                 logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
-                # Fuzzy-match start/end timestamp fields from LLM response.
-                # The LLM uses inconsistent field names across runs (start_time,
-                # ad_start, timestamp_start, start_time_seconds, etc). Instead of
-                # maintaining an ever-growing allowlist, match any key containing
-                # 'start'/'end' that isn't a known text field.
+                # Fuzzy-match start/end timestamp fields: the LLM names them
+                # inconsistently across runs (start_time, ad_start,
+                # timestamp_start, ...), so match any key containing
+                # 'start'/'end' that isn't a known text field instead of an allowlist.
                 _SKIP_SUFFIXES = ('_note', '_text', '_snip', '_quote', '_description')
                 _SKIP_KEYS = {'endorser', 'endorsed', 'price_starting', 'starting_point'}
                 start_val = None
@@ -688,11 +675,10 @@ def parse_ads_from_response(response_text: str, slug: str = None,
 
 
 def _int_field(obj: dict, keys: tuple[str, ...]):
-    """The first of ``keys`` present in ``obj``, coerced to int, or None if
-    absent or non-numeric. Exact key match only -- unlike the fuzzy
-    'start'/'end' substring matcher in ``parse_ads_from_response``, id fields
-    must never be guessed at, or ``start_id`` could be misread by a substring
-    match on 'start' as a timestamp."""
+    """The first of ``keys`` present in ``obj``, coerced to int, or None if absent
+    or non-numeric. Exact key match only, unlike the fuzzy 'start'/'end'
+    substring matcher in ``parse_ads_from_response``: id fields must never be
+    guessed, or ``start_id`` could be misread as a timestamp."""
     for key in keys:
         if key in obj:
             try:
@@ -705,15 +691,14 @@ def _int_field(obj: dict, keys: tuple[str, ...]):
 def parse_id_ads_from_response(response_text: str, slug: str = None,
                                 episode_id: str = None,
                                 sponsor_service=None) -> tuple[list[dict], bool]:
-    """Parse an ID-mode LLM response (issue: hushpod adoption).
+    """Parse an ID-mode LLM response (segment-id addressing).
 
-    Returns (ads, used_ids). used_ids is True when at least one object in
-    the response carries integer id fields; ads then hold 'start_id'/'end_id'
-    plus the usual fields (confidence, category, reason -- normalized later
-    by ``resolve_segment_id_ads``). used_ids False means the model ignored
-    the ID contract (some models do): the caller re-parses with
-    ``parse_ads_from_response`` so the window is not lost, at the cost of
-    approximate timestamps for that window.
+    Returns (ads, used_ids). used_ids is True when at least one object carries
+    integer id fields; ads then hold 'start_id'/'end_id' plus the usual fields
+    (confidence, category, reason), normalized later by
+    ``resolve_segment_id_ads``. False means the model ignored the ID contract
+    (some do): the caller re-parses with ``parse_ads_from_response`` so the
+    window is not lost, at the cost of approximate timestamps.
     """
     try:
         raw, _extraction_method = extract_json_ads_array(response_text, slug, episode_id)
@@ -748,9 +733,8 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
         ads.append(ad)
     if any_ids and skipped_no_id:
         # Mixed response: some objects used the id contract, others didn't
-        # (likely timestamp-mode ads in the same response). The id-less
-        # objects are silently dropped below -- surface the count so a lost
-        # detection is diagnosable instead of invisible.
+        # (likely timestamp-mode ads). The id-less objects are dropped below;
+        # surface the count so a lost detection is diagnosable.
         logger.warning(
             f"[{slug}:{episode_id}] ID-mode response mixed formats: "
             f"skipped {skipped_no_id} object(s) without id fields")
@@ -761,14 +745,13 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
                             slug: str = None, episode_id: str = None,
                             sponsor_service=None,
                             episode_sponsors: EpisodeSponsors | None = None) -> list[dict]:
-    """Map start_id/end_id to exact segment start/end seconds, then run the
-    resolved ads through the same post-parse normalization
-    ``parse_ads_from_response`` applies (confidence normalization, sponsor
-    extraction, degenerate-range rejection, evidence gate, category
-    resolution) via ``_normalize_ad``.
+    """Map start_id/end_id to exact segment start/end seconds, then normalize
+    via ``_normalize_ad`` like ``parse_ads_from_response`` does (confidence,
+    sponsor extraction, degenerate-range rejection, evidence gate, category
+    resolution).
 
-    Unknown ids drop the detection (an invented id is detectable; an
-    invented timestamp is not -- that asymmetry is the point of this mode).
+    Unknown ids drop the detection: an invented id is detectable, an invented
+    timestamp is not, which is the point of this mode.
     """
     by_sid = {seg['sid']: seg for seg in window_segments if 'sid' in seg}
     resolved = []
@@ -801,11 +784,9 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
     return resolved
 
 
-# =============================================================================
-# Category repair pass: a narrow follow-up call asking only for the category
-# of ads a window's detection found but left uncategorized, rather than
-# relying on prompt wording alone.
-# =============================================================================
+# Category repair pass: a narrow follow-up call asking only for the category of
+# ads a window's detection found but left uncategorized, rather than relying on
+# prompt wording alone.
 
 CATEGORY_REPAIR_SYSTEM_PROMPT = """You are assigning a category to podcast segments that were already identified in a prior pass. Do NOT detect new segments and do NOT change any start or end time -- only choose one category per segment listed in the user message.
 
@@ -820,10 +801,9 @@ Respond with ONLY valid JSON: an array of {"index": INTEGER, "category": STRING}
 
 Every listed segment MUST get exactly one category from that list. Do not add, remove, or reorder segments. No markdown, no explanation, just the JSON array."""
 
-# Input schema for the forced-tool-call path (see
-# llm_capabilities.supports_json_schema). Wrapped under "categories" because
-# Anthropic tool input must be a JSON object; parse_category_repair_response
-# accepts both shapes.
+# Input schema for the forced-tool-call path (see llm_capabilities.supports_json_schema).
+# Wrapped under "categories" because Anthropic tool input must be a JSON object;
+# parse_category_repair_response accepts both shapes.
 CATEGORY_REPAIR_JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -848,9 +828,9 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
 def log_assembled_system_prompt(slug, episode_id, system_prompt, label="System"):
     """DEBUG-log the final composed system prompt, not just its length.
 
-    Dynamic sections (show segments, segment-id addressing) are appended
-    after the stored setting, so the settings UI cannot show what was
-    actually sent; the episode run log is where prompt debugging happens.
+    Dynamic sections (show segments, segment-id addressing) are appended after
+    the stored setting, so the settings UI cannot show what was sent; the episode
+    run log is where prompt debugging happens.
     """
     logger.debug(
         f"[{slug}:{episode_id}] {label} prompt ({len(system_prompt)} chars):\n"
@@ -912,11 +892,11 @@ AD_SCHEMA_TEXT_MAX_CHARS = 300
 def _mode_detection_schema(addressing_mode: str) -> dict:
     """The detection schema for one addressing mode, for enforcing decoders.
 
-    An enforcing decoder such as Ollama's ``format`` emits an optional field
-    only when the model picks it, and gemma4 picked sponsor aliases over
-    category, reason and end_text, so the validator rejected real ads. This
-    marks the fields the prompt requires as required for ``addressing_mode``
-    and caps free text; AD_DETECTION_JSON_SCHEMA itself stays all-optional.
+    An enforcing decoder such as Ollama's ``format`` emits an optional field only
+    when the model picks it, and gemma4 picked sponsor aliases over category,
+    reason and end_text, so the validator rejected real ads. This marks the
+    fields the prompt requires as required for ``addressing_mode`` and caps free
+    text; AD_DETECTION_JSON_SCHEMA itself stays all-optional.
     """
     schema = copy.deepcopy(AD_DETECTION_JSON_SCHEMA)
     item = schema["properties"]["ads"]["items"]
@@ -949,7 +929,7 @@ def format_category_repair_prompt(transcript_excerpt: str,
 
     ``missing`` is an iterable of (index, ad_dict) pairs; index is the ad's
     position in the window's full ad list, carried through unchanged so the
-    response can be merged back onto the right ad unambiguously.
+    response merges back onto the right ad.
     """
     segments = [
         {
@@ -981,12 +961,10 @@ def _repair_index(value):
     return None
 
 
-# Spelled-out forms of the exact vocabulary: the model reaches for
-# "self-promotion" as readily as "self_promo". A position word like "pre-roll"
-# or a bare "ad" is still refused.
-# Keys a category can arrive under. Only Anthropic enforces the schema, so on
-# every other provider the model names fields freely; the rest of this parser
-# already tolerates that for start, end and sponsor.
+# Spelled-out forms of the vocabulary ("self-promotion" as often as "self_promo");
+# a position word like "pre-roll" or a bare "ad" is still refused.
+# Keys a category can arrive under: only Anthropic enforces the schema, so
+# elsewhere fields are named freely (the parser tolerates that for start, end, sponsor).
 _CATEGORY_KEY_HINTS = ('categor', 'segment_type', 'classification', 'type')
 
 
@@ -998,10 +976,9 @@ _repair_category = repair_segment_category
 def resolve_ad_category(ad: dict):
     """The segment category an ad object carries, wherever it put it.
 
-    "category" first, then the other keys a model uses for the same idea. The
-    value is validated against the vocabulary either way, so a `type` of "ad"
-    or "advertisement" contributes nothing while a `type` of "self_promo"
-    is taken at face value.
+    "category" first, then other keys a model uses for the same idea. The value
+    is validated against the vocabulary either way, so a `type` of "ad" or
+    "advertisement" contributes nothing while "self_promo" is taken at face value.
     """
     if not isinstance(ad, dict):
         return None
@@ -1021,11 +998,10 @@ def resolve_ad_category(ad: dict):
 def parse_category_repair_response(response_text: str) -> dict[int, str]:
     """Parse the repair call's response into {index: category}.
 
-    Accepts a bare JSON array of {"index", "category"} objects (json_object
-    path) or {"categories": [...]} (tool-forced json_schema path, since tool
-    input must be a JSON object). Returns {} on any parse failure or
-    validation miss; callers treat that as nothing resolved and fall back
-    to the existing sponsor default.
+    Accepts a bare JSON array of {"index", "category"} objects (json_object path)
+    or {"categories": [...]} (tool-forced json_schema path, since tool input
+    must be a JSON object). Returns {} on any parse failure or validation miss;
+    callers treat that as nothing resolved and keep the sponsor default.
     """
     try:
         data = json.loads(response_text)
