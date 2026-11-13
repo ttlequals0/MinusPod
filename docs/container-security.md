@@ -21,7 +21,7 @@ CI builds `Dockerfile.security-packages` from the same manifests into `ttlequals
 
 To change the packages, open or update a pull request that changes any patch input. The security-packages workflow runs on that PR and publishes `ttlequals0/minuspod-security-packages:<hash>`. Fork PRs skip publishing.
 
-Then run `scripts/bump_security_packages.sh`, which pins the manifest digest in both Dockerfiles, and commit. CI checks the hash comment on every pull request, and the release check verifies that the pinned digest carries the matching hash label.
+Then run `scripts/bump_security_packages.sh`, which pins the manifest digest in both Dockerfiles, and commit. Pull request and release checks verify the hash comments and the pinned image's hash label for every platform.
 
 The hash is a change detector for the patch inputs. The digest is the pin, because the Ubuntu base and build dependencies are not frozen by the hash.
 

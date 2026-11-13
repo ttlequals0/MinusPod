@@ -84,10 +84,10 @@ def resolve_errors(computed, digest):
         return [f"Could not parse the image config for {REPO}@{digest}."]
     configs = list(data.values()) if data and all("/" in k for k in data) else [data]
     labels = [((c or {}).get("config") or {}).get("Labels") or {} for c in configs]
-    found = [lab[LABEL] for lab in labels if LABEL in lab]
-    if computed in found:
+    mismatched = [lab.get(LABEL) for lab in labels if lab.get(LABEL) != computed]
+    if not mismatched:
         return []
-    return [f"Pinned digest {digest} carries inputs hash {found[0] if found else 'none'}, expected {computed}."]
+    return [f"Pinned digest {digest} carries inputs hash {mismatched[0] or 'none'}, expected {computed}."]
 
 
 def pin(image_ref, repo_root=ROOT):
