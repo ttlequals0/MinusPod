@@ -21,7 +21,7 @@ def _local(slug='arc'):
 def test_refresh_single_feed_skips_local():
     from main_app import feeds
     with patch.object(feeds, 'db') as db:
-        db.get_podcast_by_slug.return_value = _local()
+        db.get_podcast_row.return_value = _local()
         assert feeds.refresh_single_feed('arc') is False
 
 
@@ -32,10 +32,9 @@ def test_refresh_all_feeds_excludes_local():
          patch.object(feeds, 'refresh_rss_feed') as rrf:
         gfm.return_value = {'arc': {'in': 'local://arc', 'out': '/arc'},
                             'sub': {'in': 'https://x/feed.xml', 'out': '/sub'}}
-        db.get_podcast_row.side_effect = lambda s: (
-            _local() if s == 'arc'
-            else {'slug': 'sub', 'feed_type': 'subscribed',
-                  'source_url': 'https://x/feed.xml'})
+        db.get_podcast_feed_urls.return_value = [
+            _local(),
+            {'slug': 'sub', 'feed_type': 'subscribed', 'source_url': 'https://x/feed.xml'}]
         feeds.refresh_all_feeds()
         called_slugs = {c.args[0] for c in rrf.call_args_list}
         assert 'arc' not in called_slugs

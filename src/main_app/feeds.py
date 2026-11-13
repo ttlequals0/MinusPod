@@ -709,12 +709,12 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         # Parallelize feed refresh with ThreadPoolExecutor. record_failure=False:
         # per-feed failure counting is deferred until the batch fraction is
         # known below, so a shared outage never marks healthy feeds broken.
+        feed_rows = {r['slug']: r for r in db.get_podcast_feed_urls()}
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
             for slug in candidates:
-                # get_podcast_row, not get_podcast_by_slug: only feed_type and
-                # source_url are read, so the episode aggregation is wasted.
-                row = db.get_podcast_row(slug)
+                # One slug/source_url/feed_type query for all feeds, not a row per slug.
+                row = feed_rows.get(slug)
                 if not row or is_local_feed(row) or is_recents_feed(row):
                     continue
                 source_url = row.get('source_url')

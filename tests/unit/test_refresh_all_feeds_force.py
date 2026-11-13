@@ -30,7 +30,8 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
     @patch('main_app.feeds.get_feed_map')
     def test_default_call_passes_force_false(self, get_feed_map, refresh_rss_feed, db):
         get_feed_map.return_value = {'pod-a': {'in': 'x'}, 'pod-b': {'in': 'x'}}
-        db.get_podcast_row.side_effect = self._subscribed
+        db.get_podcast_feed_urls.return_value = [
+            self._subscribed(s) for s in get_feed_map.return_value]
         refresh_rss_feed.return_value = True
 
         refresh_all_feeds()
@@ -47,7 +48,8 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
     def test_force_true_propagates_to_every_feed(self, get_feed_map, refresh_rss_feed, db):
         get_feed_map.return_value = {'pod-a': {'in': 'x'}, 'pod-b': {'in': 'x'},
                                      'pod-c': {'in': 'x'}}
-        db.get_podcast_row.side_effect = self._subscribed
+        db.get_podcast_feed_urls.return_value = [
+            self._subscribed(s) for s in get_feed_map.return_value]
         refresh_rss_feed.return_value = True
 
         refresh_all_feeds(force=True)
@@ -56,6 +58,21 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
         for call in refresh_rss_feed.call_args_list:
             args, kwargs = call
             self.assertEqual(args[2], True)
+
+    @patch('main_app.feeds.db')
+    @patch('main_app.feeds.refresh_rss_feed')
+    @patch('main_app.feeds.get_feed_map')
+    def test_sweep_reads_feed_rows_in_one_query(self, get_feed_map, refresh_rss_feed, db):
+        get_feed_map.return_value = {s: {'in': 'x'} for s in ('pod-a', 'pod-b', 'pod-c')}
+        db.get_podcast_feed_urls.return_value = [
+            self._subscribed(s) for s in get_feed_map.return_value]
+        refresh_rss_feed.return_value = True
+
+        refresh_all_feeds()
+
+        db.get_podcast_feed_urls.assert_called_once_with()
+        db.get_podcast_row.assert_not_called()
+        self.assertEqual(refresh_rss_feed.call_count, 3)
 
 
 class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):

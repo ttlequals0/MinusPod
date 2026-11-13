@@ -86,8 +86,9 @@ class SweepCase(unittest.TestCase):
         self.db = mocks['db']
 
     def _sweep(self, outcomes):
-        self.db.get_podcast_by_slug.side_effect = lambda slug: {
-            'id': 1, 'slug': slug, 'source_url': f'https://example.com/{slug}'}
+        self.db.get_podcast_feed_urls.return_value = [
+            {'slug': slug, 'source_url': f'https://example.com/{slug}'}
+            for slug in outcomes]
         with patch.object(feeds, 'get_feed_map', return_value={
                     slug: {'in': f'https://example.com/{slug}'}
                     for slug in outcomes}), \
