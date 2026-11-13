@@ -137,10 +137,6 @@ def episodes_in_window(episodes: list[dict], since_days: int, today: date) -> li
     return keep
 
 
-def episode_artwork_targets(episodes: list[dict], since_days: int, today: date) -> list[dict]:
-    return [ep for ep in episodes_in_window(episodes, since_days, today) if ep.get('artworkUrl')]
-
-
 def round_numbers(value, digits: int = 3):
     if isinstance(value, float):
         return round(value, digits)

@@ -94,11 +94,3 @@ def wait_for_cancellation(run_id: str, timeout: float,
         if remaining <= 0:
             return False
         time.sleep(min(poll_interval, remaining))
-
-
-def cancel_processing(slug, episode_id, wait_timeout: float = 0) -> bool:
-    """Request cancellation and optionally wait for the owner to stop."""
-    run_id = request_cancellation(slug, episode_id)
-    if not run_id:
-        return False
-    return wait_for_cancellation(run_id, wait_timeout) if wait_timeout > 0 else True

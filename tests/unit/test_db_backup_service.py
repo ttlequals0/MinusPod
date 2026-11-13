@@ -734,9 +734,9 @@ def test_dest_writable_existing_non_dir(tmp_path):
 
 @pytest.fixture(autouse=True)
 def _reset_secret_latch():
-    db_backup_service.reset_secret_state_log()
+    db_backup_service._secret_state_logged = False
     yield
-    db_backup_service.reset_secret_state_log()
+    db_backup_service._secret_state_logged = False
 
 
 def test_warns_when_plaintext_secrets_are_present(db, caplog, monkeypatch):

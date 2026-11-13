@@ -42,7 +42,6 @@ class TokenAccumulator:
         self.input_tokens = 0
         self.output_tokens = 0
         self.cost = 0.0
-        self._last_totals = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
 
     def start(self):
         with self._lock:
@@ -50,9 +49,6 @@ class TokenAccumulator:
             self.input_tokens = 0
             self.output_tokens = 0
             self.cost = 0.0
-            self._last_totals = {
-                'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
-            }
 
     def add(self, input_tokens: int, output_tokens: int, cost: float) -> None:
         with self._lock:
@@ -70,17 +66,11 @@ class TokenAccumulator:
         with self._lock:
             totals = {'input_tokens': self.input_tokens,
                       'output_tokens': self.output_tokens, 'cost': self.cost}
-            if self.active:
-                self._last_totals = dict(totals)
             self.active = False
             self.input_tokens = 0
             self.output_tokens = 0
             self.cost = 0.0
         return totals
-
-    def last_totals(self) -> dict:
-        with self._lock:
-            return dict(self._last_totals)
 
 
 class RunTiming:

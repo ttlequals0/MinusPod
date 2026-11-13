@@ -231,12 +231,6 @@ def _ensure_dest_dir(dest: Path) -> int:
 _secret_state_logged = False
 
 
-def reset_secret_state_log() -> None:
-    """Clear the once-per-process latch. For tests."""
-    global _secret_state_logged
-    _secret_state_logged = False
-
-
 def _log_snapshot_secret_state(db, final, summary) -> None:
     """Log once per process what a snapshot exposes.
 

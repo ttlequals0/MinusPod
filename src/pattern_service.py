@@ -38,11 +38,6 @@ from community_export import (
     get_sponsor_row_or_stub,
 )
 
-# Verification-miss thresholds re-exported for back-compat with existing
-# test names. New code should import the LEARNING_* names directly.
-VERIFICATION_MIN_CONFIDENCE = LEARNING_MIN_CONFIDENCE
-VERIFICATION_MIN_CONFIDENCE_LONG = LEARNING_MIN_CONFIDENCE_LONG
-
 logger = logging.getLogger('podcast.patterns')
 
 TRUST_ACTIVE_WINDOW_DAYS = 90

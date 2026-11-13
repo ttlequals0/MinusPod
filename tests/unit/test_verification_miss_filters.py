@@ -19,8 +19,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from database import Database
 from pattern_service import (
     PatternService,
-    VERIFICATION_MIN_CONFIDENCE,
-    VERIFICATION_MIN_CONFIDENCE_LONG,
+    LEARNING_MIN_CONFIDENCE,
+    LEARNING_MIN_CONFIDENCE_LONG,
 )
 
 
@@ -65,7 +65,7 @@ def test_low_confidence_verification_miss_is_dropped(db):
         'example-podcast', 'a1b2c3d4e5f6',
         [{
             'sponsor': 'Globex', 'start': 0.0, 'end': 37.0,
-            'confidence': VERIFICATION_MIN_CONFIDENCE - 0.01,
+            'confidence': LEARNING_MIN_CONFIDENCE - 0.01,
             'reason': 'Globex sponsor mention',
         }],
         segments=_segments(_globex_window()),
@@ -83,7 +83,7 @@ def test_long_verification_miss_needs_higher_confidence(db):
         'some-show', 'abc',
         [{
             'sponsor': 'BetterHelp', 'start': 0.0, 'end': 100.0,
-            'confidence': VERIFICATION_MIN_CONFIDENCE_LONG - 0.01,
+            'confidence': LEARNING_MIN_CONFIDENCE_LONG - 0.01,
             'reason': 'BetterHelp ad',
         }],
         segments=_segments(long_text, end=100.0),
