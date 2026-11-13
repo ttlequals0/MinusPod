@@ -27,6 +27,7 @@ from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
     resolved_stage_slot, SLOT_SECONDARY,
 )
+from pattern_audio import audio_source_on, carry_audio_to_children, rebuild_pattern_audio
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
@@ -1239,7 +1240,8 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
     db.stamp_pattern_cleanup_reviewed(
         pattern['id'], review_hash(text, sponsor,
                                   category if category is not None else pattern.get('category')), conn=conn)
-    applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text}
+    applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text,
+               'audio_source': audio_source_on(conn, pattern['id'])}
     if sponsor_name:
         applied['sponsor_id'] = sponsor_id
     return applied
@@ -1311,7 +1313,7 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     return {
         'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
         'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
-        'disabled_reason': disabled_reason,
+        'disabled_reason': disabled_reason, 'audio_source': audio_source_on(conn, pattern['id']),
     }
 
 
@@ -1370,7 +1372,17 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         db.set_cleanup_suggestion_status(suggestion_id, 'approved', applied=applied, conn=conn)
         db.supersede_pending(pattern['id'], conn=conn)
     invalidate_pattern_catalog_scope()
-    return db.get_cleanup_suggestion(suggestion_id)
+    # Decoding audio stays out of the write transaction.
+    source = applied.get('audio_source')
+    if applied.get('new_pattern_ids'):
+        outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
+    elif applied.get('text') is not None:
+        outcomes = rebuild_pattern_audio(db, source, pattern['id'])
+    else:
+        outcomes = []
+    result = db.get_cleanup_suggestion(suggestion_id)
+    result['fingerprint_outcomes'] = outcomes
+    return result
 
 
 def reject_suggestion(db, suggestion_id: int) -> dict:
@@ -1427,6 +1439,15 @@ def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
     for new_id in new_ids:
         db.supersede_pending(new_id, conn=conn)
         db._update_ad_pattern_conn(conn, new_id, is_active=0, disabled_reason='Cleanup undo')
+
+
+def _restore_trimmed_audio(db, pattern_id: int, source: dict | None) -> list:
+    """Rebuild the pre-trim fingerprint only when the trim replaced it with another span."""
+    current = db.get_audio_fingerprint(pattern_id, with_blob=False)
+    if (not source or current is None
+            or (current['source_start'], current['source_end']) == (source['start'], source['end'])):
+        return []
+    return rebuild_pattern_audio(db, source, pattern_id, locate=False)
 
 
 def undo_suggestion(db, suggestion_id: int) -> dict:
@@ -1486,4 +1507,9 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
         _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'undone', conn=conn)
     invalidate_pattern_catalog_scope()
-    return db.get_cleanup_suggestion(suggestion_id)
+    outcomes = []
+    if suggestion['kind'] != 'split' and applied.get('text') is not None:
+        outcomes = _restore_trimmed_audio(db, pattern['id'], applied.get('audio_source'))
+    result = db.get_cleanup_suggestion(suggestion_id)
+    result['fingerprint_outcomes'] = outcomes
+    return result

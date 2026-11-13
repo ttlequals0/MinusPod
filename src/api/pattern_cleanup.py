@@ -5,6 +5,7 @@ from flask import request
 
 import pattern_cleanup
 from api import api, limiter, log_request, json_response, error_response, get_database
+from api.patterns import fingerprint_response_fields
 from llm_client import require_llm
 from database.error_text import redact_error
 from database.settings import registry_default, registry_get_default
@@ -79,6 +80,7 @@ def _suggestion_view(s: dict) -> dict:
     }
     if 'pattern' in s:
         view['pattern'] = _pattern_summary_view(s['pattern'])
+    view.update(fingerprint_response_fields(s.get('fingerprint_outcomes') or []))
     return view
 
 
