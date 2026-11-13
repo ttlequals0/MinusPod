@@ -46,7 +46,7 @@ def test_stage_failure_clears_a_leaked_transaction(monkeypatch):
             raise RuntimeError('boom')
 
     monkeypatch.setattr(processing, 'audio_analyzer', Boom())
-    assert signals._run_audio_analysis('example-podcast', 'a1b2c3d4e5f6', '/nonexistent.mp3', []) is None
+    assert signals._run_audio_analysis('example-podcast', 'a1b2c3d4e5f6', '/nonexistent.mp3') is None
     assert cleared == ['audio analysis']
 
 

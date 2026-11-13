@@ -704,7 +704,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     # when detection is skipped)
                     with common._measure_run_stage('audio_analysis'):
                         audio_analysis_result = signals._run_audio_analysis(
-                            slug, episode_id, audio_path, segments,
+                            slug, episode_id, audio_path,
                             force_cue_detection=cue_only)
             finally:
                 signals._publish_primary_cues(primary_cue_future, audio_analysis_result)

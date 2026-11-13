@@ -13,7 +13,6 @@ from utils.time import format_time
 
 from .auth import Session
 from .corpus import (
-    CorpusError,
     EpisodeMetadata,
     compute_windows,
     hash_segments,
@@ -23,7 +22,6 @@ from .corpus import (
     write_windows,
 )
 from .truth_parser import (
-    TruthParseError,
     parse as parse_truth,
     validate_cross_reference,
     validate_logical,
