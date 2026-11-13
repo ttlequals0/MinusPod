@@ -8,7 +8,6 @@ Additional manifests under `scripts/core-security/`, `scripts/misc-security/`, `
 
 | Family | Update |
 | --- | --- |
-| glibc | Backport the fix for empty `fopen` character sets and its upstream regression test. Keep the runtime library, utilities, and conversion modules at the same version. |
 | PCRE2 | Build upstream 10.49 with Ubuntu's package recipe and 8-, 16-, and 32-bit tests. This includes newer arm64 JIT fixes and Unicode 17 data; Unicode matching can differ from 10.46. |
 | GLib and cJSON | Backport destination-replacement symlink protection and escaped JSON Pointer decoding. GLib's library and architecture-independent data package ship together. |
 | p11-kit, tar, bubblewrap, and libXrender | Apply the pinned security backports or upstream release recorded in the auxiliary manifest. Bubblewrap's source recipe comes from the official Debian archive. |
@@ -59,7 +58,7 @@ Both images install a pinned yt-dlp and a pinned Deno for [YouTube feeds](youtub
 
 1. Check the installed Ubuntu package versions and official upstream advisories. Prefer a public Ubuntu security update when it contains the required fixes.
 2. Update the pinned source and patch entries. Review each patch against the Ubuntu source, including patches already applied by Ubuntu. Preserve attribution when porting upstream lines into local patch files.
-3. Let the security-packages workflow run on the PR and review the logs under the provenance directories. Package recipes run their configured tests; failures stop the build. GLib and auxiliary packages build as an unprivileged user so permission tests exercise normal access rules. Glibc builds the native runtime with its full tests and omits unused secondary architectures. Then run `scripts/bump_security_packages.sh` and commit the Dockerfile pin changes.
+3. Let the security-packages workflow run on the PR and review the logs under the provenance directories. Package recipes run their configured tests; failures stop the build. GLib and auxiliary packages build as an unprivileged user so permission tests exercise normal access rules. Then run `scripts/bump_security_packages.sh` and commit the Dockerfile pin changes.
 4. Build both image variants. Run `scripts/check_image_runtime.py` against each final image as UID 1000. It requires every security provenance family, checks installed versions, exercises native PCRE2 JIT and libc conversion, and verifies media decoding, stream copy, metadata, Chromaprint, and Python imports. Check application startup and health separately. The CPU workflow runs these checks on native amd64 and arm64 runners before publishing the manifest.
 5. Scan each completed image for vulnerabilities and secrets. Compare vendor findings with the applied source patches, and document residual findings before publication.
 

@@ -18,7 +18,7 @@ RUN python3 /build/scripts/build_media_security_packages.py
 
 # Build core libraries independently from the media package cache.
 FROM base-security-builder AS core-security-builder
-RUN apt-get build-dep -y --no-install-recommends -P nobiarch glibc pcre2
+RUN apt-get build-dep -y --no-install-recommends pcre2
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/core-security/ /build/scripts/core-security/
 RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/core-security
