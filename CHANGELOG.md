@@ -52,7 +52,6 @@ release notes.
 ### Fixed
 
 - Page tabs and section links wrap on narrow screens, including Patterns and Stats. Pattern details can be opened from the keyboard in both cards and tables.
-
 - Repeated queue claims preserve other feeds' positions when a feed uses Oldest first or Newest first.
 - Off-grid waveform requests stream decoded audio in bounded chunks and enforce the duration and output-size limits.
 - Edit edges can use a retained match after the fingerprint's original source expires. Saving new edges clears the loaded preview so Play uses the rebuilt clip.
