@@ -159,26 +159,32 @@ mark,
   button, summary, [role="switch"], .touch-target { min-height: 44px; }
   @media (max-width: 639.98px) { .touch-compact { min-height: 36px; } }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select { height: 44px; }
   summary:not(.flex) { padding-block: 12px; }
 }
 
 /* WebKit sizes a native select (and a time input) with its own metrics: a select ignores min-height and renders shorter
    than the inputs beside it, and a time input keeps an intrinsic min-width that pushes it out of a grid cell. A plain box
-   follows the field recipe. The chevron is drawn here, in the text colour; unlayered so it beats the px-3 padding. */
+   follows the field recipe. The chevron is two stroked diagonals in --muted-foreground (the colour of the app's other
+   chevrons, so every theme follows); unlayered so it beats the px-3 padding. */
 select {
   appearance: none;
   padding-right: 2.25rem;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: calc(100% - 1.25rem) 50%, calc(100% - 0.9rem) 50%;
+  background-image:
+    linear-gradient(to top right, transparent calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% + 0.75px), transparent calc(50% + 0.75px)),
+    linear-gradient(to top left, transparent calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% + 0.75px), transparent calc(50% + 0.75px));
+  background-position: calc(100% - 1.1rem) 50%, calc(100% - 1.1rem + 0.35rem) 50%;
   background-size: 0.35rem 0.35rem;
   background-repeat: no-repeat;
 }
 input[type="time"] { appearance: none; min-width: 0; }
 input[type="time"]::-webkit-date-and-time-value { text-align: left; }
-/* One explicit height for a select and a single-line input, so WebKit's differing box metrics cannot change it. Base layer: an h-* utility still wins. */
+/* One explicit height for a select and a single-line input, so WebKit's differing box metrics cannot change it.
+   Base layer so an h-* utility (h-auto on a deliberately compact or tall input) still wins; the coarse 44px floor is the unlayered min-height above. */
 @layer base {
   select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]) { height: 2.5rem; }
+  @media (pointer: coarse) {
+    select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]) { height: 44px; }
+  }
 }
 
 /* Height is a hard floor (above); width is a default in the base layer, so a control's own min-w-* utility wins. */

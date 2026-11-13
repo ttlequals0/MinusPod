@@ -69,7 +69,7 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
               readOnly
               value={createdFeedUrl}
               aria-label="New subscriber feed URL"
-              className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-xs"
+              className="h-auto min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-xs"
             />
             <CopyButton text={createdFeedUrl} label="Copy subscriber feed URL" className={`shrink-0 px-3 py-1 ${btnOutline}`} />
           </div>
