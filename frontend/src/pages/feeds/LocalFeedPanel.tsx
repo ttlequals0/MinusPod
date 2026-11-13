@@ -435,6 +435,27 @@ function LocalFeedPanel({ feed, slug }: Props) {
     return rejected;
   };
 
+  const uploadThenScan = async (files: File[], overwrite: boolean) => {
+    const rejected = await uploadFilesSequentially(files);
+    // Commit the accumulated rejections now, before the trailing scan --
+    // those uploads already happened and are real results; a scan
+    // failure right after must not wipe them out from under the
+    // operator along with the (unrelated) scan error.
+    setUploadRejected(rejected);
+    return importScan(slug, { source: 'staging', overwrite });
+  };
+
+  const stagedUploadHandlers = {
+    // Clear a stale error from a previous failed attempt as soon as a new
+    // one starts, rather than leaving it displayed under the new state.
+    onMutate: () => { setImportError(null); setUploadProgress(null); },
+    onSuccess: (scanned: ImportPlan) => {
+      setPlan(scanned);
+      setImportSource('staging');
+    },
+    onSettled: () => setUploadProgress(null),
+  };
+
   const uploadAndScanMutation = useMutation({
     mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
       // Each selection stands alone: clear whatever's already staged before
@@ -450,23 +471,10 @@ function LocalFeedPanel({ feed, slug }: Props) {
         // because another import is already running).
         if (!/404|not found/i.test(message)) throw e;
       }
-      const rejected = await uploadFilesSequentially(files);
-      // Commit the accumulated rejections now, before the trailing scan --
-      // those uploads already happened and are real results; a scan
-      // failure right after must not wipe them out from under the
-      // operator along with the (unrelated) scan error.
-      setUploadRejected(rejected);
-      return importScan(slug, { source: 'staging', overwrite });
+      return uploadThenScan(files, overwrite);
     },
-    // Clear a stale error from a previous failed attempt as soon as a new
-    // one starts, rather than leaving it displayed under the new state.
-    onMutate: () => { setImportError(null); setUploadProgress(null); },
-    onSuccess: (scanned) => {
-      setPlan(scanned);
-      setImportSource('staging');
-    },
+    ...stagedUploadHandlers,
     onError: (e) => setImportError(uploadErrorMessage(e)),
-    onSettled: () => setUploadProgress(null),
   });
 
   // Companion to Rescan (below): uploads into staging WITHOUT the pre-clear
@@ -474,18 +482,9 @@ function LocalFeedPanel({ feed, slug }: Props) {
   // spared -- e.g. a corrected sidecar next to the audio file it left behind
   // -- instead of wiping that out along with the fresh upload.
   const addFilesToStagingMutation = useMutation({
-    mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
-      const rejected = await uploadFilesSequentially(files);
-      setUploadRejected(rejected);
-      return importScan(slug, { source: 'staging', overwrite });
-    },
-    onMutate: () => { setImportError(null); setUploadProgress(null); },
-    onSuccess: (scanned) => {
-      setPlan(scanned);
-      setImportSource('staging');
-    },
+    mutationFn: ({ files, overwrite }: { files: File[]; overwrite: boolean }) => uploadThenScan(files, overwrite),
+    ...stagedUploadHandlers,
     onError: (e) => setImportError(getErrorMessage(e, 'Could not add files.')),
-    onSettled: () => setUploadProgress(null),
   });
 
   // Re-reads whatever is currently staged without uploading or clearing
