@@ -45,3 +45,18 @@ def test_llm_reprocess_loops_skip_the_per_episode_check(app_client, temp_db, mon
     episodes = everything.get_json()['episodes']
     assert [e['episodeId'] for e in episodes['queued']] == [IDS[0]]
     assert {e['episodeId'] for e in episodes['skipped']} == {IDS[1], IDS[2]}
+
+
+def test_failing_transcript_read_gives_per_episode_errors(app_client, temp_db, monkeypatch):
+    _feed_with_one_transcript(temp_db)
+
+    def boom(*_a, **_k):
+        raise RuntimeError('db down')
+
+    monkeypatch.setattr(temp_db, 'get_episode_ids_with_transcript', boom)
+    response = app_client.post(f'/api/v1/feeds/{SLUG}/episodes/bulk', headers=csrf(app_client),
+                               json={'episodeIds': list(IDS), 'action': 'reprocess_llm'})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['queued'] == 0
+    assert body['errors'] == [f'{eid}: bulk action failed' for eid in IDS]

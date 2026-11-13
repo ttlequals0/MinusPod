@@ -376,8 +376,7 @@ def bulk_episode_action(slug):
         # File cleanup must be per-episode, but DB updates are batched
         mode = {'reprocess_full': 'full', 'reprocess_llm': 'llm'}.get(action, 'reprocess')
         eligible_ids = []
-        with_transcript = (db.get_episode_ids_with_transcript(slug)
-                           if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] else set())
+        with_transcript = None
         for episode_id in episode_ids:
             try:
                 episode = episodes_by_id.get(episode_id)
@@ -385,9 +384,12 @@ def bulk_episode_action(slug):
                     skipped += 1
                     continue
                 # LLM-only reprocess needs a saved transcript; skip episodes without one.
-                if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and episode_id not in with_transcript:
-                    skipped += 1
-                    continue
+                if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode]:
+                    if with_transcript is None:
+                        with_transcript = db.get_episode_ids_with_transcript(slug)
+                    if episode_id not in with_transcript:
+                        skipped += 1
+                        continue
                 # Keep existing audio until the new version is durable (orchestration-5).
                 eligible_ids.append(episode_id)
             except Exception as e:
