@@ -6,7 +6,7 @@ export interface PlayerChapter {
   title: string;
 }
 
-export const SPEED_PRESETS = [1, 1.25, 1.5, 1.75, 2, 0.8] as const;
+const SPEED_PRESETS = [1, 1.25, 1.5, 1.75, 2, 0.8] as const;
 export const RATE_STORAGE_KEY = 'minuspod.playbackRate';
 export const SKIP_BACK_SECONDS = 15;
 export const SKIP_FORWARD_SECONDS = 30;

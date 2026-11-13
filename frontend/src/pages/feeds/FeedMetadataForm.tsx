@@ -20,7 +20,7 @@ export interface MetadataValues {
   categoriesInput: string;
 }
 
-export const metadataValuesFromFeed = (f: Feed): MetadataValues => ({
+const metadataValuesFromFeed = (f: Feed): MetadataValues => ({
   title: f.title,
   description: f.description ?? '',
   author: f.author ?? '',

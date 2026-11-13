@@ -6,7 +6,7 @@ import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from './useDebouncedValue';
 import { buildSearchResultRows } from '../components/SearchResults';
 import type { SearchResultRow, UnifiedSearchGroups } from '../components/SearchResults';
 
-export const SEARCH_MIN_QUERY = 2;
+const SEARCH_MIN_QUERY = 2;
 
 const EMPTY_GROUPS: UnifiedSearchGroups = { shows: [], episodes: [], transcripts: [] };
 // Dashboard field and palette only ever render these three; skip computing patterns/sponsors.

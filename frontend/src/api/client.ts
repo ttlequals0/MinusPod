@@ -19,7 +19,7 @@ const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const MUTATION_UNCERTAIN_MESSAGE =
   'The server did not confirm this change. It may have completed. Check the current state before trying again.';
 
-export function getCsrfToken(): string | null {
+function getCsrfToken(): string | null {
   const cookies = document.cookie.split('; ');
   for (const c of cookies) {
     const [name, ...rest] = c.split('=');
@@ -30,7 +30,7 @@ export function getCsrfToken(): string | null {
   return null;
 }
 
-export function csrfHeaders(method: string): Record<string, string> {
+function csrfHeaders(method: string): Record<string, string> {
   if (CSRF_SAFE_METHODS.has(method.toUpperCase())) return {};
   const token = getCsrfToken();
   return token ? { [CSRF_HEADER_NAME]: token } : {};
@@ -99,7 +99,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 // so `new Error(...).message` never ends up as "[object Object]". Backend
 // 4xx bodies vary: sometimes `{error: 'string'}`, sometimes
 // `{error: {message: 'x', reasons: [...]}}` (e.g. submit-to-community 400).
-export function extractErrorMessage(body: unknown, status: number): string {
+function extractErrorMessage(body: unknown, status: number): string {
   if (body && typeof body === 'object') {
     const err = (body as { error?: unknown }).error;
     if (typeof err === 'string' && err) return err;

@@ -210,7 +210,7 @@ export function readEnvOverride(entry: StageTunables[keyof StageTunables]): stri
   return entry?.envOverride ?? null;
 }
 
-export function ResetButton({
+function ResetButton({
   disabled,
   onClick,
 }: {

@@ -18,7 +18,7 @@ import { cardTitle } from '../../components/pageStyles';
 import { formatTimeAgo } from '../../utils/format';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
-export const REVIEW_PAGE_SIZE = 25;
+const REVIEW_PAGE_SIZE = 25;
 
 const rowKey = (row: ApprovalEpisodeRow) => `${row.slug}:${row.episodeId}`;
 const episodePath = (row: ApprovalEpisodeRow) => `/feeds/${row.slug}/episodes/${row.episodeId}`;

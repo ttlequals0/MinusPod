@@ -9,7 +9,7 @@ function assetUrl(error: unknown) {
   return document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.src ?? window.location.href;
 }
 
-export function isStaleChunkError(error: unknown) {
+function isStaleChunkError(error: unknown) {
   return /(chunkloaderror|loading chunk \d+ failed|failed to fetch dynamically imported module|importing a module script failed|dynamically imported module)/i.test(String(error));
 }
 

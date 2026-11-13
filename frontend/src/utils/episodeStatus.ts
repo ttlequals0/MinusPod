@@ -29,7 +29,7 @@ export function isFailedStatus(status: string): boolean {
 
 // 'queued' isn't a real episode status; it overrides display while the
 // episode's real status (still 'pending', etc.) waits in the run queue.
-export function displayStatusKey(status: string, jobState?: string): string {
+function displayStatusKey(status: string, jobState?: string): string {
   return jobState === 'queued' ? 'queued' : status;
 }
 

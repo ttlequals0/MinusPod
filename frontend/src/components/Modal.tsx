@@ -2,8 +2,7 @@ import { ReactNode, type SyntheticEvent, useEffect, useId, useRef } from 'react'
 import { btnBase, btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
-// Shared modal recipes. cueScanStyles re-exports these for the cue feature's
-// recipe-based modals; everything else renders through <Modal>.
+// Shared modal recipes; everything else renders through <Modal>.
 export const modalBackdrop = 'modal-backdrop fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4';
 // Modal's own panel omits text-foreground (see panelClassName comment below);
 // the exported recipe keeps it for standalone use.
@@ -15,8 +14,7 @@ export const dialogFooterBtn = `${btnBase} border border-transparent`;
 // Footers with 3 or more actions: 2 columns under 360 px, one row of equal columns to 639 px, flex row from sm.
 export const dialogFooterGrid = 'max-sm:grid max-sm:gap-2 max-sm:grid-cols-2 min-[360px]:max-sm:grid-cols-none min-[360px]:max-sm:grid-flow-col min-[360px]:max-sm:auto-cols-fr';
 
-// Close-on-Escape for modals that opt in (also used standalone by the cue
-// feature's recipe-based modals via the cueScanStyles re-export).
+// Close-on-Escape for modals that opt in (also used standalone by recipe-based modals).
 export function isTopDialog(panel: HTMLElement | null) {
   const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
   return panel === dialogs[dialogs.length - 1];

@@ -4,7 +4,7 @@ import type { KeyboardEvent } from 'react';
 // here keeps the modal focused on composition and lets us unit-test the
 // pure pieces without mounting React.
 
-export const PLAY_WHILE_DRAG_KEY = 'minuspod.adInbox.playWhileDragging';
+const PLAY_WHILE_DRAG_KEY = 'minuspod.adInbox.playWhileDragging';
 
 const INT_PART = /^\d+$/;
 const LAST_PART = /^\d+(\.\d+)?$/;

@@ -3,7 +3,7 @@ import { focusRing } from './fieldStyles';
 
 export const tabStrip = 'flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden';
 // Short tab sets wrap on a phone so every tab stays inside the viewport.
-export const tabStripWrap = 'flex flex-wrap gap-1 border-b border-border mb-6';
+const tabStripWrap = 'flex flex-wrap gap-1 border-b border-border mb-6';
 export const tabItem = `shrink-0 px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing}`;
 
 export default function PageTabs<T extends string>({ id, label, tabs, active, onChange, wrap = false }: {
