@@ -21,28 +21,34 @@ import StatTile from './StatTile';
 import ToggleSwitch from './ToggleSwitch';
 import { subHeading } from './pageStyles';
 
-// A pattern without audio can be built from the ad it matched, when the server knows which.
+const NO_SOURCE_REASON = 'No retained episode has this ad. To add audio, use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page.';
+
+// A pattern without audio can be built from the ad it matched; with no source the button stays, disabled, with the reason.
 function AddFromSource({ patternId, source, onAdded }: {
   patternId: number;
-  source: NonNullable<AudioDetail['addSource']>;
+  source: AudioDetail['addSource'];
   onAdded: () => void;
 }) {
   const rebuild = usePatternAudioRebuild(patternId, onAdded);
-  const { podcastSlug, episodeId, start, end } = source;
+  const reasonId = useId();
+  const reason = !source ? NO_SOURCE_REASON : !source.available ? 'Source audio expired' : null;
   return (
     <div className="flex flex-col items-start gap-1">
       <DemoDisabled>
         <button
           type="button"
-          onClick={() => rebuild.mutate({ podcastSlug, episodeId, start, end })}
-          disabled={!source.available || rebuild.isPending}
+          onClick={() => {
+            if (source) rebuild.mutate({ podcastSlug: source.podcastSlug, episodeId: source.episodeId, start: source.start, end: source.end });
+          }}
+          disabled={!!reason || rebuild.isPending}
           aria-busy={rebuild.isPending}
+          aria-describedby={reason ? reasonId : undefined}
           className={`${btnBase} ${btnOutline}`}
         >
           {rebuild.isPending ? 'Adding audio...' : 'Add audio to pattern'}
         </button>
       </DemoDisabled>
-      {!source.available && <p className="text-xs text-muted-foreground">Source audio expired</p>}
+      {reason && <p id={reasonId} className="text-xs text-muted-foreground">{reason}</p>}
       {rebuild.isError && <p role="alert" className="text-sm text-destructive">{rebuild.error.message}</p>}
     </div>
   );
@@ -153,18 +159,11 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
     body = (
       <>
         <p className="text-sm text-muted-foreground">No audio fingerprint.</p>
-        {!detail.addSource && (
-          <p className="text-sm text-muted-foreground">
-            No retained episode has this ad. To add audio, use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page.
-          </p>
-        )}
-        {detail.addSource && (
-          <AddFromSource
-            patternId={pattern.id}
-            source={detail.addSource}
-            onAdded={() => { focusHeadingWhen.current = 'present'; setNotice('Audio added to pattern.'); }}
-          />
-        )}
+        <AddFromSource
+          patternId={pattern.id}
+          source={detail.addSource ?? null}
+          onAdded={() => { focusHeadingWhen.current = 'present'; setNotice('Audio added to pattern.'); }}
+        />
       </>
     );
   } else {

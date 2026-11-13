@@ -482,14 +482,16 @@ describe('Add audio to pattern from the source episode', () => {
     renderAudioModal(makePattern());
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(screen.getByText('Source audio expired')).toBeDefined();
+    expect(button.getAttribute('aria-describedby')).toBe(screen.getByText('Source audio expired').id);
   });
 
-  it('is not offered when the server knows no source', async () => {
+  it('stays visible but disabled, described by the reason, when the server knows no source', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...NO_AUDIO, addSource: null });
     renderAudioModal(makePattern());
-    await screen.findByText('No audio fingerprint.');
-    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+    const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-describedby')).toBe(screen.getByText(/No retained episode has this ad/).id);
+    await userEvent.click(button);
     expect(mockGetEpisode).not.toHaveBeenCalled();
   });
 });
