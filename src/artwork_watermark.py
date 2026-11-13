@@ -1,12 +1,10 @@
 """Composite the MinusPod badge onto podcast cover art.
 
-Used when the global ``artwork_watermark_enabled`` setting is on so the served
-feed's cover art is visually distinct from the original in a podcast app
-(issue #420). The badge is the MinusPod waveform mark on a dark rounded chip
-with a solid hulu-green ring and a tight neon glow, so it stays visible on
-light, dark, and busy covers alike (this replaced a black drop shadow that
-vanished on black art, issue #514). Shapes render supersampled and are
-LANCZOS-downscaled for smooth edges.
+Used when the global ``artwork_watermark_enabled`` setting is on so the served feed's cover art is
+visually distinct from the original in a podcast app (issue #420). The badge is the MinusPod
+waveform mark on a dark rounded chip with a solid hulu-green ring and a tight neon glow, so it
+stays visible on light, dark, and busy covers (replaced a black drop shadow that vanished on
+black art, issue #514). Shapes render supersampled and are LANCZOS-downscaled for smooth edges.
 """
 import hashlib
 import logging
@@ -18,11 +16,9 @@ from PIL import Image, ImageDraw, ImageFilter
 
 logger = logging.getLogger(__name__)
 
-# Bump only for a code-only rendering change to the badge (chip color, layout)
-# that does not swap the asset file -- an asset swap is picked up automatically
-# by badge_fingerprint(). Both feed into cover_badge_salt(), which storage folds
-# into the cover-art URL cache-bust token so downstream apps re-fetch a changed
-# badge instead of serving the stale cache.
+# Bump only for a code-only rendering change to the badge (chip color, layout) that does not swap
+# the asset file (an asset swap is picked up by badge_fingerprint()). Both feed cover_badge_salt(),
+# which storage folds into the cover-art URL cache-bust token so apps re-fetch a changed badge.
 BADGE_REVISION = 2
 
 # Repo/app root: src/artwork_watermark.py -> parents[1]. In the container that
@@ -48,10 +44,9 @@ CHIP_RING = (*HULU_GREEN, 255)      # solid ring for edge separation
 RADIUS_FRAC = 0.26                  # corner radius
 INNER_FRAC = 0.72                   # waveform size inside the chip
 RING_FRAC = 0.03                    # ring width
-# The glow hugs the ring: full saturation but tight, so it reads as a neon
-# edge on dark art without smearing a gray-green plate across light art.
-# Margin must swallow the Gaussian tail (expand + ~3x blur) or the glow
-# hard-clips into a visible square seam at the layer edge.
+# The glow hugs the ring: full saturation but tight, so it reads as a neon edge on dark art without
+# smearing a gray-green plate across light art. The margin must swallow the Gaussian tail (expand +
+# ~3x blur) or the glow hard-clips into a visible square seam at the layer edge.
 HALO_MARGIN_FRAC = 0.20             # layer padding around the chip for the halo
 HALO_EXPAND_FRAC = 0.02             # halo rect extends past the chip edge
 HALO_BLUR_FRAC = 0.05               # halo blur radius
@@ -79,9 +74,8 @@ _BADGE_FINGERPRINT: str | None = None
 def badge_fingerprint() -> str:
     """Short content hash of the active badge asset, memoized for the process.
 
-    Folded into cover_badge_salt() so swapping the badge image (a new build or a
-    MINUSPOD_WATERMARK_BADGE override) shifts every feed's artwork URL with no
-    manual BADGE_REVISION bump. Empty string when no badge asset is available.
+    Folded into cover_badge_salt() so swapping the badge image (new build or MINUSPOD_WATERMARK_BADGE
+    override) shifts every feed's artwork URL without a BADGE_REVISION bump. Empty when no badge asset.
     """
     global _BADGE_FINGERPRINT
     if _BADGE_FINGERPRINT is None:
@@ -112,11 +106,10 @@ SUPERSAMPLE = 4
 
 
 def _build_badge(chip_side: int, waveform: Image.Image) -> tuple[Image.Image, int]:
-    """Render the badge: a soft green halo, a near-black rounded chip with a
-    hairline green ring, and the waveform mark centered on it. Returns the RGBA
-    layer and the margin between the layer edge and the visible chip (so the
-    caller can keep the chip's inset constant even though the layer is larger
-    for the halo)."""
+    """Render the badge: green halo, near-black rounded chip with a hairline green ring, waveform centered.
+
+    Returns the RGBA layer and the margin between layer edge and visible chip, so the caller can keep
+    the chip's inset constant though the layer is larger for the halo."""
     margin = max(1, int(chip_side * HALO_MARGIN_FRAC))
     ss = SUPERSAMPLE
     side = chip_side * ss
@@ -170,10 +163,9 @@ def composite_watermark(base_bytes: bytes,
         # Inset off the shorter side so a wide or tall cover keeps a square
         # corner inset; a width-derived pad pushed the badge off a banner.
         pad = int(min(w, h) * BADGE_PADDING)
-        # Inset the visible chip by `pad`; the layer is larger by `margin` on
-        # every side (halo room), so shift the paste out by that margin. Paste
-        # using the badge's own alpha as the mask -- no RGBA round-trip on the
-        # (opaque) cover, and the JPEG output needs RGB anyway.
+        # Inset the visible chip by `pad`; the layer is larger by `margin` on every side (halo room), so
+        # shift the paste out by that margin. Paste with the badge's own alpha as the mask: no RGBA
+        # round-trip on the (opaque) cover, and the JPEG output needs RGB anyway.
         x = (max(0, w - chip_side - pad - margin) if horizontal == 'right'
              else max(0, pad - margin))
         y = (max(0, h - chip_side - pad - margin) if vertical == 'bottom'

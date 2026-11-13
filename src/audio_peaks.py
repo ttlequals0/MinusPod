@@ -1,12 +1,10 @@
 """Server-side waveform peak generation for the Ad Inbox review modal.
 
-Pipes the requested audio window through ffmpeg → raw 16-bit mono PCM at
-8 kHz, then groups into ``resolution_ms`` chunks and emits one peak
-(max absolute amplitude, normalized to [0, 1]) per chunk.
+Pipes the requested audio window through ffmpeg -> raw 16-bit mono PCM at 8 kHz, then groups into
+``resolution_ms`` chunks and emits one peak (max absolute amplitude, normalized to [0, 1]) per chunk.
 
-A per-episode ``.peaks`` file (10 ms buckets) sits beside the retained
-original; this module defines its format and the functions that read, write
-and build it.
+A per-episode ``.peaks`` file (10 ms buckets) sits beside the retained original; this module defines
+its format and the functions that read, write and build it.
 """
 from __future__ import annotations
 
@@ -72,10 +70,7 @@ class PeaksError(RuntimeError):
 
 
 def abs_max_i16(frames: np.ndarray) -> np.ndarray:
-    """Per-row max absolute value of int16 frames, as int32.
-
-    Uses max and min widened first, because abs(-32768) wraps negative in int16.
-    """
+    """Per-row max absolute value of int16 frames, as int32 (widened first: abs(-32768) wraps in int16)."""
     return np.maximum(frames.max(axis=1).astype(np.int32), -frames.min(axis=1).astype(np.int32))
 
 
@@ -95,21 +90,11 @@ def compute_peaks(audio_path: Path | str,
                   resolution_ms: int = 50) -> tuple[list[float], int]:
     """Return ``(peaks, effective_resolution_ms)`` for the window.
 
-    Each peak is in [0, 1] and represents one ``effective_resolution_ms``
-    chunk of audio. The effective resolution may be coarser than the
-    requested one when the window is so long that honoring the request
-    would exceed ``MAX_PEAK_BUCKETS`` (caller learns the true value).
+    Each peak is in [0, 1] for one ``effective_resolution_ms`` chunk. The effective resolution is coarser
+    than requested when honoring it would exceed ``MAX_PEAK_BUCKETS``. ``end_seconds=None`` means to end
+    of file; a negative start is clamped to 0; 20-100ms resolution is the useful range for ad-boundary work.
 
-    Args:
-        audio_path: Path to the source audio file (any format ffmpeg reads).
-        start_seconds: Window start. Negative values are clamped to 0.
-        end_seconds: Window end. ``None`` means "to end of file".
-        resolution_ms: Width of each peak bucket in milliseconds. Lower is
-            higher fidelity / larger response. 20-100ms is the useful range
-            for ad-boundary work.
-
-    Raises:
-        PeaksError on ffmpeg failure, invalid window, or zero-byte output.
+    Raises PeaksError on ffmpeg failure, invalid window, or zero-byte output.
     """
     audio_path = Path(audio_path)
     if not audio_path.exists():
@@ -122,11 +107,9 @@ def compute_peaks(audio_path: Path | str,
         if duration > MAX_PEAKS_DURATION_SECONDS:
             raise PeaksError(
                 f"window {duration:.0f}s exceeds {MAX_PEAKS_DURATION_SECONDS}s cap")
-        # Auto-scale resolution so the response stays under MAX_PEAK_BUCKETS.
-        # The user-supplied resolution_ms is treated as a *minimum fidelity*;
-        # we coarsen as needed for very long windows so the JSON doesn't
-        # balloon. Wavesurfer renders a couple of pixels per peak, so 60k
-        # buckets is plenty even at 20× zoom.
+        # Auto-scale resolution to stay under MAX_PEAK_BUCKETS: resolution_ms is a minimum fidelity, coarsened
+        # for very long windows so the JSON doesn't balloon. Wavesurfer renders a couple of pixels per peak,
+        # so 60k buckets is plenty even at 20x zoom.
         max_buckets_at_request_res = (duration * 1000) / resolution_ms
         if max_buckets_at_request_res > MAX_PEAK_BUCKETS:
             scaled = int(((duration * 1000) / MAX_PEAK_BUCKETS) + 0.5)
@@ -270,8 +253,8 @@ def _open_regular(path: Path):
 def read_peaks_window(path: Path, start: int = 0, stop: int | None = None) -> PeaksData | None:
     """Parse a peaks file and load only buckets [start, stop); None when unusable.
 
-    ``bucket_count`` is the file's total. Bounds are clamped to it. The data bytes
-    are read by seek, so a window of a long episode never loads the whole file.
+    ``bucket_count`` is the file's total and bounds are clamped to it. Data bytes are read by seek, so a
+    long episode's window never loads the whole file.
     """
     f = _open_regular(Path(path))
     if f is None:
@@ -342,10 +325,7 @@ def downsample_max(buckets: np.ndarray, factor: int) -> np.ndarray:
 
 
 def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | None:
-    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16.
-
-    None on failure and for audio shorter than one bucket (no buckets).
-    """
+    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16; None on failure or audio shorter than one bucket."""
     cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-i', str(audio_path),
            '-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ), '-f', 's16le', 'pipe:1']
     chunk_bytes = PEAKS_SAMPLES_PER_BUCKET * 2 * _PEAKS_CHUNK_BUCKETS
@@ -400,9 +380,8 @@ def compute_peaks_from_file(peaks_path: Path, source_path: Path, start_seconds: 
                             resolution_ms: int) -> tuple[list[float], int] | None:
     """Serve a window from the peaks file as ``(peaks, effective_resolution_ms)``.
 
-    None when the request is off the 10 ms grid or the file is missing, stale or
-    corrupt. Raises PeaksError for an invalid window or resolution, like compute_peaks.
-    Only the bytes of the window are read.
+    None when the request is off the 10 ms grid or the file is missing, stale or corrupt. Raises
+    PeaksError for an invalid window or resolution, like compute_peaks. Reads only the window's bytes.
     """
     start = _check_window(start_seconds, end_seconds, resolution_ms)
     if not is_grid_aligned(start, resolution_ms):

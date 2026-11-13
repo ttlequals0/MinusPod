@@ -1,15 +1,13 @@
 """LLM capabilities: per-pass fallback state and provider-aware reasoning translation.
 
-Two responsibilities, intentionally split out of llm_client.py:
+Split out of llm_client.py:
 
-1. Fallback flag, keyed by (episode_id, pass_name). When a provider rejects a
-   user-configured tunable with a 4xx, the flag for that pass on that episode is
-   set, and remaining calls in the same pass use the built-in defaults from this
-   module. The flag is cleared explicitly at the start of each pass by the
-   orchestrator, so the next pass tries the user's tunables again.
+1. Fallback flag keyed by (episode_id, pass_name). When a provider rejects a user-configured tunable
+   with a 4xx, the flag is set and the pass's remaining calls use this module's built-in defaults. The
+   orchestrator clears it at the start of each pass so the next pass tries the user's tunables again.
 
-2. Provider translation: map a user-facing reasoning value to the request kwargs
-   each provider SDK expects.
+2. Provider translation: map a user-facing reasoning value to the request kwargs each provider SDK
+   expects.
 """
 import logging
 import re
@@ -121,10 +119,7 @@ def translate_reasoning_effort(
     value: Union[int, str] | None,
     model: str | None = None,
 ) -> dict[str, Any]:
-    """Map a per-stage reasoning value to provider-native request kwargs.
-
-    Returns {} when the value should be omitted from the request.
-    """
+    """Map a per-stage reasoning value to provider-native request kwargs ({} when it should be omitted)."""
     provider = provider.lower()
 
     if provider == PROVIDER_ANTHROPIC:
@@ -165,13 +160,11 @@ def translate_reasoning_effort(
     return {}
 
 
-# Anthropic's adaptive-thinking generation removed the sampling parameters
-# (temperature/top_p/top_k); sending any returns a 400. This list and the learned
-# memo apply to proxy routes (OpenRouter, openai-compatible) only; the native
-# client never sends temperature. Extend this tuple when a new model drops
-# sampling (same manual maintenance as DEFAULT_MODEL_PRICING). Matched as
-# substrings so bare IDs ("claude-sonnet-5"), provider-prefixed IDs
-# ("anthropic/claude-sonnet-5"), and dated variants all resolve.
+# Anthropic's adaptive-thinking generation removed the sampling parameters (temperature/top_p/top_k);
+# sending any returns a 400. This list and the learned memo apply to proxy routes (OpenRouter,
+# openai-compatible) only; the native client never sends temperature. Extend this tuple when a model
+# drops sampling (manual, like DEFAULT_MODEL_PRICING). Matched as substrings so bare IDs
+# ("claude-sonnet-5"), provider-prefixed IDs ("anthropic/claude-sonnet-5") and dated variants resolve.
 _ANTHROPIC_NO_SAMPLING_MODELS = (
     "claude-opus-4-7",
     "claude-opus-4-8",
@@ -205,10 +198,8 @@ def model_omits_temperature(
 ) -> bool:
     """True when temperature must be omitted from the request for ``model``.
 
-    Checked in order, any one sufficient: operator_override (the
-    ``omit_temperature`` setting; resolved by the caller since this module
-    stays DB-free), the static _ANTHROPIC_NO_SAMPLING_MODELS list, then the
-    learned _learned_no_temperature_models memo.
+    Any of: operator_override (the ``omit_temperature`` setting, resolved by the caller since this
+    module stays DB-free), the static _ANTHROPIC_NO_SAMPLING_MODELS list, or the learned memo.
     """
     if operator_override:
         return True
@@ -282,19 +273,17 @@ def configured_stage_models(get_setting) -> list[str]:
 def supports_json_schema(provider: str) -> bool:
     """True when ``provider`` has a proven, enforced structured-output path.
 
-    Only gate on this when the call site needs a guarantee the response
-    matches a schema (e.g. an enum field) and would rather fall back to
-    json_object than risk a false positive on an unverified provider.
+    Gate on this only when the call site needs a guaranteed schema match (e.g. an enum field) and
+    would rather fall back to json_object than risk a false positive on an unverified provider.
     """
     return (provider or '').lower() in _JSON_SCHEMA_SUPPORTED_PROVIDERS
 
 
 def is_temperature_rejection_error(error: Exception) -> bool:
-    """True for a 400 whose body indicates the model rejects ``temperature``
-    outright (Anthropic's adaptive-thinking generation). Distinct from
-    is_fallback_eligible_error: identifies this specific case so callers can
-    retry with temperature omitted rather than defaulted, since a defaulted
-    retry 400s identically here.
+    """True for a 400 whose body says the model rejects ``temperature`` outright (adaptive thinking).
+
+    Distinct from is_fallback_eligible_error: callers retry with temperature omitted rather than
+    defaulted, since a defaulted retry 400s identically.
     """
     status = getattr(error, 'status_code', None)
     if status is None:

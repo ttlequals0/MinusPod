@@ -1,20 +1,15 @@
 """RSS builder for local (imported-archive) feeds.
 
-A local feed (``podcasts.feed_type == 'local'``) has no upstream source --
-``rss_parser.modify_feed`` cannot run because there is no origin XML to
-rewrite. This module renders the served feed entirely from the
-podcasts/episodes rows instead, reusing the same line-assembly idioms, URL
-shapes, and namespace declarations as ``modify_feed`` (rss_parser.py:873)
-so a local feed is indistinguishable in shape from a subscribed one.
+A local feed (``podcasts.feed_type == 'local'``) has no upstream XML, so ``rss_parser.modify_feed``
+cannot run. This module renders the served feed from the podcasts/episodes rows, reusing
+``modify_feed``'s line-assembly idioms, URL shapes and namespace declarations so a local feed is
+indistinguishable in shape from a subscribed one.
 
-Podcasting 2.0 channel/episode extras (funding, person, license, location,
-txt) are read from ``podcasts.p20_channel_json`` / ``episodes.p20_item_json``
-as ``{"tag": [{"text": ..., <attr>: ...}, ...]}`` -- a list per tag, even for
-the spec-singular ``license``/``location`` tags, so one small serializer
-covers all five without a special case. ``podroll`` is channel-level too,
-stored the same way as ``{"podroll": [{"feedGuid": ..., <attr>: ...}, ...]}``,
-but rendered as a nested container of remoteItem children instead (see
-``_emit_podroll``) since it has no flat ``<podcast:podroll>text</...>`` form.
+Podcasting 2.0 extras (funding, person, license, location, txt) are read from
+``podcasts.p20_channel_json`` / ``episodes.p20_item_json`` as ``{"tag": [{"text": ..., <attr>: ...}, ...]}``,
+a list per tag even for the spec-singular ``license``/``location``, so one serializer covers all five.
+``podroll`` is stored the same way (``{"podroll": [{"feedGuid": ..., <attr>: ...}, ...]}``) but rendered
+as a nested container of remoteItem children (see ``_emit_podroll``), having no flat text form.
 """
 import json
 import logging
@@ -45,11 +40,9 @@ _LICENSE_ATTRS = ('url',)
 _LOCATION_ATTRS = ('geo', 'osm')
 _TXT_ATTRS = ('purpose',)
 
-# podcast:podroll is a channel-level container of self-closing remoteItem
-# children rather than a flat list of <podcast:{tag}> elements, so it isn't
-# covered by _emit_pc2_items -- see _emit_podroll below. Attr order matches
-# the podcastindex namespace's own remoteItem example (feedGuid, feedUrl,
-# itemGuid, medium).
+# podcast:podroll is a channel-level container of self-closing remoteItem children, not a flat list
+# of <podcast:{tag}> elements, so _emit_pc2_items does not cover it (see _emit_podroll). Attr order
+# matches the podcastindex namespace's remoteItem example (feedGuid, feedUrl, itemGuid, medium).
 _PODROLL_REMOTE_ITEM_ATTRS = ('feedGuid', 'feedUrl', 'itemGuid', 'medium')
 
 
@@ -83,11 +76,8 @@ def _emit_pc2_items(lines: list, tag: str, items, attr_keys: tuple) -> None:
 
 
 def _emit_podroll(lines: list, entries) -> None:
-    """Append a ``<podcast:podroll>`` container wrapping one self-closing
-    ``<podcast:remoteItem>`` per dict in ``entries`` that has a feedGuid.
-    Emits nothing when there are no valid entries -- unlike the five
-    _emit_pc2_items tags, an empty podroll container is not meaningful to a
-    podcast app and would just be noise in the served feed."""
+    """Append a ``<podcast:podroll>`` container wrapping one self-closing ``<podcast:remoteItem>`` per
+    entry that has a feedGuid. Emits nothing without valid entries: an empty container is noise to podcast apps."""
     valid = [e for e in (entries or []) if isinstance(e, dict) and e.get('feedGuid')]
     if not valid:
         return
@@ -106,13 +96,11 @@ def _channel_artwork_url(slug: str, base: str, feed_auth_key: str | None,
                          storage_) -> str | None:
     """The cover-minuspod URL, or None when no cover is cached.
 
-    cover-minuspod is the ONLY public podcast-level artwork route (routes.py
-    has no plain/unbadged one), so a local feed always points here when it
-    has a cover -- unlike modify_feed, which falls back to the raw upstream
-    URL when watermarking is off. There is no upstream URL for a local feed
-    to fall back to, and without a self-consistent URL here the auth-key
-    self-heal fingerprint (routes.py:328-355) would have nothing to check
-    for an artwork-only feed. Mirrors the token scheme at rss_parser.py:966-980.
+    cover-minuspod is the only public podcast-level artwork route (routes.py has no unbadged one), so
+    a local feed with a cover always points here, unlike modify_feed which falls back to the raw upstream
+    URL when watermarking is off. A local feed has no upstream URL to fall back to, and the auth-key
+    self-heal fingerprint (routes.py:328-355) needs a self-consistent URL for an artwork-only feed.
+    Mirrors the token scheme at rss_parser.py:966-980.
     """
     if not storage_.has_artwork(slug):
         return None
@@ -125,10 +113,8 @@ def _channel_artwork_url(slug: str, base: str, feed_auth_key: str | None,
 def _safe_int_or_escaped(value) -> str:
     """int(value) when possible, else the XML-escaped string form.
 
-    season_number/episode_number are INTEGER columns, but SQLite's dynamic
-    typing lets a stray non-numeric value slip in; without this, such a
-    value would be written into the tag body raw and could break the XML
-    (the same class of bug as an unescaped pubDate)."""
+    season_number/episode_number are INTEGER columns but SQLite's dynamic typing lets a non-numeric value
+    in, which written raw could break the XML (same class of bug as an unescaped pubDate)."""
     try:
         return str(int(value))
     except (TypeError, ValueError):
@@ -216,10 +202,8 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
 
     published_at = ep.get('published_at') or ep.get('created_at')
     if published_at:
-        # _format_rfc2822 returns its input verbatim on a parse failure, so
-        # an operator-entered/malformed published_at must still be escaped
-        # here -- otherwise it can land in the tag body unescaped and make
-        # the whole document not-well-formed.
+        # _format_rfc2822 returns its input verbatim on a parse failure, so a malformed published_at
+        # must still be escaped here or it can land in the tag body unescaped and break the document.
         pub_date = rss_parser._escape_xml(rss_parser._format_rfc2822(published_at))
         lines.append(f'  <pubDate>{pub_date}</pubDate>')
 
@@ -344,15 +328,13 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
 
 def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int | None,
                                processed_only: bool = False) -> list[dict]:
-    """Episodes of a local feed, newest first, regardless of status --
-    unprocessed episodes still need an (unversioned) enclosure so the first
-    play triggers JIT. get_episodes() enforces an offset and a status filter
-    neither of which fits here, hence the direct query.
+    """Episodes of a local feed, newest first, regardless of status.
 
-    ``limit`` is None or 0 for "every episode" (a local feed's default --
-    there is no upstream to reconcile against, so nothing caps it unless the
-    operator sets one) or a positive int to keep only the newest N.
-    ``processed_only`` keeps only episodes with a published file (YouTube feeds), including ones being reprocessed.
+    Unprocessed episodes still need an (unversioned) enclosure so the first play triggers JIT.
+    get_episodes() enforces an offset and a status filter that do not fit, hence the direct query.
+    ``limit`` None or 0 means every episode (the local-feed default: no upstream to reconcile against);
+    a positive int keeps the newest N. ``processed_only`` keeps only episodes with a published file
+    (YouTube feeds), including ones being reprocessed.
     """
     conn = db_.get_connection()
     served = f"AND {NOT_AWAITING_APPROVAL} "
@@ -371,19 +353,14 @@ def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int | None,
 def rebuild_local_feed(slug: str, podcast: dict | None = None) -> bool:
     """Render and persist a local feed's served RSS from DB rows only.
 
-    Same postlude as feeds._build_and_save_served_rss (feeds.py:497-538):
-    save the XML, stamp last_checked_at, invalidate the episode lookup
-    cache. Returns False and logs a warning on any exception rather than
-    letting it propagate to the refresh scheduler.
+    Same postlude as feeds._build_and_save_served_rss (feeds.py:497-538): save the XML, stamp
+    last_checked_at, invalidate the episode lookup cache. Returns False and logs a warning on any
+    exception rather than propagating to the refresh scheduler.
 
-    Unlike a subscribed feed, max_episodes is read straight off the row
-    instead of through db.get_max_episodes_for_podcast: that resolver falls
-    back to the global maxFeedEpisodes setting (default 300) when the column
-    is NULL, which is the subscribed-feed default this project is deviating
-    from here. A local feed has no upstream to reconcile against, so NULL/0
-    means "serve every episode" and a positive value is an uncapped-above
-    per-feed trim the operator opted into -- no 500 ceiling, since it is
-    their own archive and their own tradeoff.
+    max_episodes is read straight off the row, not through db.get_max_episodes_for_podcast, whose NULL
+    fallback to the global maxFeedEpisodes (default 300) is the subscribed-feed default. A local feed has
+    no upstream to reconcile against, so NULL/0 means "serve every episode" and a positive value is a
+    per-feed trim the operator opted into, with no 500 ceiling (their own archive).
     """
     podcast = podcast or db.get_podcast_by_slug(slug)
     if not podcast:

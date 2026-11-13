@@ -1,14 +1,11 @@
-"""Per-phase LLM route resolution: (provider, model, base_url) per pipeline
-phase, so detection/verification/review/chapters can each target a
-different provider. Credentials are resolved separately at call time by
-provider_key/credential_slot; Route never carries a secret.
+"""Per-phase LLM route resolution: (provider, model, base_url) per pipeline phase, so detection/
+verification/review/chapters can each target a different provider. Credentials resolve separately at
+call time by provider_key/credential_slot; Route never carries a secret.
 
-Each stage setting (detection_provider, verification_provider,
-chapters_provider, review_provider) stores a SLOT (primary/secondary), not a
-provider type: 'primary' resolves through the global llm_provider config,
-'secondary' through the optional secondary_provider_* settings. A stage
-referencing 'secondary' while secondary_provider_enabled is false falls back
-to primary (fail-safe) and logs once per stage.
+Each stage setting (detection_provider, verification_provider, chapters_provider, review_provider)
+stores a slot (primary/secondary), not a provider type: 'primary' resolves through the global
+llm_provider config, 'secondary' through the optional secondary_provider_* settings. A stage using
+'secondary' while secondary_provider_enabled is false falls back to primary and logs once per stage.
 """
 from __future__ import annotations
 import hashlib
@@ -64,9 +61,8 @@ class Route:
 class _CachedProviderSettings:
     """Settings reader backed by llm_client's provider TTL cache.
 
-    Account identity must be read from the same source the credential is,
-    or a save seen by one and not the other reopens the mismatch this
-    identity exists to catch.
+    Same source as the credential, so a save seen by one and not the other cannot reopen the
+    account mismatch this identity exists to catch.
     """
 
     @staticmethod
@@ -80,9 +76,8 @@ _CACHED_SETTINGS = _CachedProviderSettings()
 def account_identity(provider_key: str | None, base_url: str | None) -> str | None:
     """Non-secret identity of a provider account: provider type + endpoint.
 
-    A key rotation within the same account leaves this unchanged, which is
-    what lets rotation keep working while a provider or endpoint switch
-    invalidates every route frozen against the old account.
+    Unchanged by a key rotation in the same account, so rotation keeps working while a provider or
+    endpoint switch invalidates every route frozen against the old account.
     """
     if not provider_key:
         return None
@@ -93,10 +88,8 @@ def account_identity(provider_key: str | None, base_url: str | None) -> str | No
 def account_identity_for_primary_provider(provider_key: str | None) -> str | None:
     """Identity of the primary slot's account for one provider TYPE.
 
-    The primary slot keys its credential by provider type (anthropic_api_key,
-    openai_api_key, and so on), so a primary route's key follows the route's
-    own provider, not whichever type is globally selected. Only the
-    configurable endpoint can move that account.
+    The primary slot keys its credential by provider type (anthropic_api_key, openai_api_key, ...), so
+    a primary route's key follows the route's own provider and only the endpoint can move the account.
     """
     if not provider_key:
         return None
@@ -104,14 +97,11 @@ def account_identity_for_primary_provider(provider_key: str | None) -> str | Non
 
 
 def account_identity_for_slot(credential_slot: str, db=None) -> str | None:
-    """The identity `credential_slot` points at right now, or None when the
-    slot has no provider type configured.
+    """The identity `credential_slot` points at right now, or None when the slot has no provider type.
 
-    Read through the credential cache by default so it cannot disagree with
-    the key request-time code resolves. Deliberately skips
-    _resolve_slot_config's secondary-to-primary fallback: a secondary slot
-    that lost its provider type is a changed account, not primary's account
-    under another name.
+    Read through the credential cache by default so it cannot disagree with the key request-time code
+    resolves. Skips _resolve_slot_config's secondary-to-primary fallback on purpose: a secondary slot
+    that lost its provider type is a changed account, not primary's account under another name.
     """
     db = db or _CACHED_SETTINGS
     if credential_slot == SLOT_SECONDARY:
@@ -138,12 +128,8 @@ def current_account_identity(provider_key: str | None,
 
 
 def route_account_mismatch(route: 'Route | dict') -> tuple[str, str | None] | None:
-    """(frozen_account_id, current_account_id) when `route` was resolved
-    against an account its credential no longer belongs to, else None.
-
-    A route with no account_id (resolved before this field existed) is not
-    checked: there is nothing to compare it against.
-    """
+    """(frozen_account_id, current_account_id) when `route` was resolved against an account its
+    credential no longer belongs to, else None. A route without account_id is not checked."""
     if isinstance(route, Route):
         frozen = route.account_id
         provider_key = route.provider_key
@@ -165,9 +151,8 @@ def client_for_route(route: str | Route | dict | None, *,
     """Override wins, then the route's provider client, then fallback().
     `route` is a phase name, snapshot dict, Route, or None; fallback stays lazy.
 
-    Raises ProviderAccountChangedError when the route's frozen account no
-    longer matches its slot: building here would pair the slot's current key
-    with the route's frozen endpoint.
+    Raises ProviderAccountChangedError when the route's frozen account no longer matches its slot:
+    building here would pair the slot's current key with the route's frozen endpoint.
     """
     if override is not None:
         return override
@@ -325,10 +310,10 @@ def live_route_params(phase: str, model=None, llm_timeout=None, max_retries=None
 
 
 def _resolve_slot_config(db, slot: str) -> tuple[str, str | None, str]:
-    """(provider_key, base_url, credential_slot) for an already-resolved
-    slot. Falls back to primary, with a one-time warning, when 'secondary'
-    has no provider type configured (an inconsistent state the settings API
-    should normally prevent)."""
+    """(provider_key, base_url, credential_slot) for an already-resolved slot.
+
+    Falls back to primary, with a one-time warning, when 'secondary' has no provider type configured
+    (an inconsistent state the settings API should prevent)."""
     if slot == SLOT_SECONDARY:
         provider = db.get_setting('secondary_provider')
         if provider:
@@ -362,15 +347,12 @@ def _inherited_slot(db, stage_key: str, inherit_slot: str) -> str:
 
 
 def resolved_stage_slot(db, stage: str) -> str:
-    """The final primary/secondary slot `stage` resolves to right now,
-    applying inheritance and the secondary-disabled fallback. Used by the
-    settings API to decide whether a stage still tracks the global
-    (primary) provider config, independent of resolve_route's per-call
-    Database() instance.
+    """The final primary/secondary slot `stage` resolves to right now (inheritance and the
+    secondary-disabled fallback applied).
 
-    A same_as_pass review reports detection's slot, the pass it runs on
-    first.
-    """
+    Used by the settings API to decide whether a stage still tracks the global (primary) provider
+    config, independent of resolve_route's per-call Database(). A same_as_pass review reports
+    detection's slot."""
     if stage == 'detection':
         slot = _detection_slot(db)
     elif stage in ('verification', 'chapters', 'pattern_cleanup'):
@@ -512,12 +494,9 @@ def resolve_review_route(*, review_provider_setting: str | None,
                           pass_base_url: str | None = None,
                           pass_credential_slot: str | None = None,
                           db=None) -> Route:
-    """Review route from explicit setting values, for callers holding a
-    frozen run-start gate instead of live settings (see AdReviewer).
+    """Review route from explicit setting values, for callers holding a frozen run-start gate (see AdReviewer).
 
-    `db` is only consulted to resolve an explicit primary/secondary slot
-    (not for review_provider/review_model, which the caller already froze);
-    omit it to have this look up a fresh Database() when needed.
+    `db` is only consulted to resolve an explicit primary/secondary slot; omit it to look up a fresh Database().
     """
     configured_slot = review_provider_setting or SAME_AS_PASS
     if configured_slot != SAME_AS_PASS:
@@ -535,11 +514,9 @@ def resolve_route(phase: str, *, pass_model: str | None = None,
                    pass_provider: str | None = None,
                    pass_base_url: str | None = None,
                    pass_credential_slot: str | None = None) -> Route:
-    """Resolve (provider_key, model_id, base_url, slot, credential_slot)
-    for a phase from settings.
+    """Resolve (provider_key, model_id, base_url, slot, credential_slot) for a phase from settings.
 
-    Review honors same_as_pass by inheriting the pass's provider, model,
-    base_url, and credential_slot.
+    Review honors same_as_pass by inheriting the pass's provider, model, base_url and credential_slot.
     """
     if phase not in PHASES:
         raise ValueError(f"Unknown LLM phase: {phase}")

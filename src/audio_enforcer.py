@@ -1,9 +1,7 @@
-"""
-Audio signal formatter for ad detection prompts.
+"""Audio signal formatter for ad detection prompts.
 
-Formats audio analysis signals (DAI transitions, volume anomalies) as text
-context for Claude's per-window ad detection prompts. Claude sees the audio
-evidence alongside the transcript and makes all ad/not-ad decisions itself.
+Formats audio analysis signals (DAI transitions, volume anomalies) as text context for Claude's
+per-window ad detection prompts; Claude makes all ad/not-ad decisions itself.
 """
 
 import logging
@@ -23,22 +21,19 @@ logger = logging.getLogger('podcast.audio_enforcer')
 # Only include signals above this confidence in the prompt
 MIN_SIGNAL_CONFIDENCE = 0.80
 
-# Maximum spectral ad-role cues to include per window (keeps prompt size bounded
-# on music-heavy episodes). Template cues are never capped. When more spectral
-# cues exist the top N by (confidence, start ascending) are kept in chronological
-# order and a note is appended.
+# Maximum spectral ad-role cues per window (keeps prompt size bounded on music-heavy episodes).
+# Template cues are never capped. When more exist, the top N by (confidence, start ascending) are
+# kept in chronological order and a note is appended.
 SPECTRAL_CUE_MAX_PER_WINDOW = 5
 
 
 def content_anchors(audio_analysis):
     """Return ``(pre_roll_boundary, post_roll_boundary)`` in seconds (#350).
 
-    ``pre_roll_boundary`` is the start of the earliest show-intro cue (the show
-    begins there, so audio before it is likely a pre-roll ad).
-    ``post_roll_boundary`` is the end of the latest show-outro cue (the show
-    ends there, so audio after it is likely a post-roll ad). Either is ``None``
-    when no qualifying cue exists. Only cues at/above the prompt confidence
-    floor count; these anchors bias the model, they never cut on their own.
+    Pre-roll is the start of the earliest show-intro cue (audio before it is likely a pre-roll ad);
+    post-roll is the end of the latest show-outro cue (audio after it is likely a post-roll ad). Either
+    is ``None`` without a qualifying cue; only cues at/above the prompt confidence floor count. These
+    anchors bias the model and never cut on their own.
     """
     if not audio_analysis or not getattr(audio_analysis, 'signals', None):
         return None, None
@@ -122,25 +117,17 @@ def _splice_lines(audio_analysis, window_start, window_end):
 
 
 class AudioEnforcer:
-    """
-    Formats audio analysis signals as prompt context for Claude.
+    """Formats audio analysis signals as prompt context for Claude.
 
-    Converts DAI transition pairs and volume anomalies overlapping a given
-    time window into a human-readable text block that gets injected into
-    Claude's per-window prompt. No ad creation -- Claude decides.
+    Converts DAI transition pairs and volume anomalies overlapping a time window into a text block
+    for the per-window prompt. Claude decides; nothing here creates ads.
     """
 
     def format_for_window(self, audio_analysis, window_start: float,
                           window_end: float) -> str:
-        """Format audio signals overlapping a window as prompt context.
+        """Format audio signals overlapping a window (seconds) as prompt context.
 
-        Args:
-            audio_analysis: AudioAnalysisResult (or None)
-            window_start: Window start time in seconds
-            window_end: Window end time in seconds
-
-        Returns:
-            Formatted string for prompt injection, or empty string if no signals
+        audio_analysis is an AudioAnalysisResult or None. Returns the string to inject, or '' if no signals.
         """
         # Splice evidence renders even for signal-less analyses, so windows
         # over untranscribed tails are no longer empty of audio context.
@@ -228,10 +215,9 @@ class AudioEnforcer:
                     f"({signal.signal_type}, confidence {signal.confidence:.0%})"
                 )
             elif signal.signal_type == 'audio_cue':
-                # Short non-spoken sound bracketing ad breaks (template) or a
-                # loudness burst that may hint at a break (spectral). Intro/outro
-                # cues (role 'non_ad') mark the show's own open/close and must
-                # NOT move an ad boundary.
+                # Short non-spoken sound bracketing ad breaks (template) or a loudness burst that may
+                # hint at a break (spectral). Intro/outro cues (role 'non_ad') mark the show's own
+                # open/close and must not move an ad boundary.
                 details = signal.details or {}
                 label = details.get('label')
                 source = details.get('source', AUDIO_CUE_SOURCE_SPECTRAL)

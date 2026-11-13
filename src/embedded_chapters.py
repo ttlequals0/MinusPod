@@ -2,15 +2,12 @@
 
 Two directions, one file:
 
-- Remap onto the post-cut timeline (issue #500): ffmpeg copies chapters from
-  the input to the output by default, so a processed file kept its original
-  chapter timestamps even though the ads between them were cut. remove_ads
-  probes the input's chapters, remaps them with the applied cuts, and feeds
-  the corrected list back into the same ffmpeg invocation as an ffmetadata
-  input.
-- Embed generated chapters (issue #523): players like Castro ignore the
-  podcast:chapters JSON and only read chapters embedded in the file, so the
-  chapters MinusPod generates are also written into the served MP3.
+- Remap onto the post-cut timeline (issue #500): ffmpeg copies chapters from the input by default,
+  so a processed file kept its original timestamps although the ads between them were cut.
+  remove_ads probes the input's chapters, remaps them with the applied cuts, and feeds the list
+  back into the same ffmpeg invocation as an ffmetadata input.
+- Embed generated chapters (issue #523): players like Castro ignore the podcast:chapters JSON and
+  only read chapters embedded in the file, so generated chapters are also written into the served MP3.
 """
 import json
 import logging
@@ -39,10 +36,9 @@ MIN_CHAPTER_SECONDS = 1.0
 def probe_chapters(audio_path: str) -> list[dict] | None:
     """Read embedded chapters via ffprobe.
 
-    Returns [] when the file definitively has no chapters, and None when the
-    probe itself failed -- callers must NOT strip chapters on None, or a
-    transient ffprobe failure would silently destroy them; falling back to
-    ffmpeg's default passthrough keeps them (stale but recoverable).
+    Returns [] when the file definitively has no chapters and None when the probe itself failed.
+    Callers must not strip chapters on None: a transient ffprobe failure would silently destroy them,
+    while ffmpeg's default passthrough keeps them (stale but recoverable).
     """
     try:
         tag = source_chapter_tag(audio_path, False)
@@ -125,10 +121,9 @@ def remap_chapters(chapters: list[dict], cuts: list[dict], *,
                    replacement_duration: float, new_duration: float) -> list[dict]:
     """Project chapters onto the post-cut timeline.
 
-    Chapters that sit entirely inside a cut are dropped (their content is
-    gone). Survivors shift back by the removed time, compensated for the
-    replacement audio inserted per cut. Ends are rebuilt as a chain so the
-    result is always contiguous, and degenerate slivers are dropped.
+    Chapters entirely inside a cut are dropped. Survivors shift back by the removed time, compensated
+    for the replacement audio inserted per cut. Ends are rebuilt as a chain so the result is
+    contiguous, and degenerate slivers are dropped.
     """
     kept = []
     for ch in sorted(chapters, key=lambda c: c['start']):
@@ -162,9 +157,8 @@ def _escape(value: str) -> str:
 def chapters_to_spans(chapters: list[dict], duration: float) -> list[dict]:
     """Podcasting 2.0 chapter list -> contiguous start/end/title spans.
 
-    The chapters JSON only carries start times; CHAP frames need ends, so
-    each chapter ends where the next begins and the last ends at the file
-    duration. Chapters at or past the duration are dropped.
+    The JSON only carries start times but CHAP frames need ends, so each chapter ends where the next
+    begins and the last at the file duration. Chapters at or past the duration are dropped.
     """
     starts = sorted((
         (float(ch.get('startTime', 0)), ch)
@@ -186,32 +180,22 @@ def embed_chapters(audio_path: str, chapters: list[dict],
                    duration: float | None = None) -> bool:
     """Write generated chapters into an MP3 as ID3v2 CHAP/CTOC frames.
 
-    Stream-copy remux with an ffmetadata side input (the same mechanism the
-    cut path uses for remapped chapters), replacing any chapters already in
-    the file so the embedded set matches the podcast:chapters JSON written
-    alongside it. Callers pair this with save_chapters_json; the recut path
-    remaps the stored chapters JSON onto the new timeline arithmetically and
-    re-embeds it, so the ffmpeg cut step's remapped source chapters only
-    remain when no chapters JSON exists.
+    Stream-copy remux with an ffmetadata side input (as the cut path does for remapped chapters),
+    replacing any chapters already in the file so the embedded set matches the podcast:chapters JSON.
+    Callers pair this with save_chapters_json; the recut path remaps the stored JSON arithmetically and
+    re-embeds it, so the cut step's remapped source chapters survive only when no chapters JSON exists.
 
-    The rewrite lands in a per-call temp file (unique name, so concurrent
-    calls on the same episode cannot corrupt each other's output) and moves
-    into place with os.replace, so a concurrent download never sees a
-    half-written file. The temp name deliberately avoids the ``-v*.mp3``
-    episode-version glob (src/storage.py) so a crash mid-embed cannot leave a
-    stray file that cleanup mistakes for an episode version. On the
-    regenerate-chapters path this rewrites the already-served MP3 in place;
-    os.replace changes the file's identity so conditional clients refetch,
-    but a client resuming a ranged download with no If-Range validator across
-    the swap can still stitch mismatched bytes -- acceptable for a manual,
-    infrequent action.
+    The rewrite goes to a per-call temp file (unique name, so concurrent calls cannot corrupt each
+    other) and moves into place with os.replace, so a download never sees a half-written file. The temp
+    name avoids the ``-v*.mp3`` episode-version glob (src/storage.py) so a crash mid-embed cannot leave
+    a stray file that cleanup mistakes for a version. On the regenerate-chapters path this rewrites the
+    served MP3 in place; os.replace changes file identity so conditional clients refetch, but a ranged
+    download resuming across the swap with no If-Range validator can stitch mismatched bytes
+    (acceptable for a manual, infrequent action).
 
-    duration is the file's duration in seconds when the caller already knows
-    it; omitted, it is probed.
-
-    An empty chapter list means "remove every chapter frame", so a rebuild
-    that ends up with nothing can still clear stale frames. A non-empty list
-    whose entries are all unusable stays a failure.
+    duration is the file's duration in seconds if the caller knows it, else probed. An empty chapter
+    list means "remove every chapter frame", so a rebuild with nothing can clear stale frames; a
+    non-empty list whose entries are all unusable stays a failure.
 
     Returns True on success; failures leave the original file untouched.
     """
