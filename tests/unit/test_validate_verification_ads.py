@@ -365,6 +365,7 @@ def test_below_threshold_non_held_not_in_v_ads_held():
 # ---------- Pass-2 cut inside a pass-1 held span ----------
 
 
+def test_pass2_cut_inside_pass1_held_span_is_dropped():
     """A pass-2 ad whose original span overlaps a pass-1 held span is dropped (never cut, never re-held).
 
     The pass-1 held marker already protects the region; a second held marker would double-count the review."""
