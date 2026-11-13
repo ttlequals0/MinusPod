@@ -232,13 +232,12 @@ def _find_shared_segments(target, siblings, win, similarity, min_matches,
                           min_len, max_len, step=None):
     """Every contiguous run of ``target`` that also appears in at least ``min_matches`` of the ``siblings``.
 
-    Pure function over raw Chromaprint int arrays. For each probe start in the target, find each sibling's
-    best-matching offset, then grow the run backward (to the true onset) and forward one ``step``-sized slice at
-    a time, keeping it while >= ``min_matches`` siblings still match that new slice (incremental, so it stops at
-    the real boundary rather than riding a strong prefix's cumulative average). Returns ``(start, end,
-    match_count)`` runs as indices into ``target``, left to right and non-overlapping. Real intros/outros play
-    once per episode but recur across episodes; a show can have several (theme plus a recurring sponsor read),
-    so all are returned.
+    Pure function over raw Chromaprint int arrays. For each probe start in the target, find each sibling's best-matching
+    offset, then grow the run backward (to the true onset) and forward one ``step``-sized slice at a time while >=
+    ``min_matches`` siblings still match that new slice (incremental, so it stops at the real boundary rather than
+    riding a strong prefix's cumulative average). Returns non-overlapping ``(start, end, match_count)`` runs as indices
+    into ``target``, left to right. A show can have several shared runs (theme plus a recurring sponsor read), so all
+    are returned.
     """
     target = np.asarray(target, dtype=np.int64).astype(np.uint32)
     sibs = [np.asarray(s, dtype=np.int64).astype(np.uint32) for s in siblings]
@@ -1390,18 +1389,15 @@ class AudioFingerprinter:
                                     target_fingerprint=None):
         """Find recurring audio segments anywhere in the episode body across siblings.
 
-        Sibling of discover_cross_episode_cues without the head/tail restriction: the full fingerprint arrays are
-        compared so mid-episode stings (e.g. ad-break tones) surface alongside intro/outro material. Pass
-        ``target_fingerprint`` (``(raw_ints, duration)``) to reuse a fingerprint; otherwise one fpcalc pass is made.
+        Sibling of discover_cross_episode_cues without the head/tail restriction, so mid-episode stings (e.g. ad-break
+        tones) surface alongside intro/outro material. Pass ``target_fingerprint`` (``(raw_ints, duration)``) to reuse a
+        fingerprint. Returns ``[{start, end, kind: 'recurring', episodeMatches}]`` (same shape as
+        discover_cross_episode_cues), or [] when fpcalc is unavailable or fewer than ``min_matches`` siblings are usable.
 
-        Returns ``[{start, end, kind: 'recurring', episodeMatches}]``, field-for-field compatible with
-        discover_cross_episode_cues, or [] when fpcalc is unavailable or fewer than ``min_matches`` siblings usable.
-
-        Default max_len_s is AUDIO_CUE_FP_MAX_LEN_SECONDS (30s): mid-episode stings are short, and the cap keeps
+        Default max_len_s is AUDIO_CUE_FP_MAX_LEN_SECONDS (30s): mid-episode stings are short and the cap keeps
         false-positive body content out. Default min_duration is AUDIO_CUE_XEP_BODY_MIN_DURATION (2s), not the 3s
-        intro/outro floor, so recurring 1.5-2.5s ad stings survive. Duplicates across sibling pairs are prevented
-        by passing all sibling arrays in one _find_shared_segments call (its claimed_until keeps results
-        non-overlapping, left to right).
+        intro/outro floor, so recurring 1.5-2.5s ad stings survive. All sibling arrays go through one
+        _find_shared_segments call, whose claimed_until keeps results non-overlapping and avoids duplicates.
         """
         if not self.is_available():
             return []

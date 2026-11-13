@@ -368,24 +368,18 @@ class AdValidator:
                  transcript_spans: list[dict] = None):
         """Initialize validator.
 
-        episode_duration is in seconds; segments are transcript dicts with start/end/text.
-        false_positive_corrections / confirmed_corrections: dicts with start/end for user-marked false
-            positives (auto-reject) and user-confirmed ads (auto-accept).
-        min_cut_confidence: minimum confidence to auto-accept (the user's slider value).
-        positional_prior: optional PositionalPrior with this feed's learned ad-break zones; replaces the
-            global position boosts.
-        max_ad_duration_override: per-feed cap in seconds; None = no cap.
-        cue_gate_enabled: when True, ads without cue evidence are held for review.
-        cue_only_safety: cue-only run safety policy ('hold_new' or 'auto_cut'); None on non-cue-only runs,
-            where Rule 6 is inert. cue_unproven_template_ids: template ids without enough paired history
-            yet, only consulted under 'hold_new'.
-        differential_corr_max: resolved differential_measured_corr_max setting (threaded by the caller;
-            no db handle here); a differential region corroborates a marker only when its corr is <= this.
-        sponsor_service: registry used to confirm a long ad names a real advertiser when the description
-            lists none; optional, else only the description counts.
-        max_ad_duration: length above which an ad needs a confirmed sponsor (resolved per feed).
-        max_ad_duration_confirmed: length above which even a confirmed sponsor does not help.
-        transcript_spans: upstream transcript gaps (original timeline).
+        episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
+        confirmed_corrections are start/end dicts for user-marked false positives (auto-reject) and confirmed ads
+        (auto-accept). min_cut_confidence is the user's slider value. positional_prior is an optional PositionalPrior
+        with this feed's learned ad-break zones, replacing the global position boosts. max_ad_duration_override is a
+        per-feed cap in seconds (None = no cap). cue_gate_enabled holds ads without cue evidence for review.
+        cue_only_safety is the cue-only run policy ('hold_new' or 'auto_cut'; None otherwise, where Rule 6 is inert);
+        cue_unproven_template_ids are templates without enough paired history, consulted only under 'hold_new'.
+        differential_corr_max is the resolved differential_measured_corr_max setting (threaded by the caller; no db
+        handle here): a differential region corroborates a marker only at or under it. sponsor_service confirms a
+        long ad names a real advertiser when the description lists none (optional). max_ad_duration is the length
+        above which an ad needs a confirmed sponsor (per feed); max_ad_duration_confirmed the length above which even
+        that does not help. transcript_spans are upstream transcript gaps (original timeline).
         """
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
@@ -1468,11 +1462,10 @@ class AdValidator:
                 self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
                 return Decision.REVIEW
 
-        # Rule 4: an uncorroborated vad_gap marker at the episode tail must surface in the pending-review queue
-        # instead of shipping silently. Fires on REVIEW (clamp already routed it there) and on ACCEPT (the
-        # empty-text early-return left confidence unclamped; 0.80 >= threshold but no stored evidence justifies
-        # the cut). A corroborated tail (source not None) cuts regardless. Calls the corroboration helper
-        # directly so tails with no transcript text in range still count stored audio evidence.
+        # Rule 4: an uncorroborated vad_gap marker at the episode tail must surface in the pending-review queue, not ship
+        # silently. Fires on REVIEW (clamp already routed it) and on ACCEPT (the empty-text early-return left confidence
+        # unclamped, so 0.80 >= threshold but no stored evidence justifies the cut). A corroborated tail cuts regardless.
+        # Calls the corroboration helper directly so tails with no transcript text still count stored audio evidence.
         if (decision in (Decision.REVIEW, Decision.ACCEPT)
                 and ad.get('detection_stage') == 'vad_gap'
                 and self.episode_duration > 0
@@ -1902,12 +1895,11 @@ class AdValidator:
             last = merged[-1]
             gap = current['start'] - last['end']
 
-            # Pending-review markers represent individual human decisions. Never merge one with a cut marker or
-            # another hold: either fold can absorb content outside the reviewed span, and on an auto-approve
-            # recut it would grow the marker past its trimmed confirm so the confirmed_span clamp never fires and
-            # trimmed-out audio gets cut. A false-positive-correction match on only one side also blocks the fold:
-            # the match must keep describing exactly the span the human rejected. A confirmed correction on either
-            # marker blocks it too: even a shared correction must not authorize the adjacent audio.
+            # Pending-review markers are individual human decisions: never merge one with a cut marker or another hold,
+            # since either fold can absorb content outside the reviewed span (on an auto-approve recut the marker would
+            # outgrow its trimmed confirm so the confirmed_span clamp never fires and trimmed-out audio gets cut). A
+            # false-positive match on only one side also blocks the fold (it must keep describing the rejected span),
+            # as does a confirmed correction on either marker (a shared one must not authorize adjacent audio).
             if (last.get('_user_kept_by_trim')
                     or current.get('_user_kept_by_trim')
                     or last.get('held_for_review')
