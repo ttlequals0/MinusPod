@@ -916,28 +916,6 @@ class QueueMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def count_episodes_pending_recut(self, slug: str | None = None) -> int:
-        """How many episodes are waiting for an apply, optionally one feed's.
-
-        The unscoped count stays single-table: joining podcasts would drop an
-        episode whose feed row is missing, changing a number nothing asked to
-        change.
-        """
-        if slug is None:
-            row = self.get_connection().execute(
-                "SELECT COUNT(*) AS n FROM episodes "
-                "WHERE pending_recut_at IS NOT NULL"
-            ).fetchone()
-        else:
-            row = self.get_connection().execute(
-                """SELECT COUNT(*) AS n
-                   FROM episodes e
-                   JOIN podcasts p ON e.podcast_id = p.id
-                   WHERE e.pending_recut_at IS NOT NULL AND p.slug = ?""",
-                (slug,)
-            ).fetchone()
-        return row['n'] if row else 0
-
     # Deferred-episode lifecycle: offline queue (#482), rate-limit hold (#696)
 
     @staticmethod

@@ -283,44 +283,6 @@ class Storage:
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")
         return _safe_join_under(self.data_dir, 'import', slug)
 
-    def load_data_json(self, slug: str) -> dict[str, Any]:
-        """Load episode data for a podcast from SQLite."""
-        # Ensure directory exists
-        self.get_podcast_dir(slug)
-
-        podcast = self.db.get_podcast_by_slug(slug)
-        if not podcast:
-            return {"episodes": {}, "last_checked": None}
-
-        episodes, _ = self.db.get_episodes(slug, limit=10000)
-
-        episodes_dict = {}
-        for ep in episodes:
-            ep_data = {
-                'status': ep['status'],
-                'original_url': ep['original_url'],
-                'title': ep['title'],
-            }
-            if ep['processed_file']:
-                ep_data['processed_file'] = ep['processed_file']
-            if ep['processed_at']:
-                ep_data['processed_at'] = ep['processed_at']
-            if ep['original_duration']:
-                ep_data['original_duration'] = ep['original_duration']
-            if ep['new_duration']:
-                ep_data['new_duration'] = ep['new_duration']
-            if ep['ads_removed']:
-                ep_data['ads_removed'] = ep['ads_removed']
-            if ep['error_message']:
-                ep_data['error'] = ep['error_message']
-
-            episodes_dict[ep['episode_id']] = ep_data
-
-        return {
-            "episodes": episodes_dict,
-            "last_checked": podcast.get('last_checked_at')
-        }
-
     def _validated_episode_leaf(self, slug: str, episode_id: str, filename: str) -> Path:
         """Return a resolved path inside the episodes directory for ``slug``.
 

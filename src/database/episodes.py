@@ -1923,24 +1923,6 @@ class EpisodeMixin:
             return 0, 1
         return 0, 0
 
-    def _reset_episode_to_discovered(self, slug: str, episode_id: str) -> None:
-        """Clear episode_details and reset an episode back to 'discovered' state."""
-        self.clear_episode_details(slug, episode_id)
-        self.upsert_episode(
-            slug, episode_id,
-            status=EpisodeStatus.DISCOVERED.value,
-            processed_file=None,
-            processed_at=None,
-            processed_size_bytes=None,
-            original_duration=None,
-            new_duration=None,
-            ads_removed=0,
-            ads_removed_firstpass=0,
-            ads_removed_secondpass=0,
-            error_message=None,
-            ad_detection_status=None,
-        )
-
     def batch_set_episodes_pending(self, slug: str, episode_ids: list[str],
                                     reprocess_mode: str = None,
                                     reprocess_requested_at: str = None) -> int:

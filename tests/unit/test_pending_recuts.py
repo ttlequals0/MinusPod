@@ -72,7 +72,7 @@ def _original(ad):
 
 
 def _pending(db):
-    return db.count_episodes_pending_recut()
+    return len(db.get_episodes_pending_recut())
 
 
 def _markers(db):

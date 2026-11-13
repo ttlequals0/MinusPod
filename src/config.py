@@ -1335,25 +1335,6 @@ def resolve_silence_snap_enabled(db, podcast_id):
     return _resolve_snap_flag(db, podcast_id, 'silence_snap_enabled')
 
 
-def resolve_differential_fetch_setting(db, podcast_id):
-    """Raw tri-state differential opt-in: True/False when the per-feed flag
-    is set, None when unset. The None case lets the pipeline auto-enable
-    the stage for DAI-likely feeds while an explicit 0 still opts out.
-
-    Fails CLOSED to False when the flag cannot be read -- returning None
-    there would let a transient DB error auto-enable the double-fetch
-    against an explicit opt-out."""
-    try:
-        if db and podcast_id is not None:
-            raw = db.get_podcast_cue_settings_overrides(podcast_id).get(
-                'differential_fetch_enabled')
-            return None if raw is None else bool(raw)
-    except Exception:
-        _tunable_logger.warning(
-            'differential_fetch_enabled: read failed; differential stage off')
-    return False
-
-
 DIFFERENTIAL_FETCH_MODE_AUTO = 'auto'
 DIFFERENTIAL_FETCH_MODE_ON = 'on'
 DIFFERENTIAL_FETCH_MODE_OFF = 'off'

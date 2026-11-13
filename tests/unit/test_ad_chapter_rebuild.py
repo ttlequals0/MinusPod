@@ -262,7 +262,7 @@ def test_reject_stamps_the_episode_without_touching_the_audio(client, seeded, re
     r = _correct(client, {'type': 'reject',
                           'original_ad': {'start': 900.0, 'end': 960.0}})
     assert r.status_code == 200
-    assert seeded.count_episodes_pending_recut() == 1
+    assert len(seeded.get_episodes_pending_recut()) == 1
     # No remux in the request: the apply pass rebuilds the chapters.
     assert rebuilds == []
 
@@ -271,5 +271,5 @@ def test_confirm_stamps_the_episode_too(client, seeded, rebuilds):
     r = _correct(client, {'type': 'confirm',
                           'original_ad': {'start': 900.0, 'end': 960.0}})
     assert r.status_code == 200
-    assert seeded.count_episodes_pending_recut() == 1
+    assert len(seeded.get_episodes_pending_recut()) == 1
     assert rebuilds == []

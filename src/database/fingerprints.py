@@ -25,22 +25,6 @@ class FingerprintMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_all_fingerprints_with_sponsors(self) -> list[dict]:
-        """Get all audio fingerprints with sponsor names and segment category
-        (#565) from ad_patterns (single JOIN). category defaults NULL ->
-        'sponsor' via the shared accessor, so a re-matched fingerprint
-        carries its pattern's real category instead of reading as unset."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,
-                      COALESCE(ks.segment_category, ap.category) AS category
-               FROM audio_fingerprints af
-               JOIN ad_patterns ap ON af.pattern_id = ap.id
-               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
-               WHERE ap.is_active = 1"""
-        )
-        return [_row_with_category(dict(row)) for row in cursor.fetchall()]
-
     def create_audio_fingerprint(self, pattern_id: int, fingerprint: bytes,
                                   duration: float,
                                   source_podcast_slug: str | None = None,

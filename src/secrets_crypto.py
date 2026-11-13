@@ -263,24 +263,8 @@ _BACKUP_BUFFER_SIZE = 1024 * 1024
 _BACKUP_V2_PBKDF2_ITERATIONS = 600_000
 
 
-def encrypt_bytes(db, plaintext: bytes) -> bytes:
-    """AES-GCM-encrypt a binary blob (e.g. a backup file) with the
-    operator's derived DEK.
-
-    Format: ``MPBK01\\x00`` + 12-byte nonce + ciphertext (includes 16-byte
-    GCM tag). Callers are responsible for writing the result to disk or
-    streaming it; the function intentionally does not touch the filesystem.
-    """
-    if plaintext is None:
-        raise ValueError("plaintext required")
-    dek = _derive_dek(db)
-    nonce = secrets.token_bytes(_NONCE_LEN)
-    ct = AESGCM(dek).encrypt(nonce, plaintext, None)
-    return _BACKUP_MAGIC + nonce + ct
-
-
 def decrypt_bytes(db, envelope: bytes) -> bytes:
-    """Inverse of :func:`encrypt_bytes`. Rejects data without the magic tag."""
+    """Decrypt a legacy MPBK01 envelope. Rejects data without the magic tag."""
     if not envelope.startswith(_BACKUP_MAGIC):
         raise ValueError("not a MinusPod encrypted-backup envelope")
     body = envelope[len(_BACKUP_MAGIC):]

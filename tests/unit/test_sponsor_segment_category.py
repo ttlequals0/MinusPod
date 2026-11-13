@@ -99,6 +99,6 @@ def test_stored_pattern_category_stays_while_matching_uses_the_sponsor_one(temp_
     matcher = TextPatternMatcher(db=temp_db)
     matcher._load_patterns()
     assert [p.category for p in matcher._patterns if p.id == pid] == ['self_promo']
-    assert temp_db.get_all_fingerprints_with_sponsors()[0]['category'] == 'self_promo'
+    assert temp_db.get_active_fingerprints_with_scope()[0]['category'] == 'self_promo'
     temp_db.update_known_sponsor(sid, segment_category=None)
-    assert temp_db.get_all_fingerprints_with_sponsors()[0]['category'] == 'sponsor'
+    assert temp_db.get_active_fingerprints_with_scope()[0]['category'] == 'sponsor'

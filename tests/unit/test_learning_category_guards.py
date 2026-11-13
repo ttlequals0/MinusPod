@@ -574,14 +574,14 @@ class TestPatternMatchCategoryInheritance:
 
     def test_fingerprint_pattern_linkage_carries_category(self, temp_db):
         """audio_fingerprints.pattern_id references ad_patterns.id, and
-        get_all_fingerprints_with_sponsors already joins ad_patterns for
+        get_active_fingerprints_with_scope already joins ad_patterns for
         the sponsor name, so category rides the same existing join."""
         pid = temp_db.create_ad_pattern(
             scope='global', text_template='x' * 60, category='cross_promo',
         )
         temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
 
-        rows = temp_db.get_all_fingerprints_with_sponsors()
+        rows = temp_db.get_active_fingerprints_with_scope()
         assert len(rows) == 1
         assert rows[0]['category'] == 'cross_promo'
 
@@ -599,7 +599,7 @@ class TestPatternMatchCategoryInheritance:
         temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
         temp_db.update_ad_pattern(pid, is_active=False)
 
-        assert temp_db.get_all_fingerprints_with_sponsors() == []
+        assert temp_db.get_active_fingerprints_with_scope() == []
 
     def test_fingerprint_pattern_with_no_category_stays_unset(self, temp_db):
         pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)

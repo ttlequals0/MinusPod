@@ -1479,32 +1479,6 @@ class TestDeleteEpisodes:
         assert freed == 0.0
 
 
-class TestResetEpisodeToDiscovered:
-    """Tests for _reset_episode_to_discovered."""
-
-    def test_reset_clears_all_fields(self, temp_db):
-        slug = 'reset-test'
-        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
-        temp_db.upsert_episode(slug, 'ep-1',
-                               original_url='https://example.com/1.mp3',
-                               status='processed',
-                               processed_file='/path/to/file.mp3',
-                               original_duration=3600.0,
-                               new_duration=3400.0,
-                               ads_removed=3,
-                               error_message='some error')
-
-        temp_db._reset_episode_to_discovered(slug, 'ep-1')
-
-        ep = temp_db.get_episode(slug, 'ep-1')
-        assert ep['status'] == 'discovered'
-        assert ep['processed_file'] is None
-        assert ep['original_duration'] is None
-        assert ep['new_duration'] is None
-        assert ep['ads_removed'] == 0
-        assert ep['error_message'] is None
-
-
 class TestCleanupOldEpisodes:
     """Tests for cleanup_old_episodes."""
 
