@@ -52,7 +52,7 @@ from utils.markers import (
     subtract_spans,
 )
 from utils.prompt import (
-    format_sponsor_block, render_prompt, apply_override,
+    format_sponsor_block, render_prompt, apply_override, seed_sponsors_enabled,
     format_detection_notes_block, scrub_description, strip_comments_from_prompt
 )
 from utils.text import most_mentioned, truncate, word_boundary_re
@@ -1040,18 +1040,6 @@ class AdDetector:
             logger.warning(f"Could not load dynamic sponsor list: {e}")
             return ""
 
-    def _seed_sponsors_enabled(self, toggle_key: str) -> bool:
-        """Whether the given seed-sponsors toggle is on. Fails open (True):
-        a missing or unreadable setting must not silently strip the block."""
-        try:
-            value = self.db.get_setting(toggle_key)
-        except Exception as e:
-            logger.warning(f"Could not read {toggle_key}: {e}")
-            return True
-        if value is None:
-            return True
-        return coerce_bool_setting(value)
-
     def _render_with_sponsors(self, prompt: str, toggle_key: str) -> str:
         """Substitute ``{sponsor_database}`` in a prompt with the dynamic
         sponsor block, or with an empty string when the pass's seed-sponsors
@@ -1060,7 +1048,7 @@ class AdDetector:
         Prompts without the placeholder get no sponsor content (the user
         opted out by editing the placeholder away).
         """
-        if self._seed_sponsors_enabled(toggle_key):
+        if seed_sponsors_enabled(self.db, toggle_key, logger):
             sponsor_block = format_sponsor_block(self._get_sponsor_list_safely())
         else:
             sponsor_block = ""

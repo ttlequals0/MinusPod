@@ -34,7 +34,6 @@ from config import (
     measured_evidence,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CUT_CONFIDENCE,
-    coerce_bool_setting,
     resolve_max_boundary_shift,
 )
 from audio_enforcer import content_anchors
@@ -69,7 +68,7 @@ from utils.markers import (
     silent_absorbed_spans, TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
-    format_sponsor_block, render_prompt, apply_override,
+    format_sponsor_block, render_prompt, apply_override, seed_sponsors_enabled,
     format_detection_notes_block, scrub_description, strip_comments_from_prompt
 )
 from utils.text import (
@@ -2481,23 +2480,11 @@ class AdReviewer:
             logger.warning(f"reviewer sponsor list lookup failed: {e}")
             return ""
 
-    def _seed_sponsors_enabled(self, toggle_key: str) -> bool:
-        """Fails open (True): a missing or unreadable setting must not
-        silently strip the sponsor block."""
-        try:
-            value = self.db.get_setting(toggle_key)
-        except Exception as e:
-            logger.warning(f"Could not read {toggle_key}: {e}")
-            return True
-        if value is None:
-            return True
-        return coerce_bool_setting(value)
-
     def _sponsor_blocks(self) -> tuple[str, str]:
         """(review_block, resurrect_block), fetching the sponsor list at
         most once. A prompt whose toggle is off gets an empty block."""
-        review_on = self._seed_sponsors_enabled('seed_sponsors_reviewer')
-        resurrect_on = self._seed_sponsors_enabled('seed_sponsors_resurrect')
+        review_on = seed_sponsors_enabled(self.db, 'seed_sponsors_reviewer', logger)
+        resurrect_on = seed_sponsors_enabled(self.db, 'seed_sponsors_resurrect', logger)
         sponsor_list = (self._sponsor_list_or_empty()
                         if (review_on or resurrect_on) else "")
         block = format_sponsor_block(sponsor_list)

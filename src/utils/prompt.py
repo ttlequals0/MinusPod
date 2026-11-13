@@ -7,7 +7,7 @@ prompt bodies stay intact (also avoids injection attacks).
 """
 import re
 
-from config import DETECTION_NOTES_MAX_CHARS
+from config import DETECTION_NOTES_MAX_CHARS, coerce_bool_setting
 
 SPONSOR_DATABASE_HEADER = (
     "\n\nDYNAMIC SPONSOR DATABASE (current known sponsors - treat as high confidence):\n"
@@ -50,6 +50,19 @@ def format_sponsor_block(sponsor_list: str) -> str:
     if not sponsor_list:
         return ""
     return SPONSOR_DATABASE_HEADER + sponsor_list
+
+
+def seed_sponsors_enabled(db, toggle_key: str, log) -> bool:
+    """Whether the given seed-sponsors toggle is on. Fails open (True):
+    a missing or unreadable setting must not silently strip the block."""
+    try:
+        value = db.get_setting(toggle_key)
+    except Exception as e:
+        log.warning(f"Could not read {toggle_key}: {e}")
+        return True
+    if value is None:
+        return True
+    return coerce_bool_setting(value)
 
 
 OVERRIDE_HEADER = "\n\nADDITIONAL INSTRUCTIONS (these take precedence):\n"
