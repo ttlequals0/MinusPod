@@ -278,3 +278,36 @@ def test_detail_carries_the_backfill_flag(app_client, fp_pattern, fp_feed):
     finally:
         conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('backfill_fingerprint_matches_v1')")
         conn.commit()
+
+
+def _legacy(db, pid):
+    """Blank the recorded source, as a fingerprint stored before sources were recorded."""
+    conn = db.get_connection()
+    conn.execute("UPDATE audio_fingerprints SET source_podcast_slug = NULL, source_episode_id = NULL, "
+                 "source_start = NULL, source_end = NULL WHERE pattern_id = ?", (pid,))
+    conn.commit()
+
+
+def test_legacy_fingerprint_offers_the_resolved_span_as_built_from(app_client, fp_feed, fp_audio_pattern, fp_original):
+    _legacy(fp_feed, fp_audio_pattern)
+    _record(fp_feed, fp_audio_pattern, 20.0, 50.0)
+    body = _get(app_client, fp_audio_pattern).get_json()
+    assert body['builtFrom'] == {'podcastSlug': SLUG, 'episodeId': EPISODE,
+                                 'start': 20.0, 'end': 50.0, 'available': True}
+
+
+def test_rebuild_records_the_source_of_a_legacy_fingerprint(
+        app_client, fp_feed, fp_original, fp_audio_pattern, stub_fingerprinting):
+    _legacy(fp_feed, fp_audio_pattern)
+    _record(fp_feed, fp_audio_pattern, 20.0, 50.0)
+    assert _rebuild(app_client, fp_audio_pattern, start=22.0, end=48.0).status_code == 200
+    row = fp_feed.get_audio_fingerprint(fp_audio_pattern)
+    assert (row['source_podcast_slug'], row['source_episode_id'],
+            row['source_start'], row['source_end']) == (SLUG, EPISODE, 22.0, 48.0)
+    assert _get(app_client, fp_audio_pattern).get_json()['builtFrom']['start'] == 22.0
+
+
+def test_legacy_fingerprint_without_a_resolvable_source_has_no_built_from(app_client, fp_feed, fp_audio_pattern):
+    _legacy(fp_feed, fp_audio_pattern)
+    body = _get(app_client, fp_audio_pattern).get_json()
+    assert body['builtFrom'] is None and body['source'] is None

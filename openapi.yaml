@@ -20571,7 +20571,10 @@ components:
             - 'null'
           format: date-time
         builtFrom:
-          description: The episode span the fingerprint was built from; null when unknown.
+          description: >-
+            The episode span the fingerprint was built from; null when unknown. For a
+            fingerprint stored before sources were recorded it is the span `source`
+            resolves, and a rebuild records it.
           oneOf:
             - type: 'null'
             - allOf:
@@ -20588,11 +20591,13 @@ components:
             - $ref: '#/components/schemas/PatternAudioSpan'
         addSource:
           description: >-
-            Only for a pattern with no fingerprint: the span of its own marker in
-            its origin episode that a fingerprint could be built from. It uses the
-            pre-trim span of a reviewer-adjusted marker and the earliest marker when
-            there are several. Null when the pattern has a fingerprint, has no origin
-            episode or podcast, or has no such marker.
+            Only for a pattern with no fingerprint: the span of its own marker that a
+            fingerprint could be built from. The origin episode is used when it
+            qualifies, otherwise the 5 most recently processed episodes that keep
+            their original and hold a confirmation, creation or boundary correction
+            of the pattern. It uses the pre-trim span of a reviewer-adjusted marker
+            and the earliest marker when there are several. Null when the pattern has
+            a fingerprint or none of those episodes holds such a marker.
           oneOf:
             - type: 'null'
             - allOf:

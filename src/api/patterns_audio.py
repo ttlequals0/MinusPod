@@ -28,6 +28,7 @@ logger = logging.getLogger('podcast.api')
 
 MAX_PREVIEW_SECONDS = 600
 RETAINED_MATCH_CANDIDATES = 20
+ADD_SOURCE_EPISODES = 5
 MATCHES_PER_PAGE_DEFAULT = 10
 MATCHES_PER_PAGE_MAX = 50
 MAX_REBUILD_SECONDS = 600
@@ -108,21 +109,37 @@ def _displayed_span(marker):
     return (start, end) if _usable_span(start, end) else None
 
 
-def _add_source(db, storage, pattern_id):
-    """The span of the pattern's own marker in its origin episode that a fingerprint could be built from, or None."""
-    pattern = db.get_ad_pattern_by_id(pattern_id)
-    slug, episode_id = pattern.get('podcast_id'), pattern.get('created_from_episode_id')
-    if not slug or not episode_id:
-        return None
+def _own_marker_span(db, slug, episode_id, pattern_id):
+    """The earliest displayed span of the pattern's own marker in an episode, or None."""
     episode = db.get_episode(slug, episode_id)
     spans = sorted(span for marker in parse_ad_markers((episode or {}).get('ad_markers_json')) or []
                    if isinstance(marker, dict) and marker.get('pattern_id') == pattern_id
                    and (span := _displayed_span(marker)))
-    if not spans:
-        return None
-    _, err = resolve_retained_original(db, storage, slug, episode_id)
-    return {'podcastSlug': slug, 'episodeId': episode_id,
-            'start': spans[0][0], 'end': spans[0][1], 'available': err is None}
+    return spans[0] if spans else None
+
+
+def _add_source(db, storage, pattern_id):
+    """The span of the pattern's own marker that a fingerprint could be built from, or None.
+
+    The origin episode is tried first, then up to ADD_SOURCE_EPISODES others that keep their original.
+    """
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    origin = (pattern.get('podcast_id'), pattern.get('created_from_episode_id'))
+    candidates = [origin] if all(origin) else []
+    candidates += [c for c in db.get_pattern_correction_episodes(pattern_id, ADD_SOURCE_EPISODES)
+                   if c != origin]
+    expired = None
+    for slug, episode_id in candidates:
+        span = _own_marker_span(db, slug, episode_id, pattern_id)
+        if span is None:
+            continue
+        _, err = resolve_retained_original(db, storage, slug, episode_id)
+        found = {'podcastSlug': slug, 'episodeId': episode_id,
+                 'start': span[0], 'end': span[1], 'available': err is None}
+        if err is None:
+            return found
+        expired = expired or found
+    return expired
 
 
 def build_audio_detail(db, storage, pattern_id):
@@ -154,6 +171,9 @@ def build_audio_detail(db, storage, pattern_id):
     if source:
         detail['source'] = _span(source)
         detail['available'] = True
+        # A fingerprint stored before sources were recorded: offer the span that plays, so Edit edges works
+        if detail['builtFrom'] is None:
+            detail['builtFrom'] = {**_span(source), 'available': True}
     return detail
 
 
