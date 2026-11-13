@@ -5,14 +5,13 @@ import { addSponsor, updateSponsor } from '../api/sponsors';
 import { getTagVocabulary, updateSponsorTags } from '../api/community';
 import { Sponsor } from '../api/types';
 import { getErrorMessage } from '../api/client';
-import { Modal, dialogFooterBtn } from './Modal';
+import { Modal } from './Modal';
 import Checkbox from './Checkbox';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
 import CloseButton from './CloseButton';
-import { btnPrimary, btnOutline } from './buttonStyles';
+import SaveCancelFooter from './SaveCancelFooter';
 import { focusRing, inputBase, labelBase, selectBase } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
-import { DemoDisabled } from './DemoDisabled';
 
 interface Props {
   // null = create a new sponsor
@@ -90,23 +89,12 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         </>
       )}
       footer={(
-        <>
-          <button
-            onClick={requestClose}
-            className={`${dialogFooterBtn} ${btnOutline}`}
-          >
-            Cancel
-          </button>
-          <DemoDisabled>
-            <button
-              onClick={() => save.mutate()}
-              disabled={save.isPending}
-              className={`${dialogFooterBtn} ${btnPrimary}`}
-            >
-              {save.isPending ? 'Saving...' : isNew ? 'Add sponsor' : 'Save'}
-            </button>
-          </DemoDisabled>
-        </>
+        <SaveCancelFooter
+          onCancel={requestClose}
+          onSave={() => save.mutate()}
+          pending={save.isPending}
+          saveLabel={isNew ? 'Add sponsor' : 'Save'}
+        />
       )}
     >
       <div className="p-4 space-y-4">
