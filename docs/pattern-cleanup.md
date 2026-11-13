@@ -127,7 +127,7 @@ untouched and acknowledges the reviewed version; rejecting an outdated
 suggestion returns a conflict instead of marking newer text reviewed.
 Model reviews are not repeated for unchanged text, sponsor, and category unless you force a recheck.
 
-**Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict.
+**Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
 
 Undo is refused once a later suggestion has been approved against the same
 pattern. Undo the later approval first. It also refuses to overwrite fields

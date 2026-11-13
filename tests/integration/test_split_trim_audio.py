@@ -211,3 +211,100 @@ def test_bulk_fingerprint_failure_in_one_item_does_not_fail_the_batch(
     assert trim['fingerprintSkippedReason'] == 'fingerprint_failed'
     assert split['status'] == 'approved' and split['fingerprintStored'] is True
     assert fp_feed.get_audio_fingerprint(trim_parent)['fingerprint'] == OLD
+
+
+def _between_commit_and_rebuild(monkeypatch, action):
+    real = pattern_cleanup.rebuild_pattern_audio
+
+    def rebuild(db, source, pattern_id, *args, **kwargs):
+        action()
+        return real(db, source, pattern_id, *args, **kwargs)
+    monkeypatch.setattr(pattern_cleanup, 'rebuild_pattern_audio', rebuild)
+
+
+def test_undo_between_trim_commit_and_rebuild_keeps_the_original_fingerprint(
+        fp_feed, fp_original, stub_fingerprinting, parent, monkeypatch):
+    sid = _suggest(fp_feed, parent, 'trim', {'text': SECOND_TEMPLATE})
+    _between_commit_and_rebuild(monkeypatch, lambda: pattern_cleanup.undo_suggestion(fp_feed, sid))
+    pattern_cleanup.apply_suggestion(fp_feed, sid)
+    assert fp_feed.get_ad_pattern_by_id(parent)['text_template'] == TWO_SPONSORS
+    assert fp_feed.get_audio_fingerprint(parent)['fingerprint'] == OLD
+
+
+def test_audio_deleted_between_trim_commit_and_rebuild_is_not_recreated(
+        fp_feed, fp_original, stub_fingerprinting, parent, monkeypatch):
+    def delete_audio():
+        fp_feed.delete_audio_fingerprint(parent)
+        fp_feed.set_pattern_audio_removed(parent, True)
+    _between_commit_and_rebuild(monkeypatch, delete_audio)
+    _trim(fp_feed, parent)
+    assert fp_feed.get_audio_fingerprint(parent, with_blob=False) is None
+
+
+def test_child_deactivated_before_the_carry_gets_no_audio(
+        fp_feed, fp_original, stub_fingerprinting, parent, monkeypatch):
+    real = pattern_cleanup.carry_audio_to_children
+
+    def carry(db, source, child_ids):
+        db.update_ad_pattern(child_ids[0], is_active=0)
+        return real(db, source, child_ids)
+    monkeypatch.setattr(pattern_cleanup, 'carry_audio_to_children', carry)
+    _, _, kids = _split(fp_feed, parent)
+    assert _span(fp_feed, kids[0]) is None and _span(fp_feed, kids[1]) == (40.0, 70.0)
+
+
+def test_undo_trim_after_the_original_expired_keeps_the_trimmed_fingerprint(
+        fp_feed, fp_original, stub_fingerprinting, parent):
+    sid, _ = _trim(fp_feed, parent)
+    fp_original.unlink()
+    result = pattern_cleanup.undo_suggestion(fp_feed, sid)
+    assert fp_feed.get_ad_pattern_by_id(parent)['text_template'] == TWO_SPONSORS
+    assert _span(fp_feed, parent) == (40.0, 70.0)
+    assert result['fingerprint_outcomes'][0][1].skipped_reason == 'original_not_retained'
+
+
+def test_unlocatable_child_and_trim_report_span_not_found(fp_feed, fp_original, stub_fingerprinting):
+    parent = _make_parent(fp_feed, [(10.0, 40.0, FIRST_READ), (40.0, 70.0, 'Something else entirely.')])
+    _, result, _ = _split(fp_feed, parent)
+    assert [o[1].skipped_reason for o in result['fingerprint_outcomes']] == [None, 'span_not_found']
+
+
+def test_unlocatable_trim_reports_span_not_found(fp_feed, fp_original, stub_fingerprinting):
+    parent = _make_parent(fp_feed, [(10.0, 70.0, 'Nothing like the pattern text here.')])
+    _, result = _trim(fp_feed, parent)
+    assert [o[1].skipped_reason for o in result['fingerprint_outcomes']] == ['span_not_found']
+
+
+def test_child_text_repeated_inside_an_earlier_child_gets_its_own_later_span(
+        fp_feed, fp_original, stub_fingerprinting):
+    tail = 'Visit acme.com today.'
+    parent = _make_parent(fp_feed, [(10.0, 40.0, FIRST_READ), (40.0, 70.0, tail)])
+    sid = _suggest(fp_feed, parent, 'split', {'pieces': [
+        {'text': FIRST_READ, 'sponsor': 'Acme'}, {'text': tail, 'sponsor': 'Acme Tax'}]})
+    kids = pattern_cleanup.apply_suggestion(fp_feed, sid)['applied']['new_pattern_ids']
+    assert [_span(fp_feed, k) for k in kids] == [(10.0, 40.0), (40.0, 70.0)]
+
+
+def test_overlapping_child_text_gets_audio_only_for_the_earlier_child(
+        fp_feed, fp_original, stub_fingerprinting, parent):
+    sid = _suggest(fp_feed, parent, 'split', {'pieces': [
+        {'text': FIRST_READ, 'sponsor': 'Acme'}, {'text': TWO_SPONSORS, 'sponsor': 'Beta Corp'}]})
+    kids = pattern_cleanup.apply_suggestion(fp_feed, sid)['applied']['new_pattern_ids']
+    assert _span(fp_feed, kids[0]) == (10.0, 40.0) and _span(fp_feed, kids[1]) is None
+
+
+def test_parent_fingerprint_without_a_source_gives_children_no_audio_and_no_fields(
+        app_client, fp_feed, fp_original, stub_fingerprinting, parent):
+    fp_feed.create_audio_fingerprint(parent, OLD, 60.0)
+    body = app_client.post(f'/api/v1/patterns/{parent}/split', headers=csrf(app_client)).get_json()
+    assert body['success'] and 'fingerprintStored' not in body
+    assert all(_span(fp_feed, k) is None for k in body['new_pattern_ids'])
+
+
+def test_undone_split_children_are_not_loaded_by_the_matcher(fp_feed, fp_original, stub_fingerprinting, parent):
+    sid, _, kids = _split(fp_feed, parent)
+    loaded = {row['pattern_id'] for row in fp_feed.get_active_fingerprints_with_scope()}
+    assert set(kids) <= loaded and parent not in loaded
+    pattern_cleanup.undo_suggestion(fp_feed, sid)
+    loaded = {row['pattern_id'] for row in fp_feed.get_active_fingerprints_with_scope()}
+    assert parent in loaded and not set(kids) & loaded
