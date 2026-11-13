@@ -21,4 +21,10 @@ describe('StatTile', () => {
     const root = container.firstChild as HTMLElement;
     expect(root.classList.contains('h-full') && root.classList.contains('extra')).toBe(true);
   });
+
+  it('spans three subgrid rows so values align across a grid row', () => {
+    const { container } = render(<StatTile label="A" value="1" />);
+    const cls = (container.firstChild as HTMLElement).classList;
+    expect(cls.contains('row-span-3') && cls.contains('grid-rows-subgrid')).toBe(true);
+  });
 });
