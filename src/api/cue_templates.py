@@ -1,15 +1,11 @@
 """REST endpoints for per-feed audio cue templates (#350).
 
-Routes mounted under the ``/api/v1`` blueprint:
-
-- ``GET    /feeds/<slug>/cue-templates``           - list templates for a feed
-- ``POST   /feeds/<slug>/cue-templates``           - mark a new template
-- ``PATCH  /cue-templates/<id>``                   - rename / toggle
-- ``DELETE /cue-templates/<id>``                   - remove
-- ``POST   /feeds/<slug>/episodes/<episode_id>/cue-scan``
-                                                   - run every enabled template
-- ``POST   /feeds/<slug>/episodes/<episode_id>/cue-template-preview``
-                                                   - run one template
+- ``GET    /feeds/<slug>/cue-templates``        list templates for a feed
+- ``POST   /feeds/<slug>/cue-templates``        mark a new template
+- ``PATCH  /cue-templates/<id>``                rename / toggle
+- ``DELETE /cue-templates/<id>``                remove
+- ``POST   /feeds/<slug>/episodes/<episode_id>/cue-scan``              run every enabled template
+- ``POST   /feeds/<slug>/episodes/<episode_id>/cue-template-preview``  run one template
 """
 import hashlib
 import io
@@ -106,12 +102,10 @@ MAX_IMPORT_CUE_SECONDS = 120
 
 
 def _episode_route_context(slug, episode_id):
-    """Shared preamble for per-episode cue routes: resolve db/storage and
-    load the feed row. The ``episode_id`` path param is already validated by
-    the blueprint's url_value_preprocessor (400 on malformed ids).
+    """Shared preamble for per-episode cue routes: resolve db/storage and load the feed row.
 
-    Returns ``(db, storage, podcast, None)`` on success or
-    ``(db, storage, None, error_response)`` when the feed is unknown.
+    Returns ``(db, storage, podcast, None)`` or ``(db, storage, None, error_response)``
+    when the feed is unknown. ``episode_id`` is already validated by the blueprint.
     """
     db = get_database()
     storage = get_storage()
@@ -129,9 +123,8 @@ def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
                           formant_atten_db=0.0):
     """Decode a window and derive its (mfcc_blob, pcm_blob, sample_rate).
 
-    Shared by the PATCH window-move path. Raises RuntimeError on decode failure
-    and _WindowTooShort when the selection is too short to score; the caller
-    maps both to a 4xx.
+    Raises RuntimeError on decode failure and _WindowTooShort when the selection is too
+    short to score; the caller maps both to a 4xx.
     """
     pcm = decode_pcm_window(
         audio_path, offset_s, offset_s + duration_s, SAMPLE_RATE_HZ)
@@ -142,10 +135,8 @@ def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
 
 
 def _validate_cut_matches(payload: dict, cue_type: str, *, coerce_ineligible=False):
-    """Return (value, error) for an optional cutMatches field; absent -> None.
-
-    coerce_ineligible turns a true on an ineligible type into null (import).
-    """
+    """Return (value, error) for an optional cutMatches field (absent -> None).
+    coerce_ineligible turns true on an ineligible type into null (import)."""
     value = payload.get('cutMatches')
     if value is not None and not isinstance(value, bool):
         return None, 'cutMatches must be true, false, or null'
@@ -189,9 +180,7 @@ def _template_to_meta_dict(row: dict) -> dict:
 def list_cue_templates(slug):
     """List a feed's cue templates, including network templates from siblings.
 
-    A template promoted to network scope on any feed in the network is shown
-    here too, flagged ``owned: false`` so the UI can render it read-only (it is
-    managed on the feed that created it).
+    Sibling network templates are flagged ``owned: false`` so the UI renders them read-only.
     """
     db = get_database()
     podcast = db.get_podcast_row(slug)
@@ -217,14 +206,9 @@ def list_cue_templates(slug):
 def create_cue_template(slug):
     """Mark a new cue template from a window of an episode.
 
-    Body:
-        episodeId (str, required)
-        cueType   (str, optional) - defaults to the standard ad-break type
-        startS    (float, required) - window start within episode (seconds)
-        endS      (float, required) - window end within episode (seconds)
-
-    The display label is derived from cueType, not caller-supplied, so the
-    phrase fed to the LLM prompt is always one of the fixed type names.
+    Body: episodeId (required), cueType (optional, defaults to the standard ad-break type),
+    startS and endS (required, seconds within the episode). The label is derived from
+    cueType, not caller-supplied, so the LLM prompt only ever sees fixed type names.
     """
     db = get_database()
     storage = get_storage()
@@ -274,10 +258,8 @@ def create_cue_template(slug):
     if err:
         return err
 
-    # Decode + extract MFCC for the marked window. Heavy work happens here, but
-    # only the rare "mark a cue" action triggers it; matchers stream the same
-    # function over an entire episode in tens of seconds, so this single window
-    # is negligible.
+    # Decode and extract MFCC for the marked window. Only the rare "mark a cue" action
+    # pays this, which is negligible next to a matcher scan of a whole episode.
     try:
         pcm = decode_pcm_window(audio_path, start_s, end_s, SAMPLE_RATE_HZ)
     except RuntimeError as e:
@@ -312,10 +294,10 @@ def create_cue_template(slug):
     row = db.get_cue_template(template_id)
     meta = _template_to_meta_dict(row)
 
-    # Weak-cue feedback: an ad-break cue that appears only once in its own
-    # source episode will never bracket a break, so warn the user at save time.
-    # Skip intro/outro (non_ad) cues -- they are meant to play once. Best-effort:
-    # an fpcalc failure leaves selfMatchCount at 0 (treated as unknown, no warn).
+    # Weak-cue feedback: an ad-break cue that appears once in its own source episode will
+    # never bracket a break, so warn at save time. Intro/outro (non_ad) cues are meant to
+    # play once and are skipped. Best-effort: an fpcalc failure leaves selfMatchCount at 0
+    # (unknown, no warn).
     is_ad_role = audio_cue_type_role(cue_type) != AUDIO_CUE_ROLE_NON_AD
     self_match_count = 0
     if is_ad_role:
@@ -329,10 +311,9 @@ def create_cue_template(slug):
     meta['selfMatchCount'] = self_match_count
     meta['weakCue'] = self_match_count == 1
 
-    # Long-capture nudge: ad-break captures longer than the warn threshold
-    # degrade match quality (issue #350: 9.8s capture matched far worse than
-    # 1.5-2.5s clips of the same cue). Non-ad roles are exempt -- long intro/
-    # outro captures are expected and intentional.
+    # Long-capture nudge: ad-break captures over the warn threshold match worse (#350: a
+    # 9.8s capture matched far worse than 1.5-2.5s clips of the same cue). Non-ad roles
+    # are exempt; long intro/outro captures are expected.
     meta['longCapture'] = (
         is_ad_role and (end_s - start_s) > AUDIO_CUE_CAPTURE_WARN_AD_SECONDS)
     meta['captureWarnSeconds'] = AUDIO_CUE_CAPTURE_WARN_AD_SECONDS
@@ -358,12 +339,11 @@ def _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row)
 
 
 def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
-    """409 message if this template mutation breaks a cue-only feed's role
-    coverage: the owning feed, or, for a network-scope template, any
-    sibling feed on the same network that is also cue_only and relies on it.
+    """409 message if this template mutation breaks a cue-only feed's role coverage.
 
-    ``simulated_row`` is the template's post-change dict, or None to simulate
-    deletion.
+    Checks the owning feed and, for a network-scope template, any sibling cue_only feed on
+    the same network that relies on it. ``simulated_row`` is the post-change dict, or None
+    to simulate deletion.
     """
     missing = _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row)
     if missing:
@@ -392,16 +372,13 @@ def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
 def update_cue_template_route(template_id):
     """Rename / enable / disable / move the window of a template.
 
-    Addressed by global id with no feed scoping: a network template shared into
-    a sibling feed renders read-only in that feed's panel (the UI `owned` flag),
-    but the mutation itself is intentionally not feed-gated -- the app runs
-    behind one shared operator password, so this guards against an accidental
-    edit, not an adversary. Add a server-side ownership check here if per-feed
-    auth is ever introduced.
+    Addressed by global id with no feed scoping: a network template shared into a sibling
+    feed renders read-only (the UI `owned` flag), but the mutation is intentionally not
+    feed-gated since the app runs behind one shared operator password. Add an ownership
+    check here if per-feed auth is ever introduced.
 
-    When sourceOffsetS or durationS are supplied the blobs are re-extracted from
-    the source episode's retained original audio. Returns 409 when the original
-    audio has been aged out.
+    When sourceOffsetS or durationS are supplied the blobs are re-extracted from the
+    retained original audio; 409 when it has been aged out.
     """
     db = get_database()
     storage = get_storage()
@@ -461,10 +438,8 @@ def update_cue_template_route(template_id):
             if not network_id:
                 return error_response('networkId is required to promote to network scope', 400)
 
-    # Window move: re-extract blobs from the source episode original audio.
-    # Both fields are optional; supplying either one triggers re-extraction so
-    # the stored blobs always reflect the current window geometry. Validation
-    # mirrors the create route (bounds, decode failure, too-short selection).
+    # Window move: either field triggers re-extraction from the source episode's original
+    # audio so stored blobs match the window. Validation mirrors the create route.
     if 'sourceOffsetS' in payload or 'durationS' in payload:
         try:
             new_offset = float(payload.get('sourceOffsetS', row['source_offset_s']))
@@ -542,11 +517,9 @@ def delete_cue_template_route(template_id):
 def cue_scan_episode(slug, episode_id):
     """Run every enabled cue template for the feed against an episode.
 
-    Test-mode endpoint: returns matches per template AND each template's peak
-    correlation against the episode (even when below the threshold) so the
-    user can see how close a non-matching template came. Optional body field
-    ``scoreThreshold`` overrides the global threshold for this run only --
-    handy for sweeping values without re-saving settings.
+    Test-mode endpoint: returns matches per template and each template's peak correlation
+    (even below threshold) so the user sees how close a miss came. Optional body field
+    ``scoreThreshold`` overrides the global threshold for this run only.
     """
     db, storage, podcast, err = _episode_route_context(slug, episode_id)
     if err:
@@ -629,13 +602,9 @@ def cue_scan_episode(slug, episode_id):
 )
 @log_request
 def preview_cue_template(slug, episode_id):
-    """Run a single template against an episode and return its matches.
+    """Run a single template (body: templateId, int, required) against an episode.
 
-    Body:
-        templateId (int, required)
-
-    The matcher is the same one the audio analysis pipeline uses, so the
-    preview shows exactly what would appear in production.
+    Uses the same matcher as the audio analysis pipeline, so the preview matches production.
     """
     db, storage, podcast, err = _episode_route_context(slug, episode_id)
     if err:
@@ -736,8 +705,7 @@ def export_cue_template(template_id):
 def cue_template_audio(template_id):
     """Stream a template's stored cue audio as an inline WAV for in-app playback.
 
-    Built from the retained int16 PCM blob (no ffmpeg; cues are short). Inline
-    (not an attachment) so an <audio> element can play it directly.
+    Built from the retained int16 PCM blob (no ffmpeg); inline so an <audio> element can play it.
     """
     db = get_database()
     row = db.get_cue_template(template_id)
@@ -768,10 +736,9 @@ def cue_template_audio(template_id):
 def import_cue_template(slug):
     """Import a template zip (FLAC or WAV audio + manifest) into a feed.
 
-    The MFCC is recomputed from the decoded audio here -- a foreign MFCC blob is
-    never trusted. v2 packs carry cue.flac; v1 packs carry cue.wav; both are
-    accepted. Imports land as podcast scope; network scope is install-specific
-    and is promoted explicitly after import. Sample-rate / channel mismatches
+    The MFCC is recomputed from the decoded audio; a foreign MFCC blob is never trusted.
+    v2 packs carry cue.flac, v1 packs cue.wav. Imports land as podcast scope (network
+    scope is install-specific and promoted explicitly). Sample-rate or channel mismatches
     are hard-rejected (no resampling).
     """
     db = get_database()
@@ -876,22 +843,16 @@ def import_cue_template(slug):
 
 
 def _scan_loud_spots(audio_path, max_duration=AUDIO_CUE_SCAN_MAX_DURATION_SECONDS):
-    """Band-pass energy pass over original audio -> loud-spot dicts.
+    """Band-pass energy pass over original audio -> loud-spot dicts {start, end, prominenceDb}.
 
-    Uses the generous discovery profile (config.AUDIO_CUE_SCAN_*), not the
-    precise live-detection band: it reaches lower in frequency, triggers on a
-    smaller rise, captures each burst's full attack/decay via the release
-    threshold, and allows long sustained sounds. This surfaces the sustained,
-    bass/broadband musical stings real ad breaks use, which the live band misses.
-    The recurrence filter downstream keeps false positives down.
+    Uses the generous discovery profile (config.AUDIO_CUE_SCAN_*), not the precise
+    live-detection band: lower frequencies, a smaller rise trigger, full attack/decay via
+    the release threshold, and long sustained sounds, so it surfaces the bass/broadband
+    stings real ad breaks use. The recurrence filter downstream trims false positives.
 
-    ``max_duration`` is the longest a single burst may span. The capture-UI
-    loud-spots endpoint uses the default; the cue-candidate scan passes the
-    longer per-type cap so a full-length intro/outro surfaces as one spot.
-
-    Surfaces every burst (min_confidence=0.0). Each dict is
-    {start, end, prominenceDb}. Raises on decode failure; the caller decides
-    whether that is fatal.
+    ``max_duration`` caps one burst: the capture-UI endpoint uses the default; the
+    cue-candidate scan passes the longer per-type cap so a full intro/outro is one spot.
+    Surfaces every burst (min_confidence=0.0). Raises on decode failure.
     """
     detector = AudioCueDetector(
         freq_min_hz=AUDIO_CUE_SCAN_FREQ_MIN_HZ,
@@ -919,10 +880,10 @@ def _scan_loud_spots(audio_path, max_duration=AUDIO_CUE_SCAN_MAX_DURATION_SECOND
 @api.route('/feeds/<slug>/episodes/<episode_id>/cue-loud-spots', methods=['GET'])
 @log_request
 def episode_loud_spots(slug, episode_id):
-    """Template-free energy pass over an episode's original audio for the capture
-    UI. Returns candidate "loud spots" (band-passed bursts) as jump-to markers
-    so the user can find a cue to bracket. These are NOT detected cues -- before
-    a template there is nothing to match against -- just loud spots to hunt in.
+    """Template-free energy pass over an episode's original audio for the capture UI.
+
+    Returns candidate "loud spots" (band-passed bursts) as jump-to markers. These are not
+    detected cues: with no template there is nothing to match, just loud spots to hunt in.
     """
     db, storage, podcast, err = _episode_route_context(slug, episode_id)
     if err:
@@ -942,9 +903,8 @@ def episode_loud_spots(slug, episode_id):
 def episode_detected_cues(slug, episode_id):
     """Template cue matches already found on this episode (instant, advisory).
 
-    Spectral bursts are intentionally excluded: an episode has dozens of one-off
-    loud spikes and they are too noisy to suggest as templates. Use the
-    cue-candidates endpoint to find sounds that actually recur.
+    Spectral bursts are excluded: an episode has dozens of one-off spikes, too noisy to
+    suggest as templates. Use the cue-candidates endpoint for sounds that recur.
     """
     db, storage, podcast, err = _episode_route_context(slug, episode_id)
     if err:
@@ -952,7 +912,7 @@ def episode_detected_cues(slug, episode_id):
 
     cue_signals = _episode_template_cue_signals(db, slug, episode_id)
 
-    # Cheap existence check (no decode) -- gates whether a template can be cut.
+    # Cheap existence check (no decode); gates whether a template can be cut.
     _, err = _resolve_original_audio(db, storage, slug, episode_id)
     has_original_audio = err is None
 
@@ -977,11 +937,11 @@ def _episode_template_cue_signals(db, slug, episode_id):
 
 
 def _templated_cue_spans(db, podcast_id, slug, episode_id):
-    """Time spans on this episode already covered by a cue template (no decode), so
-    the candidate scan can skip cues the user has already captured. Combines two
-    sources: persisted template MATCHES on this episode, and enabled templates whose
-    source is this episode (a match signal is only stored on reprocessing, so a
-    just-captured template would otherwise reappear). Returns [(start, end), ...]."""
+    """Time spans on this episode already covered by a cue template (no decode).
+
+    Lets the candidate scan skip cues the user already captured. Combines persisted template
+    matches with enabled templates sourced from this episode (a match signal is stored only
+    on reprocessing, so a just-captured template would reappear). Returns [(start, end), ...]."""
     spans = []
     for s in _episode_template_cue_signals(db, slug, episode_id):
         start, end = s.get('start'), s.get('end')
@@ -996,13 +956,11 @@ def _templated_cue_spans(db, podcast_id, slug, episode_id):
 
 
 def _completed_sibling_episodes(db, storage, slug, episode_id):
-    """Up to AUDIO_CUE_XEP_MAX_SIBLINGS recent COMPLETED episodes (other than this
-    one) that still have retained original audio, as (episode_id, path) pairs.
+    """Up to AUDIO_CUE_XEP_MAX_SIBLINGS recent completed episodes (other than this one) with
+    retained original audio, as (episode_id, path) pairs.
 
-    Completed-only matters: a finished episode's column value is
-    EpisodeStatus.PROCESSED ('processed'), which the API displays as 'completed'.
-    This excludes discovered/pending/processing/failed episodes from the
-    cross-episode comparison.
+    A finished episode's column value is EpisodeStatus.PROCESSED ('processed'), displayed as
+    'completed'; this excludes discovered/pending/processing/failed episodes.
     """
     episodes, _ = db.get_episodes(
         slug, status=EpisodeStatus.PROCESSED.value,
@@ -1030,9 +988,8 @@ def _parse_ad_markers(raw):
     """Parse ad_markers_json into only the markers that were actually cut.
 
     Mirrors positional_prior's was_cut defense so affinity typing never treats a
-    reviewer-rejected marker as a boundary: a raw pass-1 set (no marker carries
-    was_cut) is untrusted and yields nothing; otherwise only was_cut markers
-    count. Tolerates None/bad JSON (returns []).
+    reviewer-rejected marker as a boundary: a raw pass-1 set (no marker carries was_cut) is
+    untrusted and yields nothing. Tolerates None/bad JSON (returns []).
     """
     try:
         parsed = json.loads(raw) if raw else []
@@ -1167,11 +1124,9 @@ def _sibling_affinity_fallback(recurring, slug, episode_id, db, storage, audio_p
 def _drop_speechlike_recurring(recurring, audio_path):
     """Drop recurring candidates that are plainly speech (common phrases), #350.
 
-    Decodes each candidate's audio span and applies the music/speech
-    discriminator; only confident speech is removed, so musical stings (even with
-    voiceover) survive. On any decode error the candidate is kept. Cross-episode
-    intro/outro candidates are NOT passed here -- those are often legitimately
-    spoken.
+    Decodes each candidate's span and applies the music/speech discriminator; only
+    confident speech is removed, so stings with voiceover survive. A decode error keeps the
+    candidate. Cross-episode intro/outro candidates skip this: they are often spoken.
     """
     kept, dropped = [], 0
     for c in recurring:
@@ -1198,9 +1153,7 @@ def _drop_speechlike_recurring(recurring, audio_path):
 def _capture_ceiling(db, cue_type):
     """Return the DB-configured max capture duration (s) for ``cue_type``.
 
-    For show_intro and show_outro the per-type DB key is checked first and
-    the result is never less than the global ad-break ceiling.
-    """
+    show_intro/show_outro use their per-type key first, floored at the global ad-break ceiling."""
     cap_max = db.get_setting_float('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
     if cue_type in AUDIO_CUE_CAPTURE_MAX_BY_TYPE:
         type_db_key = (
@@ -1232,20 +1185,18 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
                             similarity, min_count):
     """Background worker: find cue-template candidates, then persist them.
 
-    Two passes: within-episode recurrence (ad-break stings that repeat, found via
-    fingerprint self-match) and cross-episode intro/outro (head/tail segments that
-    recur across recent completed siblings -- real intros/outros play once per
-    episode so recurrence cannot see them). Runs off the request thread because
-    decoding can exceed the reverse-proxy timeout; uses its own thread-local DB
-    connection.
+    Two passes: within-episode recurrence (repeating ad-break stings, via fingerprint
+    self-match) and cross-episode intro/outro (head/tail segments shared across recent
+    completed siblings; recurrence cannot see them since they play once per episode).
+    Runs off the request thread because decoding can exceed the proxy timeout, with its
+    own thread-local DB connection.
     """
     db = get_database()
     storage = get_storage()
     try:
         fp = AudioFingerprinter()
-        # Fingerprint the target once and share it across both passes. If fpcalc
-        # is present but the decode fails, both passes would fail too -- surface
-        # the error instead of re-decoding three times.
+        # Fingerprint the target once for both passes. If fpcalc is present but the decode
+        # fails, both passes would fail: surface the error instead of re-decoding.
         target_fp = None
         if fp.is_available():
             target_fp = fp._generate_full_fingerprint(audio_path)
@@ -1257,8 +1208,8 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
         # Drop within-episode candidates that are just common spoken phrases (#350);
         # the cross-episode intro/outro pass below is exempt (intros can be spoken).
         recurring = _drop_speechlike_recurring(recurring, audio_path)
-        # Phase 4: ad-affinity typing -- annotate recurring candidates with
-        # suggestedType based on proximity to known ad boundaries.
+        # Ad-affinity typing: annotate recurring candidates with suggestedType from
+        # proximity to known ad boundaries.
         episode_row = db.get_episode(slug, episode_id)
         episode_ad_spans = _parse_ad_markers(
             (episode_row or {}).get('ad_markers_json')
@@ -1320,25 +1271,15 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
 
 
 # Bumped when the candidate set's meaning changes so old caches are rescanned.
-# 2: the within-episode speech filter (#350 4A) -- a 2.28.0 cache can still hold
-# speech-like recurring candidates the filter now drops, so force a rescan.
-# 3: per-zone intro/outro caps (#350 Phase 3) -- old caches used a shared
-#    AUDIO_CUE_XEP_MAX_DURATION=30s cap for both zones; the new per-DB-setting
-#    caps may produce longer suggestions, so old caches are stale.
-# 4: ad-affinity typing (#350 Phase 4) -- recurring candidates now carry
-#    suggestedType, adBoundaryHits, boundaryAffinity, affinitySource; old
-#    caches lack these fields, so force a rescan to populate them.
-# 5: candidate dismissals (2.44.0) -- candidates may carry dismissed/dismissalId
-#    and old caches were never matched against the feed's dismissals.
+# 2: within-episode speech filter (#350). 3: per-zone intro/outro caps (#350).
+# 4: ad-affinity typing fields (#350). 5: candidate dismissal fields.
 CUE_CANDIDATE_SCHEMA_VERSION = 5
 
 
 def _candidates_are_current(candidates):
-    """Stale-cache guard. A scan from before 2.27.2 used kinds/fields this version
-    no longer emits (one_off / prominenceDb); a scan from before 2.29.0 predates
-    the recurring speech filter. Both lack the current schema version stamp, so
-    they are treated as stale and rescanned rather than rendered. An empty result
-    is current (nothing stale to show)."""
+    """Stale-cache guard: older scans (kinds/fields since removed, or from before the
+    recurring speech filter) lack the current schema version stamp and are rescanned, not
+    rendered. An empty result is current."""
     return all(
         c.get('kind') in ('recurring', 'intro', 'outro')
         and 'prominenceDb' not in c
@@ -1352,14 +1293,12 @@ def _candidates_are_current(candidates):
 def episode_cue_candidates(slug, episode_id):
     """Find cue-template candidates in an episode (on-demand).
 
-    Combines within-episode recurring sounds (fingerprint self-repeat, for ad-break
-    stings) with cross-episode intro/outro segments (head/tail audio shared across
-    recent completed siblings), so candidates cover all cue types. Each is tagged
-    with a kind ('recurring'|'intro'|'outro') and a cue-type hint. Decoding can
-    exceed the proxy timeout, so the work runs in a background thread and this
-    endpoint returns a status the UI polls: 'scanning', 'ready', or 'error'.
-    Pass ?rescan=1 to force a fresh scan. Pass ?peek=1 for a read-only check that
-    returns a cached result or 'idle' without ever starting a scan.
+    Combines within-episode recurring sounds (ad-break stings) with cross-episode
+    intro/outro segments from recent completed siblings; each candidate has a kind
+    ('recurring'|'intro'|'outro') and a cue-type hint. Decoding can exceed the proxy
+    timeout, so a background thread does the work and the endpoint returns a status the UI
+    polls: 'scanning', 'ready' or 'error'. ?rescan=1 forces a fresh scan; ?peek=1 is
+    read-only and returns a cached result or 'idle' without starting a scan.
     """
     db, storage, podcast, err = _episode_route_context(slug, episode_id)
     if err:
@@ -1445,10 +1384,9 @@ def _run_cue_threshold_scan(podcast_id, episode_id, slug, audio_paths,
         scores = []
         peaks = {}
         # The matcher is stateless across episodes (audio is decoded inside
-        # detect_with_debug), so build it once instead of per episode.
-        # Ignore per-template thresholds so the sweep sees the full score
-        # distribution at AUDIO_CUE_SUGGEST_FLOOR; per-template gates would
-        # hide sub-threshold occurrences and bias the gap-finder.
+        # detect_with_debug), so build it once. Ignore per-template thresholds so the sweep
+        # sees the full score distribution at AUDIO_CUE_SUGGEST_FLOOR; per-template gates
+        # would hide sub-threshold occurrences and bias the gap-finder.
         matcher = AudioCueTemplateMatcher(
             templates,
             score_threshold=AUDIO_CUE_SUGGEST_FLOOR,
@@ -1537,11 +1475,8 @@ def cue_threshold_suggest(slug):
     return json_response({'episodeId': episode_id, 'status': 'scanning'})
 
 
-# Cross-episode body scan (D1b, #350).
-# Episode cap: 5, matching AUDIO_CUE_SUGGEST_MAX_EPISODES used by the threshold
-# suggest path. Body scanning (full-duration fingerprint per episode) is at least
-# as expensive as the threshold sweep. Keeping the same cap bounds wall time and
-# mirrors the user's mental model of a "sample set".
+# Cross-episode body scan (#350). The episode cap matches AUDIO_CUE_SUGGEST_MAX_EPISODES:
+# a full-duration fingerprint per episode costs at least as much as the threshold sweep.
 _CROSS_EPISODE_SCAN_MAX_EPISODES = AUDIO_CUE_SUGGEST_MAX_EPISODES  # 5
 
 
@@ -1553,15 +1488,10 @@ def _run_cue_cross_episode_scan(
 ):
     """Background worker: find recurring body segments across the requested episodes.
 
-    target_episode_id is the first element of episode_ids (caller's order) and
-    defines the coordinate frame for all returned start/end times. sibling_paths
-    are the retained original audio files for the remaining episodes.
-
-    Payload saved on success:
-        {candidates, targetEpisodeId, episodeIds}
-    where candidates matches discover_cross_episode_body's result shape
-    ({start, end, kind, episodeMatches, episodes}) so D1c can feed them directly into
-    the existing Make-template flow (CueMarkModal expects bounds + episode).
+    target_episode_id is the first of episode_ids and defines the coordinate frame for all
+    returned times; sibling_paths are the retained originals for the rest. Payload saved on
+    success is {candidates, targetEpisodeId, episodeIds}, with candidates in
+    discover_cross_episode_body's result shape ({start, end, kind, episodeMatches, episodes}).
     """
     db = get_database()
     try:
@@ -1611,17 +1541,12 @@ def _run_cue_cross_episode_scan(
 def cue_cross_episode_scan(slug):
     """Find recurring audio segments anywhere in the body across a set of episodes.
 
-    Body: {episodeIds: [...], rescan?: bool}
+    Body: {episodeIds: [...], rescan?: bool}. 2 to 5 episode IDs are required, all in this
+    feed with retained original audio. The scan runs in a background thread (full-duration
+    fingerprinting is slow); poll with the same body. rescan=true forces a fresh run.
 
-    Between 2 and 5 episode IDs must be supplied; all must belong to this feed
-    and have retained original audio. The scan runs in a background thread
-    (full-duration fingerprinting is slow); poll this endpoint with the same
-    body to check progress. rescan=true forces a fresh run even when a cached
-    result exists.
-
-    Poll response carries status 'scanning'|'ready'|'error'. When ready,
-    candidates are in the coordinate frame of the first supplied episode
-    (targetEpisodeId).
+    Poll status is 'scanning'|'ready'|'error'; ready candidates use the first supplied
+    episode's coordinate frame (targetEpisodeId).
     """
 
     db = get_database()
@@ -1671,13 +1596,11 @@ def cue_cross_episode_scan(slug):
             'error': redact_error((row or {}).get('error')) or 'cross-episode scan failed',
         })
 
-    # state == 'started': validate that all IDs belong to this feed and have
-    # retained original audio. On failure, release the just-claimed slot as an
-    # error row (so no orphaned 'scanning' row survives to block or mislead a
-    # later poll) before returning the 4xx. Capture the claim token so the
-    # worker's save cannot clobber a newer claim (finding 4). Anything between
-    # here and Thread.start() runs under try/except so an unexpected error
-    # releases the slot instead of orphaning a 'scanning' row (finding 5).
+    # state == 'started': validate that all IDs belong to this feed and have retained
+    # original audio. On failure, release the just-claimed slot as an error row so no
+    # orphaned 'scanning' row blocks a later poll. Capture the claim token so the worker's
+    # save cannot clobber a newer claim. Everything up to Thread.start() runs under
+    # try/except so an unexpected error also releases the slot.
     claim_epoch = db.get_cue_cross_episode_scan_claim_epoch(
         podcast_id, episode_set_hash)
     try:
@@ -1722,14 +1645,10 @@ def cue_cross_episode_scan(slug):
     return json_response({'status': 'scanning', 'episodeIds': episode_ids})
 
 
-# ---------------------------------------------------------------------------
-# Window optimizer scan (D2a, #350).
-# Grid-sweeps start/end deltas to maximize mean match score across the source
-# episode and siblings. Cost controls: the source is decoded only around the
-# grid region, siblings are scanned once in bounded chunks, and candidates are
-# scored inside a small MFCC neighborhood of each episode's baseline match
-# peak instead of re-sliding full episodes once per candidate.
-# ---------------------------------------------------------------------------
+# Window optimizer scan (#350): grid-sweeps start/end deltas to maximize mean match score
+# across the source episode and siblings. The source is decoded only around the grid,
+# siblings are scanned once in bounded chunks, and candidates are scored in a small MFCC
+# neighborhood of each baseline match peak instead of re-sliding full episodes.
 
 # Grid step and range (seconds). 11 steps in each axis = 11x11 = 121 candidates.
 _WIN_GRID_STEP = 0.1
@@ -1742,7 +1661,7 @@ _WIN_OPTIMIZE_MAX_EPISODES = AUDIO_CUE_SUGGEST_MAX_EPISODES
 _WIN_PEAK_NEIGHBORHOOD_S = 3.0
 # Chunk size for the sibling scan; a full-episode decode plus MFCC framing of
 # a multi-hour file transiently costs GBs (the matcher chunks its decoding for
-# the same reason -- see cue_template_matcher.CHUNK_SECONDS).
+# the same reason, see cue_template_matcher.CHUNK_SECONDS).
 _WIN_MFCC_CHUNK_S = 600.0
 # One MFCC frame hop in seconds; the slicer uses FRAME_LENGTH_MS directly to
 # reproduce compute_mfcc's frame count over a window's sample span.
@@ -1756,12 +1675,10 @@ _WIN_SOURCE_AUDIO_GONE_MSG = (
 
 def _build_optimize_grid(template, min_duration_s=AUDIO_CUE_CAPTURE_MIN_SECONDS,
                          max_duration_s=None):
-    """Return list of candidate dicts {start_delta, end_delta, start_s, end_s}.
+    """Return candidate dicts {start_delta, end_delta, start_s, end_s}.
 
-    Candidates with start_s < 0 or a duration outside
-    [min_duration_s, max_duration_s] are excluded; callers pass the live
-    capture bounds so the optimizer never proposes a window the PATCH
-    apply would then reject.
+    Candidates with start_s < 0 or a duration outside [min_duration_s, max_duration_s] are
+    excluded; callers pass the live capture bounds so the PATCH apply never rejects a proposal.
     """
     base_start = float(template['source_offset_s'])
     base_duration = float(template['duration_s'])
@@ -1794,10 +1711,7 @@ def _build_optimize_grid(template, min_duration_s=AUDIO_CUE_CAPTURE_MIN_SECONDS,
 
 
 def _pick_best_candidate(scored_candidates):
-    """Return the candidate with highest mean_peak_score.
-
-    Tie-break: smallest total |delta| (least change from the original window).
-    """
+    """Return the candidate with highest mean_peak_score; ties go to the smallest total |delta|."""
     if not scored_candidates:
         return None
     best = max(
@@ -1813,11 +1727,9 @@ def _pick_best_candidate(scored_candidates):
 def _episode_match_neighborhood(path, base_mfcc, n_coeffs, formant_atten_db):
     """MFCC slice around an episode's best match of the baseline window.
 
-    Scans the episode in bounded chunks and keeps only a few seconds of MFCC
-    around the best-scoring match of the baseline template. Every grid
-    candidate is a sub-second shift of that window, so its own best match lies
-    inside the kept neighborhood; scoring candidates against the slice is
-    equivalent to a full-episode slide at a fraction of the memory and CPU.
+    Scans in bounded chunks and keeps a few seconds of MFCC around the best match. Every
+    grid candidate is a sub-second shift of that window, so its best match lies inside the
+    slice, making this equivalent to a full-episode slide at far less memory and CPU.
     Returns None when no chunk was long enough to score.
     """
     margin_frames = int(round(_WIN_PEAK_NEIGHBORHOOD_S / _WIN_FRAME_HOP_S))
@@ -1851,10 +1763,9 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
                                   claim_epoch=None):
     """Background worker: sweep the template window and find the best fit.
 
-    ``source_path`` is the source episode's original audio (resolved by the
-    route, matching the threshold/candidate scan pattern); ``siblings`` is a
-    list of (episode_id, path) pairs. Only the grid region of the source is
-    decoded; siblings are scanned once each in bounded chunks.
+    ``source_path`` is the source episode's original audio; ``siblings`` is a list of
+    (episode_id, path) pairs. Only the source's grid region is decoded; siblings are
+    scanned once each in bounded chunks.
     """
     db = get_database()
     try:
@@ -1886,15 +1797,11 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
         except Exception as e:
             raise RuntimeError(f'failed to decode source episode: {e}') from e
 
-        # Frame the region once and slice candidates in frame space. Every grid
-        # offset is an exact multiple of the frame hop (0.1s vs 10ms), so a
-        # candidate's frames align exactly with the region's; the only delta is
-        # the frame-0 pre-emphasis boundary (one sample), which is negligible.
-        # This replaces the per-candidate compute_mfcc over a PCM slice: the
-        # frame at row f covers samples [f*hop, f*hop+frame_len), so a slice
-        # reproduces the same frames the old PCM-window MFCC produced. `length`
-        # matches compute_mfcc's frame count for the window's sample span so a
-        # slice keeps the same number of rows, not one hop's worth more.
+        # Frame the region once and slice candidates in frame space. Grid offsets are exact
+        # multiples of the frame hop (0.1s vs 10ms), so candidate frames align with the
+        # region's; the only delta is the frame-0 pre-emphasis boundary (one sample). Row f
+        # covers samples [f*hop, f*hop+frame_len); `length` matches compute_mfcc's frame
+        # count for the window's sample span so a slice keeps the same row count.
         region_mfcc = compute_mfcc(region_pcm, n_coeffs=n_coeffs,
                                    formant_atten_db=formant_atten)
         _hop = int(round(SAMPLE_RATE_HZ * FRAME_HOP_MS / 1000))
@@ -1918,10 +1825,9 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
         if base_mfcc is None or base_mfcc.shape[0] < 3:
             raise RuntimeError('template window too short to score')
 
-        # One bounded scan per sibling; the source's neighborhood is the grid
-        # region itself (the capture location is by definition its best match).
-        # This makes the source component optimistic vs full-episode detection,
-        # but baseline and proposal share it, so the improvement delta is honest.
+        # One bounded scan per sibling; the source's neighborhood is the grid region (the
+        # capture location is by definition its best match). That makes the source component
+        # optimistic, but baseline and proposal share it so the improvement delta is honest.
         episode_ids = [source_episode_id]
         neighborhoods = [region_mfcc]
         for sibling_id, sibling_path in siblings:
@@ -1998,14 +1904,9 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
 def cue_window_optimize(slug, template_id):
     """Find the window trim that maximises mean match score across sibling episodes.
 
-    Body: {rescan?: bool}
-
-    Validates that the feed exists, the template belongs to the feed, and the
-    source episode's original audio is still retained (needed to re-decode the
-    window). Returns 409 when the original audio has been aged out.
-
-    The scan runs in a background thread; poll this endpoint with the same body
-    to check progress.
+    Body: {rescan?: bool}. Validates the feed, that the template belongs to it, and that
+    the source episode's original audio is retained (409 when aged out). The scan runs in
+    a background thread; poll with the same body.
     """
     db = get_database()
     storage = get_storage()
@@ -2048,10 +1949,9 @@ def cue_window_optimize(slug, template_id):
             'error': redact_error((row or {}).get('error')) or 'window optimize scan failed',
         })
 
-    # state == 'started': confirm source audio, resolve siblings, and launch the
-    # worker. Capture the claim token (finding 4) and run everything under
-    # try/except so a validation failure or unexpected error releases the slot
-    # as an error row instead of orphaning a 'scanning' one (finding 5).
+    # state == 'started': confirm source audio, resolve siblings and launch the worker.
+    # Capture the claim token and run everything under try/except so a failure releases
+    # the slot as an error row instead of orphaning a 'scanning' one.
     claim_epoch = db.get_cue_window_optimize_scan_claim_epoch(template_id)
     try:
         audio_path, audio_err = _resolve_original_audio(
@@ -2079,8 +1979,8 @@ def cue_window_optimize(slug, template_id):
 
 
 def _load_cached_candidates(db, podcast_id, episode_id):
-    """Candidates list from a ready cached scan, or None (missing, not ready,
-    or unparseable -- callers no-op)."""
+    """Candidates list from a ready cached scan, or None (missing, not ready or
+    unparseable; callers no-op)."""
     row = db.get_cue_candidate_scan(podcast_id, episode_id)
     if not row or row.get('status') != 'ready':
         return None
@@ -2093,8 +1993,7 @@ def _load_cached_candidates(db, podcast_id, episode_id):
 def _stamp_cached_candidate(db, podcast_id, episode_id, start_s, end_s, dismissal_id):
     """Mark the just-dismissed candidate in this episode's cached scan.
 
-    Other episodes' caches self-correct on their next rescan; only the episode
-    the dismissal was made from is stamped immediately.
+    Other episodes' caches self-correct on their next rescan.
     """
     # Guarded so a mid-flight rescan wins over a stale stamp write.
     epoch = db.get_cue_candidate_scan_claim_epoch(podcast_id, episode_id)

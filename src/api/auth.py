@@ -20,11 +20,12 @@ logger = logging.getLogger('podcast.api')
 
 
 def _session_cookie_will_be_dropped(secure_cookie, request_is_secure, base_url):
-    """True when a just-set session cookie won't survive in the browser: it is
-    marked Secure but the request arrived over plain HTTP, so the browser
-    discards it and the next request looks logged out. Suppressed when BASE_URL
-    is https, which means TLS is terminated upstream and the request only looks
-    insecure because the proxy hop count is unset (warned about separately)."""
+    """True when a just-set session cookie won't survive in the browser.
+
+    It is marked Secure but the request arrived over plain HTTP, so the browser drops
+    it. Suppressed when BASE_URL is https: TLS is terminated upstream and the request
+    only looks insecure because the proxy hop count is unset (warned about separately).
+    """
     if not secure_cookie or request_is_secure:
         return False
     return not base_url_is_https(base_url)
@@ -57,11 +58,7 @@ def _retry_after_seconds(locked_until_iso: str) -> int:
 @api.route('/auth/status', methods=['GET'])
 @log_request
 def auth_status():
-    """Check authentication status.
-
-    Returns whether password is set and if current session is authenticated.
-    This endpoint is always accessible (no auth required).
-    """
+    """Return whether a password is set and the session is authenticated; no auth required."""
     auth = current_auth()
     return json_response({
         'passwordSet': auth.password_set,
@@ -74,14 +71,7 @@ def auth_status():
 @limiter.limit("10 per hour")
 @log_request
 def auth_login():
-    """Login with password.
-
-    Request body:
-    {
-        "password": "your-password",
-        "rememberMe": false   // optional boolean: longer session on this device
-    }
-    """
+    """Login with password. Body: {"password", "rememberMe" (optional bool, longer session)}."""
     db = get_database()
     stored_hash = db.get_setting('app_password')
     password_set = stored_hash is not None and stored_hash != ''
@@ -96,10 +86,9 @@ def auth_login():
 
     ip = request.remote_addr or ''
 
-    # Lockout only fires on public IPs so operators behind RFC1918, CGNAT,
-    # Docker bridges, or Tailscale ULA prefixes are not denied by an
-    # attacker who shares their NAT. Flask-limiter still rate-limits
-    # everyone via the @limiter.limit decorators above.
+    # Lockout fires only on public IPs so operators behind RFC1918, CGNAT, Docker bridges
+    # or Tailscale ULA are not locked out by an attacker sharing their NAT. Flask-limiter
+    # still rate-limits everyone.
     if is_public_ip_for_lockout(ip):
         locked_until = db.check_lockout(ip)
         if locked_until:
@@ -146,11 +135,9 @@ def auth_login():
 def auth_logout():
     """Logout and clear session.
 
-    Listed in AUTH_EXEMPT_PATHS so an expired session can still call it,
-    which means the blueprint-level CSRF check in check_auth() is skipped.
-    Enforce it manually here so a cross-site POST cannot terminate an
-    authenticated session. A caller without a live sign-in skips the token
-    check, so it can always clear stale state.
+    Listed in AUTH_EXEMPT_PATHS so an expired session can still call it, which skips the
+    blueprint CSRF check in check_auth(). Enforced manually here so a cross-site POST
+    cannot end a live session; callers without a live sign-in skip the token check.
     """
     csrf_err = csrf_validate(request)
     if csrf_err:
@@ -172,16 +159,8 @@ def auth_logout():
 def auth_set_password():
     """Set or change the application password.
 
-    If no password is currently set, this creates a new password.
-    If a password is set, the current password must be provided.
-
-    Request body:
-    {
-        "currentPassword": "old-password",  // Required if password is set
-        "newPassword": "new-password"       // Min 12 characters
-    }
-
-    To remove password protection, set newPassword to empty string or null.
+    Body: {"currentPassword" (required if one is set), "newPassword" (min 12 chars)}.
+    An empty or null newPassword removes password protection.
     """
     data = request.get_json()
     if not data:

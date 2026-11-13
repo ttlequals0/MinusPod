@@ -55,11 +55,10 @@ _start_time = _init_server_start_time()
 
 api = Blueprint('api', __name__, url_prefix='/api/v1')
 
-# In-process storage is per-worker; with workers=2 the effective limit is
-# 2x declared. Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to share
-# counters across workers and get exact declared limits. The default is our
-# thread-safe MemoryStorage subclass: stock memory:// raises RuntimeError
-# out of a request when two threads restart its expiry timer at once.
+# Per-worker in-process storage multiplies the effective limit by the worker count.
+# Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to share counters. The default is a
+# thread-safe MemoryStorage subclass: stock memory:// can raise RuntimeError when two
+# threads restart its expiry timer at once.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per minute", "1000 per hour"],
@@ -70,18 +69,9 @@ limiter = Limiter(
 def init_limiter(app):
     """Initialize rate limiter with Flask app.
 
-    Deliberately NOT headers_enabled=True: flask-limiter's header
-    injection runs on every response for any route with an applicable
-    limit (default_limits apply app-wide, not just the api blueprint) and
-    unconditionally overwrites an existing Retry-After header with its own
-    computed reset time -- tried this, and it silently rewrote the
-    explicit Retry-After values routes.py's JIT 503 responses set (30/60/
-    Retry-After-computed-cooldown), which is a much bigger blast radius
-    than the one 429 path this was meant to help. apiRequest's retry
-    (frontend/src/api/client.ts) still reads Retry-After off a 429 when a
-    server happens to send one, and falls back to its fixed backoff
-    schedule when it doesn't -- so nothing downstream depends on this
-    being enabled.
+    Deliberately not headers_enabled=True: flask-limiter would overwrite the explicit
+    Retry-After values that routes set on JIT 503 responses with its own computed reset
+    time. The frontend retry falls back to fixed backoff when a 429 has no Retry-After.
     """
     if os.environ.get('MINUSPOD_RATE_LIMIT_DISABLED', '').strip().lower() in ('true', '1', 'yes'):
         app.config['RATELIMIT_ENABLED'] = False
@@ -94,39 +84,27 @@ def init_limiter(app):
     logger.debug("Rate limiter initialized: 200/min, 1000/hr default limits")
 
 
-# Paths that don't require authentication. Every entry is an exact match;
-# no prefixes or substring contains. A prefix like "/api/v1/auth/" is a
-# footgun: any future endpoint added under it (e.g. /auth/setup-2fa)
-# would be silently unauthenticated. Keeping this list closed helps
-# reviewers see the full public surface at a glance.
+# Paths that don't require authentication. Exact matches only: a prefix like
+# "/api/v1/auth/" would silently expose any future endpoint added under it.
 AUTH_EXEMPT_PATHS = frozenset({
     '/api/v1/health',        # readiness probe
     '/api/v1/health/live',   # liveness probe
     '/api/v1/auth/status',   # used by the UI to decide whether to show login
     '/api/v1/auth/login',    # initial login
     '/api/v1/auth/logout',   # terminate session
-    # First-time setup + self-service rekey. The handler body-verifies
-    # `currentPassword` when one is already set, so an unauthenticated
-    # caller with no prior password can bootstrap, while an existing
-    # password requires possession of the current one. Do NOT add other
-    # /api/v1/auth/* endpoints here -- the blueprint-prefix version of
-    # this list was removed specifically because it was a footgun for
-    # future auth endpoints.
+    # First-time setup and rekey. The handler body-verifies `currentPassword` when one
+    # is set. Do not add other /api/v1/auth/* endpoints here.
     '/api/v1/auth/password',
-    # SSE: EventSource cannot surface an HTTP 401 to the JavaScript
-    # handler -- the browser silently reconnect-loops against the
-    # closed response. The generator in status.py snapshots auth at
-    # connect time and emits a single `event: auth-failed` SSE message,
-    # which GlobalStatusBar.tsx listens for and redirects to /ui/login.
-    # Exempt here so the generator runs at all; DO NOT generalise this
-    # to other endpoints.
+    # SSE: EventSource cannot surface a 401 to JS, so the browser reconnect-loops. The
+    # status.py generator snapshots auth at connect and emits one `event: auth-failed`
+    # message, which GlobalStatusBar.tsx turns into a redirect to /ui/login.
+    # Exempt here so the generator runs; do not generalise to other endpoints.
     '/api/v1/status/stream',
 })
 
-# Strict pattern exemption for podcast-app cross-origin artwork GETs.
-# <img src> can't bounce through an auth dance on 401, so this one GET is
-# public. It enforces the route's accepted 200-character slug limit;
-# malformed paths fall through to the authenticated path and 401.
+# Strict exemption for cross-origin podcast-app artwork GETs: <img src> cannot handle
+# a 401 auth dance. Enforces the 200-character slug limit; malformed paths fall
+# through to the authenticated path and 401.
 PODCAST_ARTWORK_PATH = re.compile(r'^/api/v1/feeds/([^/]+)/artwork$')
 
 
@@ -161,10 +139,8 @@ def _remote_setup_allowed():
 def check_auth():
     """Check authentication before each /api/v1/* request.
 
-    Exemptions are all exact-match or strictly regex-matched. Public
-    podcast-feed serving (/<slug>, /episodes/<slug>/<id>.mp3, .vtt,
-    chapters.json) is at the app level, not under this blueprint, and
-    doesn't reach this function.
+    Exemptions are exact-match or strict regex. Public feed serving (/<slug>, episode
+    media, chapters.json) lives at app level and never reaches this function.
     """
     path = request.path
 
@@ -188,11 +164,8 @@ def check_auth():
         return None
 
     if not state.password_set:
-        # No password set: the instance is intentionally unprotected and fully
-        # functional, matching the optional-password design. Every endpoint is
-        # served (no auth, no CSRF) until a password is set under Settings >
-        # Security, at which point the session + CSRF checks below take over. A
-        # no-password instance exposed to the network is fully open by design.
+        # No password set: the instance is intentionally open (no auth, no CSRF)
+        # until a password is set under Settings > Security.
         if state.required:
             return error_response('Set the application password before using the API', 503)
         return None
@@ -200,10 +173,8 @@ def check_auth():
     if not state.authenticated:
         return error_response('Authentication required', 401)
 
-    # Double-submit CSRF check for mutating methods. SameSite=Strict on
-    # the session cookie is the primary defense; the token header is a
-    # belt-and-suspenders layer for same-site edge cases (subdomain
-    # takeover, CNAME trust, etc.).
+    # Double-submit CSRF check for mutating methods. SameSite=Strict on the session
+    # cookie is the primary defense; the token header covers same-site edge cases.
     csrf_err = csrf_validate(request)
     if csrf_err:
         logger.warning("CSRF check failed path=%s method=%s ip=%s", path, request.method, request.remote_addr)
@@ -269,21 +240,12 @@ def get_feed_auth_key(db):
 
 @api.url_value_preprocessor
 def _guard_slug_param(_endpoint, values):
-    """Reject dangerous slugs and malformed episode ids on every /api/v1/*
-    route that takes them.
+    """Reject dangerous slugs and malformed episode ids on every /api/v1/* route.
 
-    Slug reads use :func:`is_dangerous_slug` (accepts legacy uppercase /
-    underscore subscription URLs while still blocking traversal).
-    Slug writes use :func:`is_valid_slug` (strict canonical regex) so a
-    typo'd slug fails at 400 instead of making it to storage. Public
-    ``/<slug>`` RSS and ``/episodes/<slug>/...`` routes are registered
-    at the app level and handled by the storage-layer slug guard instead.
-
-    ``episode_id`` path params are checked with :func:`is_valid_episode_id`
-    (12-char MD5 hex): a strict check is needed because ``.isalnum()``
-    accepts Unicode lookalikes. Centralized here so no per-route check can
-    be forgotten; episode ids arriving in JSON bodies are still validated
-    at the route level.
+    Slug reads use is_dangerous_slug (accepts legacy uppercase/underscore URLs, blocks
+    traversal); writes use strict is_valid_slug so a typo fails with 400. Episode ids
+    use is_valid_episode_id (12-char hex); .isalnum() accepts Unicode lookalikes.
+    Centralized so no route can forget it; ids in JSON bodies are validated per route.
     """
     if not values:
         return
@@ -495,15 +457,11 @@ def error_response(message, status=400, details=None):
 def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False, episode=None):
     """Resolve an episode's retained original audio path.
 
-    Returns ``(audio_path, None)`` on success or ``(None, error_response)`` when
-    the episode is unknown, has no retained original, or the file is missing.
-    Shared by the original-audio/peaks routes and the cue-template routes, which
-    all require the original (un-cut) audio. With ``self_heal=True``, a missing
-    file also clears the stale ``original_file`` column (original-only retention
-    sweeps before 2.52.0 could leave it set) so the UI stops offering actions
-    that can only 404. Cue-template routes leave self-heal off: a transiently
-    unreadable file must not permanently NULL the column. Pass ``episode``
-    when the caller already holds the row.
+    Returns ``(audio_path, None)`` or ``(None, error_response)`` when the episode is
+    unknown, has no retained original, or the file is missing. With ``self_heal=True``
+    a missing file also clears the stale ``original_file`` column; cue-template routes
+    leave it off so a transiently unreadable file cannot permanently NULL the column.
+    Pass ``episode`` when the caller already holds the row.
     """
     if episode is None:
         episode = db.get_episode(slug, episode_id)
@@ -519,18 +477,12 @@ def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False, epis
 
 # Alias for backward compatibility
 def extract_transcript_segment(transcript: str, start: float, end: float) -> str:
-    """Extract text from transcript between timestamps.
-
-    Delegates to utils.text.extract_text_in_range.
-    """
+    """Extract text from transcript between timestamps (delegates to utils.text)."""
     return extract_text_in_range(transcript, start, end)
 
 
 def extract_sponsor_from_text(ad_text: str) -> str:
-    """Extract sponsor name from ad text by looking for URLs and common patterns.
-
-    Delegates to SponsorService.extract_sponsor_from_text (canonical implementation).
-    """
+    """Extract sponsor name from ad text (delegates to SponsorService)."""
     return SponsorService.extract_sponsor_from_text(ad_text)
 
 
@@ -564,14 +516,11 @@ _deserialize_nullable_bool = nullable_bool
 
 
 def _normalize_nullable_finite_float(value, field_name, lo, hi):
-    """Validate a nullable float override within [lo, hi].
+    """Validate a nullable float override within [lo, hi]; returns (db_value, error).
 
-    Returns (db_value, error).
-    - None or '' clears the override (returns None, None).
-    - bool is rejected (True/False would silently coerce to 1.0/0.0).
-    - Non-finite values (NaN, inf) are rejected; they pass range checks
-      because NaN comparisons are always False and SQLite binds NaN as NULL.
-    - Out-of-range or non-numeric values are rejected with a 400 error.
+    None or '' clears the override. bool is rejected (would coerce to 1.0/0.0), as are
+    NaN/inf (they pass range checks because NaN comparisons are False and SQLite binds
+    NaN as NULL). Out-of-range or non-numeric values give a 400 error.
     """
     if value is None or value == '':
         return None, None

@@ -1,13 +1,8 @@
 """Double-submit CSRF protection for the Flask API.
 
-The session cookie is ``SameSite=Strict`` so cross-site requests already
-cannot carry auth. This module is the second layer: mutating requests
-must present an ``X-CSRF-Token`` header that matches the non-HttpOnly
-``minuspod_csrf`` cookie set on every authenticated response. An attacker
-on an evil origin cannot read either the session cookie or the CSRF
-cookie (cross-origin), cannot set a ``X-CSRF-Token`` header on a form
-POST, and cannot mount a fetch with credentials under same-origin
-policy, so the double-submit closes the remaining same-site vectors.
+The session cookie is ``SameSite=Strict``; this is the second layer. Mutating requests
+must send an ``X-CSRF-Token`` header matching the non-HttpOnly ``minuspod_csrf`` cookie
+set on authenticated responses, which a cross-origin attacker can neither read nor set.
 """
 from __future__ import annotations
 
@@ -36,9 +31,9 @@ def get_or_create_token() -> str:
 def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
     """Set the minuspod_csrf cookie on an authenticated response.
 
-    Minting a token writes the session, so anonymous responses and endpoints that
-    set the skip flag are left alone: a new session cookie would replace one the
-    browser withheld on a cross-site navigation, and no CDN caches past it.
+    Minting a token writes the session, so anonymous responses and endpoints that set the
+    skip flag are left alone: a new session cookie could replace one the browser withheld
+    on a cross-site navigation, and no CDN caches past it.
     """
     if response.headers.get('X-Skip-CSRF-Cookie'):
         response.headers.pop('X-Skip-CSRF-Cookie', None)
@@ -63,14 +58,11 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
 
 
 def validate(request: Request) -> str | None:
-    """Return None if the CSRF check passes, else a user-safe error string.
+    """Return None if the CSRF check passes, else a user-safe error string (callers send 403).
 
-    Callers translate the error string into a 403. Safe methods bypass.
-    For mutating methods the check fails closed: the header must match the
-    session-held token, and a session without a token on a mutating
-    authenticated request is itself a failure (e.g. a stale pre-upgrade
-    cookie). Unauthenticated sessions bypass because the auth layer runs
-    first and will 401 them regardless.
+    Safe methods bypass. Mutating methods fail closed: the header must match the session
+    token, and a session with no token is itself a failure (e.g. a stale pre-upgrade
+    cookie). Unauthenticated sessions bypass because the auth layer 401s them first.
     """
     if request.method in SAFE_METHODS:
         return None
