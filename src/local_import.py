@@ -1,20 +1,15 @@
 """Local (archive-import) feed import service.
 
-This module has two halves. The top half is pure planning: parsing the
-``sNNeNN`` naming scheme, validating sidecar JSON, synthesizing missing
-publish dates, and building a dry-run import plan -- no DB, no storage, no
-threads. The bottom half (this section) is the commit engine: it consumes a
-plan built by the top half, moves files out of staging/the user-managed
-import directory into permanent episode storage, extracts embedded
-artwork, and runs the whole batch on a background thread tracked in a
-module-level job registry.
+Two halves. The top half is pure planning (no DB, storage or threads): parsing the ``sNNeNN`` naming scheme,
+validating sidecar JSON, synthesizing missing publish dates and building a dry-run import plan. The bottom
+half is the commit engine: it consumes a plan, moves files out of staging or the user-managed import directory
+into permanent episode storage, extracts embedded artwork, and runs the batch on a background thread tracked
+in a module-level job registry.
 
-Stdlib only (``re``, ``json``, ``hashlib``, ``datetime``, ``pathlib``,
-``shutil``, ``threading``) for the planning half and job registry, plus
-``utils.validation.is_valid_episode_id`` for a sanity assert on minted ids
-and the handful of DB/storage/audio helpers the commit half calls through
-their public interfaces (no direct SQL beyond the one queue-row delete that
-mirrors ``database.episodes.delete_episode_rows``'s pattern).
+Planning and the job registry use the stdlib only (``re``, ``json``, ``hashlib``, ``datetime``, ``pathlib``,
+``shutil``, ``threading``). The commit half also uses ``utils.validation.is_valid_episode_id`` and the
+DB/storage/audio helpers through their public interfaces (no direct SQL beyond one queue-row delete mirroring
+``database.episodes.delete_episode_rows``).
 """
 from __future__ import annotations
 
@@ -55,10 +50,8 @@ SIDECAR_KEYS = {'title', 'description', 'published_at', 'season', 'episode'}
 FILENAME_RE = re.compile(r'^(s\d{2,3}e\d{2,4})(?: - (.+))?$', re.IGNORECASE)
 SYNTH_STEP = timedelta(days=1)
 
-# Common non-mp3 audio containers a user might drop into the import
-# directory by mistake -- rejected with a hint to convert rather than
-# silently ignored, since an unmatched title/basename would otherwise look
-# like a plain naming-scheme mismatch.
+# Common non-mp3 audio containers a user might drop into the import directory by mistake: rejected with a hint
+# to convert, since an unmatched title/basename would otherwise look like a plain naming-scheme mismatch.
 AUDIO_LIKE_EXTS = {'.m4a', '.wav', '.flac', '.aac', '.ogg', '.wma', '.opus',
                     '.aiff', '.aif'}
 DESCRIPTION_EXT = '.txt'
@@ -74,21 +67,14 @@ FFMPEG_HINT = ("not a supported audio format (only .mp3 is imported); "
 
 
 def parse_basename(stem: str) -> tuple[str, int, int, str | None] | None:
-    """'S01E05 - The Beginning' -> ('s01e05', 1, 5, 'The Beginning');
-    None when the stem does not match the scheme.
+    """'S01E05 - The Beginning' -> ('s01e05', 1, 5, 'The Beginning'); None when the stem does not match the
+    scheme.
 
-    The returned id is canonicalized to minimal zero-padded width
-    (``f's{season:02d}e{episode:02d}'`` -- 2 digits minimum, wider only
-    when the number itself needs it), even though the filename token that
-    produced it may be wider: 's01e0001 - Title' and 's01e01 - Title' both
-    mint id 's01e01'. This is the exact formula build_import_plan already
-    uses to mint an id from a sidecar season/episode override, so a
-    token-derived id and a sidecar-derived id for the same numbers are now
-    always identical -- required for duplicate/collision detection (by id)
-    to actually catch a wide-token file and its sidecar-overridden sibling
-    as the same episode instead of two different ones. Filenames on disk
-    keep accepting any width the naming scheme allows; only the minted id
-    normalizes.
+    The id is canonicalized to minimal zero-padded width (``f's{season:02d}e{episode:02d}'``: 2 digits
+    minimum, wider only when the number needs it), so 's01e0001 - Title' and 's01e01 - Title' both mint
+    's01e01'. This is the formula build_import_plan uses for sidecar season/episode overrides, so token- and
+    sidecar-derived ids for the same numbers are identical, as duplicate/collision detection (by id) requires.
+    Filenames on disk keep accepting any width the scheme allows; only the minted id normalizes.
     """
     match = FILENAME_RE.match(stem)
     if not match:
@@ -164,16 +150,15 @@ def _parse_aware(value: str) -> datetime:
 
 
 def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
-    """entries sorted ascending by (season, episode); each has
-    'published_at' (explicit ISO str or None). Fills gaps in place.
-    Rules: explicit dates must be strictly increasing in entry order, else
-    return an error string naming both offending episode_ids (hard error)
-    -- and mark exactly those two entries (``entries[a]['_batch_error'] =
-    True``) so a caller can attribute the error to the offending pair
-    instead of the whole batch. The final entry, if unset, anchors at
-    now_iso. Leading run before the first anchor: step back SYNTH_STEP per
-    entry. Between two anchors: space evenly across the interval. Returns
-    None on success."""
+    """entries sorted ascending by (season, episode); each has 'published_at' (explicit ISO str or None).
+    Fills gaps in place.
+
+    Explicit dates must be strictly increasing in entry order, else return an error string naming both
+    offending episode_ids (hard error) and mark exactly those two entries (``entries[a]['_batch_error'] =
+    True``) so a caller can attribute the error to the pair, not the whole batch. The final entry, if unset,
+    anchors at now_iso. A leading run before the first anchor steps back SYNTH_STEP per entry; between two
+    anchors, space evenly. Returns None on success.
+    """
     if not entries:
         return None
 
@@ -181,11 +166,10 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
     explicit_idx = [i for i, e in enumerate(entries) if e.get('published_at')]
     parsed = {i: _parse_aware(entries[i]['published_at']) for i in explicit_idx}
 
-    # The final entry is always an anchor -- either its own explicit date,
-    # or an implicit now_iso anchor when unset. Compute that anchor (without
-    # writing it back yet) so the strict-increase check below sees the full
-    # anchor chain, including a preceding explicit date that collides with
-    # "now" -- not just pairs of originally-explicit dates.
+    # The final entry is always an anchor: its own explicit date, or an implicit now_iso anchor when unset.
+    # Compute it (without writing it back yet) so the strict-increase check below sees the full anchor chain,
+    # including a preceding explicit date that collides with "now", not just pairs of originally-explicit
+    # dates.
     final_forced = entries[last].get('published_at') is None
     if final_forced:
         parsed[last] = _parse_aware(now_iso)
@@ -230,26 +214,15 @@ def synthesize_published_at(entries: list[dict], now_iso: str) -> str | None:
 
 
 def plan_hash(sources: list[Path], overwrite: bool = False) -> str:
-    """sha256 over sorted (name, size, mtime_ns) tuples plus the overwrite
-    flag; commit refuses a stale hash (TOCTOU guard).
+    """sha256 over sorted (name, size, mtime_ns) tuples plus the overwrite flag; commit refuses a stale hash
+    (TOCTOU guard).
 
-    A source that vanishes between listing and stat (e.g. a running
-    commit's shutil.move racing a concurrent scan) is skipped rather than
-    raising -- same guard as the main plan-building loop below. Dropping
-    it from the hash is the correct outcome anyway: a commit re-scan that
-    no longer sees the file will compute a different hash than the
-    original scan, which is exactly the staleness a caller needs to
-    detect.
-
-    overwrite rides in the hash for the same reason: it changes which
-    entries error out vs. commit (a collision is an error when overwrite
-    is False, a clean overwrite when True), so a commit whose overwrite
-    doesn't match the reviewed scan must 409 as stale too -- otherwise the
-    operator could review a plan built one way and have commit silently
-    rebuild and act on it the other way. overwrite defaults to False only
-    so callers that don't care about it (existing tests fixturing sources
-    alone) don't have to pass it; build_import_plan below always passes
-    its own overwrite explicitly."""
+    A source that vanishes between listing and stat (e.g. a running commit's shutil.move racing a concurrent
+    scan) is skipped, as in the main plan-building loop; dropping it changes the hash, which is the staleness
+    a caller must detect. overwrite is in the hash because it changes which entries error out vs. commit, so a
+    commit whose overwrite differs from the reviewed scan must 409 as stale. It defaults to False only for
+    callers that don't care (tests fixturing sources alone); build_import_plan always passes it explicitly.
+    """
     tuples = []
     for p in sources:
         try:
@@ -263,17 +236,13 @@ def plan_hash(sources: list[Path], overwrite: bool = False) -> str:
 
 
 def _canonical_episode_id(episode_id: str) -> str:
-    """Normalize an episode id to minimal zero-padded width (sNNeNN), the
-    same formula parse_basename/sidecar-override id minting already use.
+    """Normalize an episode id to minimal zero-padded width (sNNeNN), the same formula parse_basename uses.
 
-    A pre-fix wide id like 's01e0006' (imported before ac2d1eb3's id
-    canonicalization) normalizes to 's01e06', so it compares equal to a
-    freshly-scanned candidate that always mints the minimal-width id for the
-    same season/episode -- without this, an old wide-id row and a rescan of
-    the same episode look like two different ids and collision detection
-    (replacesExisting / the overwrite-required error) never fires for it.
-    An id that doesn't match the sNNeNN shape (should not occur for a local
-    feed) passes through unchanged rather than raising."""
+    A wide id like 's01e0006' (imported before id canonicalization) normalizes to 's01e06' so it compares
+    equal to a freshly-scanned candidate; otherwise collision detection (replacesExisting / the
+    overwrite-required error) never fires for it. An id not matching the sNNeNN shape (should not occur for a
+    local feed) passes through unchanged.
+    """
     match = _TOKEN_RE.match(episode_id)
     if not match:
         return episode_id
@@ -296,59 +265,38 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
      'batchErrors': [msg, ...],
      'totals': {'importable': N, 'rejected': N, 'errors': N, 'bytes': N}}
 
-    ``source`` ('staging'|'directory'|'both', matching the scan/commit API
-    request) rides along on the plan purely for the commit engine: it gates
-    whether ``_commit_entries`` is allowed to sweep the staging directory at
-    all -- a plan scanned/committed with source='directory' must never touch
-    staging, even if something else left files there. It plays no role in
-    plan_hash or in resolving any entry's files (those already come from
-    each entry's own resolved *Path key, regardless of source).
+    ``source`` ('staging'|'directory'|'both', as in the scan/commit API request) rides on the plan only for
+    the commit engine: it gates whether ``_commit_entries`` may sweep the staging directory, so a 'directory'
+    plan never touches staging. It plays no role in plan_hash or in resolving entry files (those come from
+    each entry's resolved *Path key).
 
-    batchErrors holds errors that apply to the whole batch rather than one
-    entry -- currently just an out-of-order explicit-date pair (see
-    synthesize_published_at). The two offending entries also get the same
-    message appended to their own ``errors`` (so they render as errored
-    rows); every other entry stays clean (``errors: []``) even though the
-    batch as a whole cannot commit -- commit must check batchErrors
-    explicitly rather than relying on every entry's errors being non-empty.
+    batchErrors holds errors for the whole batch rather than one entry (currently an out-of-order
+    explicit-date pair, see synthesize_published_at). The two offending entries also get the message in their
+    own ``errors``; every other entry stays clean even though the batch cannot commit, so commit must check
+    batchErrors explicitly.
 
-    replacesExisting is true whenever the entry's episodeId already exists
-    in the feed, regardless of overwrite -- it's a collision marker, not an
-    outcome. Whether that collision becomes an error (overwrite=False) or a
-    clean, committable overwrite (overwrite=True) is entirely down to
-    errors being empty or not; a caller counting "how many will this commit
-    actually replace" wants entries where replacesExisting is true AND
-    errors is empty.
+    replacesExisting is true whenever the entry's episodeId already exists in the feed, regardless of
+    overwrite: it marks a collision, not an outcome. Whether that is an error (overwrite=False) or a
+    committable overwrite (True) depends on errors being empty; to count what a commit will replace, use
+    replacesExisting with empty errors.
 
-    replacesExistingId is the ACTUAL existing row's episode_id when
-    replacesExisting is true, else None -- normally identical to episodeId,
-    but for a row imported before ac2d1eb3's id canonicalization it can be
-    the row's original wide-spelled id (e.g. 's01e0006' for a candidate
-    that mints 's01e06'). The commit engine needs this: an overwrite has to
-    replace THAT row, not leave it behind under its old id while inserting
-    a second row under the canonical one.
+    replacesExistingId is the actual existing row's episode_id when replacesExisting is true, else None.
+    Normally equal to episodeId, but for a pre-canonicalization row it can be the original wide spelling (e.g.
+    's01e0006' for a candidate minting 's01e06'); an overwrite must replace that row, not leave it behind
+    while inserting a second under the canonical id.
 
-    The *Path keys (audioPath/descriptionPath/artworkPath/sidecarPath) and
-    mtimeNs exist for the commit engine: it reads a file by its exact
-    resolved path from here rather than re-resolving a bare filename
-    against the staging/import directories, and re-stats bytes+mtimeNs
-    against the live file as a TOCTOU guard before committing it."""
-    # Canonicalize once up front so every membership test below compares
-    # like with like -- see _canonical_episode_id. Keeps the mapping back
-    # to the ORIGINAL (possibly pre-fix wide-spelled) id too: the commit
-    # engine needs to know which actual row a canonical-id collision
-    # resolves to, since an overwrite has to replace THAT row rather than
-    # leave it behind while inserting a second one under the canonical id.
+    The *Path keys and mtimeNs exist for the commit engine: it reads each file by its exact resolved path
+    rather than re-resolving a bare filename against the staging/import directories, and re-stats
+    bytes+mtimeNs as a TOCTOU guard.
+    """
+    # Canonicalize once up front so every membership test below compares like with like (see
+    # _canonical_episode_id), keeping the mapping back to the original (possibly wide-spelled) id so an
+    # overwrite replaces that exact row.
     #
-    # existing_ids is a set (iteration order not guaranteed), so if BOTH a
-    # wide-spelled row (s01e0006) and its canonical-spelled sibling
-    # (s01e06) exist for the same episode -- an inconsistent state that
-    # shouldn't happen but isn't impossible after a partial manual cleanup
-    # -- a plain setdefault would pick whichever one iteration happened to
-    # see first, nondeterministically. Preferring the exact-spelled match
-    # (canon == eid) makes the in-place reset path (same id) win
-    # deterministically over the delete-and-reinsert path whenever both
-    # exist, which is the safer of the two outcomes to pick blind.
+    # existing_ids is a set (no iteration order), so if both a wide-spelled row (s01e0006) and its canonical
+    # sibling (s01e06) exist after a partial manual cleanup, a plain setdefault would pick one
+    # nondeterministically. Preferring the exact-spelled match (canon == eid) makes the in-place reset path
+    # win deterministically over delete-and-reinsert, the safer outcome to pick blind.
     existing_by_canonical: dict[str, str] = {}
     for eid in existing_ids:
         canon = _canonical_episode_id(eid)
@@ -478,11 +426,9 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
                 candidates[i]['errors'].append(
                     f'duplicate episode id {eid} also used by {", ".join(others)}')
 
-    # Collisions against already-imported episodes. Recorded on every
-    # candidate that collides (replaces_existing), overwrite or not, so the
-    # client can count exactly how many entries an overwrite=True commit
-    # will actually replace -- errors is what gates whether it does; a
-    # colliding id only turns into an error when overwrite is off.
+    # Collisions against already-imported episodes. Recorded on every colliding candidate (replaces_existing),
+    # overwrite or not, so the client can count how many entries an overwrite=True commit will replace; errors
+    # gates whether it does (a collision only becomes an error when overwrite is off).
     for c in candidates:
         c['replaces_existing'] = c['episode_id'] in existing_ids
         c['replaces_existing_id'] = (
@@ -496,25 +442,21 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
     for c in candidates:
         c['_explicit'] = c['published_at'] is not None
 
-    # Entries that already carry an error (duplicate id, existing-id
-    # collision, invalid sidecar) are never committed, so they must not act
-    # as date-synthesis anchors -- a bogus sidecar date on a rejected entry
-    # would otherwise backdate its clean siblings -- nor receive a
-    # synthesized value themselves. Synthesis runs over the clean subset
-    # only; an errored entry keeps whatever explicit date it already had
-    # (or None), which the UI/commit engine ignore anyway since errors is
-    # non-empty.
+    # Entries that already carry an error (duplicate id, existing-id collision, invalid sidecar) are never
+    # committed, so they must not anchor date synthesis (a bogus sidecar date on a rejected entry would
+    # backdate clean siblings) nor receive a synthesized value. Synthesis runs over the clean subset; an
+    # errored entry keeps whatever explicit date it had (or None), which the UI/commit engine ignore since
+    # errors is non-empty.
     clean = [c for c in candidates if not c['errors']]
     synth_err = synthesize_published_at(clean, now_iso)
     batch_errors: list[str] = []
     if synth_err:
         batch_errors.append(synth_err)
         for c in clean:
-            # Only the pair synthesize_published_at flagged gets the error
-            # on its own entry -- every other clean candidate is unrelated
-            # and must not be stamped with an error naming two ids it has
-            # nothing to do with. The batch as a whole still can't commit
-            # (see batchErrors above); that gate is enforced separately.
+            # Only the pair synthesize_published_at flagged gets the error on its own entry; other clean
+            # candidates are unrelated and must not be stamped with an error naming ids they have nothing to
+            # do with. The batch still cannot commit (see batchErrors above); that gate is enforced
+            # separately.
             if c.pop('_batch_error', False):
                 c['errors'].append(synth_err)
             if c['published_at'] is None:
@@ -528,11 +470,9 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
             'episode': c['episode'],
             'title': c['title'],
             'audioFile': c['audio_file'],
-            # Resolved paths, not just basenames: the commit engine reads
-            # these directly rather than re-resolving by basename, so a
-            # same-named file in more than one scanned directory (staging
-            # vs. the user-managed import dir) can never cause a commit to
-            # pick up the wrong one.
+            # Resolved paths, not just basenames: the commit engine reads these directly, so a same-named file
+            # in more than one scanned directory (staging vs. the user-managed import dir) cannot cause the
+            # wrong one to be committed.
             'audioPath': c['audio_path'],
             'descriptionFile': c['description_file'],
             'descriptionPath': c['description_path'],
@@ -580,28 +520,20 @@ def build_import_plan(slug: str, sources: list[Path], existing_ids: set[str],
 # concurrent write elsewhere on the volume).
 _FREE_SPACE_MARGIN = 1.1
 
-# Cross-worker job registry: gunicorn runs multiple worker processes, each
-# with its own Python heap, so an in-memory dict (the previous design) is
-# only visible to whichever worker happened to run the commit -- a status
-# poll landing on a different worker sees no job at all, and worse, the
-# "one import per feed at a time" guard reading the same per-process dict
-# lets two different workers both start a commit for the same feed and race
-# on the same staging files.
-#
-# Replaced with per-feed state on disk under
-# ``<data_dir>/.import-jobs/<slug>.json`` (read/written by every worker) plus
-# a per-feed flock lockfile (``<slug>.lock``) held for the duration of the
-# commit thread as the running-guard -- same fcntl.flock cross-process
-# mechanism and stale-lock probe idiom as processing_queue.py's
-# ProcessingQueue, just one lock per feed slug instead of one global lock.
+# Cross-worker job registry: gunicorn runs multiple worker processes, each with its own heap, so an in-memory
+# dict would be visible only to the worker that ran the commit (a status poll on another worker sees no job,
+# and the "one import per feed at a time" guard would let two workers race on the same staging files). State
+# is per-feed on disk under ``<data_dir>/.import-jobs/<slug>.json`` (read/written by every worker) plus a
+# per-feed flock lockfile (``<slug>.lock``) held for the commit thread's duration as the running-guard: the
+# same fcntl.flock mechanism and stale-lock probe idiom as processing_queue.py's ProcessingQueue, one lock per
+# feed slug.
 
 def _jobs_dir_path(storage) -> Path:
-    """The per-feed import-job-state directory, WITHOUT creating it.
+    """The per-feed import-job-state directory, without creating it.
 
-    Read paths (status polls, lock probes) must not have the side effect of
-    conjuring a directory that nothing has ever written to -- only a write
-    path (state write, lock acquire) may create it, via ``_jobs_dir``
-    below."""
+    Read paths (status polls, lock probes) must not conjure a directory nothing has written to; only write
+    paths create it, via ``_jobs_dir``.
+    """
     return storage.data_dir / '.import-jobs'
 
 
@@ -683,10 +615,9 @@ def clear_job_files(storage, slug: str) -> None:
 def _try_acquire_import_lock(storage, slug: str):
     """Non-blocking exclusive acquire of the per-feed import lock.
 
-    Returns the open file object (lock held -- caller must eventually pass
-    it to ``_release_import_lock``) on success, or ``None`` when another
-    holder (any process, including this one via a different open file
-    description) already has it.
+    Returns the open file object (lock held; the caller must pass it to ``_release_import_lock``) on success,
+    or ``None`` when another holder (any process, including this one via a different open file description)
+    has it.
     """
     fh = open(_job_lock_path(storage, slug, create=True), 'w')
     try:
@@ -710,16 +641,13 @@ def _release_import_lock(fh) -> None:
 
 
 def _lock_is_held(storage, slug: str) -> bool:
-    """Non-blocking probe: is ANY process currently holding this feed's
-    import lock? Mirrors the slot registry's pid probe (ProcessingQueue._pid_alive)
-    -- opening a separate file description to try-acquire the same lock
-    file does not disturb a real holder's lock (flock locks are scoped to
-    the open file description that set them, not the process or fd
-    number), so this is safe to call while a commit may be in flight.
-    Opened 'a' (append), not 'w': 'w' truncates the file on open alone,
-    before flock is even attempted -- harmless for the lock file's
-    (unused) content, but needless churn on a file another process may be
-    actively holding a lock on. 'a' opens without truncating."""
+    """Non-blocking probe: is any process currently holding this feed's import lock?
+
+    Mirrors the slot registry's pid probe (ProcessingQueue._pid_alive). Try-acquiring on a separate open file
+    description does not disturb a real holder (flock locks are scoped to the open file description), so this
+    is safe while a commit is in flight. Opened 'a', not 'w': 'w' truncates on open before flock is attempted,
+    needless churn on a file another process may hold locked.
+    """
     lock_path = _job_lock_path(storage, slug)
     if not lock_path.exists():
         return False
@@ -737,23 +665,17 @@ def _lock_is_held(storage, slug: str) -> bool:
 
 
 def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
-    """Start committing ``plan`` (built by ``build_import_plan``) for
-    ``slug`` on a background daemon thread.
+    """Start committing ``plan`` (built by ``build_import_plan``) for ``slug`` on a background daemon thread.
 
-    Refuses to start (returning ``(False, reason)`` without registering
-    anything) when: the plan was built for a different slug (a stale plan
-    object reused against the wrong feed), another import is already
-    running for this feed (the per-feed flock is already held -- by this
-    worker or any other), or the destination volume does not have at least
-    ``_FREE_SPACE_MARGIN`` times the plan's importable bytes free. Otherwise
-    writes the job state as running, captures whether the feed already had
-    episodes (for the initial-import auto-process rule -- see
-    ``_commit_entries``) BEFORE spawning the thread so a race with the
-    thread's own inserts cannot flip it, and returns ``(True, 'started')``.
+    Refuses to start, returning ``(False, reason)`` without registering anything, when the plan was built for
+    a different slug (stale plan reused against the wrong feed), another import is running for this feed (the
+    per-feed flock is held by this or any worker), or the destination volume lacks ``_FREE_SPACE_MARGIN``
+    times the plan's importable bytes free. Otherwise writes the job state as running, captures whether the
+    feed already had episodes (for the initial-import auto-process rule, see ``_commit_entries``) before
+    spawning the thread so a race with its inserts cannot flip it, and returns ``(True, 'started')``.
 
-    The flock is acquired here and held by the spawned thread for the
-    duration of the commit (passed through as an open file object); the
-    thread releases it in ``_run_commit``'s ``finally``.
+    The flock is acquired here and held by the spawned thread for the commit (passed as an open file object);
+    the thread releases it in ``_run_commit``'s ``finally``.
     """
     if plan.get('slug') != slug:
         return False, 'plan slug mismatch'
@@ -823,20 +745,15 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
 
 
 def get_import_status(slug: str, storage=None) -> dict:
-    """{'state': 'idle'|'running'|'done'|'error', 'processed': n,
-    'total': n, 'startedAt': iso|None, 'report': {...} when done/error}.
+    """{'state': 'idle'|'running'|'done'|'error', 'processed': n, 'total': n, 'startedAt': iso|None, 'report':
+    {...} when done/error}.
 
-    Reads straight off the per-feed state file -- no in-process registry
-    backs this, so a fresh worker (or a fresh module import) that never
-    called ``start_commit`` itself sees exactly what a worker that did
-    would see. A slug with no state file ever written reads as idle.
+    Reads straight off the per-feed state file (no in-process registry), so a fresh worker or module import
+    sees what a worker that called ``start_commit`` would. A slug with no state file reads as idle.
 
-    Self-heals a state file stuck on 'running' whose lock nobody actually
-    holds (a worker that crashed mid-commit, e.g. OOM-killed, leaves the
-    lock released by the OS but the state file never flipped to a terminal
-    state): reports 'error' with an 'import interrupted' report instead of
-    claiming the import is still going forever, and persists that
-    correction so subsequent reads don't have to re-derive it.
+    Self-heals a state file stuck on 'running' whose lock nobody holds (a worker that crashed mid-commit, e.g.
+    OOM-killed, leaves the lock released but the state never flipped): reports 'error' with an 'import
+    interrupted' report and persists that correction.
     """
     if storage is None:
         from storage import Storage
@@ -875,17 +792,14 @@ def _bump_processed(slug: str, storage) -> None:
 
 def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh,
                 reservations: dict[str, str]) -> None:
-    """Background-thread entry point: run the batch, then flip the job to
-    'done' (with its report) or -- only on an exception escaping the whole
-    batch, not a per-file failure -- 'error'. Always releases the per-feed
-    import lock this thread was handed by ``start_commit``.
+    """Background-thread entry point: run the batch, then flip the job to 'done' (with its report) or, only on
+    an exception escaping the whole batch (not a per-file failure), 'error'. Always releases the per-feed
+    import lock handed over by ``start_commit``.
 
-    ``report`` is built here and handed to ``_commit_entries`` to mutate in
-    place, so that even if something outside the per-entry loop raises (or
-    the whole call is interrupted -- caught as ``BaseException`` so the
-    ``finally`` below always leaves the job state in a terminal state
-    rather than stuck 'running' forever), every outcome recorded up to that
-    point is still visible in the stored report alongside the 'error' key.
+    ``report`` is built here and mutated in place by ``_commit_entries``, so even if something outside the
+    per-entry loop raises (or the call is interrupted: caught as ``BaseException`` so the ``finally`` always
+    leaves a terminal state, not 'running' forever), every outcome recorded so far is visible in the stored
+    report alongside the 'error' key.
     """
     report: dict = {'committed': [], 'skipped': [], 'failed': [], 'queued': []}
     error: BaseException | None = None
@@ -913,10 +827,10 @@ def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh,
 
 def _clear_queue_row(db, slug: str, episode_id: str,
                      *, commit: bool = True) -> None:
-    """Drop any auto_process_queue row for this episode before an overwrite
-    reset (same SQL pattern as database.episodes.delete_episode_rows), so a
-    stale queued/processing row from the previous import cannot resurrect
-    against the freshly re-imported file."""
+    """Drop any auto_process_queue row for this episode before an overwrite reset (same SQL pattern as
+    database.episodes.delete_episode_rows), so a stale queued/processing row cannot resurrect against the
+    re-imported file.
+    """
     podcast = db.get_podcast_row(slug)
     if not podcast:
         return
@@ -949,18 +863,13 @@ def probe_and_save_chapters(storage, slug: str, episode_id: str, final_path) -> 
 def _commit_entry(slug: str, entry: dict, db, storage,
                   overwrite: bool, upserted: list,
                   reservation_id: str | None = None) -> tuple[str, object]:
-    """Commit one plan entry. Returns ('ok', result_dict) or
-    ('error', message) -- never raises for an ordinary per-file problem, so
-    the caller's loop can always move on to the next entry.
+    """Commit one plan entry. Returns ('ok', result_dict) or ('error', message); never raises for an ordinary
+    per-file problem, so the caller's loop moves on to the next entry.
 
-    Appends this entry's episode id to ``upserted`` the moment the row exists, so the
-    caller's batched indexing still covers it if a later step here raises.
-
-    Reads the plan's own resolved paths (``audioPath``/``descriptionPath``/
-    ``artworkPath``/``sidecarPath``) rather than re-resolving files by
-    basename against the staging/import directories: a same-named file
-    sitting in the OTHER scanned directory must never cause the wrong file
-    to be committed.
+    Appends this entry's episode id to ``upserted`` the moment the row exists, so the caller's batched
+    indexing still covers it if a later step raises. Reads the plan's resolved paths
+    (``audioPath``/``descriptionPath``/``artworkPath``/``sidecarPath``) rather than re-resolving by basename:
+    a same-named file in the other scanned directory must never cause the wrong file to be committed.
     """
     episode_id = entry['episodeId']
     audio_path_str = entry.get('audioPath')
@@ -984,14 +893,10 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     if duration is None:
         return 'error', 'not playable audio'
 
-    # The plan's own matched-collision id, when it found one at scan time
-    # (see build_import_plan's replacesExistingId) -- normally identical to
-    # episode_id, but for a row imported before ac2d1eb3's id
-    # canonicalization it can be that row's original wide-spelled id (e.g.
-    # 's01e0006' for a candidate that mints 's01e06'). Falls back to
-    # episode_id itself so the race-condition case (a row created under the
-    # canonical id AFTER the plan was scanned, so the plan never saw it) is
-    # still caught below exactly as before.
+    # The plan's matched-collision id from scan time (see build_import_plan's replacesExistingId): normally
+    # episode_id, but for a pre-canonicalization row it can be that row's original wide-spelled id (e.g.
+    # 's01e0006' for a candidate minting 's01e06'). Falls back to episode_id so a row created under the
+    # canonical id after the scan is still caught below.
     existing_id = entry.get('replacesExistingId') or episode_id
     existing = db.get_episode(slug, existing_id)
     if existing is not None:
@@ -1037,13 +942,10 @@ def _commit_entry(slug: str, entry: dict, db, storage,
             except OSError:
                 description = None
 
-    # Insert/update the row before any chapters/artwork side effects --
-    # save_chapters_json and save_episode_artwork's DB write both no-op
-    # silently when the episode row is not there yet (Task 8 pattern).
-    # processed_version=0 always: a no-op on a fresh INSERT (not in that
-    # column list) and the one processing column
-    # batch_reset_episodes_to_discovered above does NOT reset on an
-    # overwrite.
+    # Insert/update the row before any chapters/artwork side effects: save_chapters_json and
+    # save_episode_artwork's DB write both no-op silently when the episode row is missing. processed_version=0
+    # always: a no-op on a fresh INSERT (not in that column list) and the one processing column
+    # batch_reset_episodes_to_discovered above does not reset on an overwrite.
     def write_episode(*, commit: bool) -> None:
         if existing is not None and existing_id == episode_id:
             storage.delete_processed_file(slug, episode_id, keep_original=True)
@@ -1147,16 +1049,11 @@ def _commit_entry(slug: str, entry: dict, db, storage,
             storage.save_episode_artwork(slug, episode_id, image_data, mime,
                                          evict=False)
 
-    # Sidecar cleanup: the audio file is already gone (moved above). Any
-    # OTHER file this entry references (sidecar json / description / cover)
-    # is deleted too, whether it came from staging or the user-managed
-    # import directory -- a successfully committed entry's sidecars are
-    # consumed on commit regardless of source (operator ruling: only a
-    # rejected/errored entry's sidecars are left for the operator to fix).
-    # This only runs after a successful commit, so a rejected entry's files
-    # are never touched here. A removal failure is logged and otherwise
-    # non-fatal: the audio already moved, so the commit itself must not be
-    # undone over a leftover sidecar file.
+    # Sidecar cleanup: the audio is already moved. Any other file this entry references (sidecar json /
+    # description / cover) is deleted too, from staging or the import directory, since a committed entry's
+    # sidecars are consumed regardless of source. A rejected/errored entry's sidecars are left for the
+    # operator because this only runs after a successful commit. A removal failure is logged and non-fatal:
+    # the audio already moved, so the commit must not be undone over a leftover sidecar.
     for path_str in (description_path_str, artwork_path_str, entry.get('sidecarPath')):
         if not path_str:
             continue
@@ -1177,15 +1074,12 @@ def _commit_entry(slug: str, entry: dict, db, storage,
 
 
 def _staging_leftover_name(path_str: str | None, staging_dir: Path) -> str | None:
-    """The basename of ``path_str`` when it names a file directly inside
-    ``staging_dir``, else None.
+    """The basename of ``path_str`` when it names a file directly inside ``staging_dir``, else None.
 
-    Used to build the sweep's preserve-list from a skipped/errored entry's
-    resolved ``*Path`` fields: those can point into either staging or the
-    user-managed import directory (source='both'), and the sweep below only
-    ever touches staging, so a directory-sourced path must never end up in
-    the preserve set (it was never going to be swept anyway, but matching
-    only by basename could otherwise misfire on a same-named staging file).
+    Builds the sweep's preserve-list from a skipped/errored entry's resolved ``*Path`` fields, which can point
+    into staging or the import directory (source='both'). The sweep only touches staging, so a
+    directory-sourced path must not enter the preserve set (matching by basename alone could misfire on a
+    same-named staging file).
     """
     if not path_str:
         return None
@@ -1206,14 +1100,12 @@ def _preserve_entry_files(entry: dict, staging_dir: Path, preserved: set[str]) -
 def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                     report: dict,
                     reservations: dict[str, str] | None = None) -> None:
-    """Commit every entry in ``plan['entries']`` into ``report`` in place
-    (idempotent -- a per-file failure is recorded and the batch continues),
-    then queue newly imported episodes for auto-process when applicable,
-    rebuild the served RSS once, and clean up an emptied staging dir.
+    """Commit every entry in ``plan['entries']`` into ``report`` in place (a per-file failure is recorded and
+    the batch continues), then queue newly imported episodes for auto-process when applicable, rebuild the
+    served RSS once, and clean up an emptied staging dir.
 
-    Mutating the caller-owned ``report`` dict (rather than building and
-    returning a fresh one) is what lets ``_run_commit`` still expose every
-    outcome recorded so far even if something below raises.
+    Mutating the caller-owned ``report`` (not returning a fresh one) lets ``_run_commit`` expose every outcome
+    recorded so far even if something below raises.
     """
     entries = plan.get('entries', [])
     overwrite = bool(plan.get('overwrite'))
@@ -1230,10 +1122,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
     # Every episode id whose row reached the database, committed or not: what the one
     # batched index pass after the loop covers.
     upserted_ids: list[str] = []
-    # Staging filenames belonging to an entry that ended in skip or error --
-    # a fixable problem (bad sidecar JSON, a stale collision, etc.), not junk.
-    # The sweep in the finally block below leaves these alone so fixing the
-    # sidecar and rescanning doesn't also require re-uploading the audio.
+    # Staging filenames of an entry that ended in skip or error: a fixable problem (bad sidecar JSON, stale
+    # collision), not junk. The sweep in the finally block leaves them so fixing the sidecar and rescanning
+    # doesn't require re-uploading the audio.
     preserved_leftovers: set[str] = set()
 
     try:
@@ -1258,10 +1149,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                                                upserted_ids,
                                                reservations.get(episode_id))
             except Exception as exc:
-                # Per-file failure must never abort the batch -- an unexpected
-                # exception (disk-full mid-move, a DB error) is caught here the
-                # same as the ordinary error paths _commit_entry returns, so
-                # every remaining entry still gets a chance to commit.
+                # A per-file failure must never abort the batch: an unexpected exception (disk-full mid-move,
+                # a DB error) is caught here like the ordinary error paths _commit_entry returns, so every
+                # remaining entry still gets a chance to commit.
                 logger.exception(f"[{slug}:{episode_id}] import commit entry crashed")
                 status, result = 'error', redact_exc(exc)
 
@@ -1296,11 +1186,9 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
 
     try:
         podcast = db.get_podcast_by_slug(slug)
-        # Initial-import rule: an empty feed's very first batch never
-        # auto-queues (there is nothing to compare "fresh" against and a
-        # first-ever archive import is a bulk backfill, not new content), so
-        # had_episodes -- captured before this batch's rows were inserted --
-        # gates queueing regardless of what the feed looks like now.
+        # Initial-import rule: an empty feed's first batch never auto-queues (nothing to compare "fresh"
+        # against; a first-ever archive import is a bulk backfill), so had_episodes, captured before this
+        # batch's rows were inserted, gates queueing regardless of the feed's current state.
         if (had_episodes and committed_internal and podcast is not None
                 and db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)):
             apply_fresh_boost = db.get_setting_bool('process_new_episodes_first', True)
@@ -1318,32 +1206,22 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
 
         local_feed_builder.rebuild_local_feed(slug)
     finally:
-        # Staging is MinusPod-managed: once a commit finishes -- clean or
-        # with per-entry failures, and even if the queueing/rebuild step
-        # above raised -- sweep what's left. Committed entries' own
-        # leftovers are already gone (_commit_entry moves the audio and
-        # deletes its sidecars on success), so what's actually here is: (1)
-        # files the plan rejected outright -- a name that never matched the
-        # sNNeNN scheme, an empty file, a stray .part -- which this sweep
-        # removes, and (2) a skipped or errored entry's audio + sidecars,
-        # which it leaves in place (preserved_leftovers, built above) so an
-        # operator can fix the problem (typically a bad sidecar) and rescan
-        # without re-uploading the audio too. The directory itself is only
-        # removed once every non-preserved file is gone; a preserved
-        # leftover keeps it (and gets swept for real on the next commit, or
-        # replaced outright by the next "Choose files" selection, which
-        # clears staging before it uploads).
+        # Staging is MinusPod-managed: once a commit finishes (clean, with per-entry failures, or even if
+        # queueing/rebuild above raised), sweep what's left. Committed entries' leftovers are already gone
+        # (_commit_entry moves the audio and deletes sidecars on success), so what remains is (1) files the
+        # plan rejected outright (a name that never matched sNNeNN, an empty file, a stray .part), which this
+        # sweep removes, and (2) a skipped or errored entry's audio + sidecars, which it leaves
+        # (preserved_leftovers, built above) so an operator can fix the problem and rescan without
+        # re-uploading. The directory is removed only once every non-preserved file is gone; a preserved
+        # leftover keeps it (swept on the next commit, or replaced by the next "Choose files" selection, which
+        # clears staging first).
         #
-        # Per-entry removal (not a single rmtree of the whole dir) mirrors
-        # clear_import_staging: a busy bind-mounted staging dir can refuse
-        # to remove ITSELF while still allowing its contents to go one at a
-        # time.
+        # Per-entry removal (not one rmtree) mirrors clear_import_staging: a busy bind-mounted staging dir can
+        # refuse to remove itself while still allowing its contents to go one at a time.
         #
-        # Scoped to source in ('staging', 'both'): a plan scanned/committed
-        # with source='directory' never looked at staging at all, so it
-        # must never sweep it either -- an operator mid-upload for a
-        # SEPARATE directory-sourced commit must not have their in-progress
-        # staging batch wiped out from under them.
+        # Scoped to source in ('staging', 'both'): a 'directory' plan never looked at staging, so it must
+        # never sweep it, or an operator mid-upload for a separate directory-sourced commit would lose their
+        # in-progress staging batch.
         if source in ('staging', 'both') and staging_dir.exists():
             all_removed = True
             for child in staging_dir.iterdir():
