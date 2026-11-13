@@ -67,7 +67,7 @@ const FIELDS: FieldDef[] = [
   },
   {
     key: 'minCoverage', label: 'Minimum coverage', fraction: true,
-    help: 'Raising it requires more of the stored ad to be found before a match counts.',
+    help: 'Raising it requires more of the stored ad to be found when a match has under 20 s of evidence. Longer matches are accepted below it, and only the matched part is cut.',
   },
   {
     key: 'gapToleranceS', label: 'Gap tolerance (s)', fraction: false,

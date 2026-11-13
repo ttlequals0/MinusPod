@@ -52,7 +52,7 @@ describe('AudioFingerprintingSection', () => {
     expect(screen.getByText('0 to 15')).toBeDefined();
     expect(screen.getByText('3 to 30')).toBeDefined();
     expect(screen.getByText(/Raising it requires a closer match/)).toBeDefined();
-    expect(screen.getByText(/Raising it requires more of the stored ad/)).toBeDefined();
+    expect(screen.getByText(/Raising it requires more of the stored ad to be found when a match has under 20 s of evidence/)).toBeDefined();
     expect(screen.getByText(/Raising it bridges longer dropouts/)).toBeDefined();
     expect(screen.getByText(/Raising it skips shorter spans/)).toBeDefined();
   });
