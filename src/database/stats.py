@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 _SNAP_WINDOW_DAYS = 90
 _SNAP_MAX_EPISODES = 2000
 _SNAP_FILL_BUSY_MS = 1000
+_SNAP_FILL_CHUNK = 200
 _ADDRESSING_MODES = ('timestamps', 'segment_ids')
 _REVIEWER_VERDICT_KEYS = {
     'confirmed': 'confirmed', 'adjust': 'adjusted', 'reject': 'rejected',
@@ -2478,13 +2479,19 @@ class StatsMixin:
             """,  # noqa: S608
             [cutoff] + feed_params,
         ).fetchall()
-        computed = self._compute_snap_stats([r['id'] for r in rows if r['has_llm'] is None])
+        computed: dict = {}
         sums = {mode: [0.0, 0] for mode in _ADDRESSING_MODES}
         used = 0
-        for r in rows:
-            vals = computed.get(r['id']) if r['has_llm'] is None else (
-                r['has_llm'], r['ts_total'], r['ts_n'], r['seg_total'], r['seg_n'])
-            if not vals or not vals[0]:
+        for i, r in enumerate(rows):
+            if r['has_llm'] is None:
+                if r['id'] not in computed:
+                    # Fill in query order, a chunk at a time, so the cap bounds the slow reads.
+                    todo = [x['id'] for x in rows[i:] if x['has_llm'] is None][:_SNAP_FILL_CHUNK]
+                    computed.update(self._compute_snap_stats(todo))
+                vals = computed[r['id']]
+            else:
+                vals = (r['has_llm'], r['ts_total'], r['ts_n'], r['seg_total'], r['seg_n'])
+            if not vals[0]:
                 continue
             for mode, total, n in (('timestamps', vals[1], vals[2]), ('segment_ids', vals[3], vals[4])):
                 sums[mode][0] += total
@@ -2495,8 +2502,9 @@ class StatsMixin:
         return sums
 
     def _compute_snap_stats(self, episode_pks: list) -> dict:
-        """{episodes.id: (has_llm, ts_total, ts_n, seg_total, seg_n)}; persists them when it can."""
+        """{episodes.id: (has_llm, ts_total, ts_n, seg_total, seg_n)}; caches them when it can."""
         out: dict = {}
+        texts: dict = {}
         conn = self.get_connection()
         for chunk in _chunked(episode_pks):
             for r in conn.execute(
@@ -2520,20 +2528,26 @@ class StatsMixin:
                             tot[found[0]][1] += 1
                 out[r['episode_id']] = (r['has_llm'], tot['timestamps'][0], tot['timestamps'][1],
                                         tot['segment_ids'][0], tot['segment_ids'][1])
-        self._store_snap_stats(out)
+                texts[r['episode_id']] = r['ad_markers_json']
+        # An episode_details row can vanish between the candidate query and this read.
+        for pk in episode_pks:
+            out.setdefault(pk, (0, 0.0, 0, 0.0, 0))
+        self._store_snap_stats(out, texts)
         return out
 
-    def _store_snap_stats(self, computed: dict) -> None:
-        """Best-effort cache write; skipped inside an open transaction or on lock contention."""
-        if not computed or self.get_connection().in_transaction:
+    def _store_snap_stats(self, computed: dict, texts: dict) -> None:
+        """Best-effort cache write; a row is stored only if its markers are unchanged since the read."""
+        if not texts or self.get_connection().in_transaction:
             return
         try:
-            for chunk in _chunked(list(computed.items())):
+            for chunk in _chunked(list(texts.items())):
                 with self.transaction(immediate=True, busy_timeout_ms=_SNAP_FILL_BUSY_MS) as conn:
                     conn.executemany(
                         "INSERT OR IGNORE INTO episode_snap_stats "
                         "(episode_id, has_llm, ts_total, ts_n, seg_total, seg_n) "
-                        "VALUES (?, ?, ?, ?, ?, ?)",
-                        [(pk, *vals) for pk, vals in chunk])
-        except sqlite3.OperationalError as e:
+                        "SELECT d.episode_id, ?, ?, ?, ?, ? FROM episode_details d "
+                        "JOIN episodes e ON e.id = d.episode_id "
+                        "WHERE d.episode_id = ? AND d.ad_markers_json IS ?",
+                        [(*computed[pk][0:5], pk, text) for pk, text in chunk])
+        except sqlite3.Error as e:
             logger.info(f"Skipped episode_snap_stats fill: {e}")

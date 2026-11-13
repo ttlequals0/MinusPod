@@ -19,13 +19,14 @@ def _legacy_avg(db, slug=None):
     conn = db.get_connection()
     sums = {'timestamps': [0.0, 0], 'segment_ids': [0.0, 0]}
     for r in conn.execute(
-        """SELECT ed.ad_markers_json FROM episode_details ed
+        f"""SELECT ed.ad_markers_json FROM episode_details ed
            JOIN episodes e ON e.id = ed.episode_id
            JOIN podcasts p ON p.id = e.podcast_id
            WHERE ed.ad_markers_json LIKE '%"llm_start"%'
              AND COALESCE(e.processed_at, e.updated_at) >= '2000-01-01T00:00:00Z'
              AND (? IS NULL OR p.slug = ?)
-           ORDER BY COALESCE(e.processed_at, e.updated_at) DESC LIMIT 2000""", [slug, slug],
+           ORDER BY COALESCE(e.processed_at, e.updated_at) DESC LIMIT {stats_mod._SNAP_MAX_EPISODES}""",  # noqa: S608
+        [slug, slug],
     ).fetchall():
         for m in json.loads(r['ad_markers_json']):
             found = stats_mod._marker_snap_dist(m)
@@ -112,7 +113,67 @@ def test_episodes_outside_the_window_are_excluded(seeded):
 def test_episode_cap_keeps_the_newest(seeded, monkeypatch):
     monkeypatch.setattr(stats_mod, '_SNAP_MAX_EPISODES', 1)
     _stamp(seeded, 'ep3', '3000-01-01T00:00:00Z')
-    assert _avg(seeded) == {'timestamps': None, 'segment_ids': 14.0}
+    assert _avg(seeded) == _legacy_avg(seeded)
+    assert _avg(seeded) != {'timestamps': None, 'segment_ids': None}
+
+
+def test_non_llm_episode_does_not_consume_the_cap(seeded, monkeypatch):
+    monkeypatch.setattr(stats_mod, '_SNAP_MAX_EPISODES', 1)
+    _stamp(seeded, 'ep4', '3000-01-01T00:00:00Z')
+    assert _avg(seeded) == _legacy_avg(seeded)
+    assert _avg(seeded)['timestamps'] is not None or _avg(seeded)['segment_ids'] is not None
+
+
+def test_fill_stops_once_the_cap_is_reached(seeded, monkeypatch):
+    monkeypatch.setattr(stats_mod, '_SNAP_MAX_EPISODES', 1)
+    monkeypatch.setattr(stats_mod, '_SNAP_FILL_CHUNK', 1)
+    _stamp(seeded, 'ep3', '3000-01-01T00:00:00Z')
+    _avg(seeded)
+    assert _cache(seeded).keys() == {_pk(seeded, 'show-b', 'ep3')}
+
+
+def _compute_then(db, between):
+    pks = [_pk(db, 'show-a', 'ep1'), _pk(db, 'show-a', 'ep2')]
+    real = db._store_snap_stats
+
+    def store(computed, texts):
+        between()
+        real(computed, texts)
+
+    db._store_snap_stats = store
+    try:
+        return db._compute_snap_stats(pks), pks
+    finally:
+        del db._store_snap_stats
+
+
+def test_marker_write_between_read_and_store_is_not_cached_stale(seeded):
+    new = [_marker(50.0, 10.0, 'timestamps')]
+    _compute_then(seeded, lambda: seeded.save_episode_details('show-a', 'ep2', ad_markers=new))
+    assert _pk(seeded, 'show-a', 'ep2') not in _cache(seeded)
+    assert _pk(seeded, 'show-a', 'ep1') in _cache(seeded)
+    assert _avg(seeded) == _legacy_avg(seeded)
+
+
+def test_episode_deleted_between_read_and_store_stores_nothing(seeded):
+    def drop():
+        conn = seeded.get_connection()
+        conn.execute('DELETE FROM episodes WHERE episode_id = ?', ('ep2',))
+        conn.commit()
+    _, pks = _compute_then(seeded, drop)
+    assert pks[1] not in _cache(seeded)
+    assert _avg(seeded) == _legacy_avg(seeded)
+
+
+def test_details_delete_and_episode_cascade_invalidate(seeded):
+    _avg(seeded)
+    conn = seeded.get_connection()
+    p1, p2 = _pk(seeded, 'show-a', 'ep1'), _pk(seeded, 'show-a', 'ep2')
+    conn.execute('DELETE FROM episode_details WHERE episode_id = ?', (p1,))
+    conn.execute('DELETE FROM episodes WHERE id = ?', (p2,))
+    conn.commit()
+    assert p1 not in _cache(seeded) and p2 not in _cache(seeded)
+    assert _avg(seeded) == _legacy_avg(seeded)
 
 
 def test_unparseable_markers_count_toward_the_cap_like_before(seeded):
