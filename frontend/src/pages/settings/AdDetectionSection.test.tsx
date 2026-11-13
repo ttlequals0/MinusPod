@@ -1,8 +1,6 @@
 /**
- * Tests for the Ad detection settings section: the existing confidence/gap
- * controls plus the detection-tuning tunables added in 2.76.0 (verification
- * pass hold/autocut floors, pattern-learning floors, differential detection
- * thresholds). Follows NotificationsSection.test.tsx conventions.
+ * Ad detection section: confidence/gap controls plus the 2.76.0 detection tunables (verification floors,
+ * pattern-learning floors, differential thresholds). Follows NotificationsSection.test.tsx.
  */
 import { useState } from 'react';
 import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest';

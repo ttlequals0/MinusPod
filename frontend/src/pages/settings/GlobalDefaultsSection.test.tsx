@@ -1,10 +1,6 @@
 /**
- * Tests for the Global defaults settings section, including the feed
- * refresh interval field and the Podping notifications toggle added
- * alongside the podping-listener feature.
- *
- * Segment actions (per-category matrix + show-segments default) moved to
- * their own card, SegmentActionsSection; see SegmentActionsSection.test.tsx.
+ * Global defaults section: feed refresh interval and the Podping notifications toggle. Segment actions
+ * are in SegmentActionsSection.test.tsx.
  */
 import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, it, expect, vi, afterEach } from 'vitest';

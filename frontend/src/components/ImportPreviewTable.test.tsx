@@ -1,15 +1,6 @@
 /**
- * Component tests for ImportPreviewTable.tsx.
- *
- * Covers:
- *   - An entry with errors renders the first error as visible text under
- *     the title, in both the desktop table and the sm:hidden mobile card
- *     (jsdom renders both regardless of the sm:hidden class, same as
- *     LocalFeedPanel.test.tsx's table-scoped assertions already account for).
- *   - An entry with warnings (but no errors) renders the first warning the
- *     same way.
- *   - A clean entry (no errors, no warnings) renders no reason line.
- *   - The status pill itself is unaffected (still just "ok"/"warning"/"error").
+ * ImportPreviewTable: the first error (else first warning) shows under the title in both the desktop table
+ * and the mobile card (jsdom renders both); a clean entry shows no reason line.
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';

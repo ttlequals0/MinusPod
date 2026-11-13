@@ -1,12 +1,6 @@
 /**
- * Component tests for the cross-fetch differential toggle and DAI-likely hint
- * in FeedSettingsPanel.tsx.
- *
- * Covers:
- *   - Toggle renders unchecked when differentialFetchEnabled is unset.
- *   - Enabling fires updateFeed with { differentialFetchEnabled: true }.
- *   - Disabling an enabled feed fires { differentialFetchEnabled: false }.
- *   - DAI-likely badge + hint render only when feed.daiLikely is true.
+ * FeedSettingsPanel.tsx: the cross-fetch differential toggle (unset renders unchecked; enabling and
+ * disabling fire updateFeed) and the DAI-likely badge and hint, shown only when feed.daiLikely is true.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
@@ -751,10 +745,8 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('two rapid sequential edits compose into the second PATCH payload', async () => {
-    // Building the payload from the `feed` prop instead of a synchronous
-    // local source of truth would let a second edit read a stale prop and
-    // drop the first edit (the backend replaces the override map outright,
-    // it doesn't merge). The prop never changes across these two clicks.
+    // The payload must come from a synchronous local source of truth: the `feed` prop never changes across
+    // these clicks, so reading it would drop the first edit (the backend replaces the override map).
     renderPanel(makeFeed());
 
     const sponsorGroup = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
@@ -771,10 +763,8 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('a failed edit does not leak into the next edit\'s PATCH payload', async () => {
-    // Without onError, a rejected PATCH would leave segmentOverrides holding
-    // the failed edit; a second edit before the refetch lands would resend
-    // it alongside the new one. Only the onError handler's immediate reseed
-    // fixes this, since the `feed` prop never changes here to refetch it.
+    // Without onError's immediate reseed, a rejected PATCH leaves the failed edit in segmentOverrides and
+    // a second edit before the refetch resends it; the `feed` prop never changes here to refetch it.
     mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
     renderPanel(makeFeed());
@@ -801,10 +791,8 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('a later failed edit does not erase an earlier successful edit (Lens B)', async () => {
-    // Reseeding segmentOverrides from the `feed` prop on error is buggy: the
-    // prop lags a just-succeeded edit until its query refetches. Restoring
-    // that stale prop after B fails would erase A; the fix is rolling back
-    // to the per-edit snapshot taken before B's own optimistic update.
+    // Reseeding from the `feed` prop on error would restore a stale prop (it lags a just-succeeded edit
+    // until refetch) and erase A; the fix rolls back to the per-edit snapshot taken before B.
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
     mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());

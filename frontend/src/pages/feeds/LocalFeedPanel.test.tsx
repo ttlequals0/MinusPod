@@ -1,41 +1,9 @@
 /**
- * Component tests for LocalFeedPanel.tsx (#625 Task 13).
- *
- * Covers:
- *   - Renders for a local feed (title, Add episode button, Bulk import section).
- *   - A scanned import plan renders matched entries (via ImportPreviewTable)
- *     plus rejected files from BOTH the upload step and the scan's own
- *     rejected list.
- *   - Confirming the scanned plan posts importCommit with the planHash the
- *     scan returned.
- *   - A Choose-files selection clears staging before uploading (in order:
- *     clear, upload, scan), so a second selection's plan reflects only its
- *     own files instead of accumulating with an earlier one; a real
- *     clear-staging failure (e.g. an import already running) is surfaced
- *     and stops the batch before any upload.
- *   - The artwork warning row shows when feed.hasArtwork is false, and is
- *     absent when it's true.
- *   - Saving metadata sends null (not omitted) for a blanked author/
- *     categories, and always sends p20.locked_owner so a blank one clears.
- *   - Podcasting 2.0 list tag editors (funding/person/license/location/txt/
- *     podroll): rows seed from feed.p20, an added+filled row is sent in the
- *     PATCH payload, removing the last row of a tag sends [], a funding row
- *     without a url (or a podroll row without a feed GUID, or a license/
- *     location/text row without a name/value) blocks save with an inline
- *     message instead of a request, and the scalar p20 keys still ride
- *     along in the payload.
- *   - Podroll's medium field renders as a select (parity with the channel
- *     medium select) and itemGuid rides along in the payload; a malformed
- *     feedGuid or more than 50 rows blocks save with its own inline message.
- *   - The "Podcasting 2.0 tags" section (CollapsibleSection.test.tsx covers
- *     its real collapse/forceOpen mechanics; this file's stub always renders
- *     children) forces open via the forceOpen prop when a validation error
- *     is set, and the error itself renders outside the section entirely.
- *   - "Rescan staged files" and "Add files to staged set" only appear once
- *     the shown plan or the last finished run has a skipped/errored entry
- *     (hidden when clean or before anything's run); both skip the pre-clear
- *     "Choose files" does, so a fix for a spared entry's bad sidecar can be
- *     staged and picked up without disturbing anything else already there.
+ * LocalFeedPanel.tsx (#625): scanned import plan (matched entries plus upload and scan rejections) and
+ * commit with the scan's planHash; Choose-files clears staging first (a clear failure stops the batch);
+ * artwork warning; metadata save (null for blanked fields); Podcasting 2.0 list tag editors, their
+ * validation and forceOpen section (real collapse mechanics are in CollapsibleSection.test.tsx);
+ * Rescan/Add-files actions that appear only when the plan or last run has skipped/errored entries.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -46,14 +14,8 @@ import type { Feed } from '../../api/types';
 import type { ImportPlan, ImportUploadResult, ImportStatus } from '../../api/feeds';
 import { ApiError } from '../../api/client';
 
-// CollapsibleSection defaults closed; render children unconditionally so the
-// panel's contents are queryable without simulating a click first (mirrors
-// FeedSettingsPanel.test.tsx's unwrap pattern). Real collapse/forceOpen
-// mechanics (does forceOpen actually reveal clipped content) are covered by
-// CollapsibleSection.test.tsx against the real component, not this stub --
-// this mock surfaces the forceOpen prop it was passed as a data attribute
-// purely so a test here can assert LocalFeedPanel wires it correctly,
-// without claiming that proves visibility on its own.
+// Render children unconditionally (the real section defaults closed). Real collapse/forceOpen behavior is
+// in CollapsibleSection.test.tsx; the stub exposes forceOpen as a data attribute to assert the wiring.
 vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../components/CollapsibleSection')>();
   return {
@@ -195,10 +157,7 @@ describe('LocalFeedPanel', () => {
     expect(screen.getByText('stray.wav')).toBeDefined();
     expect(screen.getAllByText(/not a supported audio format/).length).toBeGreaterThan(0);
 
-    // Rejected file from the upload step must ALSO stay visible now that a
-    // plan has rendered -- it used to only show while `!plan`, which never
-    // held true once uploadAndScanMutation's onSuccess set both uploadRejected
-    // and plan in the same tick.
+    // The upload-step rejection stays visible once a plan has rendered.
     expect(screen.getByText('bad.flac')).toBeDefined();
   });
 
@@ -288,7 +247,7 @@ describe('LocalFeedPanel', () => {
 
     // Blank every clearable field, then save: sending `undefined` here would
     // drop the key from the JSON body and the backend would leave the old
-    // value untouched (#625 Task 13 review finding 2).
+    // value untouched (#625).
     await user.clear(screen.getByLabelText('Author'));
     await user.clear(screen.getByLabelText('Categories'));
     await user.clear(screen.getByLabelText('Locked owner email'));
@@ -632,9 +591,8 @@ describe('LocalFeedPanel', () => {
     await user.upload(fileInput, files);
 
     await waitFor(() => expect(screen.getByText(/scan blew up/)).toBeDefined());
-    // The upload step's own rejection must still be visible even though
-    // the scan that followed it failed -- it was committed to state
-    // before the scan call, not only inside the mutation's onSuccess.
+    // The upload step's rejection must stay visible even when the following scan failed: it is committed
+    // to state before the scan call, not only in onSuccess.
     expect(screen.getByText('bad.flac')).toBeDefined();
     expect(screen.getByText(/not a supported audio format/)).toBeDefined();
   });
@@ -711,12 +669,8 @@ describe('LocalFeedPanel', () => {
     await waitFor(() => expect(mockImportScan).toHaveBeenCalledWith('archive-show', { source: 'staging', overwrite: true }));
     await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
 
-    // The scanned entry actually collides (replacesExisting) and cleanly
-    // committed (no errors, since overwrite was on), so the "replace"
-    // clause counts it and the preview table flags the row.
-    // Renders in both the desktop table row and the mobile card (jsdom has
-    // no CSS to actually hide either), same duplication the file's other
-    // table-scoped assertions already account for.
+    // The colliding entry committed cleanly (overwrite on), so the "replace" clause counts it and the
+    // preview table flags the row in both the desktop row and mobile card (jsdom hides neither).
     expect(screen.getAllByText('replaces').length).toBeGreaterThanOrEqual(1);
     const confirmButton = screen.getByRole('button', { name: 'Import 1 episode and replace 1 existing' });
     await user.click(confirmButton);
@@ -769,10 +723,8 @@ describe('LocalFeedPanel', () => {
     await user.upload(fileInput, new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
     await waitFor(() => expect(document.querySelector('table')).not.toBeNull());
 
-    // Toggling the checkbox back off after the scan must not change what
-    // commit sends -- it always replays plan.overwrite (the value the
-    // shown plan, and its planHash, were actually built with), not the
-    // live checkbox, so scan and commit can never desync and 409.
+    // Toggling the checkbox off after the scan must not change the commit: it replays plan.overwrite (what
+    // the planHash was built with), so scan and commit cannot desync and 409.
     await user.click(screen.getByLabelText('Replace episodes that already exist'));
     await user.click(screen.getByRole('button', { name: /^Import 1 episode/ }));
 
@@ -875,11 +827,8 @@ describe('LocalFeedPanel', () => {
   });
 
   // ---- Rescan staged files / Add files to staged set (fixable leftovers) ----
-  // Companion to the sweep-spares fix (Item 4): a skipped/errored entry's
-  // files survive the post-commit sweep so the operator can fix and rescan
-  // without re-uploading everything. These two actions are how the UI
-  // reaches that: Rescan re-reads staging without touching it, and Add
-  // files uploads into it without the pre-clear "Choose files" does.
+  // Spared entries' files survive the post-commit sweep; Rescan re-reads staging untouched, Add files
+  // uploads without the pre-clear Choose files does.
 
   const DONE_STATUS_WITH_SKIPPED: ImportStatus = {
     state: 'done',
@@ -964,8 +913,7 @@ describe('LocalFeedPanel', () => {
     renderPanel(makeFeed());
 
     await screen.findByRole('button', { name: 'Add files to staged set' });
-    // Two hidden multi-file inputs now exist -- Choose files' (rendered
-    // first) and Add files' (rendered inside the fixable-leftovers block).
+    // Two hidden multi-file inputs exist: Choose files (first) and Add files (in the leftovers block).
     const inputs = document.querySelectorAll('input[type="file"][multiple]');
     expect(inputs.length).toBe(2);
     await user.upload(inputs[1] as HTMLInputElement, new File(['x'], 'fixed.json', { type: 'application/json' }));
@@ -994,9 +942,7 @@ describe('LocalFeedPanel', () => {
     await waitFor(() => expect(screen.getByText(/Importing 0 \/ 1/)).toBeDefined());
     expect(invalidateSpy).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['episodes', 'archive-show'] }));
 
-    // Push the status query straight to 'done' the way the real refetch
-    // would once the background commit finishes -- this is what the
-    // component's useEffect watches for.
+    // Push the status query straight to 'done', as the real refetch would after the background commit.
     client.setQueryData(['import-status', 'archive-show'], {
       state: 'done',
       processed: 1,

@@ -1,13 +1,7 @@
 /**
- * Component tests for the "Held for review" section in EpisodeDetail.tsx (Phase C T6).
- *
- * Covers:
- *   - Held section renders N rows from pendingReviewMarkers; absent when empty.
- *   - Approve and recut: confirm correction submitted then recut triggered (assert order).
- *   - hasOriginalAudio=false: recut NOT called, confirm still submitted, note shown.
- *   - Dismiss: reject correction submitted, no recut.
- *   - EpisodeList chip renders when pendingReviewCount>0, absent at 0/undefined.
- *   - Description and chapter notes render as separate blocks.
+ * "Held for review" section in EpisodeDetail.tsx: rows from pendingReviewMarkers; approve submits the
+ * correction then recuts (no recut when hasOriginalAudio=false); dismiss rejects without recut; EpisodeList
+ * chip when pendingReviewCount>0; description and chapter notes render separately.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -2114,7 +2108,7 @@ describe('Regenerate chapters: background run reported by the episode', () => {
 });
 
 // ---- Local feed episode metadata: season/episode seed from the API
-// payload, not from parsing the episode id (#625 Task 13 review finding 1)
+// payload, not from parsing the episode id (#625)
 // ----
 
 // Local-feed episode edit is only rendered when the parent feed is local;
@@ -2210,11 +2204,8 @@ describe('Original audio player for unprocessed local episodes', () => {
   });
 
   it('renders no player for a once-processed local episode that is mid-reprocess (status back to pending, processedAt still set)', async () => {
-    // Regression case: status alone cycles back through pending/processing
-    // on a reprocess, but processedAt is set on the first completed run and
-    // never cleared afterward, so !processedAt is required to keep this
-    // player from misleadingly claiming ad removal "hasn't run yet" on an
-    // episode that already has a real (if stale) processed copy.
+    // Status cycles through pending/processing on reprocess but processedAt is never cleared, so
+    // !processedAt stops this player claiming ad removal "hasn't run yet" for an already-processed copy.
     const ep = makeEpisode({
       status: 'pending', processedAt: '2025-06-01T00:00:00Z', hasOriginalAudio: true, pendingReviewMarkers: [],
     });
@@ -2257,9 +2248,8 @@ describe('Process vs Reprocess label (single episode)', () => {
   });
 
   it('labels the action button "Process" for a never-processed episode deferred to the offline queue', async () => {
-    // Regression case: 'deferred' can happen before an episode's first
-    // run too, so status alone can't distinguish this from a
-    // reprocess-queued episode -- only processedAt can.
+    // 'deferred' can happen before an episode's first run too, so status alone can't tell it from a
+    // reprocess-queued episode; only processedAt can.
     renderDetail(makeEpisode({ status: 'deferred', processedAt: null, pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
@@ -2279,11 +2269,8 @@ describe('Process vs Reprocess label (single episode)', () => {
   });
 
   it('labels the action button "Reprocess" for a reprocess-queued episode (status back to pending, processedAt still set)', async () => {
-    // Regression case (round-2 review finding): a reprocess request flips
-    // status back to pending/processing but reset_episode_for_reprocess
-    // never clears processedAt, so the episode has been processed before
-    // and must keep reading "Reprocess" throughout that window, not
-    // regress to "Process".
+    // Reprocess flips status to pending/processing but never clears processedAt, so the episode must
+    // keep reading "Reprocess" throughout, not regress to "Process".
     renderDetail(makeEpisode({ status: 'pending', processedAt: '2025-06-01T00:00:00Z', pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.getByRole('button', { name: 'Reprocess' })).toBeDefined();

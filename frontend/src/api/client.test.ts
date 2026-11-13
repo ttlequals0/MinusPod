@@ -1,13 +1,6 @@
 /**
- * apiRequest's retry-on-429 behavior (round-2 review finding 2): a 429
- * must retry (bounded, honoring the schedule in RETRY_DELAYS) rather than
- * immediately reject, and when the response carries a numeric-seconds
- * Retry-After header that value is used for the wait instead of the fixed
- * backoff schedule.
- *
- * fetch is mocked directly (not through an api/*.ts wrapper) since these
- * tests exercise apiRequest itself, the shared retry machinery every
- * wrapper funnels through.
+ * apiRequest retries 429 (bounded, per RETRY_DELAYS) instead of rejecting, and waits for a numeric-seconds
+ * Retry-After header when present. fetch is mocked directly to hit the shared retry path.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getAuthStatus } from './auth';

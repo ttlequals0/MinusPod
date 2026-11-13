@@ -1,17 +1,8 @@
 /**
- * Component tests for the "Open in editor" flow on Held for Review and
- * Detections Not Cut rows (issue #563 option 3).
- *
- * Covers:
- *   - Open-editor button renders on held/rejected rows when original audio
- *     is retained; hidden when it is gone.
- *   - Clicking mounts AdReviewModal with the marker bounds; reviewer
- *     proposals seed correctedBounds, absent proposals leave it null.
- *   - onSubmit mapping: adjust -> confirm + adjusted bounds (clamped to the
- *     backend's +/-0.5s tolerance window), confirm -> plain confirm,
- *     reject -> reject, recategorize -> recategorize (modal stays open). Modal unmounts after submit.
- *   - One-tap recut parity: a held-row confirm that completes the review
- *     set chains a recut; rejected-row confirms never do.
+ * "Open in editor" on Held for Review and Detections Not Cut rows (#563): button shown only when original
+ * audio is retained; AdReviewModal opens with the marker bounds (reviewer proposals seed correctedBounds);
+ * onSubmit maps adjust/confirm/reject/recategorize (adjusted bounds clamped to the backend's +/-0.5s
+ * window); a held-row confirm that completes the review set chains a recut, rejected rows never do.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';

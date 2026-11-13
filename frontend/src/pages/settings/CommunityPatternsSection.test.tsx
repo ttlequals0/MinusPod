@@ -1,12 +1,6 @@
 /**
- * Component tests for CommunityPatternsSection.tsx (issue #565).
- *
- * Covers:
- *   - Renders the per-category breakdown counts from query data.
- *   - Checkboxes reflect the accepted categories from query data.
- *   - Unchecking a category and saving sends the full categories list
- *     (minus the unchecked one) alongside enabled/cron.
- *   - Checking a not-yet-accepted category and saving adds it to the payload.
+ * CommunityPatternsSection.tsx (#565): per-category counts and checkboxes from query data; save sends the
+ * full accepted categories list alongside enabled/cron.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';

@@ -1,8 +1,5 @@
 /**
- * Render test for the podping coverage metadata line on FeedDetail. Heavy
- * feature panels (settings, stats, distribution, cue templates) are stubbed
- * since they are not under test here; only the feed header metadata is
- * exercised.
+ * Podping coverage metadata line on FeedDetail; the heavy feature panels are stubbed.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';

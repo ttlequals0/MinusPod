@@ -1,29 +1,7 @@
 /**
- * Component tests for the CueCrossEpisodeScanModal flow in CueTemplatesPanel.tsx
- * (Phase D, Task D1c).
- *
- * Covers:
- *   - "Find across episodes" button is disabled when <2 eligible episodes exist.
- *   - Picker filters out episodes where hasOriginalAudio === false.
- *   - Picker enforces 2-5 selection: Scan button disabled below 2, 5th episode
- *     cannot be added once max is reached.
- *   - First selected episode is marked "target".
- *   - Scan trigger fires crossEpisodeScan with the selected IDs.
- *   - Polling stops when status transitions from 'scanning' to 'ready'.
- *   - Candidates render with timespan and episodeMatches badge.
- *   - Make-template action opens CueMarkModal with correct bounds and target episode.
- *   - Zero candidates -> "No recurring segments found." message.
- *   - Error status -> error message shown.
- *
- * Also covers the "Optimize window" row action + inline result panel (Task D2b):
- *   - Trigger fires optimizeCueWindow; scanning spinner shows; poll stops on
- *     ready/error; error shows the saved message.
- *   - Result panel renders baseline/proposed times, scores, per-episode list.
- *   - Already-optimal state hides Apply; nullable baseline renders a dash.
- *   - Apply PATCHes sourceOffsetS/durationS and invalidates the templates query;
- *     Apply failure (409) shows an inline error and keeps the panel open.
- *   - Discard collapses without a PATCH; Rescan refires with rescan=true.
- *   - Row action disabled when the template has no source episode.
+ * CueCrossEpisodeScanModal flow and the "Optimize window" row action in CueTemplatesPanel.tsx: picker
+ * eligibility and 2-5 selection, scan trigger and polling, candidates and Make-template, optimize
+ * trigger/result panel/Apply/Discard/Rescan, and the error and empty states.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -493,9 +471,8 @@ describe('Candidate results', () => {
   });
 
   it('seeds CueMarkModal with the response target id, not selected[0], when a cached scan returns a different order', async () => {
-    // User selects ep-1 first (selected[0]), but the server cache -- keyed on the
-    // SORTED id set -- returns candidates in ep-3's timeline. The Make-template
-    // seed must follow the response's targetEpisodeId (ep-3), not selected[0].
+    // The server cache is keyed on the sorted id set, so selecting ep-1 first can return ep-3's timeline.
+    // The Make-template seed must follow the response's targetEpisodeId (ep-3), not selected[0].
     const candidate = { start: 12.0, end: 15.0, kind: 'recurring' as const, episodeMatches: 1 };
     mockCrossEpisodeScan.mockResolvedValue({
       status: 'ready',

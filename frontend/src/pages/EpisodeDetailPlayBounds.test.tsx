@@ -1,11 +1,7 @@
 /**
- * Detected-ad audition bounds: the play button must play the timeframe the
- * row DISPLAYS from the original audio. Plain markers display and play
- * start/end; reviewer-adjusted markers display the reviewed pre-trim span
- * (reviewer_original_start/end) and must play that same span.
- *
- * The audition hook is mocked here to capture toggle() arguments; the
- * sibling EpisodeDetail.test.tsx keeps the real hook for mount coverage.
+ * Audition bounds: the play button plays the span the row displays, from original audio. Plain markers use
+ * start/end; reviewer-adjusted markers use reviewer_original_start/end. The audition hook is mocked to
+ * capture toggle() args.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

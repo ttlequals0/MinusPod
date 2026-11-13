@@ -1,11 +1,7 @@
 /**
- * Component tests for SecuritySection (issue #461).
- *
- * The no-password warning must be state-aware:
- *   1. No password, no master passphrase: original full warning.
- *   2. No password, passphrase set: same severity, text acknowledges that
- *      the passphrase encrypts stored keys but does not restrict access.
- *   3. Password set: no warning at all.
+ * SecuritySection (#461): the no-password warning is state-aware. No password and no passphrase: full
+ * warning; passphrase set: same severity, noting it encrypts keys but does not restrict access; password
+ * set: none.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

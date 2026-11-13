@@ -1,7 +1,5 @@
 /**
- * Reopening the ad editor must land on the first ad. The selected-ad index
- * lives in EpisodeDetail state and used to survive close/reopen, so the
- * editor resumed on the last-edited ad and clamped there (#564).
+ * Reopening the ad editor lands on the first ad; the selected index used to survive close/reopen (#564).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

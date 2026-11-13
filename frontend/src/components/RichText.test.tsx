@@ -1,9 +1,6 @@
 /**
- * RichText renders publisher descriptions with links intact.
- *
- * Feed descriptions carry bare URLs in plain text; episode descriptions carry
- * real anchors whose text is often a person's name. Both have to survive, and
- * neither may become a route for injected markup.
+ * RichText keeps links intact (bare URLs in feed descriptions, anchors in episode descriptions) and never
+ * becomes a route for injected markup.
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

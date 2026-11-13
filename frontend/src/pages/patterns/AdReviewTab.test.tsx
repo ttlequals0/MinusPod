@@ -287,8 +287,7 @@ describe('AdReviewTab row actions', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Not ad' })).toBeNull();
-    // Edit (and the audition play button) must survive resolution -- both
-    // the desktop row and the card keep their non-decision controls.
+    // Edit (and the audition play button) must survive resolution in both the desktop row and the card.
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('button', { name: 'Edit' })).toBeTruthy();
     const rows = screen.getByTestId('detections-rows');

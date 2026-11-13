@@ -232,9 +232,8 @@ describe('AddFeed: local feed form', () => {
       slug: 'my-archive-show', feedType: 'local', feedUrl: 'https://x/my-archive-show.xml', message: 'created',
     });
     const user = await openLocalMode();
-    // Typing only in Title auto-fills the Slug preview, but the field was
-    // never edited directly -- the submitted payload must omit slug so the
-    // server's own slugify rules produce the canonical value.
+    // Typing only in Title auto-fills the Slug preview, but the field was never edited directly, so the
+    // payload must omit slug and let the server's slugify rules produce it.
     await user.type(screen.getByLabelText('Title'), 'My Archive Show');
     await user.click(screen.getByRole('button', { name: 'Create feed' }));
 

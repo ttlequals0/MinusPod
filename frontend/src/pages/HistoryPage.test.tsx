@@ -1,7 +1,5 @@
 /**
- * Render tests for the "Version" column on the Processing History table
- * (2.78.4): the app_version stamped per processing run, shown as "-" for
- * rows recorded before the column existed.
+ * "Version" column on the Processing History table (2.78.4): the per-run app_version, "-" for older rows.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';

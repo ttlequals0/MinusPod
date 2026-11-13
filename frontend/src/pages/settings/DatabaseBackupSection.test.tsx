@@ -1,17 +1,7 @@
 /**
- * Component tests for DatabaseBackupSection.tsx (Task B465-4).
- *
- * Covers:
- *   - Fields render from query data, including the formatted last-result size.
- *   - Save sends the full merged draft (template behavior).
- *   - A 400 from save shows the message inline.
- *   - Run-now success shows "Backup complete" and refetches (proves invalidation).
- *   - Run-now error shows the message, re-enables the button, and refetches.
- *   - Disabled state hides the cron input, keeps dest/keep-count, leaves run-now
- *     enabled, and shows lastRun as "never".
- *   - Malformed lastSummary does not crash and drops the "Last result:" row.
- *   - A failed GET renders an error + Retry (not the form); Retry refetches.
- *   - destWritable=false with an empty effectiveDest still shows the warning.
+ * DatabaseBackupSection.tsx: fields from query data, save sends the full merged draft (400 shown inline),
+ * run-now success/error with refetch, disabled layout, malformed lastSummary, failed GET with Retry, and
+ * the destWritable=false warning.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';

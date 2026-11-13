@@ -1,7 +1,5 @@
 /**
- * Unit tests for the local-feed API client functions: addLocalFeed must POST
- * feedType: 'local' alongside the caller's payload, uploadFeedArtwork must
- * post multipart form data (mirrors importOpml).
+ * Local-feed client: addLocalFeed POSTs feedType: 'local' with the payload; uploadFeedArtwork posts multipart.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

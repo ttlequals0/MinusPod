@@ -1,8 +1,6 @@
 /**
- * A save sends one PUT: the backend applies the secondary provider fields
- * before the primary provider fields within that request, so a combined
- * change to llmProvider and the secondary provider does not need the
- * frontend to split it into two writes.
+ * A save sends one PUT: the backend applies secondary provider fields before primary ones, so a combined
+ * change needs no frontend split into two writes.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
