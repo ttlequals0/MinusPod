@@ -8,6 +8,7 @@ import { Pin } from './ad-editor/Pin';
 import { snapToOnset } from './ad-editor/snapToOnset';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
+import { WindowScrubber } from './ad-editor/WindowScrubber';
 import { WaveformError, WaveformLoading } from './ad-editor/WaveformStatus';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import { edgeBtn } from './ad-editor/controlStyles';
@@ -174,7 +175,6 @@ function CueMarkModal({
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
-  const scrubberRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const startInputRef = useRef<HTMLInputElement | null>(null);
   const endInputRef = useRef<HTMLInputElement | null>(null);
@@ -221,28 +221,6 @@ function CueMarkModal({
     // zoomed in (a no-op at 1x where the window is the whole episode).
     setWindowCenter(clamped);
   }, [totalDuration, setWindowCenter]);
-
-  // Full-episode scrubber: drag to pan the zoomed window across the episode.
-  const panToClientX = useCallback((clientX: number) => {
-    const el = scrubberRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    setWindowCenter(frac * totalDuration);
-  }, [totalDuration, setWindowCenter]);
-  const onScrubberPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    panToClientX(e.clientX);
-    const move = (ev: PointerEvent) => panToClientX(ev.clientX);
-    const end = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-  };
 
   // The scan runs in a background thread server-side; poll until it reports
   // done. `force` re-runs after an error rather than re-reading the cache.
@@ -716,38 +694,16 @@ function CueMarkModal({
         {/* Full-episode scrubber: shows where the zoomed window sits and lets
             the user pan across the whole episode (only useful when zoomed). */}
         {zoom > 1 && totalDuration > 0 && (
-          <div className="mt-2">
-            <div
-              ref={scrubberRef}
-              role="slider"
-              aria-label="Episode position"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(totalDuration)}
-              aria-valuenow={Math.round(windowCenter)}
-              tabIndex={0}
-              onPointerDown={onScrubberPointerDown}
-              className={`relative h-3 rounded-full bg-background border border-border cursor-pointer touch-none ${focusRing}`}
-            >
-              <div
-                className="absolute inset-y-0 bg-primary/30 rounded-full pointer-events-none"
-                style={{
-                  left: `${(windowStart / totalDuration) * 100}%`,
-                  width: `${Math.max(1, ((windowEnd - windowStart) / totalDuration) * 100)}%`,
-                }}
-                aria-hidden
-              />
-              <div
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-warning pointer-events-none"
-                style={{ left: `${(playheadTime / totalDuration) * 100}%` }}
-                aria-hidden
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-              <span>{formatTime(windowStart)}</span>
-              <span>showing {formatTime(windowEnd - windowStart)}</span>
-              <span>{formatTime(windowEnd)}</span>
-            </div>
-          </div>
+          <WindowScrubber
+            ariaLabel="Episode position"
+            className="mt-2"
+            totalDuration={totalDuration}
+            windowStart={windowStart}
+            windowEnd={windowEnd}
+            windowCenter={windowCenter}
+            playheadTime={playheadTime}
+            onPan={setWindowCenter}
+          />
         )}
 
         {peaksError && (

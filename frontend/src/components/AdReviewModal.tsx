@@ -22,6 +22,7 @@ import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import TextSelectionPanel, { type TextRun, runKey } from './ad-editor/TextSelectionPanel';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
+import { WindowScrubber } from './ad-editor/WindowScrubber';
 import { WaveformError, WaveformLoading } from './ad-editor/WaveformStatus';
 import { edgeBtn } from './ad-editor/controlStyles';
 import {
@@ -182,7 +183,6 @@ function AdReviewModal({
   const overlayRef = useRef<HTMLDivElement>(null);     // relative wrapper around waveform + pins
   const cursorRef = useRef<HTMLDivElement>(null);      // playhead, position-updated from RAF
   const scrubberRef = useRef<HTMLDivElement>(null);    // full-episode play scrubber (seeks audio)
-  const windowScrubberRef = useRef<HTMLDivElement>(null); // full-episode pan scrubber (pans zoomed window)
   const waveformScrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   // The timeupdate listener that stops "Play selection" at the ad END. Held in
@@ -697,30 +697,6 @@ function AdReviewModal({
     el.addEventListener('pointercancel', onUp);
   };
 
-  // Full-episode pan scrubber: drag to pan the zoomed waveform window across
-  // the episode (mirrors CueMarkModal). Does NOT seek audio -- only moves the
-  // rendered window so the user can navigate while zoomed in.
-  const panToClientX = (clientX: number) => {
-    const el = windowScrubberRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    setWindowCenter(frac * totalDuration);
-  };
-  const onWindowScrubberPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    panToClientX(e.clientX);
-    const move = (ev: PointerEvent) => panToClientX(ev.clientX);
-    const end = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-  };
-
   // ------------------------------------------------------------------
   // Pin drag → optional audio scrub. Plays a tiny preview at the pin's
   // current time so the user can hear what they're aligning to.
@@ -1106,38 +1082,16 @@ function AdReviewModal({
             lets the user pan across the whole episode (only useful when
             zoomed). Pans the rendered window -- it does NOT seek audio. */}
         {!textModeActive && zoom > 1 && totalDuration > 0 && (
-          <div className="px-4 sm:px-6 pt-2">
-            <div
-              ref={windowScrubberRef}
-              role="slider"
-              aria-label="Waveform window position"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(totalDuration)}
-              aria-valuenow={Math.round(windowCenter)}
-              tabIndex={0}
-              onPointerDown={onWindowScrubberPointerDown}
-              className={`relative h-3 rounded-full bg-background border border-border cursor-pointer touch-none ${focusRing}`}
-            >
-              <div
-                className="absolute inset-y-0 bg-primary/30 rounded-full pointer-events-none"
-                style={{
-                  left: `${(windowStart / totalDuration) * 100}%`,
-                  width: `${Math.max(1, ((windowEnd - windowStart) / totalDuration) * 100)}%`,
-                }}
-                aria-hidden
-              />
-              <div
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-warning pointer-events-none"
-                style={{ left: `${(currentTime / totalDuration) * 100}%` }}
-                aria-hidden
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-              <span>{formatTime(windowStart)}</span>
-              <span>showing {formatTime(windowEnd - windowStart)}</span>
-              <span>{formatTime(windowEnd)}</span>
-            </div>
-          </div>
+          <WindowScrubber
+            ariaLabel="Waveform window position"
+            className="px-4 sm:px-6 pt-2"
+            totalDuration={totalDuration}
+            windowStart={windowStart}
+            windowEnd={windowEnd}
+            windowCenter={windowCenter}
+            playheadTime={currentTime}
+            onPan={setWindowCenter}
+          />
         )}
 
         {caps.createFields && (
