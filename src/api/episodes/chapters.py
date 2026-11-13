@@ -160,10 +160,9 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     episode_description = episode.get('description', '')
     episode_title = episode.get('title', 'Unknown')
 
-    # Segment markers and applied cuts (both persisted from the run that
-    # produced this VTT) let chapter regen give the topic detector the same
-    # ad/segment-position hints the pipeline gets. Missing either just falls
-    # back to no hints.
+    # Segment markers and applied cuts (both persisted from the run that produced this VTT)
+    # give chapter regen the same ad/segment-position hints the pipeline gets; if either
+    # is missing it falls back to no hints.
     segment_markers = common._markers_from_row(episode)
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 

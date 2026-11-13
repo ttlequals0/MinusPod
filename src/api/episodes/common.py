@@ -8,10 +8,9 @@ from utils.constants import EpisodeStatus
 
 
 def _job_state(status, owned_state):
-    """Authoritative jobState for one episode. ``owned_state`` (from
-    get_episode_job_states: 'processing'/'queued'/None) plus the stored status;
-    an owned run outranks a lingering queue row, so a just-claimed run never
-    reads as idle or queued.
+    """Authoritative jobState for one episode from ``owned_state`` (get_episode_job_states:
+    'processing'/'queued'/None) plus the stored status. An owned run outranks a lingering
+    queue row, so a just-claimed run never reads as idle or queued.
     """
     if owned_state == 'processing' or status == EpisodeStatus.PROCESSING:
         return 'processing'

@@ -93,11 +93,9 @@ def _failover_llm_identity(db):
 def _apply_provider_routing_fields(db, data):
     """Persist per-phase LLM provider slot overrides (see llm_route.py).
 
-    Each stage picks a SLOT (primary/secondary), not a provider type. An
-    empty value clears the override so the phase falls back to its default
-    routing: detection falls back to primary, verification/chapters fall
-    back to detection's resolved slot (same_as_detection is also accepted
-    explicitly, for symmetry with reviewProvider's same_as_pass).
+    Each stage picks a SLOT (primary/secondary), not a provider type. An empty value clears
+    the override: detection falls back to primary, verification/chapters to detection's
+    resolved slot (same_as_detection is also accepted, mirroring reviewProvider's same_as_pass).
     """
     values, issue = _provider_routing_values(data)
     if issue is not None:
@@ -138,11 +136,8 @@ def _validate_provider_routing_payload(data):
 
 
 def _apply_provider_rate_limit_fields(db, data):
-    """Persist the manual per-provider request-rate caps (#747).
-
-    Validates every field before writing any, so a 400 never leaves part of
-    the payload persisted. 0 means unlimited.
-    """
+    """Persist the manual per-provider request-rate caps (#747); 0 means unlimited.
+    Validates every field before writing any, so a 400 never leaves part persisted."""
     writes, issue = _provider_rate_limit_writes(data)
     if issue is not None:
         return error_response(*issue)
@@ -491,11 +486,9 @@ def _apply_provider_fields(db, data):
         _clear_model_list_cache()
     if provider_changed:
         common.after_commit(_refresh_after_provider_change)
-    # The TTL cache backing get_effective_base_url / get_effective_provider
-    # lags writes by up to 5s. Without this invalidation, the GET /settings
-    # response that fires right after this PUT returns the pre-write value,
-    # the UI re-hydrates state to the stale value, hasChanges flips back to
-    # false, and the Save Changes button vanishes (issue #234).
+    # The TTL cache behind get_effective_base_url / get_effective_provider lags writes by up
+    # to 5s; without invalidation the GET /settings right after this PUT returns the stale
+    # value, hasChanges flips back to false and Save Changes vanishes (#234).
     common.after_commit(invalidate_provider_cache)
     return None
 
@@ -508,13 +501,11 @@ def _refresh_after_provider_change():
 
 
 def _apply_secondary_provider_fields(db, data):
-    """Persist the optional secondary provider: a second full provider
-    config that stage settings can route to via the 'secondary' slot
-    instead of the primary llmProvider config.
+    """Persist the optional secondary provider: a second full provider config that stage
+    settings can route to via the 'secondary' slot.
 
-    Any change here can affect a request already in flight against the
-    secondary slot, so it invalidates the provider cache and lifts a
-    matching rate-limit hold the same way a primary provider change does.
+    A change can affect a request in flight against that slot, so it invalidates the provider
+    cache and lifts a matching rate-limit hold as a primary provider change does.
     """
     changed = False
     # Resolved before the write below, so switching the secondary type lifts

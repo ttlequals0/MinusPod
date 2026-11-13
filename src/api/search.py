@@ -53,11 +53,8 @@ def search():
 @limiter.limit("1 per minute")
 @log_request
 def rebuild_search_index():
-    """Rebuild the full-text search index.
-
-    This reindexes all content (podcasts, episodes, patterns, sponsors).
-    May take a few seconds for large databases.
-    """
+    """Rebuild the full-text search index over podcasts, episodes, patterns and sponsors
+    (may take a few seconds on large databases)."""
     db = get_database()
     count = db.rebuild_search_index()
 

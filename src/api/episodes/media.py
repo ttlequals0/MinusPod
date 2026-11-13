@@ -125,10 +125,7 @@ def _audio_response(path, download_name=None):
 @log_request
 def serve_original_audio(slug, episode_id):
     """Serve the retained pre-cut audio for ad-editor Review mode.
-
-    Returns 404 when the episode has no original retained (global setting
-    off, old episode processed before the feature, or retention expired).
-    """
+    404 when no original is retained (setting off, episode processed before the feature, or retention expired)."""
     # Blueprint url_value_preprocessor validated `slug` and `episode_id`.
     db = get_database()
     episode = db.get_episode(slug, episode_id)
@@ -197,13 +194,9 @@ def _ensure_peaks_file(path, episode):
 def get_episode_peaks(slug, episode_id):
     """Return waveform peaks for the requested window of an episode.
 
-    Query params:
-        start    (float, default 0)         - window start in seconds
-        end      (float, default duration)  - window end in seconds
-        resolution_ms (int, default 50)     - peak bucket width
-
-    Used by the AdEditor's wavesurfer view to render a waveform scoped to
-    the current ad selection plus a user-selectable context window.
+    Query: start (float seconds, default 0), end (float seconds, default duration),
+    resolution_ms (int, default 50; peak bucket width). The AdEditor's wavesurfer view uses
+    it to render the ad selection plus a user-selectable context window.
     """
     db = get_database()
     storage = get_storage()
@@ -266,11 +259,8 @@ def get_episode_peaks(slug, episode_id):
 @api.route('/feeds/<slug>/episodes/<episode_id>/transcript-span', methods=['GET'])
 @log_request
 def get_episode_transcript_span(slug, episode_id):
-    """Return the transcript text spanning a [start, end] window.
-
-    Used by the AdEditor create mode to auto-populate the text_template
-    field from the currently selected window of the episode's VTT.
-    """
+    """Return the transcript text spanning a [start, end] window, used by AdEditor create
+    mode to fill the text_template field from the selected window of the VTT."""
     db = get_database()
     episode = db.get_episode(slug, episode_id)
     if not episode:
@@ -304,11 +294,8 @@ def get_episode_transcript_span(slug, episode_id):
 @api.route('/feeds/<slug>/episodes/<episode_id>/split-candidates', methods=['GET'])
 @log_request
 def get_episode_split_candidates(slug, episode_id):
-    """Propose divider points for a marker spanning several sponsors.
-
-    A span with no transition phrase returns one piece and no candidates,
-    a valid answer rather than an error (issue #563).
-    """
+    """Propose divider points for a marker spanning several sponsors (#563).
+    A span with no transition phrase returns one piece and no candidates: a valid answer, not an error."""
     db = get_database()
     episode = db.get_episode(slug, episode_id)
     if not episode:

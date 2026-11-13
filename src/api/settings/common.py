@@ -39,22 +39,17 @@ SLOT_ALIASES = {'a': 'primary', 'b': 'secondary'}
 class SettingEntry:
     """Typed view of one row from db.get_all_settings().
 
-    The producer (src/database/settings.py:get_all_settings) returns
-    ``{key: {'value': X, 'is_default': Y}}`` dicts to stay compatible with
-    consumers outside this module (secrets_crypto, main_app, tests). The
-    helpers below wrap that dict shape into ``SettingEntry`` so consumers
-    in this file get attribute access and a stable type.
+    The producer returns ``{key: {'value': X, 'is_default': Y}}`` dicts for consumers outside
+    this module (secrets_crypto, main_app, tests); the helpers here wrap them in
+    ``SettingEntry`` for attribute access.
     """
     value: Any
     is_default: bool
 
 
 def _settings_view(raw: Mapping[str, Any]) -> dict[str, SettingEntry]:
-    """Wrap the raw get_all_settings() dict into a SettingEntry mapping.
-
-    Skips entries that lack the expected shape so a malformed row can't
-    crash the GET /settings endpoint.
-    """
+    """Wrap the raw get_all_settings() dict into a SettingEntry mapping, skipping
+    malformed entries so a bad row cannot crash GET /settings."""
     view: dict[str, SettingEntry] = {}
     for key, info in raw.items():
         if not isinstance(info, Mapping):
@@ -102,9 +97,8 @@ class _PhaseRejected(Exception):
 def validate_community_sync_categories(value) -> tuple:
     """Validate a communitySyncCategories/categories payload list.
 
-    Returns (categories, error_message); categories is None when
-    error_message is set. Shared by the ad-detection PUT phase below and
-    the dedicated /settings/community-sync PUT so both reject the same
+    Returns (categories, error_message); categories is None when error_message is set.
+    Shared by the ad-detection PUT phase and /settings/community-sync PUT so both reject
     malformed input the same way.
     """
     if not isinstance(value, list):
@@ -125,10 +119,7 @@ _deferred = threading.local()
 
 def after_commit(fn, bucket: str = 'side_effects'):
     """Hold a phase side effect until the settings transaction commits.
-
-    Runs inline when no transaction is open, so a phase helper called
-    directly keeps its standalone behavior.
-    """
+    Runs inline when no transaction is open, so a directly called phase helper keeps its standalone behavior."""
     buckets = getattr(_deferred, 'buckets', None)
     if buckets is None:
         fn()

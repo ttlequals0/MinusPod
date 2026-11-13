@@ -149,9 +149,8 @@ def _row_to_json_entry(entry: dict) -> dict:
 def export_processing_history():
     """Export processing history as CSV or JSON.
 
-    Streams rows directly from the SQLite cursor so the worker's memory
-    footprint stays flat regardless of row count. Kept rate-limited to
-    bound cursor wall-time under concurrent exports.
+    Streams rows from the SQLite cursor so memory stays flat regardless of row count; rate
+    limited to bound cursor wall-time under concurrent exports.
     """
     db = get_database()
 

@@ -73,11 +73,10 @@ def _rebuild_served_feeds():
 def update_ad_detection_settings():
     """Update ad detection settings.
 
-    Each phase helper applies a related slice of fields (prompts, model
-    selection, numeric clamps, provider gating, whisper config) and returns
-    None or a Flask error response. All phases run in one transaction, so a
-    rejection persists nothing; cache invalidation, hold clearing, and
-    reviewer calibration follow the commit.
+    Each phase helper applies a related slice of fields (prompts, models, numeric clamps,
+    provider gating, whisper config) and returns None or an error response. All phases run
+    in one transaction, so a rejection persists nothing; cache invalidation, hold clearing
+    and reviewer calibration follow the commit.
     """
     data = request.get_json()
 
@@ -392,9 +391,9 @@ def _stage_hold_target(db, stage: str) -> tuple[str | None, str]:
 def _apply_prompt_fields(db, data):
     """Persist the prompt strings.
 
-    An empty/whitespace prompt is never valid (the runtime falls back to the
-    default), so clearing a field and saving resets it to default rather than
-    storing a blank row that would render as an unrecoverable empty textarea.
+    An empty/whitespace prompt is never valid (the runtime falls back to the default), so
+    clearing a field resets it rather than storing a blank row that renders as an
+    unrecoverable empty textarea.
     """
     for payload_key, db_key, log_label in (
         ('systemPrompt', 'system_prompt', 'system prompt'),
@@ -554,11 +553,8 @@ def _validate_model_pricing_payload(data):
 
 
 def _apply_size_caps(db, data):
-    """Persist the download/artwork/RSS size caps (env-backed, issue #491).
-
-    Validates every field before writing any, so a 400 never leaves part of
-    the payload persisted.
-    """
+    """Persist the download/artwork/RSS size caps (env-backed, #491).
+    Validates every field before writing any, so a 400 never leaves part persisted."""
     writes, issue = _size_cap_writes(data)
     if issue is not None:
         return error_response(*issue)
@@ -645,10 +641,7 @@ def _validate_size_caps_payload(data):
 
 def _apply_user_agent_fields(db, data):
     """Persist the outbound User-Agent strings.
-
-    Validates both before writing either, so a 400 never leaves half the
-    payload persisted. An empty string resets the field to its default.
-    """
+    Validates both before writing either, so a 400 never leaves half persisted; an empty string resets to default."""
     writes, log_download_query, issue = _user_agent_values(data)
     if issue is not None:
         return error_response(*issue)
@@ -995,9 +988,8 @@ def _validate_rss_refresh_payload(data):
 def _apply_segment_category_actions(db, data):
     """Merge a partial segmentCategoryActions map over the stored global map.
 
-    Every key must be a known segment category and every value a known
-    action; the merged full map (not just the partial payload) is persisted
-    so later reads never need to fall back through a partial global row.
+    Keys must be known segment categories and values known actions; the merged full map is
+    persisted so later reads never fall back through a partial global row.
     """
     value, issue = _segment_category_actions_value(db, data)
     if issue is not None:
@@ -1900,9 +1892,9 @@ def _apply_stage_tunables(db, data, *, allow_inactive_tunables=False):
 def reset_ad_detection_settings():
     """Reset ad detection settings to defaults.
 
-    The key list derives from SETTINGS_REGISTRY (entries flagged
-    ``in_ad_reset``): prompts, models, whisper/VAD, the audio-cue family,
-    env-backed keys, the two provider secrets, and all stage tunables.
+    The key list derives from SETTINGS_REGISTRY (entries flagged ``in_ad_reset``): prompts,
+    models, whisper/VAD, audio-cue family, env-backed keys, the two provider secrets and all
+    stage tunables.
     """
     db = get_database()
 

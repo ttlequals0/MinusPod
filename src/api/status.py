@@ -78,12 +78,10 @@ def _offline_service_views(db) -> list[dict]:
 def _build_hold_block(db) -> dict:
     """Queue hold state: the rate-limit pause and any offline-queue waits.
 
-    Reports what the maintenance tick last observed. Nothing here probes a
-    service, so an open SSE stream cannot generate outbound traffic.
-
-    holdUntil/holdSince surface whichever active hold, legacy or any
-    provider-scoped one, resets latest, so the dashboard still shows a
-    pause while any provider is held, even one that isn't the default.
+    Reports what the maintenance tick last observed; nothing probes a service, so an open SSE
+    stream cannot generate outbound traffic. holdUntil/holdSince come from whichever active
+    hold (legacy or provider-scoped) resets latest, so the dashboard shows a pause while any
+    provider is held, even a non-default one.
     """
     hold_until, hold_since = get_any_active_hold(db)
     return {
@@ -124,9 +122,8 @@ def hold_block() -> dict:
 def status_payload(status=None) -> dict:
     """Status snapshot plus the queue hold block.
 
-    status_service is file-backed and imports no database on purpose, so the
-    hold state is merged here instead, where both the stream and the one-time
-    GET pick it up from the same place.
+    status_service is file-backed and imports no database on purpose, so the hold state is
+    merged here, where the stream and the one-time GET both pick it up.
     """
     db = get_database()
     payload = get_status_service().to_dict(status)

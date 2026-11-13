@@ -85,10 +85,9 @@ def _build_settings_payload():
     verification_model = common._setting_value(settings, 'verification_model')
     chapters_model = common._setting_value(settings, 'chapters_model')
 
-    # Per-phase provider routing overrides: a SLOT (primary/secondary), not
-    # a provider type (see llm_route.py). Unset (None) means "inherit":
-    # verification/chapters fall back to detection's slot, detection falls
-    # back to primary.
+    # Per-phase provider routing overrides: a SLOT (primary/secondary), not a provider type
+    # (see llm_route.py). Unset (None) inherits: verification/chapters use detection's slot,
+    # detection uses primary.
     detection_provider = common._setting_value(settings, 'detection_provider')
     verification_provider = common._setting_value(settings, 'verification_provider')
     chapters_provider = common._setting_value(settings, 'chapters_provider')
@@ -495,10 +494,9 @@ def _build_settings_payload():
             settings, 'review_max_boundary_shift', registry_default('review_max_boundary_shift')))
     except (ValueError, TypeError):
         review_max_boundary_shift = registry_get_default('review_max_boundary_shift')
-    # `or DEFAULT` (not just the _setting_value fallback) so a stored empty/whitespace
-    # row also yields the default text -- _setting_value only covers a missing row, so a
-    # blank one would render an unrecoverable empty textarea. All four prompts share this
-    # contract, hence the same coalesce on system/verification below.
+    # `or DEFAULT` (not just the _setting_value fallback) so a stored empty/whitespace row also
+    # yields the default text: _setting_value only covers a missing row, and a blank one would
+    # render an unrecoverable empty textarea. All four prompts share this contract.
     review_prompt = common._setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT) or DEFAULT_REVIEW_PROMPT
     resurrect_prompt = common._setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
     chapter_prompt = common._setting_value(settings, 'chapter_prompt', DEFAULT_CHAPTER_PROMPT) or DEFAULT_CHAPTER_PROMPT
@@ -744,10 +742,9 @@ def _build_settings_payload():
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         'youtubeEnabled': _sv('youtube_enabled', yt_settings.load_global(db).enabled),
         'youtubeApiKeyConfigured': bool(yt_settings.api_key(db)),
-        # value is resolved, not raw: unset falls back to PodcastIndex when
-        # its credentials exist (pre-option installs keep their behavior),
-        # else iTunes. isDefault marks a derived value; saving from the UI
-        # makes the choice explicit.
+        # Resolved, not raw: unset falls back to PodcastIndex when its credentials exist (older
+        # installs keep that behavior), else iTunes. isDefault marks a derived value; saving
+        # from the UI makes the choice explicit.
         'podcastSearchProvider': _search_provider_setting(settings),
         # Whether the resolved provider can actually run search right now
         # (AddFeed gates its search UI on this, not just a resolved name).
@@ -895,10 +892,9 @@ def _search_provider_setting(settings):
 def list_networks():
     """List known podcast networks plus operator-created custom networks.
 
-    Custom networks are distinct free-text network_id_override values set on any
-    feed; surfacing them lets a network created on one feed be selected from the
-    dropdown on every other feed. For a custom network the id and the display
-    name are the same string. Known networks win id collisions.
+    Custom networks are distinct free-text network_id_override values set on any feed, so a
+    network created on one feed is selectable on every other. For a custom network the id
+    and display name are the same string; known networks win id collisions.
     """
     from pattern_service import KNOWN_NETWORKS
 
@@ -923,11 +919,10 @@ def list_networks():
 def trigger_community_pattern_sync():
     """Force a sync now. Rate-limited to 6 calls per hour.
 
-    A 404 from the upstream manifest URL is expected when the repo hasn't
-    published `patterns/community/index.json` to its default branch yet
-    (e.g. the feature is still on a feature branch). Surface that as a
-    soft 200 with ``status: no_manifest_yet`` rather than a 502, since
-    the local instance is healthy and there's nothing the user can do.
+    A 404 from the upstream manifest URL is expected when the repo has not published
+    `patterns/community/index.json` to its default branch yet. It is surfaced as a soft 200
+    with ``status: no_manifest_yet`` rather than a 502: the instance is healthy and the user
+    cannot act on it.
     """
     import requests
     from community_sync import sync_now
@@ -959,9 +954,8 @@ def community_pattern_sync_status():
 def delete_all_community_patterns():
     """Hard-delete every community pattern on this instance.
 
-    Body must include ``{"confirm": true}`` as a fat-finger guard, matching
-    the ``/patterns/bulk-delete`` convention. The UI provides the confirm
-    step; this endpoint enforces it for any direct API caller too.
+    Body must include ``{"confirm": true}`` (fat-finger guard, as ``/patterns/bulk-delete``);
+    the UI confirms too, and this enforces it for direct API callers.
     """
     payload = request.get_json(silent=True) or {}
     if payload.get('confirm') is not True:
