@@ -7,7 +7,7 @@ import yaml
 
 import api.patterns_audio as module
 from api import preview_cache
-from api.patterns import _store_pattern_audio
+from pattern_audio import store_pattern_audio
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
 from tests.fingerprint_match_helpers import record_fingerprint_match
 from tests.integration.openapi_conformance import SPEC_PATH, assert_response_conforms
@@ -122,7 +122,7 @@ def test_rebuild_rejects_a_non_finite_span_number_with_a_400(app_client, fp_patt
 
 def test_storing_audio_for_a_malformed_episode_id_is_not_retained(
         fp_feed, fp_pattern, bad_id_episode, stub_fingerprinting):
-    result = _store_pattern_audio(fp_feed, SLUG, bad_id_episode, fp_pattern, 10.0, 40.0)
+    result = store_pattern_audio(fp_feed, SLUG, bad_id_episode, fp_pattern, 10.0, 40.0)
     assert (result.stored, result.skipped_reason) == (False, 'original_not_retained')
     assert stub_fingerprinting == [] and fp_feed.get_audio_fingerprint(fp_pattern) is None
 

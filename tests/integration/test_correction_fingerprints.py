@@ -72,7 +72,7 @@ def test_confirm_succeeds_without_a_retained_original(app_client, fp_feed, fp_pa
 
 
 def test_confirm_succeeds_when_storing_blows_up(app_client, fp_feed, fp_original, fp_pattern, monkeypatch):
-    import api.patterns as patterns
+    import pattern_audio as patterns
 
     def boom(*a, **k):
         raise RuntimeError('boom')

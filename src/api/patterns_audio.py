@@ -13,9 +13,8 @@ from api import (
     get_database, get_storage, retry_after_response,
 )
 from api import preview_cache
-from api.patterns import (
-    PATTERN_ROUTE, _store_pattern_audio, fingerprint_response_fields, resolve_retained_original,
-)
+from api.patterns import PATTERN_ROUTE, fingerprint_response_fields
+from pattern_audio import resolve_retained_original, store_pattern_audio
 from audio_fingerprinter import (
     clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
 )
@@ -327,7 +326,7 @@ def rebuild_pattern_audio(pattern_id):
     duration = episode.get('original_duration')
     if duration and end > duration:
         return error_response('The span runs past the end of the episode', 400)
-    result = _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, force=True)
+    result = store_pattern_audio(db, slug, episode_id, pattern_id, start, end, force=True)
     preview_cache.drop_cached_slices(pattern_id)
     if result.stored:
         db.set_pattern_audio_removed(pattern_id, False)

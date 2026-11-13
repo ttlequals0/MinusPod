@@ -28,8 +28,9 @@ from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
     parse_transcript_segments,
 )
-from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
-from storage import PathContainmentError
+from pattern_audio import (
+    audio_source_on, carry_audio_to_children, store_patterns_audio,
+)
 from text_pattern_matcher import (
     split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
 )
@@ -38,8 +39,8 @@ from flask import Response, request
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, extract_transcript_segment, extract_sponsor_from_text,
-    _find_similar_pattern, _resolve_original_audio,
+    get_database, extract_transcript_segment, extract_sponsor_from_text,
+    _find_similar_pattern,
 )
 
 logger = logging.getLogger('podcast.api')
@@ -341,6 +342,7 @@ def split_pattern(pattern_id):
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
+    source = audio_source_on(db.get_connection(), pattern_id)
     new_ids = matcher.split_pattern(pattern_id)
 
     if not new_ids:
@@ -353,7 +355,8 @@ def split_pattern(pattern_id):
         'success': True,
         'original_pattern_id': pattern_id,
         'new_pattern_ids': new_ids,
-        'message': f'Split into {len(new_ids)} patterns'
+        'message': f'Split into {len(new_ids)} patterns',
+        **fingerprint_response_fields(carry_audio_to_children(db, source, new_ids)),
     })
 
 
@@ -633,126 +636,6 @@ FINGERPRINT_SKIP_PRECEDENCE = (
     'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns',
     'original_not_retained', 'segment_too_short', 'not_distinctive', 'fingerprint_failed',
 )
-
-
-def resolve_retained_original(db, storage, slug, episode_id):
-    """_resolve_original_audio, with an episode id that cannot name a file counted as not retained."""
-    try:
-        return _resolve_original_audio(db, storage, slug, episode_id)
-    except PathContainmentError:
-        return None, True
-
-
-class _EpisodeAudio:
-    """The retained original and the fingerprinter of one episode, each made on first use and shared by its patterns."""
-
-    def __init__(self, db, slug, episode_id):
-        self.db, self.slug, self.episode_id = db, slug, episode_id
-        self._original = self._fingerprinter = None
-
-    def original(self):
-        if self._original is None:
-            self._original = resolve_retained_original(self.db, get_storage(), self.slug, self.episode_id)
-        return self._original
-
-    def fingerprinter(self):
-        if self._fingerprinter is None:
-            self._fingerprinter = AudioFingerprinter(db=self.db)
-        return self._fingerprinter
-
-
-def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False, episode_audio=None):
-    """Fingerprint [start, end] of the retained original; force replaces a fingerprint and deleted audio."""
-    episode_audio = episode_audio or _EpisodeAudio(db, slug, episode_id)
-    try:
-        if not force and db.get_audio_fingerprint(pattern_id, with_blob=False) is not None:
-            result = FingerprintStoreResult(False, 'fingerprint_exists')
-        else:
-            audio_path, err = episode_audio.original()
-            if err:
-                result = FingerprintStoreResult(False, 'original_not_retained')
-            else:
-                result = episode_audio.fingerprinter().store_fingerprint(
-                    pattern_id, str(audio_path), start, end,
-                    source_podcast_slug=slug, source_episode_id=episode_id, force=force)
-    except Exception as e:
-        logger.warning(f"Could not store audio for pattern {pattern_id}: {e}")
-        result = FingerprintStoreResult(False, 'fingerprint_failed')
-    if not result.stored:
-        logger.debug(f"No fingerprint stored for pattern {pattern_id}: {result.skipped_reason}")
-    return result
-
-
-def _edge_time(spans, words, offsets, i, char_pos, fallback):
-    """Time of char_pos inside segment i by linear interpolation, or fallback when it has no usable timing."""
-    seg = spans[i]
-    if seg['end'] <= seg['start'] or not words[i]:
-        return fallback
-    frac = min(max((char_pos - offsets[i]) / len(words[i]), 0.0), 1.0)
-    return seg['start'] + frac * (seg['end'] - seg['start'])
-
-
-def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
-    """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
-    if len(pattern_ids) < 2 or not text or len(split_template_text(text)) < 2:
-        return {pid: (start, end) for pid in pattern_ids}
-    spans = extract_timed_spans_in_range(
-        db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
-    words = [' '.join(span['text'].split()) for span in spans]
-    joined = ' '.join(words)
-    offsets = [sum(len(w) + 1 for w in words[:i]) for i in range(len(words))]
-    found = {}
-    patterns = db.get_ad_patterns_by_ids(pattern_ids)
-    for pid in pattern_ids:
-        pattern = patterns.get(pid) or {}
-        template = ' '.join((pattern.get('text_template') or '').split())
-        lo = joined.find(template) if template else -1
-        covered = [] if lo < 0 else [
-            i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < lo + len(template)]
-        if covered:
-            found[pid] = (lo, lo + len(template), covered[0], covered[-1])
-    own = dict.fromkeys(pattern_ids)
-    previous_last, previous_end = None, start
-    for pid, (lo, hi, first, last) in sorted(found.items(), key=lambda item: item[1][:2]):
-        if lo <= 0 and hi >= len(joined):
-            own[pid] = (start, end)
-        else:
-            shared = previous_last == first
-            # no usable timing on a shared segment: the first pattern keeps it whole, the next starts after it
-            after = spans[first + 1]['start'] if first + 1 < len(spans) else spans[first]['end']
-            begin_fallback = after if shared else spans[first]['start']
-            begin = spans[first]['start'] if lo <= offsets[first] else _edge_time(
-                spans, words, offsets, first, lo, begin_fallback)
-            finish = spans[last]['end'] if hi >= offsets[last] + len(words[last]) else _edge_time(
-                spans, words, offsets, last, hi, spans[last]['end'])
-            begin, finish = max(start, begin), min(end, finish)
-            own[pid] = (begin, finish) if finish > begin else None
-        if own[pid] and own[pid][0] < previous_end:
-            # overlapping templates: the earlier pattern keeps the shared time
-            own[pid] = (previous_end, own[pid][1]) if own[pid][1] > previous_end else None
-        if own[pid]:
-            previous_end = own[pid][1]
-        previous_last = last
-    return own
-
-
-def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force_id=None, text=None):
-    """Fingerprint each pattern over its own span, forcing only force_id; returns [(pattern_id, result)]."""
-    # text is what the patterns were cut from; a pattern of a split text with no derivable range stores nothing.
-    try:
-        own = _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text)
-    except Exception as e:
-        logger.warning(f"Could not derive the pattern spans of {slug}/{episode_id}: {e}")
-        own = dict.fromkeys(pattern_ids)
-    outcomes = []
-    episode_audio = _EpisodeAudio(db, slug, episode_id)
-    for pid in pattern_ids:
-        if own[pid] is None:
-            outcomes.append((pid, FingerprintStoreResult(False, 'span_covers_multiple_patterns')))
-        else:
-            outcomes.append((pid, _store_pattern_audio(
-                db, slug, episode_id, pid, *own[pid], force=pid == force_id, episode_audio=episode_audio)))
-    return outcomes
 
 
 def fingerprint_response_fields(outcomes):
@@ -1057,7 +940,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         f"pattern_id={new_pattern_id}, sponsor='{canonical_sponsor_name}', "
         f"start={start}, end={end}, scope={scope}"
     )
-    outcomes = _store_patterns_audio(
+    outcomes = store_patterns_audio(
         db, slug, episode_id, pattern_ids, start, end, text=text_template)
     return json_response({
         'message': 'New ad marker created',
@@ -1414,7 +1297,7 @@ def _handle_confirm_correction(
                         db, slug, episode_id, original_start, original_end),
                 )
 
-    outcomes = _store_patterns_audio(
+    outcomes = store_patterns_audio(
         db, slug, episode_id, pattern_ids, eff_start, eff_end, text=resolved_text)
 
     podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
@@ -1771,7 +1654,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
                 db, slug, episode_id, original_start, original_end),
         )
 
-    outcomes = _store_patterns_audio(
+    outcomes = store_patterns_audio(
         db, slug, episode_id, pattern_ids, adjusted_start, adjusted_end,
         force_id=pattern_id, text=resolved_text)
     for stored_id, result in outcomes:

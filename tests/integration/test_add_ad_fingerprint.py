@@ -5,7 +5,7 @@ from tests.integration.fingerprint_helpers import (  # noqa: E402
     EPISODE, FIRST_READ, SECOND_TEMPLATE, SLUG, TEMPLATE, TWO_SPONSORS, post_correction, seed_timed_transcript,
     seed_two_sponsor_transcript,
 )
-from api.patterns import _own_pattern_spans  # noqa: E402  must follow the helpers, which bootstrap the data dir
+from pattern_audio import own_pattern_spans  # noqa: E402  must follow the helpers, which bootstrap the data dir
 
 
 def _create(app_client, start=10.0, end=40.0):
@@ -209,7 +209,7 @@ def _own(timed_lines, templates, text=THREE_SPONSORS, start=10.0, end=100.0):
     def stamp(sec):
         return f'{int(sec // 60):02d}:{sec % 60:06.3f}'
     transcript = '\n'.join(f'[00:{stamp(a)} --> 00:{stamp(b)}] {line}' for a, b, line in timed_lines)
-    return _own_pattern_spans(_FakeDb(transcript, templates), SLUG, EPISODE, list(templates), start, end, text)
+    return own_pattern_spans(_FakeDb(transcript, templates), SLUG, EPISODE, list(templates), start, end, text)
 
 
 def test_three_patterns_across_segments_each_get_their_own_span():
@@ -239,7 +239,7 @@ def test_a_template_wholly_inside_an_earlier_one_gets_no_span():
 
 def test_a_multi_pattern_request_resolves_and_probes_the_original_once(
         app_client, fp_feed, fp_original, stub_fingerprinting, monkeypatch):
-    import api.patterns as patterns_api
+    import pattern_audio as patterns_api
     from audio_fingerprinter import AudioFingerprinter
     resolved, probed = [], []
     real_resolve = patterns_api.resolve_retained_original
