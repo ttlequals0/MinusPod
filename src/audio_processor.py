@@ -132,17 +132,11 @@ class AudioProcessor:
         the render resolves it so the two cannot read different files."""
         return AudioMetadata.get_duration(self.resolve_replace_audio_path()) or 1.0
 
-    def convert_to_mp3(self, input_path: str) -> str | None:
-        """Transcode an episode to MP3 at this instance's bitrate, with no
-        other changes. Used by pass-through mode (#521) for non-MP3
-        enclosures: the serving stack names files .mp3 and declares
-        audio/mpeg, so other containers must be converted to stay playable.
-        Returns the new file's path, or None on failure."""
-        if not os.path.exists(input_path):
-            logger.error(f"Convert input not found: {input_path}")
-            return None
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.converted.mp3') as tmp:
+    def _ffmpeg_to_mp3(self, input_path: str, suffix: str, extra_args: list[str],
+                       label: str, start_msg: str, done_msg: str | None = None) -> str | None:
+        """Run one ffmpeg MP3 pass into a temp file; return its path, or None
+        on failure (the temp file is removed)."""
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             output_path = tmp.name
 
         success = False
@@ -153,14 +147,14 @@ class AudioProcessor:
             cmd = [
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
-                '-vn',
+                *extra_args,
                 *self._mp3_encode_args(),
             ]
             if source_tag is not None:
                 cmd += ['-id3v2_version', str(source_tag.version)]
             cmd.append(output_path)
             timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
-            logger.info("Running FFMPEG convert-to-mp3")
+            logger.info(start_msg)
             result = tracked_run(cmd, capture_output=True, timeout=timeout)
 
             if result.returncode != 0:
@@ -168,30 +162,47 @@ class AudioProcessor:
                     stderr_text = result.stderr.decode('utf-8', errors='replace')
                 except Exception:
                     stderr_text = redact_stored_text(str(result.stderr))[:500]
-                logger.error(f"FFMPEG convert failed: {stderr_text}")
+                logger.error(f"FFMPEG {label} failed: {stderr_text}")
                 return None
 
             output_duration = self.get_audio_duration(output_path)
             if not output_duration:
-                logger.error("Convert output unreadable")
+                logger.error(f"{label.capitalize()} output unreadable")
                 return None
 
+            if done_msg:
+                logger.info(done_msg)
             restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
             success = True
             return output_path
 
         except subprocess.TimeoutExpired:
-            logger.error("FFMPEG convert timed out")
+            logger.error(f"FFMPEG {label} timed out")
             return None
         except Exception as e:
-            logger.error(f"Convert failed: {e}")
+            logger.error(f"{label.capitalize()} failed: {e}")
             return None
         finally:
+            # On any non-success exit, drop the partial/unreadable temp output.
             if not success and os.path.exists(output_path):
                 try:
                     os.unlink(output_path)
                 except OSError:
                     pass
+
+    def convert_to_mp3(self, input_path: str) -> str | None:
+        """Transcode an episode to MP3 at this instance's bitrate, with no
+        other changes. Used by pass-through mode (#521) for non-MP3
+        enclosures: the serving stack names files .mp3 and declares
+        audio/mpeg, so other containers must be converted to stay playable.
+        Returns the new file's path, or None on failure."""
+        if not os.path.exists(input_path):
+            logger.error(f"Convert input not found: {input_path}")
+            return None
+
+        return self._ffmpeg_to_mp3(
+            input_path, '.converted.mp3', ['-vn'], 'convert',
+            'Running FFMPEG convert-to-mp3')
 
     def normalize_audio(self, input_path: str,
                         intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> str | None:
@@ -213,58 +224,10 @@ class AudioProcessor:
             logger.error(f"Normalize input not found: {input_path}")
             return None
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.normalized.mp3') as tmp:
-            output_path = tmp.name
-
-        success = False
-        try:
-            source_info = probe_render_input(input_path)
-            source_tag = source_chapter_tag(input_path, source_info.chapters if source_info else False)
-            duration = source_info.duration if source_info else 0
-            cmd = [
-                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
-                '-i', input_path,
-                '-filter:a', filter_str,
-                *self._mp3_encode_args(),
-            ]
-            if source_tag is not None:
-                cmd += ['-id3v2_version', str(source_tag.version)]
-            cmd.append(output_path)
-            timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
-            logger.info(f"Running FFMPEG normalize (intensity={intensity})")
-            result = tracked_run(cmd, capture_output=True, timeout=timeout)
-
-            if result.returncode != 0:
-                try:
-                    stderr_text = result.stderr.decode('utf-8', errors='replace')
-                except Exception:
-                    stderr_text = redact_stored_text(str(result.stderr))[:500]
-                logger.error(f"FFMPEG normalize failed: {stderr_text}")
-                return None
-
-            output_duration = self.get_audio_duration(output_path)
-            if not output_duration:
-                logger.error("Normalize output unreadable")
-                return None
-
-            logger.info("FFMPEG normalize complete")
-            restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
-            success = True
-            return output_path
-
-        except subprocess.TimeoutExpired:
-            logger.error("FFMPEG normalize timed out")
-            return None
-        except Exception as e:
-            logger.error(f"Normalize failed: {e}")
-            return None
-        finally:
-            # On any non-success exit, drop the partial/unreadable temp output.
-            if not success and os.path.exists(output_path):
-                try:
-                    os.unlink(output_path)
-                except OSError:
-                    pass
+        return self._ffmpeg_to_mp3(
+            input_path, '.normalized.mp3', ['-filter:a', filter_str], 'normalize',
+            f"Running FFMPEG normalize (intensity={intensity})",
+            done_msg="FFMPEG normalize complete")
 
     def compute_applied_cuts(self, ad_segments: list[dict],
                              total_duration: float,
