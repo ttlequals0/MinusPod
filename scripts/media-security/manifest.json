@@ -366,6 +366,12 @@
           "path": "patches/srt-listener-test-order.patch",
           "sha256": "527ac459dff2856d9aa3ec607f0158edd35e827bd4636dc05a2729cf0a097cfb",
           "cves": []
+        },
+        {
+          "file": "srt-epoll-test-socket-ownership.patch",
+          "path": "patches/srt-epoll-test-socket-ownership.patch",
+          "sha256": "5e4ac4ced4274fdaab8cf04cdf92209365158aec6678c9479edf117e02ce985c",
+          "cves": []
         }
       ],
       "cves": [

@@ -206,7 +206,7 @@ you submit it.
 
 ### Working with a pattern's audio
 
-A pattern that has an audio fingerprint has an Audio tab in its detail dialog on the Patterns page. What each control does is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints). The common jobs:
+Open a pattern on the Patterns page and select its Audio tab. What each control does is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints). The common jobs:
 
 - **Stop a pattern matching by sound.** Turn the Audio switch off. The pattern keeps matching by text. To stop both, turn the whole pattern off.
 - **A match cuts the wrong span.** Under Recent matches, press Play to hear it, then Not this ad. The match stops counting and the existing reject correction is saved for that episode. If the stored ad itself is wrong, use Edit edges instead.

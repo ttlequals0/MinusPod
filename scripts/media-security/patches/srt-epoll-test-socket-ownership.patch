@@ -1,0 +1,15 @@
+Subject: Leave the listener close to its owner in SimpleAsync
+
+SimpleAsync owns the listener through UniqueSocket. Closing it in runServer
+causes the owner to close an invalid socket when the test returns.
+
+--- a/test/test_epoll.cpp
++++ b/test/test_epoll.cpp
+@@ -730,7 +730,6 @@
+         std::cout << "serverSocket finished waiting" << std::endl;
+ 
+         srt_close(acpsock);
+-        srt_close(servsock);
+     }
+ 
+     void setup() override
