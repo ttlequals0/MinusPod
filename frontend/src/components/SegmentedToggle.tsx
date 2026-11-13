@@ -3,7 +3,7 @@ import { btnPadY, btnSecondary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { useGroupDisabled } from './DisabledGroup';
 
-export interface SegmentedOption<T extends string | number> {
+interface SegmentedOption<T extends string | number> {
   value: T;
   label: string;
   title?: string;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export interface ThemeColors {
+interface ThemeColors {
   primary: string;
   card: string;
   border: string;

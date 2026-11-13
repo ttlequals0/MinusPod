@@ -15,7 +15,7 @@ export interface CommunitySyncSettings {
   categoryBreakdown: Record<string, number>;
 }
 
-export interface CommunitySyncSummary {
+interface CommunitySyncSummary {
   inserted: number;
   updated: number;
   deleted: number;
@@ -59,7 +59,7 @@ export async function purgeAllCommunityPatterns(): Promise<{ deleted: number }> 
   });
 }
 
-export interface ReviewerSettings {
+interface ReviewerSettings {
   updatePatternsFromReviewerAdjustments: boolean;
   minTrimThreshold: number;
   parallelAds: number;
@@ -102,12 +102,12 @@ export async function updateSponsorTags(sponsorId: number, tags: string[]): Prom
   });
 }
 
-export interface TagVocabularyEntry {
+interface TagVocabularyEntry {
   tag: string;
   description: string;
 }
 
-export interface TagVocabulary {
+interface TagVocabulary {
   vocabulary_version: number;
   all_tags: string[];
   podcast_genres: TagVocabularyEntry[];

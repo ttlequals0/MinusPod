@@ -15,7 +15,7 @@ const MIN_HEIGHT_PX = 96;
 export type PopoverAlign = 'left' | 'right' | 'auto';
 export type PopoverCloseReason = 'escape' | 'outside' | 'anchor-hidden';
 
-export interface PopoverOptions {
+interface PopoverOptions {
   onClose: (reason: PopoverCloseReason) => void;
   anchorRef: RefObject<HTMLElement | null>;
   /** Which panel edge lines up with the anchor. `auto` flips to the edge that fits. */
@@ -187,7 +187,7 @@ export function usePopover({ onClose, anchorRef, align = 'auto', centerOnMobile 
   return { centered, panelProps: { ref: attachPanel, style } };
 }
 
-export interface PopoverTabsOptions {
+interface PopoverTabsOptions {
   open: boolean;
   setOpen: (open: boolean) => void;
   triggerRef: RefObject<HTMLElement | null>;

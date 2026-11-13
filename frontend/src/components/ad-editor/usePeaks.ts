@@ -10,7 +10,7 @@ import { getErrorMessage } from '../../api/client';
 // before extraction so behavior is preserved.
 const PEAK_RESOLUTION_MS = 100;
 
-export interface UsePeaksResult {
+interface UsePeaksResult {
   peaks: number[] | null;
   peakResolutionMs: number;
   peaksError: string | null;

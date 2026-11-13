@@ -15,7 +15,7 @@ export async function setCueDetectionVerdict(
   });
 }
 
-export interface CueTemplateHint {
+interface CueTemplateHint {
   templateId: number;
   label: string | null;
   hint: 'raise_threshold' | 'recapture';
@@ -23,7 +23,7 @@ export interface CueTemplateHint {
   confirmed: number;
 }
 
-export interface CueFeedAdvisory {
+interface CueFeedAdvisory {
   total: number;
   snapped: number;
   paired: number;
@@ -44,7 +44,7 @@ export async function getCueFeedAdvisory(slug: string): Promise<CueFeedAdvisory>
   return apiRequest<CueFeedAdvisory>(`/feeds/${slug}/cue-detections/advisory`);
 }
 
-export interface CueScoreBucket {
+interface CueScoreBucket {
   scoreFrom: number;
   count: number;
 }
@@ -52,7 +52,7 @@ export interface CueScoreBucket {
 // Global cue telemetry for threshold tuning. Extends the feed advisory shape
 // (totals count above-threshold cues only) with a match-score histogram, a
 // separate near-miss histogram + total, and a per-reason unused breakdown.
-export interface CueAggregateStats extends CueFeedAdvisory {
+interface CueAggregateStats extends CueFeedAdvisory {
   scoreHistogram: CueScoreBucket[];
   nearMissHistogram: CueScoreBucket[];
   nearMissTotal: number;

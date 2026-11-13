@@ -1,4 +1,4 @@
-export interface WhisperLanguage {
+interface WhisperLanguage {
   code: string;
   name: string;
 }

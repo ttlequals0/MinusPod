@@ -8,7 +8,7 @@ import { mediaUrl } from '../utils/mediaUrl';
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
 // and backend can't drift on the source-discriminator string spellings.
 export const PATTERN_SOURCE_COMMUNITY = 'community';
-export type PatternSource = 'local' | typeof PATTERN_SOURCE_COMMUNITY | 'imported';
+type PatternSource = 'local' | typeof PATTERN_SOURCE_COMMUNITY | 'imported';
 
 // Mirrors the scope discriminator stored on ad_patterns rows. UI filters
 // (PatternsPage) and backend get_ad_patterns accept the same three values.
@@ -93,7 +93,7 @@ export interface PatternCorrection {
   pieces?: Array<{ sponsor?: string }>;
 }
 
-export interface SplitCandidate {
+interface SplitCandidate {
   time: number;
   phrase: string;
 }
@@ -105,7 +105,7 @@ export interface SplitPiece {
   sponsor: string | null;
 }
 
-export interface SplitCandidatesResponse {
+interface SplitCandidatesResponse {
   episodeId: string;
   start: number;
   end: number;
@@ -113,7 +113,7 @@ export interface SplitCandidatesResponse {
   pieces: SplitPiece[];
 }
 
-export interface SplitCorrectionResult {
+interface SplitCorrectionResult {
   message: string;
   markerCount: number;
   patternIds: number[];
@@ -121,7 +121,7 @@ export interface SplitCorrectionResult {
 
 // Pattern Stats
 
-export interface PatternStats {
+interface PatternStats {
   total: number;
   active: number;
   inactive: number;
@@ -219,7 +219,7 @@ export async function submitCorrection(
   });
 }
 
-export interface UnresolvedCorrectionCandidate {
+interface UnresolvedCorrectionCandidate {
   slug: string;
   podcast_title: string | null;
   episode_title: string | null;
@@ -241,7 +241,7 @@ export interface UnresolvedCorrection {
   candidates: UnresolvedCorrectionCandidate[];
 }
 
-export interface UnresolvedCorrectionsResponse {
+interface UnresolvedCorrectionsResponse {
   count: number;
   corrections: UnresolvedCorrection[];
 }
@@ -304,7 +304,7 @@ export async function submitSplit(
 
 // Bulk + community-pattern API
 
-export interface MergeSuggestionMember {
+interface MergeSuggestionMember {
   id: number;
   text_template: string;
   confirmation_count: number;
@@ -328,7 +328,7 @@ export async function getMergeSuggestions(): Promise<MergeSuggestion[]> {
   return res.suggestions;
 }
 
-export interface MergePatternsResult {
+interface MergePatternsResult {
   message: string;
   kept_pattern_id: number;
   merged_count: number;
@@ -357,7 +357,7 @@ export interface PatternOverride {
 
 export type PatternOverrides = Record<number, PatternOverride>;
 
-export interface BundlePreviewRejection {
+interface BundlePreviewRejection {
   id: number;
   sponsor: string | null;
   reasons: string[];
@@ -406,7 +406,7 @@ export async function unprotectPattern(id: number): Promise<void> {
   await apiRequest(`/patterns/${id}/protect`, { method: 'DELETE' });
 }
 
-export interface SplitPatternResult {
+interface SplitPatternResult {
   success: boolean;
   original_pattern_id: number;
   new_pattern_ids: number[];

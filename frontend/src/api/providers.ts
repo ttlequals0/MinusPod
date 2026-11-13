@@ -26,7 +26,7 @@ export interface ProvidersResponse {
   'systemone-compatible': ProviderStatus;
 }
 
-export interface ProviderUpdatePayload {
+interface ProviderUpdatePayload {
   apiKey?: string | null;
   baseUrl?: string;
   model?: string;
@@ -59,7 +59,7 @@ export function clearProvider(name: ProviderName) {
 
 // Work still bound to a slot's current account, read before a save that
 // changes that slot's endpoint or provider type.
-export interface AffectedRun {
+interface AffectedRun {
   id: string;
   slug: string;
   episodeId: string;
@@ -67,7 +67,7 @@ export interface AffectedRun {
   state: string;
 }
 
-export interface AffectedRuns {
+interface AffectedRuns {
   count: number;
   runs: AffectedRun[];
 }

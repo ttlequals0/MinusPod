@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { revokeSubscriberKey, deleteSubscriberKeyRecord, ALL_SUBSCRIBER_KEYS_QUERY_KEY } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
 
-export interface SubscriberKeyRef {
+interface SubscriberKeyRef {
   slug: string;
   id: string;
 }

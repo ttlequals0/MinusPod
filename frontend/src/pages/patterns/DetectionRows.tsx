@@ -117,7 +117,7 @@ function DetectionMeta({ d, showCategory }: { d: ReviewDetection; showCategory: 
   );
 }
 
-export interface DetectionRowActions {
+interface DetectionRowActions {
   // Each action renders only when its handler is supplied. Confirm and Not ad
   // additionally require an unresolved row: a decided detection has nothing
   // left to decide.

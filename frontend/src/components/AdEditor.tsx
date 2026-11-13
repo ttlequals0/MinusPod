@@ -5,7 +5,7 @@ import type { PatternScope } from '../api/patterns';
 import { Plus } from 'lucide-react';
 import { btnBase, btnPrimary, btnGhost } from './buttonStyles';
 
-export interface DetectedAd {
+interface DetectedAd {
   start: number;
   end: number;
   confidence: number;

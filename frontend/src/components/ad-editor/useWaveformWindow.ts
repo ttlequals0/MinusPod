@@ -6,7 +6,7 @@ import {
   type MutableRefObject,
 } from 'react';
 
-export interface WaveformWindow {
+interface WaveformWindow {
   zoom: number;
   /** Visible time span [windowStart, windowEnd]; the rendered view IS the window. */
   windowStart: number;

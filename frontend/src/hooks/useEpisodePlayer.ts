@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react';
 import { useLocalStorageState } from './useLocalStorageState';
 
-export interface PlayerChapter {
+interface PlayerChapter {
   startTime: number;
   title: string;
 }

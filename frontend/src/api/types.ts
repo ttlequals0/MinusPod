@@ -329,28 +329,28 @@ export interface SbSubmission {
   detail?: string;
 }
 
-export interface EpisodeNeighbor {
+interface EpisodeNeighbor {
   id: string;
   title: string;
 }
 
 // Cross-fetch differential result (Layer 3), stored per episode as
 // dai_differential. Inner keys are snake_case as produced by fetch_and_diff.
-export interface DaiDifferentialRegion {
+interface DaiDifferentialRegion {
   start_s: number;
   end_s: number;
   kind: 'differential' | 'identical' | 'unknown';
   corr: number | null;
 }
 
-export interface DaiDifferential {
+interface DaiDifferential {
   status: 'ok' | 'no_differential' | 'unreliable_reencode' | 'error';
   regions: DaiDifferentialRegion[];
   refetch_meta?: Record<string, unknown>;
   error?: string | null;
 }
 
-export type UpstreamTranscriptStatus = 'ok' | 'none' | 'unreliable' | 'empty' | 'error';
+type UpstreamTranscriptStatus = 'ok' | 'none' | 'unreliable' | 'empty' | 'error';
 
 // Spans of Whisper audio the publisher's transcript omits.
 export interface UpstreamTranscript {
@@ -363,7 +363,7 @@ export interface UpstreamTranscript {
 // Windows the latest run lost in one pass, and what they were lost to
 // (rate_limit, server_error, connectivity, reasoning_exhausted,
 // output_truncated, empty_completion, context_overflow, other).
-export interface CoverageGap {
+interface CoverageGap {
   failed: number;
   total: number | null;
   failureClasses?: Record<string, number> | null;
@@ -473,7 +473,7 @@ export interface RunPhaseUsage {
   costSource: 'provider_reported' | 'estimated' | 'explicit_zero' | 'unknown' | 'mixed';
 }
 
-export interface RunSpend {
+interface RunSpend {
   runId: string | null;
   inputTokens: number;
   outputTokens: number;
@@ -484,7 +484,7 @@ export interface RunSpend {
   hasUnknownCost: boolean;
 }
 
-export interface CumulativeSpend {
+interface CumulativeSpend {
   inputTokens: number;
   outputTokens: number;
   costUsd: string;
@@ -496,7 +496,7 @@ export interface CumulativeSpend {
 // Per-run pipeline stats blob (#519). Null-heavy by design: runs recorded
 // before 2.53.0 and recut runs have no blob at all, and a failed run keeps
 // whatever was gathered before the failure.
-export interface ProcessingRunStats {
+interface ProcessingRunStats {
   mode?: string;
   // Skip ad detection (#538): the run made no detection LLM calls and cut
   // nothing; stageHits/detected/verificationAdsCut are absent by design.
@@ -572,7 +572,7 @@ export type ThinkingNoticePass =
   | 'reviewer_pass_2'
   | 'chapter_generation';
 
-export interface ThinkingCompatibilityNotice {
+interface ThinkingCompatibilityNotice {
   pass: ThinkingNoticePass;
   provider: 'anthropic' | 'openrouter' | 'openai-compatible' | 'ollama' | 'unknown';
   model: string;
@@ -645,7 +645,7 @@ export interface CueDetection {
   unused_reason?: string | null;
 }
 
-export interface AdValidation {
+interface AdValidation {
   decision: 'ACCEPT' | 'REVIEW' | 'REJECT';
   adjusted_confidence: number;
   original_confidence?: number;
@@ -740,12 +740,12 @@ export interface SettingValue {
   isDefault: boolean;
 }
 
-export interface SettingValueBoolean {
+interface SettingValueBoolean {
   value: boolean;
   isDefault: boolean;
 }
 
-export interface SettingValueNumber {
+interface SettingValueNumber {
   value: number;
   isDefault: boolean;
 }
@@ -759,7 +759,7 @@ interface SettingValueRange extends SettingValueNumber {
 
 // Int-or-blank settings (failover/per-provider timeout and retry overrides):
 // null means "use the provider type's default", not an unset field.
-export interface SettingValueNumberOrNull {
+interface SettingValueNumberOrNull {
   value: number | null;
   isDefault: boolean;
 }
@@ -772,7 +772,7 @@ export interface ModelPricingOverride {
 
 export type ModelPricingOverrides = Record<string, ModelPricingOverride>;
 
-export interface WhisperHealthInstance {
+interface WhisperHealthInstance {
   instance: string;
   model: string;
   device: string;
@@ -882,7 +882,7 @@ export interface SystemOneProfile {
 }
 
 export type SystemOneProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
-export type SystemOneProfileDefaults = Record<SystemOneCredentialSlot, Record<SystemOneProvider, boolean>>;
+type SystemOneProfileDefaults = Record<SystemOneCredentialSlot, Record<SystemOneProvider, boolean>>;
 
 // Sentinel stored in review_provider (and only there): the reviewer inherits
 // both the provider and model of whichever pass it is reviewing.
@@ -1723,7 +1723,7 @@ export interface ProcessingHistoryResponse {
   totalPages: number;
 }
 
-export type DownloadGeoStatus = 'ok' | 'private' | 'failed' | 'unresolvable';
+type DownloadGeoStatus = 'ok' | 'private' | 'failed' | 'unresolvable';
 
 export interface DownloadHistoryEntry {
   id: number;
@@ -1873,7 +1873,7 @@ export interface ReviewerStats {
 
 // Per-addressing-mode LLM contract compliance stats, from addressing_log.
 // Always has both keys; a mode with no recorded runs is all zeros.
-export interface AddressingModeStats {
+interface AddressingModeStats {
   runs: number;
   windowsJudged: number;
   windowsCompliant: number;
@@ -2081,7 +2081,7 @@ export interface QueueAdmission {
   resumesAt: string | null;
 }
 
-export interface ReleaseInfo {
+interface ReleaseInfo {
   version: string;
   releaseDate: string | null;
   url: string | null;

@@ -1,7 +1,7 @@
 // Backend merges gaps strictly below this; it also merges silent gaps up to 30 s the UI cannot detect.
 const AD_BLOCK_MERGE_GAP_S = 5;
 
-export interface AdBlock<T extends { start: number; end: number }> {
+interface AdBlock<T extends { start: number; end: number }> {
   start: number;
   end: number;
   members: T[];

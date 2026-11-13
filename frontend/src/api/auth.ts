@@ -5,12 +5,12 @@ export interface AuthStatus {
   authenticated: boolean;
 }
 
-export interface LoginResponse {
+interface LoginResponse {
   authenticated: boolean;
   message: string;
 }
 
-export interface PasswordChangeResponse {
+interface PasswordChangeResponse {
   message: string;
   passwordSet: boolean;
 }

@@ -101,7 +101,7 @@ export async function getEpisodeCostRuns(
   return apiRequest<{ runs: EpisodeProcessingRun[] }>(`/stats/episode-costs/runs${qs}`);
 }
 
-export interface LedgerFilterScope {
+interface LedgerFilterScope {
   from?: string;
   to?: string;
   podcastSlug?: string;
@@ -117,7 +117,7 @@ export async function getLedgerFilterOptions(
 }
 
 // Scope: one run, or one episode across all its runs.
-export interface SpendAttemptsScope {
+interface SpendAttemptsScope {
   runId?: string;
   slug?: string;
   episodeId?: string;

@@ -31,7 +31,7 @@ const MIN_PIECE_SECONDS = 7.0;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 50;
 
-export interface SplitMarkerTarget {
+interface SplitMarkerTarget {
   podcastSlug: string;
   episodeId: string;
   start: number;

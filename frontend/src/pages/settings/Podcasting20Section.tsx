@@ -44,7 +44,7 @@ const CHAPTER_GEOMETRY_FIELDS = [
 type GeometryKey = (typeof CHAPTER_GEOMETRY_FIELDS)[number]['key'];
 const CHAPTER_GEOMETRY_KEYS = CHAPTER_GEOMETRY_FIELDS.map((f) => f.key);
 
-export interface ChapterGeometryProps {
+interface ChapterGeometryProps {
   tunables: StageTunables;
   defaults: Record<keyof StageTunables, number | string | null>;
   onSave: (payload: UpdateSettingsPayload) => void;

@@ -1,6 +1,6 @@
 interface MenuCopy { subtitle: string; tooltip: string }
 
-export interface ReprocessMenuCopy {
+interface ReprocessMenuCopy {
   reprocess: MenuCopy;
   full: MenuCopy;
   redetect: MenuCopy;

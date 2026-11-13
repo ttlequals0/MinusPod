@@ -47,7 +47,7 @@ export async function getEpisodeRunLog(
 // How long the editor waits for a waveform that is still being prepared.
 const PEAKS_BUSY_BUDGET_MS = 10 * 60 * 1000;
 
-export interface PeaksResponse {
+interface PeaksResponse {
   episodeId: string;
   start: number;
   end: number | null;
@@ -71,7 +71,7 @@ export async function getEpisodePeaks(
 }
 
 
-export interface TranscriptSpanResponse {
+interface TranscriptSpanResponse {
   episodeId: string;
   start: number;
   end: number;
@@ -104,7 +104,7 @@ export interface OriginalSegment {
   words?: TranscriptWord[];
 }
 
-export interface OriginalSegmentsResponse {
+interface OriginalSegmentsResponse {
   episodeId: string;
   segments: OriginalSegment[];
 }
@@ -137,7 +137,7 @@ export async function getOriginalTranscript(slug: string, episodeId: string): Pr
   return response.originalTranscript;
 }
 
-export interface FeedsResponse {
+interface FeedsResponse {
   feeds: Feed[];
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
   // scheduler or Refresh All); null until the first pass completes.
@@ -151,9 +151,9 @@ export interface FeedsResponse {
   offset?: number;
 }
 
-export type FeedSortField = 'recent' | 'title';
+type FeedSortField = 'recent' | 'title';
 
-export interface GetFeedsParams {
+interface GetFeedsParams {
   page?: number;
   limit?: number;
   // Adds a bounded per-feed `latestEpisodes` projection via one windowed
@@ -203,7 +203,7 @@ export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
 }
 
-export interface SubscriberKey {
+interface SubscriberKey {
   id: string;
   label: string;
   created_at: string;
@@ -211,7 +211,7 @@ export interface SubscriberKey {
   revoked_at: string | null;
 }
 
-export interface CreatedSubscriberKey extends SubscriberKey {
+interface CreatedSubscriberKey extends SubscriberKey {
   token: string;
   feedUrl: string;
 }
@@ -266,7 +266,7 @@ export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
 
-export interface FeedCreateOptions {
+interface FeedCreateOptions {
   slug?: string;
   autoProcessOverride?: boolean | null;
   maxEpisodes?: number;
@@ -289,7 +289,7 @@ export async function addFeed(sourceUrl: string, options: FeedCreateOptions = {}
   });
 }
 
-export interface AddLocalFeedPayload {
+interface AddLocalFeedPayload {
   title: string;
   slug?: string;
   description?: string;
@@ -298,7 +298,7 @@ export interface AddLocalFeedPayload {
   categories?: string[];
 }
 
-export interface AddLocalFeedResult {
+interface AddLocalFeedResult {
   slug: string;
   feedType: 'local';
   feedUrl: string;
@@ -312,12 +312,12 @@ export async function addLocalFeed(payload: AddLocalFeedPayload): Promise<AddLoc
   });
 }
 
-export interface AddRecentsFeedPayload {
+interface AddRecentsFeedPayload {
   title?: string;
   description?: string;
 }
 
-export interface AddRecentsFeedResult {
+interface AddRecentsFeedResult {
   slug: string;
   feedType: 'recents';
   feedUrl: string;
@@ -332,7 +332,7 @@ export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<Ad
   });
 }
 
-export interface AddYoutubeFeedPayload extends FeedCreateOptions {
+interface AddYoutubeFeedPayload extends FeedCreateOptions {
   sourceKind: 'playlist' | 'channel' | 'video';
   sourceId: string;
   title: string;
@@ -351,7 +351,7 @@ export async function addYoutubeFeed(
   });
 }
 
-export interface UploadFeedArtworkResult {
+interface UploadFeedArtworkResult {
   message: string;
   artworkUrl: string;
   warning?: string;
@@ -369,7 +369,7 @@ export async function uploadFeedArtwork(slug: string, file: File): Promise<Uploa
   });
 }
 
-export interface DeleteFeedResult {
+interface DeleteFeedResult {
   message: string;
   slug: string;
   pending: boolean;
@@ -417,7 +417,7 @@ export async function regenerateAllFeeds(): Promise<{ message: string; feedCount
 
 export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'titleSkipped' | 'descriptionSkipped' | 'durationSkipped'>;
 
-export interface EpisodesResponse {
+interface EpisodesResponse {
   selection?: EpisodeSelection[];
   // Present only with selection=true; true when the match count exceeded the 501-row cap.
   truncated?: boolean;
@@ -451,7 +451,7 @@ export async function approveEpisode(slug: string, episodeId: string): Promise<E
   return apiRequest<Episode>(`/feeds/${slug}/episodes/${episodeId}/approve`, { method: 'POST' });
 }
 
-export interface ReprocessEpisodeResult {
+interface ReprocessEpisodeResult {
   message: string;
   mode: string;
   jobState?: JobState;
@@ -622,7 +622,7 @@ export async function reprocessAllEpisodes(
 }
 
 // The run is started in the background; the episode reports its outcome.
-export interface RegenerateChaptersResult {
+interface RegenerateChaptersResult {
   message: string;
   episodeId: string;
   status: 'started';
@@ -665,7 +665,7 @@ export async function bulkEpisodeAction(
   });
 }
 
-export interface SetEpisodesPassthroughResult {
+interface SetEpisodesPassthroughResult {
   updated: number;
   // Episodes also enqueued for a reprocess so the flag applies this run.
   // Only set (>0) when enabled=true; clearing never forces a reprocess.
@@ -692,7 +692,7 @@ export async function setEpisodesPassthrough(
 
 // ========== Local feed episode management (#625 Task 13) ==========
 
-export interface LocalEpisodeUploadResult extends Episode {
+interface LocalEpisodeUploadResult extends Episode {
   episodeNumber?: number;
   seasonNumber?: number;
   queued: boolean;
@@ -830,7 +830,7 @@ export async function importCommit(
   });
 }
 
-export interface ImportReportEntry {
+interface ImportReportEntry {
   episodeId: string;
   audioFile?: string;
   warnings?: string[];
@@ -838,7 +838,7 @@ export interface ImportReportEntry {
   error?: string;
 }
 
-export interface ImportReport {
+interface ImportReport {
   committed: ImportReportEntry[];
   skipped: ImportReportEntry[];
   failed: ImportReportEntry[];

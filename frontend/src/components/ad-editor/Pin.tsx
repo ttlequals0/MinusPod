@@ -13,7 +13,7 @@ const DEFAULT_MIN_SEPARATION = 1.0;
 const NUDGE_SECONDS = 0.1;
 const NUDGE_SECONDS_COARSE = 1.0;
 
-export interface PinProps {
+interface PinProps {
   kind: 'start' | 'end' | 'divider';
   boundary: number;
   windowStart: number;

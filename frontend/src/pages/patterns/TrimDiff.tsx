@@ -1,4 +1,4 @@
-export interface TrimParts {
+interface TrimParts {
   before: string;
   kept: string;
   after: string;

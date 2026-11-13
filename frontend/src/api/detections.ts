@@ -1,8 +1,8 @@
 import { apiRequest, buildQueryString } from './client';
 import type { AdSegment } from './types';
 
-export type DetectionStatus = 'accepted' | 'rejected' | 'pending';
-export type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
+type DetectionStatus = 'accepted' | 'rejected' | 'pending';
+type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
 export type DetectionStatusFilter =
   | 'needs_review' | 'pending' | 'rejected' | 'accepted' | 'all';
 export type DetectionSort = 'date' | 'confidence' | 'podcast';
@@ -76,7 +76,7 @@ export interface DetectionListResponse {
 
 // Type alias (not interface) so it satisfies buildQueryString's Record
 // param via TypeScript's implicit index signature.
-export type DetectionListParams = {
+type DetectionListParams = {
   page?: number;
   limit?: number;
   status?: DetectionStatusFilter;

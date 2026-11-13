@@ -85,7 +85,7 @@ export interface CueTemplate {
   quiet?: boolean;
 }
 
-export interface CueTemplateListResponse {
+interface CueTemplateListResponse {
   templates: CueTemplate[];
 }
 
@@ -96,7 +96,7 @@ export interface CueTemplateMatch {
   score: number;
 }
 
-export interface CueTemplatePreviewResponse {
+interface CueTemplatePreviewResponse {
   templateId: number;
   peakScore: number;
   matches: CueTemplateMatch[];
@@ -192,7 +192,7 @@ export async function previewCueTemplate(
   );
 }
 
-export interface CueScanTemplateResult {
+interface CueScanTemplateResult {
   id: number;
   label: string;
   durationS: number;
@@ -222,7 +222,7 @@ export async function scanEpisodeCues(
   );
 }
 
-export interface ThresholdSuggestion {
+interface ThresholdSuggestion {
   confidence: 'high' | 'partial' | 'low';
   suggested: number | null;
   reason?: string;
@@ -256,7 +256,7 @@ export async function suggestCueThreshold(
   );
 }
 
-export type CueCandidateKind = 'recurring' | 'intro' | 'outro';
+type CueCandidateKind = 'recurring' | 'intro' | 'outro';
 
 export interface CueCandidate {
   start: number;
@@ -294,9 +294,9 @@ export function cueTypeIsNonAd(t: CueTemplateType): boolean {
   return t === 'show_intro' || t === 'show_outro' || t === 'content_transition';
 }
 
-export type CueCandidateScanStatus = 'scanning' | 'ready' | 'error' | 'idle';
+type CueCandidateScanStatus = 'scanning' | 'ready' | 'error' | 'idle';
 
-export interface CueCandidatesResponse {
+interface CueCandidatesResponse {
   episodeId: string;
   // Background-scan status. Older servers omit it; treat a missing status with
   // candidates present as 'ready'.
@@ -307,16 +307,16 @@ export interface CueCandidatesResponse {
 
 // Cross-episode scan types and client (D1b backend).
 
-export type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
+type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
 
-export interface CrossEpisodeMatch {
+interface CrossEpisodeMatch {
   start: number;
   end: number;
 }
 
 // One scanned episode's occurrences of a candidate, in that episode's own
 // timeline. matchCount 0 = the sound was not found there.
-export interface CrossEpisodeCandidateEpisode {
+interface CrossEpisodeCandidateEpisode {
   episodeId: string;
   matchCount: number;
   matches: CrossEpisodeMatch[];
@@ -354,9 +354,9 @@ export async function crossEpisodeScan(
 
 // Window-optimizer types and client (D2a backend).
 
-export type CueWindowOptimizeStatus = 'scanning' | 'ready' | 'error';
+type CueWindowOptimizeStatus = 'scanning' | 'ready' | 'error';
 
-export interface CueWindowOptimizeEpisodeScore {
+interface CueWindowOptimizeEpisodeScore {
   episodeId: string;
   peakScore: number;
 }
@@ -392,7 +392,7 @@ export async function optimizeCueWindow(
 
 // Feed-wide "not a cue" feedback (2.44.0). Dismissing stores the sound's
 // fingerprint; future scans of any episode suppress matching candidates.
-export interface CueCandidateDismissal {
+interface CueCandidateDismissal {
   id: number;
   label: string | null;
   sourceEpisodeId: string;

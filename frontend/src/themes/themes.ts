@@ -32,12 +32,12 @@ export const THEME_VAR_KEYS = [
   'ring',
 ] as const;
 
-export type ThemeVarKey = (typeof THEME_VAR_KEYS)[number];
+type ThemeVarKey = (typeof THEME_VAR_KEYS)[number];
 export type ThemeVariables = Record<ThemeVarKey, string>;
 
-export type ThemeGroup = 'Default' | 'Catppuccin' | 'Dracula' | 'Nord' | 'Gruvbox' | 'Solarized' | 'Rose Pine' | 'Kanagawa' | 'Ayu' | 'Other';
+type ThemeGroup = 'Default' | 'Catppuccin' | 'Dracula' | 'Nord' | 'Gruvbox' | 'Solarized' | 'Rose Pine' | 'Kanagawa' | 'Ayu' | 'Other';
 
-export interface ThemePair {
+interface ThemePair {
   id: string;
   label: string;
   group: ThemeGroup;

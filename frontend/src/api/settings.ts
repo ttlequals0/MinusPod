@@ -62,7 +62,7 @@ export interface ProviderBudget {
   };
 }
 
-export interface ProviderBudgetUpdate {
+interface ProviderBudgetUpdate {
   enabled: boolean;
   maxReservations: number;
   unknownCost: 'deny' | 'allow' | 'reserve';
@@ -187,7 +187,7 @@ export async function checkpointDatabase(): Promise<{
   return apiRequest('/system/database/checkpoint', { method: 'POST' });
 }
 
-export interface ProcessingAdmission {
+interface ProcessingAdmission {
   paused: boolean;
   activeRuns: number;
   queuedEpisodes: number;
@@ -399,7 +399,7 @@ export interface WebhookPayload {
   contentType?: string;
 }
 
-export interface TemplateValidationResult {
+interface TemplateValidationResult {
   valid: boolean;
   preview: string;
   error: string | null;
@@ -458,7 +458,7 @@ export interface DatabaseBackupSettings {
   lastSummary: string | null;
 }
 
-export interface DatabaseBackupRunSummary {
+interface DatabaseBackupRunSummary {
   path: string;
   sizeBytes: number;
   durationMs: number;
@@ -481,7 +481,7 @@ export async function updateDatabaseBackupSettings(
   });
 }
 
-export interface OfflineQueueSettings {
+interface OfflineQueueSettings {
   enabled: boolean;
   ttlHours: number;
   deferredCount: number;
@@ -500,7 +500,7 @@ export async function updateOfflineQueueSettings(
   });
 }
 
-export interface RateLimitHoldSettings {
+interface RateLimitHoldSettings {
   enabled: boolean;
   /** ISO timestamp until which new queue claims pause, or null when idle. */
   holdUntil: string | null;
@@ -605,7 +605,7 @@ export async function validateTemplate(template: string): Promise<TemplateValida
 
 // Notification timezone
 
-export interface NotificationTimezoneSettings {
+interface NotificationTimezoneSettings {
   timezone: string;
 }
 

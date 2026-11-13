@@ -57,7 +57,7 @@ const ZOOM_MIN = 1;
 // fit-to-modal scale leaves them as a single pixel. Allow deep zoom.
 const ZOOM_MAX = 500;
 
-export interface CueMarkModalProps {
+interface CueMarkModalProps {
   podcastSlug: string;
   episodeId: string;
   episodeTitle: string;
