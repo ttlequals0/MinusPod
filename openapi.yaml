@@ -5801,6 +5801,9 @@ paths:
       tags:
         - Patterns
       summary: Approve or reject several pattern cleanup suggestions
+      description: >-
+        Each approved split or trim rebuilds audio fingerprints after its own change is saved,
+        like a single approve. This is best effort and a failure never fails the batch.
       operationId: bulkPatternCleanupSuggestions
       requestBody:
         required: true
@@ -5832,6 +5835,11 @@ paths:
                         id: { type: integer }
                         status: { type: string, enum: [approved, rejected] }
                         error: { type: string, enum: [not_found, invalid_transition] }
+                        fingerprintStored:
+                          type: boolean
+                          description: Approve only. Whether a split or trim stored an audio fingerprint. Absent when no audio was involved.
+                        fingerprintSkippedReason:
+                          $ref: '#/components/schemas/FingerprintSkippedReason'
         '400':
           description: Malformed ids or action
           content:
