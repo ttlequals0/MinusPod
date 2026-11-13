@@ -13,6 +13,7 @@ import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, th, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
+import SortControls from '../components/SortControls';
 import { formatDate } from '../utils/format';
 import Checkbox from '../components/Checkbox';
 import { Plus } from 'lucide-react';
@@ -151,8 +152,12 @@ export function SponsorsSection() {
 
       <div className="text-sm text-muted-foreground mb-3">{sorted?.length || 0} sponsors</div>
 
-      {/* Mobile cards */}
-      <div className="sm:hidden space-y-3 mb-4">
+      <SortControls className="xl:hidden" field={sortField} direction={sortDirection} onSort={handleSort} options={[
+        { value: 'name', label: 'Name' }, { value: 'category', label: 'Category' }, { value: 'pattern_count', label: 'Patterns' },
+        { value: 'created_at', label: 'Created' }, { value: 'last_matched_at', label: 'Last matched' },
+      ]} />
+      {/* Card layout: the 8-column table needs about 1100 CSS px with touch-sized controls */}
+      <div className="xl:hidden space-y-3 mb-4">
         {paginated?.map((s) => (
           <div key={s.id} className={rowCard}>
             <div className="flex items-start justify-between gap-2 mb-2">
@@ -162,12 +167,16 @@ export function SponsorsSection() {
             {s.aliases.length > 0 && (
               <div className="text-xs text-muted-foreground mb-1 truncate">{s.aliases.join(', ')}</div>
             )}
-            {s.segment_category && (
-              <div className="mb-2"><SegmentCategoryBadge category={s.segment_category} /></div>
+            {(s.category || s.segment_category) && (
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {s.category && <span className="text-xs text-muted-foreground">{s.category}</span>}
+                {s.segment_category && <SegmentCategoryBadge category={s.segment_category} />}
+              </div>
             )}
             <TagChips tags={s.tags} className="mb-2" />
-            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
               <span>{s.pattern_count} patterns</span>
+              <span>created {formatDate(s.created_at)}</span>
               <span>matched {formatDate(s.last_matched_at)}</span>
             </div>
             <div className="flex gap-2">
@@ -184,7 +193,7 @@ export function SponsorsSection() {
       </div>
 
       {/* Desktop table */}
-      <div className={`hidden sm:block ${tableCard}`}>
+      <div className={`hidden xl:block ${tableCard}`}>
         <div className="overflow-x-auto">
           <table className="w-full table-fixed">
             <colgroup>
