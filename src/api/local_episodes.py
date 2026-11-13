@@ -69,6 +69,20 @@ def _require_local_feed(db, slug):
     return podcast, None
 
 
+def _require_local_episode(db, slug, episode_id):
+    """_require_local_feed plus a 404 for a missing episode.
+
+    Returns (podcast, episode, None) or (None, None, error_response).
+    """
+    podcast, err = _require_local_feed(db, slug)
+    if err:
+        return None, None, err
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return None, None, error_response('Episode not found', 404)
+    return podcast, episode, None
+
+
 def _rebuild(slug, podcast=None):
     local_feed_builder.rebuild_local_feed(slug, podcast=podcast)
     recents_feed.rebuild_recents_feed()
@@ -410,13 +424,9 @@ def patch_local_episode(slug, episode_id):
     db = get_database()
     storage = get_storage()
 
-    podcast, err = _require_local_feed(db, slug)
+    podcast, episode, err = _require_local_episode(db, slug, episode_id)
     if err:
         return err
-
-    episode = db.get_episode(slug, episode_id)
-    if not episode:
-        return error_response('Episode not found', 404)
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -506,13 +516,9 @@ def delete_local_episode(slug, episode_id):
     db = get_database()
     storage = get_storage()
 
-    podcast, err = _require_local_feed(db, slug)
+    podcast, episode, err = _require_local_episode(db, slug, episode_id)
     if err:
         return err
-
-    episode = db.get_episode(slug, episode_id)
-    if not episode:
-        return error_response('Episode not found', 404)
 
     active = db.mark_episodes_for_deletion(slug, [episode_id])
     if active['uploading']:
@@ -560,13 +566,9 @@ def upload_local_episode_artwork(slug, episode_id):
     db = get_database()
     storage = get_storage()
 
-    podcast, err = _require_local_feed(db, slug)
+    podcast, episode, err = _require_local_episode(db, slug, episode_id)
     if err:
         return err
-
-    episode = db.get_episode(slug, episode_id)
-    if not episode:
-        return error_response('Episode not found', 404)
 
     upload = request.files.get('file')
     if upload is None:
