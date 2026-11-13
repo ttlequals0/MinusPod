@@ -1630,8 +1630,13 @@ class TestBatchMethods:
         temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
         temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3')
 
-        # batch_clear_episode_details should not crash even with no details
+        temp_db.save_episode_details(slug, 'ep-1', transcript_text='transcript one')
+        assert temp_db.has_transcript(slug, 'ep-1')
+
         temp_db.batch_clear_episode_details(slug, ['ep-1', 'ep-2'])
+
+        assert not temp_db.has_transcript(slug, 'ep-1')
+        assert not temp_db.has_transcript(slug, 'ep-2')
 
     def test_batch_reset_episodes_to_discovered(self, temp_db):
         slug = 'batch-reset'

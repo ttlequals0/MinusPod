@@ -334,11 +334,6 @@ def _recovery_row(operation, slug, target_key, temp_name, backup_name=None):
             'backup_name': backup_name, 'backup_target_name': None}
 
 
-def _recovery_db(tmp_path):
-    from database import Database
-    return Database(data_dir=str(tmp_path))
-
-
 def test_upload_recovery_moving_the_original_away_takes_its_peaks_file(db_storage, tmp_path):
     db, storage = db_storage
     original = storage.get_original_path(SLUG, EP)

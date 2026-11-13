@@ -46,13 +46,6 @@ def _make_row(mfcc: np.ndarray, *, template_id: int = 1,
     }
 
 
-def _planted_haystack(rng, template, plant_at: int, noise_level: float = 0.0):
-    """Haystack with the template planted at plant_at; random noise elsewhere."""
-    haystack = rng.standard_normal((200, N_COEFFS)).astype(np.float32) * noise_level
-    haystack[plant_at:plant_at + template.shape[0]] = template
-    return haystack
-
-
 # ---------------------------------------------------------------------------
 # Per-template threshold gates match that instance threshold would pass
 # ---------------------------------------------------------------------------

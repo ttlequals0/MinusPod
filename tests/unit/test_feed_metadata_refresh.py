@@ -117,11 +117,6 @@ def etag_db_path(tmp_path):
     return path
 
 
-def _validators(conn):
-    return {r[0]: (r[1], r[2]) for r in conn.execute(
-        "SELECT slug, etag, last_modified_header FROM podcasts")}
-
-
 def test_migration_queues_one_artwork_redownload(etag_db_path):
     """The skipped-download bug stored the new URL against the old image, so
     change detection cannot repair those feeds; the flag clear does."""

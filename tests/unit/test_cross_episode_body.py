@@ -21,12 +21,6 @@ def _rand(n, rng):
     return rng.integers(0, 2 ** 32, size=n, dtype=np.uint64).astype(np.uint32)
 
 
-def _make_fp(n=300, rng=None):
-    """Return (int_list, duration) for an n-int fingerprint at 8 fps."""
-    r = rng or np.random.default_rng(99)
-    return _rand(n, r).tolist(), n / 8.0
-
-
 def _fingerprinter():
     fp = AudioFingerprinter.__new__(AudioFingerprinter)
     fp.db = None

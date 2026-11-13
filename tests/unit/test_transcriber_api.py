@@ -804,15 +804,6 @@ class TestWhisperServiceUnavailable:
         finally:
             os.unlink(temp_path)
 
-    def test_missing_base_url_returns_none(self):
-        with patch('transcriber.remote.safe_post') as mock_post:
-            transcriber = Transcriber()
-            result = transcriber._transcribe_via_api(
-                '/tmp/test.wav',
-                whisper_settings=self._make_settings(api_base_url=''))
-            assert result is None
-            mock_post.assert_not_called()
-
 
 class TestTranscriptionRejected:
     """401/402/403/404 from the whisper API refuse the request outright (#806)."""

@@ -10,7 +10,6 @@ Covers four guarantees the 2.5.23 refactor must hold:
   (no double-counting, no lost updates).
 - Validator rejects out-of-range values via the API.
 """
-import json
 import os
 import threading
 import time
@@ -48,16 +47,6 @@ def _make_windows(n: int):
             ],
         })
     return out
-
-
-def _ads_for_window(i: int) -> str:
-    """Return a JSON ads array that places one ad in window i's range."""
-    return json.dumps([{
-        'start': i * 60.0 + 10.0,
-        'end': i * 60.0 + 30.0,
-        'confidence': 0.9,
-        'sponsor': f'sponsor-{i}',
-    }])
 
 
 @pytest.fixture

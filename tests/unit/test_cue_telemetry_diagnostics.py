@@ -20,10 +20,6 @@ def _tcue(start, end, *, role='boundary', cue_type='ad_break_boundary',
     )
 
 
-def _rec_by_start(recs, start):
-    return next(r for r in recs if abs(r['start_s'] - start) < 0.01)
-
-
 # --- below_threshold rows ---------------------------------------------------
 
 def test_below_threshold_records_from_near_misses():

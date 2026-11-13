@@ -36,16 +36,6 @@ _END_GROUP_OPTIONS: dict[str, list[float]] = {}
 _WORD_END_OPTIONS: dict[str, float] = {}
 
 
-def _upstream_status_error(
-    status: int, retry_after: str = "7"
-) -> httpx.HTTPStatusError:
-    request = httpx.Request("POST", "https://api.example/v1/systemone")
-    response = httpx.Response(
-        status, request=request, headers={"Retry-After": retry_after}
-    )
-    return httpx.HTTPStatusError("upstream failure", request=request, response=response)
-
-
 @pytest.fixture(autouse=True)
 def capture_start_options(monkeypatch):
     original = adapter._unit_start_question
@@ -512,21 +502,6 @@ def _meaningful_pair_prompt() -> str:
         "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
         "Start edge:\n[90.0-91.0] Editorial.\n[100.0-101.0] Editorial\n[106.0-107.0] Sponsor\n"
         "End edge:\n[114.0-115.0] ends.\n[119.0-120.0] continues.\n[129.0-130.0] Editorial.\n"
-    )
-
-
-def _unsupported_original_prompt() -> str:
-    return build_review_prompt(
-        90.0, 110.0,
-        [(80.0, 89.9, "earlier context")],
-        [(94.0, 100.0, "This episode is sponsored by BetterHelp")],
-        [(100.0, 110.0, "context after"), (110.0, 120.0, "more context")],
-    ) + (
-        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
-        "Start edge:\n"
-        "[94.0-94.5] This\n[94.5-95.0] episode\n[95.0-95.3] is\n"
-        "[95.3-96.0] sponsored\n[96.0-96.2] by\n[96.2-100.0] BetterHelp\n"
-        "End edge:\n[96.2-100.0] BetterHelp\n[100.0-101.0] context\n"
     )
 
 
