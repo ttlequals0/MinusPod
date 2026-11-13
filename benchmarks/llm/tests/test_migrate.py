@@ -86,7 +86,7 @@ def test_migrate_happy_path(tmp_path, write_corpus_episode):
 
 def test_migrate_keeps_unverifiable_prompt_files(tmp_path, write_corpus_episode):
     corpus_dir = tmp_path / "corpus"
-    ep_id = write_corpus_episode(corpus_dir, ep_id="ep-t-e").name
+    write_corpus_episode(corpus_dir, ep_id="ep-t-e")
     c1 = "m1_ep-t-e_t0_w0_abcdef012345_20260101T000000Z"
     paths = _v1_layout(
         tmp_path,

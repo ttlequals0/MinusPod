@@ -15,7 +15,6 @@ import argparse
 import json
 import re
 import sys
-from difflib import SequenceMatcher
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

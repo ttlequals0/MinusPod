@@ -2,7 +2,6 @@
 
 No network, no audio decode, no file I/O.
 """
-import pytest
 
 from cuebench.sweep import _build_histogram, _build_threshold_table
 

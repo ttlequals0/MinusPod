@@ -4,7 +4,6 @@ No network, no audio decode, no file I/O beyond fixtures.
 """
 import io
 import json
-import struct
 import wave
 import zipfile
 from pathlib import Path
