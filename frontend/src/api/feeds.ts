@@ -359,8 +359,7 @@ interface UploadFeedArtworkResult {
 export async function uploadFeedArtwork(slug: string, file: File): Promise<UploadFeedArtworkResult> {
   const formData = new FormData();
   formData.append('file', file);
-  // skipRetry: mirrors importOpml -- a retry after a timed-out first attempt
-  // could re-process the same upload twice.
+  // skipRetry, as in importOpml: a retry after a timeout could process the same upload twice.
   return apiRequest<UploadFeedArtworkResult>(`/feeds/${slug}/artwork`, {
     method: 'POST',
     body: formData,
@@ -490,14 +489,10 @@ type FeedPatchKey =
   | 'segmentCategoryActions' | 'detectShowSegments' | 'ownEpisodeGuids' | 'skipSecondPass'
   | 'transcriptDifferential';
 
-// title and p20 are local feeds only; author, explicit and categories also work on YouTube feeds.
-// The backend rejects them on a subscribed feed.
-// null clears the stored value (the backend distinguishes "clear" from
-// "field omitted"; sending undefined here drops the key from the JSON
-// body entirely and the old value survives untouched).
-// processingMode is rejected with detectionMode/skipAdDetection/passthroughEnabled, and the
-// cue-only fields outside cue_only. segmentCategoryActions replaces the stored map outright
-// (send the full partial map; null clears every override).
+// title and p20: local feeds only (the backend rejects them on a subscribed feed); author, explicit and
+// categories also work on YouTube feeds. null clears a stored value; undefined drops the key from the JSON
+// body and the old value survives. processingMode conflicts with detectionMode/skipAdDetection/passthroughEnabled,
+// and cue-only fields need cue_only. segmentCategoryActions replaces the stored map (null clears every override).
 export type UpdateFeedPayload = Partial<Pick<Feed, FeedPatchKey>> & {
   author?: string | null;
   explicit?: boolean;
@@ -634,7 +629,7 @@ export async function setEpisodesPassthrough(
   });
 }
 
-// ========== Local feed episode management (#625 Task 13) ==========
+// ========== Local feed episode management (#625) ==========
 
 interface LocalEpisodeUploadResult extends Episode {
   episodeNumber?: number;
@@ -684,7 +679,7 @@ export async function uploadLocalEpisodeArtwork(
   });
 }
 
-// ========== Local feed bulk archive import (#625 Task 13) ==========
+// ========== Local feed bulk archive import (#625) ==========
 
 export interface ImportRejectedFile {
   file: string;
@@ -723,19 +718,13 @@ export interface ImportPlanEntry {
   mtimeNs: number;
   warnings: string[];
   errors: string[];
-  // True whenever this episodeId already exists in the feed, independent
-  // of overwrite -- a collision marker, not an outcome. It's only errors
-  // being empty that says whether this entry actually commits: with
-  // overwrite off the collision itself becomes an error; with overwrite on
-  // it doesn't, and this entry cleanly overwrites the existing episode.
+  // True when this episodeId already exists in the feed, regardless of overwrite: a collision marker, not an
+  // outcome. Only empty errors says whether the entry commits (overwrite off turns the collision into an error;
+  // on, the entry overwrites the existing episode).
   replacesExisting: boolean;
-  // The actual existing row's episode id when replacesExisting is true,
-  // else null. Usually identical to episodeId; can differ for a row
-  // imported before episode ids were canonicalized to minimal
-  // zero-padded width (e.g. 's01e0006' for what this entry mints as
-  // 's01e06'). Server-only bookkeeping for commit -- not currently
-  // surfaced anywhere in this UI. Optional so existing fixtures/tests
-  // that predate this field keep compiling unchanged.
+  // The existing row's episode id when replacesExisting is true, else null. Can differ from episodeId for rows
+  // imported before ids were canonicalized to minimal zero-padded width ('s01e0006' vs 's01e06'). Server-side
+  // bookkeeping for commit; optional so older fixtures keep compiling.
   replacesExistingId?: string | null;
 }
 
@@ -745,9 +734,8 @@ export interface ImportPlan {
   planHash: string;
   entries: ImportPlanEntry[];
   rejected: ImportRejectedFile[];
-  // Batch-level errors (currently just an out-of-order explicit publish-date
-  // pair) that block commit even when individual entries show no errors of
-  // their own -- see local_import.build_import_plan's docstring.
+  // Batch-level errors (e.g. an out-of-order explicit publish-date pair) that block commit even when no entry
+  // has errors; see local_import.build_import_plan.
   batchErrors: string[];
   totals: { importable: number; rejected: number; errors: number; bytes: number };
 }
@@ -803,11 +791,9 @@ export async function importStatus(slug: string): Promise<ImportStatus> {
   return apiRequest<ImportStatus>(`/feeds/${slug}/import/status`);
 }
 
-// Empties the feed's upload staging directory. Staging accumulates across
-// canceled/abandoned import attempts (every upload lands there and only
-// clears on a successful commit), so this is called both when the operator
-// cancels a reviewed plan and from the "staged earlier" note's own button --
-// 409s server-side while an import is running for this feed.
+// Empties the feed's upload staging directory. Staging accumulates across canceled or abandoned imports (it
+// only clears on a successful commit), so this runs on cancel and from the "staged earlier" note's button.
+// The server 409s while an import is running.
 export async function clearImportStaging(slug: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/feeds/${slug}/import/staging`, {
     method: 'DELETE',

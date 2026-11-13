@@ -44,11 +44,9 @@ interface LLMProviderSectionProps {
   secondaryProviderApiKeyConfigured: boolean;
   onSecondaryProviderKeySave: (apiKey: string) => Promise<void>;
   onSecondaryProviderKeyClear: () => Promise<void>;
-  // Backs both the key field's inline Test button and the standalone
-  // ConnectionTestButton: the secondary slot has one end-to-end probe
-  // route, not the separate quick-key-check endpoint the primary keys have.
-  // `provider` carries the current (possibly unsaved) type selection so the
-  // test always probes what's in the form, not the last-saved type.
+  // Backs the key field's inline Test button and the standalone ConnectionTestButton: the secondary slot has
+  // one end-to-end probe route, not the quick-key-check endpoint the primary keys have. `provider` carries the
+  // current (possibly unsaved) selection so the test probes the form, not the last-saved type.
   onSecondaryConnectionTest: (provider?: LlmProvider | '', baseUrl?: string) => Promise<ConnectionTestResult>;
   // Manual per-provider request-rate limits (#747); 0 = no limit.
   providerRequestsPerMin: number;
@@ -432,7 +430,7 @@ function LLMProviderSection({
   );
 }
 
-// Saves on blur or Enter -- one mutation per committed edit, not per keystroke.
+// Saves on blur or Enter: one mutation per committed edit, not per keystroke.
 function OllamaNumCtxField({
   entry,
   onUpdate,

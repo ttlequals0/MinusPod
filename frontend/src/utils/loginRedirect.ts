@@ -1,9 +1,7 @@
 /**
- * Helpers for storing and retrieving the post-login redirect destination.
- *
- * React Router prepends the basename (UI_BASE) when navigate() is called, so we
- * must strip it before storing and reject it on read. Without this, every
- * bounce stores a deeper basename/basename/... path and the loop grows unboundedly.
+ * Helpers for storing and retrieving the post-login redirect destination. React Router prepends the basename
+ * (UI_BASE) on navigate(), so it is stripped before storing and rejected on read; otherwise every bounce
+ * stores a deeper basename/basename/... path and the loop grows unboundedly.
  */
 
 import { UI_BASE } from '../urlPrefix';
@@ -20,11 +18,8 @@ function stripBasename(path: string): string {
 }
 
 /**
- * Store the current location (pathname + search) as the post-login redirect
- * destination. Strips the basename so navigate() does not re-prepend it.
- *
- * Pass window.location.pathname (+ search) from the call site; callers in
- * GlobalStatusBar and client.ts already have the full browser path.
+ * Store the current location (pathname + search) as the post-login redirect, stripping the basename so
+ * navigate() does not re-prepend it. Pass window.location.pathname (+ search) from the call site.
  */
 export function storeLoginRedirect(pathname: string, search = ''): void {
   const stripped = stripBasename(pathname);
@@ -33,9 +28,8 @@ export function storeLoginRedirect(pathname: string, search = ''): void {
 }
 
 /**
- * Read and clear the stored redirect destination, applying safety checks.
- * Returns '/' when the stored value is absent, empty, an absolute URL,
- * a protocol-relative URL, or '/login' itself.
+ * Read and clear the stored redirect, applying safety checks. Returns '/' when the value is absent, empty,
+ * an absolute URL, a protocol-relative URL, or '/login' itself.
  */
 export function takeLoginRedirect(): string {
   const raw = sessionStorage.getItem(STORAGE_KEY) ?? '';

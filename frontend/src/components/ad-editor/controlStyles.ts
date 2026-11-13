@@ -18,12 +18,9 @@ export const primaryBtn =
   'disabled:opacity-50 disabled:cursor-not-allowed';
 
 
-// "Set START/END at playhead". Once the waveform is zoomed the pins sit off
-// screen, and on a phone there is no wheel to zoom back out, so these are the
-// only way to place a boundary; 44px keeps them on the tap-target floor.
-// Deliberately not built on ghostBtn: its text-foreground competes with the
-// caller's text-success/text-destructive, and which one wins is down to
-// Tailwind's output order (END rendered grey while START rendered green).
+// "Set START/END at playhead". Once zoomed the pins sit off screen and a phone has no wheel to zoom out, so
+// these are the only way to place a boundary; 44px is the tap-target floor. Not built on ghostBtn: its
+// text-foreground competes with text-success/text-destructive and Tailwind output order picks the winner.
 export const edgeBtn =
   'flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center ' +
   'whitespace-nowrap px-3 py-1.5 rounded text-sm border border-border bg-card ' +

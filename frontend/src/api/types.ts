@@ -3,9 +3,8 @@ import type { CorroborationSource } from '../utils/corroboration';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 import type { FailoverOverview } from './failover';
 
-// Per-feed episode status counts (#466). Keys use the API status aliases
-// (DB 'processed' arrives as 'completed'); 'deferred' is the offline queue.
-// Single frontend source of truth for the status set: the key type and the
+// Per-feed episode status counts (#466). Keys use the API status aliases (DB 'processed' arrives as
+// 'completed'); 'deferred' is the offline queue. Single source of truth for the status set: the key type and
 // display-order array both derive from it.
 export const EPISODE_STATUS_KEYS = [
   'discovered',
@@ -272,12 +271,8 @@ export interface Episode {
   durationSkipped?: boolean;
   error?: string | null;
   artworkUrl?: string | null;
-  // Set once, on the first successful processing run, and left untouched
-  // by every reprocess after that (reset_episode_for_reprocess in
-  // reprocess_modes.py never clears it) -- unlike status, which cycles
-  // back through pending/processing on every reprocess, processedAt
-  // presence is the reliable "has this episode ever finished processing"
-  // signal. null/absent means never processed.
+  // Set once on the first successful processing run and never cleared by reprocess (unlike status, which cycles
+  // back through pending/processing). The reliable "ever finished processing" signal; null/absent means never.
   processedAt?: string | null;
   // Per-episode pass-through override (#746): runs download + relay only,
   // no transcription/detection/LLM, even when the feed itself is not in
@@ -371,10 +366,8 @@ interface CoverageGap {
 
 export interface EpisodeDetail extends Episode {
   description?: string;
-  // Local feeds only; absent on a subscribed feed's episodes. The
-  // authoritative source for a local episode's season/episode -- an id
-  // like s01e01 is minted once at upload and never renamed, so it can go
-  // stale relative to these once season/episode is edited.
+  // Local feeds only; absent on a subscribed feed's episodes. Authoritative season/episode source: the id (e.g.
+  // s01e01) is minted at upload and never renamed, so it can go stale after an edit.
   seasonNumber?: number;
   episodeNumber?: number;
   originalUrl?: string;
@@ -423,8 +416,8 @@ export interface EpisodeDetail extends Episode {
   rssDuration?: number | null;
   // One entry per processing run, oldest first (#519).
   processingRuns?: EpisodeProcessingRun[];
-  // Set when this episode removed far less ad time than the feed's recent
-  // average -- a lightly-filled DAI copy or a detection miss worth a look.
+  // Set when this episode removed far less ad time than the feed's recent average: a lightly-filled DAI copy
+  // or a detection miss worth a look.
   lowAdYield?: {
     removedSeconds: number;
     feedAverageSeconds: number;
@@ -622,9 +615,8 @@ export interface RunLogResponse {
   bytes: number;
 }
 
-// Per-cue detection telemetry (#350 follow-up). One row per template cue the
-// matcher surfaced, with how detection used it and the user's review verdict.
-// Advisory only -- a verdict never changes the cut list.
+// Per-cue detection telemetry (#350 follow-up): one row per template cue the matcher surfaced, with how
+// detection used it and the user's review verdict. Advisory only; a verdict never changes the cut list.
 export interface CueDetection {
   id: number;
   template_id?: number | null;
@@ -677,7 +669,7 @@ export interface AdSegment {
   // Present when a silence span snapped this ad's start/end edge (Phase B).
   silence_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   validation?: AdValidation;
-  // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
+  // Ad reviewer (issue #197); populated only when the reviewer ran on this ad.
   reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure' | 'inconclusive';
   reviewer_original_start?: number;
   reviewer_original_end?: number;
@@ -888,10 +880,9 @@ type SystemOneProfileDefaults = Record<SystemOneCredentialSlot, Record<SystemOne
 // both the provider and model of whichever pass it is reviewing.
 export const SAME_AS_PASS = 'same_as_pass';
 
-// Per-stage provider settings store a SLOT, not a provider type: 'primary'
-// routes through llmProvider, 'secondary' through the optional second
-// provider config. Verification/chapters also accept SAME_AS_DETECTION to
-// inherit detection's resolved slot.
+// Per-stage provider settings store a slot, not a provider type: 'primary' routes through llmProvider,
+// 'secondary' through the optional second provider config. Verification/chapters also accept
+// SAME_AS_DETECTION to inherit detection's resolved slot.
 export const SLOT_PRIMARY = 'primary';
 
 export const AUTO_PROCESS_WINDOW = { min: 1, max: 720, default: 48 } as const;

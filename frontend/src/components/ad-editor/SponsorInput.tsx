@@ -17,14 +17,9 @@ interface Props {
   disabled?: boolean;
 }
 
-// Controlled sponsor combobox. The dropdown is rendered inside the React
-// tree (not as a browser-native <datalist>), so clicking a suggestion
-// inside a modal does not bubble past the modal's stopPropagation
-// boundary and dismiss the parent dialog.
-//
-// Selection uses onMouseDown rather than onClick because the input's
-// onBlur fires before onClick would land -- onMouseDown commits the value
-// before the focus-loss collapses the menu.
+// Controlled sponsor combobox. The dropdown renders in the React tree (not a native <datalist>) so a
+// suggestion click inside a modal does not bubble past its stopPropagation boundary and dismiss it.
+// Selection uses onMouseDown, not onClick: onBlur fires before onClick and would collapse the menu first.
 export function SponsorInput({ value, onChange, sponsors, placeholder, inputClassName = '', disabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);

@@ -81,12 +81,8 @@ function AdEditor({
     else setInternalIndex(i);
   };
 
-  // Initialized from the prop; flipped internally when the user clicks
-  // the in-modal "+ Add new ad" button. The sync useEffect below only
-  // syncs FALSE -> TRUE so the parent can re-open create mode on an
-  // already-mounted editor, but a user-initiated close (Cancel) does
-  // not get clobbered by the parent's prop on the next render. This
-  // was the source of the "modal won't close" flicker before 2.2.8.
+  // Initialized from the prop; flipped internally by the in-modal "+ Add new ad" button. The sync effect below
+  // only syncs false -> true, so a user Cancel is not clobbered by the parent's prop on the next render.
   const [internalCreateMode, setInternalCreateMode] = useState(createMode);
   const prevCreateModePropRef = useRef(createMode);
   useEffect(() => {
@@ -96,11 +92,8 @@ function AdEditor({
     prevCreateModePropRef.current = createMode;
   }, [createMode]);
 
-  // 2.2.6 added a cameFromReview ref so Cancel from create returned to the
-  // review modal when entered via the in-modal "+ Add new ad". Users found
-  // the reappearing review modal more surprising than helpful (#TBD), so
-  // Cancel/X now always closes the editor regardless of entry path. Save
-  // still flips back to review via handleCreateSubmit below.
+  // Cancel/X always closes the editor regardless of entry path (a reappearing review modal surprised users);
+  // Save still flips back to review via handleCreateSubmit below.
 
   const safeIndex =
     detectedAds.length > 0
@@ -238,14 +231,9 @@ function AdEditor({
     onClose?.();
   };
 
-  // The key forces a clean remount whenever the mode flips or the
-  // user switches between detected ads. Without this, the modal's
-  // internal useState hooks (adStart, adEnd, peaks, wavesurfer ref,
-  // etc.) retain values from the prior view and bleed across the
-  // mode change, which manifested as "two stacked editors" in 2.2.5.
-  // Include selectedAdIndex so the modal also remounts when the parent
-  // navigates between ads via Jump, even if a future refactor changes
-  // how `item` is derived. Cheap regression guard.
+  // The key forces a clean remount when the mode flips or the user switches ads, so internal state (adStart,
+  // adEnd, peaks, wavesurfer ref) does not bleed across views. selectedAdIndex is included so Jump navigation
+  // remounts even if `item` derivation changes.
   const modalKey = internalCreateMode
     ? 'create'
     : `review-${safeIndex}-${item.start.toFixed(3)}-${item.end.toFixed(3)}`;

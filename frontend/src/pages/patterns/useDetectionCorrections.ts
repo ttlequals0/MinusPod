@@ -28,10 +28,8 @@ interface Options {
   onSettled?: () => void;
 }
 
-// Correction submission shared by the Ad Review and Detected Ads tabs: both
-// file the same corrections against the same endpoint and both need the recut
-// that follows, so the mutation, the recut trigger, and the error surface live
-// here rather than once per tab.
+// Correction submission shared by the Ad Review and Detected Ads tabs: both file the same corrections against
+// the same endpoint and need the follow-up recut, so the mutation, recut trigger and error surface live here.
 export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -96,10 +94,9 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
     correction: { type: 'reject', original_ad: originalAdOf(d) },
   });
 
-  // Category drives which segment action applies, so this is how a span the
-  // feed is currently keeping gets cut (or the reverse).
-  // The cached rows are patched up front: without it the select snaps back to
-  // the old value until the next refetch, which reads as "it would not save".
+  // Category drives which segment action applies, so this is how a span the feed is keeping gets cut (or the
+  // reverse). The cached rows are patched up front; otherwise the select snaps back to the old value until the
+  // next refetch, which reads as "it would not save".
   const recategorize = (d: ReviewDetection, category: string | null) => {
     queryClient.setQueriesData<DetectionListResponse>(
       { queryKey: ['detections'] },

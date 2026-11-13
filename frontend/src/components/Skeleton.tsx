@@ -1,7 +1,6 @@
 /**
- * Loading placeholders that hold the shape of the content they stand in for,
- * so a page does not jump when data arrives. Per the design guide: skeletons
- * are animate-pulse rows in the muted tone, never a spinner in a blank page.
+ * Loading placeholders that hold the shape of the content they replace so the page does not jump when data
+ * arrives. Per the design guide: animate-pulse rows in the muted tone, never a spinner in a blank page.
  */
 
 // Container announces the wait; the pulsing blocks inside stay aria-hidden.

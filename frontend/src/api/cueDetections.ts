@@ -3,8 +3,8 @@ import type { CueDetection } from './types';
 
 export type CueVerdict = CueDetection['verdict'];
 
-// Record the user's review verdict for one cue detection. Advisory only -- the
-// server never changes the episode's cut list in response.
+// Record the user's review verdict for one cue detection. Advisory only: the server never changes the
+// episode's cut list in response.
 export async function setCueDetectionVerdict(
   detectionId: number,
   verdict: CueVerdict,
@@ -38,8 +38,7 @@ interface CueFeedAdvisory {
   templateHints?: CueTemplateHint[];
 }
 
-// Per-feed cue health summary -- lets the user judge a feed's cues before
-// enabling cue-pair synthesis.
+// Per-feed cue health summary, so the user can judge a feed's cues before enabling cue-pair synthesis.
 export async function getCueFeedAdvisory(slug: string): Promise<CueFeedAdvisory> {
   return apiRequest<CueFeedAdvisory>(`/feeds/${slug}/cue-detections/advisory`);
 }

@@ -39,21 +39,18 @@ const P20_FEED_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 const P20_PODROLL_MAX_ROWS = 50;
 
 // ---- Podcasting 2.0 list tags (funding/person/license/location/txt/podroll) ----
-// One row shape (plain string fields) serves all six tags; the field list
-// per tag mirrors local_feed_builder.py's attribute whitelist (_FUNDING_ATTRS
-// etc.) and api/feeds.py's _validate_p20_items / _validate_p20_podroll, so
-// the UI can never offer an attribute the backend would strip. podroll rows
-// have no 'text' field -- the framework treats every field uniformly, so
-// that needs no special casing here.
+// One row shape (plain string fields) serves all six tags; each tag's field list mirrors
+// local_feed_builder.py's attribute whitelist and api/feeds.py's _validate_p20_items/_validate_p20_podroll,
+// so the UI never offers an attribute the backend would strip. podroll rows have no 'text' field and need
+// no special casing.
 type P20Row = Record<string, string>;
 
 interface P20FieldDef {
   key: string;
   label: string;
   placeholder: string;
-  // When set, the field renders as a <select> over these values (plus a
-  // blank "not set" option) instead of a free-text input -- e.g. podroll's
-  // per-row medium, kept in parity with the channel-level medium select.
+  // When set, the field renders as a <select> over these values (plus a blank "not set" option) instead of
+  // free text, e.g. podroll's per-row medium, in parity with the channel-level medium select.
   options?: readonly string[];
 }
 
@@ -63,15 +60,12 @@ interface P20TagDef {
   hint: string;
   addLabel: string;
   fields: P20FieldDef[];
-  // Client-side mirror of the backend's hard requirements
-  // (_validate_p20_items: funding needs a url, person needs a name/text;
-  // _validate_p20_podroll: every entry needs a feedGuid) so a bad row is
-  // caught before the request instead of surfacing a 400.
+  // Client-side mirror of the backend's hard requirements (_validate_p20_items: funding needs a url, person a
+  // name/text; _validate_p20_podroll: every entry needs a feedGuid), so a bad row is caught before the request.
   requiredKey?: string;
   requiredError?: string;
-  // Extra shape check beyond presence -- only podroll's feedGuid needs one
-  // (must look like a UUID). Only checked when the field has a value, so it
-  // never duplicates a requiredKey miss on the same row.
+  // Extra shape check beyond presence; only podroll's feedGuid needs one (must look like a UUID). Run only
+  // when the field has a value, so it never duplicates a requiredKey miss on the same row.
   patternKey?: string;
   pattern?: RegExp;
   patternError?: string;
@@ -184,11 +178,9 @@ function normalizeP20Rows(raw: unknown): P20Row[] {
   });
 }
 
-// Trims every field and drops empty ones, then drops any row left with no
-// fields at all -- a row the user added and never filled in is treated as
-// nothing rather than an empty object sent to the API. Also how a tag's
-// rows collapse to [] when every row is removed (send [], never undefined,
-// so the PATCH actually clears the tag).
+// Trims every field, drops empty ones, then drops any row left with no fields (a row added and never filled
+// in is nothing, not an empty object sent to the API). A tag whose rows are all removed collapses to [] (send
+// [], never undefined, so the PATCH clears the tag).
 function cleanP20Rows(rows: P20Row[]): P20Row[] {
   return rows
     .map((row) => {
@@ -225,13 +217,9 @@ function oversizeMessage(label: string, bytes: number, uploadMaxMb: number): str
   return `${label} is ${formatStorage(bytes / (1024 * 1024))}. This server accepts up to ${formatStorage(uploadMaxMb)} per upload.`;
 }
 
-// Counts only entries that will actually overwrite an existing episode on
-// commit (replacesExisting AND no errors -- a collision that errored out
-// instead, because overwrite was off when this was scanned, never commits
-// at all) so the "and replace N existing" clause can't overstate how many
-// episodes get replaced. Hidden entirely when that count is 0, even if
-// plan.overwrite is true (an overwrite-enabled scan with no actual
-// collisions has nothing to call out).
+// Counts only entries that will overwrite an existing episode on commit (replacesExisting and no errors; a
+// collision that errored because overwrite was off never commits), so "and replace N existing" cannot
+// overstate. Hidden when the count is 0, even if plan.overwrite is true.
 function commitButtonLabel(plan: ImportPlan): string {
   const total = plan.totals.importable;
   const replacing = plan.entries.filter((e) => e.replacesExisting && e.errors.length === 0).length;
@@ -331,10 +319,8 @@ function LocalFeedPanel({ feed, slug }: Props) {
     e.preventDefault();
     const categories = parseCategories(categoriesInput);
 
-    // Clean every tag's rows and check each def's client-side requirements
-    // (presence, shape, row count) before this ever reaches the API --
-    // mirrors api/feeds.py's _validate_p20_items / _validate_p20_podroll so
-    // a bad row is caught here instead of surfacing as a 400.
+    // Clean every tag's rows and check each def's client-side requirements (presence, shape, row count) before
+    // the API call; mirrors api/feeds.py's _validate_p20_items/_validate_p20_podroll to avoid a 400.
     const cleanedTags: Record<string, P20Row[]> = {};
     const tagErrors: string[] = [];
     for (const def of P20_TAG_DEFS) {
@@ -357,18 +343,14 @@ function LocalFeedPanel({ feed, slug }: Props) {
     }
     setP20ValidationError(null);
 
-    // locked_owner always sent, even blank: '' is the backend's delete
-    // sentinel for clearing a previously-set owner (_validate_p20_scalar),
-    // so omitting the key here would leave a cleared owner un-cleared. The
-    // six tag arrays are likewise always sent -- an empty array is how a
-    // cleared tag reaches the backend (undefined would drop the key and
-    // leave the old rows untouched).
+    // locked_owner is always sent, even blank: '' is the backend's delete sentinel for clearing an owner
+    // (_validate_p20_scalar), so omitting it would leave a cleared owner set. The six tag arrays are likewise
+    // always sent: an empty array is how a cleared tag reaches the backend (undefined drops the key).
     metaMutation.mutate({
       title: title.trim(),
       description: description.trim(),
-      // null (not undefined) so a blanked field actually clears server-side
-      // -- undefined drops the key from the JSON body, and the backend only
-      // clears a field it sees explicitly set to null.
+      // null, not undefined, so a blanked field clears server-side: undefined drops the key from the JSON body
+      // and the backend only clears a field it sees explicitly set to null.
       author: author.trim() || null,
       explicit,
       categories: categories.length ? categories : null,
@@ -385,36 +367,27 @@ function LocalFeedPanel({ feed, slug }: Props) {
   const [importSource, setImportSource] = useState<ImportSource>('staging');
   const [uploadRejected, setUploadRejected] = useState<ImportRejectedFile[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
-  // Live checkbox state. Read once per scan (staging or directory) and
-  // folded into the returned ImportPlan's own `overwrite` field -- commit
-  // always replays THAT value (see commitMutation below), never this live
-  // state, so toggling the checkbox after a scan can never desync commit's
-  // overwrite from the one the plan (and its planHash) was built with.
+  // Live checkbox state. Read once per scan and folded into the returned ImportPlan's own `overwrite`; commit
+  // always replays that value (see commitMutation below), never this live state, so toggling after a scan
+  // cannot desync commit's overwrite from the one the plan (and planHash) was built with.
   const [overwriteExisting, setOverwriteExisting] = useState(false);
   // "x of y" progress through a sequential per-file upload; null outside an
   // upload run.
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
-  // startedAt of the run whose terminal (done/error) report the operator
-  // dismissed via "Clear report", or null if nothing's been dismissed.
-  // Keyed on startedAt (not a plain boolean) so a dismissal is automatically
-  // scoped to its own run: the next run has a different startedAt, so its
-  // report shows regardless of a stale dismissal, with no effect needed to
-  // reset anything.
+  // startedAt of the run whose terminal (done/error) report the operator dismissed via "Clear report", or
+  // null. Keyed on startedAt, not a boolean, so a dismissal is scoped to its own run: the next run has a
+  // different startedAt and shows its report with no reset effect.
   const [dismissedRunStartedAt, setDismissedRunStartedAt] = useState<string | null>(null);
-  // Cancel: non-destructive. It only drops the reviewed plan/report from
-  // THIS client -- the staged files themselves are untouched. Destructive
-  // staging cleanup happens on the next "Choose files" selection (which
-  // clears staging before it uploads) or via the server's own post-commit
-  // sweep.
+  // Cancel is non-destructive: it only drops the reviewed plan/report from this client; staged files are
+  // untouched. Staging cleanup happens on the next "Choose files" selection (which clears staging before
+  // uploading) or the server's post-commit sweep.
   const handleCancelPlan = () => {
     setPlan(null);
   };
 
-  // Sequential, one file per request, rather than one multipart request for
-  // the whole batch: the only way to surface "x of y" progress, and it lets
-  // one bad file fail without losing the rest of the batch. Shared by
-  // uploadAndScanMutation and addFilesToStagingMutation -- they differ only
-  // in whether staging gets cleared first.
+  // Sequential, one file per request rather than one multipart batch: the only way to show "x of y" progress,
+  // and one bad file cannot fail the rest. Shared by uploadAndScanMutation and addFilesToStagingMutation,
+  // which differ only in whether staging is cleared first.
   const uploadFilesSequentially = async (files: File[]): Promise<ImportRejectedFile[]> => {
     const rejected: ImportRejectedFile[] = [];
     for (let i = 0; i < files.length; i++) {
@@ -437,10 +410,8 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
   const uploadThenScan = async (files: File[], overwrite: boolean) => {
     const rejected = await uploadFilesSequentially(files);
-    // Commit the accumulated rejections now, before the trailing scan --
-    // those uploads already happened and are real results; a scan
-    // failure right after must not wipe them out from under the
-    // operator along with the (unrelated) scan error.
+    // Commit the accumulated rejections now, before the trailing scan: those uploads already happened and are
+    // real results, so a scan failure must not wipe them along with the unrelated scan error.
     setUploadRejected(rejected);
     return importScan(slug, { source: 'staging', overwrite });
   };
@@ -458,10 +429,8 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
   const uploadAndScanMutation = useMutation({
     mutationFn: async ({ files, overwrite }: { files: File[]; overwrite: boolean }) => {
-      // Each selection stands alone: clear whatever's already staged before
-      // uploading the newly picked files, so the resulting plan reflects
-      // exactly this selection instead of accumulating files left behind by
-      // an earlier canceled or interrupted attempt.
+      // Each selection stands alone: clear what is already staged before uploading, so the plan reflects exactly
+      // this selection, not files left by an earlier canceled or interrupted attempt.
       try {
         await clearImportStaging(slug);
       } catch (e) {
@@ -477,20 +446,16 @@ function LocalFeedPanel({ feed, slug }: Props) {
     onError: (e) => setImportError(uploadErrorMessage(e)),
   });
 
-  // Companion to Rescan (below): uploads into staging WITHOUT the pre-clear
-  // uploadAndScanMutation does, so it can add to what a prior commit's sweep
-  // spared -- e.g. a corrected sidecar next to the audio file it left behind
-  // -- instead of wiping that out along with the fresh upload.
+  // Companion to Rescan (below): uploads into staging without the pre-clear uploadAndScanMutation does, so it
+  // can add to what a prior commit's sweep spared (e.g. a corrected sidecar) instead of wiping it.
   const addFilesToStagingMutation = useMutation({
     mutationFn: ({ files, overwrite }: { files: File[]; overwrite: boolean }) => uploadThenScan(files, overwrite),
     ...stagedUploadHandlers,
     onError: (e) => setImportError(getErrorMessage(e, 'Could not add files.')),
   });
 
-  // Re-reads whatever is currently staged without uploading or clearing
-  // anything -- how the operator picks up a fix made via
-  // addFilesToStagingMutation (or, for the import directory equivalent, an
-  // in-place edit under source='directory') without starting the batch over.
+  // Re-reads what is currently staged without uploading or clearing: how the operator picks up a fix made via
+  // addFilesToStagingMutation (or an in-place edit under source='directory') without restarting the batch.
   const rescanStagingMutation = useMutation({
     mutationFn: (overwrite: boolean) => importScan(slug, { source: 'staging', overwrite }),
     onMutate: () => { setImportError(null); setUploadRejected([]); },
@@ -513,11 +478,9 @@ function LocalFeedPanel({ feed, slug }: Props) {
   });
 
   const commitMutation = useMutation({
-    // Reuses plan.overwrite (the value scan actually built the plan with),
-    // never the live checkbox -- the backend recomputes the plan from
-    // source+overwrite and 409s if its hash doesn't match planHash, so
-    // sending anything other than the scanned value would desync it the
-    // moment the operator flips the checkbox after scanning.
+    // Reuses plan.overwrite (the value scan built the plan with), never the live checkbox: the backend
+    // recomputes the plan from source+overwrite and 409s if its hash does not match planHash, so any other
+    // value would desync once the operator flips the checkbox after scanning.
     mutationFn: () => importCommit(slug, { planHash: plan!.planHash, source: importSource, overwrite: plan!.overwrite }),
     onSuccess: () => {
       setPlan(null);
@@ -559,22 +522,17 @@ function LocalFeedPanel({ feed, slug }: Props) {
     }
   }, [importState, slug, queryClient]);
 
-  // Rescan/Add-files only make sense once there's something in staging that
-  // plausibly needs fixing rather than replacing: an entry in the currently
-  // shown plan that scan already flagged with errors (skipped on commit), or
-  // -- once that plan's been committed and cleared -- the last finished
-  // run's own skipped/failed lists. Either source means the sweep (which
-  // only ever removes a committed entry's leftovers and outright-rejected
-  // junk) plausibly left something behind to fix.
+  // Rescan/Add-files only make sense when staging plausibly needs fixing rather than replacing: an entry in
+  // the shown plan that scan flagged with errors (skipped on commit), or, once that plan is committed and
+  // cleared, the last finished run's skipped/failed lists. Either means the sweep (which only removes a
+  // committed entry's leftovers and rejected junk) left something behind to fix.
   const hasFixableLeftovers =
     (plan?.entries.some((e) => e.errors.length > 0) ?? false)
     || (statusQuery.data?.report?.skipped.length ?? 0) > 0
     || (statusQuery.data?.report?.failed.length ?? 0) > 0;
 
-  // Shared busy gate for every staging-touching action below: they all read
-  // or write the same directory, so letting two run at once risks the same
-  // race clear_import_staging's own docstring warns about (a scan or upload
-  // landing mid-sweep).
+  // Shared busy gate for every staging-touching action below: they read or write the same directory, so two
+  // at once risk the race clear_import_staging's docstring warns about (a scan or upload landing mid-sweep).
   const stagingBusy =
     uploadAndScanMutation.isPending
     || addFilesToStagingMutation.isPending
@@ -769,13 +727,9 @@ function LocalFeedPanel({ feed, slug }: Props) {
             </p>
           </div>
 
-          {/* Only appears once there's a plausible reason to reach for it:
-              the shown plan (or the last finished run) has a skipped/errored
-              entry, meaning the post-commit sweep left its files in staging
-              on purpose. Rescan picks up an in-place fix (e.g. a corrected
-              sidecar uploaded via "Add files to staged set" below) without
-              touching anything else already staged -- unlike "Choose files"
-              above, which clears staging first. */}
+          {/* Shown only when the plan (or last finished run) has a skipped/errored entry, i.e. the post-commit sweep
+              left files in staging on purpose. Rescan picks up an in-place fix (e.g. a sidecar added via "Add files to
+              staged set") without touching other staged files; "Choose files" above clears staging. */}
           {hasFixableLeftovers && (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground" data-testid="fixable-leftovers-note">
               <span>A file from the last run needs fixing before it can import. Neither of these clears what&apos;s already staged.</span>
@@ -812,12 +766,9 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
           {importError && <p className="text-sm text-destructive mb-3">{importError}</p>}
 
-          {/* The scan itself can fail after some/all files already uploaded
-              (no plan gets set in that case), but the per-file rejections
-              from the upload step already happened and are real -- shown
-              here so a scan failure doesn't hide them along with itself.
-              Once a plan exists, ImportPreviewTable below takes over
-              showing the same list merged with the plan's own rejections. */}
+          {/* The scan can fail after some or all files uploaded (no plan is set then), but the per-file rejections
+              from the upload already happened, so show them here instead of hiding them with the scan failure. Once a
+              plan exists, ImportPreviewTable below shows the same list merged with the plan's own rejections. */}
           {!plan && uploadRejected.length > 0 && (
             <div className="mb-3">
               <h4 className={`${subHeading} mb-1`}>Rejected files</h4>
@@ -934,10 +885,9 @@ interface P20TagEditorProps {
   disabled: boolean;
 }
 
-// One tag's block inside the "Podcasting 2.0 tags" nested collapsible:
-// existing rows (one bordered card per row, a labeled input per field, a
-// Remove button) plus an Add button. Shared across all six tags -- the
-// field list is the only thing that differs between them (P20_TAG_DEFS).
+// One tag's block inside the "Podcasting 2.0 tags" nested collapsible: a bordered card per row (labeled
+// input per field, Remove button) plus an Add button. Shared across all six tags; only the field list
+// (P20_TAG_DEFS) differs.
 function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps) {
   const addRow = () => onChange((prev) => [...prev, {}]);
   const removeRow = (idx: number) => onChange((prev) => prev.filter((_, i) => i !== idx));

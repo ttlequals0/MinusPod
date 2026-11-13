@@ -92,10 +92,8 @@ function CueMarkModal({
   captureMaxOutroSeconds = DEFAULT_MAX_OUTRO_SECONDS,
 }: CueMarkModalProps) {
   const MIN_REGION_SECONDS = captureMinSeconds;
-  // Window always covers the entire episode -- zoom widens the inner
-  // wavesurfer canvas inside an overflow-x scroller, with the scroll
-  // following the playhead, so the user always sees the whole episode at
-  // 1x and zooms into the playhead position.
+  // The window always covers the entire episode; zoom widens the wavesurfer canvas inside an overflow-x scroller
+  // that follows the playhead, so 1x shows the whole episode.
   const totalDuration = Math.max(0.001, episodeDuration);
   const defaults = useMemo(() => {
     const start = typeof initialStart === 'number' ? initialStart : 0;
@@ -128,12 +126,9 @@ function CueMarkModal({
     () => captureMaxForType(cueType, captureMaxSeconds, captureMaxIntroSeconds, captureMaxOutroSeconds),
     [cueType, captureMaxSeconds, captureMaxIntroSeconds, captureMaxOutroSeconds],
   );
-  // Windowed zoom, shared with the ad editor (issue #350): zoom narrows the
-  // rendered span around the playhead instead of widening a giant canvas (which
-  // wavesurfer blanks past ~16000px). The playhead ref lets a zoom recenter on
-  // the cursor without re-running the RAF loop.
-  // Seed the playhead at the initial view center so a zoom BEFORE playback
-  // (when audio.currentTime is still 0) recenters on the cue, not episode start.
+  // Windowed zoom, shared with the ad editor (#350): zoom narrows the rendered span around the playhead instead
+  // of widening a canvas (wavesurfer blanks past ~16000px). The playhead ref lets a zoom recenter without
+  // re-running the RAF loop and seeds at the view center so a zoom before playback recenters on the cue.
   const playheadRef = useRef((defaults.cueStart + defaults.cueEnd) / 2);
   const {
     zoom, setZoom, zoomIn, zoomOut, windowStart, windowEnd, windowCenter, setWindowCenter,
@@ -151,10 +146,9 @@ function CueMarkModal({
   // Keyed to the bracket so re-bracketing re-warns, and a second Save of the
   // same bracket goes through.
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
-  // Non-ad types (show intro/outro/transition) are never cut. A segment at an
-  // episode's start/end is often a recurring ad, so saving one requires an
-  // explicit acknowledgement -- keyed to the bracket+type it was given for, so it
-  // auto-invalidates on any re-bracket or type change (no setState-in-effect).
+  // Non-ad types (show intro/outro/transition) are never cut. A segment at an episode's start/end is often a
+  // recurring ad, so saving one needs an explicit acknowledgement, keyed to the bracket+type it was given for
+  // so any re-bracket or type change invalidates it (no setState-in-effect).
   const [nonAdAckKey, setNonAdAckKey] = useState<string | null>(null);
   const weakWarnedForRef = useRef<string | null>(null);
   const longWarnedForRef = useRef<string | null>(null);
@@ -178,15 +172,12 @@ function CueMarkModal({
   const wsRef = useRef<WaveSurfer | null>(null);
   const startInputRef = useRef<HTMLInputElement | null>(null);
   const endInputRef = useRef<HTMLInputElement | null>(null);
-  // The timeupdate listener that stops "Play selection" at the end pin. Held in
-  // a ref so a manual transport action cancels it -- otherwise it lingers and
-  // pauses unrelated playback the next time the playhead crosses the end pin.
+  // The timeupdate listener that stops "Play selection" at the end pin. Held in a ref so a manual transport
+  // action cancels it; otherwise it lingers and pauses unrelated playback when the playhead crosses the end pin.
   const selectionStopRef = useRef<(() => void) | null>(null);
 
-  // Fetch the whole episode's peaks ONCE (stable), then slice the current
-  // window out client-side. Re-fetching per window would null `peaks` on every
-  // zoom/pan tick, flashing the pins and waveform; slicing keeps the loaded
-  // peaks stable so only the rendered slice changes. Only Retry refetches.
+  // Fetch the whole episode's peaks once (stable) and slice the window client-side. Re-fetching per window would
+  // null `peaks` on every zoom/pan tick and flash the pins and waveform. Only Retry refetches.
   const { peaks, peakResolutionMs, peaksError, loading: peaksLoading, retry: retryPeaks } = usePeaks(
     podcastSlug, episodeId, 0, totalDuration, 0,
   );
@@ -265,9 +256,8 @@ function CueMarkModal({
     }
   }, []);
 
-  // Show suggestion markers when the capture tool opens IF a scan is already
-  // cached -- a read-only peek, so opening the tool to view/tweak a template
-  // never triggers a server-side scan. The explicit button still runs one.
+  // Show suggestion markers on open if a scan is already cached. A read-only peek, so opening the tool to
+  // view/tweak a template never triggers a server scan; the explicit button still runs one.
   useEffect(() => {
     const run = candidateRunRef.current;
     getCueCandidates(podcastSlug, episodeId, false, true)
@@ -417,8 +407,8 @@ function CueMarkModal({
     const audio = audioRef.current;
     if (!audio) return;
     clearSelectionStop();
-    // Seek then play only once metadata is loaded -- a pre-load seek is dropped
-    // by Chrome/Safari and would play from the episode start.
+    // Seek then play only once metadata is loaded (a pre-load seek is dropped by Chrome/Safari and would play
+    // from the episode start).
     const begin = () => {
       audio.currentTime = cueStart;
       const stop = () => {
@@ -440,10 +430,9 @@ function CueMarkModal({
     }
   };
 
-  // Set-at-playhead only enforces the MIN gap (so the region stays ordered and
-  // non-zero); it deliberately does NOT clamp to the max. Length is validated
-  // at save, where the type-specific ceiling applies -- clamping here snapped a
-  // long intro/outro back to the ad-break 4s default mid-edit.
+  // Set-at-playhead enforces only the MIN gap (region stays ordered and non-zero) and deliberately does not
+  // clamp to the max. Length is validated at save, where the type-specific ceiling applies; clamping here
+  // snapped a long intro/outro back to the 4s ad-break default mid-edit.
   const setStartAtPlayhead = useCallback(() => {
     const t = snapAbs(playheadTime);
     let newEnd = cueEnd;
@@ -596,8 +585,8 @@ function CueMarkModal({
           <div ref={overlayRef} className="relative">
             {peaksLoading && <WaveformLoading className="absolute left-3 top-3" />}
             <div ref={waveformRef} />
-            {/* Selected-cue region highlight -- same amber fill the ad editor
-                uses for its selection window. Below the markers/pins/playhead. */}
+            {/* Selected-cue region highlight: the amber fill the ad editor uses for its selection window. Below the
+                markers/pins/playhead. */}
             {peaks && windowDuration > 0 && (
               <div
                 className="absolute inset-y-0 z-[4] pointer-events-none"
@@ -622,10 +611,9 @@ function CueMarkModal({
               </div>
               <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-warning shadow-[0_0_4px_rgba(245,158,11,0.8)]" />
             </div>
-            {/* Cue-candidate markers: each candidate's full [start, end] span is
-                shaded (recurring stings sky, cross-episode intro/outro amber) with
-                a labeled, clickable badge. The band is visual only so it does not
-                block waveform drag-select; the badge jumps to the candidate. */}
+            {/* Cue-candidate markers: each candidate's [start, end] span is shaded (recurring stings sky, cross-episode
+                intro/outro amber) with a labeled, clickable badge. The band is visual only so it does not block waveform
+                drag-select; the badge jumps to the candidate. */}
             {(candidates ?? []).map((c) => {
               const startRel = (c.start - windowStart) / windowDuration;
               const endRel = (c.end - windowStart) / windowDuration;
@@ -710,7 +698,7 @@ function CueMarkModal({
           <WaveformError className="mt-2" onRetry={retryPeaks} />
         )}
 
-        {/* Find audio cues (on-demand -- the scan decodes the episode). */}
+        {/* Find audio cues (on demand: the scan decodes the episode). */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <button
             type="button"
@@ -734,7 +722,7 @@ function CueMarkModal({
           )}
         </div>
 
-        {/* Zoom -- shared with the "Add new ad" editor. */}
+        {/* Zoom: shared with the "Add new ad" editor. */}
         <ZoomControl
           value={zoom}
           min={ZOOM_MIN}
@@ -745,7 +733,7 @@ function CueMarkModal({
           onZoomOut={zoomOut}
         />
 
-        {/* Playback transport -- shared with the "Add new ad" editor. */}
+        {/* Playback transport: shared with the "Add new ad" editor. */}
         <TransportBar
           isPlaying={isPlaying}
           disabledTitle={audioUrl ? undefined : DEMO_AUDIO_TOOLTIP}

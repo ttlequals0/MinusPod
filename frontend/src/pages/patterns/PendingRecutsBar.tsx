@@ -55,11 +55,9 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
     },
   });
 
-  // The server's flags drive the whole bar: a row an apply would queue now
-  // (ready), one whose own run is underway or queued (inFlight), or one
-  // missing what a recut needs (blocked). Applying refetches, so the rows
-  // flip to inFlight on their own and no client-side batch tracking is
-  // needed; a decision arriving mid-batch simply shows as a new ready row.
+  // The server's flags drive the bar: ready (an apply would queue it now), inFlight (its run is underway or
+  // queued), blocked (missing what a recut needs). Applying refetches, so rows flip to inFlight on their own
+  // with no client-side batch tracking; a decision arriving mid-batch shows as a new ready row.
   const episodes = data?.episodes ?? [];
   const count = data?.count ?? 0;
   const ready = episodes.filter((e) => e.recutReady).length;

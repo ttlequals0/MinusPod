@@ -8,10 +8,7 @@ interface ThemeColors {
   muted: string;
 }
 
-/**
- * Resolve theme CSS variables to hsl() strings for recharts (which needs
- * concrete colors, not CSS vars) and re-resolve them on theme switch.
- */
+/** Resolve theme CSS variables to hsl() strings for recharts (needs concrete colors) and re-resolve on theme switch. */
 // Slate light values from index.css, so a chart still renders before the
 // variables resolve instead of falling back to an off-palette hardcoded hex.
 const DEFAULTS: ThemeColors = {

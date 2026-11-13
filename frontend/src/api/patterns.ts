@@ -5,16 +5,13 @@ import type { SegmentCategory } from '../utils/segmentCategory';
 import { apiUrl } from '../urlPrefix';
 import { mediaUrl } from '../utils/mediaUrl';
 
-// Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
-// and backend can't drift on the source-discriminator string spellings.
+// PatternSource mirrors the backend source values in src/utils/community_tags.py.
 export const PATTERN_SOURCE_COMMUNITY = 'community';
 type PatternSource = 'local' | typeof PATTERN_SOURCE_COMMUNITY | 'imported';
 
-// Mirrors the scope discriminator stored on ad_patterns rows. UI filters
-// (PatternsPage) and backend get_ad_patterns accept the same three values.
-// The 'network' scope is omitted from PatternCorrection.scope below because
-// user-driven pattern creation only exposes podcast vs global; network-scoped
-// patterns are only produced server-side.
+// Mirrors the scope discriminator on ad_patterns rows; PatternsPage filters and backend get_ad_patterns accept
+// the same values. 'network' is omitted from PatternCorrection.scope because user-driven creation only offers
+// podcast vs global; network patterns are made server-side.
 export type PatternScope = 'podcast' | 'network' | 'global';
 
 // Mirrors pattern_service.compute_pattern_trust's return values. Computed
@@ -381,10 +378,8 @@ export async function previewExportBundle(
   });
 }
 
-// apiRequest assumes JSON responses; the bundle endpoint streams a file,
-// so we use apiFileRequest which preserves CSRF + error-stringification.
-// The actual browser download happens here so callers only deal with the
-// resulting filename.
+// apiRequest assumes JSON; the bundle endpoint streams a file, so use apiFileRequest (keeps CSRF and error
+// stringification). The browser download happens here; callers only get the filename.
 export async function downloadCommunityBundle(
   ids: number[],
   overrides?: PatternOverrides,

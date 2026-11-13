@@ -133,10 +133,8 @@ type ModalProps = ({ ariaLabelledBy: string; ariaLabel?: never } | { ariaLabel: 
   // Escape closes by default; pass false for a dialog that must not.
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
-  // Sizing/layout plus any text-color override. The panel deliberately sets
-  // no text color of its own: dialogs historically inherit the body
-  // foreground, and card-foreground differs from foreground in dark mode,
-  // so dialogs that used text-card-foreground pass it here.
+  // Sizing/layout plus any text-color override. The panel sets no text color of its own: dialogs inherit the body
+  // foreground (card-foreground differs in dark mode), so those using text-card-foreground pass it here.
   panelClassName?: string;
   // Fixed above/below the scrolling body; with either set, only children scroll.
   header?: ReactNode;

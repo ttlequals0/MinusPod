@@ -28,15 +28,13 @@ export interface ReviewDetection {
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;
-  // Set by the ad reviewer stage. The original span is present only when the
-  // reviewer moved the span; held contradictions and split pieces keep the
-  // 'adjust' verdict without it.
+  // Set by the ad reviewer stage. The original span is present only when the reviewer moved the span; held
+  // contradictions and split pieces keep the 'adjust' verdict without it.
   reviewerVerdict: string | null;
   reviewerOriginalStart: number | null;
   reviewerOriginalEnd: number | null;
-  // Whether the span was actually moved (by the reviewer or a human
-  // approving a trimmed boundary); use this instead of inferring a move
-  // from reviewerVerdict/reviewerOriginalStart/End.
+  // Whether the span was actually moved (by the reviewer or a human approving a trimmed boundary); use this
+  // rather than inferring from reviewerVerdict/reviewerOriginalStart/End.
   reviewerMoved: boolean;
   // Null unless the detection is pending review.
   holdReason: HoldReason | null;

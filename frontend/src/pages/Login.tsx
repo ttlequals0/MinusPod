@@ -28,10 +28,8 @@ function Login() {
     );
   }
 
-  // Guard: wait for auth status (!isLoading) and suppress during submit
-  // (!isSubmitting -- handleSubmit owns navigation once it starts, and
-  // refreshStatus() inside it will have set isAuthenticated by the time
-  // navigate() is called; firing the guard first double-consumes takeLoginRedirect).
+  // Guard: wait for auth status (!isLoading) and skip during submit (!isSubmitting): handleSubmit owns
+  // navigation once it starts, and firing the guard first would double-consume takeLoginRedirect.
   if (!isLoading && !isSubmitting && (isAuthenticated || !isPasswordSet)) {
     return <Navigate to={takeLoginRedirect()} replace />;
   }
@@ -43,10 +41,9 @@ function Login() {
 
     const result = await login(password, rememberMe);
     if (result.ok) {
-      // Verify the cookie actually persisted: a Secure cookie over plain HTTP
-      // is silently discarded by the browser, so the POST appears successful
-      // but the next request is unauthenticated. refreshStatus() re-fetches
-      // the real state and returns it without relying on stale closure values.
+      // Verify the cookie persisted: a Secure cookie over plain HTTP is silently discarded, so the POST looks
+      // successful but the next request is unauthenticated. refreshStatus() re-fetches the real state without
+      // stale closure values.
       try {
         const realStatus = await refreshStatus();
         if (!realStatus.authenticated) {

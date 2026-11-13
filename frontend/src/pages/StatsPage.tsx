@@ -618,9 +618,8 @@ export default function StatsPage() {
     queryFn: () => getStatsByDay(podcastFilter || undefined),
   });
 
-  // Defer until the dashboard query confirms there are reviews to summarize.
-  // Avoids a wasted round-trip on every Stats page mount when the reviewer
-  // (off by default) has never run.
+  // Defer until the dashboard query confirms there are reviews to summarize; avoids a wasted round-trip on
+  // every mount when the reviewer (off by default) has never run.
   const { data: reviewer } = useQuery({
     queryKey: ['stats', 'reviewer', podcastFilter],
     queryFn: () => getReviewerStats(podcastFilter || undefined),

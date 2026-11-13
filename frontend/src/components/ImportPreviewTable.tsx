@@ -8,10 +8,8 @@ interface Props {
   entries: ImportPlanEntry[];
   rejected: ImportRejectedFile[];
   totals: { importable: number; rejected: number; errors: number; bytes: number };
-  // Batch-level errors (e.g. an out-of-order explicit publish-date pair)
-  // that block commit for the whole plan, independent of any individual
-  // entry's own errors. Optional so existing callers/tests that don't pass
-  // it keep working unchanged.
+  // Batch-level errors (e.g. an out-of-order explicit publish-date pair) that block commit for the whole plan
+  // regardless of entry errors. Optional so existing callers and tests keep working.
   batchErrors?: string[];
 }
 
@@ -46,12 +44,9 @@ const REASON_CLASS: Record<'error' | 'warning', string> = {
   warning: 'text-warning',
 };
 
-// The status pill alone doesn't say why a row won't import -- a bare
-// "error" badge with the reason only in a hover title leaves the operator
-// guessing (e.g. why a scan is stuck at 0 importable). This renders the
-// first error (or, absent an error, the first warning) as its own line
-// under the title, with the full joined list still available via title on
-// hover -- same fallback pattern StatusBadge already uses.
+// The status pill alone does not say why a row will not import, and a reason only in a hover title leaves the
+// operator guessing. This shows the first error (else the first warning) as its own line under the title, with
+// the full list still in the hover title, like StatusBadge.
 function ReasonLine({ entry }: { entry: ImportPlanEntry }) {
   const tone: 'error' | 'warning' | null =
     entry.errors.length > 0 ? 'error' : entry.warnings.length > 0 ? 'warning' : null;
@@ -114,10 +109,8 @@ interface Column {
 }
 
 function ReplacesPill({ entry }: { entry: ImportPlanEntry }) {
-  // Only for a collision that will actually go through as an overwrite on
-  // commit (replacesExisting + no errors) -- a collision that errored out
-  // instead (overwrite off) already has its own error badge/reason and
-  // doesn't need a second marker saying the same thing twice.
+  // Only for a collision that goes through as an overwrite on commit (replacesExisting and no errors); a
+  // collision that errored (overwrite off) already has its own error badge.
   if (!entry.replacesExisting || entry.errors.length > 0) return null;
   return (
     <span

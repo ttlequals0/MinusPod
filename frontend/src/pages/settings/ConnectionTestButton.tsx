@@ -5,9 +5,8 @@ import { btnBase, btnOutline } from '../../components/buttonStyles';
 import { DemoExplainer } from '../../components/DemoExplainer';
 import { IS_DEMO } from '../../demo/flag';
 
-// A result only describes the values it was tested with. Parents pass a
-// `key` built from those values, so React remounts this component (clearing
-// the shown result) the moment any tested value changes -- a stale green
+// A result describes only the values it was tested with. Parents pass a `key` built from those values, so
+// React remounts this component (clearing the result) when any tested value changes, and a stale green
 // "Connected" never sits next to an untested value.
 interface ConnectionTestButtonProps {
   onTest: () => Promise<ConnectionTestResult>;

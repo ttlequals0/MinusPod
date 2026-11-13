@@ -102,10 +102,9 @@
   }
 }
 
-/* Themed scrollbars: track follows the page background, thumb uses a subtle
-   border-toned grey so it reads on the true-black Obsidian theme and every
-   other theme alike. Kept in @layer base so the .no-scrollbar utility (in
-   @layer utilities) still overrides scrollbar-width where applied. */
+/* Themed scrollbars: track follows the page background, thumb a subtle border-toned grey so it reads on the
+   true-black Obsidian theme and every other. In @layer base so .no-scrollbar (in @layer utilities) still
+   overrides scrollbar-width. */
 @layer base {
   * {
     scrollbar-width: thin;
@@ -145,10 +144,9 @@
 /* Hide default disclosure triangle on <summary> across browsers */
 summary.list-none::-webkit-details-marker { display: none; }
 
-/* One yellow for every search highlight: the <mark> snippets on the global
-   Search page and the live CSS Custom Highlight API matches in the settings
-   search. Pinning <mark> also makes it identical across browsers (the default
-   varies). Dark text stays legible on the fill in both light and dark themes. */
+/* One yellow for every search highlight: the <mark> snippets on the Search page and the CSS Custom Highlight
+   API matches in settings search. Pinning <mark> also makes it identical across browsers; dark text stays
+   legible on the fill in light and dark themes. */
 mark,
 *::highlight(settings-search) {
   background-color: hsl(var(--highlight));

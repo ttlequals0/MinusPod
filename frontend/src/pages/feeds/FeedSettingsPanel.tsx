@@ -249,11 +249,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         setSegmentActionError(null);
       }
     },
-    // Rollback lives in each mutate() call's own onError below (react-query
-    // v5 runs per-call callbacks alongside these), so it can restore the
-    // exact pre-edit snapshot rather than the possibly-stale feed prop.
-    // onSettled always refetches so a failed PATCH still reverts every
-    // other field to server truth.
+    // Rollback lives in each mutate() call's own onError (react-query v5 runs per-call callbacks alongside these)
+    // so it restores the exact pre-edit snapshot, not the possibly-stale feed prop. onSettled always refetches so
+    // a failed PATCH still reverts every other field to server truth.
     onSettled: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ['feed', slug] }),
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
@@ -267,10 +265,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const queuePriorityError = failedSave('queuePriority');
   const queueOrderError = failedSave('queueOrder');
 
-  // Separate mutation from updateMutation: that one closes the network editor
-  // on success and surfaces no error message, while a rejected source URL
-  // (backend validates by fetching the feed) must stay in edit mode with the
-  // backend's reason shown inline.
+  // Separate from updateMutation, which closes the network editor on success and shows no error: a rejected
+  // source URL (the backend validates by fetching the feed) must stay in edit mode with the reason inline.
   const sourceUrlMutation = useMutation({
     mutationFn: (url: string) => updateFeed(slug, { sourceUrl: url }),
     onSuccess: () => {
@@ -282,10 +278,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     onError: (e: Error) => setSourceUrlError(e.message),
   });
 
-  // Full-map PATCH: each edit must send the whole override map, built from
-  // segmentOverrides (see above), not the feed prop. Clearing the last
-  // override sends null, not {}, so the feed comes back with no overrides
-  // at all. `prev` snapshots the pre-edit state for rollback in onError.
+  // Full-map PATCH: each edit sends the whole override map built from segmentOverrides, not the feed prop.
+  // Clearing the last override sends null, not {}, so the feed comes back with none. `prev` snapshots the
+  // pre-edit state for rollback in onError.
   const setSegmentActionOverride = (category: SegmentCategory, action: SegmentAction) => {
     const prev = segmentOverrides;
     const next = { ...segmentOverrides, [category]: action };
@@ -498,10 +493,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const processingMode = feed.processingMode ?? 'standard';
   const keepContentBlocked = llmDisabled && processingMode !== 'keep_content';
   const cueOnlyActive = processingMode === 'cue_only';
-  // Local feeds have no upstream RSS: source URL, title-blacklist, GUID
-  // scheme (forced own-IDs), and cross-fetch differential rows are all
-  // upstream-only concerns and stay hidden. Processing-related controls
-  // (auto-process, language, cue tuning, etc.) still apply.
+  // Local feeds have no upstream RSS, so source URL, title-blacklist, GUID scheme and cross-fetch differential
+  // rows (upstream-only concerns) stay hidden. Processing controls (auto-process, language, cue tuning, etc.)
+  // still apply.
   const isLocal = feed.feedType === 'local';
 
   return (

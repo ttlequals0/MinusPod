@@ -58,10 +58,9 @@ function piecesFrom(
   const bounds = [start, ...dividers, end];
   const out: PieceView[] = [];
   for (let i = 0; i < bounds.length - 1; i += 1) {
-    // Text is a preview from the server's original geometry, so after a drag
-    // it stays the nearest piece's words. Enough to name the sponsor, and it
-    // avoids a refetch per pointer move. Most-overlapping wins, or a nudged
-    // divider flips the guess to whichever piece it barely touches.
+    // Text is a preview from the server's original geometry, so after a drag it stays the nearest piece's words:
+    // enough to name the sponsor, with no refetch per pointer move. Most-overlapping wins, or a nudged divider
+    // would flip the guess to whichever piece it barely touches.
     let nearest: SplitPiece | undefined;
     let bestOverlap = 0;
     for (const p of base) {

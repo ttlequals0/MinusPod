@@ -50,10 +50,8 @@ import { DemoDisabled } from './DemoDisabled';
 import { IS_DEMO } from '../demo/flag';
 import { MODE_CAPABILITIES, type AdReviewMode } from './adReviewModes';
 
-// Shape used by the per-episode AdEditor: enough to render the waveform
-// editor for a single detected ad and submit a correction back. Matches
-// what PR #204's inbox passed in, but renamed to reflect the per-episode
-// scope of v2.2.0.
+// Shape used by the per-episode AdEditor: enough to render the waveform editor for one detected ad and
+// submit a correction back.
 export interface AdReviewItem {
   podcastSlug: string;
   episodeId: string;
@@ -117,10 +115,8 @@ interface Props {
   // Optional: total episode duration so create mode can default
   // end-of-selection to the end of the file.
   episodeDuration?: number;
-  // 'review' (default) is the existing flow. 'create' switches into
-  // net-new-ad mode against the original audio: empty boundaries,
-  // editable sponsor + text_template fields, and a different submit
-  // signature via onCreate.
+  // 'review' (default) is the existing flow; 'create' is net-new-ad mode against the original audio: empty
+  // boundaries, editable sponsor and text_template, and a different submit signature via onCreate.
   mode?: AdReviewMode;
   // 'span' edits one region on the original audio and saves it through
   // onSaveSpan; a rejection's message is shown beside the action.
@@ -134,10 +130,9 @@ interface Props {
   // Optional: surface a "+ Add new ad" entry inside the modal so the
   // user can switch into create mode without closing the modal first.
   onAddNew?: () => void;
-  // Optional hard window for the selection. Held/not-cut review files a
-  // trimmed confirm, and the corrections API rejects bounds outside the
-  // detected span (plus 0.5s tolerance); enforcing it here keeps the
-  // display honest instead of silently clamping at submit.
+  // Optional hard window for the selection. Held/not-cut review files a trimmed confirm and the corrections
+  // API rejects bounds outside the detected span (plus 0.5s tolerance); enforcing it here keeps the display
+  // honest instead of silently clamping at submit.
   boundsWindow?: { min: number; max: number };
   // Detected Ads opens already-cut ads, where a plain confirm has nothing
   // to do; the host disables it and only adjust/reject apply.
@@ -147,11 +142,9 @@ interface Props {
   onSplitSaved?: (result: { markerCount: number; patternIds: number[] }) => void;
 }
 
-// Cap the default visible window. Some heuristic detections (notably
-// post-roll) flag dozens of minutes as a single "ad", which would make
-// the default fit-zoom view useless (whole episode squeezed into one
-// screen). Six minutes is enough to set ad start with context; user can
-// always expand via the +1m buttons or wheel-zoom in.
+// Cap the default visible window: some heuristic detections (notably post-roll) flag dozens of minutes as one
+// "ad", which would squeeze the whole episode into the fit-zoom view. Six minutes gives context; the user can
+// still zoom out.
 const DEFAULT_MAX_WINDOW_SECONDS = 360;
 const WINDOW_STEP_SECONDS = 60;
 // Padding on each side of a detected ad's pins when the modal opens in
@@ -173,12 +166,8 @@ function CategoryOptions() {
   );
 }
 
-// ----------------------------------------------------------------------
-// Playhead cursor -- ref-driven DOM updates from the RAF loop, NOT React
-// state, so position can update at full 60fps without re-rendering the
-// whole modal tree (which fights wavesurfer + the regions plugin).
-// Position is read from the parent component's RAF loop via the
-// imperative handle returned by Cursor.
+// Playhead cursor: ref-driven DOM updates from the RAF loop, not React state, so it updates at 60fps without
+// re-rendering the modal tree (which fights wavesurfer and the regions plugin).
 
 // ----------------------------------------------------------------------
 
@@ -206,11 +195,8 @@ function AdReviewModal({
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const adRegionRef = useRef<ReturnType<InstanceType<typeof RegionsPlugin>['addRegion']> | null>(null);
 
-  // Defaults derived from the original detection -- used by Reset.
-  // Create mode defaults to the entire episode so the user can pin any
-  // moment without zooming/scrolling. Review mode centers on the detected
-  // ad with a small context margin so boundary detail is visible at fit
-  // zoom; the user can still zoom out or expand by typing distant times.
+  // Defaults for Reset, derived from the original detection. Create mode spans the entire episode so any moment
+  // can be pinned without zooming; review mode centers on the ad with a small context margin.
   const defaults = useMemo(() => {
     const fullDuration = Math.max(0, episodeDuration ?? 0);
     const safeEnd = fullDuration > 0 ? fullDuration : DEFAULT_MAX_WINDOW_SECONDS;
@@ -418,10 +404,8 @@ function AdReviewModal({
   // Peaks for just the visible window (a slice of the full-episode peaks).
   const windowPeaks = usePeakSlice(peaks, peakResolutionMs, windowStart, windowEnd);
 
-  // ------------------------------------------------------------------
-  // Create mode only: auto-populate text template from the transcript
-  // span the user has selected. Debounced; only fills when empty so we
-  // don't clobber edits.
+  // Create mode only: auto-populate the text template from the selected transcript span. Debounced; fills only
+  // when empty so edits are not clobbered.
   useEffect(() => {
     if (!caps.createFields) return;
     if (inputMode === 'text') return;
@@ -439,9 +423,8 @@ function AdReviewModal({
     return () => clearTimeout(t);
   }, [caps, inputMode, item.podcastSlug, item.episodeId, adStart, adEnd]);
 
-  // ------------------------------------------------------------------
-  // Mount wavesurfer when peaks/window arrive. Region is decorative -- 
-  // drag/resize disabled because the Pin components own that interaction.
+  // Mount wavesurfer when peaks/window arrive. The region is decorative (drag/resize disabled); the Pin
+  // components own that interaction.
   useEffect(() => {
     if (!containerRef.current || !windowPeaks) return;
 
@@ -475,9 +458,8 @@ function AdReviewModal({
     });
     adRegionRef.current = region;
 
-    // Stop the region from swallowing pointer events -- clicks anywhere in
-    // the waveform (including inside the ad band) should pass through to
-    // wavesurfer's seek and to our cursor scrub overlay.
+    // Stop the region swallowing pointer events so clicks in the ad band reach wavesurfer's seek and our cursor
+    // scrub overlay.
     const regionEl = (region as unknown as { element?: HTMLElement }).element;
     if (regionEl) {
       regionEl.style.pointerEvents = 'none';
@@ -518,11 +500,8 @@ function AdReviewModal({
     if (audioRef.current) audioRef.current.playbackRate = playbackRate;
   }, [playbackRate]);
 
-  // ------------------------------------------------------------------
-  // Cursor sync: <audio> drives the cursor position via direct DOM update
-  // (ref-based, no React re-render). React state is only updated ~10×/s
-  // for the transport time readout -- full-rate state updates would
-  // re-render the whole modal at 60fps and stutter the cursor.
+  // Cursor sync: <audio> drives the cursor by direct DOM update (no re-render). React state updates only ~10
+  // times/s for the time readout; full-rate state would re-render the modal at 60fps and stutter the cursor.
   useEffect(() => {
     let raf = 0;
     let lastReportedRoundedTime = -1;
@@ -552,13 +531,9 @@ function AdReviewModal({
     return () => cancelAnimationFrame(raf);
   }, [windowStart, windowDuration]);
 
-  // ------------------------------------------------------------------
-  // Seed audio.currentTime to a sensible spot near the ad on first
-  // metadata-loaded event AND whenever the active item changes. Without
-  // this, audio plays from t=0 (the start of the file) when the user hits
-  // Play -- for a post-roll ad whose window is at e.g. 6980-7200s, the
-  // cursor would never enter the visible window. Snap to ad-start so the
-  // user lands on the ad. We seed to (adStart - 2) for a tiny pre-roll.
+  // Seed audio.currentTime near the ad on first loadedmetadata and whenever the active item changes. Otherwise
+  // Play starts at t=0 and a post-roll window (e.g. 6980-7200s) never contains the cursor. Seeds to adStart - 2
+  // for a short pre-roll.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -581,14 +556,9 @@ function AdReviewModal({
     selectionStopRef.current = null;
   };
 
-  // Play only the ad span (adStart -> adEnd), then pause at the end. Mirrors the
-  // cue modal so both editors audition their selection the same way. Seeks after
-  // metadata loads (a pre-load seek is dropped by Chrome/Safari). The audition
-  // ends on the first user seek after ours -- cursor scrub, pin drag, keyboard,
-  // reset -- so the stop listener can never fire on unrelated later playback
-  // (the many seek paths do not funnel through one handler to clear it). Like
-  // the cue modal, the stop point is the adEnd at play time; editing bounds
-  // mid-audition without seeking still stops at the old end.
+  // Play only the ad span (adStart -> adEnd), then pause. Seeks after metadata loads (a pre-load seek is dropped
+  // by Chrome/Safari). The audition ends on the first user seek after ours (scrub, pin drag, keyboard, reset)
+  // so the stop listener cannot fire on unrelated playback; the stop point is adEnd at play time.
   const playSelection = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -632,10 +602,8 @@ function AdReviewModal({
     if (!audio) return;
     clearSelectionStop();
     if (audio.paused) {
-      // Safety net: if the cursor is parked at episode origin (or otherwise
-      // far before the visible window), snap to the ad start before playing
-      // so the user doesn't hear the episode intro on the first Play. A
-      // deliberate scrub inside or near the window is preserved.
+      // Safety net: if the cursor is parked far before the visible window (e.g. episode origin), snap to the ad
+      // start so the first Play does not play the intro. A deliberate scrub near the window is kept.
       if (caps.seekIntoAdOnPlay && adStart > 1 && audio.currentTime < adStart - 5) {
         audio.currentTime = Math.max(0, adStart - 2);
       }
@@ -751,10 +719,7 @@ function AdReviewModal({
     }
   };
 
-  // ------------------------------------------------------------------
-  // Window pan / reset. In the window-width model the rendered view IS the
-  // window, so the `,`/`.` keys pan windowCenter rather than growing a fetch
-  // span. Span size is changed by zoom.
+  // Window pan / reset. The rendered view is the window, so `,`/`.` pan windowCenter; span size changes via zoom.
   const panBack = () => setWindowCenter((c) => c - WINDOW_STEP_SECONDS);
   const panForward = () => setWindowCenter((c) => c + WINDOW_STEP_SECONDS);
   const resetView = () => {
@@ -775,9 +740,8 @@ function AdReviewModal({
     }
   };
 
-  // Mouse-wheel zoom on the waveform, anchored on the time under the cursor.
-  // The rendered view IS the window, so there's no horizontal scroll to
-  // re-anchor -- setZoom recenters the window on the cursor time directly.
+  // Mouse-wheel zoom, anchored on the time under the cursor. The rendered view is the window, so setZoom
+  // recenters it on the cursor time directly (no horizontal scroll to re-anchor).
   useEffect(() => {
     const waveform = waveformScrollRef.current;
     if (!waveform) return undefined;
@@ -797,14 +761,10 @@ function AdReviewModal({
     return () => waveform.removeEventListener('wheel', onWheel);
   }, [peaks, windowStart, windowDuration, zoom, setZoom]);
 
-  // ------------------------------------------------------------------
-  // Submission -- the host owns the actual API call (so it can also
-  // refresh the surrounding episode view, navigate, etc.); we just emit.
+  // Submission: the host owns the API call (so it can refresh the episode view, navigate, etc.); we only emit.
 
-  // Mirror adStart/adEnd into the input strings whenever the boundaries
-  // change from a source OTHER than user typing (pin drag, reset,
-  // keyboard nudge). Skip when an input is focused so we don't fight
-  // the user's keystrokes.
+  // Mirror adStart/adEnd into the input strings when boundaries change from something other than typing (pin
+  // drag, reset, keyboard nudge). Skip while an input is focused so keystrokes are not fought.
   const startInputRef = useRef<HTMLInputElement | null>(null);
   const endInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
@@ -827,10 +787,9 @@ function AdReviewModal({
     commitTimeInput(endInput, adEnd, episodeDuration ?? Number.POSITIVE_INFINITY,
       setAdEnd, setEndInput, setWindowCenter);
 
-  // Place a boundary at the playhead. Dragging a pin is unreachable on a
-  // phone once zoomed, so this is the only way in. The opposite edge is
-  // pushed just enough to keep the span legal; anything outside the detected
-  // span still surfaces through boundaryError rather than being clamped away.
+  // Place a boundary at the playhead; pin drag is unreachable on a phone once zoomed. The opposite edge is
+  // pushed just enough to keep the span legal; anything outside the detected span still surfaces through
+  // boundaryError rather than being clamped.
   const maxTime = episodeDuration ?? Number.POSITIVE_INFINITY;
   // The requested edge is held far enough from the episode bounds to leave
   // room for the other one, so a tap always lands a legal span rather than a
@@ -959,9 +918,7 @@ function AdReviewModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose, sponsorInput, adStart, adEnd, item.start, item.end, showSplit, multiSubmitting]);
 
-  // ------------------------------------------------------------------
-  // Style helpers -- explicit hover treatments so buttons clearly
-  // highlight on mouseover instead of looking washed out.
+  // Style helpers: explicit hover treatments so buttons visibly highlight on mouseover.
 
   // ------------------------------------------------------------------
 
@@ -969,12 +926,9 @@ function AdReviewModal({
     <div
       className="modal-backdrop fixed inset-0 z-60 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
       onMouseDown={(e) => {
-        // Only close when the bare backdrop is the actual mousedown target.
-        // Anything inside the modal panel (inputs, buttons, listbox items
-        // from a child popup, etc.) gets ignored here without needing a
-        // child stopPropagation. In create mode we never auto-close on
-        // backdrop click -- the user is in the middle of data entry and
-        // an accidental tap would lose everything.
+        // Close only when the bare backdrop is the mousedown target; clicks inside the panel (including child popups)
+        // are ignored without child stopPropagation. Create mode never auto-closes on backdrop click, since an
+        // accidental tap would lose the user's data entry.
         if (e.target !== e.currentTarget) return;
         if (!caps.backdropCloses) return;
         requestClose();
@@ -990,9 +944,8 @@ function AdReviewModal({
         data-split
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header -- action chrome up top (always fits a single row on
-            mobile), title visible only at sm:+ where there's room, and
-            the detection metadata wraps onto its own line below. */}
+        {/* Header: action chrome up top (one row on mobile), title only at sm:+, detection metadata wrapping onto
+            its own line below. */}
         <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className={`${caps.headingOnPhone ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground truncate min-w-0`}>
@@ -1065,11 +1018,8 @@ function AdReviewModal({
         <div className="min-h-0 flex-1 overflow-y-auto">
 
         {/* Window controls + reset */}
-        {/* Window header strip. ±1m buttons removed per the 2.2.0 plan;
-            the keyboard (`,` / `.`) handler still expands/shrinks the
-            window, and pin drag controls the ad boundaries themselves.
-            Window time labels prefixed so they're not a bare pair of
-            numbers floating in the chrome. */}
+        {/* Window header strip. The keyboard (`,` / `.`) handler expands/shrinks the window and pin drag sets the
+            ad boundaries. Window time labels are prefixed so they are not a bare pair of numbers. */}
         <div className={`px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground tabular-nums ${textModeActive ? 'hidden' : ''}`}>
           <span>
             Window: {formatTime(windowStart)} - {formatTime(windowEnd)}
@@ -1091,9 +1041,8 @@ function AdReviewModal({
           </div>
         </div>
 
-        {/* Full-episode pan scrubber: shows where the zoomed window sits and
-            lets the user pan across the whole episode (only useful when
-            zoomed). Pans the rendered window -- it does NOT seek audio. */}
+        {/* Full-episode pan scrubber: shows where the zoomed window sits and pans the rendered window across the
+            episode (only useful when zoomed). Does not seek audio. */}
         {!textModeActive && zoom > 1 && totalDuration > 0 && (
           <WindowScrubber
             ariaLabel="Waveform window position"
@@ -1175,13 +1124,10 @@ function AdReviewModal({
                 className="overflow-hidden"
               >
                 <div className="relative w-full" ref={overlayRef}>
-                  {/* Header strip -- gives the pinheads a place to live INSIDE
-                      the overlay's box (so they aren't clipped). */}
+                  {/* Header strip: gives the pinheads room inside the overlay's box so they are not clipped. */}
                   <div className="h-9" />
-                  {/* Pins live in the same horizontal coordinate system as the
-                      waveform host (overlayRef), which is always exactly the
-                      visible window width, so pin `left: %` of windowDuration
-                      tracks the right time at any zoom. */}
+                  {/* Pins share the waveform host's (overlayRef) coordinate system, always exactly the visible window width,
+                      so pin `left: %` of windowDuration tracks the time at any zoom. */}
                   <Pin
                     kind="start"
                     boundary={adStart}
@@ -1214,9 +1160,8 @@ function AdReviewModal({
                     style={{ left: '0%', display: 'none', touchAction: 'none' }}
                     aria-hidden
                     onPointerDown={(e) => {
-                      // Drag the cursor pinhead to scrub the audio. Scrub
-                      // is bounded by the visible window, NOT the ad
-                      // boundary -- user can listen anywhere in context.
+                      // Drag the cursor pinhead to scrub audio. Scrub is bounded by the visible window, not the ad boundary, so
+                      // the user can listen anywhere in context.
                       const overlay = overlayRef.current;
                       const audio = audioRef.current;
                       if (!overlay || !audio) return;
@@ -1252,7 +1197,7 @@ function AdReviewModal({
                   >
                     {/* Compact circle pinhead at top. */}
                     <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-card bg-warning shadow-md cursor-ew-resize" />
-                    {/* Time label -- hover or while moving. */}
+                    {/* Time label: hover or while moving. */}
                     <div className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-warning text-warning-foreground text-[10px] font-bold whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none opacity-0 group-hover/cursor:opacity-100">
                       ▶ {formatTime(currentTime)}
                     </div>
@@ -1267,7 +1212,7 @@ function AdReviewModal({
             )}
           </div>
 
-          {/* Zoom -- shared with the "Mark cue" editor. */}
+          {/* Zoom: shared with the "Mark cue" editor. */}
           <ZoomControl
             value={zoom}
             min={ZOOM_MIN}
@@ -1339,10 +1284,8 @@ function AdReviewModal({
             );
           })()}
 
-          {/* Boundaries readout. The two timestamps are editable inputs
-              (M:SS, MM:SS, H:MM:SS, or raw seconds) that commit to the
-              ad boundaries on blur or Enter. The pin handles still
-              update them live during drag. */}
+          {/* Boundaries readout. The timestamps are editable inputs (M:SS, MM:SS, H:MM:SS, or raw seconds) that
+              commit on blur or Enter; the pin handles update them live during drag. */}
           <div className="mt-3 text-sm text-muted-foreground tabular-nums">
             <span id={selectionLabelId} className={filterLabel}>Selection</span>
             <div role="group" aria-labelledby={selectionLabelId} className="flex items-center gap-2">
@@ -1405,7 +1348,7 @@ function AdReviewModal({
             />
           )}
 
-          {/* Playback transport -- shared with the "Mark cue" editor. */}
+          {/* Playback transport: shared with the "Mark cue" editor. */}
           <TransportBar
             isPlaying={isPlaying}
             onTogglePlay={togglePlay}
@@ -1568,11 +1511,9 @@ function AdReviewModal({
           </div>
         )}
 
-        {/* Category sits outside the sponsor branch above: a span with no
-            sponsor shows the sponsor prompt there, and those are exactly the
-            outro/self-promo reads whose category needs changing. It decides
-            which segment action applies, so it is the lever for a span the
-            feed is currently keeping. */}
+        {/* Category sits outside the sponsor branch: a span with no sponsor shows the sponsor prompt there, and those
+            outro/self-promo reads are the ones whose category needs changing. It decides which segment action
+            applies, so it is the lever for a span the feed is currently keeping. */}
         {caps.categoryField && (
           <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground">
             <label className="flex flex-wrap items-center gap-2">

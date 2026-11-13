@@ -1,11 +1,8 @@
 import { focusRing } from './fieldStyles';
 
-// Sizing for the action buttons in a marker/detection row, and for the icon
-// button that sits beside them. These are paired on purpose: a fixed icon
-// size cannot match neighbours whose height is responsive, so the icon button
-// derives its box from the same source rather than transcribing it.
-// The inline-sizing convention in buttonStyles.ts is deliberately relaxed
-// here, because the alignment is the whole point.
+// Sizing for the action buttons in a marker/detection row and the icon button beside them. Paired on purpose:
+// a fixed icon size cannot match neighbours of responsive height, so the icon button derives its box from the
+// same source. The inline-sizing convention in buttonStyles.ts is relaxed here because alignment is the point.
 
 /** Compact visual controls; coarse-pointer bounds come from index.css. */
 export const rowActionBtn =

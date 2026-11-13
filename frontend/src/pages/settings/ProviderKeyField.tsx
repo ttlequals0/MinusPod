@@ -44,10 +44,8 @@ function ProviderKeyField({
   const [confirmClear, setConfirmClear] = useState(false);
 
   const showActions = status.source === 'db' || draft.length > 0;
-  // Test reads the SAVED key from the backend, not the draft. If the user
-  // typed a value but hasn't clicked Save, Test would always return "no key
-  // configured" because the draft only exists in React state. Disable Test
-  // in that window and explain why via the title tooltip.
+  // Test reads the saved key from the backend, not the draft, so with an unsaved typed value it would always
+  // return "no key configured". Disable Test in that window and explain via the title tooltip.
   const testBlocked = draft.length > 0 && status.source !== 'db';
 
   async function handleSave() {

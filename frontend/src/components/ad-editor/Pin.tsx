@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { formatTime } from '../../utils/adReviewHelpers';
 
-// Vertical drag handle above the waveform that controls the
-// corresponding ad boundary. Pins ARE the user's drag interface -- the
-// wavesurfer region is decorative (drag/resize disabled on it).
+// Vertical drag handle above the waveform that controls an ad boundary. Pins are the user's drag interface;
+// the wavesurfer region is decorative (drag/resize disabled).
 
 // Default min separation between the two pins. CueMarkModal overrides to
 // 0.2s for short stingers; the ad editor leaves it at the 1.0s ad floor.
@@ -45,10 +44,8 @@ export function Pin({
   const [dragging, setDragging] = useState(false);
 
   const relX = (boundary - windowStart) / windowDuration;
-  // Tolerate a tiny bit outside [0, 1] -- happens routinely on post-roll ads
-  // where the LLM places adEnd a hair past where the audio file actually
-  // ends, which makes relX = 1.0001 or so. Without slop the END pin
-  // disappears entirely.
+  // Tolerate slightly outside [0, 1]: post-roll ads often have adEnd a hair past the audio's end (relX ~1.0001),
+  // and without slop the END pin disappears.
   const visible = relX >= -0.02 && relX <= 1.02;
   const leftPct = Math.max(0, Math.min(1, relX)) * 100;
 
@@ -134,11 +131,8 @@ export function Pin({
 
   if (!visible) return null;
 
-  // Compact pin: small colored circle pinhead, thin stem. The label
-  // (with time) only shows when the pin is being dragged or hovered --
-  // when idle, just the circle is visible. Negative top offsets are
-  // avoided so the pinhead doesn't get clipped by the parent's
-  // overflow-x scrollbox.
+  // Compact pin: small colored circle head, thin stem. The label (with time) shows only while dragging or
+  // hovered. No negative top offsets, so the head is not clipped by the parent's overflow-x scrollbox.
 
   return (
     <div
@@ -165,7 +159,7 @@ export function Pin({
           dragging ? `ring-4 ${ringColor} scale-125 motion-reduce:scale-100` : ''
         } transition-transform motion-reduce:transition-none`}
       />
-      {/* Time label -- only visible while dragging or on hover. */}
+      {/* Time label: only visible while dragging or on hover. */}
       <div
         className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
           dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -173,13 +167,13 @@ export function Pin({
       >
         {labelText} {formatTime(boundary)}
       </div>
-      {/* Stem -- runs from just below the circle to the bottom. */}
+      {/* Stem: runs from just below the circle to the bottom. */}
       <div
         className={`absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 ${color} ${
           dragging ? 'opacity-100' : 'opacity-80'
         }`}
       />
-      {/* Touch target -- wraps the whole pin column for easy mobile grab. */}
+      {/* Touch target: wraps the whole pin column for easy mobile grab. */}
       <div
         className="absolute inset-y-0 -inset-x-4"
         style={{ touchAction: 'none' }}

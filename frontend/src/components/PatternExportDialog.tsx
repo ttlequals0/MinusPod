@@ -14,10 +14,8 @@ import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
 import { apiUrl } from '../urlPrefix';
 import { DemoDisabled } from './DemoDisabled';
 
-// Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
-// hash). Feeds the live filename preview in the edit row so the contributor
-// can see the slug shape before submission. The real community_id is
-// allocated server-side at submit time.
+// Deterministic 8-char hex from the integer pattern id (Knuth multiplicative hash), for the live filename
+// preview so contributors see the slug shape before submitting. The real community_id is allocated server-side.
 function previewShortId(patternId: number): string {
   const n = (patternId * 2654435761) >>> 0;
   return n.toString(16).padStart(8, '0').slice(0, 8);
@@ -302,9 +300,8 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                       baseTags={[]}
                       override={patternOverrides[p.id]}
                       onChange={(next: PatternOverride | undefined) => {
-                        // Any edit invalidates the last preview -- the next
-                        // download must re-run preview against the new
-                        // override map to surface fresh rejections.
+                        // Any edit invalidates the last preview; the next download must re-run preview against the new override map
+                        // to surface fresh rejections.
                         setPreview(null);
                         setDownloadedFilename(null);
                         setPatternOverrides((prev) => {

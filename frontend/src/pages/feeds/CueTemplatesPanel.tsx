@@ -132,10 +132,9 @@ function CueTemplatesPanel({ slug }: Props) {
     enabled: !!slug && panelOpen,
   });
 
-  // Gate for the "Find across episodes" button: needs >= 2 episodes with
-  // retained originals. Shares the picker's page-0 query (cached), and only
-  // disables once loaded data confirms the shortfall, so the button doesn't
-  // flash disabled while the query is in flight.
+  // Gate for "Find across episodes": needs >= 2 episodes with retained originals. Shares the picker's cached
+  // page-0 query and disables only once loaded data confirms the shortfall, so the button does not flash
+  // disabled while loading.
   const eligibleQuery = useQuery({
     queryKey: ['cue-template-picker', slug, 0],
     queryFn: () =>
@@ -239,8 +238,7 @@ function CueTemplatesPanel({ slug }: Props) {
       return;
     }
     if (!networkId) return;
-    // Promotion applies the cue to every feed on the network -- show which ones
-    // before committing.
+    // Promotion applies the cue to every feed on the network; show which ones before committing.
     try {
       const feeds = await getFeeds();
       const onNetwork = feeds.filter((f) => (f.networkIdOverride || f.networkId) === networkId);
@@ -256,8 +254,8 @@ function CueTemplatesPanel({ slug }: Props) {
     setPromoteState(null);
   };
 
-  // After a cue is saved, confirm it actually recurs by previewing it against a
-  // few other recent episodes -- a bad or loose bracket shows up immediately.
+  // After a cue is saved, preview it against a few other recent episodes to confirm it recurs; a bad or loose
+  // bracket shows immediately.
   const runAutoVerify = async (template: CueTemplate) => {
     setVerifyState(null);
     setVerifying(true);

@@ -9,11 +9,9 @@ const PLAY_WHILE_DRAG_KEY = 'minuspod.adInbox.playWhileDragging';
 const INT_PART = /^\d+$/;
 const LAST_PART = /^\d+(\.\d+)?$/;
 
-// Parse user-entered timestamp text. Accepts either `MM:SS[.s]` (or
-// `H:MM:SS[.s]`) or a raw seconds value like `139.4`. Returns null on
-// any invalid input so callers can keep the prior boundary. Number()'s
-// leniency (hex strings, leading/trailing junk, exponents) is rejected by
-// matching each part against a plain-digits pattern instead.
+// Parse user-entered timestamp text: `MM:SS[.s]`, `H:MM:SS[.s]` or raw seconds like `139.4`. Returns null on
+// invalid input so callers keep the prior boundary. Number()'s leniency (hex, junk, exponents) is avoided by
+// matching each part against a plain-digits pattern.
 export function parseTimeInput(s: string): number | null {
   const t = s.trim();
   if (!t) return null;
@@ -39,12 +37,10 @@ export function formatTime(seconds: number): string {
   return `${sign}${m}:${s.toFixed(1).padStart(4, '0')}`;
 }
 
-// Canonical waveform color for both audio-editor modals (cue + ad edit). Both
-// render their own amber playhead overlay (cursorColor transparent), so
-// wavesurfer's built-in unplayed/played split is unused -- left to its default
-// it would only show a muted grey waveform at rest. Return the theme primary
-// for BOTH the bar and the progress fill so the two editors read as one vivid,
-// identically-themed waveform. Single source: changing this shifts both.
+// Canonical waveform color for both audio-editor modals. Both draw their own amber playhead overlay
+// (cursorColor transparent), so wavesurfer's unplayed/played split is unused and its default would show a
+// muted grey waveform at rest. Returns the theme primary for both bar and progress fill so the editors read
+// as one vivid waveform; changing this shifts both.
 // Slate light --primary, for the window-less and unresolved-variable paths.
 const DEFAULT_WAVE = 'hsl(194 66% 45%)';
 
@@ -58,12 +54,9 @@ export function getThemeWaveformColors(): { waveColor: string; progressColor: st
   return { waveColor: color, progressColor: color };
 }
 
-// Shared commit for the timestamp text inputs of both audio-editor modals.
-// Clamps only to absolute episode bounds [0, maxSeconds]; cross-field
-// validation (Start < End) is enforced at Save time so the user can edit both
-// fields without each blur stomping the other. Invalid input reverts to the
-// current boundary. `onCommitted` runs only on a successful commit (e.g.
-// AdReviewModal recenters its waveform window on the committed value).
+// Shared commit for the timestamp inputs of both audio-editor modals. Clamps only to [0, maxSeconds]; Start <
+// End is enforced at Save so editing one field does not stomp the other on blur. Invalid input reverts to the
+// current boundary. `onCommitted` runs only on a successful commit (e.g. AdReviewModal recenters its window).
 export function commitTimeInput(
   input: string,
   fallback: number,

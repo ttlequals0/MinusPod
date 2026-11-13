@@ -1,10 +1,7 @@
 /**
- * Copy text to the clipboard. Returns true on success so callers only show
- * "Copied" when the copy actually happened.
- *
- * Falls back to a hidden input + execCommand when navigator.clipboard is
- * unavailable, which is common when MinusPod runs over plain http on a LAN
- * (clipboard API requires a secure context).
+ * Copy text to the clipboard; returns true on success so callers show "Copied" only when it happened.
+ * Falls back to a hidden input + execCommand when navigator.clipboard is unavailable (common over plain
+ * http on a LAN, since the clipboard API needs a secure context).
  */
 export async function copyText(text: string): Promise<boolean> {
   try {

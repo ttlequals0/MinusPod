@@ -95,10 +95,8 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-// Turn whatever the backend returned in its error body into a usable string,
-// so `new Error(...).message` never ends up as "[object Object]". Backend
-// 4xx bodies vary: sometimes `{error: 'string'}`, sometimes
-// `{error: {message: 'x', reasons: [...]}}` (e.g. submit-to-community 400).
+// Turn a backend error body into a usable string so `new Error(...).message` never reads "[object Object]".
+// Bodies vary: `{error: 'string'}` or `{error: {message, reasons}}` (e.g. submit-to-community 400).
 function extractErrorMessage(body: unknown, status: number): string {
   if (body && typeof body === 'object') {
     const err = (body as { error?: unknown }).error;
@@ -133,11 +131,8 @@ function errorMessageFor(body: unknown, status: number): string {
   return extractErrorMessage(body ?? { error: 'Request failed' }, status);
 }
 
-// Thrown by apiRequest on a non-ok response, carrying the HTTP status so
-// callers can branch on it (e.g. treat 404 as "not found" vs any other error)
-// without string-matching the message, plus the parsed body. A 409 conflict
-// carries the authoritative jobState; dropping the body would leave callers
-// with stale eligibility until a refetch they may never get.
+// Thrown by apiRequest on a non-ok response. Carries the HTTP status (so callers can branch on 404 etc.)
+// and the parsed body (a 409 carries the authoritative jobState).
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -268,10 +263,8 @@ interface FileRequestOptions {
   fallbackFilename?: string;
 }
 
-// Shared blob-download helper. Endpoints that stream a file can't go through
-// apiRequest (which assumes JSON), but they still need the same CSRF header
-// path and error-stringification. Returns the blob plus the filename parsed
-// from Content-Disposition (or fallbackFilename if the header is missing).
+// Blob-download helper for endpoints that stream a file (apiRequest assumes JSON), keeping the CSRF header
+// and error stringification. Returns the blob and the Content-Disposition filename (or fallbackFilename).
 export async function apiFileRequest(
   endpoint: string,
   options: FileRequestOptions = {}

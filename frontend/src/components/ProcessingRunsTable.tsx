@@ -346,10 +346,8 @@ function missingStages(run: EpisodeProcessingRun): { phaseKey: string; reason: s
     .map((key) => ({ phaseKey: key, reason: missingStageReason(run, key) }));
 }
 
-// Compact per-phase/model breakdown for one run's expanded row. A phase with
-// a retry or fallback yields several model rows, one per configured model.
-// layout picks the surface: 'table' for the desktop row, 'cards' for the
-// mobile stacked view (which wraps instead of scrolling horizontally). Both
+// Compact per-phase/model breakdown for a run's expanded row; a retry or fallback yields several model rows.
+// layout: 'table' for the desktop row, 'cards' for the mobile stacked view (wraps instead of scrolling). Both
 // callers stay mounted (CSS-gated); each renders only its own layout.
 function PhaseBreakdown({ run, layout }: { run: EpisodeProcessingRun; layout: 'table' | 'cards' }) {
   if (!run.breakdownAvailable) {

@@ -31,11 +31,9 @@ const YOUTUBE_SEARCH_MIN_CHARS = 3;
 
 type AddFeedMode = 'subscribe' | 'local' | 'recents';
 
-// Mirrors the shape of the backend's make_slug (python-slugify): lowercase,
-// strip diacritics, collapse runs of non-alphanumerics to a single hyphen,
-// trim leading/trailing hyphens, cap at the server's 200-char slug limit.
-// The server re-validates and is the source of truth; this only keeps the
-// preview from surprising the user before they submit.
+// Mirrors the backend's make_slug (python-slugify): lowercase, strip diacritics, collapse non-alphanumeric runs
+// to one hyphen, trim edge hyphens, cap at the server's 200-char limit. The server re-validates; this only
+// keeps the preview from surprising the user.
 function localSlugify(title: string): string {
   return title
     .toLowerCase()
@@ -113,10 +111,8 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
   const [explicit, setExplicit] = useState(false);
   const [categoriesInput, setCategoriesInput] = useState('');
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
-  // Set inside mutationFn when the create succeeds but the artwork upload
-  // (a separate, non-fatal step) failed or came back with a warning; read by
-  // onSuccess to attach a notice to the navigation, never to the create's
-  // own error path.
+  // Set inside mutationFn when the create succeeds but the artwork upload (a separate, non-fatal step) failed
+  // or warned; onSuccess reads it to attach a notice to the navigation, never to the create's error path.
   const artworkNoticeRef = useRef<string | null>(null);
 
   const handleTitleChange = (value: string) => {
@@ -235,11 +231,9 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
         />
       </div>
 
-      {/* No id: Checkbox's id prop is only for when an ancestor already
-          labels the box (renders a <span> then, no click-forwarding). No
-          such ancestor here, so id would make the box visually present but
-          unclickable by mouse -- the same bug LocalFeedPanel.tsx's identical
-          checkbox had (#625 Task 13 review). */}
+      {/* No id: Checkbox's id prop is only for when an ancestor already labels the box (it renders a <span> with no
+          click-forwarding). With no such ancestor here, id would leave the box unclickable by mouse (the bug
+          LocalFeedPanel.tsx's identical checkbox had, #625). */}
       <Checkbox
         checked={explicit}
         onChange={setExplicit}

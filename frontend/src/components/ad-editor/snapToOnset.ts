@@ -1,9 +1,6 @@
-// Snap a time to the nearest audible onset using the waveform peak buckets
-// (#350 cue capture). A stinger starts with a sharp amplitude rise; we find
-// the steepest positive step within a small radius of the requested time and
-// snap to the bucket where that rise begins. Returns the input unchanged when
-// no clear onset is nearby (e.g. a ramped swoosh), so snapping is an assist,
-// never mandatory.
+// Snap a time to the nearest audible onset using the waveform peak buckets (#350 cue capture). Finds the
+// steepest positive amplitude step within a small radius and snaps to where that rise begins. Returns the
+// input unchanged when no clear onset is nearby (e.g. a ramped swoosh), so snapping is only an assist.
 
 const SEARCH_RADIUS_SECONDS = 0.3;
 // The rise must clear this fraction of the local amplitude range to count as a

@@ -1,5 +1,5 @@
-// Canonical list of CSS variable keys -- drives both the TypeScript interface and runtime iteration.
-// Adding a key here automatically updates ThemeVariables and CSS_VAR_KEYS.
+// Canonical list of CSS variable keys; drives both the TypeScript interface and runtime iteration.
+// Adding a key here updates ThemeVariables and CSS_VAR_KEYS.
 export const THEME_VAR_KEYS = [
   'background',
   'foreground',

@@ -100,11 +100,9 @@ export default function CueCrossEpisodeScanModal({
   // set, fall back to the current selection while no response has arrived.
   const episodeCount = scanData?.episodeIds?.length ?? selectedIds.length;
 
-  // Candidate times live in the response's targetEpisodeId frame. The server
-  // cache is keyed on the SORTED id set, so a cached scan queued in a different
-  // order returns candidates in a DIFFERENT episode's timeline than selected[0].
-  // Resolve the display/seed episode from the response; fall back to selected[0]
-  // only until a response arrives.
+  // Candidate times are in the response's targetEpisodeId frame. The server cache keys on the sorted id set, so
+  // a cached scan queued in another order returns a different episode's timeline than selected[0]. Take the
+  // display/seed episode from the response; fall back to selected[0] until one arrives.
   const targetEpId = scanData?.targetEpisodeId ?? selected[0]?.id;
   const knownTargetEp =
     selected.find((ep) => ep.id === targetEpId) ??
@@ -135,9 +133,8 @@ export default function CueCrossEpisodeScanModal({
       end,
     );
 
-  // Titles for the per-episode breakdown. Known metadata first; ids the modal
-  // never held (cached scan from another selection/page) are fetched. The
-  // target id is excluded -- fetchedTargetQuery above already fetches it.
+  // Titles for the per-episode breakdown: known metadata first, then fetch ids the modal never held (cached scan
+  // from another selection/page). The target id is excluded; fetchedTargetQuery above fetches it.
   const breakdownIds = scanData?.episodeIds ?? [];
   const titleById = new Map<string, string>();
   for (const ep of [...selected, ...pickerEpisodes]) {

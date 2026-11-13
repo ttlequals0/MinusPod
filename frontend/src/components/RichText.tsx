@@ -4,12 +4,9 @@ import { stripHtml } from '../utils/stripHtml';
 import { focusRing } from './fieldStyles';
 
 /**
- * Renders a feed or episode description with its links intact: real anchors
- * whose text is often a person's name, and bare URLs in plain text.
- *
- * Nothing is injected as HTML. The input is parsed, then rebuilt as React
- * elements with only http, https, and mailto hrefs allowed through, so a
- * javascript: or data: URL in a publisher's feed cannot become a live link.
+ * Renders a feed or episode description with its links intact: real anchors and bare URLs in plain text.
+ * Nothing is injected as HTML: the input is parsed and rebuilt as React elements, letting only http, https
+ * and mailto hrefs through, so a javascript: or data: URL in a feed cannot become a live link.
  */
 
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
@@ -109,10 +106,7 @@ function walk(node: Node, keyPrefix: string): ReactNode[] {
   return out;
 }
 
-/**
- * Cap a run of 2+ newlines within one text node to a single blank line,
- * treating whitespace-only or nbsp-only lines as blank.
- */
+/** Cap 2+ newlines in a text node to one blank line; whitespace/nbsp-only lines count as blank. */
 function normalizeRuns(s: string): string {
   return s
     .replace(/\r\n?/g, '\n')
@@ -121,10 +115,9 @@ function normalizeRuns(s: string): string {
 }
 
 /**
- * Collapse the blank-line runs that adjacent block tags produce, so nested
- * markup does not open a description with a gap or double-space its paragraphs.
- * Each string node is normalized on its own first (long blank runs capped at
- * one blank line), then adjacent nodes are joined at a single line break.
+ * Collapse the blank-line runs adjacent block tags produce, so nested markup does not open a description with
+ * a gap or double-space paragraphs. Each string node is capped to one blank line first, then adjacent nodes
+ * are joined at a single line break.
  */
 function tidy(nodes: ReactNode[]): ReactNode[] {
   const normalized = nodes.map(n => (typeof n === 'string' ? normalizeRuns(n) : n));

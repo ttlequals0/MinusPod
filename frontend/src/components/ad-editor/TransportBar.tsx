@@ -50,10 +50,8 @@ function TransportBar({
   const off = disabledTitle !== undefined;
   return (
     <div className="mt-3 mx-auto w-full sm:w-fit max-w-full max-sm:[container-type:inline-size] px-0.5 sm:px-3 py-2 rounded-lg bg-secondary/50 border border-border">
-      {/* Controls and the selection readout share one row on desktop (there is
-          plenty of width) and stack on mobile, so the editor is not three lines
-          tall on a wide screen. The transport cluster keeps the speed control
-          grouped beside it at any width. */}
+      {/* Controls and the selection readout share one row on desktop and stack on mobile, so the editor is not
+          three lines tall on a wide screen. The transport cluster keeps the speed control beside it. */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-4 sm:gap-y-2">
         <div className="flex items-center justify-center max-sm:flex-wrap gap-px sm:gap-0.5">
           <button type="button" disabled={off} onClick={onSeekToStart} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to START pin">

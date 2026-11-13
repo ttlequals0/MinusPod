@@ -169,11 +169,9 @@ function FeedDetail() {
     setSearchInput(episodeSearch);
   }
 
-  // AddFeed's local-feed create flow passes a notice through router state
-  // (e.g. an artwork upload failure or size warning) since it can't set
-  // component state on a page it's about to unmount from. Surface it once
-  // through the same toast, then drop it from history so back/refresh don't
-  // replay it.
+  // AddFeed's local-feed create flow passes a notice via router state (e.g. an artwork upload failure) since it
+  // cannot set state on a page it is leaving. Surface it once through the same toast, then drop it from history
+  // so back/refresh do not replay it.
   useEffect(() => {
     const notice = (location.state as { notice?: string } | null)?.notice;
     if (notice) {
@@ -402,10 +400,8 @@ function FeedDetail() {
 
   const handleToggleSelect = (id: string, shiftKey: boolean) => {
     setSelectedScope(selectionScope);
-    // Shift+click applies the anchor row's current state to every selectable
-    // row between the anchor and it (inclusive), in current page order, skipping
-    // blocked rows (standard range-select). A plain click toggles one row and
-    // becomes the new anchor.
+    // Shift+click applies the anchor row's state to every selectable row between anchor and target (inclusive,
+    // page order), skipping blocked rows. A plain click toggles one row and becomes the anchor.
     if (shiftKey && selectionAnchor && selectionAnchor !== id) {
       const order = episodes.map(ep => ep.id);
       const a = order.indexOf(selectionAnchor);

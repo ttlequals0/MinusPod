@@ -321,10 +321,8 @@ export function DetectionRows({
           const rowKey = keyOf(d, index);
           return (
             <div key={rowKey} data-testid="detection-row" role="listitem" className="px-4 py-3 hover:bg-accent/50 transition-colors">
-              {/* flex-wrap + the title's min-width floor: when badges and
-                  actions cannot fit beside a legible title (font scaling
-                  near the md breakpoint), they wrap below instead of
-                  clipping past the card edge. */}
+              {/* flex-wrap + the title's min-width floor: when badges and actions cannot fit beside a legible title (font
+                  scaling near the md breakpoint), they wrap below instead of clipping past the card edge. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <Link
                   to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}

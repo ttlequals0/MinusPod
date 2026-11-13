@@ -3,11 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEpisodePeaks } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
 
-// 100ms buckets -- 4x fewer peaks than the prior 50ms default. Still
-// plenty of detail to see speech vs. silence at any reasonable zoom
-// level, and shaves the JSON payload + canvas-render cost on first
-// mount roughly 4x. Kept identical to the value AdReviewModal used
-// before extraction so behavior is preserved.
+// 100ms buckets: 4x fewer peaks than the prior 50ms default, still enough to see speech vs silence at any
+// reasonable zoom, and roughly 4x less JSON payload and canvas-render cost on first mount.
 const PEAK_RESOLUTION_MS = 100;
 
 interface UsePeaksResult {
@@ -18,16 +15,11 @@ interface UsePeaksResult {
   retry: () => void;
 }
 
-// Fetches episode peaks for the given window and exposes the result plus the
-// resolution the server actually used (it may coarsen for long windows).
-// Cached via react-query (staleTime Infinity) so remounting the editor for
-// the same episode -- e.g. AdReviewModal stepping through an ad queue -- hits
-// the cache instead of re-downloading the full-episode peaks. Bumping the
-// `resetTick` knob resets every cached ['peaks', slug, episodeId, ...] entry
-// (dropping the possibly-bad data instead of stranding it under an old key)
-// and refetches fresh. A 503 with Retry-After means the waveform is still being
-// built: the request waits it out inside apiRequest, so the query stays pending.
-// Other failures surface after the client's own retries; react-query retry stays off.
+// Fetches episode peaks for a window plus the resolution the server used (it may coarsen for long windows).
+// Cached via react-query (staleTime Infinity) so remounting the editor for the same episode hits the cache.
+// Bumping `resetTick` resets every cached ['peaks', slug, episodeId, ...] entry and refetches, so bad data is
+// dropped rather than stranded under an old key. A 503 with Retry-After (waveform still building) is waited
+// out inside apiRequest, leaving the query pending; react-query retry stays off.
 export function usePeaks(
   podcastSlug: string,
   episodeId: string,
@@ -40,10 +32,8 @@ export function usePeaks(
   const retry = useCallback(() => setRetryTick((n) => n + 1), []);
   const tick = resetTick + retryTick;
 
-  // Skip the initial mount: only an actual Reset click should blow the cache.
-  // resetQueries (not removeQueries) because removal does not notify the
-  // mounted observer; reset clears the data of every matching entry and
-  // refetches the active one.
+  // Skip the initial mount: only an actual Reset click should blow the cache. resetQueries, not removeQueries,
+  // because removal does not notify the mounted observer.
   const prevResetTickRef = useRef(tick);
   useEffect(() => {
     if (prevResetTickRef.current === tick) return;

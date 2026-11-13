@@ -109,11 +109,9 @@ type SettingScalar = string | number | boolean | null;
 
 type StageKey = 'detection' | 'verification' | 'chapters' | 'review';
 
-// One registry row per Save-bar field. Hydration, the changed-field diff,
-// and dirty detection all resolve the server-side value through
-// fieldBaseline(), so the fallback chains can no longer drift apart --
-// the drift class behind #234, #513 and fe-settings-history-1 (hydration
-// and diff MUST use identical fallbacks) is structurally closed.
+// One registry row per Save-bar field. Hydration, the changed-field diff and dirty detection all resolve the
+// server value through fieldBaseline(), so their fallback chains cannot drift apart (the drift behind #234
+// and #513: hydration and diff must use identical fallbacks).
 interface FieldSpec {
   // Key into settings, settings.defaults, and the PUT payload (all match).
   key: keyof UpdateSettingsPayload;
@@ -179,11 +177,9 @@ function Settings() {
   const [verificationPromptOverride, setVerificationPromptOverride] = useState('');
   const [chapterPromptOverride, setChapterPromptOverride] = useState('');
   const [patternCleanupPrompt, setPatternCleanupPrompt] = useState('');
-  // Form state holds no hardcoded defaults: every field is hydrated from the
-  // loaded settings (or the backend-provided `settings.defaults.*`) before the
-  // form renders (the page returns a loader while `settingsLoading`, and the
-  // hydration block below runs in the render phase). These initializers are
-  // neutral placeholders that are never displayed.
+  // Form state holds no hardcoded defaults: every field is hydrated from loaded settings (or the backend's
+  // `settings.defaults.*`) before the form renders (the page shows a loader while `settingsLoading`; hydration
+  // runs in the render phase). These initializers are neutral placeholders that are never displayed.
   const [reviewer, setReviewer] = useState({
     enabled: false,
     provider: '',
@@ -409,10 +405,9 @@ function Settings() {
   // REST surface (unlike the primary keys): it saves/clears through the
   // main settings PUT and its only test is the end-to-end connection probe.
   const handleSecondaryProviderKeySave = async (apiKey: string) => {
-    // Co-persist the slot's type and base URL with the key (#234) so the
-    // connection probe tests the right destination. The base URL is sent only
-    // once touched, so a deliberate clear ('') commits but a pre-hydration ''
-    // does not (#235).
+    // Co-persist the slot's type and base URL with the key (#234) so the connection probe tests the right
+    // destination. The base URL is sent only once touched, so a deliberate clear ('') commits but a
+    // pre-hydration '' does not (#235).
     const body: {
       secondaryProviderApiKey: string;
       secondaryProvider?: LlmProvider;
@@ -461,20 +456,17 @@ function Settings() {
     queryFn: getSettings,
   });
 
-  // The Ad Reviewer pattern-update toggle and trim threshold live on a
-  // separate endpoint but are surfaced in the same section; seeded into
-  // `reviewer` so the global Save writes them alongside the rest.
+  // The Ad Reviewer pattern-update toggle and trim threshold use a separate endpoint but sit in the same
+  // section; seeded into `reviewer` so the global Save writes them with the rest.
   const { data: reviewerSettings } = useQuery({
     queryKey: ['reviewerSettings'],
     queryFn: getReviewerSettings,
   });
   const { data: pricingFeeds } = useQuery({ ...feedsQueryOptions, select: (response) => response.feeds });
 
-  // Per-phase model catalogs. detection/verification/chaptersProvider and
-  // reviewer.provider store a SLOT ('primary'/'secondary', plus
-  // same_as_detection/same_as_pass), not a provider type, so each is
-  // resolved to a type here before it can be used to fetch a model catalog.
-  // Mirrors llm_route.py's inheritance and secondary fallback.
+  // Per-phase model catalogs. detection/verification/chaptersProvider and reviewer.provider store a slot
+  // ('primary'/'secondary', plus same_as_detection/same_as_pass), not a provider type, so each is resolved to a
+  // type here to fetch a catalog. Mirrors llm_route.py's inheritance and secondary fallback.
   const resolveStageSlots = (
     secondaryUsable: boolean,
     overrides: Partial<{
@@ -753,12 +745,8 @@ function Settings() {
     queryFn: getAudioSettings,
   });
 
-  // System Status section uses defaultOpen on its CollapsibleSection
-  // (see SystemStatusSection.tsx) so it starts expanded on first visit.
-  // After that the user's collapsed/expanded preference is persisted via
-  // CollapsibleSection's storage key and respected on subsequent loads --
-  // the previous setItem('true') write here forced it open on every load,
-  // overriding the user's choice.
+  // The System Status section uses defaultOpen on its CollapsibleSection (see SystemStatusSection.tsx), so it
+  // starts expanded on first visit; afterwards the user's persisted collapsed/expanded preference is respected.
 
   // Auto-expand and scroll to section when navigated via hash link
   useEffect(() => {
@@ -771,11 +759,9 @@ function Settings() {
     }
   }, [location.hash]);
 
-  // Sync form fields with server data via during-render compare. This is the
-  // React 19 alternative to a useEffect+setState that fires whenever the
-  // upstream query data identity changes. useSyncFromQuery encapsulates the
-  // snapshot+conditional-setState pattern; staying render-phase preserves
-  // the May 4 fix that moved these blocks off useEffect.
+  // Sync form fields with server data via a during-render compare (the React 19 alternative to a
+  // useEffect+setState). useSyncFromQuery holds the snapshot+conditional-setState pattern; staying render-phase
+  // keeps the seed off useEffect.
   useSyncFromQuery(retention, (r, previous) => {
     if (previous && (retentionDays !== (previous.retentionDays || 30)
       || originalRetentionDays !== (previous.originalRetentionDays ?? previous.retentionDays ?? 30)
@@ -1008,32 +994,20 @@ function Settings() {
     { key: 'silenceSnapMaxDistanceSeconds', kind: 'val', useDefault: true, literal: 2, value: audioCue.silenceSnapMaxDistanceSeconds, obj: 'audioCue', prop: 'silenceSnapMaxDistanceSeconds' },
   ];
 
-  // Skip re-seeding form fields from a settings refetch while the user has
-  // unsaved edits, or an immediate-save refetch (tunables/retention invalidate
-  // ['settings']) would clobber them (fe-settings-history-1).
-  // Hydrate the form from loaded settings. The snapshot starts undefined (not
-  // `settings`) so the first render after any (re)mount with cached query data
-  // re-hydrates -- otherwise `settings === settingsSnapshot` on remount and the
-  // form would show the neutral placeholders instead of the saved values (#323).
-  // The `!formDirty` guard still prevents a background refetch from clobbering
-  // unsaved edits. Defaults come from the backend `settings.defaults` block via
-  // fieldBaseline(); hydration and computeChangedFields share it, so their
-  // fallbacks cannot diverge (see fe-settings-history-1 / #234).
+  // Skip re-seeding from a settings refetch while the user has unsaved edits, or an immediate-save refetch
+  // (tunables/retention invalidate ['settings']) would clobber them.
+  // Hydrate the form from loaded settings. The snapshot starts undefined (not `settings`) so the first render
+  // after a remount with cached query data re-hydrates; otherwise the form shows the neutral placeholders
+  // instead of saved values (#323). Defaults come from the backend `settings.defaults` via fieldBaseline(),
+  // shared with computeChangedFields so their fallbacks cannot diverge (#234).
   const [formDirty, setFormDirty] = useState(false);
   const [settingsSnapshot, setSettingsSnapshot] = useState<typeof settings>(undefined);
-  // After a save or reset lands, the refetch it triggers must re-seed the
-  // form even though formDirty is still true from the pre-save edits.
-  // Without this, clearing a prompt box and saving leaves the box empty
-  // while the backend serves the restored default, so hasChanges (state ''
-  // vs default text) never settles and Save Changes never goes away; a
-  // prompts reset likewise needed a browser refresh to show the defaults
-  // again (#513). State (not a ref) so the render-phase read is legal.
-  //
-  // The flag is consumed on the next completed fetch (dataUpdatedAt), not on
-  // object identity: react-query's structural sharing returns the SAME object
-  // when a refetch is deep-equal (e.g. resetting prompts already at their
-  // defaults), and keying on identity alone would strand the flag as true,
-  // where a later unrelated refetch would clobber genuinely-unsaved edits.
+  // After a save or reset lands, the refetch it triggers must re-seed the form even though formDirty is still
+  // true from the pre-save edits. Otherwise clearing a prompt box and saving leaves it empty while the backend
+  // serves the restored default, so hasChanges never settles (#513). State, not a ref, so the render-phase read
+  // is legal. The flag is consumed on the next completed fetch (dataUpdatedAt), not on object identity:
+  // structural sharing returns the same object for a deep-equal refetch, which would strand the flag true and
+  // let a later refetch clobber unsaved edits.
   const [rehydratePending, setRehydratePending] = useState(false);
   const [seenSettingsUpdatedAt, setSeenSettingsUpdatedAt] = useState(0);
   const settingsJustFetched = settingsUpdatedAt !== seenSettingsUpdatedAt;
@@ -1064,20 +1038,15 @@ function Settings() {
     }
   }
 
-  // Build a payload of fields whose current state differs from the loaded
-  // API value. Backend PUT handlers use `if 'fieldName' in data:` guards,
-  // so omitted fields stay untouched in the DB; that's what lets a Save
-  // change one field without wiping the rest, and also closes the
-  // hydration-race window where Save could fire before loaded values were
-  // copied into local state.
+  // Build a payload of fields whose state differs from the loaded API value. Backend PUT handlers use
+  // `if 'fieldName' in data:` guards, so omitted fields stay untouched: a Save changes one field without
+  // wiping the rest, and cannot race hydration.
   const computeChangedFields = (): UpdateSettingsPayload => {
     if (!settings) return {};
     const payload: UpdateSettingsPayload = {};
     for (const f of FIELDS) {
-      // Compare against the SAME baseline hydration seeded from. If the two
-      // ever diverged, hasChanges would flip permanently true and Save
-      // Changes would never go away (#234 follow-up); deriving both from
-      // fieldBaseline makes that impossible.
+      // Compare against the same baseline hydration seeded from; if they diverged, hasChanges would stay true and
+      // Save Changes would never go away (#234).
       if (f.value !== fieldBaseline(settings, f)) {
         (payload as Record<string, SettingScalar>)[f.key] = f.value;
       }
@@ -1155,13 +1124,10 @@ function Settings() {
     onSuccess: (payload) => {
       setPodcastIndexApiKey('');
       setPodcastIndexApiSecret('');
-      // Force a re-seed only when the save actually needs one: a cleared
-      // ('') string field comes back from the server as the restored default
-      // text, so without the re-seed the box stays empty and hasChanges
-      // never settles (#513). Any other save round-trips its own values, and
-      // skipping the forced re-seed preserves edits typed while the PUT was
-      // in flight. onSuccess (not onSettled) so a failed save cannot revert
-      // what the user just typed while the error banner is showing.
+      // Force a re-seed only when needed: a cleared ('') string field comes back as the restored default, so
+      // without it the box stays empty and hasChanges never settles (#513). Other saves round-trip their own
+      // values, and skipping the forced re-seed preserves edits typed while the PUT was in flight. onSuccess
+      // (not onSettled) so a failed save cannot revert typing while the error banner shows.
       if (Object.values(payload).some((v) => v === '')) {
         setRehydratePending(true);
       }
@@ -1544,10 +1510,9 @@ function Settings() {
           tunables={settings.stageTunables}
           defaults={settings.stageTunableDefaults}
           llmProvider={llmProvider}
-          // StageTunablesSection expects a provider TYPE (or '' to inherit),
-          // not the SLOT stored in these settings. Resolve each stage's
-          // slot to its actual type first (see the effective*Provider block
-          // above, which mirrors llm_route.py's inheritance).
+          // StageTunablesSection expects a provider type (or '' to inherit), not the slot stored in these settings.
+          // Resolve each stage's slot to its type first (see the effective*Provider block above, which mirrors
+          // llm_route.py).
           detectionProvider={effectiveDetectionProvider}
           verificationProvider={effectiveVerificationProvider}
           chaptersProvider={effectiveChaptersProvider}

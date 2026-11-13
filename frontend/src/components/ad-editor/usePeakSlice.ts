@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
 
 /**
- * Slice the whole-episode peaks down to the visible window [windowStart,
- * windowEnd]. Both waveform modals fetch the episode's peaks once (stable) and
- * slice client-side so only the rendered slice changes on zoom/pan -- re-fetching
- * per window would null `peaks` on every tick and flash the waveform.
+ * Slice the whole-episode peaks to the visible window [windowStart, windowEnd]. Both waveform modals fetch
+ * peaks once and slice client-side so only the rendered slice changes on zoom/pan; refetching per window would
+ * null `peaks` every tick and flash the waveform.
  */
 export function usePeakSlice(
   peaks: number[] | null,

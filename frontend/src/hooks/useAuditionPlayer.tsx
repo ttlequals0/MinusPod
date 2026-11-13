@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Shared windowed-audio player: one hidden <audio> element per consumer plays
-// the [startS, endS] window of an original-audio URL, one row at a time.
-// Extracted verbatim from CueDetectionsSection's audition logic; the gesture,
-// cold-load, and superseded-click behaviors are load-bearing (see 2.18.2).
-// Pass preloadSrc when the consumer plays a single known file (preloads its
-// metadata like the old inline version); omit it for multi-source consumers.
+// Shared windowed-audio player: one hidden <audio> element per consumer plays the [startS, endS] window of an
+// original-audio URL, one row at a time. The gesture, cold-load and superseded-click behaviors are
+// load-bearing (see 2.18.2). Pass preloadSrc for a single known file (preloads its metadata); omit it for
+// multi-source consumers.
 export function useAuditionPlayer(preloadSrc?: string | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Holds a function that detaches whichever listener is active (the timeupdate
@@ -78,11 +76,9 @@ export function useAuditionPlayer(preloadSrc?: string | null) {
       armStop();
       audio.play().then(settle).catch(fail);
     } else {
-      // Metadata not loaded yet. Call play() synchronously so it keeps the
-      // click's user gesture (autoplay policy) AND triggers the load; then
-      // seek to the window start once metadata arrives. Deferring play() into
-      // a loadedmetadata callback loses the gesture and, with no load() kicked
-      // off, the metadata may never arrive -- so the click did nothing.
+      // Metadata not loaded yet. Call play() synchronously to keep the click's user gesture (autoplay policy) and
+      // trigger the load, then seek to the window start once metadata arrives. Deferring play() into a
+      // loadedmetadata callback loses the gesture and, with no load() kicked off, metadata may never arrive.
       audio.play().then(() => {
         settle();
         if (reqRef.current !== req) return;  // a newer click took over
