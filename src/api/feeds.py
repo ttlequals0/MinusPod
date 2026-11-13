@@ -2393,14 +2393,10 @@ def update_feed(slug):
         podcast = db.get_podcast_by_slug(slug)
 
         # Settings that alter the served RSS body must regenerate it. Clearing etag and
-        # last_modified first means a failed force-refresh cannot be followed by a 304, so
-        # the next scheduled refresh fully regenerates the feed.
-        # title_override rewrites the channel <title> (#375); description rewrites the channel
-        # <description> for both feed types. source_url repoints the feed (#484): stored
-        # validators belong to the old host and could false-304, and the refresh pulls from
-        # the new URL. own_episode_guids rewrites every item <guid> (#598). title/author/
-        # explicit/categories/p20_channel_json are local-feed metadata; refresh_rss_feed
-        # routes a local feed to rebuild_local_feed (main_app/feeds.py), not an upstream fetch.
+        # last_modified first means a failed force-refresh cannot be followed by a 304.
+        # Covers title_override and description (channel <title>/<description>, #375),
+        # source_url (#484: old-host validators could false-304), own_episode_guids (#598)
+        # and local-feed metadata (routed to rebuild_local_feed, not an upstream fetch).
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'description_override' in updates
                 or 'source_url' in updates

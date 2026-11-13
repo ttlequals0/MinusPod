@@ -372,13 +372,10 @@ def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
 def update_cue_template_route(template_id):
     """Rename / enable / disable / move the window of a template.
 
-    Addressed by global id with no feed scoping: a network template shared into a sibling
-    feed renders read-only (the UI `owned` flag), but the mutation is intentionally not
-    feed-gated since the app runs behind one shared operator password. Add an ownership
-    check here if per-feed auth is ever introduced.
-
-    When sourceOffsetS or durationS are supplied the blobs are re-extracted from the
-    retained original audio; 409 when it has been aged out.
+    Addressed by global id with no feed scoping: network templates shared into a sibling feed
+    render read-only in the UI, but the mutation is intentionally not feed-gated (one shared
+    operator password). Add an ownership check if per-feed auth is introduced. A window move
+    re-extracts blobs from the retained original audio (409 once aged out).
     """
     db = get_database()
     storage = get_storage()

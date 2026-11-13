@@ -461,7 +461,6 @@ def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False, epis
     unknown, has no retained original, or the file is missing. With ``self_heal=True``
     a missing file also clears the stale ``original_file`` column; cue-template routes
     leave it off so a transiently unreadable file cannot permanently NULL the column.
-    Pass ``episode`` when the caller already holds the row.
     """
     if episode is None:
         episode = db.get_episode(slug, episode_id)
