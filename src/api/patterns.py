@@ -1057,7 +1057,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             original_bounds=bounds if i == 0 else None,
             corrected_bounds=bounds,
             text_snippet=piece['text'][:500],
-            podcast_id=db.get_podcast_row(slug)['id'],
+            podcast_id=podcast['id'],
             addressing_mode=marker.get('addressing_mode'),
         )
 

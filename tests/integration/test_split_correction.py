@@ -193,6 +193,19 @@ class TestSplitting:
         confirmed = db.get_confirmed_corrections(podcast_id, merged['episodeId'])
         assert user_trimmed_keep_ranges(confirmed) == []
 
+    def test_every_piece_row_carries_the_feed_id_from_one_lookup(self, app_client, merged, monkeypatch):
+        db = merged['db']
+        real = db.get_podcast_row
+        calls = []
+        monkeypatch.setattr(db, 'get_podcast_row', lambda slug: calls.append(slug) or real(slug))
+        _split(app_client, merged, [130.0, 160.0])
+        assert calls.count(merged['slug']) == 1
+        podcast_id = real(merged['slug'])['id']
+        ids = [r[0] for r in db.get_connection().execute(
+            'SELECT podcast_id FROM pattern_corrections WHERE episode_id = ?',
+            (merged['episodeId'],)).fetchall()]
+        assert ids == [podcast_id] * 3
+
     def test_splitting_a_held_marker_keeps_pending_count_in_sync(self, app_client, merged):
         held = dict(MERGED_MARKER, held_for_review=True, was_cut=False,
                     hold_reason='low_confidence', approved=True)
