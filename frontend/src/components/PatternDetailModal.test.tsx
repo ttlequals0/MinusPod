@@ -635,12 +635,27 @@ describe('Dialog tabs', () => {
     const audio = screen.getByRole('tab', { name: 'Audio' });
     expect(details.getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(details.id);
-    expect(screen.queryByText('Audio matching')).toBeNull();
-    expect(screen.getByText('Confirmations')).toBeDefined();
+    const panelOf = (name: string) => screen.getByText(name).closest('[role="tabpanel"]') as HTMLElement;
+    expect(panelOf('Confirmations').hidden).toBe(false);
+    expect(details.getAttribute('aria-controls')).toBe('pattern-dialog-panel-details');
+    expect(document.getElementById(audio.getAttribute('aria-controls')!)?.hidden).toBe(true);
     await userEvent.click(audio);
     expect(await screen.findByText('Audio matching')).toBeDefined();
-    expect(screen.queryByText('Confirmations')).toBeNull();
+    expect(panelOf('Audio matching').hidden).toBe(false);
+    expect(panelOf('Confirmations').hidden).toBe(true);
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(audio.id);
+  });
+
+  it('stops a playing preview when the Audio tab is left, and keeps the section mounted', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    renderModal(makePattern());
+    await userEvent.click(screen.getByRole('tab', { name: 'Audio' }));
+    await screen.findByText('Audio matching');
+    pause.mockClear();
+    await userEvent.click(screen.getByRole('tab', { name: 'Details' }));
+    expect(pause).toHaveBeenCalled();
+    expect(document.getElementById('pattern-dialog-panel-audio')?.textContent).toContain('Audio matching');
   });
 
   it('moves between tabs with the arrow, Home and End keys', async () => {

@@ -56,7 +56,7 @@ function outOfScopeNote(count: number): string {
     : `${count} matches came from episodes outside this pattern's scope.`;
 }
 
-export default function PatternAudioSection({ pattern }: { pattern: AdPattern }) {
+export default function PatternAudioSection({ pattern, active = true }: { pattern: AdPattern; active?: boolean }) {
   const queryClient = useQueryClient();
   const headingId = useId();
   const preview = usePatternAudioPreview(pattern.id);
@@ -135,6 +135,9 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
     if (wasEditing.current && !editingEdges) editEdgesRef.current?.focus();
     wasEditing.current = editingEdges;
   }, [editingEdges]);
+
+  // A hidden tab must not keep playing
+  useEffect(() => { if (!active) preview.stop(); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   let body;
   if (isPending) {
