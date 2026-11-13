@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import CloseButton from '../components/CloseButton';
+import ActionToastStack from '../components/ActionToastStack';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
@@ -520,6 +520,26 @@ function FeedDetail() {
 
   const copy = reprocessMenuCopy(feed.feedType, llmEnabled);
 
+  const saveCancelButtons = (
+    <>
+      <DemoDisabled>
+        <button
+          onClick={saveEdit}
+          disabled={updateMutation.isPending}
+          className={`${btnBase} ${btnPrimary}`}
+        >
+          {updateMutation.isPending ? 'Saving...' : 'Save'}
+        </button>
+      </DemoDisabled>
+      <button
+        onClick={() => setEditing(null)}
+        className={`${btnBase} ${btnSecondary}`}
+      >
+        Cancel
+      </button>
+    </>
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -577,21 +597,7 @@ function FeedDetail() {
                     className={`${inputBase} flex-1 min-w-0`}
                     aria-label="Feed title"
                   />
-                  <DemoDisabled>
-                    <button
-                      onClick={saveEdit}
-                      disabled={updateMutation.isPending}
-                      className={`${btnBase} ${btnPrimary}`}
-                    >
-                      {updateMutation.isPending ? 'Saving...' : 'Save'}
-                    </button>
-                  </DemoDisabled>
-                  <button
-                    onClick={() => setEditing(null)}
-                    className={`${btnBase} ${btnSecondary}`}
-                  >
-                    Cancel
-                  </button>
+                  {saveCancelButtons}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Shown to subscribers in podcast apps. Leave blank to use the source title
@@ -641,21 +647,7 @@ function FeedDetail() {
                   aria-label="Feed description override"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <DemoDisabled>
-                    <button
-                      onClick={saveEdit}
-                      disabled={updateMutation.isPending}
-                      className={`${btnBase} ${btnPrimary}`}
-                    >
-                      {updateMutation.isPending ? 'Saving...' : 'Save'}
-                    </button>
-                  </DemoDisabled>
-                  <button
-                    onClick={() => setEditing(null)}
-                    className={`${btnBase} ${btnSecondary}`}
-                  >
-                    Cancel
-                  </button>
+                  {saveCancelButtons}
                   {feed.descriptionOverride && (
                     <DemoDisabled>
                       <button
@@ -1204,13 +1196,7 @@ function FeedDetail() {
       )}
       {/* Same bottom-right confirm/error toasts the dashboard uses. */}
       {(deleteConfirm || actionError) && (
-        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] flex flex-col items-end gap-2">
-          {actionError && !deleteConfirm && (
-            <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
-              <span className="flex-1">{actionError}</span>
-              <CloseButton onClick={() => setActionError(null)} label="Dismiss error" className="shrink-0" />
-            </div>
-          )}
+        <ActionToastStack error={deleteConfirm ? null : actionError} onDismissError={() => setActionError(null)}>
           {deleteConfirm && (
             <ConfirmModal title={`Delete ${feed?.title || slug}?`} confirmLabel="Delete feed" pending={deleteMutation.isPending}
               onCancel={() => { setDeleteConfirm(false); setActionError(null); }} onConfirm={() => deleteMutation.mutate()}>
@@ -1231,7 +1217,7 @@ function FeedDetail() {
               )}
             </ConfirmModal>
           )}
-        </div>
+        </ActionToastStack>
       )}
 
     </div>

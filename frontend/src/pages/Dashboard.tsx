@@ -1,4 +1,4 @@
-import CloseButton from '../components/CloseButton';
+import ActionToastStack from '../components/ActionToastStack';
 import { useState, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
@@ -425,13 +425,7 @@ function Dashboard() {
       )}
 
       {(deleteConfirm || actionError) && (
-        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] flex flex-col items-end gap-2">
-          {actionError && !deleteConfirm && (
-            <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
-              <span className="flex-1">{actionError}</span>
-              <CloseButton onClick={() => setActionError(null)} label="Dismiss error" className="shrink-0" />
-            </div>
-          )}
+        <ActionToastStack error={deleteConfirm ? null : actionError} onDismissError={() => setActionError(null)}>
           {deleteConfirm && (
             <ConfirmModal title={`Delete ${feeds?.find(f => f.slug === deleteConfirm)?.title || deleteConfirm}?`}
               confirmLabel="Delete feed" pending={deleteMutation.isPending}
@@ -448,7 +442,7 @@ function Dashboard() {
               })()}
             </ConfirmModal>
           )}
-        </div>
+        </ActionToastStack>
       )}
 
       <FeedOpmlExportDialog open={opmlExportOpen} onClose={() => setOpmlExportOpen(false)} />
