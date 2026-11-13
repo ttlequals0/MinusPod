@@ -13,6 +13,7 @@ export const DEFAULT_ALLOW = [
   '/podcast-search', '/feeds/*/episodes/*/peaks',
   '/feeds/*/episodes/*/cue-candidates', '/feeds/*/episodes/*/transcript-span',
   '/feeds/*/episodes/*/split-candidates',
+  '/patterns/*/audio', '/patterns/*/audio/matches',
 ];
 
 const CALL = /\bapi(?:File)?Request\b\s*(?:<[^()`]*>)?\s*\(\s*/g;
