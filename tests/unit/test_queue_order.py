@@ -121,6 +121,37 @@ class TestPriority:
 
 
 class TestInterleavedFeeds:
+    @pytest.mark.parametrize('same_second', [False, True])
+    def test_claims_consume_the_displayed_slots(self, temp_db, same_second):
+        a = _feed(temp_db, 'a', 'oldest_first')
+        b = _feed(temp_db, 'b')
+        for i, (pid, name, date) in enumerate([
+            (a, 'a0', DATES[0]), (b, 'b0', None), (a, 'a1', DATES[1]),
+            (b, 'b1', None), (a, 'a2', DATES[2]),
+        ]):
+            second = 0 if same_second else i
+            _row(temp_db, pid, name, date, created=f'2026-01-01T00:00:{second:02d}Z')
+        expected = ['a1', 'b0', 'a2', 'b1', 'a0']
+        for i, name in enumerate(expected):
+            assert _order(temp_db) == expected[i:]
+            assert temp_db.claim_next_queued_episode()['episode_id'] == name
+            conn = temp_db.get_connection()
+            conn.execute("DELETE FROM auto_process_queue WHERE status = 'processing'")
+            conn.commit()
+
+    def test_switching_back_to_as_queued_preserves_remaining_feed_slots(self, temp_db):
+        a = _feed(temp_db, 'a')
+        b = _feed(temp_db, 'b')
+        temp_db.set_setting('queue_order', 'oldest_first')
+        for i, (pid, name, date) in enumerate([
+            (a, 'a0', DATES[0]), (b, 'b0', None), (a, 'a1', DATES[1]), (a, 'a2', DATES[2]),
+        ]):
+            _row(temp_db, pid, name, date, created=f'2026-01-01T00:00:{i:02d}Z')
+        assert temp_db.claim_next_queued_episode()['episode_id'] == 'a1'
+        temp_db.set_setting('queue_order', 'queued')
+        assert _order(temp_db) == ['b0', 'a0', 'a2']
+        assert [temp_db.claim_next_queued_episode()['episode_id'] for _ in range(3)] == ['b0', 'a0', 'a2']
+
     def test_other_feed_keeps_its_exact_places(self, temp_db):
         a = _feed(temp_db, 'a', 'oldest_first')
         b = _feed(temp_db, 'b')

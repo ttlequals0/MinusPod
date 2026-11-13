@@ -58,7 +58,7 @@ place.
 
 - `oldest_first`: the earliest publish date takes the feed's first place.
 - `newest_first`: the latest publish date takes it.
-- `queued`: each episode keeps its own place.
+- `queued`: episodes take the feed's remaining places in the order they were queued.
 
 An episode with no publish date goes after the dated ones. Ties fall back to
 the time queued.
@@ -68,6 +68,13 @@ globally or for one feed, re-sorts the waiting episodes on the next read. One
 query fragment gives the order to the claim, the "next episode" read, the
 pending list and the queue status. The Processing Queue panel therefore shows
 the order the worker will follow.
+
+A claim consumes the place assigned to the selected episode. If another row
+held that place, the two rows exchange their stored place keys in the same
+write transaction as the claim. Removing the claimed row then leaves every
+other feed in its displayed position. Changing an order setting still writes
+no queue rows. Original queue timestamps remain available for ties and for
+returning to As queued.
 
 Deferred episodes, pending recuts and the approval queue keep their own
 orders.

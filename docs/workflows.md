@@ -93,7 +93,7 @@ The verify pass re-transcribes the cut file the same way.
 
 ## Running without an LLM
 
-With the LLM provider set to None, the standard pipeline skips every stage that calls a model and runs the rest. Publisher and ad chapters are kept. A fresh install finds little on a regular feed until you mark ads. The detectors, what turns off, and where patterns and fingerprints come from are in [Running without an LLM](llm-providers.md#running-without-an-llm).
+With the LLM provider set to None, the standard pipeline skips every stage that calls a model and runs the rest. Publisher and ad chapters are kept. Text and audio matching need saved patterns. Mark ads to add them. The detectors, what turns off, and where patterns and fingerprints come from are in [Running without an LLM](llm-providers.md#running-without-an-llm).
 
 The run completes as a normal run. It is not degraded and does not count toward the retry limit. An episode with no detections publishes uncut, or waits for review when manual approval is on. Retry ad detection and Reprocess apply any pattern added since.
 
@@ -206,11 +206,11 @@ you submit it.
 
 ### Working with a pattern's audio
 
-A pattern that has an audio fingerprint shows an Audio section in its detail dialog on the Patterns page. What each control does is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints). The common jobs:
+A pattern that has an audio fingerprint has an Audio tab in its detail dialog on the Patterns page. What each control does is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints). The common jobs:
 
 - **Stop a pattern matching by sound.** Turn the Audio switch off. The pattern keeps matching by text. To stop both, turn the whole pattern off.
 - **A match cuts the wrong span.** Under Recent matches, press Play to hear it, then Not this ad. The match stops counting and the existing reject correction is saved for that episode. If the stored ad itself is wrong, use Edit edges instead.
-- **Fix the stored ad's edges.** Press Edit edges, move the start or end on the source episode, listen, and save. The fingerprint is rebuilt from the new span. The episode's own markers and cuts are not changed. This needs a retained original; without one the section says "Source audio expired".
+- **Fix the stored ad's edges.** Press Edit edges, move the start or end on the source episode, listen, and save. The fingerprint is rebuilt from the new span. The episode's own markers and cuts are not changed. The editor uses the newest retained, non-rejected match in scope, falling back to the recorded origin. If neither has source audio, Edit edges stays disabled with a reason.
 - **Remove the audio and keep the text.** Press Delete audio. The fingerprint and its history go, and automatic detection does not make a new one. Adjusting the ad or pressing Add audio to pattern later does.
 - **Give a text-only pattern audio.** On a text-pattern detection in Detected Ads or on an episode page, press Add audio to pattern. It fingerprints the detection's span as shown. To use other edges, adjust the ad first. From the pattern dialog the same action builds audio from the pattern's own marker when its episode still has an original.
 

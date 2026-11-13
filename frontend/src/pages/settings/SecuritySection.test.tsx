@@ -115,7 +115,7 @@ describe('SecuritySection password form', () => {
   });
 });
 
-const ADD_BUTTON_NAME = '+ Add agent';
+const ADD_BUTTON_NAME = 'Add agent';
 
 describe('SecuritySection blocked user agents', () => {
   it('renders existing patterns as table rows with a named remove button', async () => {

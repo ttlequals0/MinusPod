@@ -428,6 +428,7 @@ export interface AudioDetail {
   createdAt?: string | null;
   builtFrom?: (AudioSpan & { available: boolean }) | null;
   source?: AudioSpan | null;
+  editSource?: AudioSpan | null;
   counts: { matches: number; rejected: number; outOfScope: number };
   meanSimilarity?: number | null;
   lastMatchedAt?: string | null;

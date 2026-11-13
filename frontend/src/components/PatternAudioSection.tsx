@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AdPattern, AudioDetail, deletePatternAudio, getPatternAudio, invalidatePatternAudio, patternAudioKey, setPatternAudioEnabled,
@@ -21,9 +22,8 @@ import StatTile from './StatTile';
 import ToggleSwitch from './ToggleSwitch';
 import { subHeading } from './pageStyles';
 
-const NO_SOURCE_REASON = 'No retained episode has this ad. To add audio, use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page.';
+const NO_SOURCE_REASON = 'No source audio is available. Use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page.';
 
-// A pattern without audio can be built from the ad it matched; with no source the button stays, disabled, with the reason.
 function AddFromSource({ patternId, source, onAdded }: {
   patternId: number;
   source: AudioDetail['addSource'];
@@ -45,6 +45,7 @@ function AddFromSource({ patternId, source, onAdded }: {
           aria-describedby={reason ? reasonId : undefined}
           className={`${btnBase} ${btnOutline}`}
         >
+          <Plus className="w-4 h-4" aria-hidden="true" />
           {rebuild.isPending ? 'Adding audio...' : 'Add audio to pattern'}
         </button>
       </DemoDisabled>
@@ -65,10 +66,10 @@ function outOfScopeNote(count: number): string {
 export default function PatternAudioSection({ pattern, active = true }: { pattern: AdPattern; active?: boolean }) {
   const queryClient = useQueryClient();
   const headingId = useId();
+  const sourceReasonId = useId();
   const preview = usePatternAudioPreview(pattern.id);
   const [showDelete, setShowDelete] = useState(false);
   const [notice, setNotice] = useState('');
-  const [deleteFailed, setDeleteFailed] = useState(false);
   const [editingEdges, setEditingEdges] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const editEdgesRef = useRef<HTMLButtonElement>(null);
@@ -81,16 +82,17 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
     queryFn: () => getPatternAudio(pattern.id),
   });
 
-  const built = detail?.state !== 'none' ? detail?.builtFrom : null;
-  const sourceAvailable = !!built?.available;
+  const editSource = detail?.state !== 'none' ? detail?.editSource : null;
+  const sourceAvailable = !!editSource;
   const episodeQuery = useQuery({
-    queryKey: ['episode', built?.podcastSlug, built?.episodeId],
-    queryFn: () => getEpisode(built!.podcastSlug, built!.episodeId),
+    queryKey: ['episode', editSource?.podcastSlug, editSource?.episodeId],
+    queryFn: () => getEpisode(editSource!.podcastSlug, editSource!.episodeId),
     // Only Edit edges needs the duration, so the episode loads on that click.
     enabled: sourceAvailable && editingEdges,
   });
 
   const rebuild = usePatternAudioRebuild(pattern.id, () => {
+    preview.reset();
     setEditingEdges(false);
     setNotice('Audio edges saved.');
   });
@@ -113,17 +115,14 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
 
   const remove = useMutation({
     mutationFn: () => deletePatternAudio(pattern.id),
-    onMutate: () => setDeleteFailed(false),
     onSuccess: () => {
-      preview.stop();
+      preview.reset();
       setShowDelete(false);
       setNotice('Audio deleted.');
       focusHeadingWhen.current = 'none';
       refresh();
     },
     onError: () => {
-      setShowDelete(false);
-      setDeleteFailed(true);
       queryClient.invalidateQueries({ queryKey: patternAudioKey(pattern.id) });
     },
   });
@@ -221,39 +220,38 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
           <p className="text-sm text-muted-foreground">{outOfScopeNote(detail.counts.outOfScope)}</p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          {built && (
-            <>
-              <DemoDisabled>
-                <button
-                  ref={editEdgesRef}
-                  type="button"
-                  onClick={() => {
-                    preview.stop();
-                    rebuild.reset();
-                    setEditingEdges(true);
-                    if (episodeQuery.isError) void episodeQuery.refetch();
-                  }}
-                  disabled={!sourceAvailable || episodeQuery.isLoading}
-                  aria-busy={episodeQuery.isLoading}
-                  className={`${btnBase} ${btnOutline}`}
-                >
-                  Edit edges
-                </button>
-              </DemoDisabled>
-              {!sourceAvailable && <span className="text-sm text-muted-foreground">Source audio expired</span>}
-              {sourceAvailable && episodeQuery.isError && (
-                <span role="alert" className="text-sm text-destructive">Could not load the source episode.</span>
-              )}
-            </>
-          )}
-          {!built && <span className="text-sm text-muted-foreground">Edit edges needs source audio.</span>}
           <DemoDisabled>
-            <button type="button" onClick={() => setShowDelete(true)} className={`${btnBase} ${btnDestructiveOutline}`}>
+            <button
+              ref={editEdgesRef}
+              type="button"
+              onClick={() => {
+                preview.stop();
+                rebuild.reset();
+                setEditingEdges(true);
+                if (episodeQuery.isError) void episodeQuery.refetch();
+              }}
+              disabled={!sourceAvailable || episodeQuery.isLoading}
+              aria-busy={episodeQuery.isLoading}
+              aria-describedby={!sourceAvailable ? sourceReasonId : undefined}
+              className={`${btnBase} ${btnOutline}`}
+            >
+              Edit edges
+            </button>
+          </DemoDisabled>
+          {sourceAvailable && episodeQuery.isError && (
+            <span role="alert" className="text-sm text-destructive">Could not load the source episode.</span>
+          )}
+          {!sourceAvailable && (
+            <span id={sourceReasonId} className="text-sm text-muted-foreground">
+              {detail.builtFrom ? 'Source audio expired' : 'Edit edges needs source audio.'}
+            </span>
+          )}
+          <DemoDisabled>
+            <button type="button" onClick={() => { remove.reset(); setShowDelete(true); }} className={`${btnBase} ${btnDestructiveOutline}`}>
               Delete audio
             </button>
           </DemoDisabled>
         </div>
-        {deleteFailed && <p role="alert" className="text-sm text-destructive">Could not delete audio.</p>}
         <AudioMatchesList patternId={pattern.id} preview={preview} />
       </>
     );
@@ -265,13 +263,13 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
       <p role="status" aria-label="Audio change" className="sr-only">{notice}</p>
       {body}
       {preview.audioElement}
-      {editingEdges && built && episodeQuery.data && (
+      {editingEdges && editSource && episodeQuery.data && (
         <AdReviewModal
           item={{
-            podcastSlug: built.podcastSlug,
-            episodeId: built.episodeId,
-            start: built.start,
-            end: built.end,
+            podcastSlug: editSource.podcastSlug,
+            episodeId: editSource.episodeId,
+            start: editSource.start,
+            end: editSource.end,
             sponsor: null,
             reason: null,
             confidence: null,
@@ -283,10 +281,10 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
           onClose={() => setEditingEdges(false)}
           onSubmit={() => {}}
           onSkip={() => {}}
-          onSaveSpan={async (span) => { await rebuild.mutateAsync({ podcastSlug: built.podcastSlug, episodeId: built.episodeId, ...span }); }}
+          onSaveSpan={async (span) => { await rebuild.mutateAsync({ podcastSlug: editSource.podcastSlug, episodeId: editSource.episodeId, ...span }); }}
           hasOriginal
           // Without a known duration the editor still needs a bound past the span.
-          episodeDuration={episodeQuery.data.originalDuration || built.end + EDGE_SLACK_SECONDS}
+          episodeDuration={episodeQuery.data.originalDuration || editSource.end + EDGE_SLACK_SECONDS}
         />
       )}
       {showDelete && (
@@ -301,6 +299,7 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
           <p className="text-sm text-muted-foreground">
             This removes the audio fingerprint and its match history. The pattern and its text stay.
           </p>
+          {remove.isError && <p role="alert" className="text-sm text-destructive">Could not delete audio. Try again.</p>}
         </ConfirmModal>
       )}
     </section>

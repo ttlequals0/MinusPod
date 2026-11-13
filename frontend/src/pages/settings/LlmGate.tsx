@@ -10,7 +10,7 @@ export function isLlmDisabledError(e: unknown): boolean {
     && (e.body as { code?: string } | undefined)?.code === 'llm_disabled';
 }
 
-export const NONE_SAVED_NOTE = `${LLM_DISABLED_REASON} No model calls are made. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison. A fresh install finds little until you mark ads.`;
+export const NONE_SAVED_NOTE = `${LLM_DISABLED_REASON} No model calls are made. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison. Text and audio matching need saved patterns. Mark ads to add them.`;
 
 export const GENERATE_AS_AUTO_NOTE = `${LLM_DISABLED_REASON} Always generate behaves like Auto.`;
 

@@ -280,7 +280,7 @@ System One preserves caller prompts, policy, and context in its structured quest
 
 An LLM is optional. Set the provider to **None** under Settings > AI and processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
 
-A fresh install on None, with no patterns and no stored fingerprints, finds little or nothing on a regular podcast feed. Ads are cut after you mark them: use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each of these saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
+Without saved patterns or fingerprints, text and audio matching cannot find ads. Other model-free detectors still run. To teach pattern matching an ad, use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each of these saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
 
 Ads are then found by the detectors that need no model:
 
@@ -305,7 +305,7 @@ Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>
 
 Retry ad detection and Reprocess still work. They rerun the model-free detectors, so a newly added pattern is applied to an episode already processed. Retry ad detection reruns audio fingerprints and text patterns. Reprocess reruns the whole standard pipeline without the model calls.
 
-SponsorBlock covers YouTube feeds only. For a regular podcast feed, MinusPod does not discover repeated ads on its own, so a new ad is cut only after you mark it once and it becomes a pattern.
+SponsorBlock covers YouTube feeds only. On regular feeds, text and audio matching recognize saved patterns; they do not learn recurring ads automatically. Audio cues and cross-fetch comparison can still detect ads without a saved pattern.
 
 Saved API keys and model choices are kept when you switch to None. When you switch to another provider, a stage keeps its model if its provider account is the one it used before None. Otherwise its model field is cleared. If the install started on None, only the stages that use the primary provider are cleared. None cannot be the secondary provider or the failover provider.
 

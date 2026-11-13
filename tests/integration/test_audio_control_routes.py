@@ -53,12 +53,26 @@ def test_detail_source_follows_the_newest_retained_match(app_client, fp_feed, fp
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['source'] == {'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 20.0, 'end': 50.0}
     assert body['builtFrom']['start'] == 2.0
+    assert body['editSource'] == body['source']
+
+
+def test_edit_source_survives_an_expired_origin(app_client, fp_feed, fp_audio_pattern, fp_original):
+    fp_feed.get_connection().execute(
+        "UPDATE audio_fingerprints SET source_episode_id = 'ffffffffffff' WHERE pattern_id = ?",
+        (fp_audio_pattern,))
+    fp_feed.get_connection().commit()
+    _record(fp_feed, fp_audio_pattern, 20.0, 50.0)
+    body = _get(app_client, fp_audio_pattern).get_json()
+    assert body['builtFrom']['episodeId'] == 'ffffffffffff'
+    assert body['builtFrom']['available'] is False
+    assert body['editSource'] == {'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 20.0, 'end': 50.0}
 
 
 def test_detail_without_retained_original(app_client, fp_audio_pattern):
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['available'] is False and body['source'] is None
     assert body['builtFrom']['available'] is False and body['state'] == 'active'
+    assert body['editSource'] is None
 
 
 def test_detail_counts_keep_rejected_and_out_of_scope_apart(app_client, fp_feed, fp_audio_pattern):
@@ -320,6 +334,7 @@ def test_legacy_built_from_skips_the_newest_out_of_scope_match(app_client, fp_fe
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['source']['start'] == 60.0
     assert (body['builtFrom']['start'], body['builtFrom']['end']) == (20.0, 50.0)
+    assert body['editSource']['start'] == 20.0
 
 
 def test_legacy_built_from_is_null_with_only_out_of_scope_matches(app_client, fp_feed, fp_audio_pattern, fp_original):
@@ -327,3 +342,4 @@ def test_legacy_built_from_is_null_with_only_out_of_scope_matches(app_client, fp
     _record(fp_feed, fp_audio_pattern, 60.0, 90.0, in_scope=False)
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['builtFrom'] is None and body['source']['start'] == 60.0
+    assert body['editSource'] is None

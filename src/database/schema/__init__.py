@@ -1363,6 +1363,11 @@ class SchemaMixin(DeferredUpgradeMixin):
         except Exception as e:
             logger.debug(f"auto_process_queue priority migration: {e}")
 
+        queue_columns = {row['name'] for row in conn.execute("PRAGMA table_info(auto_process_queue)")}
+        self._add_column_if_missing(conn, 'auto_process_queue', 'slot_created_at', 'TEXT', queue_columns)
+        self._add_column_if_missing(conn, 'auto_process_queue', 'slot_id', 'INTEGER', queue_columns)
+        conn.commit()
+
         # Queued rows can carry the raw feed date; the processing order needs ISO 8601.
         try:
             marker = 'normalize_queue_published_at_once'

@@ -692,6 +692,8 @@ TABLE_DDL['auto_process_queue'] = """CREATE TABLE IF NOT EXISTS auto_process_que
     -- Dequeue priority (#625): higher runs first, ties by the feed's queue_order (created_at when queued)
     priority INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    slot_created_at TEXT,
+    slot_id INTEGER,
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
     UNIQUE(podcast_id, episode_id)

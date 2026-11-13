@@ -354,6 +354,13 @@ class FingerprintMatchMixin:
 
     def _count_patterns_with_audio(self, podcast_slug: str | None) -> tuple[int, int]:
         """(active patterns, those with an enabled fingerprint), limited to a feed's scope when given."""
+        if podcast_slug is None:
+            row = self.get_connection().execute(
+                """SELECT COUNT(*) AS total, COUNT(af.id) AS with_audio
+                   FROM ad_patterns ap
+                   LEFT JOIN audio_fingerprints af ON af.pattern_id = ap.id AND af.enabled = 1
+                   WHERE ap.is_active = 1""").fetchone()
+            return row['total'], row['with_audio']
         rows = self.get_connection().execute(
             """SELECT ap.id, ap.scope, ap.network_id, ap.podcast_id, ap.source, ap.sponsor_id,
                       EXISTS(SELECT 1 FROM audio_fingerprints af

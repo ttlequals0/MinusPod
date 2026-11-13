@@ -51,6 +51,13 @@ release notes.
 
 ### Fixed
 
+- Page tabs and section links wrap on narrow screens, including Patterns and Stats. Pattern details can be opened from the keyboard in both cards and tables.
+
+- Repeated queue claims preserve other feeds' positions when a feed uses Oldest first or Newest first.
+- Off-grid waveform requests stream decoded audio in bounded chunks and enforce the duration and output-size limits.
+- Edit edges can use a retained match after the fingerprint's original source expires. Saving new edges clears the loaded preview so Play uses the rebuilt clip.
+- A failed Delete audio request keeps its confirmation open with the error and a retry action.
+
 - Credentials no longer reach logs, stored errors or API responses. A failed upstream fetch put the full URL, including a query string such as `key=...`, in the exception text that followed the logged URL. Query strings, URL credentials and feed keys are now removed from every log line and traceback. They are also removed from error text before it is saved, returned by the API or sent in a webhook, and webhook and email alerts remove them from `error_message`, `reason` and `feed_url`. Error text stored by earlier versions is cleaned by a background step after startup; the original query strings in old error rows are not kept. Error text is also redacted whenever the API, the history CSV and JSON exports, webhooks or email read it, so old rows never leave unredacted. That covers the run history on the episode page and in Stats, degraded-detection reasons and feed refresh errors. `LOG_DOWNLOAD_QUERY=true` still keeps the query on the download URL lines it covers.
 - The upstream chapters and transcript fetches retry once with the feed's user agent when a host answers 403, or use the user agent the audio download settled on, as the audio download already did. Before, they gave up on the first 403.
 - The database write-ahead log stays bounded. A WAL file that grew once never shrank. Each connection now limits it to 64 MiB, and the maintenance tick runs a truncating checkpoint when no episode is processing and no backup is running, then tries again later if a reader is in the way.

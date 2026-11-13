@@ -79,7 +79,11 @@ def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, lo
         db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
     words = [' '.join(span['text'].split()) for span in spans]
     joined = ' '.join(words)
-    offsets = [sum(len(w) + 1 for w in words[:i]) for i in range(len(words))]
+    offsets = []
+    offset = 0
+    for word in words:
+        offsets.append(offset)
+        offset += len(word) + 1
     found = {}
     patterns = db.get_ad_patterns_by_ids(pattern_ids)
     after = 0

@@ -10,6 +10,7 @@ function Harness() {
     <>
       <button type="button" onClick={() => preview.toggle()}>source</button>
       <button type="button" onClick={() => preview.toggle(5)}>match</button>
+      <button type="button" onClick={preview.reset}>reset</button>
       <output data-testid="state">
         {[preview.isPlaying() ? 'source-playing' : '', preview.isPlaying(5) ? 'match-playing' : '', preview.isLoading(5) ? 'match-loading' : '']
           .filter(Boolean).join(' ')}
@@ -44,6 +45,20 @@ afterEach(() => {
 });
 
 describe('usePatternAudioPreview', () => {
+  it('reloads the same source after a rebuild clears the loaded clip', async () => {
+    render(<Harness />);
+    const source = screen.getByRole('button', { name: 'source' });
+    await userEvent.click(source);
+    const url = audioEl().getAttribute('src');
+    fireEvent.playing(audioEl());
+    await userEvent.click(screen.getByRole('button', { name: 'reset' }));
+    expect(state()).toBe('');
+    expect(audioEl().hasAttribute('src')).toBe(false);
+    await userEvent.click(source);
+    expect(audioEl().getAttribute('src')).toBe(url);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
+  });
+
   it('assigns the source and calls play inside the click, before any request resolves', () => {
     fetchSpy.mockReturnValue(new Promise(() => {}));
     const order: string[] = [];

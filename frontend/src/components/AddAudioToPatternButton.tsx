@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import type { AudioSpan, PatternAudioState } from '../api/patterns';
 import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
 import { btnOutline } from './buttonStyles';
@@ -18,6 +19,7 @@ export default function AddAudioToPatternButton({
   className?: string;
 }) {
   const [added, setAdded] = useState(false);
+  const reasonId = useId();
   const statusRef = useRef<HTMLParagraphElement>(null);
   const rebuild = usePatternAudioRebuild(patternId, () => setAdded(true));
 
@@ -37,13 +39,15 @@ export default function AddAudioToPatternButton({
               type="button"
               onClick={() => rebuild.mutate(span)}
               disabled={!hasOriginal || rebuild.isPending}
+              aria-describedby={!hasOriginal ? reasonId : undefined}
               aria-busy={rebuild.isPending}
               className={buttonClassName}
             >
+              <Plus className="w-4 h-4" aria-hidden="true" />
               {rebuild.isPending ? 'Adding audio...' : 'Add audio to pattern'}
             </button>
           </DemoDisabled>
-          {!hasOriginal && <p className="text-xs text-muted-foreground">Source audio expired</p>}
+          {!hasOriginal && <p id={reasonId} className="text-xs text-muted-foreground">Source audio expired</p>}
           {rebuild.isError && <p role="alert" className="text-xs text-destructive">{rebuild.error.message}</p>}
         </>
       )}

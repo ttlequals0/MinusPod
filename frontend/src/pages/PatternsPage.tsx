@@ -14,7 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, tdEmpty, thBase, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import SortControls from '../components/SortControls';
 import { ScopeBadge } from '../components/ScopeBadge';
@@ -476,9 +476,14 @@ function PatternsPage() {
                 </DemoDisabled>
               </div>
             )}
-            <div className="text-sm font-medium text-foreground mb-1">
+            <button
+              type="button"
+              aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+              className={`${tableLink} text-left text-sm font-medium mb-1`}
+              onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
+            >
               {pattern.sponsor || '(Unknown)'}
-            </div>
+            </button>
             {pattern.text_template && (
               <div className="text-xs text-muted-foreground truncate mb-3">
                 {pattern.text_template.substring(0, 80)}...
@@ -572,9 +577,14 @@ function PatternsPage() {
                     </div>
                   </td>
                   <td className="px-2 py-3 text-sm overflow-hidden">
-                    <div className="text-sm font-medium text-foreground truncate">
+                    <button
+                      type="button"
+                      aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+                      className={`${tableLink} max-w-full text-left text-sm font-medium truncate`}
+                      onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
+                    >
                       {pattern.sponsor || '(Unknown)'}
-                    </div>
+                    </button>
                     {pattern.text_template && (
                       <div className="text-xs text-muted-foreground truncate">
                         {pattern.text_template.substring(0, 60)}...

@@ -487,7 +487,7 @@ _WINDOW_STARTS = [2.0, 2.01, 2.5, 3.0, 4.99, 5.0, 5.01, 12.34]
 def noise_source(request, tmp_path_factory):
     ext, codec = request.param
     path = tmp_path_factory.mktemp('seek') / f'noise.{ext}'
-    subprocess.run(['/usr/bin/ffmpeg', '-y', '-f', 'lavfi', '-i',
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i',
                     'anoisesrc=d=16:seed=7:amplitude=0.5:sample_rate=44100',
                     '-ac', '1', *codec, str(path)], check=True, capture_output=True)
     full, _ = ap.compute_peaks(path, 0, None, resolution_ms=10)

@@ -394,9 +394,7 @@ class MaintenanceMixin:
                 f"({','.join('?' * len(group_ids))})",
                 group_ids
             )}
-            # Only onto an active keeper: fingerprint matching ignores is_active,
-            # so a disabled row would keep cutting audio the operator switched off.
-            # Never onto one whose audio the user deleted. History moves with the row.
+            # Preserve the keeper's inactive or audio-deleted state.
             donor = next((pid for pid in remove_ids if pid in fingerprinted), None)
             if (donor is not None and keep_id not in fingerprinted
                     and keep_pattern['is_active'] and not keep_pattern['audio_removed']):

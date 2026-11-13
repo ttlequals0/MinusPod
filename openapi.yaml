@@ -20573,8 +20573,8 @@ components:
         builtFrom:
           description: >-
             The episode span the fingerprint was built from; null when unknown. For a
-            fingerprint stored before sources were recorded it is the span `source`
-            resolves, and a rebuild records it.
+            fingerprint stored before sources were recorded it is the newest retained
+            in-scope match, and a rebuild records it.
           oneOf:
             - type: 'null'
             - allOf:
@@ -20586,6 +20586,14 @@ components:
                       description: Whether that episode's original is retained now.
         source:
           description: The playable span preview uses; null when no source is playable.
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/PatternAudioSpan'
+        editSource:
+          description: >-
+            The span Edit edges uses: the newest non-rejected, in-scope match whose
+            original is retained, then the recorded source. Null when neither is
+            available. The recorded source stays in builtFrom even after it expires.
           oneOf:
             - type: 'null'
             - $ref: '#/components/schemas/PatternAudioSpan'

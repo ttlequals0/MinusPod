@@ -249,6 +249,7 @@ const ACTIVE_AUDIO = {
   state: 'active', available: true, length: 45, createdAt: '2026-01-02T00:00:00Z',
   builtFrom: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 55, available: true },
   source: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 55 },
+  editSource: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 55 },
   counts: { matches: 5, rejected: 2, outOfScope: 0 }, meanSimilarity: 0.912, lastMatchedAt: '2026-03-04T10:00:00Z',
 };
 
@@ -375,8 +376,13 @@ describe('Audio section', () => {
     renderAudioModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
-    expect(await screen.findByText('Could not delete audio.')).toBeDefined();
-    expect(screen.getByText('91%')).toBeDefined();
+    const dialog = screen.getByRole('dialog', { name: 'Delete audio?' });
+    expect(await within(dialog).findByText('Could not delete audio. Try again.')).toBeDefined();
+    mockDeletePatternAudio.mockResolvedValue(undefined);
+    mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete audio' }));
+    await waitFor(() => expect(mockDeletePatternAudio).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete audio?' })).toBeNull());
   });
 
   it('says why the source clip cannot play when the server is busy', async () => {
@@ -490,7 +496,7 @@ describe('Add audio to pattern from the source episode', () => {
     renderAudioModal(makePattern());
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(button.getAttribute('aria-describedby')).toBe(screen.getByText(/No retained episode has this ad/).id);
+    expect(button.getAttribute('aria-describedby')).toBe(screen.getByText(/No source audio is available/).id);
     await userEvent.click(button);
     expect(mockGetEpisode).not.toHaveBeenCalled();
   });
@@ -522,7 +528,24 @@ describe('Dialog layout classes', () => {
 });
 
 describe('Edit edges', () => {
-  const EXPIRED = { ...ACTIVE_AUDIO, available: false, source: null, builtFrom: { ...ACTIVE_AUDIO.builtFrom, available: false } };
+  const EXPIRED = { ...ACTIVE_AUDIO, available: false, source: null, editSource: null, builtFrom: { ...ACTIVE_AUDIO.builtFrom, available: false } };
+
+  it('edits the latest retained match after the original source expires', async () => {
+    mockGetPatternAudio.mockResolvedValue({
+      ...ACTIVE_AUDIO,
+      builtFrom: { ...ACTIVE_AUDIO.builtFrom, available: false },
+      editSource: { podcastSlug: 'example-podcast', episodeId: 'b2c3d4e5f6a1', start: 20, end: 65 },
+    });
+    mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
+    renderAudioModal(makePattern());
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit edges' }));
+    const editor = await screen.findByRole('dialog', { name: 'Edit edges' });
+    expect(editor.dataset.span).toBe('example-podcast/b2c3d4e5f6a1/20-65');
+    await userEvent.click(within(editor).getByRole('button', { name: 'Save audio' }));
+    await waitFor(() => expect(mockRebuildPatternAudio).toHaveBeenCalledWith(
+      42, { podcastSlug: 'example-podcast', episodeId: 'b2c3d4e5f6a1', start: 12, end: 48 },
+    ));
+  });
 
   it('opens the editor on the source episode with the built span and saves through the rebuild route', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
@@ -697,7 +720,7 @@ describe('Audio tab reasons', () => {
   it('names the other route when no episode can source the audio', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...NO_AUDIO, addSource: null });
     renderAudioModal(makePattern());
-    expect(await screen.findByText(/use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page/)).toBeDefined();
+    expect(await screen.findByText(/Use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page/)).toBeDefined();
   });
 
   it('does not give that reason when a source is offered', async () => {
@@ -708,10 +731,10 @@ describe('Audio tab reasons', () => {
   });
 
   it('says why Edit edges is missing when the fingerprint has no source', async () => {
-    mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, builtFrom: null, source: null, available: false });
+    mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, builtFrom: null, source: null, editSource: null, available: false });
     renderAudioModal(makePattern());
     expect(await screen.findByText('Edit edges needs source audio.')).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Edit edges' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Edit edges' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('offers Edit edges for a legacy fingerprint whose source the server resolved', async () => {

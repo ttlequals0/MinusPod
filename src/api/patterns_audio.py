@@ -160,7 +160,7 @@ def build_audio_detail(db, storage, pattern_id):
     summary = db.get_audio_match_summary(pattern_id)
     detail = {
         'state': 'none', 'available': False, 'matchable': True, 'length': None, 'createdAt': None,
-        'builtFrom': None, 'source': None, 'addSource': None,
+        'builtFrom': None, 'source': None, 'editSource': None, 'addSource': None,
         'counts': {'matches': summary['match_count'], 'rejected': summary['rejected_count'],
                    'outOfScope': summary['out_of_scope_count']},
         'meanSimilarity': summary['mean_similarity'], 'lastMatchedAt': summary['last_matched_at'],
@@ -183,10 +183,11 @@ def build_audio_detail(db, storage, pattern_id):
     if source:
         detail['source'] = _span(source)
         detail['available'] = True
-    # A fingerprint stored before sources were recorded: Edit edges rebuilds from an in-scope match,
-    # never another feed's audio. Play keeps any match, since hearing it replaces nothing.
+    scoped, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, in_scope_only=True)
+    if scoped:
+        detail['editSource'] = _span(scoped)
+    # Legacy fingerprints have no recorded origin; offer an in-scope match.
     if detail['builtFrom'] is None:
-        scoped, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, in_scope_only=True)
         if scoped:
             detail['builtFrom'] = {**_span(scoped), 'available': True}
     return detail

@@ -97,8 +97,10 @@ The request, the response shape and the 60,000 bucket limit do not change.
 - A width the route coarsens to stay under the bucket limit is rounded up to a
   whole multiple of 10 ms. A 3.3 hour window gets 200 ms buckets where it got
   198 ms. The response already reports the width used.
-- Any other request is decoded as before. That decode seeks only when the
-  window starts after 0, streams its PCM, and keeps the 4 hour cap.
+- Any other request streams decoded PCM and keeps the 4 hour window cap.
+  Output seeking decodes from the beginning to preserve AAC priming and
+  resampling alignment, then emits only the requested window. The timeout
+  includes the skipped duration. Aligned editor requests use the cache.
 - The 4 hour cap does not apply to a request served from the file.
 - New response: 503 with `Retry-After` while a long episode's file is being
   built.

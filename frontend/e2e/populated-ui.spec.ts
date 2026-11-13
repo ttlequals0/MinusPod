@@ -24,7 +24,7 @@ test('real episode player fits every speed in both modes and reports unavailable
     await page.goto(`feeds/${feed.slug}/episodes/${episode.episodeId}`);
     const player = page.getByRole('group', { name: 'Episode player' });
     await expect(player).toBeVisible();
-    await expect(player.getByRole('alert')).toContainText('Could not play this audio.');
+    await expect(player.getByRole('alert').filter({ hasText: 'Could not play this audio.' })).toBeVisible();
     await expect(player.getByRole('button', { name: 'Retry playback' })).toBeVisible();
     await expect(player.getByRole('slider', { name: 'Seek' })).toBeDisabled();
     for (let speed = 0; speed < 6; speed++) {
@@ -54,6 +54,36 @@ test('real episode player fits every speed in both modes and reports unavailable
         await expect(page.getByRole('button', { name: 'Show less', exact: true })).toHaveAttribute('aria-expanded', 'true');
         await expect(links.last()).toBeInViewport();
       }
+    }
+  }
+});
+
+test('pattern details open from the keyboard and restore focus to the trigger', async ({ page }) => {
+  await page.goto('patterns');
+  const trigger = page.getByRole('button', { name: /^View pattern / }).first();
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Pattern details', exact: true });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test('page tabs and section links stay visible without horizontal scrolling', async ({ page }) => {
+  for (const [path, role, name] of [
+    ['patterns', 'tablist', 'Pattern sections'],
+    ['stats', 'navigation', 'Stats sections'],
+  ] as const) {
+    await page.goto(path);
+    const sections = page.getByRole(role, { name, exact: true });
+    await expect(sections).toBeVisible();
+    expect(await sections.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    for (const item of await sections.locator('button, a').all()) {
+      const box = (await item.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+      if (test.info().project.use.hasTouch) expect(box.height).toBeGreaterThanOrEqual(44);
     }
   }
 });

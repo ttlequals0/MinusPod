@@ -1,5 +1,6 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
@@ -186,12 +187,12 @@ function SecuritySection({
     setPasswordSuccess(null);
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match');
+      setPasswordError('Passwords do not match.');
       return;
     }
 
     if (newPassword && newPassword.length < MIN_PASSWORD_LENGTH) {
-      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
 
@@ -199,10 +200,10 @@ function SecuritySection({
     try {
       if (newPassword) {
         await setPassword(newPassword, currentPassword);
-        setPasswordSuccess(isPasswordSet ? 'Password changed successfully' : 'Password set successfully');
+        setPasswordSuccess(isPasswordSet ? 'Password changed.' : 'Password set.');
       } else {
         await removePassword(currentPassword);
-        setPasswordSuccess('Password protection removed');
+        setPasswordSuccess('Password protection removed.');
       }
       await refreshStatus();
       setCurrentPassword('');
@@ -242,8 +243,7 @@ function SecuritySection({
       )}
 
       <form onSubmit={handlePasswordSubmit} className="space-y-4">
-        {/* Single-user app: a hidden username keeps password managers and
-            Chrome's accessibility check happy without a visible field. */}
+        {/* Password managers need a username. */}
         <input type="text" name="username" autoComplete="username"
                value="minuspod" readOnly hidden />
         {isPasswordSet && (
@@ -307,7 +307,7 @@ function SecuritySection({
         )}
 
         {passwordSuccess && (
-          <div className="p-3 rounded-lg bg-success/10 text-success text-sm">
+          <div role="status" className="p-3 rounded-lg bg-success/10 text-success text-sm">
             {passwordSuccess}
           </div>
         )}
@@ -449,7 +449,8 @@ function SecuritySection({
               disabled={agentsMutation.isPending}
               className={`${btnBase} ${btnOutline}`}
             >
-              + Add agent
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Add agent
             </button>
           ) : (
             <>

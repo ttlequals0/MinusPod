@@ -201,7 +201,7 @@ function QueuePage() {
         </div>
       </div>
 
-      <PageTabs id="queue" label="Queue sections" tabs={QUEUE_TABS} active={activeTab} wrap
+      <PageTabs id="queue" label="Queue sections" tabs={QUEUE_TABS} active={activeTab}
         onChange={(value) => write({ tab: value })} />
 
       {activeTab === 'review' ? <ReviewTab /> : (

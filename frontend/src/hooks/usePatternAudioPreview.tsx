@@ -39,6 +39,13 @@ export function usePatternAudioPreview(patternId: number) {
     setActive(null);
   };
 
+  const reset = () => {
+    stop();
+    releaseAudio();
+    loadedKeyRef.current = null;
+    setFailure(null);
+  };
+
   useEffect(() => () => {
     explainRef.current?.abort();
     releaseAudio();
@@ -123,6 +130,7 @@ export function usePatternAudioPreview(patternId: number) {
   return {
     audioElement,
     stop,
+    reset,
     toggle,
     isPlaying: (matchId?: number) => active?.key === keyOf(matchId) && active.phase === 'playing',
     isLoading: (matchId?: number) => active?.key === keyOf(matchId) && active.phase === 'loading',

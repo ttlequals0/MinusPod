@@ -28,13 +28,12 @@ import numpy as np
 from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_artifacts
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 from utils.bounded_set import BoundedSet
-from utils.subprocess_registry import tracked_popen, tracked_run
+from utils.subprocess_registry import tracked_popen
 from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.peaks')
 
 PEAKS_SAMPLE_RATE_HZ = 8000 # mono downsample target -- only need amplitude
-PEAKS_TIMEOUT_SECONDS = 60
 MAX_PEAKS_DURATION_SECONDS = 4 * 60 * 60  # cap on a window decoded per request
 PEAKS_INLINE_MAX_SECONDS = 45 * 60  # a request thread decodes no more than this; longer originals build in the background
 _BUILD_FAILURE_MEMO_SECONDS = 300
@@ -61,8 +60,6 @@ BUILD_FAILED = 'failed'
 _HASHED_CACHE_MAX = 256
 
 _GRID_EPSILON = 1e-6
-# One value: windows starting before it decode from zero, later ones seek this far ahead and trim
-_SEEK_LEAD_IN_SECONDS = 5.0
 
 
 class PeaksError(RuntimeError):
@@ -78,6 +75,8 @@ def _check_window(start_seconds: float, end_seconds: float | None, resolution_ms
     """Validate a window request and return its clamped start."""
     if resolution_ms < 1 or resolution_ms > 1000:
         raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
+    if not math.isfinite(start_seconds) or (end_seconds is not None and not math.isfinite(end_seconds)):
+        raise PeaksError('start and end must be finite numbers')
     start = max(0.0, float(start_seconds))
     if end_seconds is not None and float(end_seconds) <= start:
         raise PeaksError(f"end ({float(end_seconds)}) must be > start ({start})")
@@ -107,53 +106,28 @@ def compute_peaks(audio_path: Path | str,
         if duration > MAX_PEAKS_DURATION_SECONDS:
             raise PeaksError(
                 f"window {duration:.0f}s exceeds {MAX_PEAKS_DURATION_SECONDS}s cap")
-        # Auto-scale resolution to stay under MAX_PEAK_BUCKETS: resolution_ms is a minimum fidelity, coarsened
-        # for very long windows so the JSON doesn't balloon. Wavesurfer renders a couple of pixels per peak,
-        # so 60k buckets is plenty even at 20x zoom.
         max_buckets_at_request_res = (duration * 1000) / resolution_ms
         if max_buckets_at_request_res > MAX_PEAK_BUCKETS:
-            scaled = int(((duration * 1000) / MAX_PEAK_BUCKETS) + 0.5)
-            resolution_ms = min(1000, max(resolution_ms, scaled))
+            resolution_ms = math.ceil(duration * 1000 / MAX_PEAK_BUCKETS / PEAKS_BUCKET_WIDTH_MS) * PEAKS_BUCKET_WIDTH_MS
 
-    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error']
-    # Near the start decode from zero: a seek there changes AAC priming.
-    seek = start - _SEEK_LEAD_IN_SECONDS if start >= _SEEK_LEAD_IN_SECONDS else 0.0
-    lead_in = start - seek
-    discard = int(round(lead_in * PEAKS_SAMPLE_RATE_HZ))
-    if seek > 0:
-        cmd += ['-ss', f'{seek:.3f}']
-    cmd += ['-i', str(audio_path)]
+    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error', '-i', str(audio_path)]
+    # Output seeking preserves AAC priming and resampling alignment with cached peaks.
+    if start > 0:
+        cmd += ['-ss', f'{start:.6f}']
     if duration is not None:
-        cmd += ['-t', f'{duration + lead_in:.3f}']
+        cmd += ['-t', f'{duration:.6f}']
     cmd += ['-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ),
             '-f', 's16le', 'pipe:1']
 
-    try:
-        proc = tracked_run(cmd, capture_output=True, timeout=PEAKS_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired as e:
-        raise PeaksError(f"ffmpeg timed out after {PEAKS_TIMEOUT_SECONDS}s") from e
-
-    if proc.returncode != 0:
-        stderr = (proc.stderr or b'').decode('utf-8', errors='replace')[:500]
-        raise PeaksError(f"ffmpeg exit {proc.returncode}: {stderr}")
-
-    raw = proc.stdout or b''
-    if not raw:
-        raise PeaksError("ffmpeg produced no audio data (empty window?)")
-
-    samples = np.frombuffer(raw, dtype='<i2')[discard:]
-    if len(samples) == 0:
-        raise PeaksError("ffmpeg produced no audio data (empty window?)")
     samples_per_bucket = max(1, int(PEAKS_SAMPLE_RATE_HZ * resolution_ms / 1000))
-
-    n_buckets = len(samples) // samples_per_bucket
-    if n_buckets == 0:
-        return [], resolution_ms
-
-    trimmed = samples[: n_buckets * samples_per_bucket].reshape(-1, samples_per_bucket)
-    # Peak amplitude per bucket, normalized to [0, 1]. int16 max abs is 32768.
-    peaks = abs_max_i16(trimmed).astype(np.float32) / 32768.0
-    return peaks.tolist(), resolution_ms
+    peaks = _decode_peaks(cmd, samples_per_bucket, start + (duration or MAX_PEAKS_DURATION_SECONDS),
+                          max_samples=MAX_PEAKS_DURATION_SECONDS * PEAKS_SAMPLE_RATE_HZ)
+    if len(peaks) > MAX_PEAK_BUCKETS:
+        multiple = PEAKS_BUCKET_WIDTH_MS // math.gcd(resolution_ms, PEAKS_BUCKET_WIDTH_MS)
+        factor = math.ceil(len(peaks) / MAX_PEAK_BUCKETS / multiple) * multiple
+        peaks = downsample_max(peaks, factor)
+        resolution_ms *= factor
+    return (peaks.astype(np.float32) / 32768.0).tolist(), resolution_ms
 
 
 @dataclass
@@ -324,18 +298,16 @@ def downsample_max(buckets: np.ndarray, factor: int) -> np.ndarray:
     return buckets[:n * factor].reshape(n, factor).max(axis=1).astype('<u2')
 
 
-def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | None:
-    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16; None on failure or audio
-    shorter than one bucket."""
-    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-i', str(audio_path),
-           '-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ), '-f', 's16le', 'pipe:1']
+def _decode_peaks(cmd, samples_per_bucket, duration, *, max_samples=None):
+    """Reduce PCM chunks to uint16 maxima without retaining the decoded audio."""
     chunk_bytes = PEAKS_SAMPLES_PER_BUCKET * 2 * _PEAKS_CHUNK_BUCKETS
-    bucket_bytes = PEAKS_SAMPLES_PER_BUCKET * 2
+    bucket_bytes = samples_per_bucket * 2
     parts: list[np.ndarray] = []
     remainder = b''
+    decoded_bytes = 0
     try:
-        with tracked_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                           stdin=subprocess.DEVNULL) as proc:
+        with tempfile.TemporaryFile() as stderr, tracked_popen(
+                cmd, stdout=subprocess.PIPE, stderr=stderr, stdin=subprocess.DEVNULL) as proc:
             timer = threading.Timer(ffmpeg_timeout(duration), proc.kill)
             timer.start()
             try:
@@ -343,29 +315,47 @@ def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | N
                     block = proc.stdout.read(chunk_bytes)
                     if not block:
                         break
+                    decoded_bytes += len(block)
+                    if max_samples is not None and decoded_bytes > max_samples * 2:
+                        raise PeaksError(f'window exceeds {MAX_PEAKS_DURATION_SECONDS}s cap')
                     block = remainder + block
                     usable = len(block) // bucket_bytes * bucket_bytes
                     remainder = block[usable:]
                     if usable:
                         samples = np.frombuffer(block, dtype='<i2', count=usable // 2)
-                        peaks = abs_max_i16(samples.reshape(-1, PEAKS_SAMPLES_PER_BUCKET))
+                        peaks = abs_max_i16(samples.reshape(-1, samples_per_bucket))
                         parts.append(peaks.astype('<u2'))
                 returncode = proc.wait()
             finally:
                 timer.cancel()
+                timer.join()
                 if proc.poll() is None:
                     proc.kill()
                     proc.wait()
+            if returncode != 0:
+                stderr.seek(0)
+                message = stderr.read(500).decode('utf-8', errors='replace')
+                raise PeaksError(f'ffmpeg exit {returncode}: {message}')
     except OSError as e:
-        logger.error('Peaks decode failed: %s', e)
+        raise PeaksError(f'Could not decode audio: {e}') from e
+    if decoded_bytes == 0:
+        raise PeaksError('ffmpeg produced no audio data (empty window?)')
+    return np.concatenate(parts) if parts else np.empty(0, dtype='<u2')
+
+
+def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | None:
+    """Stream per-10 ms maxima; None on failure or audio shorter than one bucket."""
+    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-i', str(audio_path),
+           '-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ), '-f', 's16le', 'pipe:1']
+    try:
+        peaks = _decode_peaks(cmd, PEAKS_SAMPLES_PER_BUCKET, duration)
+    except PeaksError as e:
+        logger.error('Peaks decode failed for %s: %s', Path(audio_path).name, e)
         return None
-    if returncode != 0:
-        logger.error('Peaks decode ffmpeg exited %d for %s', returncode, Path(audio_path).name)
-        return None
-    if not parts:
+    if len(peaks) == 0:
         logger.debug('Peaks decode of %s produced no full bucket', Path(audio_path).name)
         return None
-    return np.concatenate(parts)
+    return peaks
 
 
 def is_grid_aligned(start_seconds: float, resolution_ms: int) -> bool:

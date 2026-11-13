@@ -213,18 +213,18 @@ Storing is best effort. The pattern or correction is saved either way, and the r
 
 **Scope.** Audio follows the pattern's scope exactly as text does: a podcast pattern matches only that podcast, a network pattern only podcasts on that network, and a global pattern everywhere. A network pattern uses the feed's network override when one is set. Matches an older version made outside a pattern's scope are flagged in its history, so you can widen the scope on purpose if you want them.
 
-**Controls on a pattern.** Open a pattern on the Patterns page and use its Audio section:
+**Controls on a pattern.** Open a pattern on the Patterns page and use its Audio tab:
 
 - **Audio on or off.** Stops or resumes matching for the fingerprint. Text matching and the pattern's active state are not affected, and disabling the whole pattern still silences both.
 - **Play.** Plays the source audio. It needs a retained original of the episode the fingerprint was built from or of a recent match. When none is left, the section says "Source audio expired". The fingerprint keeps matching and becomes playable again after its next match.
-- **Edit edges.** Opens the source episode with the fingerprint's span as the only region. Moving the edges and saving rebuilds the fingerprint. The episode's own markers and cuts are not changed.
+- **Edit edges.** Opens the newest retained, non-rejected match in scope, or the recorded origin if no match qualifies, with that span as the only region. Moving the edges and saving rebuilds the fingerprint. The episode's own markers and cuts are not changed.
 - **Delete audio.** Removes the fingerprint and its match history and keeps the pattern.
 - **Add audio to pattern.** For a pattern with no fingerprint whose marker still has a retained original, builds one from that marker.
 - **Recent matches.** Each match with its episode, position, similarity, how much of the ad it covered, and whether only audio found it. **Not this ad** on a row sends the existing reject correction for that episode and marks the match, so it stops counting toward the pattern's matches and mean similarity. A reject does not turn audio off by itself.
 
 If you raise the minimum coverage setting so far that a stored fingerprint could no longer match, the section says "This audio cannot match under the current settings".
 
-The Patterns table has an Audio column ("91% match", "Audio off", "No source audio" or "-"), the Stats page has an Audio matching section (patterns with audio, audio matches, found by audio only, marked Not this ad), and the settings are under Settings > AI and processing > Audio fingerprinting, described in [Configuration](configuration.md#audio-fingerprinting). Merging or deduplicating patterns moves a fingerprint and its history to the pattern that is kept. Deleting a pattern or feed deletes them.
+The Patterns table has an Audio column ("91% match", "Audio off", "No source audio" or "-"), the Stats page has an Audio matching section (patterns with audio, audio matches, found by audio only, marked Not this ad), and the settings are under Settings > AI and processing > Audio fingerprinting, described in [Configuration](configuration.md#audio-fingerprinting). Merging keeps the keeper's fingerprint and history and deletes those of the folded patterns. Deduplication can move a duplicate's fingerprint and history to an active keeper that has no fingerprint and has not had its audio deleted. Deleting a pattern removes its fingerprint and history; deleting a feed removes its patterns and its episodes' match rows.
 
 "Found by audio only" means no other detection stage contributed to that marker. Match history is written from an episode's final markers, so an ad the validator rejected is not a match. Reprocessing replaces an episode's rows and keeps those marked Not this ad. A match row is deleted with its episode, so a pattern's match count, mean similarity and last match reflect only episodes that still exist. An episode whose audio merely expired keeps its rows.
 

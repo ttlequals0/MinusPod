@@ -384,7 +384,7 @@ describe('LLMProviderSection: None provider', () => {
   it('shows the saved-state note once the saved flag is off', () => {
     llmState.enabled = false;
     renderSection({ llmProvider: 'none' });
-    expect(screen.getByText(/No model calls are made\. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison\. A fresh install finds little until you mark ads\./)).toBeDefined();
+    expect(screen.getByText(/No model calls are made\. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison\. Text and audio matching need saved patterns\. Mark ads to add them\./)).toBeDefined();
     expect(screen.queryByText('Save to turn off all model features.')).toBeNull();
     const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
     expect(document.getElementById(fieldset.getAttribute('aria-describedby')!)?.textContent).toContain('No model calls are made');

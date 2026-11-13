@@ -23,10 +23,9 @@ def _gen_wav(path, seconds=1.0, freq=440):
 def test_writes_file_without_decoding(tmp_path):
     src = tmp_path / 'e-original.wav'
     _gen_wav(src)
-    with patch('audio_peaks.tracked_popen') as popen, patch('audio_peaks.tracked_run') as run:
+    with patch('audio_peaks.tracked_popen') as popen:
         assert ap.maybe_write_peaks_file(src, np.array([3, 4], dtype='<u2')) is True
         popen.assert_not_called()
-        run.assert_not_called()
     assert ap.read_peaks_window(ap.peaks_file_path(src)).bucket_count == 2
 
 

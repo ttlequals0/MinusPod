@@ -71,6 +71,38 @@ def test_off_grid_request_returns_none(tmp_path):
     assert ap.compute_peaks_from_file(p, src, 0.0, None, 55) is None
 
 
+def test_off_grid_stream_handles_partial_chunks(tmp_path, monkeypatch):
+    src = _src(tmp_path, 6.0)
+    expected, resolution = ap.compute_peaks(src, 0.005, 5.505, 55)
+    monkeypatch.setattr(ap, '_PEAKS_CHUNK_BUCKETS', 3)
+    actual, streamed_resolution = ap.compute_peaks(src, 0.005, 5.505, 55)
+    assert actual == expected
+    assert resolution == streamed_resolution == 55
+    assert len(actual) == 100
+
+
+@pytest.mark.parametrize('start,end', [(float('nan'), 1), (0, float('inf')), (float('-inf'), None)])
+def test_peaks_rejects_nonfinite_bounds(tmp_path, start, end):
+    src = _src(tmp_path, 2.0)
+    with pytest.raises(ap.PeaksError, match='finite numbers'):
+        ap.compute_peaks(src, start, end, 55)
+
+
+def test_open_ended_decode_keeps_the_bucket_limit(tmp_path, monkeypatch):
+    src = _src(tmp_path, 6.0)
+    monkeypatch.setattr(ap, 'MAX_PEAK_BUCKETS', 40)
+    peaks, resolution = ap.compute_peaks(src, 0.005, None, 55)
+    assert len(peaks) <= 40
+    assert resolution % ap.PEAKS_BUCKET_WIDTH_MS == 0
+
+
+def test_open_ended_decode_keeps_the_window_limit(tmp_path, monkeypatch):
+    src = _src(tmp_path, 6.0)
+    monkeypatch.setattr(ap, 'MAX_PEAKS_DURATION_SECONDS', 2)
+    with pytest.raises(ap.PeaksError, match='window exceeds 2s cap'):
+        ap.compute_peaks(src, 0.005, None, 55)
+
+
 def test_invalid_window_raises_like_the_decode(tmp_path):
     src = _src(tmp_path, 2.0)
     p = _write(src, 2.0)
@@ -145,17 +177,18 @@ def test_zero_bucket_file_is_not_served(tmp_path):
 def test_decode_does_not_seek_at_zero(tmp_path, monkeypatch):
     src = _src(tmp_path, 8.0)
     cmds = []
-    real = ap.tracked_run
+    real = ap.tracked_popen
 
     def spy(cmd, **kw):
         cmds.append(cmd)
         return real(cmd, **kw)
-    monkeypatch.setattr(ap, 'tracked_run', spy)
+    monkeypatch.setattr(ap, 'tracked_popen', spy)
     ap.compute_peaks(src, 0.0, None, 50)
     ap.compute_peaks(src, 0.5, None, 50)
     ap.compute_peaks(src, 4.99, None, 50)
     ap.compute_peaks(src, 5.5, None, 50)
-    assert all('-ss' not in c for c in cmds[:3]) and '-ss' in cmds[3]
+    assert '-ss' not in cmds[0]
+    assert all(c.index('-ss') > c.index('-i') for c in cmds[1:])
 
 
 def test_first_buckets_of_aac_are_not_flat(tmp_path):
@@ -542,7 +575,7 @@ def test_decode_window_near_zero_equals_the_from_zero_decode(tmp_path, codec, ex
     assert np.array_equal(np.array(window), _full_decode_slice(src, start, 300))
 
 
-def test_decode_window_near_start_uses_the_shorter_lead_in(tmp_path):
+def test_decode_window_near_start_matches_full_decode(tmp_path):
     src = _src(tmp_path, 3.0)
     window, _ = ap.compute_peaks(src, 0.25, 1.25, 10)
     assert np.array_equal(np.array(window), _full_decode_slice(src, 0.25, 100))

@@ -3,8 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEpisodePeaks } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
 
-// 100ms buckets: 4x fewer peaks than the prior 50ms default, still enough to see speech vs silence at any
-// reasonable zoom, and roughly 4x less JSON payload and canvas-render cost on first mount.
+// 100 ms buckets halve the payload compared with 50 ms buckets.
 const PEAK_RESOLUTION_MS = 100;
 
 interface UsePeaksResult {
@@ -15,11 +14,7 @@ interface UsePeaksResult {
   retry: () => void;
 }
 
-// Fetches episode peaks for a window plus the resolution the server used (it may coarsen for long windows).
-// Cached via react-query (staleTime Infinity) so remounting the editor for the same episode hits the cache.
-// Bumping `resetTick` resets every cached ['peaks', slug, episodeId, ...] entry and refetches, so bad data is
-// dropped rather than stranded under an old key. A 503 with Retry-After (waveform still building) is waited
-// out inside apiRequest, leaving the query pending; react-query retry stays off.
+// apiRequest waits on 503 Retry-After responses while the waveform is being built.
 export function usePeaks(
   podcastSlug: string,
   episodeId: string,
@@ -32,8 +27,7 @@ export function usePeaks(
   const retry = useCallback(() => setRetryTick((n) => n + 1), []);
   const tick = resetTick + retryTick;
 
-  // Skip the initial mount: only an actual Reset click should blow the cache. resetQueries, not removeQueries,
-  // because removal does not notify the mounted observer.
+  // resetQueries also notifies mounted editors.
   const prevResetTickRef = useRef(tick);
   useEffect(() => {
     if (prevResetTickRef.current === tick) return;

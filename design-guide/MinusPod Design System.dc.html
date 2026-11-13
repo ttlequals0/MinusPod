@@ -504,7 +504,7 @@ metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
 <section id="nav" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Navigation, tabs &amp; toggles</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Top nav: ghost links, active = solid primary pill. Page-level views split with underline tabs. Compact binary choices (grid/list, sort) use a joined segmented toggle where active is also solid primary. Below <span style="font-family:ui-monospace,monospace;font-size:13px">xl (1280px)</span> the nav collapses behind the hamburger into a stacked list.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Top nav: ghost links, active = solid primary pill. Page-level views split with underline tabs. Tabs and section links wrap when they do not fit, keeping every section visible. Compact binary choices (grid/list, sort) use a joined segmented toggle where active is also solid primary. Below <span style="font-family:ui-monospace,monospace;font-size:13px">xl (1280px)</span> the nav collapses behind the hamburger into a stacked list.</p>
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:20px">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -513,7 +513,7 @@ metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">History</span>
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">Settings</span>
     </div>
-    <div style="border-bottom:1px solid hsl(var(--border));display:flex">
+    <div style="border-bottom:1px solid hsl(var(--border));display:flex;flex-wrap:wrap">
       <button onClick="{{ tab0 }}" style="{{ tabStyle0 }}">Text patterns</button>
       <button onClick="{{ tab1 }}" style="{{ tabStyle1 }}">Audio cues</button>
       <button onClick="{{ tab2 }}" style="{{ tabStyle2 }}">Sponsors</button>

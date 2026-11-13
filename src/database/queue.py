@@ -63,6 +63,8 @@ def resolve_queue_order(feed_value: str | None, global_value: str | None) -> str
 _ORDERED_PENDING_CTE = """
 WITH claimable AS (
     SELECT q.id, q.podcast_id, q.priority, q.created_at,
+           COALESCE(q.slot_created_at, q.created_at) AS slot_created_at,
+           COALESCE(q.slot_id, q.id) AS slot_id,
            julianday(q.published_at) AS published_jd,
            CASE WHEN p.queue_order IN ({orders}) THEN p.queue_order ELSE ? END AS feed_order
     FROM auto_process_queue q
@@ -70,9 +72,9 @@ WITH claimable AS (
     WHERE q.status = 'pending'{exclude_sql}
 ),
 ranked AS MATERIALIZED (
-    SELECT id, podcast_id, priority, created_at,
+    SELECT id, podcast_id, priority, slot_created_at, slot_id,
            ROW_NUMBER() OVER (PARTITION BY podcast_id, priority
-                              ORDER BY created_at, id) AS place,
+                              ORDER BY slot_created_at, slot_id) AS place,
            ROW_NUMBER() OVER (PARTITION BY podcast_id, priority
                               ORDER BY CASE WHEN feed_order = 'queued' THEN 0
                                             ELSE published_jd IS NULL END,
@@ -82,7 +84,8 @@ ranked AS MATERIALIZED (
     FROM claimable
 ),
 ordered AS (
-    SELECT r.id, r.priority, s.created_at AS sort_created_at, s.id AS sort_id
+    SELECT r.id, r.priority, s.slot_created_at AS sort_created_at,
+           s.slot_id AS sort_id, s.id AS slot_owner_id
     FROM ranked r
     JOIN ranked s ON s.podcast_id = r.podcast_id AND s.priority = r.priority AND s.place = r.turn
 )
@@ -92,7 +95,8 @@ _QUEUE_ORDERS_SQL = ",".join(f"'{o}'" for o in QUEUE_ORDERS)
 # Same shape as `ordered` for the common case where no feed changes the order.
 _QUEUED_ONLY_CTE = """
 WITH ordered AS (
-    SELECT q.id, q.priority, q.created_at AS sort_created_at, q.id AS sort_id
+    SELECT q.id, q.priority, q.created_at AS sort_created_at, q.id AS sort_id,
+           q.id AS slot_owner_id
     FROM auto_process_queue q
     JOIN podcasts p ON q.podcast_id = p.id
     WHERE q.status = 'pending'{exclude_sql}
@@ -373,13 +377,15 @@ class QueueMixin:
 
 
     def _window_order_needed(self, global_order: str | None = None) -> bool:
-        """True when some pending row's feed resolves to an order other than 'queued'."""
+        """Whether pending rows need sorting by publish date or reassigned queue slots."""
         if global_order is None:
             global_order = resolve_queue_order(None, self.get_setting('queue_order'))
         if global_order != 'queued':
             return True
         return self.get_connection().execute(
             """SELECT EXISTS (
+                   SELECT 1 FROM auto_process_queue WHERE status = 'pending' AND slot_id IS NOT NULL)
+               OR EXISTS (
                    SELECT 1 FROM podcasts p
                    WHERE p.queue_order IN ('oldest_first', 'newest_first')
                      AND EXISTS (SELECT 1 FROM auto_process_queue q
@@ -474,23 +480,13 @@ class QueueMixin:
         return row['n'] if row else 0
 
     def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
-        """Atomically claim the next pending episode, marking it 'processing'.
-
-        The conditional ``UPDATE ... WHERE status='pending'`` plus rowcount guard
-        lets only one consumer win a row (SQLite serializes writes), closing the
-        select-then-mark gap even with a second consumer. Returns the claimed row,
-        or None if the queue is empty; on a lost race it tries the next row.
-
-        ``exclude_episodes`` skips (slug, episode_id) pairs whose LLM account is
-        rate-limit held. Per episode, not per feed, because a pass-through override
-        lets one feed hold blocked and eligible rows, and skipping it starves the latter.
-        """
-        conn = self.get_connection()
-        cte, params = self._ordered_pending(list(exclude_episodes or []))
-        for _ in range(5):
+        """Claim the next eligible episode and consume its feed's first queue slot atomically."""
+        with self.transaction(immediate=True) as conn:
+            cte, params = self._ordered_pending(list(exclude_episodes or []))
             row = conn.execute(
                 f"""{cte}
-                   SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
+                   SELECT q.*, p.slug as podcast_slug, p.title as podcast_title,
+                          o.slot_owner_id, o.sort_created_at, o.sort_id
                    FROM ordered o
                    JOIN auto_process_queue q ON q.id = o.id
                    JOIN podcasts p ON q.podcast_id = p.id
@@ -500,20 +496,29 @@ class QueueMixin:
             ).fetchone()
             if row is None:
                 return None
-            cursor = conn.execute(
+            if row['slot_owner_id'] != row['id']:
+                # Move the unused slot to its former owner so other feeds keep their turns.
+                conn.execute(
+                    "UPDATE auto_process_queue SET slot_created_at = ?, slot_id = ? WHERE id = ?",
+                    (row['slot_created_at'] or row['created_at'],
+                     row['slot_id'] if row['slot_id'] is not None else row['id'], row['slot_owner_id']),
+                )
+                conn.execute(
+                    "UPDATE auto_process_queue SET slot_created_at = ?, slot_id = ? WHERE id = ?",
+                    (row['sort_created_at'], row['sort_id'], row['id']),
+                )
+            conn.execute(
                 """UPDATE auto_process_queue
                    SET status = 'processing',
                        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                    WHERE id = ? AND status = 'pending'""",
                 (row['id'],),
             )
-            conn.commit()
-            if cursor.rowcount == 1:
-                claimed = dict(row)
-                claimed['status'] = 'processing'
-                return claimed
-            # Lost the race to another consumer; try the next pending row.
-        return None
+            claimed = dict(row)
+            for key in ('slot_owner_id', 'sort_created_at', 'sort_id'):
+                claimed.pop(key)
+            claimed['status'] = 'processing'
+            return claimed
 
     def _update_queue_status(self, queue_id: int, status: str,
                              error_message: str = None,
@@ -638,8 +643,8 @@ class QueueMixin:
                JOIN podcasts p ON q.podcast_id = p.id
                LEFT JOIN ordered o ON o.id = q.id
                WHERE q.status IN ('pending', 'processing')
-               ORDER BY q.priority DESC, COALESCE(o.sort_created_at, q.created_at) ASC,
-                        COALESCE(o.sort_id, q.id) ASC
+               ORDER BY q.priority DESC, COALESCE(o.sort_created_at, q.slot_created_at, q.created_at) ASC,
+                        COALESCE(o.sort_id, q.slot_id, q.id) ASC
                LIMIT ?""",  # noqa: S608
             [*params, _QUEUE_STATUS_ITEMS_LIMIT],
         ).fetchall()
