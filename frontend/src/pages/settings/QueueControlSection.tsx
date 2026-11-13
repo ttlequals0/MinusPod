@@ -157,7 +157,7 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
             setDraft({ ...draft, displayCurrency: currency });
             setBudgetDirty(true);
           }}
-          className={`${inputBase} w-full disabled:opacity-50`}
+          className={`${selectBase} w-full disabled:opacity-50`}
         >
           <option value="USD">USD, US Dollar</option>
           {draft.displayCurrency !== 'USD' && !hasSelectedCurrency && <option value={draft.displayCurrency}>{draft.displayCurrency}</option>}

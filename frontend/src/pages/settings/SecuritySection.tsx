@@ -6,8 +6,8 @@ import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { RemovableChip } from '../../components/RemovableChip';
-import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
+import { tableBody, tableCard, tableHead, tableRow, thBase } from '../../components/tableStyles';
+import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
@@ -70,6 +70,9 @@ interface SecuritySectionProps {
   plaintextSecretsCount?: number;
 }
 
+const agentHead = `${thBase} px-3 py-3 text-left`;
+const agentCell = 'px-3 py-3 text-sm';
+
 function SecuritySection({
   isPasswordSet,
   logout,
@@ -120,6 +123,18 @@ function SecuritySection({
       onError: (e) => setAgentError(getErrorMessage(e, 'Could not remove agent.')),
     });
   };
+
+  const removeAgentButton = (agent: string) => (
+    <button
+      type="button"
+      onClick={() => removeBlockedAgent(agent)}
+      disabled={agentsMutation.isPending}
+      aria-label={`Remove ${agent}`}
+      className={`${btnBase} ${btnDestructiveOutline} shrink-0`}
+    >
+      Remove
+    </button>
+  );
 
   const savedHours = settings?.sessionLifetimeHours?.value ?? DEFAULT_HOURS;
   const savedDays = settings?.sessionRememberDays?.value ?? DEFAULT_DAYS;
@@ -395,14 +410,40 @@ function SecuritySection({
         <p className="text-sm text-muted-foreground mb-4">
           Agents listed here get the original audio instead of triggering processing. Case-insensitive, matches anywhere in the agent string. Start a pattern with ^ to match only the beginning, for example ^atc/.
         </p>
-        {blockedAgents.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {blockedAgents.map((agent) => (
-              <RemovableChip key={agent} label={agent} onRemove={() => removeBlockedAgent(agent)}
-                disabled={agentsMutation.isPending} />
-            ))}
-          </div>
-        )}
+        <div className="mb-2 space-y-2">
+          {blockedAgents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No agents yet.</p>
+          ) : (
+            <>
+              <div className={`hidden sm:block ${tableCard}`}>
+                <table className="w-full">
+                  <thead className={tableHead}>
+                    <tr>
+                      <th className={agentHead}>Agent</th>
+                      <th className={agentHead}><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className={tableBody}>
+                    {blockedAgents.map((agent) => (
+                      <tr key={agent} className={tableRow}>
+                        <td className={`${agentCell} min-w-0 break-all font-mono text-foreground`}>{agent}</td>
+                        <td className={`${agentCell} text-right whitespace-nowrap`}>{removeAgentButton(agent)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="sm:hidden space-y-2">
+                {blockedAgents.map((agent) => (
+                  <div key={agent} className="bg-muted/40 rounded-lg p-4 flex items-center justify-between gap-3">
+                    <span className="min-w-0 break-all font-mono text-sm text-foreground">{agent}</span>
+                    {removeAgentButton(agent)}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {!addingAgent ? (
             <button

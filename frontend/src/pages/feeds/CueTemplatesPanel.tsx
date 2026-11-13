@@ -11,7 +11,8 @@ import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
 import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
 import { ghostBtn, primaryBtn } from '../../components/cueScanStyles';
-import { btnBase, btnDestructive, btnDestructiveOutline, btnGhost, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { btnDestructive, btnDestructiveOutline, btnGhost, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { rowActionBtn } from '../../components/rowActionStyles';
 import { cardTitle, subHeading } from '../../components/pageStyles';
 import { ConfirmModal } from '../../components/Modal';
 import {
@@ -503,12 +504,12 @@ function CueTemplatesPanel({ slug }: Props) {
                   </div>
                 </div>
                 {editingId !== t.id && (
-                  <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 xl:shrink-0">
                     {t.hasAudio !== false && (
                       <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
-                          className={`${btnBase} ${btnGhost}`}
+                          className={`${rowActionBtn} ${btnGhost}`}
                           onClick={() => togglePlay(t)}
                           disabled={IS_DEMO}
                           title={playingId === t.id ? 'Stop' : 'Play this cue'}
@@ -521,7 +522,7 @@ function CueTemplatesPanel({ slug }: Props) {
                     )}
                     <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
                       <a
-                        className={`${btnBase} ${btnGhost}`}
+                        className={`${rowActionBtn} ${btnGhost} touch-target`}
                         href={cueTemplateExportUrl(t.id)}
                         title="Download this cue as a portable zip"
                       >
@@ -540,7 +541,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           return (
                             <button
                               type="button"
-                              className={`${btnBase} ${btnGhost}`}
+                              className={`${rowActionBtn} ${btnGhost}`}
                               onClick={() => handlePromote(t)}
                               title={
                                 t.scope === 'network'
@@ -558,7 +559,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         })()}
                         <button
                           type="button"
-                          className={`${btnBase} ${btnGhost}`}
+                          className={`${rowActionBtn} ${btnGhost}`}
                           onClick={() => startEditType(t)}
                         >
                           Change type
@@ -589,16 +590,18 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${btnBase} ${btnGhost}`}
+                            className={`${rowActionBtn} ${btnGhost}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
                             Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
                           </button>
                         )}
+                        {/* Below sm Optimize and Delete wrap as one unit so Delete never sits alone on a line. */}
+                        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:contents">
                         <button
                           type="button"
-                          className={`${btnBase} ${btnGhost}`}
+                          className={`${rowActionBtn} ${btnGhost}`}
                           onClick={() => {
                             setActionError(null);
                             setOptimizeId(optimizeId === t.id ? null : t.id);
@@ -610,12 +613,13 @@ function CueTemplatesPanel({ slug }: Props) {
                         >
                           Optimize window
                         </button>
+                        <div className="flex items-center gap-1.5 sm:ml-auto">
                         {confirmDeleteId === t.id ? (
                           <>
                             <DemoDisabled>
                               <button
                                 type="button"
-                                className={`${btnBase} ${btnDestructive}`}
+                                className={`${rowActionBtn} ${btnDestructive}`}
                                 onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
                               >
                                 Delete cue
@@ -623,7 +627,7 @@ function CueTemplatesPanel({ slug }: Props) {
                             </DemoDisabled>
                             <button
                               type="button"
-                              className={`${btnBase} ${btnGhost}`}
+                              className={`${rowActionBtn} ${btnGhost}`}
                               onClick={() => setConfirmDeleteId(null)}
                             >
                               Cancel
@@ -632,12 +636,14 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${btnBase} ${btnDestructiveOutline}`}
+                            className={`${rowActionBtn} ${btnDestructiveOutline}`}
                             onClick={() => setConfirmDeleteId(t.id)}
                           >
                             Delete
                           </button>
                         )}
+                        </div>
+                        </div>
                       </>
                     )}
                   </div>
