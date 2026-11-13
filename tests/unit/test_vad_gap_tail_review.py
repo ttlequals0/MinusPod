@@ -99,7 +99,7 @@ def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
 
 
 # Load-bearing: the last segment ends exactly at the marker start (10557.6) and is included by the
-# boundary-inclusive overlap (seg_end >= start) in src/utils/text.py:137. A strict comparison would empty
+# boundary-inclusive overlap (seg_end >= start) in get_timestamped_transcript_for_range (src/utils/text.py). A strict comparison would empty
 # ad_text and bypass the vad_gap clamp branch, changing both tests' routing.
 TAIL_SEGMENTS = [
     {'start': 10520.0, 'end': 10545.0,

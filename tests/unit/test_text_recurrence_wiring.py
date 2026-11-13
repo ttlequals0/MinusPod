@@ -7,8 +7,8 @@ from text_recurrence import format_recurrence_hint
 
 
 def test_get_recent_original_segments_parses_json(temp_db):
-    # temp_db fixture: tests/conftest.py:23 (fresh Database per test).
-    # upsert_episode kwargs style: tests/unit/test_positional_prior.py:386.
+    # temp_db fixture: tests/conftest.py (fresh Database per test).
+    # upsert_episode kwargs style: tests/unit/test_positional_prior.py.
     slug = 'recur-pod'
     temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Recur Pod')
     for i, eid in enumerate(('ep-1', 'ep-2')):

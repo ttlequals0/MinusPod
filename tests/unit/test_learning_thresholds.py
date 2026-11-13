@@ -65,7 +65,7 @@ def _claude_ad(confidence, duration):
 
 
 class TestPatternServiceConfigurableThreshold:
-    """record_verification_misses (~pattern_service.py:833-845)."""
+    """record_verification_misses (pattern_service)."""
 
     def test_configured_low_threshold_admits_0_6_confidence_miss(self, db):
         db.set_setting('learning_min_confidence', '0.5')
@@ -97,7 +97,7 @@ class TestPatternServiceConfigurableThreshold:
 
 
 class TestAdPassesLearningFiltersConfigurableLongThreshold:
-    """_ad_passes_learning_filters long-duration check (~ad_detector/__init__.py:1576-1610)."""
+    """_ad_passes_learning_filters long-duration check (ad_detector)."""
 
     def test_configured_low_long_threshold_admits_0_6_confidence_100s_ad(self, detector):
         detector.db.get_setting_float = MagicMock(side_effect=lambda key, default: 0.5)
@@ -113,7 +113,7 @@ class TestAdPassesLearningFiltersConfigurableLongThreshold:
 
 
 class TestLearnFromDetectionsConfigurableThreshold:
-    """learn_from_detections min_confidence read (~ad_detector/__init__.py:1747)."""
+    """learn_from_detections min_confidence read (ad_detector)."""
 
     def test_configured_low_threshold_lets_0_6_confidence_ad_through(self, detector):
         detector.db.get_setting_float = MagicMock(side_effect=lambda key, default: 0.5)

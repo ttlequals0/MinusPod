@@ -708,7 +708,7 @@ def minuspod_review_verdict(content, original_start, original_end, *, pool="acce
     review response, driven by MinusPod's own extract_json_ads_array."""
     ads, method = extract_json_ads_array(content)
     assert ads is not None, "MinusPod could not parse the review response"
-    if not ads:  # empty array -> reject (ad_reviewer.py:1246-1258)
+    if not ads:  # empty array -> reject (mirrors AdReviewer._review_single)
         return "reject", None, None, method
     kept = ads[0]
     assert isinstance(kept, dict)

@@ -99,8 +99,8 @@ def _channel_artwork_url(slug: str, base: str, feed_auth_key: str | None,
     cover-minuspod is the only public podcast-level artwork route (routes.py has no unbadged one), so
     a local feed with a cover always points here, unlike modify_feed which falls back to the raw upstream
     URL when watermarking is off. A local feed has no upstream URL to fall back to, and the auth-key
-    self-heal fingerprint (routes.py:328-355) needs a self-consistent URL for an artwork-only feed.
-    Mirrors the token scheme at rss_parser.py:966-980.
+    self-heal fingerprint (serve_rss in main_app/routes.py) needs a self-consistent URL for an artwork-only feed.
+    Mirrors the cover token scheme in RSSParser.modify_feed.
     """
     if not storage_.has_artwork(slug):
         return None
@@ -284,7 +284,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
 
     _append_channel_image(lines, _channel_artwork_url(slug, base, feed_auth_key, storage), title, channel_link)
 
-    # Deliberately keyless (same as modify_feed, rss_parser.py:1413-1417):
+    # Deliberately keyless (same as RSSParser.modify_feed):
     # the guid seed is the feed's stable identity, so folding the auth key
     # in would re-identify every feed on enable/rotate.
     guid = channel_json.get('guid') or compute_feed_guid(f"{base.rstrip('/')}/{slug}")
@@ -353,7 +353,7 @@ def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int | None,
 def rebuild_local_feed(slug: str, podcast: dict | None = None) -> bool:
     """Render and persist a local feed's served RSS from DB rows only.
 
-    Same postlude as feeds._build_and_save_served_rss (feeds.py:497-538): save the XML, stamp
+    Same postlude as main_app.feeds._build_and_save_served_rss (in main_app/feeds.py): save the XML, stamp
     last_checked_at, invalidate the episode lookup cache. Returns False and logs a warning on any
     exception rather than propagating to the refresh scheduler.
 

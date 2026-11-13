@@ -2042,7 +2042,7 @@ def get_pricing_sources(provider: str, base_url: str = '') -> list:
                 dict(_LITELLM_SOURCE),
             ]
 
-    # Unknown domain (including LAN/localhost), unfiltered LiteLLM.
+    # Unknown domain (including LAN/localhost): unfiltered LiteLLM.
     return [dict(_LITELLM_SOURCE)]
 
 

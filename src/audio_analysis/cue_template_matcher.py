@@ -50,7 +50,7 @@ logger = logging.getLogger('podcast.audio_analysis.cue_template')
 # Default threshold; tuneable via DB setting `audio_cue_template_score`. The
 # value and its rationale live in config.AUDIO_CUE_TEMPLATE_SCORE.
 DEFAULT_MATCH_SCORE = AUDIO_CUE_TEMPLATE_SCORE
-# Max matches we report per template per episode, bounds prompt size.
+# Max matches we report per template per episode; bounds prompt size.
 MAX_MATCHES_PER_TEMPLATE = 50
 # Episode is decoded in chunks of this many seconds with `OVERLAP_S` overlap
 # so a template straddling a chunk boundary still matches. Keep memory bounded

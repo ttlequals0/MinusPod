@@ -1,6 +1,6 @@
 """Pattern auto-creation from corrections must store the slug, not the numeric podcast id (PR #196).
 
-Detection reads `ad_patterns.podcast_id` against `podcasts.slug` (`src/database/patterns.py:17`);
+Detection reads `ad_patterns.podcast_id` against `podcasts.slug` (`src/database/patterns.py`);
 this pins the two correction paths (`type=confirm`, `type=adjust` with no existing pattern_id) to
 the slug."""
 import json

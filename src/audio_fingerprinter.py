@@ -290,7 +290,7 @@ def _find_shared_segments(target, siblings, win, similarity, min_matches,
         # skip-past gate below must use this (refinement can pull hi back).
         coarse_capped = hi + step - lo > max_len
         # Fine refinement: retract coarse overshoot, then extend 1 subfp at a time using 4-subfp windows
-        # (a 1-subfp slice is 32 bits, too noisy at 0.73). Never drops a survivor; count stays coarse.
+        # (a 1-subfp slice is 32 bits: too noisy at 0.73). Never drops a survivor; count stays coarse.
         R = min(4, win)
         fine_limit = max(1, step - 1)
         # Retraction floor: never shrink a coarse-valid run below min_len, else a

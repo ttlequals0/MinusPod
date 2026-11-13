@@ -784,8 +784,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 positional_prior = load_positional_prior(db, slug, episode_id,
                                                          episode_duration)
 
-                # Cross-episode text recurrence hint (off until benchmarked;
-                # see docs/superpowers/specs/2026-08-25-hushpod-adoption-design.md).
+                # Cross-episode text recurrence hint (off until benchmarked).
                 recurrence_spans = None
                 if coerce_bool_setting(db.get_setting('text_recurrence_hints') or 'false'):
                     try:
