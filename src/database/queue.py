@@ -407,21 +407,6 @@ class QueueMixin:
         cte = _ORDERED_PENDING_CTE.format(orders=_QUEUE_ORDERS_SQL, exclude_sql=exclude_sql)  # noqa: S608
         return cte, [global_order, *exclude_params]
 
-    def get_next_queued_episode(self) -> dict | None:
-        """The next pending episode in dequeue order (read-only)."""
-        cte, params = self._ordered_pending()
-        row = self.get_connection().execute(
-            f"""{cte}
-               SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
-               FROM ordered o
-               JOIN auto_process_queue q ON q.id = o.id
-               JOIN podcasts p ON q.podcast_id = p.id
-               ORDER BY {_ORDERED_BY}
-               LIMIT 1""",  # noqa: S608
-            params,
-        ).fetchone()
-        return dict(row) if row else None
-
     def get_pending_queued_episodes(self, limit: int = PENDING_QUEUE_LIMIT,
                                     offset: int = 0) -> list[dict]:
         """Pending queue rows in dequeue order, capped at `limit` from `offset`.

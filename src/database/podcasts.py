@@ -670,12 +670,6 @@ class PodcastMixin:
         """Stamp the last received podping for a feed (UTC ISO)."""
         self.update_podcast(slug, last_podping_at=utc_now_iso())
 
-    def set_podping_declaration(self, slug: str, uses_podping: bool | None,
-                                hive_accounts: list[str]) -> None:
-        """Store a feed's upstream <podcast:podping> declaration."""
-        self.update_podcast(
-            slug, **podping_declaration_columns(uses_podping, hive_accounts))
-
     @staticmethod
     def _podping_declaration_from_row(row) -> dict:
         """Row columns to {'uses_podping', 'hive_accounts'}."""
@@ -693,16 +687,6 @@ class PodcastMixin:
             'uses_podping': nullable_bool(uses),
             'hive_accounts': accounts,
         }
-
-    def get_podping_declaration(self, slug: str) -> dict:
-        """A feed's podping declaration; uses_podping None when undeclared."""
-        cursor = self.get_connection().execute(
-            "SELECT podping_uses, podping_hive_accounts FROM podcasts WHERE slug = ?",
-            (slug,))
-        row = cursor.fetchone()
-        if row is None:
-            return {'uses_podping': None, 'hive_accounts': []}
-        return self._podping_declaration_from_row(row)
 
     def get_all_podping_declarations(self) -> dict[str, dict]:
         """slug -> podping declaration, for the listener's per-feed rules."""
@@ -802,10 +786,6 @@ class PodcastMixin:
         except (TypeError, ValueError):
             global_days = 30
         return effective_retention_days(per_feed, global_days)
-
-    def is_archived(self, slug: str, podcast: dict | None = None) -> bool:
-        """True when this feed's resolved retention never expires."""
-        return self.resolve_retention_days(slug, podcast) <= 0
 
     def resolve_keep_original_audio(self, slug: str,
                                     podcast: dict | None = None) -> bool:

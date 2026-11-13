@@ -21,6 +21,11 @@ SLUG = 'example-feed'
 URL = 'https://cdn.example/ep1.jpg'
 
 
+def _cached_cover(storage, slug, episode_id):
+    found = storage.episode_artwork_file(slug, episode_id)
+    return (found[0].read_bytes(), found[1]) if found else None
+
+
 @pytest.fixture
 def storage(tmp_path):
     Storage._instance = None
@@ -32,7 +37,7 @@ def storage(tmp_path):
 
 def test_saved_cover_round_trips(storage):
     assert storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg') is True
-    assert storage.get_episode_artwork(SLUG, EP) == (JPEG, 'image/jpeg')
+    assert _cached_cover(storage, SLUG, EP) == (JPEG, 'image/jpeg')
 
 
 @pytest.mark.parametrize('image,extension,content_type', [
@@ -149,11 +154,11 @@ def test_image_cleanup_does_not_follow_an_escaping_directory(storage, tmp_path):
 
 
 def test_missing_cover_reads_as_none(storage):
-    assert storage.get_episode_artwork(SLUG, EP) is None
+    assert _cached_cover(storage, SLUG, EP) is None
 
 
 def test_reading_an_unknown_feed_does_not_create_its_directory(storage):
-    assert storage.get_episode_artwork('never-seen', EP) is None
+    assert _cached_cover(storage, 'never-seen', EP) is None
     assert not (storage.podcasts_dir / 'never-seen').exists()
 
 
@@ -161,7 +166,7 @@ def test_a_new_format_replaces_the_old_file(storage):
     storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
     storage._save_episode_artwork(SLUG, EP, PNG, 'image/png')
 
-    assert storage.get_episode_artwork(SLUG, EP) == (PNG, 'image/png')
+    assert _cached_cover(storage, SLUG, EP) == (PNG, 'image/png')
     art_dir = storage._episode_artwork_dir(SLUG)
     assert not (art_dir / f'{EP}.jpg').exists()
 
@@ -170,7 +175,7 @@ def test_a_new_format_replaces_the_old_file(storage):
 def test_a_malformed_episode_id_is_refused(storage, episode_id):
     # The id becomes a filename, so anything off the 12-hex shape is rejected
     # rather than sanitised into something that might still escape.
-    assert storage.get_episode_artwork(SLUG, episode_id) is None
+    assert _cached_cover(storage, SLUG, episode_id) is None
     assert storage.download_episode_artwork(SLUG, episode_id, URL) is False
 
 
@@ -211,7 +216,7 @@ def test_eviction_drops_the_least_recently_served_covers(storage, monkeypatch):
 
     # Serving the oldest makes it the newest, so the next write evicts the
     # ones nobody asked for rather than the one that is actually in use.
-    storage.get_episode_artwork(SLUG, ids[0])
+    _cached_cover(storage, SLUG, ids[0])
 
     monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 200)
     storage._save_episode_artwork(SLUG, 'dddddddddddd', blob, 'image/jpeg')
@@ -257,7 +262,7 @@ def test_traversal_episode_id_never_reaches_the_filesystem(storage):
     # Invalid shape is rejected before any path join; a hostile id that
     # somehow got past shape validation is stopped by path containment.
     storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
-    assert storage.get_episode_artwork(SLUG, '../../secrets') is None
+    assert _cached_cover(storage, SLUG, '../../secrets') is None
 
 
 def test_has_episode_artwork_reflects_existence(storage):
@@ -268,7 +273,7 @@ def test_has_episode_artwork_reflects_existence(storage):
 
 def test_has_episode_artwork_does_not_read_or_touch_mtime(storage):
     # Existence-only check (task-5 review fix #4): must not read the file
-    # or bump its mtime the way get_episode_artwork's LRU touch does.
+    # or bump its mtime the way episode_artwork_file's LRU touch does.
     storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
     art_dir = storage._episode_artwork_dir(SLUG)
     path = art_dir / f'{EP}.jpg'

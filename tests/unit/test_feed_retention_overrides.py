@@ -87,12 +87,6 @@ def test_zero_override_marks_the_feed_archived(db):
     db.create_podcast('show-a', 'https://example.com/a.xml', 'show-a')
     db.update_podcast('show-a', retention_days_override=0)
     assert db.resolve_retention_days('show-a') == 0
-    assert db.is_archived('show-a') is True
-
-
-def test_a_feed_on_the_global_window_is_not_archived(db):
-    db.create_podcast('show-a', 'https://example.com/a.xml', 'show-a')
-    assert db.is_archived('show-a') is False
 
 
 # --- scheduled sweep --------------------------------------------------------

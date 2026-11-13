@@ -1,6 +1,7 @@
 """Tests for queue prioritization: compute_queue_priority and dequeue ordering (#625)."""
 from datetime import datetime, timedelta, timezone
 
+from tests.queue_helpers import peek_next_queued
 from tests.app_bootstrap import bootstrap
 bootstrap('queue_priority_test_')
 
@@ -90,28 +91,28 @@ class TestQueueOrdering:
         _insert_queue_row(temp_db, pid, 'old-normal', priority=0, minutes_ago=30)
         _insert_queue_row(temp_db, pid, 'new-high', priority=10, minutes_ago=1)
 
-        assert temp_db.get_next_queued_episode()['episode_id'] == 'new-high'
+        assert peek_next_queued(temp_db)['episode_id'] == 'new-high'
 
     def test_low_never_beats_pending_normal(self, temp_db):
         pid = _create_podcast(temp_db, 'pod-b')
         _insert_queue_row(temp_db, pid, 'new-low', priority=-10, minutes_ago=1)
         _insert_queue_row(temp_db, pid, 'old-normal', priority=0, minutes_ago=30)
 
-        assert temp_db.get_next_queued_episode()['episode_id'] == 'old-normal'
+        assert peek_next_queued(temp_db)['episode_id'] == 'old-normal'
 
     def test_manual_beats_high_feed_priority(self, temp_db):
         pid = _create_podcast(temp_db, 'pod-c')
         _insert_queue_row(temp_db, pid, 'high-feed', priority=10, minutes_ago=1)
         _insert_queue_row(temp_db, pid, 'manual', priority=MANUAL_REQUEST_BOOST, minutes_ago=1)
 
-        assert temp_db.get_next_queued_episode()['episode_id'] == 'manual'
+        assert peek_next_queued(temp_db)['episode_id'] == 'manual'
 
     def test_fifo_within_equal_priority(self, temp_db):
         pid = _create_podcast(temp_db, 'pod-d')
         _insert_queue_row(temp_db, pid, 'second', priority=0, minutes_ago=5)
         _insert_queue_row(temp_db, pid, 'first', priority=0, minutes_ago=10)
 
-        assert temp_db.get_next_queued_episode()['episode_id'] == 'first'
+        assert peek_next_queued(temp_db)['episode_id'] == 'first'
 
     def test_claim_next_respects_priority_order(self, temp_db):
         pid = _create_podcast(temp_db, 'pod-e')
@@ -129,14 +130,14 @@ class TestPriorityStamping:
         temp_db.queue_episode_for_processing(
             'pod-f', 'ep1', 'https://example.com/ep1.mp3', priority=10)
 
-        assert temp_db.get_next_queued_episode()['priority'] == 10
+        assert peek_next_queued(temp_db)['priority'] == 10
 
     def test_upsert_stores_priority_on_new_row(self, temp_db):
         temp_db.create_podcast('pod-g', 'https://example.com/pod-g.xml', 'Pod G')
         temp_db.upsert_episode_for_processing(
             'pod-g', 'ep1', 'https://example.com/ep1.mp3', priority=25)
 
-        assert temp_db.get_next_queued_episode()['priority'] == 25
+        assert peek_next_queued(temp_db)['priority'] == 25
 
     def test_upsert_updates_priority_when_reopening_failed_row(self, temp_db):
         pid = _create_podcast(temp_db, 'pod-h')
@@ -145,7 +146,7 @@ class TestPriorityStamping:
         temp_db.upsert_episode_for_processing(
             'pod-h', 'ep1', 'https://example.com/ep1.mp3', priority=20)
 
-        assert temp_db.get_next_queued_episode()['priority'] == 20
+        assert peek_next_queued(temp_db)['priority'] == 20
 
     def test_upsert_keeps_priority_when_row_already_pending(self, temp_db):
         pid = _create_podcast(temp_db, 'pod-i')
@@ -154,7 +155,7 @@ class TestPriorityStamping:
         temp_db.upsert_episode_for_processing(
             'pod-i', 'ep1', 'https://example.com/ep1.mp3', priority=0)
 
-        assert temp_db.get_next_queued_episode()['priority'] == 10
+        assert peek_next_queued(temp_db)['priority'] == 10
 
     def test_upsert_raises_priority_when_row_already_pending(self, temp_db):
         # The guard exists so a background re-upsert cannot stomp a boost.
@@ -168,7 +169,7 @@ class TestPriorityStamping:
         temp_db.upsert_episode_for_processing(
             'pod-raise', 'ep1', 'https://example.com/ep1.mp3', priority=25)
 
-        assert temp_db.get_next_queued_episode()['priority'] == 25
+        assert peek_next_queued(temp_db)['priority'] == 25
 
 
 class TestBulkEnqueuePriority:
@@ -223,7 +224,7 @@ class TestJitClimbsPastBulkBacklog:
             'pod-incident', 'played-ep', 'https://example.com/p.mp3',
             priority=25)
 
-        assert temp_db.get_next_queued_episode()['episode_id'] == 'played-ep'
+        assert peek_next_queued(temp_db)['episode_id'] == 'played-ep'
 
 
 class TestRestampPendingPriorities:

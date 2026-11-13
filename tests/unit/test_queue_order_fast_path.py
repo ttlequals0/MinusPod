@@ -1,6 +1,7 @@
 """The ordered-pending query skips the window CTE when every pending feed is on 'queued'."""
 import random
 
+from tests.queue_helpers import peek_next_queued
 from database.queue import _ORDERED_BY
 from tests.unit.test_queue_order import _feed, _row, _order
 
@@ -54,11 +55,11 @@ def test_an_override_on_a_feed_with_nothing_pending_keeps_the_fast_path(temp_db)
 def test_both_paths_give_the_same_order(temp_db, monkeypatch):
     _seed(temp_db, 4, 300, seed=7)
     fast = _order(temp_db)
-    claimed_fast = temp_db.get_next_queued_episode()['id']
+    claimed_fast = peek_next_queued(temp_db)['id']
     monkeypatch.setattr(type(temp_db), '_window_order_needed', lambda self, *args: True)
     assert 'TEMP B-TREE' in _claim_plan(temp_db)
     assert _order(temp_db) == fast
-    assert temp_db.get_next_queued_episode()['id'] == claimed_fast
+    assert peek_next_queued(temp_db)['id'] == claimed_fast
 
 
 def test_exclusions_work_on_the_fast_path(temp_db):

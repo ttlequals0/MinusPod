@@ -2509,14 +2509,6 @@ class AdReviewer:
         except Exception:
             return None
 
-    def _resolve_model(self, pass_model: str) -> str:
-        # Model-only resolution, kept for test_settings_validation coverage.
-        # Live review() calls resolve the whole route via _resolve_route.
-        configured = self._read_setting("review_model") or "same_as_pass"
-        if configured == "same_as_pass":
-            return pass_model
-        return configured
-
     def _resolve_route(self, pass_provider: str | None, pass_model: str,
                        pass_num: int = 1):
         """Review route from the frozen run snapshot: an explicit slot uses the

@@ -310,6 +310,13 @@ def test_candidate_rows_capped_to_batch_size_plus_margin(temp_db):
     assert len(rows) <= 25 + CANDIDATE_ROW_MARGIN
 
 
+def _has_pending_suggestion(db, pattern_id):
+    return db.get_connection().execute(
+        "SELECT 1 FROM pattern_cleanup_suggestions "
+        "WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL LIMIT 1",
+        (pattern_id,)).fetchone() is not None
+
+
 def test_force_reset_is_atomic_unbounded_and_preserves_history_and_nontargets(temp_db):
     learned = [_pattern(temp_db, text=f'learned ad pattern {i}') for i in range(40)]
     retained_id = None
@@ -348,7 +355,7 @@ def test_force_reset_is_atomic_unbounded_and_preserves_history_and_nontargets(te
         row = temp_db.get_ad_pattern_by_id(pid)
         assert row['cleanup_reviewed_hash'] == f'review-{pid}'
         assert row['cleanup_stats_reviewed'] == f'{{"retire": "evidence-{pid}"}}'
-        assert temp_db.has_pending_cleanup_suggestion(pid)
+        assert _has_pending_suggestion(temp_db, pid)
 
     assert temp_db.reset_cleanup_force_state() == 40
     for pid in learned:
@@ -356,13 +363,13 @@ def test_force_reset_is_atomic_unbounded_and_preserves_history_and_nontargets(te
         assert row['cleanup_reviewed_at'] is None
         assert row['cleanup_reviewed_hash'] is None
         assert temp_db.get_cleanup_stats_reviewed(pid) == {}
-        assert not temp_db.has_pending_cleanup_suggestion(pid)
+        assert not _has_pending_suggestion(temp_db, pid)
     assert temp_db.get_cleanup_suggestion(retained_id)['status'] == 'rejected'
     for pid in (manual, community, inactive):
         row = temp_db.get_ad_pattern_by_id(pid)
         assert row['cleanup_reviewed_hash'] == f'preserve-{pid}'
         assert temp_db.get_cleanup_stats_reviewed(pid) == {'flag': f'preserve-{pid}'}
-        assert temp_db.has_pending_cleanup_suggestion(pid)
+        assert _has_pending_suggestion(temp_db, pid)
 
 
 def test_stats_rows_and_acknowledgments_ignore_review_stamps_and_pending(temp_db):

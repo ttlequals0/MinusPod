@@ -649,11 +649,6 @@ class TestProviderChangeModelIdentity:
         assert response.status_code == 200, response.data
         assert db.get_setting('review_model') == ''
 
-        from ad_reviewer import AdReviewer
-        reviewer = AdReviewer.__new__(AdReviewer)
-        reviewer.db = db
-        assert reviewer._resolve_model('z-ai/glm-5.3-flash') == 'z-ai/glm-5.3-flash'
-
         get_response = client.get('/api/v1/settings')
         assert get_response.status_code == 200, get_response.data
         assert json.loads(get_response.data)['reviewModel']['value'] == ''

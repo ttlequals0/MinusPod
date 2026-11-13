@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from tests.queue_helpers import peek_next_queued
 from database import Database
 
 
@@ -692,7 +693,7 @@ class TestResetFailedQueueItems:
         assert {first['episode_id'], second['episode_id']} == {'cep1', 'cep2'}
         # Both claimed, nothing pending left.
         assert third is None
-        assert temp_db.get_next_queued_episode() is None
+        assert peek_next_queued(temp_db) is None
 
     def test_resets_eligible_transient_failure(self, temp_db):
         """Failed queue items with transient episode failure should be reset to pending."""
@@ -702,7 +703,7 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 1
-        queued = temp_db.get_next_queued_episode()
+        queued = peek_next_queued(temp_db)
         assert queued is not None
         assert queued['episode_id'] == 'ep1'
 
@@ -714,7 +715,7 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 0
-        queued = temp_db.get_next_queued_episode()
+        queued = peek_next_queued(temp_db)
         assert queued is None
 
     def test_respects_retry_limit(self, temp_db):

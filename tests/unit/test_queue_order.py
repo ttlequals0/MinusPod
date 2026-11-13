@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from tests.queue_helpers import peek_next_queued
 from database.queue import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS, resolve_queue_order
 
 
@@ -246,7 +247,7 @@ class TestClaim:
     def test_claim_takes_the_first_listed_row(self, temp_db):
         pid = _feed(temp_db, 'a', 'newest_first')
         _fill(temp_db, pid, DATES)
-        assert temp_db.get_next_queued_episode()['episode_id'] == _order(temp_db)[0]
+        assert peek_next_queued(temp_db)['episode_id'] == _order(temp_db)[0]
         claimed = [temp_db.claim_next_queued_episode()['episode_id'] for _ in range(3)]
         assert claimed == ['e0', 'e2', 'e1']
         assert temp_db.claim_next_queued_episode() is None

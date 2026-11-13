@@ -7,6 +7,7 @@ _test_data_dir = bootstrap('podping_coverage_test_')
 
 from main_app import app
 from database import Database
+from tests.podping_helpers import set_declaration
 
 SLUG = 'coverage-feed'
 
@@ -62,7 +63,7 @@ def test_host_active_when_the_host_pings_but_this_feed_has_not(client, db, feed)
 def test_declared_when_the_feed_opts_in(client, db, feed):
     # usesPodping="true" is the publisher asserting coverage, which outranks
     # anything inferred from the host's chain activity.
-    db.set_podping_declaration(feed, True, ['podping.aaa'])
+    set_declaration(db, feed, True, ['podping.aaa'])
     payload = _detail(client, feed)
     assert payload['podpingCoverage'] == 'declared'
     assert payload['podpingUses'] is True
@@ -70,7 +71,7 @@ def test_declared_when_the_feed_opts_in(client, db, feed):
 
 
 def test_received_outranks_declared(client, db, feed):
-    db.set_podping_declaration(feed, True, [])
+    set_declaration(db, feed, True, [])
     db.set_last_podping_at(feed)
     payload = _detail(client, feed)
     assert payload['podpingCoverage'] == 'received'
@@ -78,7 +79,7 @@ def test_received_outranks_declared(client, db, feed):
 
 
 def test_declined_outranks_everything(client, db, feed):
-    db.set_podping_declaration(feed, False, [])
+    set_declaration(db, feed, False, [])
     db.set_last_podping_at(feed)
     db.record_podping_hosts({'feeds.megaphone.fm': 4})
     payload = _detail(client, feed)
@@ -95,7 +96,7 @@ def test_undeclared_feed_reports_null_uses_and_no_accounts(client, feed):
 
 
 def test_checked_at_is_exposed_once_the_declaration_is_read(client, db, feed):
-    db.set_podping_declaration(feed, True, [])
+    set_declaration(db, feed, True, [])
     assert _detail(client, feed)['podpingCheckedAt'] is not None
 
 

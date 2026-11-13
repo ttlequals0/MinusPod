@@ -798,17 +798,6 @@ class Storage:
                 return path.resolve(), content_type
         return None
 
-    def get_episode_artwork(self, slug: str,
-                            episode_id: str) -> tuple[bytes, str] | None:
-        """Cached episode cover. Returns (data, content_type) or None."""
-        found = self.episode_artwork_file(slug, episode_id)
-        if not found:
-            return None
-        try:
-            return found[0].read_bytes(), found[1]
-        except OSError:
-            return None
-
     def download_episode_artwork(self, slug: str, episode_id: str,
                                  artwork_url: str) -> bool:
         """Fetch and cache one episode's cover.

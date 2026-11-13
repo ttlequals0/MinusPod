@@ -89,8 +89,3 @@ class YouTubeMixin:
                ORDER BY e.published_at DESC, e.id DESC LIMIT ?""",
             (limit,))
         return [dict(row) for row in cursor.fetchall()]
-
-    def count_youtube_feeds(self) -> int:
-        row = self.get_connection().execute(
-            "SELECT COUNT(*) AS n FROM podcasts WHERE feed_type = 'youtube'").fetchone()
-        return int(row['n']) if row else 0

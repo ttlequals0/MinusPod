@@ -178,15 +178,6 @@ class PatternCleanupMixin:
         if conn is None:
             target.commit()
 
-    def has_pending_cleanup_suggestion(self, pattern_id: int, kind: str | None = None) -> bool:
-        query = ("SELECT 1 FROM pattern_cleanup_suggestions "
-                 "WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL")
-        params: list = [pattern_id]
-        if kind:
-            query += " AND kind = ?"
-            params.append(kind)
-        return self.get_connection().execute(query + " LIMIT 1", params).fetchone() is not None
-
     def stamp_pattern_cleanup_reviewed(self, pattern_id: int, review_hash: str, conn=None) -> None:
         target = conn or self.get_connection()
         target.execute(
