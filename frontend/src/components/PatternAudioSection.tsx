@@ -214,7 +214,9 @@ export default function PatternAudioSection({ pattern, active = true }: { patter
           )} />
         </div>
         {detail.historyBackfillPending && (
-          <p className="text-sm text-muted-foreground">Match history is still being filled in.</p>
+          <p className="text-sm text-muted-foreground">
+            {IS_DEMO ? 'Match history does not update in this demo.' : 'Match history is still being filled in.'}
+          </p>
         )}
         {detail.counts.outOfScope > 0 && (
           <p className="text-sm text-muted-foreground">{outOfScopeNote(detail.counts.outOfScope)}</p>

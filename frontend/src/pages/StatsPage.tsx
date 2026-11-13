@@ -35,6 +35,7 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
 import { useLlmEnabled } from '../hooks/useLlmEnabled';
 import { LLM_DISABLED_REASON } from './settings/LlmGate';
+import { IS_DEMO } from '../demo/flag';
 import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 
 const CLEANUP_ACTION_LABELS: Record<string, string> = {
@@ -1503,7 +1504,9 @@ export default function StatsPage() {
           </div>
         )}
         {audioMatching?.historyBackfillPending && (
-          <p className="text-sm text-muted-foreground mt-3">Match history is still being filled in.</p>
+          <p className="text-sm text-muted-foreground mt-3">
+            {IS_DEMO ? 'Match history does not update in this demo.' : 'Match history is still being filled in.'}
+          </p>
         )}
       </div>
 

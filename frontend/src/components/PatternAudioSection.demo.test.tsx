@@ -9,7 +9,7 @@ vi.mock('../demo/flag', () => ({ IS_DEMO: true }));
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
   getPatternAudio: vi.fn(async () => ({
-    state: 'active', available: true, length: 45,
+    state: 'active', available: true, length: 45, historyBackfillPending: true,
     builtFrom: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 55, available: true },
     source: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 55 },
     counts: { matches: 1, rejected: 0, outOfScope: 0 }, meanSimilarity: 0.9, lastMatchedAt: null,
@@ -27,7 +27,7 @@ vi.mock('../api/patterns', async (importOriginal) => ({
 afterEach(cleanup);
 
 describe('PatternAudioSection in demo', () => {
-  test('disables playback with the audio tooltip', async () => {
+  test('disables playback and avoids a live backfill notice', async () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <PatternAudioSection pattern={{ id: 7 } as AdPattern} />
@@ -36,6 +36,8 @@ describe('PatternAudioSection in demo', () => {
     const source = await screen.findByRole('button', { name: 'Play source audio' }) as HTMLButtonElement;
     expect(source.disabled).toBe(true);
     expect(source.getAttribute('title')).toBe(DEMO_AUDIO_TOOLTIP);
+    expect(screen.getByText('Match history does not update in this demo.')).toBeTruthy();
+    expect(screen.queryByText('Match history is still being filled in.')).toBeNull();
     const row = (await screen.findAllByRole('listitem'))[0];
     const match = within(row).getByRole('button', { name: /^Play match/ }) as HTMLButtonElement;
     expect(match.disabled).toBe(true);
