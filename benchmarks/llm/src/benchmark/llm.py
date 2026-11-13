@@ -1,9 +1,7 @@
 """Async LLM dispatch for the benchmark.
 
-Two flavors:
-- ``anthropic`` -> Anthropic's AsyncAnthropic SDK
-- ``openai_compatible`` -> OpenAI AsyncOpenAI SDK with custom base_url
-  (covers OpenRouter, Together, OpenAI direct, Groq, Fireworks, DeepInfra).
+``anthropic`` uses AsyncAnthropic; ``openai_compatible`` uses AsyncOpenAI with a
+custom base_url (OpenRouter, Together, OpenAI, Groq, Fireworks, DeepInfra).
 """
 from __future__ import annotations
 
@@ -41,8 +39,7 @@ class LLMResponse:
     underlying_provider: str
     # Anthropic: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | None
     # OpenAI-compatible: "stop" | "length" | "content_filter" | "tool_calls" | None
-    # Used by the benchmark to flag chatty models that hit max_tokens; None when
-    # the provider didn't surface the value.
+    # Flags chatty models that hit max_tokens; None when the provider omits it.
     stop_reason: str | None = None
     native_accounting: dict | None = None
 
@@ -208,10 +205,8 @@ async def _call_openai_compatible(
     from openai import AsyncOpenAI
     from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 
-    # OpenRouter recommends HTTP-Referer + X-Title headers for app attribution.
-    # Routes calls to the project's free-tier allowance and shows up named in
-    # OpenRouter's dashboard. Detected by base_url so it doesn't fire on
-    # other openai_compatible providers.
+    # OpenRouter wants HTTP-Referer + X-Title for app attribution (free-tier routing,
+    # named in its dashboard); detected by base_url so other providers are unaffected.
     default_headers: dict[str, str] | None = None
     if provider.base_url and "openrouter.ai" in provider.base_url:
         default_headers = {
@@ -263,10 +258,10 @@ async def _call_openai_compatible(
         else:
             raise LLMNonRetryableError(str(e)) from e
 
-    # OpenRouter sometimes returns a successful HTTP response with `choices=None`
-    # when the upstream provider hits its own internal read-timeout (observed
-    # around 120s on cohere/command-r-plus). Classify as transient so the
-    # runner retries with backoff instead of crashing on `None[0]`.
+    # OpenRouter can return HTTP 200 with `choices=None` when the upstream hits its own
+    # read-timeout (seen ~120s on cohere/command-r-plus); treat as transient so the
+    # runner retries instead of crashing on `None[0]`.
+
     choices = msg.choices or []
     if not choices or not getattr(choices[0], "message", None):
         raise LLMTransientError(

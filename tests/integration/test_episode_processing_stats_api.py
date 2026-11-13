@@ -1,9 +1,7 @@
 """Integration tests for the episode processing-stats API surface (#519).
 
-GET /feeds/<slug>/episodes/<id> exposes per-run processingRuns (with the
-stats blob), rssDuration, and the lowAdYield comparison; GET /history rows
-carry downloadedDuration pulled from the blob.
-"""
+GET /feeds/<slug>/episodes/<id> exposes per-run processingRuns (with the stats blob), rssDuration and the lowAdYield comparison; GET /history rows carry downloadedDuration from the blob."""
+
 import os
 import sys
 import tempfile

@@ -1,10 +1,9 @@
 """Integration tests for per-feed refresh failure tracking (#516).
 
-Failures spaced at least FEED_REFRESH_FAILURE_COUNT_INTERVAL apart
-increment a per-feed counter; the Feed Refresh Failed alert fires exactly
-once, when the count reaches the threshold. Success clears the state. The
-feeds API exposes the failure fields only at or past the threshold, plus
-the global all-feeds refresh timestamp.
+Failures at least FEED_REFRESH_FAILURE_COUNT_INTERVAL apart increment a per-feed
+counter; the Feed Refresh Failed alert fires once, when the count reaches the
+threshold; success clears the state. The feeds API exposes the failure fields only
+at or past the threshold, plus the global all-feeds refresh timestamp.
 """
 import os
 import sys

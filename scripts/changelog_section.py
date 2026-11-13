@@ -24,9 +24,8 @@ def extract_section(text: str, version: str) -> str:
 def extract_rollup(text: str, version: str, since_exclusive: str) -> str:
     """Sections for every version v with since_exclusive < v <= version.
 
-    Returns the single-section body unchanged when only one version is in
-    range; otherwise each section is prefixed with a `## <version>` header,
-    newest first (changelog order).
+    One version in range returns its body unchanged; otherwise each section gets a
+    `## <version>` header, newest first.
     """
     low, high = version_key(since_exclusive), version_key(version)
     if low is None or high is None:

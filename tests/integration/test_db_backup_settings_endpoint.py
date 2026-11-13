@@ -1,17 +1,16 @@
 """Integration tests for scheduled DB backup endpoints (Task B465-2).
 
-Hits the real Flask app and the real filesystem (tmp dirs); only the
-storage-failure case patches a write.
+Hits the real Flask app and filesystem (tmp dirs); only the storage-failure case
+patches a write.
 
 - GET /settings/db-backup default shape.
 - PUT full + partial roundtrip.
-- PUT 400s with exact messages (bad cron, keepCount bounds/type,
-  relative dest, dest == data dir).
-- POST /system/db-backup/run -> 200 + file exists, works with enabled=false.
-- POST failure -> 500 flat message + GET surfaces lastError.
-- PUT is all-or-nothing: a bad dest, or a failed write, rolls back
-  earlier valid fields.
-- New routes absent from the auth-exempt allowlist.
+- PUT 400s with exact messages (bad cron, keepCount bounds/type, relative dest,
+  dest == data dir).
+- POST /system/db-backup/run gives 200 + file, works with enabled=false.
+- POST failure gives a 500 flat message and GET surfaces lastError.
+- PUT is all-or-nothing: a bad dest or failed write rolls back earlier valid fields.
+- New routes are absent from the auth-exempt allowlist.
 """
 import os
 import json
@@ -50,7 +49,7 @@ def db(app_client):
         d.set_setting(key, '')
 
 
-# -- GET defaults --
+# GET defaults
 
 def test_get_defaults(app_client, db):
     r = app_client.get('/api/v1/settings/db-backup')
@@ -94,7 +93,7 @@ def test_diagnostic_export_rejects_long_ranges(app_client, db):
     assert response.status_code == 400
 
 
-# -- PUT full + partial roundtrip --
+# PUT full + partial roundtrip
 
 def test_put_full_roundtrip(app_client, db):
     dest = tempfile.mkdtemp(prefix='db-backup-dest-')
@@ -133,7 +132,7 @@ def test_put_dest_empty_resets_to_default(app_client, db):
     assert body['effectiveDest'] == str((db.data_dir / 'backups').resolve())
 
 
-# -- PUT 400s with exact messages --
+# PUT 400s with exact messages
 
 def test_put_bad_cron(app_client, db):
     r = app_client.put('/api/v1/settings/db-backup', json={'cron': 'not a cron'})
@@ -221,7 +220,7 @@ def test_put_all_or_nothing_on_bad_dest(app_client, db):
     assert got['keepCount'] == 1
 
 
-# -- POST run --
+# POST run
 
 def test_post_run_creates_file_when_disabled(app_client, db):
     dest = tempfile.mkdtemp(prefix='db-backup-run-')
@@ -236,10 +235,10 @@ def test_post_run_creates_file_when_disabled(app_client, db):
 
 
 def test_post_run_failure_returns_500_and_sets_last_error(app_client, db):
-    # Point dest at a path whose parent is a regular file so the backup dir
-    # cannot be created; the mkdir raises, backup_now stamps last_error and
-    # re-raises, the handler returns 500 with a flat Error-schema message (no
-    # nested reason, no raw str(e)). The operator detail surfaces via GET.
+    # Dest's parent is a regular file, so the backup dir cannot be created: mkdir
+    # raises, backup_now stamps last_error and re-raises, and the handler returns
+    # 500 with a flat Error-schema message (no nested reason, no raw str(e)). The
+    # operator detail surfaces via GET.
     blocker = tempfile.NamedTemporaryFile(prefix='db-backup-blocker-', delete=False)
     blocker.write(b'x')
     blocker.close()
@@ -256,7 +255,7 @@ def test_post_run_failure_returns_500_and_sets_last_error(app_client, db):
     assert got['lastError']
 
 
-# -- auth-exempt allowlist --
+# auth-exempt allowlist
 
 def test_routes_not_in_auth_exempt(app_client, db):
     from api import AUTH_EXEMPT_PATHS

@@ -53,11 +53,10 @@ def main() -> int:
 
 
 class _ReadOnlySaltDB:
-    """Minimal read-only DB shim exposing ``get_setting`` against the live
-    SQLite file. Lets the decrypter derive the DEK (which only needs the salt
-    row) without constructing the full Database singleton, whose __init__ runs
-    mkdir + CREATE TABLE migrations and could mint a fresh salt that orphans
-    the very data being recovered (backup-scripts-1)."""
+    """Read-only shim exposing ``get_setting`` against the live SQLite file.
+
+    Derives the DEK (needs only the salt row) without the Database singleton, whose
+    __init__ runs migrations and could mint a fresh salt that orphans the data being recovered."""
 
     def __init__(self, data_dir: str):
         self._path = Path(data_dir) / "podcast.db"

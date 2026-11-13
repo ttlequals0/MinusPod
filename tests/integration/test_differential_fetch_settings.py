@@ -1,11 +1,8 @@
 """Per-feed differential fetch setting + DAI-likelihood hint (Layer 3).
 
-Feeds API:
-- PATCH differentialFetchEnabled true/false/null round-trips.
-- Non-bool non-null values rejected with 400.
-- GET detail surfaces the flag and the daiLikely hint.
-Resolver:
-- resolve_differential_fetch_enabled reads the column (1/0/NULL -> True/False/False).
+Feeds API: PATCH differentialFetchEnabled true/false/null round-trips, non-bool
+non-null values get 400, GET detail surfaces the flag and the daiLikely hint.
+Resolver: resolve_differential_fetch_enabled reads the column (1/0/NULL -> True/False/False).
 """
 import os
 import sys

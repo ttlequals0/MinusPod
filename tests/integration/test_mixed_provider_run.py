@@ -1,8 +1,8 @@
-"""Per-run route snapshot resolution/persistence and per-phase provider
-routing: a run resolves one immutable, non-secret route per phase at start,
-persists it to processing_runs, reuses it on recovery instead of
-re-resolving from live settings, and each phase's LLM call goes through its
-own route's client and model.
+"""Per-run route snapshot resolution/persistence and per-phase provider routing.
+
+A run resolves one immutable, non-secret route per phase at start, persists it to
+processing_runs, reuses it on recovery instead of re-resolving live settings, and
+sends each phase's LLM call through its own route's client and model.
 """
 import json
 import os
@@ -48,13 +48,11 @@ ROUTE_SETTING_KEYS = (
 
 @pytest.fixture
 def mixed_provider_settings():
-    """detection/verification/chapters=primary (anthropic), review=secondary
-    (openrouter), on the same real Database singleton main_app.processing
-    already holds. Stage settings are SLOT values, resolved against
-    llm_provider=anthropic (primary) and secondary_provider=openrouter.
-    These settings are read directly (not
-    through the cached effective-provider fallback), so no cache
-    invalidation race with other tests."""
+    """detection/verification/chapters=primary (anthropic), review=secondary (openrouter), on the real Database singleton main_app.processing holds.
+
+    Stage settings are slot values resolved against llm_provider=anthropic and
+    secondary_provider=openrouter; read directly, not via the cached effective-provider
+    fallback, so there is no cache invalidation race with other tests."""
     from api import get_database
     db = get_database()
     saved = {key: db.get_setting(key) for key in ROUTE_SETTING_KEYS}
@@ -179,10 +177,7 @@ class TestRouteSnapshotResolutionAndPersistence:
 
 class TestProcessEpisodeWiresSnapshotAtRunStart:
     def test_ctx_route_snapshot_set_before_any_phase_runs(self, run_row, monkeypatch):
-        """process_episode resolves+sets the snapshot on ctx immediately
-        after start_episode_token_tracking(), before touching episode data.
-        A fake db.get_episode raises right after that point so the test
-        never reaches transcription/detection."""
+        """process_episode sets the route snapshot on ctx right after start_episode_token_tracking(), before touching episode data; a fake db.get_episode raises there so the test stops before transcription."""
         fake_db = MagicMock()
         fake_db.get_episode.side_effect = RuntimeError('stop-after-routing')
         monkeypatch.setattr(processing, 'db', fake_db)
@@ -331,10 +326,7 @@ def _patch_reviewer_client(monkeypatch, calls):
 
 
 class TestReviewerGateFrozenAtRunStart:
-    """The reviewer's route must not re-read review_provider/review_model
-    live: a mid-run operator change must not affect a run already in
-    flight. The gate frozen into the snapshot's 'review' entry at run start
-    is what AdReviewer._resolve_route consults instead."""
+    """The reviewer's route must not re-read review_provider/review_model live: a mid-run operator change must not affect a run in flight. AdReviewer._resolve_route consults the gate frozen into the snapshot's 'review' entry."""
 
     def test_explicit_review_provider_survives_live_setting_change_before_pass2(
             self, run_row, monkeypatch):

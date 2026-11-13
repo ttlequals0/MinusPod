@@ -17,10 +17,7 @@ from .aggregate import (
 
 
 def _plt():
-    """Agg backend with deterministic SVG element ids: a fixed hashsalt keeps
-    matplotlib's generated ids stable across runs, so regenerating unchanged
-    data produces byte-identical committed assets. Pair with _save_svg, which
-    suppresses the embedded creation date."""
+    """Agg backend with a fixed hashsalt so SVG element ids are stable and unchanged data regenerates byte-identical assets. Pair with _save_svg, which drops the creation date."""
     import matplotlib
     matplotlib.use("Agg")
     matplotlib.rcParams["svg.hashsalt"] = "minuspod-benchmark"
@@ -38,19 +35,16 @@ _CATEGORICAL_CMAPS = ("tab20", "tab20b", "tab20c")  # 20 colors each = 60 total
 def _distinct_colors(n: int) -> list[tuple[float, ...]]:
     """Return n visually distinct RGBA tuples, never repeating.
 
-    Concatenating the tab20 family gives 60 categorical colors with good
-    perceptual contrast. Past that, fall back to evenly-spaced hsv samples
-    so each model still gets a unique color, accepting weaker contrast."""
+    Uses the 60 tab20-family colors, then evenly spaced hsv samples (weaker contrast)."""
     plt = _plt()
     palette: list[tuple[float, ...]] = []
     for name in _CATEGORICAL_CMAPS:
         palette.extend(plt.get_cmap(name).colors)
     if n <= len(palette):
         return palette[:n]
-    # Past the categorical maps, hsv sampled at n steps puts near-identical hues
-    # side by side and wraps (0 and 1 are both red), so a 75-model chart reads as
-    # repeated colours. Golden-angle hue stepping spreads them instead, and
-    # cycling lightness and saturation separates hues that land close anyway.
+    # Past the categorical maps, hsv at n steps puts near-identical hues together and
+    # wraps (0 and 1 are both red). Golden-angle hue stepping spreads them; cycling
+    # lightness and saturation separates hues that still land close.
     import colorsys
     golden = 0.618033988749895
     extra = []
@@ -63,12 +57,9 @@ def _distinct_colors(n: int) -> list[tuple[float, ...]]:
 
 
 def _legend_below(fig, n_entries: int, plot_height: float):
-    """Put the model legend under the plot, growing the figure to fit it.
+    """Put the model legend (one row per model) under the plot, growing the figure to fit.
 
-    The legend has one row per model. Clamping the reserved fraction (the old
-    behaviour) makes it overlap the axes once the roster outgrows the space, so
-    size the figure to the legend instead and keep the plot area fixed.
-    """
+    Clamping the reserved fraction overlaps the axes once the roster outgrows it, so the figure grows and the plot area stays fixed."""
     ncol = 1 if n_entries <= 6 else 2 if n_entries <= 30 else 3
     rows = (n_entries + ncol - 1) // ncol
     # Each entry is "model  (F1 x.xxx, $x.xxxx/ep)", so a column needs about
@@ -253,16 +244,11 @@ def _render_calibration_chart(
     calibration: dict[str, list[tuple[float, bool]]],
     path: Path,
 ) -> None:
-    """Calibration heatmap: one row per model, one column per confidence bin,
-    cell color = calibration error (actual hit rate minus bin midpoint), cell
-    text = actual hit rate plus sample size. Replaces the prior line-overlay
-    chart, which crowded near-identical points at the high-confidence end and
-    rendered the x-axis labels unreadable.
+    """Calibration heatmap: one row per model, one column per confidence bin.
 
-    Diverging colormap centered on 0:
-      green  -> well-calibrated (actual close to expected)
-      red    -> overconfident   (actual << expected)
-      blue   -> underconfident  (actual >> expected)
+    Cell color = calibration error (actual hit rate minus bin midpoint); cell text =
+    actual hit rate plus sample size. Diverging colormap centered on 0: green is
+    well-calibrated, red overconfident (actual << expected), blue underconfident.
     """
     plt = _plt()
     import numpy as np
@@ -475,10 +461,9 @@ def _render_alignment_chart(
 
 
 def _render_precision_recall_chart(stats: dict[str, ModelStats], path: Path) -> None:
-    """Scatter of precision vs recall per model, with F1 isocurves for reference.
-    Top-right = perfect; top-left = cautious (high precision, low recall);
-    bottom-right = greedy (high recall, low precision); bottom-left = bad both
-    ways."""
+    """Scatter of precision vs recall per model with F1 isocurves.
+
+    Top-right is perfect, top-left cautious, bottom-right greedy, bottom-left bad both ways."""
     plt = _plt()
     import numpy as np
 
@@ -532,10 +517,9 @@ def _render_precision_recall_chart(stats: dict[str, ModelStats], path: Path) -> 
 
 
 def _render_boundary_chart(stats: dict[str, ModelStats], path: Path) -> None:
-    """Stacked horizontal bars of start MAE and end MAE per model. Sorted by
-    total error so the cleanest boundaries appear at the top. Models with
-    skewed bars (one side much larger than the other) consistently overshoot
-    on one boundary. Worth knowing if you cut audio downstream."""
+    """Stacked horizontal bars of start MAE and end MAE per model, sorted by total error.
+
+    A lopsided bar means the model consistently overshoots one boundary, which matters if you cut audio downstream."""
     plt = _plt()
     import numpy as np
 
@@ -566,10 +550,9 @@ def _render_boundary_chart(stats: dict[str, ModelStats], path: Path) -> None:
 
 
 def _render_token_efficiency_chart(stats: dict[str, ModelStats], path: Path) -> None:
-    """Scatter of tokens-per-detected-ad vs F1. Upper-left is the efficient
-    zone (high F1 with few output tokens). Right side is verbose reasoning
-    models; the question is whether they buy more F1 with the extra tokens
-    or just burn output budget."""
+    """Scatter of tokens-per-detected-ad vs F1; upper-left is efficient.
+
+    Shows whether verbose reasoning models buy more F1 with the extra tokens."""
     plt = _plt()
 
     points = [(s, _avg_f1(s)) for s in stats.values()

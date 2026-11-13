@@ -1,8 +1,4 @@
-"""Confirms _load_cue_config uses resolve_cue_template_score (Phase 5).
-
-The resolver returns the per-feed override when set, and the test verifies the
-matcher is instantiated with that value rather than the raw global setting.
-"""
+"""Confirms _load_cue_config uses resolve_cue_template_score (Phase 5): the matcher is instantiated with the per-feed override, not the raw global."""
 import os
 import sys
 import tempfile

@@ -1,9 +1,8 @@
 """Integration tests for PATCH /api/v1/cue-templates/<id> blob re-extraction (D2a).
 
-When sourceOffsetS or durationS change, the endpoint must re-extract mfcc_blob
-and pcm_blob from the source episode's original audio. When the original audio
-is gone, it returns 409. When neither window field is in the body, no
-re-extraction happens.
+Changing sourceOffsetS or durationS re-extracts mfcc_blob and pcm_blob from the
+source episode's original audio; 409 if that audio is gone; no re-extraction when
+neither field is in the body.
 """
 import os
 import sys

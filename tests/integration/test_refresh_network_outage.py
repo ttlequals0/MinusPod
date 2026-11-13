@@ -1,18 +1,15 @@
 """Shared-outage-aware refresh_all_feeds.
 
-When most feeds in one refresh batch fail together, that is a shared network
-outage, not N publishers independently breaking. refresh_all_feeds must not
-mark every healthy feed broken, must leave cached feed data and conditional
-GET validators (etag/last-modified) untouched, and must schedule one bounded,
-jittered retry instead of every feed retrying in lockstep at the next tick.
-A batch where only a minority of feeds fail is unaffected: those still count
-against each broken feed's refresh_failure_count as before.
+When most feeds in a batch fail together it is a shared network outage, not N
+publishers breaking. refresh_all_feeds must not mark healthy feeds broken, must
+leave cached feed data and conditional-GET validators (etag/last-modified)
+untouched, and must schedule one bounded, jittered retry instead of every feed
+retrying in lockstep. A batch where only a minority fail is unaffected and still
+counts against each broken feed's refresh_failure_count.
 
-get_feed_map() is patched per test to the feeds this module creates: the
-suite runs many test modules against one shared app/db singleton (see
-tests/app_bootstrap.py), and refresh_all_feeds iterates every configured
-feed, so leaving it unpatched would pull in, and mutate, unrelated
-feeds left behind by other test modules.
+get_feed_map() is patched per test to this module's feeds: the suite shares one
+app/db singleton (see tests/app_bootstrap.py) and refresh_all_feeds iterates every
+configured feed, so unpatched it would mutate feeds left by other modules.
 """
 import os
 import tempfile

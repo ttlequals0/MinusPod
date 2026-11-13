@@ -1,11 +1,9 @@
 """Real-audio optimizer test (D2a, #350).
 
-Plants the same chirp in a source and a sibling episode, marks a deliberately
-rough template window (0.2s of noise on each side, mirroring issue #350's
-cue-21 vs cue-23), and asserts the optimizer proposes a tighter window with a
-higher mean peak score. Runs the real decode / MFCC / ZNCC path end to end.
-
-Requires ffmpeg on PATH; skipped if unavailable.
+Plants the same chirp in a source and a sibling episode, marks a rough template
+window (0.2s of noise each side, like issue #350's cue-21 vs cue-23), and asserts
+the optimizer proposes a tighter window with a higher mean peak score, through
+the real decode / MFCC / ZNCC path. Requires ffmpeg on PATH; skipped if unavailable.
 """
 import json
 import shutil
@@ -83,10 +81,9 @@ def test_optimizer_tightens_rough_window(tmp_path, monkeypatch):
     assert row['status'] == 'ready', row.get('error')
     payload = json.loads(row['result_json'])
 
-    # The optimizer must beat the rough baseline and land inside the chirp.
-    # It may trim into the quiet sin^2 onset/tail (those frames are noise-
-    # dominated, so dropping them raises ZNCC) but must never keep or grow
-    # the surrounding background noise the rough window captured.
+    # The optimizer must beat the rough baseline and land inside the chirp. It may
+    # trim into the quiet sin^2 onset/tail (noise-dominated frames, so dropping them
+    # raises ZNCC) but must never keep or grow the background noise.
     chirp_end_s = SOURCE_CHIRP_AT_S + CHIRP_DURATION_S
     assert payload['meanPeakScore'] > payload['baselineMeanPeakScore']
     assert SOURCE_CHIRP_AT_S - 0.05 <= payload['proposedStartS'] <= SOURCE_CHIRP_AT_S + 0.3

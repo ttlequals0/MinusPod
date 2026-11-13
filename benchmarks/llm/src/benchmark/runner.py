@@ -75,9 +75,8 @@ def build_work_list(
 ) -> tuple[list[WorkUnit], int]:
     """Return (units_to_run, count_skipped).
 
-    A WorkUnit is included if its (model, episode, trial, window_index, prompt_hash)
-    is not in ``completed``, OR is in ``completed`` but only via an errored record
-    and ``include_errored`` is True.
+    A WorkUnit is included unless its (model, episode, trial, window_index, prompt_hash)
+    is in ``completed``, except an errored record is rerun when ``include_errored``.
     """
     skipped = 0
     units: list[WorkUnit] = []
@@ -117,9 +116,8 @@ def precompute_prompt_hashes(
 ) -> dict[tuple[str, str, int, int], str]:
     """User prompt is identical across (model, trial); cache once per (episode, window).
 
-    Hash still varies per model (model id is part of the hash) and we expand to
-    every (model, episode, trial, window_index) tuple in the result so callers
-    have a flat lookup.
+    The hash still varies per model (model id is hashed), so results expand to every
+    (model, episode, trial, window_index) tuple for a flat lookup.
     """
     id_windows_by_ep = _id_windows_for_episodes(episodes, addressing_mode)
     user_prompts: dict[tuple[str, int], str] = {}
@@ -152,10 +150,8 @@ def precompute_prompt_hashes(
 def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
     """Rebuild the exact user prompt for a calls.jsonl record from the corpus.
 
-    Uses the record's own ``addressing_mode`` (records written before this
-    field existed default to 'timestamps'). Deterministic as long as the
-    episode's windows.json is unchanged since the call ran; callers verify
-    via prompt_hash.
+    Uses the record's ``addressing_mode`` (missing means 'timestamps'). Deterministic
+    while the episode's windows.json is unchanged; callers verify via prompt_hash.
     """
     episode = load_episode(corpus_dir / record["episode_id"])
     window_index = int(record["window_index"])
@@ -351,10 +347,9 @@ async def run(
                 # 'max_tokens'; OpenAI-compatible SDKs use 'length'. A True
                 # here means the model ran out of budget mid-response.
                 "truncated": stop_reason in ("length", "max_tokens"),
-                # Cheap "verbose model" signal: did this call's output exceed
-                # the legacy 1024-token reviewer cap. Useful for spotting
-                # chatty models (phi-4, some Gemini variants) that won't fit
-                # under a tight max_tokens budget even when not truncated.
+                # Cheap "verbose model" signal: output exceeded the legacy 1024-token
+                # reviewer cap (chatty models like phi-4 or some Gemini variants), even
+                # when not truncated.
                 "over_1024_tokens": (output_tokens or 0) > 1024,
                 "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
                 "extraction_method": extraction_method,
@@ -442,21 +437,19 @@ def _parse_response(text: str) -> tuple[list[dict], str | None]:
 
 
 def _parse_id_response(text: str, id_segments: list[dict] | None) -> tuple[list[dict], str | None, bool]:
-    """ID-addressing mode response parse. Returns (ads_in_seconds,
-    extraction_method, id_contract_miss). ``id_contract_miss`` is True when
-    the model ignored the id contract entirely and the harness fell back to
-    timestamp parsing for this window (approximate boundaries for that
-    window; counted so it's visible per model in the report).
+    """ID-addressing mode response parse.
 
-    Does not call ``extract_json_ads_array`` itself: ``parse_id_ads_from_response``
-    already extracts the JSON internally, and calling it again here just to
-    recover a method label would re-parse the same text for no benefit. The
-    success path (``used_ids``) reports the fixed 'segment_id_direct' method
-    (see metrics.EXACT_METHOD_SCORES); the fallback path delegates to
-    ``_parse_response`` so it reports the exact extraction_method -- and
-    therefore the exact compliance score -- a plain timestamps-mode call
-    would report for the same text.
+    Returns (ads_in_seconds, extraction_method, id_contract_miss).
+    ``id_contract_miss`` is True when the model ignored the id contract and the
+    harness fell back to timestamp parsing (approximate boundaries; counted per model).
+
+    Does not call ``extract_json_ads_array``: ``parse_id_ads_from_response`` already
+    extracts the JSON. Success reports the fixed 'segment_id_direct' method (see
+    metrics.EXACT_METHOD_SCORES); the fallback delegates to ``_parse_response``, so it
+    reports the same extraction_method and compliance score a timestamps-mode call
+    would for that text.
     """
+
     if not text:
         return [], None, False
     ads, used_ids = parsing.parse_id_ads_from_response(text)

@@ -1,19 +1,17 @@
 """Allowlist for the scrubbed demo snapshot: tables, columns and settings.
 
 A column list is the set of columns kept; an empty list means the table is
-emptied (DELETE FROM) and kept. Columns that need value rewriting
-(source_url, client_ip, last_request_*, secret_hash, label) are kept here and
-rewritten by the snapshot script.
+emptied (DELETE FROM) and kept. Columns needing value rewriting (source_url,
+client_ip, last_request_*, secret_hash, label) are kept here and rewritten by the
+snapshot script.
 
-Where snapshot.py deviates from the plain "rewrite" described above:
-secret_hash becomes 64 zeros (CHECK length = 64); episode_downloads
-last_request_line and last_request_headers are set NULL (the request line
-carries feed keys; the frontend renders null); settings upserts set
-is_default = 0; tables in the source that are not listed here are emptied and
-listed by --report-unclassified.
+snapshot.py deviates from plain "rewrite": secret_hash becomes 64 zeros (CHECK
+length = 64); episode_downloads last_request_line and last_request_headers are set
+NULL (the request line carries feed keys); settings upserts set is_default = 0;
+tables not listed here are emptied and listed by --report-unclassified.
 
-The settings table is row-filtered by DEMO_SETTINGS_ALLOW in snapshot.py
-(Task 3); system_settings keeps every row (production holds only
+The settings table is row-filtered by DEMO_SETTINGS_ALLOW in snapshot.py;
+system_settings keeps every row (production holds only
 processing_admission_paused and startup_backfills_version).
 """
 import sqlite3
@@ -158,9 +156,9 @@ EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'addressing_log': ('podcast_slug', 'episode_id', 'slug'),
 }
 
-# -- Settings classification: manual pass over SETTINGS_REGISTRY, grouped by
-# the registry's own headings. Keys in no list below are denied by the regex
-# in the tests (credentials, URLs, auth) or listed in DEMO_SETTINGS_EXCLUDE.
+# Settings classification: manual pass over SETTINGS_REGISTRY, grouped by the
+# registry's own headings. Keys in no list below are denied by the regex in the
+# tests (credentials, URLs, auth) or listed in DEMO_SETTINGS_EXCLUDE.
 
 _ALLOW_PROMPTS = (
     'system_prompt', 'verification_prompt', 'review_prompt', 'resurrect_prompt',
@@ -275,10 +273,9 @@ DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(
     + _ALLOW_DETECTION_TUNING + _ALLOW_STAGE_TUNABLES
 )
 
-# Registry keys neither allowed nor matched by the credential/URL deny regex.
-# Dropped on purpose: provider, model and failover wiring, spend and rate
-# limits, per-operator identifiers and runtime state. The demo falls back to
-# registry defaults for these.
+# Registry keys neither allowed nor matched by the credential/URL deny regex,
+# dropped on purpose (provider/model/failover wiring, spend and rate limits,
+# per-operator identifiers, runtime state). The demo uses registry defaults.
 DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     # Models and failover wiring
     'claude_model', 'verification_model', 'chapters_model', 'detection_provider',

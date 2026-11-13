@@ -1,17 +1,15 @@
 """Integration test: real-audio cue fixtures against the template matcher (#350).
 
-Uses two user-contributed show stingers (WSJ and Pivot, both 16 kHz mono s16
-FLAC, committed under tests/fixtures/cues/). Each cue is loaded via
-flac_to_wav + compute_mfcc, planted at two known positions in a seeded-noise
-WAV, and the matcher is expected to find both within +-0.15 s.
+Uses two user-contributed show stingers (WSJ and Pivot; 16 kHz mono s16 FLAC under
+tests/fixtures/cues/). Each cue is loaded via flac_to_wav + compute_mfcc and planted
+at two known positions in a seeded-noise WAV; the matcher must find both within
++-0.15 s. Also verifies:
+  - cross-noise guard: a WSJ template does not fire on a Pivot haystack (peak 0.47,
+    under the 0.60 guard).
+  - formant_atten_db=12.0 still finds both plants (exercises the PCM re-derivation
+    path in cue_template_matcher.py; peak 0.91).
 
-Also verifies:
-  - cross-noise guard: a WSJ template does not falsely fire on a Pivot haystack
-    (measured peak score 0.47, well under the 0.60 guard).
-  - formant_atten_db=12.0 still finds both plants (exercises PCM re-derivation
-    path at cue_template_matcher.py:91-105; measured peak 0.91 with attenuation).
-
-Requires ffmpeg on PATH. Skipped if unavailable.
+Requires ffmpeg on PATH; skipped if unavailable.
 """
 import io
 import shutil
@@ -156,8 +154,7 @@ def _template_row(tid, label, mfcc, duration_s, pcm=None):
 def test_wsj_cue_found_at_plant_times(wsj_cue, wsj_haystack):
     """WSJ template detects both planted occurrences within +-0.15 s at score >= 0.85.
 
-    Measured peak score on the planted haystack: 0.957.
-    """
+    Measured peak score on the planted haystack: 0.957."""
     wsj_pcm, wsj_mfcc, wsj_dur = wsj_cue
     row = _template_row(1, "wsj", wsj_mfcc, wsj_dur)
     matcher = AudioCueTemplateMatcher(
@@ -181,8 +178,7 @@ def test_wsj_cue_found_at_plant_times(wsj_cue, wsj_haystack):
 def test_pivot_cue_found_at_plant_times(pivot_cue, pivot_haystack):
     """Pivot template detects both planted occurrences within +-0.15 s at score >= 0.85.
 
-    Measured peak score on the planted haystack: 0.892.
-    """
+    Measured peak score on the planted haystack: 0.892."""
     pivot_pcm, pivot_mfcc, pivot_dur = pivot_cue
     row = _template_row(2, "pivot", pivot_mfcc, pivot_dur)
     matcher = AudioCueTemplateMatcher(
@@ -203,12 +199,7 @@ def test_pivot_cue_found_at_plant_times(pivot_cue, pivot_haystack):
 
 
 def test_cross_noise_wsj_template_vs_pivot_haystack(wsj_cue, pivot_noise_haystack):
-    """WSJ template must not falsely fire on a Pivot-seeded haystack.
-
-    Cross-noise guard: peak < 0.60. Measured: 0.47 (gap of 0.13 to ceiling).
-    This confirms the two jingles are spectrally distinct enough for safe
-    per-feed template matching.
-    """
+    """WSJ template must not fire on a Pivot-seeded haystack (peak < 0.60; measured 0.47), so the two jingles are distinct enough for per-feed matching."""
     _, wsj_mfcc, wsj_dur = wsj_cue
     row = _template_row(1, "wsj", wsj_mfcc, wsj_dur)
     # Use a very low threshold so detect_with_debug returns the actual peak
@@ -225,11 +216,9 @@ def test_cross_noise_wsj_template_vs_pivot_haystack(wsj_cue, pivot_noise_haystac
 
 def test_formant_atten_db_still_finds_both_plants(wsj_cue, pivot_cue,
                                                    wsj_haystack, pivot_haystack):
-    """formant_atten_db=12.0 triggers PCM re-derivation (matcher.py:91-105) and
-    still detects both planted occurrences for both cues.
+    """formant_atten_db=12.0 triggers PCM re-derivation and still detects both plants for both cues.
 
-    Measured peak scores with attenuation: WSJ 0.913, Pivot 0.917.
-    """
+    Measured peaks with attenuation: WSJ 0.913, Pivot 0.917."""
     for cue_label, cue_fixtures, hay_path, measured_peak in [
         ("wsj", wsj_cue, wsj_haystack, 0.913),
         ("pivot", pivot_cue, pivot_haystack, 0.917),

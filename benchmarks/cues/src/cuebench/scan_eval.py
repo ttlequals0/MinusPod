@@ -27,17 +27,11 @@ def run(
 ) -> Dict[str, Any]:
     """Run AudioFingerprinter discovery on *audio_paths* and compare with sweep.
 
-    Skips cleanly (returns skip_reason) when fpcalc is unavailable.
-
-    Ground truth per episode: sweep matches for that episode whose score meets
-    the template's suggested threshold (when confident) or AUDIO_CUE_TEMPLATE_SCORE
-    as a fallback. A discovery candidate matches a ground-truth occurrence when
-    the occurrence midpoint falls inside the candidate span.
-
-    Returns a dict:
-      available: bool
-      skip_reason: str | None
-      results: list[dict]  -- one per episode
+    Skips cleanly (returns skip_reason) when fpcalc is unavailable. Ground truth
+    per episode is the sweep matches scoring at or above the template's suggested
+    threshold (when confident) or AUDIO_CUE_TEMPLATE_SCORE. A candidate matches an
+    occurrence when the occurrence midpoint falls inside the candidate span.
+    Returns a dict with keys available, skip_reason, results (one per episode).
     """
     if AudioFingerprinter is None:
         return {
@@ -69,11 +63,7 @@ def run(
 
 
 def _threshold_for(info: Dict[str, Any]) -> float:
-    """Return the effective score threshold for ground-truth selection.
-
-    Uses the sweep suggestion when confidence is 'high', otherwise falls back
-    to AUDIO_CUE_TEMPLATE_SCORE.
-    """
+    """Return the score threshold for ground truth: the sweep suggestion when confidence is 'high', else AUDIO_CUE_TEMPLATE_SCORE."""
     suggestion = info.get("suggestion", {})
     if suggestion.get("confidence") == "high" and suggestion.get("suggested") is not None:
         return float(suggestion["suggested"])

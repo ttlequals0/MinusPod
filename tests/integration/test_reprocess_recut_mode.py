@@ -1,10 +1,6 @@
 """Integration tests for the recut reprocess mode (issue #422).
 
-Recut re-cuts the retained original from the current ad detections with no
-transcription or LLM. The endpoint must refuse when its inputs are missing.
-These tests exercise request-validation paths that return before any background
-work starts.
-"""
+Recut re-cuts the retained original from current ad detections with no transcription or LLM, and the endpoint must refuse when inputs are missing. These tests exercise request-validation paths that return before background work starts."""
 import os
 import sys
 

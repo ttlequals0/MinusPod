@@ -1,12 +1,8 @@
 """Integration tests for cue-scan thresholdSource and per-feed override (#350 Phase 5).
 
-Tests verify:
-- thresholdSource='global' when no per-feed override is set.
-- thresholdSource='override' when per-feed override is set and no body scoreThreshold.
-- thresholdSource='request' when a body scoreThreshold is provided.
-- Per-feed override takes precedence over global setting (uses override value).
-
-These tests mock the AudioCueTemplateMatcher to avoid requiring real audio files.
+thresholdSource is 'global' with no per-feed override, 'override' with an override
+and no body scoreThreshold, 'request' when the body provides one; the override
+beats the global setting. AudioCueTemplateMatcher is mocked (no real audio).
 """
 import os
 import sys

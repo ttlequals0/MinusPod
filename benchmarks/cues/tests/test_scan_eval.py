@@ -1,7 +1,4 @@
-"""Pure-logic tests for scan_eval position-based matching.
-
-No audio, no network, no file I/O.
-"""
+"""Pure-logic tests for scan_eval position-based matching (no audio, network or file I/O)."""
 from pathlib import Path
 
 import pytest

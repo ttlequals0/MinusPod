@@ -1,10 +1,6 @@
 """Tests for the long-capture nudge (Phase 8, issue #350).
 
-Verifies that the create-201 response includes longCapture and
-captureWarnSeconds, and that the threshold is read from the config constant
-(not hardcoded). The sensitive test uses a capture just barely over 5.0s so
-it fails fast if the constant is ignored or the comparison is inverted.
-"""
+The create-201 response includes longCapture and captureWarnSeconds, and the threshold comes from the config constant. The sensitive test uses a capture just over 5.0s so it fails fast if the constant is ignored or the comparison is inverted."""
 import os
 import shutil
 import sys
@@ -75,10 +71,8 @@ def long_audio_env(app_client):
         pass
 
 
-# ---------------------------------------------------------------------------
-# Sensitive test: 6s ad_break_boundary must produce longCapture=True.
-# Fails immediately if AUDIO_CUE_CAPTURE_WARN_AD_SECONDS is ignored.
-# ---------------------------------------------------------------------------
+# Sensitive test: a 6s ad_break_boundary must produce longCapture=True; fails
+# immediately if AUDIO_CUE_CAPTURE_WARN_AD_SECONDS is ignored.
 
 def test_long_ad_capture_flagged(app_client, long_audio_env):
     """6s ad_break_boundary -> longCapture true, captureWarnSeconds == 5.0."""

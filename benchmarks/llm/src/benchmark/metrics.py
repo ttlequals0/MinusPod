@@ -13,12 +13,9 @@ EXACT_METHOD_SCORES: dict[str, float] = {
     "markdown_code_block": 0.6,
     "regex_json_array": 0.4,
     "bracket_fallback": 0.2,
-    # Synthetic method for a successful ID-addressing-mode parse (runner
-    # ._parse_id_response). parse_id_ads_from_response does not expose the
-    # underlying JSON-wrapping detail extract_json_ads_array would have
-    # reported, so this scores every clean id-contract response the same
-    # as the cleanest timestamp-mode parse rather than re-parsing the text
-    # a second time just to recover that detail.
+    # Synthetic method for a clean ID-addressing parse (runner._parse_id_response);
+    # scored like the cleanest timestamp-mode parse since the JSON-wrapping detail
+    # is not exposed and re-parsing to recover it is not worth it.
     "segment_id_direct": 1.0,
 }
 
@@ -97,11 +94,7 @@ CANONICAL_GAP_SECONDS = 15.0
 def canonicalize_spans(
     spans: list[tuple[float, float]], *, gap: float = CANONICAL_GAP_SECONDS
 ) -> list[tuple[float, float]]:
-    """Merge spans separated by less than `gap` seconds.
-
-    One span = one contiguous ad break, the detection prompt's merge rule.
-    Applied to predictions and truths alike before matching.
-    """
+    """Merge spans separated by less than `gap` seconds (one span = one contiguous ad break), for predictions and truths alike."""
     if not spans:
         return []
     ordered = sorted(spans)

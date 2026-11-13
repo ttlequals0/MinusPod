@@ -506,7 +506,7 @@ def test_route_survives_an_unwritable_peaks_file(route, monkeypatch):
     assert r.status_code == 200 and len(r.get_json()['peaks']) == 40
 
 
-# ---- fix round ----
+# Full-decode slice helpers
 
 def _full_decode_slice(src, start, count):
     full, _ = ap.compute_peaks(src, 0.0, None, 10)

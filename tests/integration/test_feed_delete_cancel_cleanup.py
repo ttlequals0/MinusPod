@@ -1,11 +1,10 @@
 """Integration tests for feed-delete / cancel job cleanup (#525, #745).
 
-Deleting a podcast cancels any active run for its episodes and deletes the
-podcast, its episodes, its queue rows, and its files in the same request.
-The delete waits a bounded 2s for a cancelled run to stop, then proceeds
-regardless: the podcast delete cascades to processing_runs (ON DELETE
-CASCADE), so a wedged, never-acknowledging worker discovers ownership loss
-on its own next cooperative check instead of keeping the feed undeletable.
+Deleting a podcast cancels active runs for its episodes and deletes the podcast,
+episodes, queue rows and files in the same request. The delete waits a bounded 2s
+for a cancelled run to stop, then proceeds: the delete cascades to processing_runs
+(ON DELETE CASCADE), so a wedged worker discovers ownership loss at its next
+cooperative check instead of keeping the feed undeletable.
 """
 import os
 import sys
@@ -92,10 +91,7 @@ def test_delete_feed_cancels_active_run_and_deletes_immediately(app_client):
 
 
 def test_delete_feed_does_not_wedge_on_an_unacknowledging_owner(app_client):
-    """Deletion waits a bounded 2s and then stops depending on the owning
-    worker: a wedged worker's run row is torn down anyway, and its next
-    cooperative check aborts cleanly instead of the podcast staying stuck
-    undeletable."""
+    """Deletion waits a bounded 2s, then tears down a wedged worker's run row anyway; the worker's next cooperative check aborts cleanly."""
     from api import get_database, get_status_service
     from processing_queue import ProcessingQueue
     from cancel import ProcessingOwnershipLost, _check_cancel

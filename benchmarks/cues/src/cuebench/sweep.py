@@ -1,7 +1,6 @@
 """Sweep templates across episode audio and produce per-template score histograms.
 
-Mirrors _run_cue_threshold_scan from api/cue_templates.py (lines 1001-1037).
-"""
+Mirrors _run_cue_threshold_scan in api/cue_templates.py."""
 from __future__ import annotations
 
 import logging
@@ -56,33 +55,16 @@ def run(
 ) -> Dict[str, Any]:
     """Sweep *template_rows* across every file in *audio_paths*.
 
-    Parameters
-    ----------
-    template_rows:
-        Dicts compatible with AudioCueTemplateMatcher (id, label, cue_type,
-        duration_s, n_coeffs, mfcc_blob, pcm_blob).
-    audio_paths:
-        Local paths to episode audio files.
-    formant_ab:
-        When True run side-by-side at 0.0 dB and 12.0 dB formant attenuation
-        and include both result sets.
-    confirm:
-        When True re-run detect at the suggested threshold and report true
-        match counts.
-    effect_floor:
-        Passed verbatim to suggest_cue_threshold.
+    template_rows: dicts compatible with AudioCueTemplateMatcher (id, label,
+    cue_type, duration_s, n_coeffs, mfcc_blob, pcm_blob).
+    formant_ab: also run at 0.0 dB and 12.0 dB formant attenuation.
+    confirm: re-run detect at the suggested threshold and report true match counts.
+    effect_floor: passed verbatim to suggest_cue_threshold.
 
-    Returns a dict:
-      scores: list[float]           -- all per-occurrence scores collected
-      per_template: dict            -- keyed by template id
-        histogram: dict[str, int]
-        threshold_table: list[dict]
-        peak_score: float
-        suggestion: dict
-      formant_ab: dict | None       -- present when formant_ab=True
-      confirm_counts: dict | None   -- present when confirm=True
-      floor_used: float
-      episodes_scanned: int
+    Returns a dict with keys scores (all per-occurrence scores), per_template
+    (by template id: histogram, threshold_table, peak_score, suggestion),
+    formant_ab and confirm_counts (None unless requested), floor_used and
+    episodes_scanned.
     """
     profiles: Dict[str, float] = {"0.0dB": 0.0}
     if formant_ab:

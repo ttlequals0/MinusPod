@@ -1,7 +1,4 @@
-"""Authenticated feeds end-to-end (2.33.0): 401 enforcement on the public
-feed surface, admin/API exemption, serve_rss self-heal, and the settings/
-feeds API lifecycle (enable, key exposure, rotation, keyed URLs, OPML).
-"""
+"""Authenticated feeds end-to-end (2.33.0): 401 enforcement on the public feed surface, admin/API exemption, serve_rss self-heal, and the settings/feeds API lifecycle (enable, key exposure, rotation, keyed URLs, OPML)."""
 import io
 import re
 from unittest.mock import patch
@@ -51,10 +48,9 @@ def _set_auth(db, enabled, key=KEY):
 def _bind_db_singleton():
     """Pin the Database singleton to the instance main_app's routes read.
 
-    Every test module resets Database._instance at import time, so under a
-    full-suite run get_database() would otherwise return a different instance
-    (and data dir) than main_app.db - making settings written via the API
-    invisible to the public-route feed key gate.
+    Every test module resets Database._instance at import, so in a full-suite run
+    get_database() would return a different instance (and data dir) than main_app.db,
+    hiding API-written settings from the public-route feed key gate.
     """
     prev = database.Database._instance
     database.Database._instance = app_db

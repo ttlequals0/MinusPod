@@ -1,9 +1,6 @@
 """Integration tests for the cue-template REST API (#350).
 
-Exercises the Flask routes end to end via app_client: validation, CRUD, scope
-promotion, export/import, the diagnostic scan/preview, loud-spots, and the new
-settings validation. Audio-backed routes seed a synthetic original-audio file.
-"""
+Exercises the Flask routes via app_client: validation, CRUD, scope promotion, export/import, diagnostic scan/preview, loud-spots and settings validation. Audio routes seed a synthetic original-audio file."""
 import io
 import json
 import os
@@ -21,9 +18,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 # Point Storage/Database at a writable temp dir before main_app imports (the
-# app_client fixture constructs the Storage singleton, whose default is the
-# in-container /app/data). setdefault leaves an already-running suite's dir
-# alone.
+# app_client fixture builds the Storage singleton, default in-container /app/data);
+# setdefault leaves an already-running suite's dir alone.
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='cue-api-test-'))
 
 
@@ -138,11 +134,9 @@ def test_create_missing_episode_404(app_client, seeded):
 
 
 def test_intro_capture_ceiling_reads_db_setting(app_client, seeded):
-    # The show-intro per-type ceiling is the DB setting
-    # audio_cue_capture_max_intro_seconds, not the hardcoded constant. Lower it
-    # to 20s and a 30s show-intro selection must fail the cap gate (which runs
-    # before any audio decode, like the too-short check above). The default 60s
-    # ceiling would have let 30s through.
+    # The show-intro ceiling is the DB setting audio_cue_capture_max_intro_seconds,
+    # not the hardcoded constant: lowered to 20s, a 30s selection must fail the cap
+    # gate (before any audio decode); the default 60s would have let it through.
     hdr = _csrf(app_client)
     slug, ep = seeded['slug'], seeded['episode_id']
     base = f'/api/v1/feeds/{slug}/cue-templates'

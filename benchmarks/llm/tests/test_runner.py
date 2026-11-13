@@ -1,8 +1,4 @@
-"""Runner unit tests focusing on the synchronous building blocks.
-
-Async fan-out integration is exercised via the runner's actual use against
-real provider APIs, which is out of scope for the offline unit suite.
-"""
+"""Runner unit tests for the synchronous building blocks (async fan-out needs real provider APIs, out of scope offline)."""
 from __future__ import annotations
 
 import asyncio

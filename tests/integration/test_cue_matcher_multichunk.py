@@ -1,9 +1,6 @@
 """Multi-chunk matcher path + cross-chunk dedupe (#350).
 
-Forces the chunked decode (normally 600 s chunks) onto a short synthetic file by
-monkeypatching CHUNK_SECONDS, planting a chirp straddling a chunk boundary, and
-asserting it is found exactly once (not duplicated across the overlap).
-"""
+Monkeypatches CHUNK_SECONDS (normally 600 s) to force chunked decode on a short file, plants a chirp straddling a chunk boundary, and asserts it is found exactly once."""
 import shutil
 import wave
 

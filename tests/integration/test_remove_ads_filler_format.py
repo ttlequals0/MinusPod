@@ -1,7 +1,6 @@
 """remove_ads renders a filler whose format differs from the episode (#796).
 
-Requires ffmpeg/ffprobe on PATH. Skipped if unavailable.
-"""
+Requires ffmpeg/ffprobe on PATH. Skipped if unavailable."""
 import json
 import shutil
 import subprocess

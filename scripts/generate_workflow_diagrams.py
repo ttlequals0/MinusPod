@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Generate MinusPod workflow diagrams as SVG, light + dark, from design tokens.
 
-Tokens mirror frontend/src/index.css :root and .dark. Shape language mirrors
-design-guide/MinusPod Design System: 8px card radius, 1px border, 20% tint
-badges, 12px uppercase meta, Roboto.
-"""
+Tokens mirror frontend/src/index.css :root and .dark; shapes follow design-guide/MinusPod Design System."""
+
 import os
 
 FONT = "Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"

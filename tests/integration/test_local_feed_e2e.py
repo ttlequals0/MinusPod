@@ -1,29 +1,23 @@
-"""End-to-end local feed lifecycle (#625, Task 15).
+"""End-to-end local feed lifecycle (#625).
 
-Exercises the whole local-feed seam through the real Flask app, the real
-ffmpeg-probed commit engine, and the real RSS builder -- the way an
-operator's session would: create the feed, bulk-import an archive, serve
-the RSS, upload a single new episode with auto-process on, edit and delete
-an episode, confirm retention never touches a local feed's only copy, and
-check OPML export includes/excludes the feed per mode.
+Exercises the local-feed seam through the real Flask app, the real ffmpeg-probed
+commit engine and the real RSS builder, as an operator's session would: create the
+feed, bulk-import an archive, serve the RSS, upload a single new episode with
+auto-process on, edit and delete an episode, confirm retention never touches a local
+feed's only copy, and check OPML export includes/excludes the feed per mode.
 
-Mirrors test_episode_artwork_endpoint.py's fixture style: app_bootstrap's
-bootstrap() pins the Database/Storage singleton defaults before main_app is
-imported, app_password is cleared so auth/CSRF (api/__init__.py's
-check_auth) never engage, and the podcast row is created/torn down by slug
-in a client fixture rather than the shared root app_client fixture.
+Fixture style follows test_episode_artwork_endpoint.py: bootstrap() pins the
+Database/Storage singleton defaults before main_app is imported, app_password is
+cleared so auth/CSRF never engage, and the podcast row is created/torn down by
+slug in a client fixture.
 
-Also mirrors test_opml_url_route.py's ``_bind_db_singleton`` fixture: in a
-full-suite run, some other already-collected integration module is the one
-that actually first imported main_app (module imports and Database/Storage
-singleton construction happen once per process), so main_app.db/storage --
-and every submodule that did ``from main_app import db, storage`` at ITS own
-import time (main_app.routes, main_app.feeds, local_feed_builder) -- are
-frozen on THAT module's instances, not necessarily this module's own
-bootstrap()'d dir. Rebinding database.Database._instance /
-storage.Storage._instance to main_app's own db/storage makes every one of
-those call sites (and this module's own Database()/Storage() calls)
-consistent again, regardless of collection order.
+``_bind_db_singleton`` follows test_opml_url_route.py: in a full-suite run another
+module first imports main_app, so main_app.db/storage and every submodule that did
+``from main_app import db, storage`` at import time (main_app.routes,
+main_app.feeds, local_feed_builder) are frozen on that module's instances, not this
+module's bootstrap()'d dir. Rebinding database.Database._instance and
+storage.Storage._instance to main_app's own makes all call sites consistent
+regardless of collection order.
 """
 import io
 import shutil
@@ -52,9 +46,8 @@ CONTROL_SLUG = 'e2e-local-show-retention-control'
 
 # Import commit runs on a real background daemon thread (see
 # local_import.start_commit); polling avoids monkeypatching threading.Thread
-# globally, which would also break flask-limiter's own Timer-based memory
-# storage mid-request (Timer.__init__ resolves the module-global `Thread`
-# name at call time, not via super()).
+# globally, which would break flask-limiter's Timer-based memory storage
+# mid-request (Timer.__init__ resolves the module-global `Thread` at call time).
 _IMPORT_POLL_TIMEOUT_S = 30
 _IMPORT_POLL_INTERVAL_S = 0.1
 
@@ -102,8 +95,7 @@ def client():
 
 @pytest.fixture(scope='session')
 def real_mp3_bytes(tmp_path_factory):
-    """A small, structurally valid mp3 -- same ffmpeg invocation as
-    test_local_episode_api.py's identical fixture."""
+    """A small, structurally valid mp3 (same ffmpeg invocation as test_local_episode_api.py's fixture)."""
     if shutil.which('ffmpeg') is None:
         pytest.skip('ffmpeg not available')
     mp3_path = tmp_path_factory.mktemp('audio') / 'fixture.mp3'
@@ -249,16 +241,13 @@ def test_local_feed_end_to_end_flow(client, real_mp3_bytes):
     assert sorted(e.id for e in parsed_after_delete.entries) == \
         ['s01e01', 's01e02', 's01e03']
 
-    # ---- Step 7: retention sweep + force_all both leave local originals
-    # (and the retained processed file) untouched, while a subscribed feed's
-    # old processed episode IS cleaned under force_all -- proving the
-    # exemption is feed_type-specific rather than this step being vacuously
-    # true. override=1, not 0: retention_days<=0 is a separate "archived,
-    # never sweep" skip that fires in BOTH sweep paths regardless of
-    # feed_type (the non-force_all grouping's `if retention_days <= 0:
-    # continue`, and force_all's own `retention_days_override > 0` WHERE
-    # clause), so a 0 override would make this step pass even with the
-    # feed_type=='local' exemptions deleted from database/maintenance.py.
+    # ---- Step 7: retention sweep + force_all both leave local originals (and the
+    # retained processed file) untouched, while a subscribed feed's old processed
+    # episode is cleaned under force_all, so the exemption is feed_type-specific
+    # and not vacuously true. override=1, not 0: retention_days<=0 is a separate
+    # "archived, never sweep" skip in both sweep paths regardless of feed_type, so
+    # a 0 override would pass even with the feed_type=='local' exemptions deleted
+    # from database/maintenance.py.
     db.update_podcast(SLUG, retention_days_override=1)
     orig_path = storage.get_original_path(SLUG, 's01e02')
     assert orig_path.exists()
@@ -276,10 +265,10 @@ def test_local_feed_end_to_end_flow(client, real_mp3_bytes):
     assert orig_path.exists(), 'the scheduled sweep must never touch a local original'
     assert processed_path.exists()
 
-    # Negative control, mirroring tests/unit/test_local_feed_retention.py's
-    # test_subscribed_feed_still_cleaned_under_force_all: created only now,
-    # after the scheduled sweep above, so that sweep never saw it and this
-    # assertion is isolated to force_all's own exemption logic.
+    # Negative control (see tests/unit/test_local_feed_retention.py's
+    # test_subscribed_feed_still_cleaned_under_force_all): created after the
+    # scheduled sweep so that sweep never saw it and the assertion isolates
+    # force_all's own exemption logic.
     db.create_podcast(CONTROL_SLUG, 'https://example.com/control-feed.xml',
                       'Retention Control')
     control_ep = 'abcdef012345'
@@ -304,8 +293,9 @@ def test_local_feed_end_to_end_flow(client, real_mp3_bytes):
         'force_all must still clean a subscribed feed (negative control)'
     assert db.get_episode(CONTROL_SLUG, control_ep)['status'] == 'discovered'
 
-    # ---- Step 8: OPML export -- original mode omits the local feed,
+    # ---- Step 8: OPML export: original mode omits the local feed,
     # modified mode includes it ----
+
     original_opml = client.get('/api/v1/feeds/export-opml?mode=original')
     assert original_opml.status_code == 200
     assert 'E2E Local Show' not in original_opml.get_data(as_text=True)

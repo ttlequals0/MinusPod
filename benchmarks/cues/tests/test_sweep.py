@@ -1,7 +1,4 @@
-"""Pure-logic tests for sweep aggregation math.
-
-No network, no audio decode, no file I/O.
-"""
+"""Pure-logic tests for sweep aggregation math (no network, audio decode or file I/O)."""
 
 from cuebench.sweep import _build_histogram, _build_threshold_table
 

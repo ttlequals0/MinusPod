@@ -55,10 +55,7 @@ _AD_SIGNALS_RE = re.compile(
 def _classify_marker(marker: dict, segments: list[dict]) -> tuple[bool, str | None]:
     """Return (accepted, rejection_reason).
 
-    Heuristic auto-rejects markers that look like false positives so the human
-    reviewer sees them in the commented "rejected" section instead of having to
-    delete them from the active list.
-    """
+    Auto-rejects likely false positives so the reviewer sees them in the commented "rejected" section."""
     start = float(marker.get("start", marker.get("startTime", 0)))
     end = float(marker.get("end", marker.get("endTime", 0)))
     duration = max(end - start, 0.1)
@@ -231,10 +228,8 @@ def _build_truth_template(episode_data: dict, segments: list[dict]) -> str:
             "#   ---",
         ]) + "\n"
 
-    # Build a unified, chronologically sorted list. Rejected blocks (auto or
-    # production) sit in their natural time slot, commented out. When the
-    # reviewer uncomments a block, validate_logical's ordering check passes
-    # without further reshuffling.
+    # Chronologically sorted list; rejected blocks sit in their time slot, commented out,
+    # so uncommenting one keeps validate_logical's ordering check passing.
     items: list[tuple[float, dict, bool, str | None, str | None]] = []
     for marker in raw_accepted:
         ok, reason = _classify_marker(marker, segments)

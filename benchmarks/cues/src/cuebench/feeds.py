@@ -1,8 +1,4 @@
-"""RSS feed fetching with local file cache.
-
-Cache layout: ~/.cache/minuspod-cuebench/<sha1(rss_url)[:12]>/<sha1(enclosure_url)>.<ext>
-500 MB per-enclosure cap; files already present are reused without re-downloading.
-"""
+"""RSS feed fetching with a local file cache under ~/.cache/minuspod-cuebench (500 MB per-enclosure cap)."""
 from __future__ import annotations
 
 import hashlib
@@ -32,12 +28,7 @@ def fetch(
     max_episodes: int = 5,
     audio_files: Optional[List[Path]] = None,
 ) -> List[Path]:
-    """Return local paths to episode audio.
-
-    If *audio_files* is provided those paths are used directly (no RSS fetch).
-    Otherwise the RSS feed is parsed and up to *max_episodes* enclosures are
-    downloaded to the cache. Files already cached are not re-downloaded.
-    """
+    """Return local paths to episode audio, using *audio_files* directly or downloading up to *max_episodes* enclosures (cached)."""
     if audio_files:
         missing = [p for p in audio_files if not Path(p).exists()]
         if missing:

@@ -218,9 +218,8 @@ def _render_how_to_read(episodes: list[Episode]) -> str:
 
 
 def _render_failures(calls: list[dict]) -> str:
-    """Surface every error row, classified, since failures often signal real
-    production-relevant gotchas (provider content moderation, deprecated params,
-    rate-limit ceilings) that don't show up in the aggregated F1 / cost tables.
+    """Surface every error row, classified, since failures often reveal production gotchas
+    (content moderation, deprecated params, rate limits) the aggregate tables hide.
 
     `calls` is deduped (one row per work unit, last write wins).
     """
@@ -510,10 +509,9 @@ def _render_methodology(cfg, episodes, *, pricing_snapshot: pricing.PricingSnaps
     return "\n".join(lines)
 
 
-# Whisper configuration used by the production MinusPod instance that supplied
-# every transcript in data/corpus/. Hardcoded here because these are production
-# defaults, not benchmark config. If the source instance ever changes, update
-# this table and regenerate the report.
+# Whisper configuration of the production instance that supplied data/corpus/
+# transcripts. Hardcoded (production defaults, not benchmark config); update and
+# regenerate the report if the source instance changes.
 _WHISPER_CONFIG_TABLE = [
     ("Model", "`large-v3`"),
     ("Backend", "local (faster-whisper, CUDA GPU)"),
@@ -538,11 +536,10 @@ model.transcribe(
 
 
 def _seed_sponsors() -> list[dict] | None:
-    """Pull the SEED_SPONSORS list from MinusPod at render time so the report
-    reflects whatever's in production today. SEED_SPONSORS is a list of
-    {name, aliases, category} dicts. Returns the entries sorted by canonical
-    name (case-insensitively). Returns None if the import path isn't
-    available (e.g. running outside a MinusPod checkout)."""
+    """Pull SEED_SPONSORS ({name, aliases, category} dicts) from MinusPod at render time.
+
+    Returns entries sorted case-insensitively by name, or None if the import path is
+    unavailable (e.g. outside a MinusPod checkout)."""
     try:
         from utils.constants import SEED_SPONSORS  # type: ignore[import-not-found]
     except ImportError:
@@ -552,10 +549,9 @@ def _seed_sponsors() -> list[dict] | None:
 
 
 def _sponsor_aliases() -> dict | None:
-    """Pull SPONSOR_ALIASES from MinusPod at render time. This is the
-    post-transcription mishearing-correction map (`a firm` -> `Affirm`),
-    distinct from the canonical-aliases field on each SEED_SPONSORS entry.
-    Returns None if the import fails."""
+    """Pull SPONSOR_ALIASES from MinusPod at render time.
+
+    This is the post-transcription mishearing-correction map (`a firm` -> `Affirm`), distinct from each SEED_SPONSORS entry's aliases. Returns None if the import fails."""
     try:
         from utils.constants import SPONSOR_ALIASES  # type: ignore[import-not-found]
     except ImportError:
@@ -647,11 +643,10 @@ def _build_toc(body: str) -> str:
 
 
 def _render_multi_column_table(items: list[tuple], *, headers: list[str], num_cols: int) -> list[str]:
-    """Render a long Markdown table as `num_cols` side-by-side column-groups so
-    it takes less vertical space. Each row in `items` is a tuple matching the
-    shape of `headers`. Reading order is top-to-bottom within a column-group
-    (column-major), then left-to-right across groups. Pads the last group with
-    empty cells when the count doesn't divide evenly.
+    """Render a long Markdown table as `num_cols` side-by-side column-groups.
+
+    Each item matches the shape of `headers`. Reading order is column-major within a
+    group, then left to right; the last group is padded with empty cells.
     """
     rows_per_col = math.ceil(len(items) / num_cols) if items else 0
     cell_count = len(headers) * num_cols
@@ -773,10 +768,7 @@ def _render_boundary_accuracy(stats: dict[str, ModelStats]) -> str:
 
 
 def _render_calibration_table(calibration: dict[str, list[tuple[float, bool]]]) -> str:
-    """Bin self-reported confidence and show the actual hit rate in each bin.
-    Reveals overconfident models (e.g., phi-4 reports ~0.95 confidence on
-    detections that are wrong nearly all the time).
-    """
+    """Bin self-reported confidence and show the actual hit rate per bin, exposing overconfident models (e.g., phi-4 reports ~0.95 on detections that are almost always wrong)."""
     bins = CALIBRATION_BINS
     bin_labels = CALIBRATION_BIN_LABELS
     lines = [

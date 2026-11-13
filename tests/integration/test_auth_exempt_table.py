@@ -1,12 +1,9 @@
-"""Prove the tightened AUTH_EXEMPT_PATHS / PODCAST_APP_EXEMPT_PATTERNS
-behave as intended once an admin password is set.
+"""Prove the tightened AUTH_EXEMPT_PATHS / PODCAST_APP_EXEMPT_PATTERNS work once an admin password is set.
 
-- SSE stream must require auth (it used to be exempt-by-prefix).
+- SSE stream must require auth.
 - Blueprint-registered /docs and /openapi.yaml must require auth.
-- /feeds/<slug>/artwork GET is the ONLY podcast-app exemption, and only
-  for GET; POST/PUT/DELETE on the same path require auth.
-- A traversal-like slug under /feeds/.../artwork must not pass the regex
-  and therefore must 401.
+- /feeds/<slug>/artwork GET is the only podcast-app exemption (GET only).
+- A traversal-like slug under /feeds/.../artwork must not pass the regex (401).
 """
 
 import pytest
@@ -31,10 +28,7 @@ def client_with_password():
 
 
 def test_status_stream_unauth_gets_auth_failed_event(client_with_password):
-    """Unauthenticated SSE connect receives a single ``auth-failed``
-    event rather than a 401, so the browser-side handler can redirect
-    cleanly instead of reconnect-looping against a closed 401 response
-    that EventSource cannot introspect."""
+    """Unauthenticated SSE connect gets a single ``auth-failed`` event, not a 401 (EventSource cannot introspect a 401, so it would reconnect-loop)."""
     response = client_with_password.get(
         '/api/v1/status/stream',
         buffered=True,
@@ -46,10 +40,9 @@ def test_status_stream_unauth_gets_auth_failed_event(client_with_password):
 
 
 def test_status_stream_authenticated_opens_stream(client_with_password):
-    """Authenticated SSE connect must open the real data stream and
-    never emit ``auth-failed``. Reads a bounded prefix then closes --
-    the authenticated stream is long-polled so ``buffered=True`` would
-    block forever."""
+    """Authenticated SSE connect opens the real stream and never emits ``auth-failed``.
+
+    Reads a bounded prefix then closes: the stream is long-polled, so ``buffered=True`` would block forever."""
     login = client_with_password.post(
         '/api/v1/auth/login',
         json={'password': 'pw'},
@@ -62,10 +55,9 @@ def test_status_stream_authenticated_opens_stream(client_with_password):
     try:
         assert response.status_code == 200
         assert response.mimetype == 'text/event-stream'
-        # Accumulate chunks until we see a full SSE frame boundary or
-        # hit a bounded cap. The generator might emit a comment ping
-        # or split the first frame across yields, so a single next()
-        # is fragile.
+        # Accumulate chunks until a full SSE frame boundary or a bounded cap; the
+        # generator may emit a comment ping or split the first frame, so a single
+        # next() is fragile.
         buf = b""
         for _ in range(8):
             try:
@@ -94,20 +86,17 @@ def test_api_openapi_requires_auth(client_with_password):
 
 
 def test_artwork_get_is_exempt(client_with_password):
-    """podcast-app <img> cross-origin GET stays public. No such feed
-    exists, so 404 is expected -- reaching the handler at all proves
-    the auth gate did NOT fire."""
+    """podcast-app <img> cross-origin GET stays public. No such feed exists, so 404 is expected; reaching the handler at all proves the auth gate did not fire."""
     response = client_with_password.get('/api/v1/feeds/valid-slug/artwork')
     assert response.status_code in (200, 404)
 
 
 def test_artwork_post_does_not_leak(client_with_password):
-    """POST on the artwork path must never return bytes. Werkzeug's URL
-    matcher raises MethodNotAllowed (405) before check_auth runs because
-    no POST handler is registered; that's structurally safe. If the
-    exemption regex were over-broad and matched other paths, this test
-    would fail with 200 instead. 401 would also be acceptable if the
-    route ever gains a POST handler."""
+    """POST on the artwork path must never return bytes.
+
+    Werkzeug raises MethodNotAllowed (405) before check_auth since no POST handler
+    exists (structurally safe). An over-broad exemption regex would give 200 here;
+    401 is also acceptable if the route gains a POST handler."""
     response = client_with_password.post('/api/v1/feeds/valid-slug/artwork')
     assert response.status_code in (401, 405)
     assert response.status_code != 200
@@ -136,9 +125,9 @@ def test_auth_password_remains_exempt(client_with_password):
         '/api/v1/auth/password',
         json={'newPassword': 'differentpw', 'currentPassword': 'wrongpw'},
     )
-    # 401 from body-verified check is fine; a 401 from the before_request
-    # gate is NOT -- that would be "exemption was dropped". Either way
-    # the request reached the handler if it saw the JSON body.
+    # A 401 from the body-verified check is fine; a 401 from the before_request
+    # gate is not (the exemption was dropped). Either way the request reached the
+    # handler if it saw the JSON body.
     assert response.status_code in (400, 401), (
         f"unexpected status {response.status_code}"
     )

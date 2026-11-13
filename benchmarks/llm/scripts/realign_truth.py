@@ -1,13 +1,13 @@
 """Realign start/end timestamps in benchmark truth.txt files against segments.json.
 
-Walks every candidate dir under ``benchmarks/llm/data/candidates/`` and rewrites the
-``start:`` / ``end:`` values of each ad block to match where the (possibly hand-edited)
-``text:`` payload actually lands in the episode's word-level whisper output.
+Rewrites the ``start:`` / ``end:`` of each ad block under
+``benchmarks/llm/data/candidates/`` to where its (possibly hand-edited) ``text:``
+lands in the episode's word-level whisper output.
 
 Usage:
     .venv/bin/python benchmarks/llm/scripts/realign_truth.py            # dry-run
     .venv/bin/python benchmarks/llm/scripts/realign_truth.py --write    # apply
-    .venv/bin/python benchmarks/llm/scripts/realign_truth.py --only ep-tosh-show-...
+    .venv/bin/python benchmarks/llm/scripts/realign_truth.py --only ep-example-podcast-...
 """
 from __future__ import annotations
 
@@ -73,10 +73,7 @@ def _first_stream_index_after(stream, min_time: float) -> int:
 
 
 def _find_run(stream_words: list[str], needle: list[str], *, start: int, stop: int) -> int:
-    """Return earliest index in stream_words[start:stop] where ``needle`` appears contiguously.
-
-    Returns -1 if no exact contiguous run is found.
-    """
+    """Return the earliest index in stream_words[start:stop] where ``needle`` appears contiguously, or -1."""
     if not needle:
         return -1
     n = len(needle)
@@ -90,9 +87,7 @@ def _find_run(stream_words: list[str], needle: list[str], *, start: int, stop: i
 def _anchor_prefix(stream_words: list[str], truth_words: list[str], *, search_from: int) -> int:
     """Find the start-of-ad anchor: earliest contiguous match for the first K truth words.
 
-    Tries K = 6, 5, 4, 3 in order so we still find a hit when the user trimmed leading words
-    or transcription noise corrupted them. Returns the stream index or -1.
-    """
+    Tries K = 6, 5, 4, 3 so trimmed or noisy leading words still match. Returns the stream index or -1."""
     for k in (6, 5, 4, 3):
         if len(truth_words) < k:
             continue
@@ -109,18 +104,16 @@ def _anchor_suffix(
     start_offset: int,
     max_span: int,
 ) -> int:
-    """Find the end-of-ad anchor: latest contiguous match for the last K truth words,
-    constrained to stream[start_offset : start_offset + max_span].
+    """Find the end-of-ad anchor in stream[start_offset : start_offset + max_span].
 
-    Returns the stream index of the START of the matched suffix run, or -1.
-    """
+    Latest contiguous match for the last K truth words; returns the index of the START of the suffix run, or -1."""
     stop = min(len(stream_words), start_offset + max_span)
     for k in (6, 5, 4, 3):
         if len(truth_words) < k:
             continue
         needle = truth_words[-k:]
-        # Walk forward and remember the LAST hit -- the suffix is more likely to be
-        # the boundary if the same phrase recurs (e.g. duplicated ad copy).
+        # Keep the LAST hit: the suffix is more likely the boundary when the same
+        # phrase recurs (e.g. duplicated ad copy).
         last_hit = -1
         for i in range(start_offset, stop - k + 1):
             if stream_words[i:i + k] == needle:
@@ -133,12 +126,10 @@ def _anchor_suffix(
 def _align(truth_words, stream, *, search_from):
     """Return (start_idx, end_idx) inclusive into ``stream`` for this ad's span, or None.
 
-    Strategy:
-      1. Anchor the START at the earliest contiguous run of the first K truth words after
-         ``search_from``. Falls back from K=6 down to K=3.
-      2. Anchor the END at the latest contiguous run of the last K truth words within a
-         window of ``2 * len(truth_words)`` stream tokens after the start anchor (so we
-         don't run away when the same ad copy recurs later in the episode).
+    START anchors at the earliest run of the first K truth words after ``search_from``
+    (K=6 down to 3). END anchors at the latest run of the last K words within
+    ``2 * len(truth_words)`` tokens of the start, so recurring ad copy later on
+    does not pull it away.
     """
     stream_words = [t[0] for t in stream]
     if not stream_words:

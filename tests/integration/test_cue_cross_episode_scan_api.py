@@ -1,8 +1,6 @@
 """Integration tests for POST /feeds/<slug>/cue-cross-episode-scan (D1b, #350).
 
-Covers: claim/poll semantics, rescan, validation failures, worker payload shape,
-and error path.
-"""
+Covers claim/poll semantics, rescan, validation failures, worker payload shape and the error path."""
 import os
 import sys
 import tempfile
@@ -131,8 +129,9 @@ def test_foreign_episode_id_returns_400(app_client, xep_seeded):
     assert r.status_code == 400
     body = r.get_json()
     assert foreign in body.get('error', '')
-    # Validation now runs post-claim, so the failed claim is released as an
-    # error row -- a subsequent poll returns that error, never a stuck scanning.
+    # Validation runs post-claim, so the failed claim is released as an error row;
+    # a later poll returns that error, never a stuck scanning.
+
     r2 = _post(app_client, slug, {'episodeIds': [ep1, foreign]}, hdr)
     assert r2.status_code == 200
     body2 = r2.get_json()

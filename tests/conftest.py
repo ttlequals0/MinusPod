@@ -282,9 +282,8 @@ def app_client():
 def _reset_rss_circuit_breakers():
     """Clear the host-keyed RSS breaker registry between tests.
 
-    The registry is module-global; failed fetches in one test (e.g. fake
-    example.com feeds) can open a host's breaker and make an unrelated
-    later test's fetch bail before its mocks are reached.
+    The registry is module-global, so a failed fetch in one test can open a host's
+    breaker and make an unrelated test's fetch bail before its mocks run.
     """
     yield
     try:

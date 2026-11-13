@@ -1,9 +1,8 @@
 """Integration tests for POST /patterns/merge keep-in-place folding (#399).
 
 Covers variant union, the kept row keeping its own template, cross-sponsor
-rejection, the sub-75% advisory warning, and folded-fingerprint deletion.
-Tests reference patterns by the ids they create, so the shared singleton DB
-used across integration tests does not interfere.
+rejection, the sub-75% advisory warning and folded-fingerprint deletion. Tests
+use the ids they create so the shared singleton DB does not interfere.
 """
 import os
 import sys

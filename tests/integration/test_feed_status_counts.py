@@ -1,9 +1,6 @@
 """Integration tests for per-feed episode status counts (#466).
 
-GET /feeds and GET /feeds/{slug} return a statusCounts object whose keys match
-the frontend status-badge keys: the DB status 'processed' is exposed under its
-API alias 'completed'.
-"""
+GET /feeds and GET /feeds/{slug} return statusCounts keyed like the frontend status badges (DB 'processed' is exposed as 'completed')."""
 import os
 import sys
 import tempfile

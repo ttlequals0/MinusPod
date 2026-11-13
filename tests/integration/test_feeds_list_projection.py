@@ -1,7 +1,4 @@
-"""Integration tests for feed-list pagination and the opt-in latest-episode
-projection: GET /feeds?page=&limit= and
-GET /feeds?includeLatestEpisodes=true&episodesPerFeed=N.
-"""
+"""Integration tests for feed-list pagination and the opt-in latest-episode projection (GET /feeds?page=&limit= and ?includeLatestEpisodes=true&episodesPerFeed=N)."""
 import os
 import json
 import sys

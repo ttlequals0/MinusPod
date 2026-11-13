@@ -67,11 +67,9 @@ def append_response(responses_dir: Path, model_id: str, call_id: str, body: str)
 
 
 def find_call(path: Path, call_id: str) -> dict | None:
-    """Last matching record wins, matching the report's retry semantics.
+    """Return the last record matching call_id (the report's retry semantics).
 
-    Substring pre-filter before json.loads: these files reach tens of MB and
-    a single lookup should not pay a full-file JSON parse.
-    """
+    Substring pre-filter before json.loads: files reach tens of MB, so a lookup must not parse them whole."""
     found: dict | None = None
     if not path.is_file():
         return None
@@ -111,11 +109,9 @@ CallKey = tuple[str, str, int, int, str]
 def scan_calls(calls_path: Path) -> tuple[set[CallKey], set[CallKey]]:
     """Single-pass read of calls.jsonl. Returns (completed, errored).
 
-    Errored is the subset of completed whose *last* record carries an error, so
-    callers that want to skip errored records use ``completed - errored`` and
-    callers that want to retry only errored records use ``errored``. The file is
-    append-only, so a successful retry discharges an earlier failure; without
-    that, every later --retry-errors pass would redo work already recovered.
+    Errored is the subset of completed whose *last* record has an error: skip errored
+    with ``completed - errored``, retry only them with ``errored``. The file is
+    append-only, so a successful retry discharges the earlier failure.
     """
     completed: set[CallKey] = set()
     errored: set[CallKey] = set()

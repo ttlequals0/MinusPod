@@ -1,7 +1,5 @@
-"""Pure-logic tests for templates manifest parsing and rejection.
+"""Pure-logic tests for templates manifest parsing and rejection (no network or audio decode)."""
 
-No network, no audio decode, no file I/O beyond fixtures.
-"""
 import io
 import json
 import wave

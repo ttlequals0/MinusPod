@@ -62,10 +62,7 @@ def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snaps
 
 
 def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
-    """Per-model detail surfaces the over-1024, truncated, and salvaged counts
-    so verbose/instruction-resistant models (phi-4, Gemini variants) are
-    visible at a glance.
-    """
+    """Per-model detail surfaces over-1024, truncated and salvaged counts."""
     ep = make_episode(n_windows=1)
     calls = tmp_path / "calls.jsonl"
     append_jsonl(calls, {

@@ -1,12 +1,8 @@
 """Integration tests for per-feed cue template score override (#350 Phase 5).
 
-Covers:
-- PATCH accepts a valid value in [0.30, 0.99].
-- PATCH rejects a value below 0.30.
-- PATCH rejects a non-numeric string.
-- PATCH with null clears the override.
-- GET round-trip: set then read back.
-- GET /feeds list surfaces cueTemplateScoreOverride.
+PATCH accepts [0.30, 0.99], rejects below 0.30 and non-numeric strings, and null
+clears the override. GET round-trips the value and the /feeds list surfaces
+cueTemplateScoreOverride.
 """
 import os
 import sys

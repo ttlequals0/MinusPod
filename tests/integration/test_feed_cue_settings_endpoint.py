@@ -1,13 +1,9 @@
 """Integration tests for per-feed cue settings overrides (Task A2).
 
-Covers all 7 knobs:
-- PATCH accepts valid values and null (clears).
-- PATCH rejects out-of-range values with 400.
-- PATCH rejects NaN, inf, bool (findings 2 and 3).
-- PATCH rejects cueTemplateScoreOverride below 0.30 noise floor (finding 4).
-- Empty string clears to null for float fields (finding 5).
-- GET round-trip: set then read back.
-- GET /feeds list surfaces the fields.
+Covers all 7 knobs: PATCH accepts valid values and null (clears), rejects
+out-of-range values, NaN, inf and bool with 400 (findings 2 and 3), rejects
+cueTemplateScoreOverride below the 0.30 noise floor (finding 4); an empty string
+clears float fields (finding 5); GET round-trips and the /feeds list surfaces the fields.
 """
 import os
 import sys
@@ -46,7 +42,7 @@ def _csrf(app_client):
     return authenticate_test_client(app_client)
 
 
-# -- cueCreateFromPairsOverride --
+# cueCreateFromPairsOverride
 
 def test_patch_create_from_pairs_true(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -85,7 +81,7 @@ def test_patch_create_from_pairs_invalid_string(app_client, seeded_feed, _auth):
     assert r.status_code == 400
 
 
-# -- cuePairMinBreakOverride --
+# cuePairMinBreakOverride
 
 def test_patch_pair_min_break_valid(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -115,7 +111,7 @@ def test_patch_pair_min_break_null_clears(app_client, seeded_feed, _auth):
     assert r.get_json()['cuePairMinBreakOverride'] is None
 
 
-# -- cuePairMaxBreakOverride --
+# cuePairMaxBreakOverride
 
 def test_patch_pair_max_break_valid(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -134,7 +130,7 @@ def test_patch_pair_max_break_rejects_above_ceiling(app_client, seeded_feed, _au
     assert r.status_code == 400
 
 
-# -- cuePairMaxBreakFractionOverride --
+# cuePairMaxBreakFractionOverride
 
 def test_patch_pair_max_break_fraction_valid(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -153,7 +149,7 @@ def test_patch_pair_max_break_fraction_rejects_above_1(app_client, seeded_feed, 
     assert r.status_code == 400
 
 
-# -- cueSnapConfidenceOverride --
+# cueSnapConfidenceOverride
 
 def test_patch_snap_confidence_valid(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -172,7 +168,7 @@ def test_patch_snap_confidence_rejects_above_1(app_client, seeded_feed, _auth):
     assert r.status_code == 400
 
 
-# -- cueSnapLeadOverride --
+# cueSnapLeadOverride
 
 def test_patch_snap_lead_valid(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -199,7 +195,7 @@ def test_patch_snap_lead_rejects_above_ceiling(app_client, seeded_feed, _auth):
     assert r.status_code == 400
 
 
-# -- cueSnapLagOverride --
+# cueSnapLagOverride
 
 def test_patch_snap_lag_valid(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -221,7 +217,7 @@ def test_patch_snap_lag_null_clears(app_client, seeded_feed, _auth):
     assert r.get_json()['cueSnapLagOverride'] is None
 
 
-# -- GET round-trip --
+# GET round-trip
 
 def test_get_round_trip_all_fields(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -245,7 +241,7 @@ def test_get_round_trip_all_fields(app_client, seeded_feed, _auth):
     assert body['cueSnapLagOverride'] == pytest.approx(3.5)
 
 
-# -- NaN / inf / bool rejection (findings 2 and 3) --
+# NaN / inf / bool rejection (findings 2 and 3)
 
 def test_patch_float_override_rejects_nan(app_client, seeded_feed, _auth):
     """NaN passes a range check (NaN comparisons are False) so must be explicitly rejected."""
@@ -285,7 +281,7 @@ def test_patch_float_override_rejects_bool_false(app_client, seeded_feed, _auth)
     assert r.status_code == 400
 
 
-# -- scoreThreshold noise floor (finding 4) --
+# scoreThreshold noise floor (finding 4)
 
 def test_patch_cue_score_override_rejects_below_noise_floor(app_client, seeded_feed, _auth):
     """cueTemplateScoreOverride below 0.30 must be rejected (noise ceiling is 0.33-0.50)."""
@@ -306,7 +302,7 @@ def test_patch_cue_score_override_accepts_at_noise_floor(app_client, seeded_feed
     assert r.get_json()['cueTemplateScoreOverride'] == pytest.approx(0.30)
 
 
-# -- per-template scoreThreshold noise floor (finding 4) --
+# per-template scoreThreshold noise floor (finding 4)
 
 def test_patch_template_score_threshold_rejects_below_noise_floor(app_client, _auth):
     """Per-template scoreThreshold below 0.30 must be rejected (shared validator)."""
@@ -333,7 +329,7 @@ def test_patch_template_score_threshold_rejects_below_noise_floor(app_client, _a
     assert r.status_code == 400
 
 
-# -- GET /feeds list --
+# GET /feeds list
 
 def test_list_feeds_surfaces_overrides(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']

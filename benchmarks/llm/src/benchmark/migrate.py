@@ -3,11 +3,9 @@
 v1: one .txt per call under responses/, one .txt per prompt_hash under prompts/.
 v2: per-model JSONL shards under responses/; prompts reconstructed on demand.
 
-Every destructive step verifies first: a response .txt is deleted only after
-its body reads back byte-exact from the shard, a prompt .txt only after it
-reconstructs byte-exact from the corpus, and calls.jsonl is rewritten via
-tmp+rename with a timestamped backup left behind. Safe to re-run after an
-interruption.
+Each delete verifies first: a response .txt only after its body reads back
+byte-exact from the shard, a prompt .txt only after it reconstructs byte-exact.
+calls.jsonl is rewritten via tmp+rename with a timestamped backup. Safe to re-run.
 """
 from __future__ import annotations
 
@@ -53,9 +51,8 @@ def migrate(paths: RunPaths, *, corpus_dir: Path) -> MigrationReport:
 def _orphan_model(stem: str, known_models: list[str]) -> str:
     """Recover the model for a v1 .txt with no calls.jsonl record.
 
-    v1 call_id filename format, frozen: <safe_model>_<ep_id>_..., and ep_id
-    always starts with "ep-". A sanitized model id may itself contain "_ep-",
-    so prefer the longest known-model prefix before falling back to the split.
+    v1 filenames are <safe_model>_<ep_id>_... and ep_id starts with "ep-". A model id
+    may itself contain "_ep-", so prefer the longest known-model prefix.
     """
     for model in sorted(known_models, key=len, reverse=True):
         if stem.startswith(safe_model_id(model) + "_ep-"):
