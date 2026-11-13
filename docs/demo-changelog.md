@@ -10,6 +10,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ### Changed
 
+- The fixture exporter records pattern-audio metadata and paginated match history from the snapshot. Playback remains unavailable because the demo exports no audio files.
 - The fixture coverage check no longer expects recorded fixtures for `/patterns/{id}/audio` and `/patterns/{id}/audio/matches`, which the demo answers itself.
 - The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
 - The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) and the new `queue_order`, `session_lifetime_hours` and `session_remember_days` settings in the demo database.

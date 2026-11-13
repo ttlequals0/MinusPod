@@ -7,6 +7,7 @@ import { argValue, checkFlags } from './lib/args.mjs';
 
 const PAGE = 100;
 const EPISODE_PAGE = 500;
+const MATCH_PAGE = 10;
 const POOL = 8;
 
 const STATIC_PATHS = [
@@ -119,11 +120,11 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
     return r?.fixture;
   }
 
-  async function dumpPaged({ path, field }) {
+  async function dumpPaged({ path, field, pageSize = PAGE }) {
     for (let page = 1; ; page++) {
       const fx = await dump(path(page));
       const rows = fx?.status === 200 ? rowsOf(fx.body, field) : null;
-      if (!rows || rows.length < PAGE) return;
+      if (!rows || rows.length < pageSize) return;
     }
   }
 
@@ -150,14 +151,25 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
 
   async function run() {
     let feeds = [];
+    let patterns = [];
     for (const p of STATIC_PATHS) {
       const fx = await dump(p);
       if (p === STATIC_PATHS[0]) {
         if (fx?.status !== 200 || !Array.isArray(fx.body?.feeds)) throw new Error('/feeds dump failed: no feeds array');
         feeds = fx.body.feeds.map((f) => ({ slug: f.slug, feedType: f.feedType }));
       }
+      if (p === '/patterns') patterns = fx?.body?.patterns ?? [];
     }
     for (const spec of PAGED) await dumpPaged(spec);
+    await pool(patterns, async ({ id }) => {
+      const path = `/patterns/${encodeURIComponent(id)}/audio`;
+      await dump(path);
+      await dumpPaged({
+        path: (page) => `${path}/matches?page=${page}&perPage=${MATCH_PAGE}`,
+        field: 'matches',
+        pageSize: MATCH_PAGE,
+      });
+    });
     const episodes = [];
     await pool(feeds, async ({ slug, feedType }) => {
       for (const p of FEED_PATHS(slug)) await dump(p);

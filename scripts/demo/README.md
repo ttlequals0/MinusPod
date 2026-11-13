@@ -79,7 +79,7 @@ node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/
 
 ## 6. Dumps
 
-Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. Two passes run after the dumps. `--overrides` copies the live extras on top, so they win over crawled and dumped responses. `--transcript-window <seconds>` keeps only the transcript lines within that many seconds of an ad marker in every episode fixture.
+Fills in what a click-through does not reach: static lists, paged lists, and per-feed, per-episode and pattern-audio endpoints. Pattern audio includes metadata and every match-history page, using the UI's page size. No audio files are exported. The dumper reads the lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. Two passes run after the dumps. `--overrides` copies the live extras on top, so they win over crawled and dumped responses. `--transcript-window <seconds>` keeps only the transcript lines within that many seconds of an ad marker in every episode fixture.
 
 ```
 node dumps.mjs --base http://127.0.0.1:8000 --out ../../../frontend/demo/fixtures \

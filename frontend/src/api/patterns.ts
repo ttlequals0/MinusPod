@@ -18,7 +18,7 @@ export type PatternScope = 'podcast' | 'network' | 'global';
 // server-side, not stored; local (non-community) patterns are never 'stale'.
 export type PatternTrust = 'active' | 'unproven' | 'stale';
 
-// Mirrors the audio summary on each pattern; absent in the demo fixtures.
+// Older demo snapshots may omit the audio summary.
 export type PatternAudioState = 'active' | 'off' | 'none';
 
 export interface PatternAudioSummary {
