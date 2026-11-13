@@ -90,10 +90,10 @@ def _load_last_full_rebuild(db) -> float:
 def _blocked_queue_entries(db, held_pairs: set, legacy_hold: bool = False) -> set:
     """Pending (slug, episode_id) pairs the dispatcher must skip while held.
 
-    Scored per row because a pass-through override is: one feed can hold
-    blocked and eligible rows at once. ``legacy_hold`` is the unscoped
-    pre-migration marker, which blocks every row needing any LLM account.
-    Unresolvable routes leave a row eligible for the per-run check to refuse.
+    Scored per row because a pass-through override can leave one feed with both
+    blocked and eligible rows. ``legacy_hold`` is the unscoped pre-migration
+    marker that blocks every row needing an LLM account. Unresolvable routes
+    leave a row eligible so the per-run check can refuse it.
     """
     # Both are slug-independent, so one resolution covers the whole scan.
     snapshot = _resolve_route_snapshot()
@@ -126,10 +126,7 @@ def _blocked_queue_entries(db, held_pairs: set, legacy_hold: bool = False) -> se
 
 
 def _run_tick(tick_fn, name):
-    """Run one scheduled tick, logging (never raising) on failure.
-
-    Returns the tick's own return value, or None if it raised.
-    """
+    """Run one scheduled tick, logging (never raising) on failure; None if it raised."""
     try:
         return tick_fn(db)
     except Exception as e:
@@ -348,12 +345,11 @@ def _due_batch_size(interval_seconds: float, active_count: int) -> int:
 
 
 def background_rss_refresh():
-    """Refresh RSS feeds on a short tick, staggering the due feeds across the
-    configured interval (default 15 minutes) so their writes do not contend in
-    one burst. Heavy maintenance runs behind its own timer, not every tick.
+    """Refresh due RSS feeds on a short tick, staggered across the interval.
 
-    Uses shutdown_event.wait() instead of time.sleep() to allow graceful
-    shutdown interruption.
+    The default 15-minute interval spreads writes so they do not contend in one
+    burst. Heavy maintenance runs behind its own timer. Uses
+    shutdown_event.wait() so shutdown can interrupt the sleep.
     """
     from main_app.feeds import refresh_due_feeds
     from pricing_fetcher import refresh_pricing_if_stale
@@ -396,10 +392,9 @@ def background_rss_refresh():
         db.clear_leaked_transaction(refresh_logger, 'refresh loop')
         wait_seconds = REFRESH_TICK_SECONDS
 
-        # The tick already retries far sooner than the interval, so a shared
-        # outage instead backs the wait off, doubling each consecutive pass up
-        # to the interval so a down host is not hit every tick. Recovery drops
-        # straight back to the tick.
+        # A shared outage backs the wait off (doubling per pass, capped at the
+        # interval) so a down host is not hit every tick; recovery returns to
+        # the tick.
         outage = result.get('outage') if isinstance(result, dict) else None
         if outage and outage.get('detected'):
             retry_at = parse_iso_utc(outage.get('nextRetryAt'))
@@ -431,11 +426,11 @@ ClaimResult = Literal['started', 'skipped', 'bounced']
 
 
 def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
-    """Handle one claim's gates and start inline; the run itself polls on its own thread.
+    """Handle one claim's gates and start inline; the run polls on its own thread.
 
-    'started': a waiter thread now owns the run. 'skipped': the row was closed
-    (completed or failed) without starting a run. 'bounced': the row went back
-    to 'pending' and the dispatcher should back off before reclaiming it.
+    'started': a waiter thread owns the run. 'skipped': the row was closed
+    without starting. 'bounced': the row went back to 'pending' and the
+    dispatcher should back off before reclaiming it.
     """
     try:
         queue_id = queued['id']
@@ -478,10 +473,9 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
             episode_row = episode_row or db.get_episode(slug, episode_id)
             user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
 
-        # Auto-process gate (inside the try so a gate error reverts the
-        # claimed row instead of leaving it stuck in 'processing'): skip
-        # if disabled, UNLESS the episode was explicitly reprocessed by a
-        # user (reprocess_requested_at set).
+        # Auto-process gate (inside the try so a gate error reverts the claimed
+        # row instead of leaving it in 'processing'): skip if disabled, unless
+        # the user explicitly reprocessed (reprocess_requested_at set).
         if not auto_process_enabled:
             if not user_requested:
                 db.close_claimed_queue_row(queue_id, 'completed', 'Auto-process disabled for this feed')
@@ -616,10 +610,8 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
             else:
                 refresh_logger.warning(f"[{slug}:{episode_id}] Orphaned after {waited}s with no worker on it; requeued")
         elif episode and episode['status'] == 'deferred':
-            # Offline queue (#482) owns the episode now. Close
-            # the row so it is not counted as a failure (the
-            # retry ladder would skip it anyway); the re-drive
-            # re-opens it as pending once the service is back.
+            # Offline queue (#482) owns the episode now. Close the row so it is
+            # not counted as a failure; the re-drive re-opens it as pending.
             db.close_claimed_queue_row(queue_id, 'completed')
             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
         elif episode and episode['status'] == 'discovered':
@@ -875,16 +867,13 @@ def background_queue_processor():
 
 
 def reset_stuck_processing_episodes():
-    """Reset any episodes stuck in 'processing' status from previous crash.
+    """Reset episodes stuck in 'processing' from a previous crash.
 
-    Only resets episodes that have been processing for longer than 30 minutes
-    to avoid killing actively-processing jobs when a worker restarts.
-
-    Does NOT increment retry_count for orphan resets -- infrastructure crashes
-    (SIGKILL, OOM, worker timeout) are not processing failures. Only actual
-    processing errors (via _handle_processing_failure) increment retry_count.
-    Episodes are marked permanently_failed only when retry_count (from real
-    failures) reaches MAX_EPISODE_RETRIES.
+    Only resets those processing longer than 30 minutes, so a worker restart
+    does not kill live jobs. Does not increment retry_count: infrastructure
+    crashes (SIGKILL, OOM, worker timeout) are not processing failures. Only
+    _handle_processing_failure increments it, and episodes become
+    permanently_failed when it reaches MAX_EPISODE_RETRIES.
     """
     from processing_queue import ProcessingQueue
 

@@ -171,8 +171,9 @@ def _covered_by(ad, marks) -> bool:
 def merge_marks(yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions):
     """Fold SponsorBlock marks into the post-validation ad lists; returns the lists plus the dropped count.
 
-    Marks skip validation (its duration cap and refinement would alter them), a kept category
-    still wins, and a mark outranks any detection it covers so learned patterns never double a row.
+    Marks skip validation (its duration cap and refinement would alter them). A
+    kept category still wins, and a mark outranks any detection it covers so
+    learned patterns never double a row.
     """
     mark_keep, mark_cuts = keep_rules._partition_keep_ads(
         [dict(m) for m in yt_run.markers], segment_actions, None)

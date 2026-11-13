@@ -57,10 +57,10 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
                             run_started_iso=None, approval=None):
     """Upsert the processed episode row and update related DB state.
 
-    ``detection_degraded``: the sanitized reason string when this run
-    degraded, else None to clear a flag left by an earlier failure.
-    ``run_started_iso``: when the run began; only pending-recut stamps from
-    before then are cleared, so a decision recorded mid-run survives.
+    ``detection_degraded``: sanitized reason string when this run degraded,
+    else None to clear a flag left by an earlier failure.
+    ``run_started_iso``: only pending-recut stamps from before it are cleared,
+    so a decision recorded mid-run survives.
     ``approval``: the stamp from ``_approval_stamp``; default publishes.
     """
     common._require_publication_owner(slug, episode_id)
@@ -140,9 +140,9 @@ def _maybe_enqueue_degraded_redetect(slug, episode_id, episode_url, episode_titl
                                       episode_published_at, episode_data, run_stats):
     """Queue one low-priority llm-mode re-detect after a degraded publish.
 
-    Fires only on the transition into degraded (episode_data is the row as
-    it stood before this run): a run that was already degraded, or one that
-    degrades again on the automatic re-detect itself, does not re-enqueue.
+    Fires only on the transition into degraded (episode_data is the row before
+    this run); an already-degraded run, or a degraded automatic re-detect, does
+    not re-enqueue.
     """
     if not (run_stats or {}).get('detection_degraded'):
         return
@@ -163,16 +163,13 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
                                      podcast_name, episode_description,
                                      episode_published_at, episode_data, run_stats,
                                      podcast_row=None):
-    """Queue one automatic rerun when a run removed far less ad time than the
-    feed usually yields.
+    """Queue one automatic rerun when a run removed far less ad time than the feed usually yields.
 
-    Fires once per episode ever (the low_yield_rerun_at stamp) and only for
-    runs nobody asked for by hand: scheduled auto-process and play requests
-    qualify, manual reprocesses and this policy's own reruns do not. Never
-    raises into the pipeline.
-
-    podcast_row, when given, is the already-fetched podcasts row the pipeline
-    holds; None falls back to fetching it here.
+    Fires once per episode ever (low_yield_rerun_at stamp) and only for runs
+    nobody asked for by hand: scheduled auto-process and play requests
+    qualify; manual reprocesses and this policy's own reruns do not. Never
+    raises into the pipeline. podcast_row is the already-fetched row, else it
+    is fetched here.
     """
     try:
         row = episode_data or {}
@@ -245,13 +242,11 @@ def _log_completion_summary(slug, episode_id, pass1_cut_count, *, verification_c
                              original_duration, new_duration, processing_time, db):
     """Log completion summary and post-cleanup memory; return token totals.
 
-    Total cuts reported as pass-1 applied cuts + verification re-cut.
-    Matches what ``_persist_episode_state`` stores in episodes.ads_removed
-    and what ``_record_history_and_event`` writes to history.ads_detected.
+    Total cuts are pass-1 applied cuts plus the verification re-cut, matching
+    episodes.ads_removed and history.ads_detected.
 
-    ``verification_count`` is keyword-only so a future positional caller
-    using the older 7-arg signature cannot silently bind a float duration
-    into this slot.
+    ``verification_count`` is keyword-only so an older 7-arg positional caller
+    cannot silently bind a float duration into it.
     """
     total_cuts = pass1_cut_count + verification_count
     if original_duration and new_duration:
@@ -282,8 +277,7 @@ def _log_completion_summary(slug, episode_id, pass1_cut_count, *, verification_c
 def _start_run_log(slug, episode_id):
     """Attach a run-log recorder when this feed stores logs (#660).
 
-    Returns the recorder or None; setup problems disable capture for the run
-    rather than touching the pipeline.
+    Returns the recorder or None; setup problems disable capture, not the run.
     """
     try:
         if not resolve_episode_log_storage(db, db.get_podcast_by_slug(slug)):
@@ -387,15 +381,13 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                processing_time, token_totals, db,
                                audio_cue_detections=0, run_stats=None,
                                ads_held=0, ads_not_cut=0, approval=None):
-    """Record the processing history row and fire Episode Processed or Episode Awaiting Approval,
-    plus Episode Pending Review when any detections are held.
+    """Record the processing history row and fire Episode Processed or Awaiting Approval.
 
-    The webhook fires whenever the episode pipeline completed, including
-    the case where the podcast row is missing (we still have slug +
-    episode_id + counts for the payload). The webhook is skipped only
-    when `record_processing_history` raised, which signals a real DB
-    write failure that would leave the History page out of sync.
-    ``approval`` is the persisted stamp.
+    Also fires Episode Pending Review when any detections are held. The webhook
+    fires whenever the pipeline completed, even with a missing podcast row (slug,
+    episode_id and counts suffice), and is skipped only when
+    `record_processing_history` raised, a real DB write failure that would leave
+    the History page out of sync. ``approval`` is the persisted stamp.
     """
     common._require_publication_owner(slug, episode_id)
     ads_removed_total = pass1_cut_count + verification_count

@@ -1,8 +1,7 @@
 """Proxies for the app singletons that pipeline stages use.
 
-main_app creates the singletons; stage modules read them through these proxies.
-Each proxy resolves through main_app.processing because tests rebind them there
-(monkeypatch.setattr(processing, 'db', fake)).
+Each proxy resolves through main_app.processing because tests rebind the
+singletons there (monkeypatch.setattr(processing, 'db', fake)).
 """
 import sys
 

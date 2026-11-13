@@ -32,13 +32,11 @@ def _keep_overridden_by_pattern(ad) -> bool:
 
 
 class KeepDifferentialOverride:
-    """Second standing rule (#728): audio proven to differ across fetches
-    always cuts, whatever the category resolves to.
+    """Second standing rule (#728): audio proven to differ across fetches always cuts.
 
-    A category cannot settle this on its own. `cross_promo` covers both a
-    guest plugging their own show, which is why an operator sets keep, and a
-    paid dynamically-inserted ad for another podcast. The differential
-    separates them: injected audio differs between two fetches of the same
+    A category cannot settle this alone: `cross_promo` covers both a guest
+    plugging their own show (why an operator sets keep) and a paid inserted ad
+    for another podcast. Injected audio differs between two fetches of the same
     enclosure and host content does not.
     """
 
@@ -109,13 +107,11 @@ def _make_keep_differential_override(dai_differential):
 def _partition_keep_ads(all_ads, actions_map, differential_override=None):
     """Split first-pass markers by resolved segment-category action.
 
-    A marker resolving to 'keep' or 'mark' bypasses the validator, reviewer,
-    and cut: stamped was_cut=False, action_applied set to the resolved
-    action, and pulled out of the list. It also overrides any existing hold,
-    since a kept marker can never be force-cut via a stale hold:
-    held_for_review is cleared and the original reason kept as
-    hold_cleared_reason.
-    Exception: a marker from a defined pattern, or one overlapping a
+    A marker resolving to 'keep' or 'mark' bypasses validator, reviewer and
+    cut: stamped was_cut=False with action_applied set, and pulled from the
+    list. It also overrides any existing hold (a kept marker must never be
+    force-cut via a stale hold): held_for_review is cleared and the reason kept
+    as hold_cleared_reason. A marker from a defined pattern, or overlapping a
     measured differential region, bypasses keep/mark and lands in the remove
     list stamped with which override caught it.
 
@@ -149,23 +145,17 @@ def _partition_keep_ads(all_ads, actions_map, differential_override=None):
 
 def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map,
                                 differential_override=None):
-    """Backstop right before the pass-1 cut list reaches the audio
-    processor: drops any marker whose resolved action is still keep-like.
+    """Backstop before the pass-1 cut list reaches the audio processor: drop any still keep-like marker.
 
-    A keep-resolving marker synthesized inside _refine_and_validate is
-    normally already caught by process_episode's late partition call before
-    this runs, so this should find nothing in the ordinary case; it stays
-    as a last resort for any marker source that adds one afterward, since
-    letting it reach _partition_cut_actions would fall back to
-    DEFAULT_SEGMENT_ACTION and still cut it.
+    A keep-resolving marker synthesized inside _refine_and_validate is normally
+    caught by process_episode's late partition, so this should find nothing; it
+    covers any later marker source, since _partition_cut_actions would fall back
+    to DEFAULT_SEGMENT_ACTION and cut it.
 
     Stamps was_cut=False/action_applied on a caught marker (and its
-    all_ads_with_validation master) with the resolved action, clears any
-    hold the same way the keep partition does, and removes it from the
-    returned cut list.
-    Exception: a marker from a defined pattern, or one overlapping a
-    measured differential region, stays in the cut list, never kept by
-    keep maps.
+    all_ads_with_validation master), clears any hold like the keep partition,
+    and removes it from the cut list. Pattern-defined markers and ones
+    overlapping a measured differential region stay in the cut list.
     Returns ads_to_remove unchanged when no category resolves to keep-like.
     """
     if not any(is_keep_like(action) for action in actions_map.values()):
@@ -217,12 +207,10 @@ def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, corrections
 def _partition_cut_actions(ads_to_remove, actions_map):
     """Stamp each cut-list marker with its resolved remove/beep action.
 
-    'keep'/'mark' are already handled by _partition_keep_ads and
-    _apply_late_keep_safety_net; this only distinguishes remove from beep.
-    A marker with no category key (pass-2 verification ads) normalizes to
-    'sponsor'. A keep-like resolution reaching here (unreachable for a
-    pass-1 marker) falls back to DEFAULT_SEGMENT_ACTION rather than being
-    pulled from the list this late, so the segment still cuts.
+    'keep'/'mark' are already handled upstream; this only separates remove from
+    beep. A marker with no category key (pass-2 verification ads) normalizes to
+    'sponsor'. A keep-like resolution here (unreachable for pass-1) falls back
+    to DEFAULT_SEGMENT_ACTION so the segment still cuts.
 
     Mutates ad['action_applied'] in place; returns ads_to_remove for chaining.
     """
@@ -236,7 +224,7 @@ def _partition_cut_actions(ads_to_remove, actions_map):
 
 def _stamp_and_carve_cuts(slug, episode_id, ads_to_remove, all_ads, segment_actions,
                           keep_ads):
-    """Stamp remove/beep on the cuts and their masters, then carve cuts around kept audio.
+    """Stamp remove/beep on the cuts and masters, then carve cuts around kept audio.
 
     SponsorBlock mute marks that resolve to remove render as a beep.
     """

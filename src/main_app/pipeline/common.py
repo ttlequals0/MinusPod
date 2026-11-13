@@ -68,13 +68,11 @@ def _measure_run_stage(name: str):
 
 
 def get_min_cut_confidence() -> float:
-    """Get the minimum confidence threshold for cutting ads from audio.
+    """Minimum confidence for cutting an ad from audio.
 
-    This is configurable via the 'min_cut_confidence' setting (aggressiveness slider).
-    Lower = more aggressive (removes more potential ads)
-    Higher = more conservative (removes only high-confidence ads)
-
-    Default value is MIN_CUT_CONFIDENCE from config.py
+    Set by the 'min_cut_confidence' setting (aggressiveness slider): lower
+    removes more potential ads, higher only high-confidence ones. Defaults to
+    MIN_CUT_CONFIDENCE from config.py.
     """
     try:
         value = db.get_setting('min_cut_confidence')
@@ -99,11 +97,10 @@ def resolve_audio_encode_settings() -> tuple[str, str]:
 
 
 def is_transient_error(error: Exception) -> bool:
-    """Determine if an error is transient (worth retrying) or permanent.
+    """Whether an error is transient (worth retrying) or permanent.
 
-    Delegates LLM API error classification to llm_client.is_retryable_error(),
-    then applies episode-processing-specific checks for network, OOM, CDN, and
-    audio format errors.
+    Delegates LLM API classification to llm_client.is_retryable_error(), then
+    checks network, OOM, CDN and audio-format errors.
     """
     # Unconfigured model is operator-fixable but never self-resolves on retry.
     if isinstance(error, ModelNotConfiguredError):
@@ -155,7 +152,7 @@ def is_transient_error(error: Exception) -> bool:
     if is_retryable_error(error):
         return True
 
-    # Known LLM API error that wasn't retryable -- permanent
+    # Known LLM API error that wasn't retryable: permanent
     if is_llm_api_error(error):
         return False
 
@@ -211,9 +208,9 @@ def is_transient_error(error: Exception) -> bool:
 
 
 def _setting_float(db, key: str, default: float, allow_zero: bool = False) -> float:
-    """Read a float setting with graceful fallback on missing/invalid values.
+    """Read a float setting, falling back on missing/invalid values.
 
-    allow_zero: accept 0 as a valid value (for settings where 0 = disabled).
+    allow_zero: accept 0 as valid (for settings where 0 means disabled).
     """
     value = db.get_setting(key)
     if value is None or value == '':

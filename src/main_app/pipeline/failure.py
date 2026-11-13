@@ -93,10 +93,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
     common._publish_status('fail_job', slug, episode_id)
 
-    # Provider account change: this run's routes were frozen against an
-    # account the operator has since replaced, so its endpoint and the slot's
-    # current key no longer belong together. Requeue and drop the frozen
-    # routes; the next attempt resolves against the new configuration.
+    # Provider account change: this run's routes were frozen against a replaced
+    # account, so its endpoint and the slot's current key no longer match.
+    # Requeue and drop the frozen routes; the next attempt re-resolves.
     ctx = run_context.current()
     account_changed = isinstance(error, ProviderAccountChangedError) or bool(
         admission._stale_snapshot_phases(ctx.route_snapshot if ctx else None))
@@ -131,17 +130,15 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
-    # Only typed exceptions qualify -- never string matching -- so genuine
-    # errors keep today's retry/permanent path. retry_count is untouched so a
-    # deferred episode cannot drift toward permanently_failed while the
-    # service is down. No history row or webhook: nothing "failed" yet.
+    # Only typed exceptions qualify (never string matching). retry_count is
+    # untouched so a deferred episode cannot drift toward permanently_failed;
+    # no history row or webhook, since nothing "failed" yet.
     if (isinstance(error, (ServiceUnavailableError, CircuitBreakerOpen))
             and is_offline_queue_enabled(db)):
         service = getattr(error, 'service', 'llm')
-        # deferred_at marks when the episode FIRST entered the offline queue
-        # and survives re-drive cycles, so the TTL bounds total time in the
-        # deferred lifecycle. Stamping fresh on every re-deferral would let a
-        # flapping endpoint (probe up, calls failing) reset the clock forever.
+        # deferred_at marks when the episode FIRST entered the offline queue and
+        # survives re-drive cycles, so the TTL bounds total deferred time.
+        # Re-stamping per deferral would let a flapping endpoint reset it forever.
         first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
         db.upsert_episode(
             slug, episode_id,

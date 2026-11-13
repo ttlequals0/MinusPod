@@ -411,10 +411,9 @@ def _finalize_user_confirmed_bounds(
         confirmed_corrections=None, episode_duration=None):
     """Make a human-approved trim the final authority before audio cutting.
 
-    Validation normally applies ``confirmed_span`` already, but later pipeline
-    stages rebuild marker dicts and mutate boundaries. Re-assert the approved
-    span after every reviewer/tail operation and synchronize the master marker
-    so the rendered cut and UI audit trail cannot diverge.
+    Later stages rebuild marker dicts and mutate boundaries, so re-assert the
+    approved span after every reviewer/tail operation and sync the master marker
+    so the cut and UI audit trail cannot diverge.
     """
     if not ads_to_remove:
         return ads_to_remove

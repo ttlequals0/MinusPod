@@ -29,12 +29,11 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
                               language_override):
     """Re-transcribe the untranscribed episode tail without VAD (spec 1.2).
 
-    Whisper's VAD drops quiet DAI post-rolls, so the transcript can end well
-    before the audio does and no LLM window ever sees the tail. When the gap
-    is inside the configured window, re-run just the tail with
-    vad_filter=False and return the segments flagged novad_tail=True.
-    On the API whisper backend the tail is sent as its own upload carrying
-    `vad_filter=false`; servers without the switch ignore it.
+    Whisper's VAD drops quiet DAI post-rolls, so the transcript can end before
+    the audio and no LLM window sees the tail. When the gap is inside the
+    configured window, re-run just the tail with vad_filter=False and return the
+    segments flagged novad_tail=True. The API backend sends the tail as its own
+    upload with `vad_filter=false`; servers without the switch ignore it.
     """
     if not segments:
         return []
@@ -142,9 +141,9 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
 def _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome, preacquired_audio=None):
     """Working audio file: pre-acquired audio, a copy of the retained original, else a fresh download.
 
-    The copy keeps the retain-move and cleanup-unlink later in process_episode
-    off the retained original. Local originals are never re-downloadable
-    (original_url is a local:// sentinel), so a missing one is a hard failure.
+    The copy keeps the later retain-move and cleanup-unlink off the retained
+    original. Local originals (original_url is a local:// sentinel) are never
+    re-downloadable, so a missing one is a hard failure.
     """
     if preacquired_audio:
         return preacquired_audio
@@ -171,9 +170,9 @@ def _next_processed_version(episode_data):
 def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
     """True when an earlier attempt of this same reprocess saved a transcript.
 
-    The forced clear deletes and recreates the details row, so a row newer
-    than the reprocess request holds this request's transcript, not the stale
-    pre-request one, and a retry after a transient failure may reuse it.
+    The forced clear recreates the details row, so a row newer than the request
+    holds this request's transcript and a retry after a transient failure may
+    reuse it.
     """
     if not requested_at:
         return False
@@ -195,22 +194,19 @@ def _download_and_transcribe(slug, episode_id, episode_url,
                               skip_transcription=False, podcast=None,
                               force_transcription=False, outcome=None,
                               preacquired_audio=None, preloaded_segments=None):
-    """Pipeline stage: Download audio and get/create transcript segments.
+    """Pipeline stage: download audio and get/create transcript segments.
 
-    ``skip_transcription``: cue_only preset opt-out; goes straight to
-    audio acquisition and returns (audio_path, []) without transcribing.
+    ``skip_transcription``: cue_only preset opt-out; returns (audio_path, [])
+    after audio acquisition without transcribing.
 
     ``force_transcription``: full/reprocess reruns (#692). Transcribes fresh
-    instead of reusing the saved transcript; the stale details row (old
-    transcript plus detection data) is wiped only once the fresh transcript
-    exists in memory, so a crash cannot lose both.
+    instead of reusing the saved transcript; the stale details row is wiped only
+    once the fresh transcript exists in memory, so a crash cannot lose both.
 
-    ``podcast``: the caller's already-fetched podcast row (avoids a
-    redundant db.get_podcast_by_slug here), matching the pattern used by
-    _run_differential_fetch. None is treated as non-local.
+    ``podcast``: the caller's already-fetched podcast row (avoids a redundant
+    db.get_podcast_by_slug). None is treated as non-local.
 
     ``outcome``: optional dict; gets ``segments_reused`` True only when saved segments were used.
-
     ``preacquired_audio``: audio the caller already downloaded (YouTube).
     ``preloaded_segments``: caller-supplied transcript segments (YouTube captions).
 
@@ -244,11 +240,10 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     transcript_text = None if force_transcription else storage.get_transcript(slug, episode_id)
 
     if transcript_text:
-        # Prefer the saved whisper segments (with word-level timestamps) over
-        # re-parsing the transcript text. parse_transcript_segments drops the
-        # word timing that boundary refinement and detection rely on, which
-        # measurably weakened first-pass detection in LLM-only mode (issue #349).
-        # Fall back to the text parse if the original segments were never saved.
+        # Prefer the saved whisper segments (with word-level timestamps):
+        # parse_transcript_segments drops the word timing that boundary
+        # refinement and detection need, which weakened LLM-only detection (#349).
+        # Fall back to the text parse if the segments were never saved.
         segments = db.get_original_segments(slug, episode_id)
         if segments:
             audio_logger.info(
