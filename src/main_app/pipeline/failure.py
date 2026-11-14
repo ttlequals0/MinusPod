@@ -177,8 +177,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.info(f"[{slug}:{episode_id}] SponsorBlock: {error_text}; will check again at {error.next_check_at}")
         return
 
-    audio_logger.error(f"[{slug}:{episode_id}] Failed: {error_text} ({processing_time:.1f}s)")
-
     transient = common.is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
 
@@ -221,6 +219,12 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         new_retry_count = current_retry
         audio_logger.warning(f"[{slug}:{episode_id}] Permanent error, not retrying: {type(error).__name__}: {error_text}")
 
+    # An enclosure not published yet that will be retried is expected, not an error.
+    will_retry_audio = (isinstance(error, AudioNotReadyError)
+                        and new_status == EpisodeStatus.FAILED.value)
+    audio_logger.log(logging.WARNING if will_retry_audio else logging.ERROR,
+                     f"[{slug}:{episode_id}] Failed: {error_text} ({processing_time:.1f}s)")
+
     db.upsert_episode(slug, episode_id, status=new_status,
         retry_count=new_retry_count, error_message=error_text)
 
@@ -230,7 +234,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # A retryable failure to even fetch the enclosure processed nothing, so it
     # is not a run: the row would only inflate the reprocess number the real
     # run is stamped with. The episode row still carries the error and retry.
-    if isinstance(error, AudioNotReadyError) and new_status == EpisodeStatus.FAILED.value:
+    if will_retry_audio:
         audio_logger.info(
             f"[{slug}:{episode_id}] Audio was never fetched; not recording a "
             f"processing run for this attempt")
