@@ -49,8 +49,6 @@ import { DemoDisabled } from '../../components/DemoDisabled';
 import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
-// Fill the grid cell below xl; natural width in the inline xl row.
-const cellFill = 'w-full xl:w-auto';
 
 interface Props {
   slug: string;
@@ -506,12 +504,12 @@ function CueTemplatesPanel({ slug }: Props) {
                   </div>
                 </div>
                 {editingId !== t.id && (
-                  <div className="grid grid-cols-1 min-[380px]:grid-cols-2 min-[680px]:grid-cols-4 gap-1.5 xl:flex xl:flex-wrap xl:items-center xl:shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 xl:shrink-0">
                     {t.hasAudio !== false && (
                       <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                           onClick={() => togglePlay(t)}
                           disabled={IS_DEMO}
                           title={playingId === t.id ? 'Stop' : 'Play this cue'}
@@ -524,7 +522,7 @@ function CueTemplatesPanel({ slug }: Props) {
                     )}
                     <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
                       <a
-                        className={`${rowActionBtn} ${btnOutline} ${cellFill} touch-target`}
+                        className={`${rowActionBtn} ${btnOutline} touch-target`}
                         href={cueTemplateExportUrl(t.id)}
                         title="Download this cue as a portable zip"
                       >
@@ -532,7 +530,7 @@ function CueTemplatesPanel({ slug }: Props) {
                       </a>
                     </DemoDisabled>
                     {t.owned === false ? (
-                      <span className="col-span-full text-xs text-muted-foreground italic">
+                      <span className="text-xs text-muted-foreground italic">
                         Shared from this network
                       </span>
                     ) : (
@@ -543,7 +541,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           return (
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
+                              className={`${rowActionBtn} ${btnOutline}`}
                               onClick={() => handlePromote(t)}
                               title={
                                 t.scope === 'network'
@@ -561,7 +559,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         })()}
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                           onClick={() => startEditType(t)}
                         >
                           Change type
@@ -586,22 +584,24 @@ function CueTemplatesPanel({ slug }: Props) {
                               }
                             }}
                             placeholder="inherit"
-                            className="w-full xl:w-20 h-auto py-2 sm:py-[5px] text-sm sm:text-xs max-sm:h-11 min-h-11 sm:min-h-0"
+                            className="w-20 h-auto py-2 sm:py-[5px] text-sm sm:text-xs max-sm:h-11 min-h-11 sm:min-h-0"
                             aria-label="Score threshold"
                           />
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
+                            className={`${rowActionBtn} ${btnOutline}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
                             Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
                           </button>
                         )}
+                        {/* Optimize and Delete wrap as one unit so Delete never sits alone on a line. */}
+                        <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                           onClick={() => {
                             setActionError(null);
                             setOptimizeId(optimizeId === t.id ? null : t.id);
@@ -618,7 +618,7 @@ function CueTemplatesPanel({ slug }: Props) {
                             <DemoDisabled>
                               <button
                                 type="button"
-                                className={`${rowActionBtn} ${btnDestructive} ${cellFill}`}
+                                className={`${rowActionBtn} ${btnDestructive}`}
                                 onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
                               >
                                 Delete cue
@@ -626,7 +626,7 @@ function CueTemplatesPanel({ slug }: Props) {
                             </DemoDisabled>
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
+                              className={`${rowActionBtn} ${btnOutline}`}
                               onClick={() => setConfirmDeleteId(null)}
                             >
                               Cancel
@@ -635,12 +635,13 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnDestructiveOutline} ${cellFill}`}
+                            className={`${rowActionBtn} ${btnDestructiveOutline}`}
                             onClick={() => setConfirmDeleteId(t.id)}
                           >
                             Delete
                           </button>
                         )}
+                        </div>
                       </>
                     )}
                   </div>
