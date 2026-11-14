@@ -806,7 +806,7 @@ describe('More menu on a cue row', () => {
     expect(screen.queryByRole('button', { name: /More actions/i })).toBeNull();
   });
 
-  it('keeps the Threshold button label fixed and shows the value as a badge only when set', async () => {
+  it('keeps the Threshold button label fixed and shows the value as a text line only when set', async () => {
     mockListCueTemplates.mockResolvedValue([
       makeTemplate({ id: 7, label: 'Ding', scoreThreshold: 0.8 }),
       makeTemplate({ id: 8, label: 'Dong', scoreThreshold: null }),

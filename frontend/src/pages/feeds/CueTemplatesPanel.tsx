@@ -482,19 +482,11 @@ function CueTemplatesPanel({ slug }: Props) {
                     </select>
                   ) : (
                     <>
-                      <p className="font-medium break-words">
+                      <p className="font-medium truncate">
                         {t.label}
                         {t.scope === 'network' && (
                           <span className={`${badgeBase} ml-2 ${tint.purple} align-middle`}>
                             Network
-                          </span>
-                        )}
-                        {t.scoreThreshold != null && (
-                          <span
-                            className={`${badgeBase} ml-2 ${tint.neutral} align-middle`}
-                            title="Per-template match score threshold"
-                          >
-                            Threshold {formatPercent(t.scoreThreshold)}
                           </span>
                         )}
                         {t.quiet && (
@@ -511,6 +503,11 @@ function CueTemplatesPanel({ slug }: Props) {
                         {t.sourceEpisodeId ? ` of episode ${t.sourceEpisodeId.slice(0, 8)}` : ''}
                         {t.lastMatchAt ? ` - last match ${formatDate(t.lastMatchAt)}` : ''}
                       </p>
+                      {t.scoreThreshold != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Threshold {formatPercent(t.scoreThreshold)}
+                        </p>
+                      )}
                       {t.cueType.startsWith('ad_break_') && (
                         <Checkbox
                           className="min-h-11"
