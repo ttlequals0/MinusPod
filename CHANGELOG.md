@@ -8,6 +8,24 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.1] - 2026-11-13
+
+### Added
+
+- The Patterns page has an Audio filter beside Category, with All, Has audio, Audio on, Audio off and No audio. The choice is kept in the URL as `audio`.
+
+### Changed
+
+- The Audio column and the pattern cards say "No audio" for a pattern with no audio fingerprint and "No matches yet" for a fingerprint that has not matched. Both showed "-" before.
+- The actions of an audio cue template (Play, Export, Change type, Threshold and Optimize window) are drawn as buttons. The Play icon no longer touches its label, and Delete stays on the same line as Optimize window.
+- Outline buttons such as Delete and Refresh are the same height as the buttons beside them. They were 2 px taller.
+
+### Fixed
+
+- Add audio to pattern finds a source for more patterns. It now also looks in retained episodes where the pattern's own ad marker was accepted, within the pattern's scope, and it resolves the origin episode of global and network patterns. Before, it was offered only for the origin episode of a podcast-scope pattern or for an episode with a correction, so a pattern matched by text alone could not get audio.
+- Pattern Cleanup trims and splits, and the Split action in the pattern dialog, update the audio of patterns whose fingerprint was stored before 2.102.0. Those fingerprints have no recorded source, so the audio step was skipped without notice: a split left the new patterns with no audio and a trim kept the old span. A retained match inside the pattern's scope is now used as the source. When no source is retained, the response reports `fingerprintStored: false` with `original_not_retained`, and the Cleanup tab and the split dialog say that the pattern's audio was not updated.
+- A link to a Settings section opens that section, scrolls to it and moves focus there. The "Settings > Experiments" link on the Cleanup tab opens Pattern cleanup, and the YouTube link on Add feed now works. Before, only two sections responded to such links.
+
 ## [2.102.0] - 2026-11-13
 
 ### Breaking

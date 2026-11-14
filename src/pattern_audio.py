@@ -185,7 +185,7 @@ def _usable_fingerprint_row(conn, pattern_id):
 
 
 def rebuild_audio_source(db, conn, pattern_id):
-    """(source, wanted) for rebuilding a pattern's audio: the recorded source if retained, else a retained in-scope match."""
+    """(source, wanted): the recorded source if retained, else a retained in-scope match."""
     row = _usable_fingerprint_row(conn, pattern_id)
     if row is None:
         return None, False

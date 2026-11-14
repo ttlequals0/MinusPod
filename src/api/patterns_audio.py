@@ -114,7 +114,7 @@ def _own_marker_span(db, slug, episode_id, pattern_id):
 def _add_source(db, storage, pattern_id):
     """The span of the pattern's own marker that a fingerprint could be built from, or None.
 
-    The origin episode is tried first, then up to ADD_SOURCE_EPISODES corrected and as many marked episodes that keep their original.
+    Tried in order: the origin episode, corrected episodes, then episodes holding its marker.
     """
     pattern = db.get_ad_pattern_by_id(pattern_id)
     origin_id = pattern.get('created_from_episode_id')

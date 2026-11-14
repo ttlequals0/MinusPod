@@ -503,7 +503,7 @@ class PatternMixin:
         return [(r['slug'], r['episode_id']) for r in rows]
 
     def get_pattern_origin_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
-        """(slug, episode_id) of the pattern's origin episode inside its scope; ids repeat across feeds, so every feed holding it."""
+        """In-scope (slug, episode_id) pairs for the origin episode id, which can repeat across feeds."""
         scope_sql, params = _pattern_scope_sql(pattern)
         rows = self.get_connection().execute(
             "SELECT p.slug, e.episode_id FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "  # noqa: S608
@@ -513,7 +513,7 @@ class PatternMixin:
         return [(r['slug'], r['episode_id']) for r in rows]
 
     def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
-        """(slug, episode_id) of the newest-processed in-scope episodes that keep their original and store a marker naming the pattern, minus false-positive ones."""
+        """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
         scope_sql, scope_params = _pattern_scope_sql(pattern)
         like_sql, like_params = _marker_id_like(pattern['id'])
         rows = self.get_connection().execute(
