@@ -47,7 +47,8 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import (
-    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
+    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_MARKER_REFS_INDEX_SQL,
+    EPISODE_MARKER_REFS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
     FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
 from database.fingerprint_cleanup import delete_matches_for_missing_episodes
@@ -182,7 +183,8 @@ class SchemaMixin(DeferredUpgradeMixin):
         installed = {row['name'] for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'episode_details'")}
         missing = [ddl for name, ddl in {**EPISODE_FEED_DETAILS_TRIGGERS,
-                                         **EPISODE_SNAP_STATS_TRIGGERS}.items()
+                                         **EPISODE_SNAP_STATS_TRIGGERS,
+                                         **EPISODE_MARKER_REFS_TRIGGERS}.items()
                    if name not in installed and self._table_exists(conn, 'episode_details')]
         for statement in missing:
             conn.execute(statement)
@@ -222,6 +224,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         'pattern_cleanup_deleted_actions',
         'episode_feed_details',
         'episode_snap_stats',
+        'episode_marker_refs',
         'deferred_upgrade_steps',
     )
 
@@ -232,6 +235,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         sentinel_existed = self._table_exists(conn, 'addressing_log')
         for table in self._MIGRATION_CREATED_TABLES:
             conn.execute(TABLE_DDL[table])
+        conn.execute(EPISODE_MARKER_REFS_INDEX_SQL)
 
         # Create indexes for processing_history
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC)")
@@ -749,6 +753,10 @@ class SchemaMixin(DeferredUpgradeMixin):
                          "ON episodes(COALESCE(processed_at, updated_at))")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at "
                          "ON episodes(processed_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_id "
+                         "ON episodes(id, podcast_id, processed_at, episode_id) WHERE original_file IS NOT NULL")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_feed "
+                         "ON episodes(podcast_id, processed_at, id, episode_id) WHERE original_file IS NOT NULL")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_quality_rated_at "
                          "ON episodes(quality_rated_at) WHERE quality_rating IS NOT NULL")
             for col, definition in (

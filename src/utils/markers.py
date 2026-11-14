@@ -354,6 +354,24 @@ def parse_ad_markers(raw) -> list[dict] | None:
     return normalize_loaded_markers(markers)
 
 
+def extract_marker_refs(markers) -> set[tuple[str, str]]:
+    """Distinct ('pattern', id) and ('sponsor', stripped lowercase name) pairs named anywhere in parsed markers."""
+    refs = set()
+    stack = [markers]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, list):
+            stack.extend(node)
+        elif isinstance(node, dict):
+            pattern_id, sponsor = node.get('pattern_id'), node.get('sponsor')
+            if isinstance(pattern_id, int) and not isinstance(pattern_id, bool):
+                refs.add(('pattern', str(pattern_id)))
+            if isinstance(sponsor, str) and sponsor.strip():
+                refs.add(('sponsor', sponsor.strip().lower()))
+            stack.extend(v for v in node.values() if isinstance(v, (list, dict)))
+    return refs
+
+
 def dai_core_spans(marker: dict) -> list[tuple[float, float]]:
     """(start, end) of a marker's measured DAI regions."""
     return [(s['start'], s['end']) for s in _valid_dai_core_spans(marker)]
@@ -421,6 +439,8 @@ COARSE_MEMBER_STAGES = frozenset({
 })
 
 MERGED_MEMBER_SPANS = 'merged_member_spans'
+# Stages whose member spans name the pattern that produced them.
+PATTERN_MEMBER_STAGES = frozenset({'fingerprint', 'text_pattern'})
 # Stages whose member spans name the pattern that produced them.
 PATTERN_MEMBER_STAGES = frozenset({'fingerprint', 'text_pattern'})
 # Every detection stage folded into a marker, including those that leave no member span.
