@@ -12,7 +12,7 @@ release notes.
 
 ### Changed
 
-- The actions of an audio cue template are laid out as a grid of equal-width buttons, two columns on a phone and four on a tablet, with Delete last. The enable checkbox lines up with the template name. Before, the buttons wrapped unevenly, and Optimize window and Delete sat apart at the right.
+- The actions of an audio cue template sit in one left-aligned row that wraps. Delete comes last and stays on the same line as Optimize window. The enable checkbox lines up with the template name. Before, Optimize window and Delete sat apart at the right.
 
 ### Fixed
 
