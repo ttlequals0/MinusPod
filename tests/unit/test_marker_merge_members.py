@@ -39,6 +39,14 @@ def _estimated(start, end, text_start, text_end):
                text_start=text_start, text_end=text_end)
 
 
+def test_text_pattern_and_fingerprint_members_keep_their_pattern_id():
+    base = _ad(100.0, 130.0, 'text_pattern', pattern_id=7)
+    note_merged_members(base, _ad(131.0, 160.0, 'fingerprint', pattern_id=8))
+    note_merged_members(base, _ad(200.0, 230.0, 'claude', pattern_id=9))
+    assert [(m['stage'], m.get('pattern_id')) for m in base['merged_member_spans']] == [
+        ('text_pattern', 7), ('fingerprint', 8), ('claude', None)]
+
+
 def test_claude_members_are_protected():
     base = _ad(100.0, 130.0, 'claude')
     note_merged_members(base, _ad(131.0, 160.0, 'claude'))

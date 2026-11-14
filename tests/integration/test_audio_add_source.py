@@ -336,3 +336,65 @@ def test_rebuild_route_accepts_a_text_match_marker_span(app_client, fp_feed, cle
     resp = app_client.post(f'/api/v1/patterns/{pid}/audio/rebuild', headers=csrf(app_client), json={
         k: src[k] for k in ('podcastSlug', 'episodeId', 'start', 'end')})
     assert resp.status_code == 200 and resp.get_json()['fingerprintStored'] is True
+
+
+def _break(pid, members, **kw):
+    """A merged break led by another pattern, with members naming this one."""
+    return {'start': 100.0, 'end': 300.0, 'pattern_id': pid + 1000, 'was_cut': True,
+            'merged_member_spans': members, **kw}
+
+
+def _member(pid, start, end, stage='text_pattern'):
+    return {'start': start, 'end': end, 'stage': stage, 'pattern_id': pid}
+
+
+def test_member_of_a_merged_marker_gives_its_own_span(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [_break(pid, [_member(pid, 150.0, 200.0)])])
+    assert _detail(app_client, pid)['addSource'] == {
+        'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 150.0, 'end': 200.0, 'available': True}
+
+
+@pytest.mark.parametrize('extra', [{'validation': {'decision': 'REJECT'}}, {'was_cut': False}])
+def test_member_of_a_rejected_or_uncut_parent_is_not_offered(app_client, fp_feed, fp_original, extra):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [_break(pid, [_member(pid, 150.0, 200.0)], **extra)])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_member_is_clipped_to_the_displayed_span_of_an_adjusted_parent(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [_break(pid, [_member(pid, 80.0, 150.0)], reviewer_verdict='adjust',
+                              reviewer_original_start=100.0, reviewer_original_end=250.0)])
+    body = _detail(app_client, pid)['addSource']
+    assert (body['start'], body['end']) == (100.0, 150.0)
+
+
+def test_member_outside_the_displayed_span_is_skipped(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [_break(pid, [_member(pid, 310.0, 350.0)])])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_earliest_of_a_top_level_marker_and_a_member_wins(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [{'start': 400.0, 'end': 430.0, 'pattern_id': pid},
+                       _break(pid, [_member(pid, 150.0, 200.0, 'fingerprint')])])
+    assert _detail(app_client, pid)['addSource']['start'] == 150.0
+
+
+def test_member_without_a_pattern_id_is_ignored(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [_break(pid, [{'start': 150.0, 'end': 200.0, 'stage': 'claude'}])])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_rebuild_from_a_member_span_records_that_source(app_client, fp_feed, fp_original, stub_fingerprinting):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [_break(pid, [_member(pid, 150.0, 200.0)])])
+    src = _detail(app_client, pid)['addSource']
+    resp = app_client.post(f'/api/v1/patterns/{pid}/audio/rebuild', headers=csrf(app_client),
+                           json={k: src[k] for k in ('podcastSlug', 'episodeId', 'start', 'end')})
+    assert resp.status_code == 200 and resp.get_json()['fingerprintStored'] is True
+    row = fp_feed.get_audio_fingerprint(pid, with_blob=False)
+    assert (row['source_episode_id'], row['source_start'], row['source_end']) == (EPISODE, 150.0, 200.0)

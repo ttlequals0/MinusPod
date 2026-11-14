@@ -23,7 +23,7 @@ from audio_fingerprinter import (
 from config import FFMPEG_SHORT_TIMEOUT, is_keep_like, is_pending_review
 from storage import PathContainmentError
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
-from utils.markers import parse_ad_markers
+from utils.markers import MERGED_MEMBER_SPANS, finite_number, parse_ad_markers
 from utils.constants import EpisodeStatus
 from utils.subprocess_registry import tracked_run
 
@@ -101,13 +101,27 @@ def _is_rejected_marker(marker, episode_status):
     return (marker.get('validation') or {}).get('decision') == 'REJECT' or not was_cut
 
 
+def _marker_pattern_spans(marker, pattern_id):
+    """Displayed spans of a marker for the pattern: its own, and each merged member's, clipped to the marker."""
+    outer = _displayed_span(marker)
+    if outer is None:
+        return []
+    spans = [outer] if marker.get('pattern_id') == pattern_id else []
+    for member in marker.get(MERGED_MEMBER_SPANS) or []:
+        if isinstance(member, dict) and member.get('pattern_id') == pattern_id:
+            lo, hi = finite_number(member.get('start')), finite_number(member.get('end'))
+            if lo is not None and hi is not None and usable_span(max(outer[0], lo), min(outer[1], hi)):
+                spans.append((max(outer[0], lo), min(outer[1], hi)))
+    return spans
+
+
 def _own_marker_span(db, slug, episode_id, pattern_id):
-    """The earliest displayed span of the pattern's own accepted marker in an episode, or None."""
+    """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
     episode = db.get_episode(slug, episode_id)
     status = EpisodeStatus.from_api((episode or {}).get('status'))
     spans = sorted(span for marker in parse_ad_markers((episode or {}).get('ad_markers_json')) or []
-                   if isinstance(marker, dict) and marker.get('pattern_id') == pattern_id
-                   and not _is_rejected_marker(marker, status) and (span := _displayed_span(marker)))
+                   if isinstance(marker, dict) and not _is_rejected_marker(marker, status)
+                   for span in _marker_pattern_spans(marker, pattern_id))
     return spans[0] if spans else None
 
 

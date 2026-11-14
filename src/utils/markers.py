@@ -585,8 +585,8 @@ def member_spans(marker: dict) -> list[dict]:
             value = finite_number(marker.get(key))
             if value is not None:
                 member[key] = value
-        if marker.get('pattern_id') is not None:
-            member['pattern_id'] = marker['pattern_id']
+    if stage in ('fingerprint', 'text_pattern') and marker.get('pattern_id') is not None:
+        member['pattern_id'] = marker['pattern_id']
     return [member]
 
 
