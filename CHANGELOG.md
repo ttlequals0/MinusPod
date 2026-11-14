@@ -10,12 +10,19 @@ release notes.
 
 ## [2.102.3] - 2026-11-14
 
+### Added
+
+- `GET /feeds/{slug}/episodes/{episode_id}/artwork` accepts `size=thumb` and returns a 256 px thumbnail. Episode responses carry its address in `artworkThumbUrl`. (#1000)
+
 ### Changed
 
+- Episode lists load 256 px cover thumbnails, and the browser keeps each one for 7 days. They requested the full-size cover for every row on every visit, which was slow on long lists and left grey placeholders when many covers loaded at once. Reported with measurements by Punkamonk. (#1000)
+- A cover shared by many episodes of a feed is downloaded and stored once. It was downloaded and stored once per episode. (#1000)
+- Episode cover requests have their own limit of 3000 per minute. They counted against the general limit of 200 per minute. (#1000)
 - Add audio to pattern finds episodes through a new index of the pattern ids and sponsors named in each episode's ad markers. The lookup read every episode's stored markers and could take more than 10 seconds on a library of 18,000 episodes. It now takes under 100 ms.
 - After an upgrade, a one-time background step builds that index from existing episodes. Until it finishes, Add audio can miss older episodes, and `GET /patterns/{id}/audio` reports `markerIndexPending: true`.
 - A freshly published episode whose audio is not available yet is logged as a warning while it still has retries left. It was logged as an error.
-- A podcast artwork URL that keeps failing logs one warning. It logged the same warning at every retry.
+- A feed or episode cover URL that keeps failing logs one warning. It logged the same warning at every retry.
 
 ### Fixed
 
