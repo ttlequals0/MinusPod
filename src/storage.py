@@ -1174,6 +1174,9 @@ class Storage:
                 logger.info(f"[{slug}] artwork_cached flag set but file missing, re-downloading")
 
             logger.info(f"[{slug}] Downloading artwork from {safe_url_for_log(artwork_url)}")
+            # A URL already in the failure record warns once; repeats after the backoff drop to DEBUG.
+            fail_level = (logging.DEBUG if artwork_url in self._artwork_failure_state(podcast)
+                          else logging.WARNING)
 
             headers = {
                 'User-Agent': user_agent or download_user_agent(podcast),
@@ -1196,8 +1199,8 @@ class Storage:
                 response.raise_for_status()
             except Exception:
                 status_code = getattr(response, 'status_code', None)
-                logger.warning(
-                    "[%s] artwork_fetch_failed status=%s url=%s",
+                logger.log(
+                    fail_level, "[%s] artwork_fetch_failed status=%s url=%s",
                     slug, status_code, safe_url_for_log(artwork_url),
                 )
                 not_found = (status_code is not None and 400 <= status_code < 500
@@ -1206,8 +1209,8 @@ class Storage:
 
             declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
             if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
-                logger.warning(
-                    "[%s] artwork_rejected_content_type declared=%s url=%s",
+                logger.log(
+                    fail_level, "[%s] artwork_rejected_content_type declared=%s url=%s",
                     slug, declared_type, safe_url_for_log(artwork_url),
                 )
                 return False, 'error'
@@ -1224,8 +1227,8 @@ class Storage:
 
             detected = _detect_image_mime(image_data)
             if not detected:
-                logger.warning(
-                    "[%s] artwork_rejected_magic declared=%s url=%s",
+                logger.log(
+                    fail_level, "[%s] artwork_rejected_magic declared=%s url=%s",
                     slug, declared_type, safe_url_for_log(artwork_url),
                 )
                 return False, 'error'
