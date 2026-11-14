@@ -15,7 +15,6 @@ release notes.
 - An audio cue template shows Play, Threshold and a More menu on one line. Export, Promote to network, Change type, Optimize window and Delete are in the menu. Before, the seven buttons wrapped unevenly, and Optimize window and Delete sat apart at the right.
 - The Threshold button of a cue template always reads "Threshold". A set value is shown as a line of text under the cue's details.
 - The enable checkbox of a cue template lines up with its name.
-- Menu items are 44 px tall on touch screens. They were 36 px.
 
 ### Fixed
 
