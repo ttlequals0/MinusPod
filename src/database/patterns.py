@@ -46,6 +46,25 @@ CORRECTION_EPISODES_SQL = """SELECT p.slug, e.episode_id FROM pattern_correction
                GROUP BY e.id ORDER BY MAX(e.processed_at) DESC, e.id DESC LIMIT ?"""
 
 
+_NETWORK_SQL = "COALESCE(NULLIF(p.network_id_override, ''), p.network_id) = ?"
+
+
+def _pattern_scope_sql(pattern: dict) -> tuple[str, list]:
+    """AND clause and params limiting episodes (e, podcasts p) to the feeds a pattern's scope covers."""
+    if pattern.get('scope') == 'podcast':
+        return " AND p.slug = ?", [pattern.get('podcast_id')]
+    if pattern.get('scope') == 'network':
+        return f" AND {_NETWORK_SQL}", [pattern.get('network_id')]
+    return "", []
+
+
+def _marker_id_like(pattern_id: int) -> tuple[str, list]:
+    """Prefilter on the stored JSON text; the caller still parses the markers. Both separators, spaced and compact."""
+    forms = [f'%"pattern_id": {pattern_id}{end}%' for end in (',', '}')]
+    forms += [f'%"pattern_id":{pattern_id}{end}%' for end in (',', '}')]
+    return "(" + " OR ".join(["ed.ad_markers_json LIKE ?"] * len(forms)) + ")", forms
+
+
 class PatternMixin:
     """Ad pattern and correction management methods."""
 
@@ -481,6 +500,32 @@ class PatternMixin:
         # A legacy correction has no podcast_id, so its episode is found by episode_id alone
         rows = self.get_connection().execute(CORRECTION_EPISODES_SQL,
                                             (pattern_id, limit)).fetchall()
+        return [(r['slug'], r['episode_id']) for r in rows]
+
+    def get_pattern_origin_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
+        """(slug, episode_id) of the pattern's origin episode inside its scope; ids repeat across feeds, so every feed holding it."""
+        scope_sql, params = _pattern_scope_sql(pattern)
+        rows = self.get_connection().execute(
+            "SELECT p.slug, e.episode_id FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "  # noqa: S608
+            f"WHERE e.episode_id = ?{scope_sql} "
+            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
+            (pattern['created_from_episode_id'], *params, limit)).fetchall()
+        return [(r['slug'], r['episode_id']) for r in rows]
+
+    def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
+        """(slug, episode_id) of the newest-processed in-scope episodes that keep their original and store a marker naming the pattern, minus false-positive ones."""
+        scope_sql, scope_params = _pattern_scope_sql(pattern)
+        like_sql, like_params = _marker_id_like(pattern['id'])
+        rows = self.get_connection().execute(
+            "SELECT p.slug, e.episode_id FROM episodes e "  # noqa: S608
+            "JOIN podcasts p ON p.id = e.podcast_id "
+            "JOIN episode_details ed ON ed.episode_id = e.id "
+            f"WHERE e.original_file IS NOT NULL AND {like_sql}{scope_sql} "
+            "AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = ? "
+            "AND f.episode_id = e.episode_id AND f.correction_type = 'false_positive' "
+            "AND (f.podcast_id IS NULL OR f.podcast_id = e.podcast_id)) "
+            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
+            (*like_params, *scope_params, pattern['id'], limit)).fetchall()
         return [(r['slug'], r['episode_id']) for r in rows]
 
     def get_pattern_corrections(self, pattern_id: int = None, limit: int = 100) -> list[dict]:

@@ -20603,7 +20603,10 @@ components:
             fingerprint could be built from. The origin episode is used when it
             qualifies, otherwise the 5 most recently processed episodes that keep
             their original and hold a confirmation, creation or boundary correction
-            of the pattern. It uses the pre-trim span of a reviewer-adjusted marker
+            of the pattern, then the 5 most recent in-scope episodes that keep their
+            original and store an accepted marker of the pattern. An origin episode of
+            a pattern with no podcast is looked up by episode id within the pattern's
+            scope. It uses the pre-trim span of a reviewer-adjusted marker
             and the earliest marker when there are several. Null when the pattern has
             a fingerprint or none of those episodes holds such a marker.
           oneOf:

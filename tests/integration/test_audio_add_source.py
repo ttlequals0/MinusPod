@@ -61,10 +61,11 @@ def test_null_without_origin_episode_or_marker(app_client, fp_feed):
     assert _detail(app_client, no_marker)['addSource'] is None
 
 
-def test_null_for_a_pattern_without_a_podcast(app_client, fp_feed):
+def test_global_pattern_origin_resolves_its_feed_through_the_episode(app_client, fp_feed, fp_original):
     pid = _pattern(fp_feed, scope='global', podcast_id=None)
     _markers(fp_feed, [{'start': 12.0, 'end': 30.0, 'pattern_id': pid}])
-    assert _detail(app_client, pid)['addSource'] is None
+    assert _detail(app_client, pid)['addSource'] == {
+        'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 12.0, 'end': 30.0, 'available': True}
 
 
 OTHER = 'b2c3d4e5f6a1'
@@ -191,3 +192,147 @@ def test_legacy_correction_without_a_podcast_id_still_finds_its_episode(app_clie
     conn.execute("UPDATE pattern_corrections SET podcast_id = NULL WHERE pattern_id = ?", (pid,))
     conn.commit()
     assert _detail(app_client, pid)['addSource']['episodeId'] == OTHER
+
+
+def _feed_episode(db, slug, episode, processed_at, markers, *, network=None, retained=True, on_disk=True):
+    """An episode of another feed that holds markers; ids may repeat across feeds."""
+    from api import get_storage
+    if db.get_podcast_by_slug(slug) is None:
+        db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    if network:
+        db.get_connection().execute("UPDATE podcasts SET network_id = ? WHERE slug = ?", (network, slug))
+    db.upsert_episode(slug=slug, episode_id=episode, original_url='https://example.com/x.mp3',
+                      title='Episode', original_duration=300.0, status='processed')
+    conn = db.get_connection()
+    conn.execute("UPDATE episodes SET processed_at = ?, original_file = ? WHERE episode_id = ? AND podcast_id = "
+                 "(SELECT id FROM podcasts WHERE slug = ?)", (processed_at, 'x.mp3' if retained else None, episode, slug))
+    conn.commit()
+    db.save_episode_details(slug, episode, ad_markers=markers)
+    path = get_storage().get_original_path(slug, episode)
+    if retained and on_disk:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'ID3')
+    return path
+
+
+@pytest.fixture(autouse=True)
+def drop_unscoped_patterns(fp_feed):
+    """Global and network patterns outlive the feed, so remove them for the next test file."""
+    yield
+    conn = fp_feed.get_connection()
+    conn.execute("DELETE FROM ad_patterns WHERE scope IN ('global', 'network') AND text_template = ?", (TEMPLATE,))
+    conn.commit()
+
+
+@pytest.fixture
+def cleanup_paths(fp_feed):
+    from api import get_storage
+    paths = []
+    yield paths
+    for slug, episode in paths:
+        get_storage().get_original_path(slug, episode).unlink(missing_ok=True)
+    for slug in ('other-podcast', 'net-podcast'):
+        if fp_feed.get_podcast_by_slug(slug):
+            fp_feed.delete_podcast(slug)
+
+
+def test_text_match_marker_without_corrections_is_offered(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    cleanup_paths.append((SLUG, OTHER))
+    _feed_episode(fp_feed, SLUG, OTHER, '2026-02-01T00:00:00Z', [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}])
+    assert _detail(app_client, pid)['addSource'] == {
+        'podcastSlug': SLUG, 'episodeId': OTHER, 'start': 70.0, 'end': 95.0, 'available': True}
+
+
+def test_global_pattern_uses_a_marker_in_any_feed_newest_first(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    cleanup_paths.extend([(SLUG, OTHER), ('other-podcast', 'c3d4e5f6a1b2')])
+    marker = [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}]
+    _feed_episode(fp_feed, SLUG, OTHER, '2026-02-01T00:00:00Z', marker)
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-03-01T00:00:00Z', marker)
+    body = _detail(app_client, pid)['addSource']
+    assert (body['podcastSlug'], body['episodeId']) == ('other-podcast', 'c3d4e5f6a1b2')
+
+
+def test_podcast_scope_ignores_markers_of_other_feeds(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, created_from_episode_id=None)
+    cleanup_paths.append(('other-podcast', 'c3d4e5f6a1b2'))
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-02-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_network_scope_uses_only_feeds_of_its_network(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='network', podcast_id=None, network_id='Acme Network', created_from_episode_id=None)
+    cleanup_paths.extend([('other-podcast', 'c3d4e5f6a1b2'), ('net-podcast', 'd4e5f6a1b2c3')])
+    marker = [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}]
+    _feed_episode(fp_feed, 'net-podcast', 'd4e5f6a1b2c3', '2026-02-01T00:00:00Z', marker, network='Acme Network')
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-03-01T00:00:00Z', marker, network='Beta Network')
+    assert _detail(app_client, pid)['addSource']['podcastSlug'] == 'net-podcast'
+
+
+def test_marker_episode_with_a_rejected_marker_or_false_positive_is_skipped(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    cleanup_paths.extend([(SLUG, OTHER), ('other-podcast', 'c3d4e5f6a1b2')])
+    _feed_episode(fp_feed, SLUG, OTHER, '2026-02-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid, 'validation': {'decision': 'REJECT'}}])
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-03-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}])
+    fp_feed.create_pattern_correction('false_positive', pattern_id=pid, episode_id='c3d4e5f6a1b2',
+                                      podcast_id=fp_feed.get_podcast_by_slug('other-podcast')['id'])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_only_an_expired_marker_episode_is_offered_unavailable(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    _feed_episode(fp_feed, SLUG, OTHER, '2026-02-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}], on_disk=False)
+    body = _detail(app_client, pid)['addSource']
+    assert (body['episodeId'], body['available']) == (OTHER, False)
+
+
+def test_marker_search_opens_at_most_the_cap(app_client, fp_feed, cleanup_paths):
+    from api.patterns_audio import ADD_SOURCE_EPISODES
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    rejected = [{'start': 1.0, 'end': 9.0, 'pattern_id': pid, 'validation': {'decision': 'REJECT'}}]
+    for n in range(ADD_SOURCE_EPISODES):
+        cleanup_paths.append((SLUG, f'e{n}d4e5f6a1b2'))
+        _feed_episode(fp_feed, SLUG, f'e{n}d4e5f6a1b2', f'2026-03-0{n + 2}T00:00:00Z', rejected)
+    cleanup_paths.append((SLUG, OTHER))
+    _feed_episode(fp_feed, SLUG, OTHER, '2026-02-01T00:00:00Z', [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}])
+    pattern = fp_feed.get_ad_pattern_by_id(pid)
+    assert len(fp_feed.get_pattern_marker_episodes(pattern, ADD_SOURCE_EPISODES)) == ADD_SOURCE_EPISODES
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_marker_prefilter_does_not_match_a_longer_pattern_id(fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    cleanup_paths.append((SLUG, OTHER))
+    _feed_episode(fp_feed, SLUG, OTHER, '2026-02-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid * 10 + 5}])
+    assert fp_feed.get_pattern_marker_episodes(fp_feed.get_ad_pattern_by_id(pid), 5) == []
+
+
+def test_origin_episode_id_shared_by_two_feeds_picks_the_one_holding_the_marker(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None)
+    cleanup_paths.append(('other-podcast', EPISODE))
+    _feed_episode(fp_feed, SLUG, EPISODE, '2026-02-01T00:00:00Z', [], retained=False)
+    _feed_episode(fp_feed, 'other-podcast', EPISODE, '2026-01-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}])
+    body = _detail(app_client, pid)['addSource']
+    assert (body['podcastSlug'], body['episodeId'], body['available']) == ('other-podcast', EPISODE, True)
+
+
+def test_rebuild_route_accepts_a_text_match_marker_span(app_client, fp_feed, cleanup_paths, monkeypatch):
+    from audio_fingerprinter import AudioFingerprint, AudioFingerprinter
+    monkeypatch.setattr(AudioFingerprinter, '_find_fpcalc', lambda self: '/usr/bin/fpcalc')
+    monkeypatch.setattr(AudioFingerprinter, 'generate_fingerprint',
+                        lambda self, path, start=0, duration=None: AudioFingerprint(fingerprint='AQAA1', duration=duration))
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None)
+    cleanup_paths.append(('other-podcast', 'c3d4e5f6a1b2'))
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-02-01T00:00:00Z',
+                  [{'start': 70.0, 'end': 95.0, 'pattern_id': pid}])
+    src = _detail(app_client, pid)['addSource']
+    resp = app_client.post(f'/api/v1/patterns/{pid}/audio/rebuild', headers=csrf(app_client), json={
+        k: src[k] for k in ('podcastSlug', 'episodeId', 'start', 'end')})
+    assert resp.status_code == 200 and resp.get_json()['fingerprintStored'] is True
