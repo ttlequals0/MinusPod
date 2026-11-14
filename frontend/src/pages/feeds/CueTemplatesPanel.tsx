@@ -11,7 +11,7 @@ import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
 import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
 import { ghostBtn, primaryBtn } from '../../components/cueScanStyles';
-import { btnDestructive, btnDestructiveOutline, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { rowActionBtn } from '../../components/rowActionStyles';
 import { cardTitle, subHeading } from '../../components/pageStyles';
 import { ConfirmModal } from '../../components/Modal';
@@ -46,9 +46,12 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
 import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
+// Tighter padding and no Play icon below 380 px so Play, Threshold and More stay on one line.
+const narrowPx = 'max-[379px]:px-2';
 
 interface Props {
   slug: string;
@@ -155,6 +158,47 @@ function CueTemplatesPanel({ slug }: Props) {
   const crossEpisodeEligible = !eligibleQuery.data || eligibleCount >= 2;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
+
+  const moreItems = (t: CueTemplate): DropdownMenuItem[] => {
+    const items: DropdownMenuItem[] = [{
+      title: 'Export',
+      href: cueTemplateExportUrl(t.id),
+      tooltip: IS_DEMO ? DEMO_DOWNLOAD_TOOLTIP : 'Download this cue as a portable zip',
+      disabled: IS_DEMO,
+      onClick: () => {},
+    }];
+    if (t.scope === 'network' || networkId) {
+      const mismatched = t.scope === 'network' && !!networkId && t.networkId !== networkId;
+      items.push({
+        title: t.scope === 'network'
+          ? (mismatched ? `Move to network ${networkId}` : 'Make podcast-only')
+          : 'Promote to network',
+        tooltip: t.scope === 'network'
+          ? (mismatched
+              ? `Move this cue to network "${networkId}"`
+              : 'Limit this cue to this feed only')
+          : `Apply this cue to every feed on network "${networkId}"`,
+        onClick: () => handlePromote(t),
+      });
+    }
+    items.push(
+      { title: 'Change type', onClick: () => startEditType(t) },
+      {
+        title: 'Optimize window',
+        tooltip: !t.sourceEpisodeId
+          ? 'This cue has no source episode to rescan'
+          : 'Try small trims of this window and keep the one that matches best',
+        disabled: !t.sourceEpisodeId,
+        onClick: () => {
+          setActionError(null);
+          setOptimizeId(optimizeId === t.id ? null : t.id);
+        },
+      },
+      { title: 'Delete', destructive: true, onClick: () => setConfirmDeleteId(t.id) },
+    );
+    return items;
+  };
+
 
   const updateMutation = useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; cutMatches?: boolean | null; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
@@ -438,11 +482,19 @@ function CueTemplatesPanel({ slug }: Props) {
                     </select>
                   ) : (
                     <>
-                      <p className="font-medium truncate">
+                      <p className="font-medium break-words">
                         {t.label}
                         {t.scope === 'network' && (
                           <span className={`${badgeBase} ml-2 ${tint.purple} align-middle`}>
                             Network
+                          </span>
+                        )}
+                        {t.scoreThreshold != null && (
+                          <span
+                            className={`${badgeBase} ml-2 ${tint.neutral} align-middle`}
+                            title="Per-template match score threshold"
+                          >
+                            Threshold {formatPercent(t.scoreThreshold)}
                           </span>
                         )}
                         {t.quiet && (
@@ -505,66 +557,39 @@ function CueTemplatesPanel({ slug }: Props) {
                 </div>
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-1.5 xl:shrink-0">
-                    {t.hasAudio !== false && (
+                    {t.hasAudio !== false && confirmDeleteId !== t.id && (
                       <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline}`}
+                          className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
                           onClick={() => togglePlay(t)}
                           disabled={IS_DEMO}
                           title={playingId === t.id ? 'Stop' : 'Play this cue'}
                           aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
                         >
-                          {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
+                          {playingId === t.id ? <Square className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" /> : <Play className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" />}
                           {playingId === t.id ? 'Stop' : 'Play'}
                         </button>
                       </DemoDisabled>
                     )}
-                    <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
-                      <a
-                        className={`${rowActionBtn} ${btnOutline} touch-target`}
-                        href={cueTemplateExportUrl(t.id)}
-                        title="Download this cue as a portable zip"
-                      >
-                        Export
-                      </a>
-                    </DemoDisabled>
                     {t.owned === false ? (
-                      <span className="text-xs text-muted-foreground italic">
-                        Shared from this network
-                      </span>
+                      <>
+                        <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
+                          <a
+                            className={`${rowActionBtn} ${btnOutline} touch-target`}
+                            href={cueTemplateExportUrl(t.id)}
+                            title="Download this cue as a portable zip"
+                          >
+                            Export
+                          </a>
+                        </DemoDisabled>
+                        <span className="text-xs text-muted-foreground italic">
+                          Shared from this network
+                        </span>
+                      </>
                     ) : (
                       <>
-                        {(t.scope === 'network' || networkId) && (() => {
-                          const mismatched = t.scope === 'network' && !!networkId
-                            && t.networkId !== networkId;
-                          return (
-                            <button
-                              type="button"
-                              className={`${rowActionBtn} ${btnOutline}`}
-                              onClick={() => handlePromote(t)}
-                              title={
-                                t.scope === 'network'
-                                  ? (mismatched
-                                      ? `Move this cue to network "${networkId}"`
-                                      : 'Limit this cue to this feed only')
-                                  : `Apply this cue to every feed on network "${networkId}"`
-                              }
-                            >
-                              {t.scope === 'network'
-                                ? (mismatched ? `Move to network ${networkId}` : 'Make podcast-only')
-                                : 'Promote to network'}
-                            </button>
-                          );
-                        })()}
-                        <button
-                          type="button"
-                          className={`${rowActionBtn} ${btnOutline}`}
-                          onClick={() => startEditType(t)}
-                        >
-                          Change type
-                        </button>
-                        {editingThresholdId === t.id ? (
+                        {confirmDeleteId !== t.id && (editingThresholdId === t.id ? (
                           <DraftNumberInput
                             autoFocus
                             min={30}
@@ -590,35 +615,19 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnOutline}`}
+                            className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
-                            Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
+                            Threshold
                           </button>
-                        )}
-                        {/* Optimize and Delete wrap as one unit so Delete never sits alone on a line. */}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                        <button
-                          type="button"
-                          className={`${rowActionBtn} ${btnOutline}`}
-                          onClick={() => {
-                            setActionError(null);
-                            setOptimizeId(optimizeId === t.id ? null : t.id);
-                          }}
-                          disabled={!t.sourceEpisodeId}
-                          title={!t.sourceEpisodeId
-                            ? 'This cue has no source episode to rescan'
-                            : 'Try small trims of this window and keep the one that matches best'}
-                        >
-                          Optimize window
-                        </button>
+                        ))}
                         {confirmDeleteId === t.id ? (
                           <>
                             <DemoDisabled>
                               <button
                                 type="button"
-                                className={`${rowActionBtn} ${btnDestructive}`}
+                                className={`${rowActionBtn} ${btnDestructive} ${narrowPx}`}
                                 onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
                               >
                                 Delete cue
@@ -626,22 +635,22 @@ function CueTemplatesPanel({ slug }: Props) {
                             </DemoDisabled>
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnOutline}`}
+                              className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
                               onClick={() => setConfirmDeleteId(null)}
                             >
                               Cancel
                             </button>
                           </>
                         ) : (
-                          <button
-                            type="button"
-                            className={`${rowActionBtn} ${btnDestructiveOutline}`}
-                            onClick={() => setConfirmDeleteId(t.id)}
-                          >
-                            Delete
-                          </button>
+                          <DropdownMenu
+                            triggerLabel="More"
+                            triggerClassName={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+                            chevronClassName="w-3 h-3"
+                            ariaLabel={`More actions for ${t.label}`}
+                            align="right"
+                            items={moreItems(t)}
+                          />
                         )}
-                        </div>
                       </>
                     )}
                   </div>

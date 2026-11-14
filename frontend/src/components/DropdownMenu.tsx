@@ -13,6 +13,10 @@ export interface DropdownMenuItem {
   checked?: boolean;
   /** Native tooltip on the item. */
   tooltip?: string;
+  /** Renders a download link instead of a button; onClick still runs. */
+  href?: string;
+  /** Destructive text colour. */
+  destructive?: boolean;
 }
 
 interface DropdownMenuProps {
@@ -101,18 +105,21 @@ function DropdownMenu({
           const isLast = i === items.length - 1;
           const cls = [
             'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
+            item.href ? 'block' : '',
+            '[@media(pointer:coarse)]:min-h-11',
             'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent',
             item.checked !== undefined ? 'min-h-11 sm:min-h-0' : '',
             isFirst ? 'rounded-t-lg' : '',
             isLast ? 'rounded-b-lg' : '',
             isFirst ? '' : 'border-t border-border',
           ].filter(Boolean).join(' ');
+          const ItemTag = item.href && !item.disabled ? 'a' : 'button';
           return (
-            <button
+            <ItemTag
               key={item.title}
               role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
               aria-checked={item.checked}
-              disabled={item.disabled}
+              {...(item.href && !item.disabled ? { href: item.href } : { disabled: item.disabled })}
               aria-labelledby={item.disabled && item.subtitle ? `${menuId}-title-${i}` : undefined}
               aria-describedby={item.disabled && item.subtitle ? `${menuId}-sub-${i}` : undefined}
               title={item.tooltip}
@@ -124,11 +131,11 @@ function DropdownMenu({
               className={`${cls} ${focusRing}`}
             >
               <span className="flex items-center gap-2">
-                <span id={`${menuId}-title-${i}`} className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.title}</span>
+                <span id={`${menuId}-title-${i}`} className={`min-w-0 flex-1 text-sm font-medium ${item.destructive ? 'text-destructive' : 'text-foreground'}`}>{item.title}</span>
                 {item.checked && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
               </span>
               {item.subtitle && <span id={`${menuId}-sub-${i}`} className="block text-xs text-muted-foreground">{item.subtitle}</span>}
-            </button>
+            </ItemTag>
           );
         })}
       </Popover>

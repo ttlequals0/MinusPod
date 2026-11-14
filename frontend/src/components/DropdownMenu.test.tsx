@@ -28,6 +28,17 @@ afterEach(() => {
 });
 
 describe('DropdownMenu', () => {
+  it('renders an href item as a link and a destructive item in the destructive colour', async () => {
+    renderMenu({ items: [
+      { title: 'Export', href: '/export/1', onClick: vi.fn() },
+      { title: 'Delete', destructive: true, onClick: vi.fn() },
+    ] });
+    await openMenu();
+    expect(item('Export').tagName).toBe('A');
+    expect(item('Export').getAttribute('href')).toBe('/export/1');
+    expect(item('Delete').innerHTML).toContain('text-destructive');
+  });
+
   it('closes an open menu when the trigger becomes disabled', async () => {
     const { rerender } = render(
       <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);

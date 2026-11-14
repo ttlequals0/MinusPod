@@ -538,9 +538,18 @@ function readyPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function openMore() {
+  await userEvent.click(await screen.findByRole('button', { name: /More actions for Ding/i }));
+}
+
+async function chooseMenuItem(name: string | RegExp) {
+  await openMore();
+  await userEvent.click(screen.getByRole('menuitem', { name }));
+}
+
 async function openOptimizePanel() {
   await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
-  await userEvent.click(screen.getByRole('button', { name: /Optimize window/i }));
+  await chooseMenuItem(/Optimize window/i);
 }
 
 describe('Optimize window row action', () => {
@@ -562,7 +571,8 @@ describe('Optimize window row action', () => {
     mockListCueTemplates.mockResolvedValue([makeTemplate({ sourceEpisodeId: null })]);
     renderPanel();
     await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
-    const btn = screen.getByRole('button', { name: /Optimize window/i }) as HTMLButtonElement;
+    await openMore();
+    const btn = screen.getByRole('menuitem', { name: /Optimize window/i }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(mockOptimizeCueWindow).not.toHaveBeenCalled();
   });
@@ -730,9 +740,7 @@ describe('Network-scope template whose network no longer matches the feed', () =
   it('relabels the action to move the template, and moving sends the feed\'s current network', async () => {
     mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ scope: 'network', networkId: 'net-new' }));
     renderPanel();
-    const btn = await screen.findByRole('button', { name: /Move to network net-new/i });
-
-    await userEvent.click(btn);
+    await chooseMenuItem(/Move to network net-new/i);
 
     await waitFor(() => {
       expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { scope: 'network', networkId: 'net-new' });
@@ -744,7 +752,71 @@ describe('Network-scope template whose network no longer matches the feed', () =
     renderPanel();
     await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
     expect(screen.queryByText(/Shared on network/)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Make podcast-only' })).toBeDefined();
+    await openMore();
+    expect(screen.getByRole('menuitem', { name: 'Make podcast-only' })).toBeDefined();
+  });
+});
+
+describe('More menu on a cue row', () => {
+  const names = () => screen.getAllByRole('menuitem').map((e) => e.textContent);
+
+  it('lists the actions for a podcast-scope row without a network', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: null });
+    renderPanel();
+    await openMore();
+    expect(names()).toEqual(['Export', 'Change type', 'Optimize window', 'Delete']);
+    expect(screen.getByRole('menuitem', { name: 'Export' }).getAttribute('href')).toBe('/export/7');
+  });
+
+  it('adds Promote to network for a podcast row on a network', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-a' });
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
+    await waitFor(() => expect(mockGetFeed).toHaveBeenCalled());
+    await openMore();
+    await waitFor(() => expect(names()).toContain('Promote to network'));
+    expect(names()).toEqual(['Export', 'Promote to network', 'Change type', 'Optimize window', 'Delete']);
+  });
+
+  it('shows Make podcast-only for a network row', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ scope: 'network', networkId: 'net-a' })]);
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-a' });
+    renderPanel();
+    await openMore();
+    await waitFor(() => expect(names()).toContain('Make podcast-only'));
+  });
+
+  it('omits Play for a row with no audio and keeps Threshold and More', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ hasAudio: false })]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
+    expect(screen.queryByRole('button', { name: /Play cue/i })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Threshold' })).toBeDefined();
+    expect(screen.getByRole('button', { name: /More actions for Ding/i })).toBeDefined();
+  });
+
+  it('shows Delete cue and Cancel after choosing Delete', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    renderPanel();
+    await chooseMenuItem('Delete');
+    expect(screen.getByRole('button', { name: 'Delete cue' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /More actions/i })).toBeNull();
+  });
+
+  it('keeps the Threshold button label fixed and shows the value as a badge only when set', async () => {
+    mockListCueTemplates.mockResolvedValue([
+      makeTemplate({ id: 7, label: 'Ding', scoreThreshold: 0.8 }),
+      makeTemplate({ id: 8, label: 'Dong', scoreThreshold: null }),
+    ]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('Dong')).toBeDefined());
+    const buttons = screen.getAllByRole('button', { name: 'Threshold' });
+    expect(buttons).toHaveLength(2);
+    buttons.forEach((b) => expect(b.textContent).toBe('Threshold'));
+    expect(screen.getAllByText(/^Threshold 80%$/)).toHaveLength(1);
   });
 });
 
