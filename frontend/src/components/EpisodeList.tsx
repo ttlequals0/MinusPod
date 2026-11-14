@@ -5,7 +5,7 @@ import { isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
 import { formatDate, formatDurationHoursMinutes } from '../utils/format';
 import Artwork from './Artwork';
-import { episodeArtworkSrc } from '../utils/artworkUrl';
+import { episodeThumbSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
 import { isActionBlocked } from '../utils/processingStage';
 import { sponsorBlockLabel } from '../utils/sponsorBlock';
@@ -116,7 +116,7 @@ function EpisodeRow({
       >
         <Artwork
           // A recents row falls back to its source feed's cover, not this feed's.
-          src={episodeArtworkSrc(rowSlug, episode.id, episode.artworkUrl, episode.feedSlug ? undefined : feedArtworkUrl)}
+          src={episodeThumbSrc(rowSlug, episode.id, episode.artworkThumbUrl, episode.artworkUrl, episode.feedSlug ? undefined : feedArtworkUrl)}
           alt=""
           loading="lazy"
           className="hidden sm:block sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"

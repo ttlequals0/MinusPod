@@ -32,6 +32,17 @@ function renderGroups(feeds: Feed[], episodesPerPodcast = 3) {
 }
 
 describe('DashboardEpisodeGroups', () => {
+  it('loads each row cover from the thumbnail address of its summary', () => {
+    const thumb = '/api/v1/feeds/show-a/episodes/e1/artwork?size=thumb&v=0123456789ab';
+    const feed: Feed = {
+      slug: 'show-a', title: 'Show A', sourceUrl: 'https://example.com/a.xml', feedUrl: 'https://example.com/a.xml',
+      episodeCount: 1,
+      latestEpisodes: [episodeSummary({ id: 'e1', artworkUrl: 'https://cdn.example/c.jpg', artworkThumbUrl: thumb })],
+    };
+    const { container } = renderGroups([feed]);
+    expect(Array.from(container.querySelectorAll('img')).map((img) => img.getAttribute('src'))).toContain(thumb);
+  });
+
   it('renders one group per podcast with at most N episode rows', () => {
     const feed: Feed = {
       slug: 'show-a', title: 'Show A', sourceUrl: 'https://example.com/a.xml', feedUrl: 'https://example.com/a.xml',
