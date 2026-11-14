@@ -54,6 +54,7 @@ ARTWORK_FAILURE_TTL_SECONDS = 6 * 3600
 # A 404 means the resource is confirmed gone rather than transiently broken,
 # so it is backed off for longer than a generic fetch error.
 ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS = 24 * 3600
+EPISODE_ARTWORK_WARNED_TTL_SECONDS = 7 * 24 * 3600
 # Per-status backoff window, keyed by the classification _download_artwork_uncached
 # returns on failure.
 _ARTWORK_FAILURE_WINDOWS = {
@@ -196,6 +197,8 @@ class Storage:
         self._artwork_404_cache = TTLCache(ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS)
         # Keys whose skip was already logged this backoff window; bounded by TTLCache max_size.
         self._artwork_skip_logged = TTLCache(max(_ARTWORK_FAILURE_WINDOWS.values()))
+        # Episode cover URLs that already warned in this process, so repeats log at DEBUG.
+        self._episode_artwork_warned = TTLCache(EPISODE_ARTWORK_WARNED_TTL_SECONDS)
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -759,7 +762,14 @@ class Storage:
                 f"this URL failed recently")
             return False
 
-        ok = self._download_episode_artwork_uncached(slug, episode_id, artwork_url, user_agent=ua)
+        warned_key = f"{slug}\n{episode_id}\n{artwork_url}"
+        fail_level = logging.DEBUG if self._episode_artwork_warned.get(warned_key) else logging.WARNING
+        ok = self._download_episode_artwork_uncached(
+            slug, episode_id, artwork_url, user_agent=ua, fail_level=fail_level)
+        if ok:
+            self._episode_artwork_warned.delete(warned_key)
+        else:
+            self._episode_artwork_warned.set(warned_key, True)
         # Store only failures: cached successes would evict failure entries before their TTL.
         # No delete-on-success: with no force bypass, a live failure entry returns early above.
         if not ok:
@@ -767,8 +777,9 @@ class Storage:
         return ok
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
-                                          artwork_url: str, user_agent: str | None = None) -> bool:
-        """Fetch, validate, and save one episode cover. See download_episode_artwork."""
+                                          artwork_url: str, user_agent: str | None = None,
+                                          fail_level: int = logging.WARNING) -> bool:
+        """Fetch, validate, and save one episode cover; failures log at fail_level. See download_episode_artwork."""
         try:
             logger.info(f"[{slug}:{episode_id}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")
@@ -779,16 +790,16 @@ class Storage:
                     f"{slug}:{episode_id}", artwork_url,
                     user_agent or download_user_agent(podcast), podcast)
             except SSRFError as e:
-                logger.warning(
-                    f"[{slug}:{episode_id}] SSRF blocked in "
+                logger.log(
+                    fail_level, f"[{slug}:{episode_id}] SSRF blocked in "
                     f"download_episode_artwork: {e}")
                 return False
             response.raise_for_status()
 
             declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
             if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
-                logger.warning(
-                    "[%s:%s] episode_artwork_rejected_content_type declared=%s url=%s",
+                logger.log(
+                    fail_level, "[%s:%s] episode_artwork_rejected_content_type declared=%s url=%s",
                     slug, episode_id, declared_type, safe_url_for_log(artwork_url),
                 )
                 return False
@@ -797,16 +808,16 @@ class Storage:
             try:
                 image_data = read_response_capped(response, max_bytes, chunk_size=65536)
             except ResponseTooLargeError:
-                logger.warning(
-                    "[%s:%s] episode_artwork_size_cap_exceeded max=%d url=%s",
+                logger.log(
+                    fail_level, "[%s:%s] episode_artwork_size_cap_exceeded max=%d url=%s",
                     slug, episode_id, max_bytes, safe_url_for_log(artwork_url),
                 )
                 return False
 
             detected = _detect_image_mime(image_data)
             if not detected:
-                logger.warning(
-                    "[%s:%s] episode_artwork_rejected_magic declared=%s url=%s",
+                logger.log(
+                    fail_level, "[%s:%s] episode_artwork_rejected_magic declared=%s url=%s",
                     slug, episode_id, declared_type, safe_url_for_log(artwork_url),
                 )
                 return False
@@ -814,8 +825,8 @@ class Storage:
             return self._save_episode_artwork(slug, episode_id, image_data, detected)
 
         except Exception as e:
-            logger.warning(
-                f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
+            logger.log(
+                fail_level, f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
             return False
 
     def save_episode_artwork(self, slug: str, episode_id: str,

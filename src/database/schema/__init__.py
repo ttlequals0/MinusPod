@@ -751,8 +751,8 @@ class SchemaMixin(DeferredUpgradeMixin):
                 self._add_column_if_missing(conn, 'episodes', col, definition, episode_cols)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_activity_at "
                          "ON episodes(COALESCE(processed_at, updated_at))")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at "
-                         "ON episodes(processed_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_processed "
+                         "ON episodes(processed_at, id, podcast_id, episode_id) WHERE original_file IS NOT NULL")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_id "
                          "ON episodes(id, podcast_id, processed_at, episode_id) WHERE original_file IS NOT NULL")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_feed "

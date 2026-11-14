@@ -195,9 +195,10 @@ def test_marker_and_sponsor_lookups_use_the_refs_index_and_never_scan_episode_de
         assert 'episode_details' not in plan and 'SCAN e' not in plan
 
 
-def test_global_transcript_lookup_scans_the_processed_at_index(temp_db):
+def test_global_transcript_lookup_scans_the_retained_by_processed_index(temp_db):
     plan = _plan(temp_db, lambda: temp_db.get_pattern_transcript_episodes({'id': 1, 'scope': 'global'}, 10))
-    assert 'SCAN e USING INDEX idx_episodes_processed_at' in plan and 'episode_details' not in plan
+    assert 'SCAN e USING INDEX idx_episodes_retained_by_processed' in plan and 'episode_details' not in plan \
+        and 'TEMP B-TREE' not in plan
 
 
 def test_podcast_transcript_lookup_uses_the_retained_by_feed_index(temp_db):
@@ -232,7 +233,7 @@ def test_transcript_lookup_skips_episodes_without_segments_and_applies_the_limit
     assert found == [(SLUG, e) for e in reversed(eids[:-1])][:3]
 
 
-INDEXES = ('idx_episode_marker_refs_episode', 'idx_episodes_processed_at',
+INDEXES = ('idx_episode_marker_refs_episode', 'idx_episodes_retained_by_processed',
            'idx_episodes_retained_by_id', 'idx_episodes_retained_by_feed')
 TRIGGERS = ('episode_marker_refs_update', 'episode_marker_refs_delete')
 

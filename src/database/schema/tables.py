@@ -299,7 +299,8 @@ TABLE_DDL['episode_snap_stats'] = """CREATE TABLE IF NOT EXISTS episode_snap_sta
 )"""
 
 # Pattern ids and sponsor names each episode's markers name, so Add audio lookups skip the large
-# markers column. Kept by save_episode_details; the triggers below drop an episode's rows when its markers go.
+# markers column. Every non-null ad_markers_json write must go through save_episode_details
+# (tests/unit/test_marker_writers.py enforces it); the triggers below drop the rows when markers go.
 TABLE_DDL['episode_marker_refs'] = """CREATE TABLE IF NOT EXISTS episode_marker_refs (
     episode_pk INTEGER NOT NULL,
     ref_type TEXT NOT NULL CHECK(ref_type IN ('pattern', 'sponsor')),
@@ -1093,8 +1094,8 @@ CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting ON episodes(sb_state) WHERE sb_state IN ('waiting','probing');
 CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_activity_at ON episodes(COALESCE(processed_at, updated_at));
-CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at);
 -- Covering indexes for the Add audio lookups over episodes that keep their original
+CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_processed ON episodes(processed_at, id, podcast_id, episode_id) WHERE original_file IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_id ON episodes(id, podcast_id, processed_at, episode_id) WHERE original_file IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_feed ON episodes(podcast_id, processed_at, id, episode_id) WHERE original_file IS NOT NULL;
 
