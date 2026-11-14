@@ -301,7 +301,7 @@ The section stays enabled when the LLM provider is `none`.
 Follows `design-guide/UI-CONTRACT.md`.
 
 - Patterns table: an "Audio" column. It shows the mean match as "91% match",
-  "Audio off", "No source audio", or "-" when the pattern has none.
+  "Audio off", "No source audio", "No matches yet", or "No audio" when the pattern has none.
 - Pattern dialog: one scrolling dialog, as today, with an "Audio" section under
   the text. It holds the state and on/off control, a play control, the stats
   (matches, mean match, "Not this ad" count, last matched), the out-of-scope

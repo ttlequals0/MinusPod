@@ -299,7 +299,7 @@ describe('PatternsPage audio column', () => {
     expect(cell(0)).toBe('91% match');
     expect(cell(1)).toBe('Audio off');
     expect(cell(2)).toBe('No source audio');
-    expect(cell(3)).toBe('-');
+    expect(cell(3)).toBe('No audio');
     expect(within(table).getByRole('columnheader', { name: 'Audio' })).toBeDefined();
   });
 
@@ -347,7 +347,7 @@ describe('PatternsPage audio column', () => {
     expect(ids).toEqual(['#1', '#2']);
   });
 
-  it('shows a dash for active audio with no matches and for a pattern without the field', async () => {
+  it('labels active audio with no matches and a pattern without the field', async () => {
     mockGetPatterns.mockResolvedValue([
       audioPattern(1, { state: 'active', available: true, matchCount: 0, meanSimilarity: null }),
       audioPattern(2),
@@ -356,8 +356,8 @@ describe('PatternsPage audio column', () => {
     const table = await screen.findByRole('table');
     await within(table).findAllByText('Sponsor 1');
     const rows = within(table).getAllByRole('row').slice(1);
-    expect(within(rows[0]).getAllByRole('cell')[4].textContent).toBe('-');
-    expect(within(rows[1]).getAllByRole('cell')[4].textContent).toBe('-');
+    expect(within(rows[0]).getAllByRole('cell')[4].textContent).toBe('No matches yet');
+    expect(within(rows[1]).getAllByRole('cell')[4].textContent).toBe('No audio');
   });
 
   it('shows the audio state on the phone card', async () => {
