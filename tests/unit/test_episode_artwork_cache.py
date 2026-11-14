@@ -29,7 +29,8 @@ def _cached_cover(storage, slug, episode_id):
 
 
 @pytest.fixture
-def storage(tmp_path):
+def storage(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage_module, '_EVICT_SCAN_INTERVAL_SECONDS', 0)
     Storage._instance = None
     s = Storage(str(tmp_path))
     s._artwork_failure_cache.clear()
@@ -359,3 +360,20 @@ def test_thumbnails_keep_alpha_and_never_exceed_256_px():
     assert mime == 'image/png'
     with Image.open(BytesIO(thumb)) as img:
         assert img.size == (256, 256)
+
+
+def test_saves_inside_the_scan_window_scan_the_directory_once(storage, monkeypatch):
+    monkeypatch.setattr(storage_module, '_EVICT_SCAN_INTERVAL_SECONDS', 60)
+    art_dir = storage._episode_artwork_dir(SLUG, create=True)
+    with patch.object(type(art_dir), 'iterdir', autospec=True, side_effect=type(art_dir).iterdir) as listing:
+        storage._write_cover(SLUG, 'a' * 64, JPEG, 'image/jpeg')
+        storage._write_cover(SLUG, 'b' * 64, JPEG, 'image/jpeg')
+
+    assert listing.call_count == 1
+
+
+def test_versions_for_a_page_match_the_per_episode_version(storage):
+    storage.save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg', evict=False)
+
+    assert storage.local_artwork_versions(SLUG, [EP, 'ffffffffffff']) == {
+        EP: storage.local_artwork_version(SLUG, EP)}

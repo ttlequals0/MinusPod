@@ -157,27 +157,22 @@ def test_a_blocked_cover_falls_back_to_the_show_cover(client):
     assert response.headers['Cache-Control'] == 'no-cache'
 
 
-def test_a_thumbnail_is_small_and_the_full_size_file_is_not_stored(client):
+@pytest.mark.parametrize('cached_full', [False, True])
+def test_a_thumbnail_is_small_and_the_full_size_file_is_stored_only_if_already_cached(client, cached_full):
     storage = storage_module.Storage()
-    with _fetching(storage):
+    if cached_full:
+        _cache_url_cover(storage)
+    with _fetching(storage) as fetch:
         response = client.get(_url() + '?size=thumb')
 
     assert response.status_code == 200
     with Image.open(BytesIO(response.data)) as thumb:
         assert max(thumb.size) <= 256
     assert len(response.data) < len(SOURCE)
+    assert fetch.call_count == (0 if cached_full else 1)
     key = storage_module.artwork_url_key(COVER_URL)
-    assert [p.name for p in storage._episode_artwork_dir(SLUG).iterdir()] == [f'{key}.thumb.jpg']
-
-
-def test_a_thumbnail_is_derived_from_an_already_cached_full_size_cover(client):
-    storage = storage_module.Storage()
-    _cache_url_cover(storage)
-    with _fetching(storage) as fetch:
-        response = client.get(_url() + '?size=thumb')
-
-    assert response.status_code == 200
-    assert fetch.call_count == 0
+    expected = [f'{key}.thumb.jpg'] + ([f'{key}.jpg'] if cached_full else [])
+    assert sorted(p.name for p in storage._episode_artwork_dir(SLUG).iterdir()) == sorted(expected)
 
 
 def test_a_small_cover_is_never_upscaled(client):
@@ -212,34 +207,29 @@ def _header_only_png(width, height):
             + struct.pack('>I', len(idat) - 4) + idat + struct.pack('>I', zlib.crc32(idat)))
 
 
-@pytest.mark.parametrize('declared', [(9000, 9000), (30000, 30000)])
-def test_an_oversized_cover_is_never_decoded_and_is_not_refetched(client, declared):
+@pytest.mark.parametrize('image,pixel_cap', [
+    (_header_only_png(9000, 9000), None),
+    (_header_only_png(30000, 30000), None),
+    (SOURCE, 100 * 100),
+])
+def test_an_oversized_cover_is_never_decoded_and_is_not_refetched(client, monkeypatch, image, pixel_cap):
     storage = storage_module.Storage()
     storage._cover_thumb_warned.clear()
-    huge = _header_only_png(*declared)
-    with _fetching(storage, data=huge, mime='image/png') as fetch:
-        with patch.object(Image.Image, 'load', side_effect=AssertionError('decoded')) as load:
+    if pixel_cap:
+        monkeypatch.setattr(storage_module, 'COVER_MAX_DECODE_PIXELS', pixel_cap)
+    with _fetching(storage, data=image, mime='image/png' if pixel_cap is None else 'image/jpeg') as fetch:
+        with patch.object(Image.Image, 'load', side_effect=AssertionError('decoded')) as load, \
+                patch.object(storage_module, 'make_cover_thumbnail',
+                             wraps=storage_module.make_cover_thumbnail) as make:
             first = client.get(_url() + '?size=thumb')
             second = client.get(_url() + '?size=thumb')
 
     assert first.status_code == second.status_code == 302
     assert first.headers['Location'].endswith(f'/api/v1/feeds/{SLUG}/artwork')
     assert fetch.call_count == 1
+    assert make.call_count == 1
     assert load.call_count == 0
     assert list(storage._episode_artwork_dir(SLUG).iterdir()) == []
-
-
-def test_a_cover_over_a_lowered_pixel_cap_is_refused_and_decoded_once(client, monkeypatch):
-    storage = storage_module.Storage()
-    monkeypatch.setattr(storage_module, 'COVER_MAX_DECODE_PIXELS', 100 * 100)
-    with _fetching(storage) as fetch, \
-            patch.object(storage_module, 'make_cover_thumbnail',
-                         wraps=storage_module.make_cover_thumbnail) as make:
-        assert client.get(_url() + '?size=thumb').status_code == 302
-        assert client.get(_url() + '?size=thumb').status_code == 302
-
-    assert fetch.call_count == 1
-    assert make.call_count == 1
 
 
 def test_a_failed_thumbnail_is_not_decoded_again_on_the_next_request(client):
@@ -348,6 +338,10 @@ def _thumb_address(episode_id, version):
     return f'/api/v1/feeds/{SLUG}/episodes/{episode_id}/artwork?size=thumb&v={version}'
 
 
+def _assert_thumb_address(episode, episode_id, version):
+    assert episode['artworkThumbUrl'] == _thumb_address(episode_id, version)
+
+
 def test_the_episode_list_and_detail_carry_the_thumbnail_address(client):
     storage = storage_module.Storage()
     storage.save_episode_artwork(SLUG, LOCAL_EP, SOURCE, 'image/jpeg', evict=False)
@@ -357,9 +351,9 @@ def test_the_episode_list_and_detail_carry_the_thumbnail_address(client):
     by_id = {e['id']: e for e in listing['episodes']}
     detail = client.get(f'/api/v1/feeds/{SLUG}/episodes/{EP}').get_json()
 
-    assert by_id[EP]['artworkThumbUrl'] == _thumb_address(EP, url_version)
-    assert by_id[SHARED_EP]['artworkThumbUrl'] == _thumb_address(SHARED_EP, url_version)
-    assert detail['artworkThumbUrl'] == _thumb_address(EP, url_version)
+    _assert_thumb_address(by_id[EP], EP, url_version)
+    _assert_thumb_address(by_id[SHARED_EP], SHARED_EP, url_version)
+    _assert_thumb_address(detail, EP, url_version)
     # A subscribed feed's episode without a publisher URL has no cover, so no address.
     assert by_id[LOCAL_EP]['artworkThumbUrl'] is None
 
@@ -369,4 +363,4 @@ def test_the_feeds_dashboard_projection_carries_the_thumbnail_address(client):
     episodes = next(f for f in feeds if f['slug'] == SLUG)['latestEpisodes']
     version = storage_module.artwork_url_version(COVER_URL)
 
-    assert next(e for e in episodes if e['id'] == EP)['artworkThumbUrl'] == _thumb_address(EP, version)
+    _assert_thumb_address(next(e for e in episodes if e['id'] == EP), EP, version)

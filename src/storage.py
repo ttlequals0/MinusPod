@@ -93,6 +93,10 @@ COVER_THUMB_MAX_SIDE = 256
 COVER_MAX_DECODE_PIXELS = 8192 * 8192
 _COVER_LOCK_STRIPES = 16
 _EPISODE_ARTWORK_TOUCH_SECONDS = 86400
+# Eviction scans a directory at most this often; the cap may be exceeded briefly between scans.
+_EVICT_SCAN_INTERVAL_SECONDS = 60
+_THUMB_OVERSIZE = 'oversize'
+_THUMB_ERROR = 'error'
 _CHAPTER_IMAGE_NAME_RE = re.compile(r'[0-9a-f]{64}\.(jpg|png)')
 # Per-feed ceiling on that directory. Publisher episode covers run large (a
 # 3000x3000 JPEG is ~600 KB), and a long back catalogue would otherwise grow
@@ -115,10 +119,9 @@ class CoverTooLargeError(ValueError):
 
 
 def make_cover_thumbnail(data: bytes) -> tuple[bytes, str]:
-    """Downscale a cover to COVER_THUMB_MAX_SIDE on its longest side (never upscaled); (bytes, mime).
+    """Downscale a cover to 256 px on its longest side, never upscaled; (bytes, mime).
 
-    Raises CoverTooLargeError before decoding when the header declares more than
-    COVER_MAX_DECODE_PIXELS, or when Pillow flags a decompression bomb.
+    Raises CoverTooLargeError before decoding past COVER_MAX_DECODE_PIXELS or on a decompression bomb.
     """
     try:
         with warnings.catch_warnings():
@@ -249,6 +252,7 @@ class Storage:
         # Episode cover URLs that already warned in this process, so repeats log at DEBUG.
         self._episode_artwork_warned = TTLCache(EPISODE_ARTWORK_WARNED_TTL_SECONDS)
         self._cover_thumb_warned = TTLCache(EPISODE_ARTWORK_WARNED_TTL_SECONDS)
+        self._evict_last_scan: dict[str, float] = {}
         # Striped so concurrent rows of one shared cover fetch it once.
         self._cover_locks = tuple(threading.Lock() for _ in range(_COVER_LOCK_STRIPES))
 
@@ -775,20 +779,43 @@ class Storage:
                             f"[{slug}:{episode_id}] Failed to delete episode artwork: {exc}")
         return removed
 
+    @staticmethod
+    def _stat_version(stat: os.stat_result) -> str:
+        return hashlib.sha256(f"{stat.st_mtime_ns}:{stat.st_size}".encode()).hexdigest()[:12]
+
     def local_artwork_version(self, slug: str, episode_id: str) -> str | None:
-        """Cache-bust token from the id-keyed cover's mtime and size (one stat, no touch), or None."""
-        if not is_valid_episode_id(episode_id):
+        """Cache-bust token from the id-keyed cover's mtime and size (no touch), or None."""
+        found = self.episode_artwork_file(slug, episode_id, touch=False)
+        try:
+            return self._stat_version(found[0].stat()) if found else None
+        except OSError:
             return None
+
+    def local_artwork_versions(self, slug: str, episode_ids: list[str]) -> dict[str, str]:
+        """local_artwork_version for a page of episodes from one directory listing."""
         art_dir = self._episode_artwork_dir(slug)
         if not art_dir or not art_dir.is_dir():
-            return None
-        for ext, _ in _ARTWORK_EXTENSIONS:
-            try:
-                stat = _safe_join_under(art_dir, f"{episode_id}{ext}").stat()
-            except OSError:
+            return {}
+        names = {entry.name for entry in os.scandir(art_dir)}
+        versions = {}
+        for episode_id in episode_ids:
+            if not is_valid_episode_id(episode_id):
                 continue
-            return hashlib.sha256(f"{stat.st_mtime_ns}:{stat.st_size}".encode()).hexdigest()[:12]
-        return None
+            for ext, _ in _ARTWORK_EXTENSIONS:
+                if f"{episode_id}{ext}" in names:
+                    try:
+                        versions[episode_id] = self._stat_version(
+                            _safe_join_under(art_dir, f"{episode_id}{ext}").stat())
+                    except OSError:
+                        pass
+                    break
+        return versions
+
+    def cover_version(self, slug: str, episode_id: str, artwork_url: str | None) -> str | None:
+        """Cache-bust token of the episode's cover: from its URL if it has one, else the local file."""
+        if artwork_url:
+            return artwork_url_version(artwork_url)
+        return self.local_artwork_version(slug, episode_id)
 
     def _cover_file(self, slug: str, stem: str, touch: bool = True) -> tuple[Path, str] | None:
         """Path and content type of the cached cover named ``stem``, or None.
@@ -800,14 +827,16 @@ class Storage:
             return None
         for ext, content_type in _ARTWORK_EXTENSIONS:
             path = _safe_join_under(art_dir, f"{stem}{ext}")
-            if path.exists():
-                if touch:
-                    try:
-                        if time.time() - path.stat().st_mtime > _EPISODE_ARTWORK_TOUCH_SECONDS:
-                            os.utime(path, None)
-                    except OSError:
-                        pass
-                return path.resolve(), content_type
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            if touch and time.time() - mtime > _EPISODE_ARTWORK_TOUCH_SECONDS:
+                try:
+                    os.utime(path, None)
+                except OSError:
+                    pass
+            return path.resolve(), content_type
         return None
 
     def episode_artwork_file(self, slug: str, episode_id: str,
@@ -820,23 +849,45 @@ class Storage:
     def _cover_lock(self, stem: str) -> threading.Lock:
         return self._cover_locks[hash(stem) % _COVER_LOCK_STRIPES]
 
-    def _save_cover_thumb(self, slug: str, stem: str, data: bytes, evict: bool,
-                          fail_key: str) -> bool:
-        """Write the thumbnail of ``data`` as ``<stem>.thumb``.
-
-        False when it cannot be made; the failure is remembered under ``fail_key`` ('oversize'
-        or 'error') so the cover is not decoded again, and logged once at WARNING.
-        """
+    def _save_cover_thumb(self, slug: str, stem: str, data: bytes, fail_key: str,
+                          evict: bool) -> bool:
+        """Write the thumbnail of ``data`` as ``<stem>.thumb``; a failure is remembered under ``fail_key``."""
         try:
             thumb, mime = make_cover_thumbnail(data)
         except Exception as exc:
             self._artwork_failure_cache.set(
-                fail_key, 'oversize' if isinstance(exc, CoverTooLargeError) else 'error')
+                fail_key, _THUMB_OVERSIZE if isinstance(exc, CoverTooLargeError) else _THUMB_ERROR)
             if not self._cover_thumb_warned.get(stem):
                 self._cover_thumb_warned.set(stem, True)
                 logger.warning(f"[{slug}] Cover thumbnail failed: {exc}")
             return False
         return self._write_cover(slug, stem + _THUMB_STEM_SUFFIX, thumb, mime, evict=evict)
+
+    def _thumb_failed_oversize(self, fail_key: str) -> bool:
+        return self._artwork_failure_cache.get(fail_key) == _THUMB_OVERSIZE
+
+    def _serve_thumb(self, slug: str, stem: str, fail_key: str, load, fallback, evict: bool):
+        """Cached thumbnail of a cover, made under the stem's lock; None when oversized.
+
+        ``load()`` gives the original bytes, ``fallback()`` the original to serve if no thumbnail can be made.
+        """
+        thumb_stem = stem + _THUMB_STEM_SUFFIX
+        found = self._cover_file(slug, thumb_stem, touch=False)
+        if found:
+            return found
+        with self._cover_lock(stem):
+            found = self._cover_file(slug, thumb_stem, touch=False)
+            if found:
+                return found
+            if self._thumb_failed_oversize(fail_key):
+                return None
+            if self._artwork_failure_cache.get(fail_key) is None:
+                data = load()
+                if data is not None and self._save_cover_thumb(slug, stem, data, fail_key, evict):
+                    return self._cover_file(slug, thumb_stem, touch=False) or fallback()
+                if self._thumb_failed_oversize(fail_key):
+                    return None
+            return fallback()
 
     def url_artwork_file(self, slug: str, artwork_url: str,
                          thumb: bool = False) -> tuple[Path, str] | None:
@@ -846,82 +897,66 @@ class Storage:
 
     def cache_url_artwork(self, slug: str, artwork_url: str,
                           thumb: bool = False) -> tuple[Path, str] | None:
-        """Cached or freshly fetched cover for a publisher URL, shared by every episode using it.
+        """Cached or freshly fetched cover (or thumbnail) for a publisher URL, shared by its episodes.
 
-        A thumbnail request writes only the thumbnail. When none can be made the original is
-        stored and served, except an oversized image, which yields None (nothing is decoded).
+        A thumbnail request stores only the thumbnail unless none can be made; oversized images give None.
         """
         found = self.url_artwork_file(slug, artwork_url, thumb)
         if found:
             return found
         key = artwork_url_key(artwork_url)
-        fail_key = f"thumb\n{slug}\n{key}"
-        with self._cover_lock(key):
-            found = self.url_artwork_file(slug, artwork_url, thumb)
-            if found:
-                return found
-            full = self.url_artwork_file(slug, artwork_url) if thumb else None
-            marker = self._artwork_failure_cache.get(fail_key) if thumb else None
-            if marker == 'oversize':
-                return None
-            if marker == 'error' and full:
-                return full
-            if full:
+        fetched = None
+
+        def original():
+            nonlocal fetched
+            if fetched is None:
+                full = self.url_artwork_file(slug, artwork_url)
                 try:
-                    data = full[0].read_bytes()
+                    fetched = ((full[0].read_bytes(), full[1]) if full
+                               else self._download_url_artwork(slug, artwork_url)) or False
                 except OSError:
-                    return full
-                if self._save_cover_thumb(slug, key, data, True, fail_key):
-                    return self.url_artwork_file(slug, artwork_url, True) or full
-                return None if self._artwork_failure_cache.get(fail_key) == 'oversize' else full
-            fetched = self._download_url_artwork(slug, artwork_url)
-            if not fetched:
-                return None
-            data, mime = fetched
-            if thumb:
-                if self._save_cover_thumb(slug, key, data, True, fail_key):
-                    return self.url_artwork_file(slug, artwork_url, True)
-                if self._artwork_failure_cache.get(fail_key) == 'oversize':
-                    return None
-            if self._write_cover(slug, key, data, mime):
+                    fetched = False
+            return fetched or None
+
+        def load():
+            got = original()
+            return got[0] if got else None
+
+        def fallback():
+            full = self.url_artwork_file(slug, artwork_url)
+            got = None if full else original()
+            if got and self._write_cover(slug, key, *got):
                 return self.url_artwork_file(slug, artwork_url)
-            return None
+            return full
+
+        if thumb:
+            return self._serve_thumb(slug, key, f"thumb\n{slug}\n{key}", load, fallback, evict=True)
+        with self._cover_lock(key):
+            return self.url_artwork_file(slug, artwork_url) or fallback()
 
     def local_artwork_file(self, slug: str, episode_id: str,
                            thumb: bool = False) -> tuple[Path, str] | None:
-        """Id-keyed cover (never evicted) or its derived thumbnail.
-
-        The original is served if no thumbnail can be made, except an oversized image (None).
-        """
+        """Id-keyed cover (never evicted) or its derived thumbnail; None when the image is oversized."""
         full = self.episode_artwork_file(slug, episode_id, touch=False)
         if not full or not thumb:
             return full
-        stem = episode_id + _THUMB_STEM_SUFFIX
-        found = self._cover_file(slug, stem, touch=False)
-        if found:
-            return found
-        fail_key = f"thumb\n{slug}\n{episode_id}\n{self.local_artwork_version(slug, episode_id)}"
-        with self._cover_lock(stem):
-            found = self._cover_file(slug, stem, touch=False)
-            if found:
-                return found
-            marker = self._artwork_failure_cache.get(fail_key)
-            if marker is None:
-                try:
-                    data = full[0].read_bytes()
-                except OSError:
-                    return full
-                if self._save_cover_thumb(slug, episode_id, data, False, fail_key):
-                    return self._cover_file(slug, stem, touch=False) or full
-                marker = self._artwork_failure_cache.get(fail_key)
-        return None if marker == 'oversize' else full
 
-    def _download_with_failure_cache(self, slug: str, label: str, artwork_url: str,
-                                     key_scope: str, download) -> Any:
+        def load():
+            try:
+                return full[0].read_bytes()
+            except OSError:
+                return None
+
+        fail_key = f"thumb\n{slug}\n{episode_id}\n{self.local_artwork_version(slug, episode_id)}"
+        return self._serve_thumb(slug, episode_id, fail_key, load, lambda: full, evict=False)
+
+    def _download_with_failure_cache(self, slug: str, artwork_url: str, key_scope: str,
+                                     download) -> Any:
         """Run ``download(user_agent, fail_level)`` behind the failure cache and warn-once logging.
 
-        ``key_scope`` prefixes the failure/warn keys; a falsy result is cached as a failure.
+        ``key_scope`` prefixes the failure and warn keys and, joined with ':', the log label.
         """
+        label = key_scope.replace("\n", ":")
         ua = download_user_agent(self.db.get_podcast_by_slug(slug))
         failure_key = f"{key_scope}\n{artwork_url}\n{ua}"
         if self._artwork_failure_cache.get(failure_key):
@@ -949,7 +984,7 @@ class Storage:
         if not artwork_url or not is_valid_episode_id(episode_id):
             return False
         return bool(self._download_with_failure_cache(
-            slug, f"{slug}:{episode_id}", artwork_url, f"{slug}\n{episode_id}",
+            slug, artwork_url, f"{slug}\n{episode_id}",
             lambda ua, level: self._download_episode_artwork_uncached(
                 slug, episode_id, artwork_url, user_agent=ua, fail_level=level)))
 
@@ -958,7 +993,7 @@ class Storage:
         if not artwork_url:
             return None
         return self._download_with_failure_cache(
-            slug, slug, artwork_url, slug,
+            slug, artwork_url, slug,
             lambda ua, level: self._fetch_validated_artwork(
                 slug, slug, artwork_url, user_agent=ua, fail_level=level))
 
@@ -1086,6 +1121,11 @@ class Storage:
     def _evict_episode_artwork(self, art_dir: Path) -> int:
         """Drop least-recently-served covers until the directory fits the cap.
         Returns the number of files removed."""
+        now = time.monotonic()
+        last = self._evict_last_scan.get(str(art_dir))
+        if last is not None and now - last < _EVICT_SCAN_INTERVAL_SECONDS:
+            return 0
+        self._evict_last_scan[str(art_dir)] = now
         known_suffixes = {ext for ext, _ in _ARTWORK_EXTENSIONS}
         entries = []
         total = 0

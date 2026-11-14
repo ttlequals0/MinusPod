@@ -407,16 +407,10 @@ def paged_args(default_limit=50, max_limit=100):
     return limit, offset
 
 
-IMMUTABLE_IMAGE_CACHE_CONTROL = 'private, max-age=604800, immutable'
-
-
-def image_response(path, content_type, immutable=False):
-    """Serve a cached image with stat-based ETag/Last-Modified revalidation.
-
-    ``immutable`` is for URLs that carry a version token: the browser reuses them for 7 days.
-    """
+def image_response(path, content_type):
+    """Serve a cached image with stat-based ETag/Last-Modified revalidation."""
     response = send_file(path, mimetype=content_type, conditional=True, max_age=0)
-    response.headers['Cache-Control'] = IMMUTABLE_IMAGE_CACHE_CONTROL if immutable else 'no-cache'
+    response.headers['Cache-Control'] = 'no-cache'
     # Magic-number checked on write: forbid sniffing and any script load.
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Content-Security-Policy'] = "default-src 'none'"

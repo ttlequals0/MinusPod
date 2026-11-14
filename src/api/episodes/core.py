@@ -21,7 +21,6 @@ from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, r
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from chapter_notes import format_chapter_block
-from storage import artwork_url_version
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 import episode_runs
@@ -116,6 +115,8 @@ def list_episodes(slug):
 
     # One batched lookup for the whole page rather than one query per row.
     job_states = db.get_episode_job_states([ep['episode_id'] for ep in episodes])
+    local_versions = (storage.local_artwork_versions(slug, [ep['episode_id'] for ep in episodes])
+                      if is_local and storage is not None else None)
 
     episode_list = []
     for ep in episodes:
@@ -143,7 +144,7 @@ def list_episodes(slug):
             ep, slug=owner_slug,
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
             is_youtube=(ep.get('source_feed_type') == 'youtube') if source_slug else is_youtube,
-            storage=storage,
+            storage=storage, local_versions=local_versions,
             title_skip_patterns=(ep.get('source_title_skip_patterns')
                                  if source_slug else podcast.get('title_skip_patterns')),
             description_skip_patterns=(ep.get('source_description_skip_patterns')
@@ -196,11 +197,14 @@ def _secure_artwork_url(url):
     return url if (url or '').startswith(('https://', 'http://')) else None
 
 
+IMMUTABLE_COVER_CACHE_CONTROL = 'private, max-age=604800, immutable'
+
+
 def _artwork_route(slug, episode_id):
     return public_path(f"/api/v1/feeds/{slug}/episodes/{episode_id}/artwork")
 
 
-def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
+def _local_artwork_fallback_url(ep, *, is_local, storage, slug, local_versions=None):
     """The admin artwork proxy route, or None.
 
     Local episodes never get an ``artwork_url`` (it is populated only from an upstream RSS
@@ -212,17 +216,21 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
     """
     if not is_local or storage is None:
         return None
-    if not storage.has_episode_artwork(slug, ep['episode_id']):
-        return None
-    return _artwork_route(slug, ep['episode_id'])
+    has_cover = (ep['episode_id'] in local_versions if local_versions is not None
+                 else storage.has_episode_artwork(slug, ep['episode_id']))
+    return _artwork_route(slug, ep['episode_id']) if has_cover else None
 
 
-def _artwork_thumb_url(ep, *, slug, is_local, storage, artwork_url):
+def _artwork_thumb_url(ep, *, slug, is_local, storage, artwork_url, local_versions=None):
     """Same-origin thumbnail address with its cache-bust token, or None when the episode has no cover."""
+    if storage is None:
+        return None
     if artwork_url:
-        version = artwork_url_version(artwork_url)
-    elif is_local and storage is not None:
-        version = storage.local_artwork_version(slug, ep['episode_id'])
+        version = storage.cover_version(slug, ep['episode_id'], artwork_url)
+    elif is_local and local_versions is not None:
+        version = local_versions.get(ep['episode_id'])
+    elif is_local:
+        version = storage.cover_version(slug, ep['episode_id'], None)
     else:
         version = None
     if not version:
@@ -244,13 +252,14 @@ def _sponsorblock_json(ep):
 
 def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, storage=None,
                        title_skip_patterns=None, description_skip_patterns=None,
-                       duration_filters=None):
+                       duration_filters=None, local_versions=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for the frontend: 'processed' -> 'completed'; discovered/
     permanently_failed pass through. ``slug``/``is_local``/``storage`` are needed only for
     the local-episode artworkUrl fallback (see _local_artwork_fallback_url); callers pass a
     hoisted ``is_local``/``storage`` so a list does not re-query the podcast row per row.
+    ``local_versions`` is a page's id-to-version map from one directory listing.
     """
     time_saved = 0
     if ep.get('original_duration') and ep.get('new_duration'):
@@ -259,12 +268,12 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
     artwork_url = _secure_artwork_url(ep.get('artwork_url'))
     if artwork_url is None and slug is not None:
         artwork_url = _local_artwork_fallback_url(
-            ep, is_local=is_local, storage=storage, slug=slug)
+            ep, is_local=is_local, storage=storage, slug=slug, local_versions=local_versions)
 
     thumb_url = None
     if slug is not None:
         thumb_url = _artwork_thumb_url(
-            ep, slug=slug, is_local=is_local, storage=storage,
+            ep, slug=slug, is_local=is_local, storage=storage, local_versions=local_versions,
             artwork_url=_secure_artwork_url(ep.get('artwork_url')))
 
     return {
@@ -493,11 +502,10 @@ def get_episode_artwork(slug, episode_id):
 
     storage = get_storage()
     artwork_url = _secure_artwork_url(get_database().get_episode_artwork_url(slug, episode_id))
+    version = storage.cover_version(slug, episode_id, artwork_url)
     if artwork_url:
-        version = artwork_url_version(artwork_url)
         artwork = storage.cache_url_artwork(slug, artwork_url, thumb=thumb)
     else:
-        version = storage.local_artwork_version(slug, episode_id)
         artwork = storage.local_artwork_file(slug, episode_id, thumb=thumb)
 
     if not artwork:
@@ -507,7 +515,10 @@ def get_episode_artwork(slug, episode_id):
         response.headers['Cache-Control'] = 'no-cache'
         return response
 
-    return image_response(*artwork, immutable=bool(version) and request.args.get('v') == version)
+    response = image_response(*artwork)
+    if version and request.args.get('v') == version:
+        response.headers['Cache-Control'] = IMMUTABLE_COVER_CACHE_CONTROL
+    return response
 
 
 # Straight from the stdlib so warning/critical aliases cannot drift from what
