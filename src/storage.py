@@ -959,7 +959,7 @@ class Storage:
 
         ``key_scope`` prefixes the failure and warn keys and, joined with ':', the log label.
         """
-        label = key_scope.replace("\n", ":")
+        label = f"{key_scope.replace(chr(10), ':')}:{artwork_url_version(artwork_url)}"
         ua = download_user_agent(self.db.get_podcast_by_slug(slug))
         failure_key = f"{key_scope}\n{artwork_url}\n{ua}"
         if self._artwork_failure_cache.get(failure_key):
@@ -1013,7 +1013,8 @@ class Storage:
             return self._save_episode_artwork(slug, episode_id, *fetched)
         except Exception as e:
             logger.log(
-                fail_level, f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
+                fail_level, f"[{slug}:{episode_id}:{artwork_url_version(artwork_url)}] "
+                f"Failed to download episode artwork: {e}")
             return False
 
     def _fetch_validated_artwork(self, slug: str, label: str, artwork_url: str,
@@ -1021,8 +1022,10 @@ class Storage:
                                  fail_level: int = logging.WARNING) -> tuple[bytes, str] | None:
         """Fetch a cover through the validated path (SSRF, content-type allowlist, size cap, magic).
 
-        ``label`` is the log prefix. Returns (bytes, mime) or None; failures log at fail_level.
+        ``label`` is the log prefix, suffixed with the cover's URL version. Returns (bytes, mime) or None;
+        failures log at fail_level.
         """
+        label = f"{label}:{artwork_url_version(artwork_url)}"
         try:
             logger.info(f"[{label}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")
