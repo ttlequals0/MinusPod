@@ -12,11 +12,15 @@ release notes.
 
 ### Changed
 
-- The actions of an audio cue template sit in one left-aligned row that wraps. Delete comes last and stays on the same line as Optimize window. The enable checkbox lines up with the template name. Before, Optimize window and Delete sat apart at the right.
+- An audio cue template shows Play, Threshold and a More menu on one line. Export, Promote to network, Change type, Optimize window and Delete are in the menu. Before, the seven buttons wrapped unevenly, and Optimize window and Delete sat apart at the right.
+- The Threshold button of a cue template always reads "Threshold". A set value is shown as a line of text under the cue's details.
+- The enable checkbox of a cue template lines up with its name.
+- Menu items are 44 px tall on touch screens. They were 36 px.
 
 ### Fixed
 
-- Add audio to pattern also finds a pattern that matched inside a merged ad break. A stored marker names only its lead pattern, and the other patterns that matched inside it are kept as members with their own spans. The lookup now accepts a member and builds the audio from that member's span. A text pattern member records its pattern from this version on. In an episode processed by an earlier version, Add audio is offered for such a member only after the episode is reprocessed.
+- Add audio to pattern also finds a pattern that matched inside a merged ad break. A stored marker names only its lead pattern, and the other patterns that matched inside it are kept as members with their own spans. The lookup now accepts a member and builds the audio from that member's span. A text pattern member records its pattern from this version on.
+- Add audio to pattern searches the transcripts of retained episodes in the pattern's scope when no ad marker names the pattern. Episodes processed by an earlier version do not need reprocessing. The audio runs from the pattern's opening words to its closing words. A span that overlaps a rejected ad, or whose length does not fit the pattern, is not offered.
 
 ## [2.102.1] - 2026-11-13
 
