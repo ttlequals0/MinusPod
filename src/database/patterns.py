@@ -60,9 +60,10 @@ def _pattern_scope_sql(pattern: dict) -> tuple[str, list]:
 
 
 def _marker_id_like(pattern_id: int) -> tuple[str, list]:
-    """Prefilter on the stored JSON text; the caller still parses the markers. Both separators, spaced and compact."""
+    """Prefilter on the stored JSON text; the caller still parses the markers."""
+    # save_episode_details writes plain json.dumps, so only the spaced separator occurs
+    # (tests/integration/test_audio_add_source.py round-trips both prefilters through it)
     forms = [f'%"pattern_id": {pattern_id}{end}%' for end in (',', '}')]
-    forms += [f'%"pattern_id":{pattern_id}{end}%' for end in (',', '}')]
     return "(" + " OR ".join(["ed.ad_markers_json LIKE ?"] * len(forms)) + ")", forms
 
 
@@ -543,6 +544,9 @@ class PatternMixin:
 
     def get_pattern_sponsor_episodes(self, pattern: dict, names: list[str], limit: int) -> list[tuple[str, str]]:
         """Newest in-scope retained episodes with a transcript whose markers name one of the sponsor names."""
+        names = [n.strip() for n in names if n and n.strip()]
+        if not names:
+            return []
         like_sql, like_params = _marker_sponsor_like(names)
         return self._scoped_retained_episodes(
             pattern, f"ed.original_segments_json IS NOT NULL AND {like_sql}", like_params, limit)
