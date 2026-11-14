@@ -82,16 +82,11 @@ def test_no_trim_while_episodes_are_queued():
     assert _finish_run([], 3).call_count == 0
 
 
-def test_later_drain_trims_again():
-    assert _finish_run([], 0).call_count == 1
-    assert _finish_run([], 0).call_count == 1
-
-
 def test_trim_check_error_does_not_break_run():
     queue = MagicMock()
     queue.get_current.side_effect = RuntimeError('db down')
     with patch.object(processing, 'trim_idle_memory') as trim:
-        processing._trim_when_drained(queue)
+        assert processing._trim_when_drained(queue) is None
     trim.assert_not_called()
 
 

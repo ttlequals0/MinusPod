@@ -13,7 +13,10 @@ _MIB = 1024 ** 2
 def _load_malloc_trim():
     """malloc_trim from the process libc, or None off glibc."""
     try:
-        return ctypes.CDLL(None).malloc_trim
+        fn = ctypes.CDLL(None).malloc_trim
+        fn.argtypes = [ctypes.c_size_t]
+        fn.restype = ctypes.c_int
+        return fn
     except (OSError, AttributeError):
         return None
 
