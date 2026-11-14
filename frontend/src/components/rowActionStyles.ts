@@ -6,7 +6,7 @@ import { focusRing } from './fieldStyles';
 
 /** Compact visual controls; coarse-pointer bounds come from index.css. */
 export const rowActionBtn =
-  'px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 inline-flex items-center justify-center text-center'
+  'px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 inline-flex items-center justify-center gap-1.5 text-center'
   + ' transition-colors touch-manipulation whitespace-nowrap max-sm:h-11 min-h-11 sm:min-h-0'
   + ` ${focusRing}`;
 /** Table row actions (detection rows, Sponsors, Patterns Protect): 28px on a fine pointer, 44px on coarse through index.css. */

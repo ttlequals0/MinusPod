@@ -11,7 +11,7 @@ import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
 import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
 import { ghostBtn, primaryBtn } from '../../components/cueScanStyles';
-import { btnDestructive, btnDestructiveOutline, btnGhost, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { btnDestructive, btnDestructiveOutline, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { rowActionBtn } from '../../components/rowActionStyles';
 import { cardTitle, subHeading } from '../../components/pageStyles';
 import { ConfirmModal } from '../../components/Modal';
@@ -509,7 +509,7 @@ function CueTemplatesPanel({ slug }: Props) {
                       <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnGhost}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                           onClick={() => togglePlay(t)}
                           disabled={IS_DEMO}
                           title={playingId === t.id ? 'Stop' : 'Play this cue'}
@@ -522,7 +522,7 @@ function CueTemplatesPanel({ slug }: Props) {
                     )}
                     <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
                       <a
-                        className={`${rowActionBtn} ${btnGhost} touch-target`}
+                        className={`${rowActionBtn} ${btnOutline} touch-target`}
                         href={cueTemplateExportUrl(t.id)}
                         title="Download this cue as a portable zip"
                       >
@@ -541,7 +541,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           return (
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnGhost}`}
+                              className={`${rowActionBtn} ${btnOutline}`}
                               onClick={() => handlePromote(t)}
                               title={
                                 t.scope === 'network'
@@ -559,7 +559,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         })()}
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnGhost}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                           onClick={() => startEditType(t)}
                         >
                           Change type
@@ -590,18 +590,18 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnGhost}`}
+                            className={`${rowActionBtn} ${btnOutline}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
                             Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
                           </button>
                         )}
-                        {/* Below sm Optimize and Delete wrap as one unit so Delete never sits alone on a line. */}
-                        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:contents">
+                        {/* Optimize and Delete wrap as one unit so Delete never sits alone on a line. */}
+                        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnGhost}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                           onClick={() => {
                             setActionError(null);
                             setOptimizeId(optimizeId === t.id ? null : t.id);
@@ -613,7 +613,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         >
                           Optimize window
                         </button>
-                        <div className="flex items-center gap-1.5 sm:ml-auto">
+                        <div className="flex items-center gap-1.5">
                         {confirmDeleteId === t.id ? (
                           <>
                             <DemoDisabled>
@@ -627,7 +627,7 @@ function CueTemplatesPanel({ slug }: Props) {
                             </DemoDisabled>
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnGhost}`}
+                              className={`${rowActionBtn} ${btnOutline}`}
                               onClick={() => setConfirmDeleteId(null)}
                             >
                               Cancel
