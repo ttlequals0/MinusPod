@@ -74,6 +74,7 @@ import DatabaseBackupSection from './settings/DatabaseBackupSection';
 import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import SearchableSectionGroup from '../components/SearchableSectionGroup';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
+import { SettingsSectionTargetContext } from '../context/SettingsSectionTargetContext';
 import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
 import { btnLg, btnPrimary, touchTarget } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
@@ -748,16 +749,10 @@ function Settings() {
   // The System Status section uses defaultOpen on its CollapsibleSection (see SystemStatusSection.tsx), so it
   // starts expanded on first visit; afterwards the user's persisted collapsed/expanded preference is respected.
 
-  // Auto-expand and scroll to section when navigated via hash link
-  useEffect(() => {
-    const id = location.hash.slice(1);
-    if (id === 'podcast-index' || id === 'segment-actions') {
-      localStorage.setItem(`settings-section-${id}`, 'true');
-      setTimeout(() => {
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [location.hash]);
+  // /settings#<anchorId>: the CollapsibleSection with that anchorId opens, scrolls and takes focus.
+  const sectionTarget = location.hash.length > 1
+    ? { id: decodeURIComponent(location.hash.slice(1)), seq: location.key }
+    : null;
 
   // Sync form fields with server data via a during-render compare (the React 19 alternative to a
   // useEffect+setState). useSyncFromQuery holds the snapshot+conditional-setState pattern; staying render-phase
@@ -1313,8 +1308,10 @@ function Settings() {
 
       {/* Settings search: filters the configurable sections below by matching a
           section's title or any of its setting labels (client-side, no backend). */}
+      <SettingsSectionTargetContext.Provider value={sectionTarget}>
       <SearchableSectionGroup
         onMatchKeysChange={setSearchMatches}
+        revealKey={sectionTarget?.seq}
         placeholder="Search settings..."
         ariaLabel="Search settings"
         clearLabel="Clear settings search"
@@ -1326,7 +1323,7 @@ function Settings() {
 
       <SettingsGroupHeader title="Podcast discovery" />
 
-      <div id="podcast-index">
+      <div>
         <PodcastIndexSection
           searchProvider={podcastSearchProvider}
           onSearchProviderChange={setPodcastSearchProvider}
@@ -1339,7 +1336,7 @@ function Settings() {
         />
       </div>
 
-      <div id="youtube">
+      <div>
         <YouTubeSection />
       </div>
 
@@ -1380,7 +1377,7 @@ function Settings() {
         onDifferentialFetchModeChange={(v) => tunableMutation.mutate({ differentialFetchMode: v })}
       />
 
-      <div id="segment-actions">
+      <div>
         <SegmentActionsSection
           segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
           onSegmentCategoryActionChange={(category, action) =>
@@ -1845,6 +1842,7 @@ function Settings() {
       />
 
       </SearchableSectionGroup>
+      </SettingsSectionTargetContext.Provider>
 
       {/* Error display */}
       {(updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) && (

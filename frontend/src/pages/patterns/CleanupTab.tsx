@@ -477,7 +477,7 @@ export default function CleanupTab() {
           ) : status === 'pending' && kind === 'all' ? (
             <>
               No suggestions yet. Run cleanup from{' '}
-              <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>
+              <Link to="/settings#pattern-cleanup-section" className={`text-primary hover:underline ${focusRing}`}>
                 {'Settings > Experiments'}
               </Link>
               .

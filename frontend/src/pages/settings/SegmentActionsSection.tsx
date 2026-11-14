@@ -24,6 +24,7 @@ function SegmentActionsSection({
       title="Segment actions"
       subtitle="What happens to each kind of detected segment, and whether to look for show-structure segments at all."
       storageKey="settings-section-segment-actions"
+      anchorId="segment-actions"
     >
       <div className="space-y-6">
         <div>

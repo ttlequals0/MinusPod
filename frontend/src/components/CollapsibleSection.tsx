@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useInSettingsSearchRegion, useSettingsSearch } from '../context/SettingsSearchContext';
 import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
+import { useSettingsSectionTarget } from '../context/SettingsSectionTargetContext';
+import { revealSection } from '../utils/revealSection';
 import ChevronCaret from './ChevronCaret';
 import { focusRing } from './fieldStyles';
 import { cardTitle, subHeading } from './pageStyles';
@@ -51,6 +53,8 @@ interface CollapsibleSectionProps {
   // on demand (e.g. a validation error inside) without clobbering the user's preference. Does not affect the
   // toggle click, which still flips the underlying isOpen.
   forceOpen?: boolean;
+  // DOM id for /settings#<anchorId> deep links: the section opens, scrolls into view and takes focus.
+  anchorId?: string;
 }
 
 function CollapsibleSection({
@@ -64,6 +68,7 @@ function CollapsibleSection({
   onToggle,
   unmountWhenClosed = false,
   forceOpen = false,
+  anchorId,
 }: CollapsibleSectionProps) {
   const subsection = variant === 'subsection';
   const resolvedKey = storageKey || `settings-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
@@ -101,6 +106,19 @@ function CollapsibleSection({
     onToggle?.(bulkSignal.open);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkSignal?.seq]);
+
+  // Deep link: open, scroll and focus when the settings hash targets this section.
+  const target = useSettingsSectionTarget();
+  const targetSeq = anchorId && target?.id === anchorId ? target.seq : null;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (targetSeq === null || !rootRef.current) return;
+    setIsOpen(true);
+    onToggle?.(true);
+    return revealSection(rootRef.current, toggleRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetSeq]);
 
   useEffect(() => {
     if (openState) {
@@ -140,8 +158,10 @@ function CollapsibleSection({
 
   return (
     <div
+      id={anchorId}
+      ref={rootRef}
       data-search-key={resolvedKey}
-      className={`${subsection ? 'border-t border-border first:border-t-0' : 'bg-card rounded-lg border border-border'}${hiddenBySearch ? ' hidden' : ''}`}
+      className={`${anchorId ? 'scroll-mt-[calc(var(--status-bar-height,0px)+5rem)] ' : ''}${subsection ? 'border-t border-border first:border-t-0' : 'bg-card rounded-lg border border-border'}${hiddenBySearch ? ' hidden' : ''}`}
     >
       {/* The row div (not a wrapping button) carries the click target so a
           button passed via headerRight never nests inside a button. */}
@@ -160,6 +180,7 @@ function CollapsibleSection({
         {/* No handler of its own: mouse and keyboard activation bubble to
             the row's single toggle handler above. */}
         <button
+          ref={toggleRef}
           type="button"
           aria-expanded={expanded}
           className={`flex-1 min-w-0 text-left ${subsection ? 'flex min-h-11 flex-col items-start justify-center sm:min-h-0' : ''} ${focusRing}`}

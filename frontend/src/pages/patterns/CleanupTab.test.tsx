@@ -385,7 +385,7 @@ describe('CleanupTab', () => {
     renderTab();
     expect(await screen.findByText(/No suggestions yet\./)).toBeDefined();
     const link = screen.getByRole('link', { name: 'Settings > Experiments' });
-    expect(link.getAttribute('href')).toBe('/settings');
+    expect(link.getAttribute('href')).toBe('/settings#pattern-cleanup-section');
   });
 });
 

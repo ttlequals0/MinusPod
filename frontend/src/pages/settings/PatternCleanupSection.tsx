@@ -164,6 +164,7 @@ function PatternCleanupSection({
       title="Pattern cleanup"
       subtitle="Reviews learned patterns with an LLM and suggests trims, splits, renames and retirements for you to approve. Off by default."
       storageKey={STORAGE_KEY}
+      anchorId="pattern-cleanup-section"
       onToggle={setOpen}
     >
       {isError ? (

@@ -10,6 +10,8 @@ interface SearchableSectionGroupProps {
   ariaLabel: string;
   clearLabel: string;
   onMatchKeysChange?: (matches: Set<string> | null) => void;
+  // Changing this value clears an active search, so a deep-linked section is not filtered out.
+  revealKey?: string;
   children: ReactNode;
 }
 
@@ -19,6 +21,7 @@ export default function SearchableSectionGroup({
   ariaLabel,
   clearLabel,
   onMatchKeysChange,
+  revealKey,
   children,
 }: SearchableSectionGroupProps) {
   const regionRef = useRef<HTMLDivElement>(null);
@@ -26,6 +29,10 @@ export default function SearchableSectionGroup({
   useEffect(() => {
     onMatchKeysChange?.(matchKeys);
   }, [matchKeys, onMatchKeysChange]);
+  useEffect(() => {
+    if (revealKey) clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
   const [bulkCollapseSignal, triggerBulkCollapse] = useBulkCollapseSignal();
 
   return (
