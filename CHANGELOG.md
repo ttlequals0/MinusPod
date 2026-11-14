@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.2] - 2026-11-13
+
+### Fixed
+
+- Add audio to pattern also finds a pattern that matched inside a merged ad break. A stored marker names only its lead pattern, and the other patterns that matched inside it are kept as members with their own spans. The lookup now accepts a member and builds the audio from that member's span. A text pattern member records its pattern from this version on. In an episode processed by an earlier version, Add audio is offered for such a member only after the episode is reprocessed.
+
 ## [2.102.1] - 2026-11-13
 
 ### Added
