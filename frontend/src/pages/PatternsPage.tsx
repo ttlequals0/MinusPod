@@ -24,7 +24,7 @@ import { Badge } from '../components/Badge';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
-import { formatDate } from '../utils/format';
+import { formatDate, formatDateTime } from '../utils/format';
 import { audioSummaryLabel } from '../utils/patternAudio';
 import {
   SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
@@ -69,7 +69,7 @@ const PATTERN_PARAM_DEFAULTS = {
 };
 
 // Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
-const COLUMN_WIDTHS = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[136px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
+const COLUMN_WIDTHS = ['w-[64px]', 'w-[148px]', '', 'w-[136px]', 'w-[124px]', 'w-[108px]', 'w-[100px]', 'w-[96px]', 'w-[124px]', 'w-[76px]', 'w-[84px]'];
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -525,8 +525,8 @@ function PatternsPage() {
               <span className={pattern.false_positive_count > 0 ? 'text-destructive' : ''}>
                 False positives: {pattern.false_positive_count}
               </span>
-              <span>Created: {formatDate(pattern.created_at)}</span>
-              <span>Last matched: {formatDate(pattern.last_matched_at)}</span>
+              <span title={formatDateTime(pattern.created_at)}>Created: {formatDate(pattern.created_at, true)}</span>
+              <span title={pattern.last_matched_at ? formatDateTime(pattern.last_matched_at) : undefined}>Last matched: {formatDate(pattern.last_matched_at, true)}</span>
             </div>
             <div data-testid={`pattern-card-audio-${pattern.id}`} className="mt-2 text-xs text-muted-foreground">
               Audio: {audioSummaryLabel(pattern.audio)}
@@ -543,7 +543,7 @@ function PatternsPage() {
       {/* Desktop Table Layout */}
       <div className={`hidden xl:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full table-fixed min-w-[1140px]">
+          <table className="w-full table-fixed min-w-[1180px]">
             <colgroup>
               {COLUMN_WIDTHS.map((w, i) => (
                 <col key={i} className={w} />
@@ -551,23 +551,23 @@ function PatternsPage() {
             </colgroup>
             <thead className={tableHead}>
               <tr>
-                <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="scope" label="Scope" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="sponsor" label="Sponsor" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className={`${thBase} px-2 text-left`}>
+                <SortHeader field="id" label="ID" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="scope" label="Scope" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="sponsor" label="Sponsor" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th className={`${thBase} px-3 text-left`}>
                   Category
                 </th>
-                <th className={`${thBase} px-2 text-left`}>
+                <th className={`${thBase} px-3 text-left`}>
                   Audio
                 </th>
-                <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="false_positive_count" label="False pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="last_matched_at" label="Last matched" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className={`${thBase} px-2 text-left`}>
+                <SortHeader field="confirmation_count" label="Confirmed" align="right" className="px-3 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False pos." fullLabel="False positives" align="right" className="px-3 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="created_at" label="Created" className="px-3 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last matched" className="px-3 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th className={`${thBase} px-3 text-left`}>
                   Status
                 </th>
-                <th className={`${thBase} px-2 text-left`}>
+                <th className={`${thBase} px-3 text-left`}>
                   Actions
                 </th>
               </tr>
@@ -579,10 +579,10 @@ function PatternsPage() {
                   className={`${tableRow} cursor-pointer`}
                   onClick={() => setSelectedPattern(pattern)}
                 >
-                  <td className="px-2 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
+                  <td className="px-3 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
                     #{pattern.id}
                   </td>
-                  <td className="px-2 py-3 text-sm overflow-hidden">
+                  <td className="px-3 py-3 text-sm overflow-hidden">
                     <div className="flex items-center gap-1 flex-wrap">
                       <ScopeBadge pattern={pattern} truncate />
                       <SegmentCategoryBadge category={pattern.category} />
@@ -601,7 +601,7 @@ function PatternsPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-2 py-3 text-sm overflow-hidden">
+                  <td className="px-3 py-3 text-sm overflow-hidden">
                     <button
                       type="button"
                       aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
@@ -618,18 +618,18 @@ function PatternsPage() {
                   </td>
                   {/* Stops the row click: the select is its own control, not
                       a way into the detail modal. */}
-                  <td className="px-2 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     {categorySelect(pattern, 'w-full min-w-0')}
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                  <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {audioSummaryLabel(pattern.audio)}
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
                     <span className="text-sm text-success font-medium">
                       {pattern.confirmation_count}
                     </span>
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
                     <span className={`text-sm font-medium ${
                       pattern.false_positive_count > 0
                         ? 'text-destructive'
@@ -638,16 +638,16 @@ function PatternsPage() {
                       {pattern.false_positive_count}
                     </span>
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDate(pattern.created_at)}
+                  <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap tabular-nums" title={pattern.created_at ? formatDateTime(pattern.created_at) : undefined}>
+                    {formatDate(pattern.created_at, true)}
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDate(pattern.last_matched_at)}
+                  <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap tabular-nums" title={pattern.last_matched_at ? formatDateTime(pattern.last_matched_at) : undefined}>
+                    {formatDate(pattern.last_matched_at, true)}
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap">
+                  <td className="px-3 py-3 whitespace-nowrap">
                     <ActiveBadge active={pattern.is_active} />
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap text-xs">
+                  <td className="px-3 py-3 whitespace-nowrap text-xs">
                     {pattern.source === PATTERN_SOURCE_COMMUNITY && (
                       <DemoDisabled>
                         <button
