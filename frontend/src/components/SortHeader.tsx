@@ -10,6 +10,7 @@ export type SortDirection = 'asc' | 'desc';
 export function SortHeader<T extends string>({
   field,
   label,
+  fullLabel,
   className = 'px-4',
   align = 'left',
   sortField,
@@ -18,6 +19,8 @@ export function SortHeader<T extends string>({
 }: {
   field: T;
   label: string;
+  // Full name for a shortened label: the button's tooltip and accessible name.
+  fullLabel?: string;
   className?: string;
   align?: 'left' | 'right';
   sortField: T;
@@ -37,6 +40,8 @@ export function SortHeader<T extends string>({
       <button
         type="button"
         onClick={() => onSort(field)}
+        title={fullLabel}
+        aria-label={fullLabel}
         className={`flex w-full items-center gap-1 py-3 -my-3 uppercase tracking-wider hover:bg-accent/50 ${right ? 'justify-end text-right' : 'text-left'} ${focusRing}`}
       >
         {label}

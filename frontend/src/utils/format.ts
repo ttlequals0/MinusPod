@@ -12,10 +12,12 @@ export function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Locale date (no time), `-` for a missing value.
-export function formatDate(dateStr: string | null): string {
+// Locale date (no time), `-` for a missing value. `compact` gives fixed-width MM/DD/YY.
+export function formatDate(dateStr: string | null, compact = false): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString();
+  const date = new Date(dateStr);
+  if (!compact) return date.toLocaleDateString();
+  return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
 }
 
 // Display name for a subscriber key, which may have no label.
