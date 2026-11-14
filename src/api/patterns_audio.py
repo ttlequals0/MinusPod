@@ -38,6 +38,8 @@ logger = logging.getLogger('podcast.api')
 MAX_PREVIEW_SECONDS = 600
 ADD_SOURCE_EPISODES = 5
 TRANSCRIPT_SEARCH_EPISODES = 10
+# Each sponsor name is a text scan of the markers, so only the sponsor and its first aliases are used
+SPONSOR_NAME_CAP = 8
 # A found span may differ from the pattern's known ad length by this factor either way
 KNOWN_LENGTH_FACTOR = 2
 MATCHES_PER_PAGE_DEFAULT = 10
@@ -171,11 +173,11 @@ def _search_context(db, slug):
 
 def _transcript_candidates(db, pattern):
     """Episodes whose markers name the pattern's sponsor first, then the newest in scope, TRANSCRIPT_SEARCH_EPISODES in all."""
-    names = []
+    found = []
     if pattern.get('sponsor'):
         aliases = normalize_aliases((db.get_known_sponsor_by_name(pattern['sponsor']) or {}).get('aliases'))
-        names = list(dict.fromkeys([pattern['sponsor'], *aliases]))
-    found = db.get_pattern_sponsor_episodes(pattern, names, TRANSCRIPT_SEARCH_EPISODES) if names else []
+        names = list(dict.fromkeys([pattern['sponsor'], *aliases]))[:SPONSOR_NAME_CAP]
+        found = db.get_pattern_sponsor_episodes(pattern, names, TRANSCRIPT_SEARCH_EPISODES)
     if len(found) < TRANSCRIPT_SEARCH_EPISODES:
         found += [c for c in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES)
                   if c not in found]

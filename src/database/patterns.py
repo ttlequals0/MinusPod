@@ -11,6 +11,7 @@ from database.podcasts import normalize_network_id
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
+from utils.text import escape_like
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +68,8 @@ def _marker_id_like(pattern_id: int) -> tuple[str, list]:
 
 def _marker_sponsor_like(names: list[str]) -> tuple[str, list]:
     """Prefilter on the stored JSON text for markers or merged members carrying one of the sponsor names."""
-    forms = []
-    for name in names:
-        quoted = json.dumps(name)[1:-1].replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        forms += [f'%"sponsor": "{quoted}"%', f'%"sponsor":"{quoted}"%']
+    # Markers are saved with plain json.dumps, so only the spaced separator and escaped names occur
+    forms = [f'%"sponsor": "{escape_like(json.dumps(name)[1:-1])}"%' for name in names]
     return "(" + " OR ".join(["ed.ad_markers_json LIKE ? ESCAPE '\\'"] * len(forms)) + ")", forms
 
 
