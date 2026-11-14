@@ -69,7 +69,7 @@ const PATTERN_PARAM_DEFAULTS = {
 };
 
 // Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
-const COLUMN_WIDTHS = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[124px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
+const COLUMN_WIDTHS = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[136px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
