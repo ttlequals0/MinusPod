@@ -1,22 +1,7 @@
 """A non-image artwork URL is rejected unsaved and warns once."""
 import logging
-import os
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from storage import Storage  # noqa: E402
-
-
-@pytest.fixture
-def storage(temp_db, tmp_path):
-    Storage._instance = None
-    s = Storage(str(tmp_path))
-    yield s
-    Storage._instance = None
 
 
 def _html_response():

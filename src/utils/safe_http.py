@@ -193,8 +193,11 @@ def safe_get(
 
 def get_feed_content_with_agents(url: str, agents: list[str], accept: str, *,
                                  timeout: float = HTTP_TIMEOUT_API,
-                                 extra_headers: dict | None = None) -> requests.Response:
-    """Streamed feed-content GET that tries each User-Agent in order, moving on after a 403."""
+                                 extra_headers: dict | None = None,
+                                 on_fallback_ok=None) -> requests.Response:
+    """Streamed feed-content GET that tries each User-Agent in order, moving on after a 403.
+
+    on_fallback_ok is called when a later agent got a non-error response."""
     if not agents:
         raise ValueError("no User-Agent to fetch with")
     for i, agent in enumerate(agents):
@@ -209,6 +212,8 @@ def get_feed_content_with_agents(url: str, agents: list[str], accept: str, *,
         if response.status_code == 403 and i < len(agents) - 1:
             response.close()
             continue
+        if i > 0 and on_fallback_ok and response.status_code < 400:
+            on_fallback_ok()
         return response
 
 

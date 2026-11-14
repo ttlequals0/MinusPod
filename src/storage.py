@@ -1152,18 +1152,13 @@ class Storage:
     @staticmethod
     def _fetch_artwork_response(log_id: str, artwork_url: str, user_agent: str, podcast):
         """Stream-GET artwork; after a 403 retry once with the feed user agent, as the audio download does."""
-        agents = [user_agent]
-        alternate = feed_user_agent(podcast)
-        if alternate != user_agent:
-            agents.append(alternate)
-        response = get_feed_content_with_agents(
+        agents = list(dict.fromkeys([user_agent, feed_user_agent(podcast)]))
+        return get_feed_content_with_agents(
             artwork_url, agents, '*/*', timeout=HTTP_TIMEOUT_FETCH,
-            extra_headers={'Accept-Language': 'en-US,en;q=0.9'})
-        sent = getattr(getattr(response, 'request', None), 'headers', None) or {}
-        if len(agents) > 1 and sent.get('User-Agent') == alternate and response.status_code < 400:
-            logger.info(f"[{log_id}] Artwork host refused the download User-Agent but "
-                        f"accepts the feed User-Agent: {safe_url_for_log(artwork_url)}")
-        return response
+            extra_headers={'Accept-Language': 'en-US,en;q=0.9'},
+            on_fallback_ok=lambda: logger.info(
+                f"[{log_id}] Artwork host refused the download User-Agent but "
+                f"accepts the feed User-Agent: {safe_url_for_log(artwork_url)}"))
 
     def _download_artwork_uncached(self, slug: str, artwork_url: str,
                                    force: bool, user_agent: str | None = None) -> tuple[bool, str | None]:

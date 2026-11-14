@@ -1,27 +1,17 @@
 """A 403 on the download User-Agent retries artwork once with the feed User-Agent."""
 import logging
-import os
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 from requests import HTTPError
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from storage import Storage  # noqa: E402
-
 URL = 'https://example.com/cover.jpg'
 JPEG = b'\xff\xd8\xff\xe0' + b'\x00' * 20
 
 
-@pytest.fixture
-def storage(temp_db, tmp_path):
-    Storage._instance = None
-    s = Storage(str(tmp_path))
-    s.db.create_podcast('example-podcast', 'https://example.com/feed.xml')
-    yield s
-    Storage._instance = None
+@pytest.fixture(autouse=True)
+def _podcast(storage):
+    storage.db.create_podcast('example-podcast', 'https://example.com/feed.xml')
 
 
 @pytest.fixture
