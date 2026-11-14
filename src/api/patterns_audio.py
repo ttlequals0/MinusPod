@@ -21,6 +21,7 @@ from pattern_audio import (
 from audio_fingerprinter import (
     clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
 )
+from community_export import normalize_aliases
 from config import FFMPEG_SHORT_TIMEOUT, MIN_AD_DURATION, is_keep_like, is_pending_review
 from storage import PathContainmentError
 from text_pattern_matcher import MAX_MATCH_DURATION
@@ -37,6 +38,10 @@ logger = logging.getLogger('podcast.api')
 MAX_PREVIEW_SECONDS = 600
 ADD_SOURCE_EPISODES = 5
 TRANSCRIPT_SEARCH_EPISODES = 10
+# Each sponsor name is a text scan of the markers, so only the sponsor and its first aliases are used
+SPONSOR_NAME_CAP = 8
+# Sponsor-named episodes leave the rest of the cap to the newest, whose markers may omit or misspell the sponsor
+SPONSOR_EPISODE_SHARE = 7
 # A found span may differ from the pattern's known ad length by this factor either way
 KNOWN_LENGTH_FACTOR = 2
 MATCHES_PER_PAGE_DEFAULT = 10
@@ -168,6 +173,18 @@ def _search_context(db, slug):
             tags, get_pattern_language(db, slug=slug))
 
 
+def _transcript_candidates(db, pattern):
+    """Up to SPONSOR_EPISODE_SHARE episodes whose markers name the pattern's sponsor, then the newest in scope."""
+    found = []
+    sponsor = db.get_known_sponsor_by_id(pattern['sponsor_id']) if pattern.get('sponsor_id') else None
+    if sponsor:
+        raw = [sponsor['name'], *normalize_aliases(sponsor.get('aliases'))]
+        names = list(dict.fromkeys(n.strip() for n in raw if n and n.strip()))[:SPONSOR_NAME_CAP]
+        found = db.get_pattern_sponsor_episodes(pattern, names, SPONSOR_EPISODE_SHARE)
+    found += [c for c in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES) if c not in found]
+    return found[:TRANSCRIPT_SEARCH_EPISODES]
+
+
 def _transcript_source(db, storage, pattern):
     """The first span of the pattern's own text in a retained in-scope transcript, newest first, or None."""
     if not pattern.get('is_active') or not pattern.get('text_template'):
@@ -179,7 +196,7 @@ def _transcript_source(db, storage, pattern):
         return None
     contexts = {}
     with pattern_catalog_scope():
-        for slug, episode_id in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES):
+        for slug, episode_id in _transcript_candidates(db, pattern):
             episode = db.get_episode(slug, episode_id)
             _, err = resolve_retained_original(db, storage, slug, episode_id, episode)
             if err:

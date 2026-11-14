@@ -4,6 +4,7 @@ import json
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, TEMPLATE, csrf
+from api.patterns_audio import TRANSCRIPT_SEARCH_EPISODES
 from text_pattern_matcher import _extract_outro_phrase
 
 
@@ -230,7 +231,8 @@ def drop_unscoped_patterns(fp_feed):
     """Global and network patterns outlive the feed, so remove them for the next test file."""
     yield
     conn = fp_feed.get_connection()
-    conn.execute("DELETE FROM ad_patterns WHERE scope IN ('global', 'network') AND text_template = ?", (TEMPLATE,))
+    conn.execute("DELETE FROM ad_patterns WHERE scope IN ('global', 'network') AND text_template IN (?, ?)",
+                 (TEMPLATE, AD_TEXT))
     conn.commit()
 
 
@@ -587,3 +589,127 @@ def test_rebuild_route_accepts_a_transcript_found_span(app_client, fp_feed, fp_o
     _transcript(fp_feed, SLUG, EPISODE)
     src = _detail(app_client, pid)['addSource']
     _rebuild(app_client, pid, src)
+
+
+def _acme_pattern(db, name='Acme', aliases=None, **kw):
+    """A text pattern of a sponsor, created on first use."""
+    sponsor_id = (db.get_known_sponsor_by_name(name) or {}).get('id') or db.create_known_sponsor(name, aliases=aliases)
+    return _text_pattern(db, sponsor_id=sponsor_id, **kw)
+
+
+def _markers_of(db, episode, markers):
+    db.save_episode_details(SLUG, episode, ad_markers=markers)
+
+
+def _episode_id(n):
+    return f'{n:02x}e4f5a6b1c2'
+
+
+EPISODE_COUNT = TRANSCRIPT_SEARCH_EPISODES * 3
+
+
+def _many_episodes(db, cleanup_paths, ad_episode, sponsor_episodes=None):
+    """EPISODE_COUNT retained episodes, newest last-numbered; only ad_episode holds the ad.
+
+    sponsor_episodes are the episodes whose markers name Acme (default: just the ad's).
+    """
+    sponsor_episodes = [ad_episode] if sponsor_episodes is None else sponsor_episodes
+    for n in range(EPISODE_COUNT):
+        episode = _episode_id(n)
+        cleanup_paths.append((SLUG, episode))
+        has_ad = n == ad_episode
+        marker = [{'start': 60.0, 'end': 108.0, 'sponsor': 'Acme'}] if n in sponsor_episodes else []
+        _feed_episode(db, SLUG, episode, f'2026-01-01T{n // 60:02d}:{n % 60:02d}:00Z', marker)
+        _transcript(db, SLUG, episode, with_ad=has_ad)
+
+
+@pytest.mark.parametrize('scope_kw', [{}, {'scope': 'global', 'podcast_id': None}])
+def test_episode_naming_the_sponsor_is_searched_beyond_the_newest(
+        app_client, fp_feed, cleanup_paths, scope_kw):
+    pid = _acme_pattern(fp_feed, **scope_kw)
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=0)
+    assert _detail(app_client, pid)['addSource']['episodeId'] == _episode_id(0)
+
+
+def test_old_episode_without_a_sponsor_marker_is_not_reached(app_client, fp_feed, cleanup_paths):
+    pid = _acme_pattern(fp_feed)
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=0, sponsor_episodes=[])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_pattern_without_a_sponsor_searches_the_newest_first(app_client, fp_feed, cleanup_paths):
+    pid = _text_pattern(fp_feed)
+    ad_episode = EPISODE_COUNT - 3
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=ad_episode, sponsor_episodes=[])
+    assert _detail(app_client, pid)['addSource']['episodeId'] == _episode_id(ad_episode)
+
+
+def test_sponsor_episodes_use_the_marker_name_of_an_alias(app_client, fp_feed, cleanup_paths):
+    pid = _acme_pattern(fp_feed, name='Acme Tax Co', aliases=['Acme'])
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=0)
+    assert _detail(app_client, pid)['addSource']['episodeId'] == _episode_id(0)
+
+
+def test_sponsor_with_more_aliases_than_the_cap_queries_the_sponsor_name_first(
+        app_client, fp_feed, cleanup_paths, monkeypatch):
+    from api.patterns_audio import SPONSOR_NAME_CAP
+    pid = _acme_pattern(fp_feed, name='Many Alias Co', aliases=[f'Alias {n}' for n in range(SPONSOR_NAME_CAP + 4)])
+    queried = []
+    real = type(fp_feed).get_pattern_sponsor_episodes
+    monkeypatch.setattr(type(fp_feed), 'get_pattern_sponsor_episodes',
+                        lambda self, pattern, names, limit: queried.append(names) or real(self, pattern, names, limit))
+    _detail(app_client, pid)
+    assert len(queried[0]) == SPONSOR_NAME_CAP and queried[0][0] == 'Many Alias Co'
+
+
+def test_sponsor_with_a_quote_and_non_ascii_is_found_through_the_marker_writer(fp_feed, fp_original):
+    name = 'Acme "Tax" Caf\u00e9 50%_off'
+    pid = _text_pattern(fp_feed)
+    _transcript(fp_feed, SLUG, EPISODE)
+    _markers(fp_feed, [{'start': 60.0, 'end': 108.0, 'sponsor': name}])
+    pattern = fp_feed.get_ad_pattern_by_id(pid)
+    assert fp_feed.get_pattern_sponsor_episodes(pattern, [name], 5) == [(SLUG, EPISODE)]
+    assert fp_feed.get_pattern_sponsor_episodes(pattern, ['Acme'], 5) == []
+
+
+def test_newest_episode_is_searched_when_many_older_ones_name_the_sponsor(app_client, fp_feed, cleanup_paths):
+    pid = _acme_pattern(fp_feed)
+    newest = EPISODE_COUNT - 1
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=newest, sponsor_episodes=range(TRANSCRIPT_SEARCH_EPISODES + 2))
+    assert _detail(app_client, pid)['addSource']['episodeId'] == _episode_id(newest)
+
+
+def test_fifth_sponsor_named_episode_is_searched(app_client, fp_feed, cleanup_paths):
+    pid = _acme_pattern(fp_feed)
+    named = TRANSCRIPT_SEARCH_EPISODES + 2
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=named - 5, sponsor_episodes=range(named))
+    assert _detail(app_client, pid)['addSource']['episodeId'] == _episode_id(named - 5)
+
+
+def test_no_sponsor_names_query_nothing(fp_feed):
+    pattern = fp_feed.get_ad_pattern_by_id(_text_pattern(fp_feed))
+    assert fp_feed.get_pattern_sponsor_episodes(pattern, [], 5) == []
+    assert fp_feed.get_pattern_sponsor_episodes(pattern, ['  ', ''], 5) == []
+
+
+def test_sponsor_name_with_surrounding_whitespace_matches_the_stripped_marker(
+        app_client, fp_feed, cleanup_paths):
+    pid = _acme_pattern(fp_feed, name='Spaced Co')
+    fp_feed.get_connection().execute("UPDATE known_sponsors SET name = ' Spaced Co ' WHERE name = 'Spaced Co'")
+    fp_feed.get_connection().commit()
+    _many_episodes(fp_feed, cleanup_paths, ad_episode=0, sponsor_episodes=[])
+    _markers_of(fp_feed, _episode_id(0), [{'start': 60.0, 'end': 108.0, 'sponsor': 'Spaced Co'}])
+    assert _detail(app_client, pid)['addSource']['episodeId'] == _episode_id(0)
+    fp_feed.get_connection().execute("UPDATE known_sponsors SET name = 'Spaced Co' WHERE name = ' Spaced Co '")
+    fp_feed.get_connection().commit()
+
+
+def test_pattern_id_is_found_through_the_marker_writer(fp_feed, fp_original):
+    pid = _text_pattern(fp_feed)
+    other = _text_pattern(fp_feed)
+    pattern = fp_feed.get_ad_pattern_by_id(pid)
+    _markers(fp_feed, [{'start': 60.0, 'end': 108.0, 'pattern_id': pid}])
+    assert fp_feed.get_pattern_marker_episodes(pattern, 5) == [(SLUG, EPISODE)]
+    _markers(fp_feed, [_break(pid, [_member(pid, 150.0, 200.0)])])
+    assert fp_feed.get_pattern_marker_episodes(pattern, 5) == [(SLUG, EPISODE)]
+    assert fp_feed.get_pattern_marker_episodes(fp_feed.get_ad_pattern_by_id(other), 5) == []

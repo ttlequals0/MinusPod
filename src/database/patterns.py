@@ -11,6 +11,7 @@ from database.podcasts import normalize_network_id
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
+from utils.text import escape_like
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +60,18 @@ def _pattern_scope_sql(pattern: dict) -> tuple[str, list]:
 
 
 def _marker_id_like(pattern_id: int) -> tuple[str, list]:
-    """Prefilter on the stored JSON text; the caller still parses the markers. Both separators, spaced and compact."""
+    """Prefilter on the stored JSON text; the caller still parses the markers."""
+    # save_episode_details writes plain json.dumps, so only the spaced separator occurs
+    # (tests/integration/test_audio_add_source.py round-trips both prefilters through it)
     forms = [f'%"pattern_id": {pattern_id}{end}%' for end in (',', '}')]
-    forms += [f'%"pattern_id":{pattern_id}{end}%' for end in (',', '}')]
     return "(" + " OR ".join(["ed.ad_markers_json LIKE ?"] * len(forms)) + ")", forms
+
+
+def _marker_sponsor_like(names: list[str]) -> tuple[str, list]:
+    """Prefilter on the stored JSON text for markers or merged members carrying one of the sponsor names."""
+    # Markers are saved with plain json.dumps, so only the spaced separator and escaped names occur
+    forms = [f'%"sponsor": "{escape_like(json.dumps(name)[1:-1])}"%' for name in names]
+    return "(" + " OR ".join(["ed.ad_markers_json LIKE ? ESCAPE '\\'"] * len(forms)) + ")", forms
 
 
 class PatternMixin:
@@ -532,6 +541,15 @@ class PatternMixin:
         """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
         like_sql, like_params = _marker_id_like(pattern['id'])
         return self._scoped_retained_episodes(pattern, like_sql, like_params, limit)
+
+    def get_pattern_sponsor_episodes(self, pattern: dict, names: list[str], limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes with a transcript whose markers name one of the sponsor names."""
+        names = [n.strip() for n in names if n and n.strip()]
+        if not names:
+            return []
+        like_sql, like_params = _marker_sponsor_like(names)
+        return self._scoped_retained_episodes(
+            pattern, f"ed.original_segments_json IS NOT NULL AND {like_sql}", like_params, limit)
 
     def get_pattern_transcript_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
         """Newest in-scope retained episodes that keep their original transcript, minus false-positive ones."""

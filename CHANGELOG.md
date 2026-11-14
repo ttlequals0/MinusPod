@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.3] - 2026-11-13
+
+### Fixed
+
+- Add audio to pattern searches the retained episodes most likely to hold the ad. It tried only the 10 newest retained episodes in the pattern's scope, so an ad further back was never found. Episodes whose ad markers name the pattern's sponsor, or one of its aliases, are now searched first, and the newest episodes fill the remaining places. A pattern with no sponsor is searched as before.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed
