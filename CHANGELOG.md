@@ -8,11 +8,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.102.3] - 2026-11-13
+## [2.102.3] - 2026-11-14
+
+### Changed
+
+- Add audio to pattern finds episodes through a new index of the pattern ids and sponsors named in each episode's ad markers. The lookup read every episode's stored markers and could take more than 10 seconds on a library of 18,000 episodes. It now takes under 100 ms.
+- After an upgrade, a one-time background step builds that index from existing episodes. Until it finishes, Add audio can miss older episodes, and `GET /patterns/{id}/audio` reports `markerIndexPending: true`.
+- A freshly published episode whose audio is not available yet is logged as a warning while it still has retries left. It was logged as an error.
+- A podcast artwork URL that keeps failing logs one warning. It logged the same warning at every retry.
 
 ### Fixed
 
 - Add audio to pattern searches the retained episodes most likely to hold the ad. It tried only the 10 newest retained episodes in the pattern's scope, so an ad further back was never found. Episodes whose ad markers name the pattern's sponsor, or one of its aliases, are now searched first, and the newest episodes fill the remaining places. A pattern with no sponsor is searched as before.
+- An artwork download that a host refuses with a 403 is retried once with the feed User-Agent, as the audio download already does, before the failure is recorded.
 
 ## [2.102.2] - 2026-11-13
 

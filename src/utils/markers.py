@@ -441,8 +441,6 @@ COARSE_MEMBER_STAGES = frozenset({
 MERGED_MEMBER_SPANS = 'merged_member_spans'
 # Stages whose member spans name the pattern that produced them.
 PATTERN_MEMBER_STAGES = frozenset({'fingerprint', 'text_pattern'})
-# Stages whose member spans name the pattern that produced them.
-PATTERN_MEMBER_STAGES = frozenset({'fingerprint', 'text_pattern'})
 # Every detection stage folded into a marker, including those that leave no member span.
 MERGED_STAGES = 'merged_stages'
 
