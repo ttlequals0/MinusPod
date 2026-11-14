@@ -301,6 +301,45 @@ describe('CleanupTab', () => {
     await waitFor(() => expect(mockReject).toHaveBeenCalledWith(2));
   });
 
+  it('tells the operator when an approval could not update the pattern audio', async () => {
+    mockApprove.mockResolvedValueOnce({
+      ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: false,
+      fingerprintSkippedReason: 'original_not_retained',
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    expect((await screen.findByRole('status')).textContent)
+      .toBe("The pattern's audio was not updated because no retained episode has it.");
+    await user.click(within(card(2)).getByRole('button', { name: 'Reject' }));
+    await waitFor(() => expect(mockReject).toHaveBeenCalledWith(2));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows no audio notice when the fingerprint was stored or the field is absent', async () => {
+    mockApprove.mockResolvedValueOnce({ ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: true });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(1));
+    await user.click(within(card(2)).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('summarizes the audio notice of a bulk approval', async () => {
+    const miss = { id: 1, status: 'approved', fingerprintStored: false, fingerprintSkippedReason: 'original_not_retained' };
+    mockBulk.mockResolvedValue([miss, { ...miss, id: 2 }]);
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(screen.getByLabelText('Select all'));
+    await user.click(screen.getByRole('button', { name: /Approve selected/ }));
+    expect((await screen.findByRole('status')).textContent).toContain('(2 suggestions)');
+  });
+
   it('offers Undo instead of Approve and Reject on an approved suggestion', async () => {
     mockList.mockResolvedValue([suggestion(1, 'trim', { text: KEPT }, {
       status: 'approved', reviewedAt: '2026-10-05T05:00:00Z',

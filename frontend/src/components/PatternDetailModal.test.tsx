@@ -153,6 +153,29 @@ describe('Split button', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['patterns'] });
   });
 
+  it('stays open and explains a split whose new patterns got no audio', async () => {
+    mockSplitPattern.mockResolvedValue({
+      success: true, original_pattern_id: 42, new_pattern_ids: [43, 44], message: 'Split into 2 patterns',
+      fingerprintStored: false, fingerprintSkippedReason: 'original_not_retained',
+    });
+    const onClose = vi.fn();
+    renderModal(makePattern(), onClose);
+    await userEvent.click(screen.getByRole('button', { name: 'Split' }));
+    expect((await screen.findByRole('status')).textContent)
+      .toBe("Pattern split. The pattern's audio was not updated because no retained episode has it.");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes after a split whose audio was stored', async () => {
+    mockSplitPattern.mockResolvedValue({
+      success: true, original_pattern_id: 42, new_pattern_ids: [43], message: 'ok', fingerprintStored: true,
+    });
+    const onClose = vi.fn();
+    renderModal(makePattern(), onClose);
+    await userEvent.click(screen.getByRole('button', { name: 'Split' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
   it('disables the button while the mutation is pending', async () => {
     let resolveSplit: (v: unknown) => void = () => {};
     mockSplitPattern.mockReturnValue(new Promise((resolve) => { resolveSplit = resolve; }));

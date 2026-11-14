@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { PatternScope } from './patterns';
+import type { FingerprintOutcome, PatternScope } from './patterns';
 import type { SegmentCategory } from '../utils/segmentCategory';
 
 export const patternCleanupQueryKey = ['patternCleanup'] as const;
@@ -91,7 +91,7 @@ interface CleanupPatternSummary {
   createdAt: string | null;
 }
 
-export interface PatternCleanupSuggestion {
+export interface PatternCleanupSuggestion extends FingerprintOutcome {
   id: number;
   runId: number | null;
   patternId: number;
@@ -117,7 +117,7 @@ interface SuggestionQuery {
   beforeId?: number;
 }
 
-type BulkResult = { id: number; status: CleanupStatus } | { id: number; error: 'not_found' | 'invalid_transition' };
+type BulkResult = ({ id: number; status: CleanupStatus } & FingerprintOutcome) | { id: number; error: 'not_found' | 'invalid_transition' };
 
 export async function getPatternCleanupStatus(): Promise<PatternCleanupStatus> {
   return apiRequest<PatternCleanupStatus>('/patterns/cleanup');

@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdPattern, updatePattern, deletePattern, splitPattern } from '../api/patterns';
+import { AdPattern, updatePattern, deletePattern, splitPattern, describePatternAudioOutcome } from '../api/patterns';
 import { getSponsors, addSponsor } from '../api/sponsors';
 import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
@@ -117,9 +117,10 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
 
   const splitMutation = useMutation({
     mutationFn: () => splitPattern(pattern.id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['patterns'] });
-      onClose();
+      // Stay open when the new patterns got no audio, so the reason is read before the dialog goes
+      if (!describePatternAudioOutcome(result)) onClose();
     },
   });
 
@@ -457,6 +458,14 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         hidden={tab !== 'audio'} className={`p-4 space-y-4 ${focusRing}`}>
         <PatternAudioSection pattern={pattern} active={tab === 'audio'} />
       </div>
+
+      {splitMutation.data && describePatternAudioOutcome(splitMutation.data) && (
+        <div className="px-4 pb-4">
+          <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+            {`Pattern split. ${describePatternAudioOutcome(splitMutation.data)}`}
+          </div>
+        </div>
+      )}
 
       {/* Error Display */}
       {(updateMutation.isError || deleteMutation.isError || splitMutation.isError) && (

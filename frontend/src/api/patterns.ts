@@ -401,7 +401,7 @@ export async function unprotectPattern(id: number): Promise<void> {
   await apiRequest(`/patterns/${id}/protect`, { method: 'DELETE' });
 }
 
-interface SplitPatternResult {
+interface SplitPatternResult extends FingerprintOutcome {
   success: boolean;
   original_pattern_id: number;
   new_pattern_ids: number[];
@@ -492,6 +492,23 @@ const FINGERPRINT_SKIP_TEXT: Record<FingerprintSkippedReason, string> = {
 
 export function describeFingerprintSkip(reason: FingerprintSkippedReason): string {
   return FINGERPRINT_SKIP_TEXT[reason];
+}
+
+export type FingerprintOutcome = {
+  fingerprintStored?: boolean;
+  fingerprintSkippedReason?: FingerprintSkippedReason;
+};
+
+const PATTERN_AUDIO_NOT_UPDATED = "The pattern's audio was not updated";
+const PATTERN_SKIP_TEXT: Partial<Record<FingerprintSkippedReason, string>> = {
+  original_not_retained: `${PATTERN_AUDIO_NOT_UPDATED} because no retained episode has it.`,
+  span_not_found: FINGERPRINT_SKIP_TEXT.span_not_found,
+};
+
+/** Notice for a pattern-level action (Cleanup, split) whose audio could not be updated; null when nothing is wrong. */
+export function describePatternAudioOutcome(outcome: FingerprintOutcome): string | null {
+  if (outcome.fingerprintStored !== false) return null;
+  return PATTERN_SKIP_TEXT[outcome.fingerprintSkippedReason ?? 'fingerprint_failed'] ?? `${PATTERN_AUDIO_NOT_UPDATED}.`;
 }
 
 export const patternAudioKey = (patternId: number) => ['pattern-audio', patternId] as const;
