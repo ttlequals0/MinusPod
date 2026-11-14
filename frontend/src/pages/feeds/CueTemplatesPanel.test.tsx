@@ -547,11 +547,6 @@ async function chooseMenuItem(name: string | RegExp) {
   await userEvent.click(screen.getByRole('menuitem', { name }));
 }
 
-async function openOptimizePanel() {
-  await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
-  await chooseMenuItem(/Optimize window/i);
-}
-
 describe('Optimize window row action', () => {
   beforeEach(() => {
     mockListCueTemplates.mockResolvedValue([makeTemplate()]);
@@ -560,7 +555,7 @@ describe('Optimize window row action', () => {
   it('fires optimizeCueWindow on click and shows the scanning state', async () => {
     mockOptimizeCueWindow.mockResolvedValue({ status: 'scanning', templateId: 7 });
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
     await waitFor(() => {
       expect(mockOptimizeCueWindow).toHaveBeenCalledWith('test-feed', 7);
       expect(screen.getByTestId('spinner-inline')).toBeDefined();
@@ -570,7 +565,6 @@ describe('Optimize window row action', () => {
   it('is disabled when the template has no source episode', async () => {
     mockListCueTemplates.mockResolvedValue([makeTemplate({ sourceEpisodeId: null })]);
     renderPanel();
-    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
     await openMore();
     const btn = screen.getByRole('menuitem', { name: /Optimize window/i }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
@@ -582,7 +576,7 @@ describe('Optimize window row action', () => {
       .mockResolvedValueOnce({ status: 'scanning', templateId: 7 })
       .mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => {
       expect(screen.getByText('Proposed')).toBeDefined();
@@ -601,7 +595,7 @@ describe('Optimize window row action', () => {
       error: 'decode failed on ep-2',
     });
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('decode failed on ep-2')).toBeDefined());
     const calls = mockOptimizeCueWindow.mock.calls.length;
@@ -618,7 +612,7 @@ describe('Optimize window result panel', () => {
   it('renders baseline vs proposed times, scores, and per-episode list', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     expect(screen.getByText('Current')).toBeDefined();
@@ -639,7 +633,7 @@ describe('Optimize window result panel', () => {
       meanPeakScore: 0.871,
     }));
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText(/Already optimal/i)).toBeDefined());
     expect(screen.queryByRole('button', { name: /^Apply$/ })).toBeNull();
@@ -648,7 +642,7 @@ describe('Optimize window result panel', () => {
   it('renders a dash when the baseline score is null', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload({ baselineMeanPeakScore: null }));
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     expect(screen.getByText('--')).toBeDefined();
@@ -658,7 +652,7 @@ describe('Optimize window result panel', () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     mockUpdateCueTemplate.mockResolvedValue(makeTemplate());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     const listCallsBefore = mockListCueTemplates.mock.calls.length;
@@ -683,7 +677,7 @@ describe('Optimize window result panel', () => {
       new Error('Source episode original audio is no longer available'),
     );
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /^Apply$/ }));
@@ -697,7 +691,7 @@ describe('Optimize window result panel', () => {
   it('Discard collapses the panel without a PATCH', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /^Discard$/ }));
@@ -709,7 +703,7 @@ describe('Optimize window result panel', () => {
   it('Rescan refires with rescan=true', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /^Rescan$/ }));
@@ -773,8 +767,6 @@ describe('More menu on a cue row', () => {
     mockListCueTemplates.mockResolvedValue([makeTemplate()]);
     mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-a' });
     renderPanel();
-    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
-    await waitFor(() => expect(mockGetFeed).toHaveBeenCalled());
     await openMore();
     await waitFor(() => expect(names()).toContain('Promote to network'));
     expect(names()).toEqual(['Export', 'Promote to network', 'Change type', 'Optimize window', 'Delete']);
@@ -791,9 +783,8 @@ describe('More menu on a cue row', () => {
   it('omits Play for a row with no audio and keeps Threshold and More', async () => {
     mockListCueTemplates.mockResolvedValue([makeTemplate({ hasAudio: false })]);
     renderPanel();
-    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
+    await screen.findByRole('button', { name: 'Threshold' });
     expect(screen.queryByRole('button', { name: /Play cue/i })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Threshold' })).toBeDefined();
     expect(screen.getByRole('button', { name: /More actions for Ding/i })).toBeDefined();
   });
 

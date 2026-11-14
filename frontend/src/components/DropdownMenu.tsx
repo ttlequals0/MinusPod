@@ -7,13 +7,13 @@ import Popover from './Popover';
 export interface DropdownMenuItem {
   title: string;
   subtitle?: string;
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
   /** Adds radio-menu semantics and a visible mark for the selected value. */
   checked?: boolean;
   /** Native tooltip on the item. */
   tooltip?: string;
-  /** Renders a download link instead of a button; onClick still runs. */
+  /** Renders a link instead of a button; onClick still runs when set. */
   href?: string;
   /** Destructive text colour. */
   destructive?: boolean;
@@ -103,29 +103,30 @@ function DropdownMenu({
         {isOpen && items.map((item, i) => {
           const isFirst = i === 0;
           const isLast = i === items.length - 1;
+          const asLink = !!item.href && !item.disabled;
           const cls = [
             'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
-            item.href ? 'block' : '',
-            '[@media(pointer:coarse)]:min-h-11',
+            asLink ? 'block touch-target' : '',
             'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent',
             item.checked !== undefined ? 'min-h-11 sm:min-h-0' : '',
             isFirst ? 'rounded-t-lg' : '',
             isLast ? 'rounded-b-lg' : '',
             isFirst ? '' : 'border-t border-border',
           ].filter(Boolean).join(' ');
-          const ItemTag = item.href && !item.disabled ? 'a' : 'button';
+          const ItemTag = asLink ? 'a' : 'button';
           return (
             <ItemTag
               key={item.title}
               role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
               aria-checked={item.checked}
-              {...(item.href && !item.disabled ? { href: item.href } : { disabled: item.disabled })}
+              href={asLink ? item.href : undefined}
+              disabled={asLink ? undefined : item.disabled}
               aria-labelledby={item.disabled && item.subtitle ? `${menuId}-title-${i}` : undefined}
               aria-describedby={item.disabled && item.subtitle ? `${menuId}-sub-${i}` : undefined}
               title={item.tooltip}
               onClick={() => {
                 closeAndRefocus();
-                item.onClick();
+                item.onClick?.();
               }}
               onKeyDown={onItemKeyDown}
               className={`${cls} ${focusRing}`}

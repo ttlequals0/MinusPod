@@ -5,10 +5,12 @@ import { focusRing } from './fieldStyles';
 // same source. The inline-sizing convention in buttonStyles.ts is relaxed here because alignment is the point.
 
 /** Compact visual controls; coarse-pointer bounds come from index.css. */
+const rowActionText = 'text-sm sm:text-xs min-h-11 sm:min-h-0';
 export const rowActionBtn =
-  'px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 inline-flex items-center justify-center gap-1.5 text-center'
-  + ' transition-colors touch-manipulation whitespace-nowrap max-sm:h-11 min-h-11 sm:min-h-0'
-  + ` ${focusRing}`;
+  `px-3 py-2 sm:py-1.5 ${rowActionText} rounded disabled:opacity-50 inline-flex items-center justify-center gap-1.5 text-center`
+  + ` transition-colors touch-manipulation whitespace-nowrap max-sm:h-11 ${focusRing}`;
+/** Number or text input that sits in a row beside rowActionBtn buttons and matches their height (5px absorbs the 1px border). */
+export const rowActionFieldSize = `h-auto py-2 sm:py-[5px] ${rowActionText}`;
 /** Table row actions (detection rows, Sponsors, Patterns Protect): 28px on a fine pointer, 44px on coarse through index.css. */
 export const tableActionBtn = `h-7 px-1.5 text-xs rounded whitespace-nowrap inline-flex items-center justify-center ${focusRing}`;
 

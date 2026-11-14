@@ -12,7 +12,7 @@ import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
 import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
 import { ghostBtn, primaryBtn } from '../../components/cueScanStyles';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
-import { rowActionBtn } from '../../components/rowActionStyles';
+import { rowActionBtn, rowActionFieldSize } from '../../components/rowActionStyles';
 import { cardTitle, subHeading } from '../../components/pageStyles';
 import { ConfirmModal } from '../../components/Modal';
 import {
@@ -50,7 +50,8 @@ import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMe
 import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
-// Tighter padding and no Play icon below 380 px so Play, Threshold and More stay on one line.
+const EXPORT_TITLE = 'Download this cue as a portable zip';
+// Tighter padding and no Play icon below 380 px so the row actions fit one line; flex-wrap only backs up larger text.
 const narrowPx = 'max-[379px]:px-2';
 
 interface Props {
@@ -163,9 +164,8 @@ function CueTemplatesPanel({ slug }: Props) {
     const items: DropdownMenuItem[] = [{
       title: 'Export',
       href: cueTemplateExportUrl(t.id),
-      tooltip: IS_DEMO ? DEMO_DOWNLOAD_TOOLTIP : 'Download this cue as a portable zip',
+      tooltip: IS_DEMO ? DEMO_DOWNLOAD_TOOLTIP : EXPORT_TITLE,
       disabled: IS_DEMO,
-      onClick: () => {},
     }];
     if (t.scope === 'network' || networkId) {
       const mismatched = t.scope === 'network' && !!networkId && t.networkId !== networkId;
@@ -199,6 +199,21 @@ function CueTemplatesPanel({ slug }: Props) {
     return items;
   };
 
+  const playButton = (t: CueTemplate) => t.hasAudio !== false && (
+    <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
+      <button
+        type="button"
+        className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+        onClick={() => togglePlay(t)}
+        disabled={IS_DEMO}
+        title={playingId === t.id ? 'Stop' : 'Play this cue'}
+        aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
+      >
+        {playingId === t.id ? <Square className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" /> : <Play className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" />}
+        {playingId === t.id ? 'Stop' : 'Play'}
+      </button>
+    </DemoDisabled>
+  );
 
   const updateMutation = useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; cutMatches?: boolean | null; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
@@ -450,16 +465,19 @@ function CueTemplatesPanel({ slug }: Props) {
             {templates.map((t) => (
               <li key={t.id} className="px-3 py-2 text-sm">
                 <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-3">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <Checkbox
-                    className={`min-h-11 min-w-11 justify-center ${editingId === t.id ? '' : '-mt-3'}`}
-                    checked={t.enabled}
-                    onChange={() => handleToggle(t)}
-                    disabled={t.owned === false}
-                    title={t.owned === false ? 'Managed on the feed that created it' : undefined}
-                    ariaLabel={`Enable cue ${t.label}`}
-                  />
-                  <div className="flex-1 min-w-0">
+                {/* The checkbox cell spans the first line only, so it centres on the name or the type select. */}
+                <div className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-3 min-w-0 flex-1">
+                  <div className="relative row-start-1">
+                    <Checkbox
+                      className="absolute! left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 min-h-11 min-w-11 justify-center"
+                      checked={t.enabled}
+                      onChange={() => handleToggle(t)}
+                      disabled={t.owned === false}
+                      title={t.owned === false ? 'Managed on the feed that created it' : undefined}
+                      ariaLabel={`Enable cue ${t.label}`}
+                    />
+                  </div>
+                  <div className="col-start-2 row-start-1 min-w-0">
                   {editingId === t.id ? (
                     <select
                       autoFocus
@@ -481,7 +499,6 @@ function CueTemplatesPanel({ slug }: Props) {
                       ))}
                     </select>
                   ) : (
-                    <>
                       <p className="font-medium truncate">
                         {t.label}
                         {t.scope === 'network' && (
@@ -498,6 +515,10 @@ function CueTemplatesPanel({ slug }: Props) {
                           </span>
                         )}
                       </p>
+                  )}
+                  </div>
+                  {editingId !== t.id && (
+                    <div className="col-start-2 min-w-0">
                       <p className="text-xs text-muted-foreground">
                         {t.durationS.toFixed(2)}s - marked at {formatTime(t.sourceOffsetS)}
                         {t.sourceEpisodeId ? ` of episode ${t.sourceEpisodeId.slice(0, 8)}` : ''}
@@ -548,34 +569,19 @@ function CueTemplatesPanel({ slug }: Props) {
                           Shared on network "{t.networkId}", this feed is on "{networkId}"
                         </p>
                       )}
-                    </>
+                    </div>
                   )}
-                  </div>
                 </div>
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-1.5 xl:shrink-0">
-                    {t.hasAudio !== false && confirmDeleteId !== t.id && (
-                      <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
-                        <button
-                          type="button"
-                          className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
-                          onClick={() => togglePlay(t)}
-                          disabled={IS_DEMO}
-                          title={playingId === t.id ? 'Stop' : 'Play this cue'}
-                          aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
-                        >
-                          {playingId === t.id ? <Square className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" /> : <Play className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" />}
-                          {playingId === t.id ? 'Stop' : 'Play'}
-                        </button>
-                      </DemoDisabled>
-                    )}
                     {t.owned === false ? (
                       <>
+                        {playButton(t)}
                         <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
                           <a
                             className={`${rowActionBtn} ${btnOutline} touch-target`}
                             href={cueTemplateExportUrl(t.id)}
-                            title="Download this cue as a portable zip"
+                            title={EXPORT_TITLE}
                           >
                             Export
                           </a>
@@ -584,9 +590,29 @@ function CueTemplatesPanel({ slug }: Props) {
                           Shared from this network
                         </span>
                       </>
+                    ) : confirmDeleteId === t.id ? (
+                      <>
+                        <DemoDisabled>
+                          <button
+                            type="button"
+                            className={`${rowActionBtn} ${btnDestructive} ${narrowPx}`}
+                            onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
+                          >
+                            Delete cue
+                          </button>
+                        </DemoDisabled>
+                        <button
+                          type="button"
+                          className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </>
                     ) : (
                       <>
-                        {confirmDeleteId !== t.id && (editingThresholdId === t.id ? (
+                        {playButton(t)}
+                        {editingThresholdId === t.id ? (
                           <DraftNumberInput
                             autoFocus
                             min={30}
@@ -606,7 +632,7 @@ function CueTemplatesPanel({ slug }: Props) {
                               }
                             }}
                             placeholder="inherit"
-                            className="w-20 h-auto py-2 sm:py-[5px] text-sm sm:text-xs max-sm:h-11 min-h-11 sm:min-h-0"
+                            className={`w-20 ${rowActionFieldSize}`}
                             aria-label="Score threshold"
                           />
                         ) : (
@@ -618,36 +644,15 @@ function CueTemplatesPanel({ slug }: Props) {
                           >
                             Threshold
                           </button>
-                        ))}
-                        {confirmDeleteId === t.id ? (
-                          <>
-                            <DemoDisabled>
-                              <button
-                                type="button"
-                                className={`${rowActionBtn} ${btnDestructive} ${narrowPx}`}
-                                onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
-                              >
-                                Delete cue
-                              </button>
-                            </DemoDisabled>
-                            <button
-                              type="button"
-                              className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
-                              onClick={() => setConfirmDeleteId(null)}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <DropdownMenu
-                            triggerLabel="More"
-                            triggerClassName={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
-                            chevronClassName="w-3 h-3"
-                            ariaLabel={`More actions for ${t.label}`}
-                            align="right"
-                            items={moreItems(t)}
-                          />
                         )}
+                        <DropdownMenu
+                          triggerLabel="More"
+                          triggerClassName={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+                          chevronClassName="w-3 h-3"
+                          ariaLabel={`More actions for ${t.label}`}
+                          align="right"
+                          items={moreItems(t)}
+                        />
                       </>
                     )}
                   </div>
