@@ -65,6 +65,15 @@ def _marker_id_like(pattern_id: int) -> tuple[str, list]:
     return "(" + " OR ".join(["ed.ad_markers_json LIKE ?"] * len(forms)) + ")", forms
 
 
+def _marker_sponsor_like(names: list[str]) -> tuple[str, list]:
+    """Prefilter on the stored JSON text for markers or merged members carrying one of the sponsor names."""
+    forms = []
+    for name in names:
+        quoted = json.dumps(name)[1:-1].replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        forms += [f'%"sponsor": "{quoted}"%', f'%"sponsor":"{quoted}"%']
+    return "(" + " OR ".join(["ed.ad_markers_json LIKE ? ESCAPE '\\'"] * len(forms)) + ")", forms
+
+
 class PatternMixin:
     """Ad pattern and correction management methods."""
 
@@ -532,6 +541,12 @@ class PatternMixin:
         """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
         like_sql, like_params = _marker_id_like(pattern['id'])
         return self._scoped_retained_episodes(pattern, like_sql, like_params, limit)
+
+    def get_pattern_sponsor_episodes(self, pattern: dict, names: list[str], limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes with a transcript whose markers name one of the sponsor names."""
+        like_sql, like_params = _marker_sponsor_like(names)
+        return self._scoped_retained_episodes(
+            pattern, f"ed.original_segments_json IS NOT NULL AND {like_sql}", like_params, limit)
 
     def get_pattern_transcript_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
         """Newest in-scope retained episodes that keep their original transcript, minus false-positive ones."""
