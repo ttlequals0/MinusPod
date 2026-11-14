@@ -191,7 +191,9 @@ def safe_get(
             session.close()
 
 
-def get_feed_content_with_agents(url: str, agents: list[str], accept: str) -> requests.Response:
+def get_feed_content_with_agents(url: str, agents: list[str], accept: str, *,
+                                 timeout: float = HTTP_TIMEOUT_API,
+                                 extra_headers: dict | None = None) -> requests.Response:
     """Streamed feed-content GET that tries each User-Agent in order, moving on after a 403."""
     if not agents:
         raise ValueError("no User-Agent to fetch with")
@@ -200,9 +202,9 @@ def get_feed_content_with_agents(url: str, agents: list[str], accept: str) -> re
             url,
             trust=URLTrust.FEED_CONTENT,
             max_redirects=HTTP_MAX_REDIRECTS_FEED,
-            timeout=HTTP_TIMEOUT_API,
+            timeout=timeout,
             stream=True,
-            headers={'User-Agent': agent, 'Accept': accept},
+            headers={**(extra_headers or {}), 'User-Agent': agent, 'Accept': accept},
         )
         if response.status_code == 403 and i < len(agents) - 1:
             response.close()

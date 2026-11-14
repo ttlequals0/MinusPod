@@ -12,14 +12,14 @@ import tempfile
 import shutil
 
 from config import (
-    HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH,
+    HTTP_TIMEOUT_FETCH,
     count_pending_review,
     get_env_backed_int, MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX,
 )
 from artwork_watermark import (
     composite_watermark, cover_badge_salt, badge_path, normalize_badge_position,
 )
-from user_agent import download_user_agent
+from user_agent import download_user_agent, feed_user_agent
 from utils.episode_paths import (
     episode_filename, is_peaks_housekeeping_name, peaks_file_path, remove_peaks_artifacts,
     sweep_stale_peaks_temp_files,
@@ -29,9 +29,8 @@ from utils.url import SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
 from utils.safe_http import (
     ResponseTooLargeError,
-    URLTrust,
     read_response_capped,
-    safe_get,
+    get_feed_content_with_agents,
 )
 from utils.ttl_cache import TTLCache
 from utils.paths import resolve_data_dir
@@ -774,20 +773,11 @@ class Storage:
             logger.info(f"[{slug}:{episode_id}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")
 
-            headers = {
-                'User-Agent': user_agent or download_user_agent(self.db.get_podcast_by_slug(slug)),
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-            }
+            podcast = self.db.get_podcast_by_slug(slug)
             try:
-                response = safe_get(
-                    artwork_url,
-                    trust=URLTrust.FEED_CONTENT,
-                    max_redirects=HTTP_MAX_REDIRECTS_FEED,
-                    timeout=HTTP_TIMEOUT_FETCH,
-                    stream=True,
-                    headers=headers,
-                )
+                response = self._fetch_artwork_response(
+                    f"{slug}:{episode_id}", artwork_url,
+                    user_agent or download_user_agent(podcast), podcast)
             except SSRFError as e:
                 logger.warning(
                     f"[{slug}:{episode_id}] SSRF blocked in "
@@ -1159,6 +1149,22 @@ class Storage:
 
         return False
 
+    @staticmethod
+    def _fetch_artwork_response(log_id: str, artwork_url: str, user_agent: str, podcast):
+        """Stream-GET artwork; after a 403 retry once with the feed user agent, as the audio download does."""
+        agents = [user_agent]
+        alternate = feed_user_agent(podcast)
+        if alternate != user_agent:
+            agents.append(alternate)
+        response = get_feed_content_with_agents(
+            artwork_url, agents, '*/*', timeout=HTTP_TIMEOUT_FETCH,
+            extra_headers={'Accept-Language': 'en-US,en;q=0.9'})
+        sent = getattr(getattr(response, 'request', None), 'headers', None) or {}
+        if len(agents) > 1 and sent.get('User-Agent') == alternate and response.status_code < 400:
+            logger.info(f"[{log_id}] Artwork host refused the download User-Agent but "
+                        f"accepts the feed User-Agent: {safe_url_for_log(artwork_url)}")
+        return response
+
     def _download_artwork_uncached(self, slug: str, artwork_url: str,
                                    force: bool, user_agent: str | None = None) -> tuple[bool, str | None]:
         """Validate artwork; return (success, status), mapping non-retryable 4xx responses to not_found."""
@@ -1178,20 +1184,9 @@ class Storage:
             fail_level = (logging.DEBUG if artwork_url in self._artwork_failure_state(podcast)
                           else logging.WARNING)
 
-            headers = {
-                'User-Agent': user_agent or download_user_agent(podcast),
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-            }
             try:
-                response = safe_get(
-                    artwork_url,
-                    trust=URLTrust.FEED_CONTENT,
-                    max_redirects=HTTP_MAX_REDIRECTS_FEED,
-                    timeout=HTTP_TIMEOUT_FETCH,
-                    stream=True,
-                    headers=headers,
-                )
+                response = self._fetch_artwork_response(
+                    slug, artwork_url, user_agent or download_user_agent(podcast), podcast)
             except SSRFError as e:
                 logger.warning(f"[{slug}] SSRF blocked in download_artwork: {e}")
                 return False, 'error'

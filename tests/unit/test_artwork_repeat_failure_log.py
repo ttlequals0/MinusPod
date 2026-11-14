@@ -29,7 +29,7 @@ def _html_response():
 def test_non_image_response_is_rejected_unsaved_and_warns_once(storage, caplog):
     url = 'https://example.com/page'
     storage.db.create_podcast('example-feed', 'https://example.com/feed.xml')
-    with patch('storage.safe_get', return_value=_html_response()):
+    with patch('utils.safe_http.safe_get', return_value=_html_response()):
         with caplog.at_level(logging.DEBUG, logger='storage'):
             assert storage.download_artwork('example-feed', url) is False
             storage._artwork_failure_cache.clear()
