@@ -113,6 +113,7 @@ function DropdownMenu({
             isLast ? 'rounded-b-lg' : '',
             isFirst ? '' : 'border-t border-border',
           ].filter(Boolean).join(' ');
+          // A link item's click must not be default-prevented, or the download never starts.
           const ItemTag = asLink ? 'a' : 'button';
           return (
             <ItemTag

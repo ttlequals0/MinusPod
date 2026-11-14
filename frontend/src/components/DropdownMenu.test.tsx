@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DropdownMenu from './DropdownMenu';
 import { DESKTOP, PHONE, rect, restoreViewport, setupPlacement } from '../test/placement';
@@ -37,6 +37,18 @@ describe('DropdownMenu', () => {
     expect(item('Export').tagName).toBe('A');
     expect(item('Export').getAttribute('href')).toBe('/export/1');
     expect(item('Delete').innerHTML).toContain('text-destructive');
+  });
+
+  it('closes the menu on a link item click without cancelling the default action', async () => {
+    const onClick = vi.fn();
+    renderMenu({ items: [{ title: 'Export', href: '/export/1', onClick }] });
+    await openMenu();
+    const link = item('Export');
+    const notPrevented = fireEvent.click(link);
+    expect(notPrevented).toBe(true);
+    expect(link.getAttribute('href')).toBe('/export/1');
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('closes an open menu when the trigger becomes disabled', async () => {

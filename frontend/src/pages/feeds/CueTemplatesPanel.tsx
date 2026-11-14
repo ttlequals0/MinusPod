@@ -51,8 +51,8 @@ import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
 const EXPORT_TITLE = 'Download this cue as a portable zip';
-// Tighter padding and no Play icon below 380 px so the row actions fit one line; flex-wrap only backs up larger text.
-const narrowPx = 'max-[379px]:px-2';
+// Below 380 px: tighter button padding and no Play icon, so Play, Threshold and More fit one line (flex-wrap only backs up larger text).
+const narrow = { px: 'max-[379px]:px-2', hideIcon: 'max-[379px]:hidden' };
 
 interface Props {
   slug: string;
@@ -203,13 +203,13 @@ function CueTemplatesPanel({ slug }: Props) {
     <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
       <button
         type="button"
-        className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+        className={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
         onClick={() => togglePlay(t)}
         disabled={IS_DEMO}
         title={playingId === t.id ? 'Stop' : 'Play this cue'}
         aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
       >
-        {playingId === t.id ? <Square className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" /> : <Play className="w-4 h-4 max-[379px]:hidden" aria-hidden="true" />}
+        {playingId === t.id ? <Square className={`w-4 h-4 ${narrow.hideIcon}`} aria-hidden="true" /> : <Play className={`w-4 h-4 ${narrow.hideIcon}`} aria-hidden="true" />}
         {playingId === t.id ? 'Stop' : 'Play'}
       </button>
     </DemoDisabled>
@@ -595,7 +595,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         <DemoDisabled>
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnDestructive} ${narrowPx}`}
+                            className={`${rowActionBtn} ${btnDestructive} ${narrow.px}`}
                             onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
                           >
                             Delete cue
@@ -603,7 +603,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         </DemoDisabled>
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+                          className={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
                           onClick={() => setConfirmDeleteId(null)}
                         >
                           Cancel
@@ -638,7 +638,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+                            className={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
@@ -647,7 +647,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         )}
                         <DropdownMenu
                           triggerLabel="More"
-                          triggerClassName={`${rowActionBtn} ${btnOutline} ${narrowPx}`}
+                          triggerClassName={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
                           chevronClassName="w-3 h-3"
                           ariaLabel={`More actions for ${t.label}`}
                           align="right"
