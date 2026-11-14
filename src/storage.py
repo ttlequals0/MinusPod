@@ -916,7 +916,7 @@ class Storage:
                         or (self.episode_artwork_file(slug, episode_id, touch=False) if episode_id else None))
                 try:
                     fetched = ((full[0].read_bytes(), full[1]) if full
-                               else self._download_url_artwork(slug, artwork_url)) or False
+                               else self._download_url_artwork(slug, artwork_url, episode_id)) or False
                 except OSError:
                     fetched = False
             return fetched or None
@@ -954,12 +954,13 @@ class Storage:
         return self._serve_thumb(slug, episode_id, fail_key, load, lambda: full, evict=False)
 
     def _download_with_failure_cache(self, slug: str, artwork_url: str, key_scope: str,
-                                     download) -> Any:
+                                     download, log_scope: str | None = None) -> Any:
         """Run ``download(user_agent, fail_level)`` behind the failure cache and warn-once logging.
 
-        ``key_scope`` prefixes the failure and warn keys and, joined with ':', the log label.
+        ``key_scope`` prefixes the failure and warn keys; ``log_scope`` (default: ``key_scope`` joined
+        with ':') starts the log label, which ends with the cover's URL version.
         """
-        label = f"{key_scope.replace(chr(10), ':')}:{artwork_url_version(artwork_url)}"
+        label = f"{log_scope or key_scope.replace(chr(10), ':')} cover={artwork_url_version(artwork_url)}"
         ua = download_user_agent(self.db.get_podcast_by_slug(slug))
         failure_key = f"{key_scope}\n{artwork_url}\n{ua}"
         if self._artwork_failure_cache.get(failure_key):
@@ -991,14 +992,17 @@ class Storage:
             lambda ua, level: self._download_episode_artwork_uncached(
                 slug, episode_id, artwork_url, user_agent=ua, fail_level=level)))
 
-    def _download_url_artwork(self, slug: str, artwork_url: str) -> tuple[bytes, str] | None:
+    def _download_url_artwork(self, slug: str, artwork_url: str,
+                              episode_id: str | None = None) -> tuple[bytes, str] | None:
         """Fetch and validate a publisher cover for the URL-keyed cache; (bytes, mime) or None."""
         if not artwork_url:
             return None
+        scope = f"{slug}:{episode_id}" if episode_id else slug
         return self._download_with_failure_cache(
             slug, artwork_url, slug,
             lambda ua, level: self._fetch_validated_artwork(
-                slug, slug, artwork_url, user_agent=ua, fail_level=level))
+                slug, scope, artwork_url, user_agent=ua, fail_level=level),
+            log_scope=scope)
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
                                           artwork_url: str, user_agent: str | None = None,
@@ -1013,7 +1017,7 @@ class Storage:
             return self._save_episode_artwork(slug, episode_id, *fetched)
         except Exception as e:
             logger.log(
-                fail_level, f"[{slug}:{episode_id}:{artwork_url_version(artwork_url)}] "
+                fail_level, f"[{slug}:{episode_id} cover={artwork_url_version(artwork_url)}] "
                 f"Failed to download episode artwork: {e}")
             return False
 
@@ -1025,7 +1029,7 @@ class Storage:
         ``label`` is the log prefix, suffixed with the cover's URL version. Returns (bytes, mime) or None;
         failures log at fail_level.
         """
-        label = f"{label}:{artwork_url_version(artwork_url)}"
+        label = f"{label} cover={artwork_url_version(artwork_url)}"
         try:
             logger.info(f"[{label}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")
