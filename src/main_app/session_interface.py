@@ -15,7 +15,15 @@ class IdleExpiryCookieSessionInterface(SecureCookieSessionInterface):
     def save_session(self, app, session, response):
         # Resolve first so an expired or revoked session is deleted, not re-signed empty.
         cookie_auth()
-        return super().save_session(app, session, response)
+        result = super().save_session(app, session, response)
+        # A route marks a versioned, private-cacheable response; Vary: Cookie would defeat that cache.
+        if getattr(response, 'skip_cookie_vary', False):
+            kept = [v for v in response.vary if v.lower() != 'cookie']
+            if kept:
+                response.headers['Vary'] = ', '.join(kept)
+            else:
+                response.headers.pop('Vary', None)
+        return result
 
     def should_set_cookie(self, app, session):
         state = cookie_auth()

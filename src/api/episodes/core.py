@@ -4,7 +4,7 @@ import json
 import logging
 from flask import redirect, request, send_file, url_for
 from api import (
-    api, limiter, log_request, json_response, error_response, image_response,
+    api, limiter, log_request, json_response, error_response, image_response, mark_long_cacheable,
     get_database, get_storage, get_feed_auth_key, public_path,
 )
 import config
@@ -518,7 +518,7 @@ def get_episode_artwork(slug, episode_id):
 
     response = image_response(*artwork)
     if version and request.args.get('v') == version:
-        response.headers['Cache-Control'] = IMMUTABLE_COVER_CACHE_CONTROL
+        mark_long_cacheable(response, IMMUTABLE_COVER_CACHE_CONTROL)
     return response
 
 
