@@ -1,11 +1,28 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getAuthStatus, login as apiLogin, logout as apiLogout, AuthStatus } from '../api/auth';
+import { ApiError } from '../api/client';
+
+export type LoginResult =
+  | { ok: true }
+  | { ok: false; kind: 'invalid' }
+  | { ok: false; kind: 'rateLimited'; retryAfterSeconds: number }
+  | { ok: false; kind: 'error' };
+
+const FALLBACK_RETRY_SECONDS = 60;
+
+// Body field, then Retry-After; the fallback covers a 429 from a proxy in front of the app.
+function lockoutSeconds(err: ApiError): number {
+  const field = (err.body as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds;
+  if (typeof field === 'number' && Number.isFinite(field) && field > 0) return field;
+  if (err.retryAfterMs !== null && err.retryAfterMs > 0) return err.retryAfterMs / 1000;
+  return FALLBACK_RETRY_SECONDS;
+}
 
 interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isPasswordSet: boolean;
-  login: (password: string) => Promise<boolean>;
+  login: (password: string, rememberMe: boolean) => Promise<LoginResult>;
   logout: () => Promise<void>;
   refreshStatus: () => Promise<AuthStatus>;
 }
@@ -44,15 +61,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshStatus();
   }, []);
 
-  const login = async (password: string): Promise<boolean> => {
+  const login = async (password: string, rememberMe: boolean): Promise<LoginResult> => {
     try {
-      const response = await apiLogin(password);
+      const response = await apiLogin(password, rememberMe);
       // Return the server's verdict without mutating auth state.
       // refreshStatus() (called by Login after this) is the sole source of
       // truth for isAuthenticated, so we don't optimistically set it here.
-      return response.authenticated;
-    } catch {
-      return false;
+      return response.authenticated ? { ok: true } : { ok: false, kind: 'invalid' };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        return { ok: false, kind: 'rateLimited', retryAfterSeconds: lockoutSeconds(err) };
+      }
+      if (err instanceof ApiError && err.status === 401) return { ok: false, kind: 'invalid' };
+      return { ok: false, kind: 'error' };
     }
   };
 

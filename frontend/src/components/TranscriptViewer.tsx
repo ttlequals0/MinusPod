@@ -13,7 +13,7 @@ import { useTransientState } from '../hooks/useTransientState';
 import SegmentedToggle from './SegmentedToggle';
 import { groupParagraphs } from '../utils/transcriptParagraphs';
 import { btnBase, btnGhost, touchTarget } from './buttonStyles';
-import { focusRing, inputBase, selectBase, filterLabel, filterControl } from './fieldStyles';
+import { focusRing, inputBase, invalidField, selectBase, filterLabel, filterControl } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
 
 type Source = 'original' | 'processed';
@@ -54,10 +54,6 @@ function writeView(v: View) {
     // storage unavailable: the choice lasts for this session only
   }
 }
-
-// Attribute variants outrank inputBase's border and focus ring, so an
-// unparsable time reads red whether or not the field has focus.
-const invalidField = 'aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive aria-invalid:focus-visible:ring-destructive';
 
 interface Props {
   slug: string;

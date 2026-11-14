@@ -77,8 +77,9 @@ def apply_runtime_config_import():
         token = body.get('previewToken')
         if not isinstance(token, str):
             raise ConfigTransferError('previewToken is required')
-        return json_response(apply_config(
-            get_database(), document, scope, selected, token))
+        db = get_database()
+        result = apply_config(db, document, scope, selected, token)
+        return json_response(result)
     except ConfigTransferError as exc:
         return error_response(str(exc), exc.status)
     except Exception:

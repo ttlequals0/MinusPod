@@ -1,10 +1,8 @@
 """Settings registry regression tests.
 
-Pin the byte-level behavior of the SETTINGS_REGISTRY consumers against
-snapshots captured from the pre-registry code (four hand-synchronized
-catalogs: schema seeding, reset_setting defaults, the bulk reset endpoint
-key list, and the GET /settings defaults block). Long prompt values are
-compared via sha256 so the snapshot stays readable.
+Pin the byte-level behavior of the SETTINGS_REGISTRY consumers (schema seeding, reset_setting defaults, the
+bulk reset key list, the GET /settings defaults block) against pre-registry snapshots. Long prompts are
+compared via sha256.
 """
 import hashlib
 import os
@@ -76,6 +74,7 @@ SEED_SNAPSHOT = {
     'ad_addressing_mode': 'timestamps',
     'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
+    'queue_order': 'queued',
     'dai_differential_overrides_keep': 'true',
     'splice_veto_enabled': 'true',
     'differential_hold_min_seconds': '10',
@@ -133,7 +132,7 @@ SEED_SNAPSHOT = {
     'review_provider': 'same_as_pass',
     'secondary_provider_enabled': 'false',
     'secondary_provider_base_url': 'http://localhost:8000/v1',
-    'review_prompt': ('sha256', '3515a8a98250a187f7e885b696864db04ceca30ffdf97d72baa6a3d69029e87a'),  # Updated for the untranscribed-audio sentence
+    'review_prompt': ('sha256', '71f8a86b21db7272c5ec9e981faf09c64dd73f5355a8dc232173d602bb924d0f'),  # Updated for the measured-fingerprint sentence
     'rss_refresh_interval_minutes': '15',
     'auto_process_max_age_hours': '48',
     'queue_manual_boost': '20',
@@ -190,14 +189,12 @@ SEED_SNAPSHOT = {
     'youtube_sb_submit_enabled': 'false',
 }
 
-# The pre-registry bulk reset endpoint reset exactly these keys
-# (62 hand-enumerated + 23 stage tunables via STAGE_TUNABLE_PAYLOAD_KEYS).
-# ad_chapters_enabled and ad_chapter_categories dropped out of the registry
-# with the retired settings (62 -> 60; 2.98.0, mark_action_from_ad_chapters_v1).
+# The pre-registry bulk reset endpoint reset exactly these keys (62 hand-enumerated + 23 stage tunables via
+# STAGE_TUNABLE_PAYLOAD_KEYS); the ad-chapter settings were retired from the registry in 2.98.0 (62 -> 60).
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_mode', 'chapters_in_notes',
+    'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'queue_order',
     'review_links_in_notes', 'chapters_model',
     'skip_second_pass', 'differential_fetch_mode',
     'transcript_differential_enabled',
@@ -259,12 +256,14 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_detection_exclude_start_seconds',
     # Provider failover (#806).
     'whisper_max_attempts',
+    # Audio fingerprinting.
+    'fingerprint_enabled', 'fingerprint_match_strictness',
+    'fingerprint_min_coverage', 'fingerprint_gap_tolerance_s',
+    'fingerprint_min_ad_length_s',
 }
 
-# Keys reset_setting() must refuse (return False). Membership captured from
-# the pre-registry code; intentional exclusions include feed_auth_key (reset
-# must never wipe a live key) and the *_prompt_override keys (memory obs
-# 26236: cleared by reset_prompts_only, not reset_setting).
+# Keys reset_setting() must refuse (return False), captured from the pre-registry code. Includes feed_auth_key
+# (reset must never wipe a live key) and the *_prompt_override keys (cleared by reset_prompts_only instead).
 NON_RESETTABLE_KEYS = (
     'detect_show_segments', 'process_new_episodes_first',
     'enable_ad_review', 'feed_auth_key', 'keep_original_audio',
@@ -520,62 +519,15 @@ class TestGetDefaults:
                 f"{name}: type {type(payload[name]).__name__}")
 
     def test_payload_key_set_matches_pre_registry_defaults_block(self):
-        # The pre-registry defaults block had 68 entries: 67 per-setting
-        # defaults plus openrouterBaseUrl (a constant the endpoint adds
-        # separately). Notably audioCuePairOrientWindowSeconds was absent
-        # from it -- preserve that. 2.76.0 added six detection-tuning
-        # payload keys (67 -> 73). rssRefreshIntervalMinutes added after
-        # (73 -> 74). podpingEnabled added after that (74 -> 75).
-        # segmentCategoryActions added after that (75 -> 76).
-        # omitTemperature added after that (76 -> 77).
-        # communitySyncCategories added after that (77 -> 78).
-        # maxAdDurationSeconds + maxAdDurationConfirmedSeconds (78 -> 80).
-        # whisperApiTimeoutSeconds added after that (80 -> 81).
-        # chapterPrompt added after that (81 -> 82).
-        # artworkBadgePosition added after that (82 -> 83).
-        # detectShowSegments added after that (83 -> 84).
-        # processNewEpisodesFirst added after that (84 -> 85).
-        # jitBlockedUserAgents added after that (85 -> 86).
-        # lowAdYieldAction added after that (86 -> 87).
-        # episodeLogRetentionDays + episodeLogLevel added after that (87 -> 89).
-        # seed_sponsors_detection + seed_sponsors_verification +
-        # seed_sponsors_reviewer + seed_sponsors_resurrect added after that (89 -> 93).
-        # textRecurrenceHints added after that (93 -> 94).
-        # adAddressingMode added after that (94 -> 95).
-        # queueManualBoost + queueFreshBoost + queueBulkBoost after that (95 -> 98).
-        # llmJsonSchemaEnabled after that (98 -> 99). The rate-limit hold
-        # settings have no payload keys (dedicated endpoint).
-        # downloadUserAgent + feedUserAgent after that (101 -> 103),
-        # then logDownloadQuery (103 -> 104).
-        # notificationTimezone added after that (104 -> 105), then
-        # chaptersInNotes (105 -> 106). whisperPoolEnabled +
-        # whisperPoolMaxRequests + whisperPoolMaxEpisodes after that (106 -> 109),
-        # then daiDifferentialOverridesKeep (109 -> 110),
-        # then the seven adChapter* keys (110 -> 117), then reviewProvider,
-        # matching review_model's default-block presence (117 -> 118).
-        # secondaryProviderEnabled + secondaryProvider + secondaryProviderBaseUrl
-        # added after that (118 -> 121). Then the four manual provider
-        # request-rate limit keys (#747), primary and secondary (121 -> 125),
-        # then the two tokens-per-minute keys, primary and secondary (125 -> 127).
-        # adDetectionExcludeStartSeconds added after that (127 -> 128).
-        # Failover and per-slot overrides add the latest settings.
-        # transcriptDifferentialEnabled added after that (156 -> 157).
-        # Six patternCleanup* settings plus patternCleanupPrompt (157 -> 164).
-        # adChaptersEnabled and adChapterCategories retired with the settings
-        # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
-        # audioEncoderCompressionLevel added after that (165 -> 166).
-        # autoProcessMaxAgeHours added after that (171 -> 172).
-        # localUploadMaxMb added after that (172 -> 173).
-        # youtubeEnabled added after that (173 -> 174).
-        # requireManualApprovalDefault added after that (174 -> 175).
-        # whatsNewOnUpgrade added after that (175 -> 176).
-        # reviewLinksInNotes added after that (176 -> 177).
-        # feedItunesBlock added after that (177 -> 178).
+        # The pre-registry defaults block had 68 entries (67 per-setting defaults plus the constant
+        # openrouterBaseUrl); audioCuePairOrientWindowSeconds was absent, so preserve that. The count below
+        # grows with each setting given a payload key (rate-limit hold settings have none) and fell by 2
+        # when the ad-chapter settings retired (2.98.0).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 178
+        assert len(payload_keys) == 186
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
@@ -630,11 +582,9 @@ class TestValidatorHook:
 
 
 class TestShippedPromptsTrackTheDefault:
-    """Seeding only ever inserted, so an install kept whatever prompt shipped
-    when its database was created. One instance was still running an 8442-char
-    system prompt with no category guidance while the shipped default was
-    10408 chars and required a category on every ad, which is why per-category
-    actions never applied.
+    """Seeding only inserts, so an install keeps the prompt shipped when its database was created.
+
+    A stale system prompt with no category guidance meant per-category actions never applied.
     """
 
     def test_the_prompts_are_marked_refreshable(self):

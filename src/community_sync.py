@@ -29,6 +29,7 @@ from utils.community_tags import (
     VOCABULARY_VERSION,
 )
 from utils.cron import is_due
+from utils.http import safe_url_for_log
 from utils.safe_http import (
     ResponseTooLargeError,
     URLTrust,
@@ -44,13 +45,10 @@ from utils.time import (
 
 logger = logging.getLogger('podcast.community_sync')
 HTTP_TIMEOUT = 20
-# Cap for the JSON manifest body before deserialisation (an SSRF/DoS guard,
-# since the body is buffered in memory). The manifest still embeds every
-# pattern inline and so grows with the catalog -- it was at ~74% of the old
-# 256 KB cap, so this raises the ceiling to 1 MB for headroom. This is an
-# interim measure; the durable fix is a thin index plus incremental per-pattern
-# fetch (tracked separately), which keeps the manifest small regardless of
-# catalog size.
+# Cap for the JSON manifest body before deserialisation (an SSRF/DoS guard; the body is buffered in
+# memory). The manifest embeds every pattern inline and grows with the catalog (it reached ~74% of the
+# old 256 KB cap), so the ceiling is 1 MB for headroom. Interim: the durable fix is a thin index plus
+# incremental per-pattern fetch, which keeps the manifest small regardless of catalog size.
 MANIFEST_MAX_BYTES = 1024 * 1024
 # Cap for a single per-pattern file in the thin-index (#400) incremental fetch.
 # A pattern is a few KB (text_template is gated at 3500 chars); 256 KB is ample.
@@ -61,10 +59,9 @@ DEFAULT_CRON = '0 3 * * 0'  # Sunday 3am UTC
 def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
     """Fetch the manifest. Raises requests.RequestException on failure.
 
-    Routed through ``safe_http.safe_get`` with the hardcoded raw.githubusercontent
-    URL so SSRF / private-range checks and per-hop redirect revalidation
-    apply. Body is streamed through ``read_response_capped`` to refuse a
-    manifest larger than ``MANIFEST_MAX_BYTES`` before deserialisation.
+    Goes through ``safe_http.safe_get`` with the hardcoded raw.githubusercontent URL so SSRF / private-range
+    checks and per-hop redirect revalidation apply; ``read_response_capped`` refuses a body over
+    ``MANIFEST_MAX_BYTES`` before deserialisation.
     """
     resp = safe_get(
         url,
@@ -88,10 +85,9 @@ def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
 def _fetch_pattern_file(path: str) -> dict[str, Any]:
     """Fetch one per-pattern file referenced by a thin-index entry's `path`.
 
-    `path` is a bare filename from the trusted manifest; reject anything with a
-    directory component so a malformed/compromised manifest can't pull an
-    arbitrary path off the host. Routed through the same SSRF-checked, size-
-    capped path as the manifest fetch.
+    `path` is a bare filename from the trusted manifest; anything with a directory component is rejected so
+    a malformed/compromised manifest can't pull an arbitrary path. Uses the same SSRF-checked, size-capped
+    path as the manifest fetch.
     """
     if not path or '/' in path or '\\' in path or '..' in path or not path.endswith('.json'):
         raise ValueError(f'unsafe pattern path: {path!r}')
@@ -127,20 +123,17 @@ def apply_manifest(db, manifest: dict[str, Any]) -> dict[str, int]:
     """Apply manifest entries against ad_patterns. Returns summary counts.
 
     Handles both manifest shapes:
-    - v2 thin index (#400): entries carry `content_hash` + `path`. Diff the hash
-      against the row's stored content_hash; fetch the per-pattern file only when
-      it differs or is new. Version stops being the update control.
-    - v1 inline: entries carry `data`. Kept for backward compatibility during
-      rollout (the published manifest may still be v1); applied via the old
-      version-greater-than gate.
+    - v2 thin index (#400): entries carry `content_hash` + `path`; the per-pattern file is fetched only
+      when the hash differs from the row's stored content_hash or the row is new (version is not the control).
+    - v1 inline: entries carry `data`; kept for backward compatibility while the published manifest may
+      still be v1, applied via the old version-greater-than gate.
 
-    Reconcile: a community_id missing from the manifest is deleted unless
-    protected_from_sync=1 or the anti-mass-delete guard trips.
+    Reconcile: a community_id missing from the manifest is deleted unless protected_from_sync=1 or the
+    anti-mass-delete guard trips.
 
-    Category filter: entries outside community_sync_categories (default all)
-    are skipped on insert/update and counted in `filtered`. An existing row
-    whose stored category falls outside is deactivated (category_filtered)
-    rather than deleted, so it reactivates once the category is allowed again.
+    Category filter: entries outside community_sync_categories (default all) are skipped on insert/update
+    and counted in `filtered`. An existing row outside it is deactivated (category_filtered), not deleted,
+    so it reactivates once the category is allowed again.
     """
     from pattern_service import PatternService
 
@@ -244,11 +237,9 @@ def apply_manifest(db, manifest: dict[str, Any]) -> dict[str, int]:
             errors += 1
             logger.warning(f"community_sync: failed to apply {community_id}: {e}")
 
-    # Reconcile deletes: existing community patterns absent from the manifest.
-    # Guard against an empty / truncated / mis-regenerated upstream manifest
-    # mass-deleting the catalog: if the manifest carried no applicable entries,
-    # or the reconcile would remove more than half of the non-protected
-    # community rows, skip the delete phase entirely rather than wipe.
+    # Reconcile deletes: existing community patterns absent from the manifest. Guard against an empty,
+    # truncated or mis-regenerated manifest mass-deleting the catalog: with no applicable entries, or a
+    # reconcile that would remove over half of the non-protected community rows, skip the delete phase.
     community_rows = db.get_patterns_by_source('community', active_only=False)
     non_protected_absent = [
         r for r in community_rows
@@ -303,9 +294,8 @@ def apply_manifest(db, manifest: dict[str, Any]) -> dict[str, int]:
 def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
     """Force a sync regardless of schedule. Returns a summary dict.
 
-    On any failure the function raises so the caller can surface the error
-    to the user. The settings table is updated either way to record the
-    attempt timestamp / last error.
+    Raises on any failure so the caller can surface it; the settings table records the attempt
+    timestamp / last error either way.
     """
     started_at = utc_now_iso()
     db.set_setting('community_sync_last_run', started_at)
@@ -322,7 +312,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
         db.set_setting('community_sync_last_error', msg)
         if status == 404:
             logger.info(
-                f'community_sync: no manifest at {manifest_url} (404). '
+                f'community_sync: no manifest at {safe_url_for_log(manifest_url, keep_path=True)} (404). '
                 f'Either upstream has not published one yet or sync is '
                 f'pointed at the wrong URL.'
             )
@@ -339,11 +329,9 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
     summary['manifest_version'] = manifest.get('manifest_version')
     summary['fetched_at'] = started_at
 
-    # Compare the manifest's vocabulary_version against the value this app
-    # was built with. A mismatch means the upstream patterns may carry tags
-    # the local validator doesn't know about -- surface a warning so the
-    # operator knows their image is behind. The vocabulary itself stays
-    # baked into the app code, so this is informational only.
+    # Compare the manifest's vocabulary_version with the one this app was built with. A mismatch means
+    # upstream patterns may carry tags the local validator doesn't know; warn so the operator knows their
+    # image is behind. The vocabulary stays baked into the app code, so this is informational only.
     manifest_vocab = manifest.get('vocabulary_version')
     summary['vocabulary_version'] = manifest_vocab
     if manifest_vocab is not None:

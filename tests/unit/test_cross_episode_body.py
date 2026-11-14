@@ -1,12 +1,8 @@
-"""Tests for discover_cross_episode_body: full-body recurring-segment discovery.
+"""discover_cross_episode_body: full-body recurring-segment discovery.
 
-_find_shared_segments is body-agnostic; discover_cross_episode_cues restricts it
-to head/tail windows. discover_cross_episode_body passes the full fingerprint
-arrays so mid-episode stings are found alongside head/tail ones.
-
-Fixture style mirrors test_cross_episode_cues.py: synthetic uint32 arrays with
-planted segments, no fpcalc required.
-"""
+_find_shared_segments is body-agnostic; this passes the full fingerprint arrays so mid-episode
+stings are found alongside head/tail ones. Fixtures mirror test_cross_episode_cues.py: synthetic
+uint32 arrays with planted segments, no fpcalc."""
 from unittest.mock import patch
 
 import numpy as np
@@ -19,12 +15,6 @@ WIN = 16   # ~2s at 8 fps -- matches AUDIO_CUE_FP_WINDOW_SECONDS default
 def _rand(n, rng):
     """Random uint32 fingerprint ints that will not accidentally match at 0.73."""
     return rng.integers(0, 2 ** 32, size=n, dtype=np.uint64).astype(np.uint32)
-
-
-def _make_fp(n=300, rng=None):
-    """Return (int_list, duration) for an n-int fingerprint at 8 fps."""
-    r = rng or np.random.default_rng(99)
-    return _rand(n, r).tolist(), n / 8.0
 
 
 def _fingerprinter():
@@ -76,11 +66,8 @@ def test_finds_mid_body_segment_in_two_siblings():
     assert r['end'] > r['start']
 
 
-# ---------------------------------------------------------------------------
-# Two-episode set (one sibling, min_matches=1) returns a candidate. Regression
-# guard for finding 1: the worker caps min_matches at the sibling count, so a
-# 2-episode scan reaches the real function with min_matches=1 and is not empty.
-# ---------------------------------------------------------------------------
+# Two-episode set (one sibling, min_matches=1) returns a candidate: the worker caps min_matches
+# at the sibling count, so a 2-episode scan reaches the real function with min_matches=1.
 
 def test_two_episode_set_single_sibling_returns_candidate():
     rng = np.random.default_rng(41)
@@ -106,11 +93,8 @@ def test_two_episode_set_single_sibling_returns_candidate():
     assert result[0]['episodeMatches'] >= 1
 
 
-# ---------------------------------------------------------------------------
-# Finding 2: a recurring 2.0-2.4s sting is returned by the REAL function using
-# the default min_duration (AUDIO_CUE_XEP_BODY_MIN_DURATION=2.0), not the 3s
-# intro/outro floor that used to discard sub-3s stings.
-# ---------------------------------------------------------------------------
+# A recurring 2.0-2.4s sting is returned by the real function using the default min_duration
+# (AUDIO_CUE_XEP_BODY_MIN_DURATION=2.0), not the old 3s intro/outro floor.
 
 def test_short_recurring_sting_survives_default_min_duration():
     rng = np.random.default_rng(53)
@@ -274,7 +258,7 @@ def test_accepts_precomputed_target_fingerprint():
     s2_ints = np.concatenate([_rand(80, rng), seg, _rand(80, rng)])
 
     fp = _fingerprinter()
-    # Only two calls -- for the two siblings -- not the target (precomputed)
+    # Only two calls, for the two siblings; the target is precomputed
     side_effects = [
         (s1_ints.tolist(), len(s1_ints) / 8.0),
         (s2_ints.tolist(), len(s2_ints) / 8.0),
@@ -336,12 +320,8 @@ def test_returns_empty_when_fpcalc_unavailable():
     assert result == []
 
 
-# ---------------------------------------------------------------------------
-# Overlapping candidates from different sibling-pair passes dedupe correctly.
-# Since all siblings are passed in a single _find_shared_segments call, the
-# claimed_until mechanism handles this natively. Verify: one long segment
-# shared across three siblings surfaces as ONE candidate, not multiple.
-# ---------------------------------------------------------------------------
+# Overlapping candidates dedupe: all siblings go through one _find_shared_segments call,
+# so claimed_until handles it. One segment shared by three siblings yields one candidate.
 
 def test_overlapping_candidates_from_multiple_siblings_dedupe():
     rng = np.random.default_rng(31)
@@ -409,10 +389,7 @@ def test_near_duplicate_matches_at_shifted_offsets_do_not_overlap():
     assert 15.0 <= result[0]['start'] <= 18.0
 
 
-# ---------------------------------------------------------------------------
-# Existing discover_cross_episode_cues tests must remain green.
-# (Verified by running the full suite; this is a cross-check import guard.)
-# ---------------------------------------------------------------------------
+# Existing discover_cross_episode_cues tests must remain green (import guard).
 
 def test_import_guard_existing_function_still_importable():
     from audio_fingerprinter import AudioFingerprinter as AF

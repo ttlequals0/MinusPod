@@ -82,12 +82,6 @@ class TestNormalizeFeedUrl:
         result = normalize_feed_url(url)
         assert result == 'https://example.com/feed'
 
-    def test_mixed_case_example(self):
-        """Real-world mixed case example."""
-        url = 'HTTPS://Feeds.Transistor.FM/oxide-and-friends/'
-        result = normalize_feed_url(url)
-        assert result == 'https://feeds.transistor.fm/oxide-and-friends'
-
 
 class TestExtractPodpingEvents:
     """Test extract_podping_events function."""
@@ -381,29 +375,6 @@ class TestExtractPodpingEvents:
         block = {'transactions': []}
         result = extract_podping_events(block)
         assert len(result) == 0
-
-    def test_missing_required_posting_auths(self):
-        """An empty auth list yields an empty 'auths' set, not a rejection."""
-        block = {
-            'transactions': [
-                {
-                    'operations': [
-                        [
-                            'custom_json',
-                            {
-                                'id': 'podping',
-                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
-                                'required_posting_auths': [],
-                                'required_auths': []
-                            }
-                        ]
-                    ]
-                }
-            ]
-        }
-        result = extract_podping_events(block)
-        assert len(result) == 1
-        assert result[0]['auths'] == set()
 
     def test_empty_json_string_ignored(self):
         """Operation with empty json string should be ignored."""

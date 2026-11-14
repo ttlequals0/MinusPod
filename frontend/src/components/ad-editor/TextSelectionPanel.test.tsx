@@ -181,6 +181,29 @@ describe('TextSelectionPanel run list', () => {
     expect(screen.getByText('Selection: 0:10.0 - 0:12.9 (2.9s)')).toBeTruthy();
   });
 
+  it('keeps the remove-span target from widening the chip on coarse pointers from sm', async () => {
+    const { container } = renderPanel();
+    await waitForTranscript(container);
+    const user = userEvent.setup();
+    await selectWords(container, 0, 2);
+    await user.click(screen.getByRole('button', { name: 'Add another span' }));
+    const classes = screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' }).className.split(/\s+/);
+    expect(classes).toContain('max-sm:-mr-3.5');
+    expect(classes).toContain('sm:pointer-coarse:-mr-[15px]');
+  });
+
+  it('starts the remove-span target at the time text, not inside it', async () => {
+    const { container } = renderPanel();
+    await waitForTranscript(container);
+    const user = userEvent.setup();
+    await selectWords(container, 0, 2);
+    await user.click(screen.getByRole('button', { name: 'Add another span' }));
+    const classes = screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' }).className.split(/\s+/);
+    expect(classes).toContain('max-sm:-ml-1.5');
+    expect(classes).toContain('sm:pointer-coarse:-ml-1.5');
+    expect(classes).not.toContain('sm:pointer-coarse:-mx-[15px]');
+  });
+
   it('blocks frozen-span removal and transcript selection while submitting', async () => {
     const { container, onRunsChange, onSelectionChange, rerender } = renderPanel();
     await waitForTranscript(container);

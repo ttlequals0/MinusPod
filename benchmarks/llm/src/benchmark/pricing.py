@@ -1,13 +1,10 @@
 """Reuse MinusPod's pricing_fetcher for both runtime cost tracking and snapshots.
 
-`fetch_current` unions two sources from MinusPod's ``src/pricing_fetcher.py``:
-LiteLLM's curated JSON (covers anthropic_direct and most non-OpenRouter
-providers) and OpenRouter's ``/api/v1/models`` endpoint (authoritative for
-``openrouter/<slug>`` entries and indexes new models faster than LiteLLM).
-OpenRouter wins on key collisions, but only when its entry carries non-zero
-prices, so an OR entry with missing pricing cannot clobber a valid LiteLLM
-price. The merged table is snapshotted at run time so report regeneration
-recomputes costs at consistent prices regardless of when calls were made.
+`fetch_current` unions LiteLLM's curated JSON (anthropic_direct and most
+non-OpenRouter providers) with OpenRouter's ``/api/v1/models`` (authoritative for
+``openrouter/<slug>``, newer models sooner). OpenRouter wins key collisions only
+when its entry has non-zero prices. The merged table is snapshotted at run time so
+report regeneration costs calls at consistent prices.
 """
 from __future__ import annotations
 
@@ -45,11 +42,10 @@ class PricingSnapshot:
 
 
 # Pricing variants share a match key with the standard model because
-# normalize_model_key strips punctuation: `anthropic/claude-opus-5` and
-# `anthropic/claude-opus-5:batch` both become `claudeopus5`. Batch pricing is
-# 50% of standard, so letting a variant win a collision silently halves the
-# model's cost in every report. Bedrock version ids (`...-v2:0`) are real model
-# ids, not variants, so match on the suffix rather than on any colon.
+# normalize_model_key strips punctuation (`claude-opus-5` and `claude-opus-5:batch`
+# both become `claudeopus5`). Batch is 50% of standard, so a variant winning a
+# collision silently halves cost. Bedrock `...-v2:0` ids are real models, so match
+# the suffix, not any colon.
 _PRICING_VARIANT_SUFFIXES = (":batch", ":free", ":extended", ":thinking")
 
 

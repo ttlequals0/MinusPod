@@ -1,9 +1,6 @@
-"""Confirms _detect_ads_first_pass actually wires in cue-pair synthesis and
-boundary snap after the LLM first pass (#350).
+"""Confirms _detect_ads_first_pass wires cue-pair synthesis and boundary snap in after the LLM first pass (#350).
 
-The unit tests cover snap/cue-pair in isolation; this proves the pipeline calls
-them, with the right settings, on the first-pass ad list.
-"""
+Unit tests cover snap/cue-pair in isolation; this proves the pipeline calls them with the right settings."""
 import os
 import sys
 import tempfile
@@ -33,7 +30,7 @@ class _StubDB:
         self.recorded = []
 
     def get_podcast_cue_settings_overrides(self, podcast_id):
-        # No per-feed overrides in this stub -- resolver falls back to globals.
+        # No per-feed overrides in this stub; the resolver falls back to globals.
         return {
             'cue_create_from_pairs_override': None,
             'cue_pair_min_break_override': None,

@@ -1,6 +1,7 @@
 """Pattern cleanup service: selection, stats, context, review gate, run, tick, apply/undo."""
 import fcntl
 import json
+import logging
 import os
 import sys
 import threading
@@ -15,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import pattern_cleanup  # noqa: E402
 import failover  # noqa: E402
-from llm_client import ProviderRateLimitedError  # noqa: E402
+from llm_client import LLMDisabledError, ProviderRateLimitedError  # noqa: E402
 from llm_route import LiveRoute, Route  # noqa: E402
 from pattern_cleanup import (  # noqa: E402
     LOCK_FILENAME,
@@ -2080,3 +2081,28 @@ def test_configured_chat_cleanup_allows_active_chat_standby(temp_db):
     assert summary['status'] == 'completed'
     assert call.call_args.kwargs['provider'] == 'openai-compatible'
     assert call.call_args.kwargs['credential_slot'] == 'failover'
+
+
+def test_run_stops_quietly_when_the_provider_becomes_none_mid_run(temp_db, live_route, caplog):
+    patterns = [_pattern(temp_db, text=f'pattern {i} ' + AD) for i in range(3)]
+    fake, calls = _fake_llm(_reply())
+    served = []
+
+    def client_for(route):
+        served.append(route)
+        if len(served) > 1:
+            raise LLMDisabledError('none')
+        return None
+    with patch.object(pattern_cleanup, 'client_for_route', client_for), \
+            patch.object(pattern_cleanup, 'call_llm', fake), \
+            patch.object(pattern_cleanup, '_record_failure') as record_failure, \
+            caplog.at_level(logging.DEBUG):
+        summary = run_cleanup(temp_db)
+    run = temp_db.get_cleanup_runs(limit=1)[0]
+    assert len(calls) == 1
+    assert summary['status'] == run['status'] == 'completed'
+    assert summary['reviewed'] == 1 and summary['errors'] == 0
+    assert summary['error'] is None and run['error'] is None and run['error_count'] == 0
+    record_failure.assert_not_called()
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+    assert len(patterns) == 3

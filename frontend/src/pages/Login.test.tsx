@@ -1,10 +1,6 @@
 /**
- * Component tests for Login.tsx (issue #460).
- *
- * Covers the two loop-breaker conditions:
- *   1. !isLoading guard: form shown, no redirect while auth status is loading.
- *   2. !isSubmitting guard + no optimistic authenticated set: handleSubmit owns
- *      navigation; takeLoginRedirect is consumed exactly once.
+ * Login.tsx (#460) loop breakers: no redirect while auth is loading; handleSubmit alone owns navigation
+ * (no optimistic authenticated set) and takeLoginRedirect is consumed once.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -68,7 +64,7 @@ describe('Login guard: isLoading', () => {
     // Spinner shown, login form withheld until status resolves (#464).
     expect(container.querySelector('.animate-spin')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /sign in/i })).toBeNull();
-    // No Navigate sentinel -- guard suppressed by isLoading.
+    // No Navigate sentinel: guard suppressed by isLoading.
     expect(screen.queryByTestId('navigate-sentinel')).toBeNull();
     expect(mockNavigate).not.toHaveBeenCalled();
   });
@@ -77,7 +73,7 @@ describe('Login guard: isLoading', () => {
 describe('Login handleSubmit: cookie rejected', () => {
   it('shows cookie-rejected error and does not navigate when refreshStatus returns authenticated:false', async () => {
     const user = userEvent.setup();
-    mockLogin.mockResolvedValue(true);
+    mockLogin.mockResolvedValue({ ok: true });
     mockRefreshStatus.mockResolvedValue({ authenticated: false, passwordSet: true });
 
     render(<Login />);
@@ -97,7 +93,7 @@ describe('Login handleSubmit: success with redirect', () => {
     const user = userEvent.setup();
     // Seed redirect destination; takeLoginRedirect() will return '/feeds'.
     sessionStorage.setItem('loginRedirect', '/feeds');
-    mockLogin.mockResolvedValue(true);
+    mockLogin.mockResolvedValue({ ok: true });
     mockRefreshStatus.mockResolvedValue({ authenticated: true, passwordSet: true });
 
     render(<Login />);
@@ -116,7 +112,7 @@ describe('Login handleSubmit: success with redirect', () => {
 describe('Login handleSubmit: wrong password', () => {
   it('shows "Invalid password" and does not navigate on login failure', async () => {
     const user = userEvent.setup();
-    mockLogin.mockResolvedValue(false);
+    mockLogin.mockResolvedValue({ ok: false, kind: 'invalid' });
 
     render(<Login />);
 
@@ -132,13 +128,11 @@ describe('Login handleSubmit: wrong password', () => {
 
 describe('Login handleSubmit: deep-link guard suppression', () => {
   it('does not render the Navigate guard after successful login (isSubmitting stays true)', async () => {
-    // This covers the race where finally { setIsSubmitting(false) } ran before
-    // unmount and let the guard consume takeLoginRedirect() a second time.
-    // After the fix, isSubmitting stays true through navigation, so the guard
-    // cannot render <Navigate> and cannot call takeLoginRedirect() again.
+    // isSubmitting stays true through navigation, so the guard cannot render <Navigate> or consume
+    // takeLoginRedirect() a second time.
     const user = userEvent.setup();
     sessionStorage.setItem('loginRedirect', '/settings');
-    mockLogin.mockResolvedValue(true);
+    mockLogin.mockResolvedValue({ ok: true });
     mockRefreshStatus.mockResolvedValue({ authenticated: true, passwordSet: true });
 
     render(<Login />);
@@ -152,7 +146,7 @@ describe('Login handleSubmit: deep-link guard suppression', () => {
     // navigate called with the stored path, never with '/'.
     expect(mockNavigate).toHaveBeenCalledWith('/settings', { replace: true });
     expect(mockNavigate).not.toHaveBeenCalledWith('/', expect.anything());
-    // The Navigate sentinel must not appear -- guard must stay suppressed.
+    // The Navigate sentinel must not appear: the guard must stay suppressed.
     expect(screen.queryByTestId('navigate-sentinel')).toBeNull();
   });
 });

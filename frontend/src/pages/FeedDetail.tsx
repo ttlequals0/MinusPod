@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import CloseButton from '../components/CloseButton';
+import ActionToastStack from '../components/ActionToastStack';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
@@ -12,6 +12,7 @@ import { applyEpisodeJobState } from '../utils/jobStateCache';
 import { PendingRecutsBar } from './patterns/PendingRecutsBar';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useUrlParams } from '../hooks/useUrlParams';
+import { useLlmEnabled } from '../hooks/useLlmEnabled';
 import { SEARCH_DEBOUNCE_MS } from '../hooks/useDebouncedValue';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import PrevNextLink from '../components/PrevNextLink';
@@ -44,15 +45,16 @@ import { iconTarget, iconVisual } from '../components/rowActionStyles';
 import { reprocessMenuCopy, reprocessModeKey } from '../utils/reprocessMenu';
 import { DemoDisabled } from '../components/DemoDisabled';
 
-function reprocessModeLabel(mode: string, feedType?: string): string {
+function reprocessModeLabel(mode: string, feedType?: string, llmEnabled = true): string {
   if (mode === 'full') return 'Full reprocess';
   if (mode === 'llm') return 'Re-detect ads';
-  return feedType === 'youtube' ? 'SponsorBlock and patterns' : 'Patterns + AI';
+  if (feedType === 'youtube') return 'SponsorBlock and patterns';
+  return llmEnabled ? 'Patterns + AI' : 'Patterns and other detectors';
 }
 
-function reprocessModeDescription(mode: string, feedType?: string): string {
-  if (feedType === 'youtube') {
-    const copy = reprocessMenuCopy(feedType);
+function reprocessModeDescription(mode: string, feedType?: string, llmEnabled = true): string {
+  if (feedType === 'youtube' || !llmEnabled) {
+    const copy = reprocessMenuCopy(feedType, llmEnabled);
     return copy[reprocessModeKey(mode)].tooltip;
   }
   if (mode === 'full') return 'Fresh analysis without pattern database';
@@ -81,9 +83,9 @@ function ResultStatsGrid({ queued, skipped, queuedLabel }: {
   );
 }
 
-function reprocessModeVerb(mode: string, feedType?: string): string {
-  if (feedType === 'youtube') return mode === 'reprocess' ? 'SponsorBlock and pattern' : 'pass 1 LLM';
-  if (mode === 'full') return 'full AI';
+function reprocessModeVerb(mode: string, feedType?: string, llmEnabled = true): string {
+  if (feedType === 'youtube') return mode === 'reprocess' || !llmEnabled ? 'SponsorBlock and pattern' : 'pass 1 LLM';
+  if (mode === 'full') return llmEnabled ? 'full AI' : 'pattern-assisted';
   if (mode === 'llm') return 'transcript-reuse';
   return 'pattern-assisted';
 }
@@ -116,6 +118,7 @@ const bulkActionBtn = `${btnBase} flex-1 sm:flex-none min-w-[8rem]`;
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
+  const llmEnabled = useLlmEnabled();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -166,11 +169,9 @@ function FeedDetail() {
     setSearchInput(episodeSearch);
   }
 
-  // AddFeed's local-feed create flow passes a notice through router state
-  // (e.g. an artwork upload failure or size warning) since it can't set
-  // component state on a page it's about to unmount from. Surface it once
-  // through the same toast, then drop it from history so back/refresh don't
-  // replay it.
+  // AddFeed's local-feed create flow passes a notice via router state (e.g. an artwork upload failure) since it
+  // cannot set state on a page it is leaving. Surface it once through the same toast, then drop it from history
+  // so back/refresh do not replay it.
   useEffect(() => {
     const notice = (location.state as { notice?: string } | null)?.notice;
     if (notice) {
@@ -399,10 +400,8 @@ function FeedDetail() {
 
   const handleToggleSelect = (id: string, shiftKey: boolean) => {
     setSelectedScope(selectionScope);
-    // Shift+click applies the anchor row's current state to every selectable
-    // row between the anchor and it (inclusive), in current page order, skipping
-    // blocked rows (standard range-select). A plain click toggles one row and
-    // becomes the new anchor.
+    // Shift+click applies the anchor row's state to every selectable row between anchor and target (inclusive,
+    // page order), skipping blocked rows. A plain click toggles one row and becomes the anchor.
     if (shiftKey && selectionAnchor && selectionAnchor !== id) {
       const order = episodes.map(ep => ep.id);
       const a = order.indexOf(selectionAnchor);
@@ -515,7 +514,27 @@ function FeedDetail() {
     />
   );
 
-  const copy = reprocessMenuCopy(feed.feedType);
+  const copy = reprocessMenuCopy(feed.feedType, llmEnabled);
+
+  const saveCancelButtons = (
+    <>
+      <DemoDisabled>
+        <button
+          onClick={saveEdit}
+          disabled={updateMutation.isPending}
+          className={`${btnBase} ${btnPrimary}`}
+        >
+          {updateMutation.isPending ? 'Saving...' : 'Save'}
+        </button>
+      </DemoDisabled>
+      <button
+        onClick={() => setEditing(null)}
+        className={`${btnBase} ${btnSecondary}`}
+      >
+        Cancel
+      </button>
+    </>
+  );
 
   return (
     <div>
@@ -574,21 +593,7 @@ function FeedDetail() {
                     className={`${inputBase} flex-1 min-w-0`}
                     aria-label="Feed title"
                   />
-                  <DemoDisabled>
-                    <button
-                      onClick={saveEdit}
-                      disabled={updateMutation.isPending}
-                      className={`${btnBase} ${btnPrimary}`}
-                    >
-                      {updateMutation.isPending ? 'Saving...' : 'Save'}
-                    </button>
-                  </DemoDisabled>
-                  <button
-                    onClick={() => setEditing(null)}
-                    className={`${btnBase} ${btnSecondary}`}
-                  >
-                    Cancel
-                  </button>
+                  {saveCancelButtons}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Shown to subscribers in podcast apps. Leave blank to use the source title
@@ -638,21 +643,7 @@ function FeedDetail() {
                   aria-label="Feed description override"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <DemoDisabled>
-                    <button
-                      onClick={saveEdit}
-                      disabled={updateMutation.isPending}
-                      className={`${btnBase} ${btnPrimary}`}
-                    >
-                      {updateMutation.isPending ? 'Saving...' : 'Save'}
-                    </button>
-                  </DemoDisabled>
-                  <button
-                    onClick={() => setEditing(null)}
-                    className={`${btnBase} ${btnSecondary}`}
-                  >
-                    Cancel
-                  </button>
+                  {saveCancelButtons}
                   {feed.descriptionOverride && (
                     <DemoDisabled>
                       <button
@@ -750,7 +741,7 @@ function FeedDetail() {
               align="left"
               items={[
                 {
-                  title: reprocessModeLabel('reprocess', feed.feedType),
+                  title: reprocessModeLabel('reprocess', feed.feedType, llmEnabled),
                   subtitle: copy.reprocess.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('reprocess');
@@ -1035,10 +1026,10 @@ function FeedDetail() {
           <div className="p-4">
             <div className="mb-4 p-3 rounded-lg bg-accent/50">
               <p className="text-sm font-medium text-foreground">
-                Mode: {reprocessModeLabel(selectedReprocessMode, feed.feedType)}
+                Mode: {reprocessModeLabel(selectedReprocessMode, feed.feedType, llmEnabled)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {reprocessModeDescription(selectedReprocessMode, feed.feedType)}
+                {reprocessModeDescription(selectedReprocessMode, feed.feedType, llmEnabled)}
               </p>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
@@ -1071,12 +1062,12 @@ function FeedDetail() {
         >
           <div className="p-4">
             <p className="text-xs text-muted-foreground mb-4">
-              Mode: {reprocessModeLabel(reprocessResult.mode, feed.feedType)}
+              Mode: {reprocessModeLabel(reprocessResult.mode, feed.feedType, llmEnabled)}
             </p>
             <ResultStatsGrid queued={reprocessResult.queued} skipped={reprocessResult.skipped} queuedLabel="Queued" />
             {reprocessResult.queued > 0 && (
               <p className="text-sm text-muted-foreground">
-                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode, feed.feedType)} reprocessing. They will be processed in the background.
+                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode, feed.feedType, llmEnabled)} reprocessing. They will be processed in the background.
               </p>
             )}
           </div>
@@ -1201,13 +1192,7 @@ function FeedDetail() {
       )}
       {/* Same bottom-right confirm/error toasts the dashboard uses. */}
       {(deleteConfirm || actionError) && (
-        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] flex flex-col items-end gap-2">
-          {actionError && !deleteConfirm && (
-            <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
-              <span className="flex-1">{actionError}</span>
-              <CloseButton onClick={() => setActionError(null)} label="Dismiss error" className="shrink-0" />
-            </div>
-          )}
+        <ActionToastStack error={deleteConfirm ? null : actionError} onDismissError={() => setActionError(null)}>
           {deleteConfirm && (
             <ConfirmModal title={`Delete ${feed?.title || slug}?`} confirmLabel="Delete feed" pending={deleteMutation.isPending}
               onCancel={() => { setDeleteConfirm(false); setActionError(null); }} onConfirm={() => deleteMutation.mutate()}>
@@ -1228,7 +1213,7 @@ function FeedDetail() {
               )}
             </ConfirmModal>
           )}
-        </div>
+        </ActionToastStack>
       )}
 
     </div>

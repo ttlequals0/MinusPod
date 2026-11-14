@@ -9,12 +9,18 @@ import type { AdCreateSubmit } from './AdReviewModal';
 // this double just exercises AdEditor's create-submit routing, same
 // boundary AdReviewModal.test.tsx draws around its own children.
 vi.mock('./AdReviewModal', () => ({
-  default: ({ item, onCreate, onCreateDone }: {
-    item: { category?: string | null; actionApplied?: string | null };
+  default: ({ item, mode, onCreate, onCreateDone, onSaveSpan, hasOriginal }: {
+    item: { category?: string | null; actionApplied?: string | null; podcastSlug: string; episodeId: string; start: number; end: number };
+    mode?: string;
     onCreate: (s: AdCreateSubmit, meta?: { silent?: boolean }) => Promise<void> | void;
     onCreateDone?: () => void;
+    onSaveSpan?: (s: { start: number; end: number }) => Promise<void>;
+    hasOriginal?: boolean;
   }) => (
-    <div data-testid="review-item" data-category={item.category ?? ''} data-action-applied={item.actionApplied ?? ''}>
+    <div data-testid="review-item" data-mode={mode ?? ''} data-slug={item.podcastSlug} data-episode={item.episodeId}
+      data-span={`${item.start}-${item.end}`} data-has-original={String(hasOriginal)}
+      data-category={item.category ?? ''} data-action-applied={item.actionApplied ?? ''}>
+      <button type="button" onClick={() => { void onSaveSpan?.({ start: 12, end: 41 }); }}>save span</button>
       <button
         type="button"
         onClick={() => {

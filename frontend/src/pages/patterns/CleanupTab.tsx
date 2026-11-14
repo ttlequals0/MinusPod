@@ -10,6 +10,7 @@ import {
   type CategoryPayload,
 } from '../../api/patternCleanup';
 import { ApiError, getErrorMessage } from '../../api/client';
+import { describePatternAudioOutcome } from '../../api/patterns';
 import Checkbox from '../../components/Checkbox';
 import { ActiveBadge } from '../../components/ActiveBadge';
 import { ScopeBadge } from '../../components/ScopeBadge';
@@ -22,6 +23,8 @@ import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
 import { focusRing, selectBase, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
+import { LLM_DISABLED_REASON } from '../settings/LlmGate';
 
 type KindFilter = CleanupKind | 'all';
 
@@ -234,7 +237,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
                   network_id: pattern.networkId,
                   podcast_name: pattern.podcastTitle,
                 }}
-                podcastClassName="truncate max-w-full"
+                truncate
               />
             )}
             {pattern && !pattern.isActive && <ActiveBadge active={false} />}
@@ -332,10 +335,12 @@ const ACTIONS = {
 };
 
 export default function CleanupTab() {
+  const llmEnabled = useLlmEnabled();
   const [kind, setKind] = useState<KindFilter>('all');
   const [status, setStatus] = useState<CleanupStatus>('pending');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
+  const [audioNotice, setAudioNotice] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Keyset on suggestion id: a decision removing a row from an earlier page cannot shift
@@ -358,16 +363,23 @@ export default function CleanupTab() {
 
   const single = useMutation({
     mutationFn: ({ id, action }: { id: number; action: keyof typeof ACTIONS }) => ACTIONS[action](id),
-    onMutate: () => setMessage(null),
-    onSuccess: refresh,
+    onMutate: () => { setMessage(null); setAudioNotice(null); },
+    onSuccess: (result) => {
+      setAudioNotice(describePatternAudioOutcome(result));
+      refresh();
+    },
     onError: (err, { action }) => setMessage(actionError(err, action)),
   });
 
   const bulk = useMutation({
     mutationFn: ({ ids, action }: { ids: number[]; action: 'approve' | 'reject' }) =>
       bulkCleanupSuggestions(ids, action),
-    onMutate: () => setMessage(null),
+    onMutate: () => { setMessage(null); setAudioNotice(null); },
     onSuccess: (results, { ids, action }) => {
+      const notices = results.map((r) => describePatternAudioOutcome('error' in r ? {} : r)).filter((n): n is string => n !== null);
+      if (notices.length > 0) {
+        setAudioNotice(notices.length > 1 ? `${notices[0]} (${plural(notices.length, 'suggestion')})` : notices[0]);
+      }
       const failed = results.filter((r) => 'error' in r).length;
       if (failed > 0) {
         setMessage(`${failed} of ${plural(ids.length, 'suggestion')} could not be ${
@@ -384,6 +396,7 @@ export default function CleanupTab() {
     if (next.status) setStatus(next.status);
     setSelected(new Set());
     setMessage(null);
+    setAudioNotice(null);
   };
 
   // Defensive: a refetch of stale page cursors could still overlap; de-duplicate by id.
@@ -465,14 +478,21 @@ export default function CleanupTab() {
       )}
 
       {message && <div role="alert" className="text-destructive text-sm mb-3">{message}</div>}
+      {audioNotice && (
+        <div role="status" className="mb-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          {audioNotice}
+        </div>
+      )}
       {isLoading && <SkeletonRows count={4} />}
       {error && <div className="text-destructive text-sm">Could not load suggestions.</div>}
       {!isLoading && !error && items.length === 0 && (
         <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
-          {status === 'pending' && kind === 'all' ? (
+          {status === 'pending' && kind === 'all' && !llmEnabled ? (
+            <>No suggestions yet. Pattern cleanup is unavailable. {LLM_DISABLED_REASON}</>
+          ) : status === 'pending' && kind === 'all' ? (
             <>
               No suggestions yet. Run cleanup from{' '}
-              <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>
+              <Link to="/settings#pattern-cleanup-section" className={`text-primary hover:underline ${focusRing}`}>
                 {'Settings > Experiments'}
               </Link>
               .

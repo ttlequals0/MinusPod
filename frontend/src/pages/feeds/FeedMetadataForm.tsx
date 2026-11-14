@@ -10,9 +10,9 @@ import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
-export type MetadataField = 'author' | 'explicit' | 'categories' | 'title' | 'description';
+type MetadataField = 'author' | 'explicit' | 'categories' | 'title' | 'description';
 
-export interface MetadataValues {
+interface MetadataValues {
   title: string;
   description: string;
   author: string;
@@ -20,7 +20,7 @@ export interface MetadataValues {
   categoriesInput: string;
 }
 
-export const metadataValuesFromFeed = (f: Feed): MetadataValues => ({
+const metadataValuesFromFeed = (f: Feed): MetadataValues => ({
   title: f.title,
   description: f.description ?? '',
   author: f.author ?? '',

@@ -8,8 +8,7 @@ covers them). Emits ad markers for gaps that look like ad residue:
   when adjacent to an already-detected ad
 - Tail gap after segments[-1].end when no postroll marker covers it
 
-Runs after Claude + text-pattern detection, before validation. See the
-2.0.7 plan for the full rationale.
+Runs after LLM + text-pattern detection, before validation.
 """
 from bisect import bisect_left
 from difflib import SequenceMatcher
@@ -32,13 +31,11 @@ logger = logging.getLogger(__name__)
 
 _GAP_ADJACENCY_BUFFER = 1.0  # seconds; how close a gap must be to an ad to count as adjacent
 
-# DAI seam check: dynamic insertion can duplicate a few seconds of show
-# audio around the splice, so extending an ad across the gap swallows real
-# content. Skip the extension when transcript just beyond the boundary
-# verbatim-duplicates transcript inside the span. 50 normalized chars
-# (~10 words) sits above stock ad boilerplate ("this episode is brought to
-# you by" ~33) and below the incident line (~66); a false positive only
-# skips an optional extension.
+# DAI seam check: dynamic insertion can duplicate a few seconds of show audio around the
+# splice, so extending across the gap swallows real content. Skip the extension when
+# transcript just beyond the boundary verbatim-duplicates transcript inside the span.
+# 50 normalized chars (~10 words) is above stock boilerplate ("this episode is brought
+# to you by" ~33); a false positive only skips an optional extension.
 _SEAM_MIN_DUP_CHARS = 50
 # Duplicated splice audio sits within seconds of the seam, so compare narrow
 # windows: up to 30s of span text before/after the boundary vs 15s beyond it.
@@ -100,13 +97,10 @@ def _dai_seam_detected(
 ) -> bool:
     """True when the proposed gap extension shows a DAI splice duplicate.
 
-    Compares transcript just beyond the proposed extended boundary against
-    span text near the seam. The extension region itself is untranscribed
-    (the gap) plus at most the ~1s adjacency buffer, so a duplicate's first
-    copy always sits at or before the pre-extension boundary. Stopping "at
-    the first occurrence" would therefore shrink the LLM-detected boundary,
-    which this check must never do -- skipping the extension entirely is the
-    only shrink-only option, so the caller skips on True.
+    Compares transcript beyond the extended boundary with span text near the seam. The
+    extension region is untranscribed (plus at most the ~1s buffer), so a duplicate's first
+    copy sits at or before the old boundary; stopping at it would shrink the LLM boundary,
+    which this check must never do. Skipping the extension is the only shrink-free option.
     """
     if side == 'before':
         # Extension pushes ad end forward to gap_end. Beyond-boundary text is
@@ -151,26 +145,15 @@ def detect_vad_gaps(
     tail_min_seconds: float = 3.0,
     adjacent_auto_extend_max_seconds: float = MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
 ) -> list[dict]:
-    """Return ad markers for suspicious untranscribed audio spans.
+    """Return new ad markers (possibly empty) for suspicious untranscribed audio spans.
 
-    The input `existing_ads` may be mutated: mid-gaps adjacent to a detected
-    ad extend that ad's boundary in place instead of emitting a new marker
-    (consistent with `ad_detector.extend_ad_boundaries_by_content`).
+    `existing_ads` may be mutated: mid-gaps adjacent to a detected ad extend its boundary in
+    place instead of emitting a marker (like `ad_detector.extend_ad_boundaries_by_content`).
 
-    Args:
-        segments: Whisper segments sorted by start, each with 'start', 'end', 'text'.
-        existing_ads: Already-detected ad markers. Checked for overlap; some may be
-            extended in place when a gap is adjacent.
-        episode_duration: Total audio duration in seconds.
-        start_min_seconds: Minimum head-gap duration to emit.
-        mid_min_seconds: Minimum mid-gap duration to emit (still needs both signoff-before AND resume-after context).
-        tail_min_seconds: Minimum tail-gap duration to emit.
-        adjacent_auto_extend_max_seconds: Largest adjacent gap that can extend
-            an existing ad on adjacency evidence alone. Larger gaps require
-            signoff/resume context or are emitted as held review candidates.
-
-    Returns:
-        List of new ad markers. May be empty.
+    segments: Whisper segments sorted by start. *_min_seconds: minimum gap to emit; a mid gap
+    also needs signoff-before and resume-after context. adjacent_auto_extend_max_seconds: largest
+    adjacent gap that can extend an ad on adjacency alone; larger ones need context or become
+    held review candidates.
     """
     if not segments:
         return []

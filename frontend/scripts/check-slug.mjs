@@ -1,7 +1,5 @@
-// Run with: node --experimental-strip-types frontend/scripts/check-slug.mjs
-// Asserts the TS slugify port matches the canonical Python outputs at
-// tests/unit/test_community_tags.py. Treat as a sanity gate at PR
-// review time, not a CI step.
+// Run: node --experimental-strip-types frontend/scripts/check-slug.mjs
+// Checks the TS slugify port against the Python outputs in tests/unit/test_community_tags.py; not a CI step.
 import { slugify, expectedFilename } from '../src/api/communitySlug.ts';
 
 const cases = [

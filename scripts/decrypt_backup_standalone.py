@@ -46,11 +46,7 @@ SALT_KEY = "provider_crypto_salt"
 
 
 def read_salt(db_path: Path) -> bytes:
-    """Pull the per-instance PBKDF2 salt out of a SQLite file.
-
-    Works on both the live DB and any already-decrypted backup from the
-    same instance. Returns raw salt bytes.
-    """
+    """Pull the per-instance PBKDF2 salt out of a SQLite file (live DB or decrypted backup); returns raw bytes."""
     if not db_path.exists():
         raise FileNotFoundError(f"salt DB not found: {db_path}")
     conn = sqlite3.connect(str(db_path))

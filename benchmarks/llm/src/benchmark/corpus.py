@@ -1,9 +1,8 @@
 """Corpus loading and window precomputation.
 
 windows.json stores per-window boundaries and transcript_lines (the
-``[start s - end s] text`` strings production builds for each segment).
-The runner assembles the full LLM prompt at call time by calling MinusPod's
-``format_window_prompt`` with episode metadata + these transcript_lines.
+``[start s - end s] text`` strings production builds per segment); the runner
+assembles the full prompt at call time via MinusPod's ``format_window_prompt``.
 """
 from __future__ import annotations
 
@@ -85,29 +84,21 @@ def compute_windows(segments: list[dict]) -> list[Window]:
 
 
 def stamp_id_windows(episode: Episode) -> list[list[dict]]:
-    """ID-addressing mode: validate the corpus is fresh, then stamp a global
-    sequential ``sid`` onto ``episode.segments``.
+    """ID-addressing mode: validate the corpus is fresh, then stamp a global sequential ``sid`` onto
+    ``episode.segments``.
 
-    Re-runs ``create_windows`` over the (still unstamped) segments and
-    asserts the recomputed windows exactly match the episode's stored
-    ``windows.json`` (``episode.windows``): same count, each window's index,
-    and each window's [start, end). A mismatch means the
-    window_size/overlap tunables have drifted since windows.json was
-    generated, so ID-mode transcript lines would no longer line up with what
-    show-prompt/report scoring expects. windows.json is never rewritten
-    here; run `benchmark regenerate-windows --force` for that.
+    Re-runs ``create_windows`` over the unstamped segments and asserts the result
+    matches the stored ``windows.json`` (count, index, [start, end) per window). A
+    mismatch means the window_size/overlap tunables drifted, so ID-mode lines would
+    not line up with show-prompt/report scoring; windows.json is never rewritten here
+    (use `benchmark regenerate-windows --force`).
 
-    Only once that check passes does this mutate ``episode.segments`` in
-    place, stamping ``sid`` (matches production's convention of assigning
-    sid before ``create_windows`` so every window's segment dicts inherit
-    it; see ``AdDetector._resolve_addressing_mode`` / ``detect_ads`` in
-    ``ad_detector/__init__.py``) -- so a validation failure never leaves the
-    episode partially stamped. ``create_windows`` appends references to the
-    original segment dicts (not copies), so stamping ``episode.segments``
-    after computing ``raw`` still stamps every dict inside ``raw``.
+    Only after the check passes are segments stamped in place (production assigns
+    sid before ``create_windows``, see ``detect_ads`` in ``ad_detector/__init__.py``),
+    so a failure never leaves the episode partially stamped. ``create_windows`` holds
+    references, not copies, so stamping after computing ``raw`` still reaches ``raw``.
 
-    Returns one list of sid-stamped segment dicts per window, index-aligned
-    with ``episode.windows``.
+    Returns one list of sid-stamped segment dicts per window, index-aligned with ``episode.windows``.
     """
     raw = create_windows(episode.segments)
     if len(raw) != len(episode.windows):

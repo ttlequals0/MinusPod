@@ -1,6 +1,6 @@
 interface MenuCopy { subtitle: string; tooltip: string }
 
-export interface ReprocessMenuCopy {
+interface ReprocessMenuCopy {
   reprocess: MenuCopy;
   full: MenuCopy;
   redetect: MenuCopy;
@@ -24,7 +24,7 @@ const DEFAULT_COPY: ReprocessMenuCopy = {
 const YOUTUBE_COPY: ReprocessMenuCopy = {
   reprocess: {
     subtitle: 'SponsorBlock marks + patterns',
-    tooltip: 'Refresh SponsorBlock marks and captions; learned patterns run, the LLM only when there are no marks',
+    tooltip: 'Refresh SponsorBlock marks and captions. Learned patterns run, the LLM only when there are no marks.',
   },
   full: {
     subtitle: 'Marks, patterns + pass 1 LLM',
@@ -36,10 +36,35 @@ const YOUTUBE_COPY: ReprocessMenuCopy = {
   },
 };
 
+const NONE_COPY: ReprocessMenuCopy = {
+  reprocess: {
+    subtitle: 'Use patterns and the other model-free detectors',
+    tooltip: 'Use learned patterns and the other model-free detectors',
+  },
+  full: {
+    subtitle: 'Same as Reprocess while the LLM provider is set to None',
+    tooltip: 'Same as Reprocess while the LLM provider is set to None',
+  },
+  redetect: DEFAULT_COPY.redetect,
+};
+
+const YOUTUBE_NONE_COPY: ReprocessMenuCopy = {
+  reprocess: {
+    subtitle: 'SponsorBlock marks + patterns',
+    tooltip: 'Refresh SponsorBlock marks and captions. Learned patterns run.',
+  },
+  full: NONE_COPY.full,
+  redetect: {
+    subtitle: 'Keep transcript, re-cut',
+    tooltip: 'Keep the transcript and re-run model-free detection',
+  },
+};
+
 export function reprocessModeKey(mode: string): keyof ReprocessMenuCopy {
   return mode === 'llm' ? 'redetect' : mode === 'full' ? 'full' : 'reprocess';
 }
 
-export function reprocessMenuCopy(feedType?: string): ReprocessMenuCopy {
+export function reprocessMenuCopy(feedType?: string, llmEnabled = true): ReprocessMenuCopy {
+  if (!llmEnabled) return feedType === 'youtube' ? YOUTUBE_NONE_COPY : NONE_COPY;
   return feedType === 'youtube' ? YOUTUBE_COPY : DEFAULT_COPY;
 }

@@ -1,13 +1,10 @@
 """End-to-end cue template detection on synthetic audio (#350).
 
-Builds a 30 s WAV with two repetitions of a short chirp planted at known times,
-marks the first chirp as a template, then runs the template matcher against the
-file and asserts both repetitions are found near the planted times. This is the
-"verify with unit tests only" gate for the matcher: it proves localization on
-real ffmpeg-decoded audio without any labelled production data.
+Builds a 30 s WAV with two repetitions of a short chirp at known times, marks the
+first as a template, and asserts the matcher finds both near the planted times.
+Proves localization on real ffmpeg-decoded audio without labelled production data.
 
-Requires ffmpeg on PATH (the matcher decodes the file via ffmpeg). Skipped if
-unavailable.
+Requires ffmpeg on PATH (the matcher decodes via ffmpeg); skipped if unavailable.
 """
 import shutil
 import wave

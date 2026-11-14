@@ -1,4 +1,4 @@
-"""Unit tests for the cue_detections telemetry mixin (#350 follow-up)."""
+"""Unit tests for the cue_detections telemetry mixin (#350)."""
 import pytest
 
 

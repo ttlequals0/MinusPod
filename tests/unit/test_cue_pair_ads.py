@@ -7,12 +7,7 @@ from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 
 
 def synthesize_ads_from_cue_pairs(*args, **kwargs):
-    """Return just the ad list (drop skip diagnostics) for the ad-shape tests.
-
-    Phase 6 changed the real function to return (ads, skip_diagnostics); these
-    older tests only assert on the ads. The diagnostics contract has its own
-    dedicated tests below that call _synth_impl directly.
-    """
+    """Return just the ad list (drop skip diagnostics) for the ad-shape tests."""
     ads, _ = _synth_impl(*args, **kwargs)
     return ads
 
@@ -118,8 +113,6 @@ def test_no_result_returns_input_unchanged():
 
 # ---------------------------------------------------------------------------
 # Role gating (only opener -> closer pairs synthesize an ad)
-# _typed_cue is the module-level helper defined further down; Python resolves
-# it at call time, so these tests already use that definition.
 # ---------------------------------------------------------------------------
 
 def test_two_start_cues_do_not_pair():
@@ -282,8 +275,7 @@ def test_orientation_only_demotes_leading_exit_not_mid_episode():
 
 
 # ---------------------------------------------------------------------------
-# Skip diagnostics (#350 Phase 6): the second return value maps
-# (template_id, round(start, 3)) -> reason for every eligible-but-unpaired cue.
+# Skip diagnostics (#350 Phase 6): second return value maps (template_id, round(start, 3)) -> reason.
 # ---------------------------------------------------------------------------
 
 def _typed_cue(start, end, role='boundary', conf=0.9, template_id=1, cue_type='ad_break_boundary'):
@@ -339,10 +331,9 @@ def test_diag_phase_mismatch_on_wrong_order():
 
 
 def test_diag_trailing_start_cue_is_no_partner_not_phase_mismatch():
-    # A trailing start-role cue (last index) is never visited as an opener by the
-    # range(len-1) loop, so it falls to post-loop classification. It IS start-
-    # capable, so it simply found no partner -> no_partner_in_band, not a phase
-    # mismatch. The leading end-role cue cannot open, so it also gets no_partner.
+    # A trailing start-role cue is never visited as an opener by the range(len-1) loop, so it is
+    # classified post-loop; it can open but found no partner -> no_partner_in_band. The leading
+    # end-role cue cannot open, so it also gets no_partner.
     result = _result_with(
         _typed_cue(100.0, 100.5, role='end', cue_type='ad_break_end'),
         _typed_cue(220.0, 220.5, role='start', cue_type='ad_break_start'),

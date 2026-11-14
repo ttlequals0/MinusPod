@@ -105,3 +105,49 @@ def test_refresh_raises_while_another_holder_owns_the_lock():
     with database.search._search_rebuild_lock(db.db_path):
         with pytest.raises(RuntimeError, match='already in progress'):
             db.refresh_search_index()
+
+
+def test_drop_stale_shadows_uses_chunked_purge(monkeypatch):
+    conn = db.get_connection()
+    name = 'search_index_new_1_1'
+    conn.execute(f'CREATE VIRTUAL TABLE "{name}" USING fts5(a)')
+    conn.commit()
+    purged = []
+    monkeypatch.setattr(db, '_purge_retired_shadow', lambda n: purged.append(n))
+    db._drop_stale_shadows(conn)
+    assert name in purged
+    conn.execute(f'DROP TABLE IF EXISTS "{name}"')
+    conn.commit()
+
+
+def test_drop_stale_shadows_removes_the_table_and_survives_a_purge_failure(monkeypatch):
+    conn = db.get_connection()
+    good, bad = 'search_index_new_2_1', 'search_index_new_2_2'
+    for name in (good, bad):
+        conn.execute(f'CREATE VIRTUAL TABLE "{name}" USING fts5(a)')
+    conn.commit()
+    real = db._purge_retired_shadow
+
+    def flaky(name):
+        if name == bad:
+            raise RuntimeError('database is locked')
+        real(name)
+
+    monkeypatch.setattr(db, '_purge_retired_shadow', flaky)
+    db._drop_stale_shadows(conn)
+    left = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE name LIKE 'search_index_new_2_%'")}
+    conn.execute(f'DROP TABLE IF EXISTS "{bad}"')
+    conn.commit()
+    assert good not in left
+    assert bad in left
+
+
+def test_routine_stale_shadow_drop_logs_info_not_warning(caplog):
+    conn = db.get_connection()
+    name = 'search_index_new_3_1'
+    conn.execute(f'CREATE VIRTUAL TABLE "{name}" USING fts5(a)')
+    conn.commit()
+    with caplog.at_level('INFO', logger='database.search'):
+        db._drop_stale_shadows(conn)
+    records = [r for r in caplog.records if 'stale search index shadow' in r.getMessage()]
+    assert [r.levelname for r in records] == ['INFO']

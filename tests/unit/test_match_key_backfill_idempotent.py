@@ -1,10 +1,6 @@
-"""Regression test: model_pricing match_key backfill must be collision-safe.
+"""The model_pricing match_key backfill skips rows whose normalized key already belongs to another row.
 
-A NULL-match_key row whose normalized key already belongs to another row used to
-abort the whole migration with 'UNIQUE constraint failed: model_pricing.match_key'
-(the per-row UPDATE hit the existing UNIQUE index before the dedup could run),
-leaving the row NULL so the warning re-fired on every restart. The backfill now
-skips such redundant duplicates instead of failing.
+A UNIQUE collision used to abort the migration and leave the row NULL.
 """
 import logging
 import shutil

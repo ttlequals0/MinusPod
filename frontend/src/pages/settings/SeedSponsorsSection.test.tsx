@@ -4,10 +4,15 @@
  * prompt (detection, verification, reviewer, resurrect).
  */
 import { useState } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SeedSponsorsSection from './SeedSponsorsSection';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 type SeedSponsorsKey =
   | 'seedSponsorsDetection'
@@ -17,8 +22,10 @@ type SeedSponsorsKey =
 
 function Harness({
   onChange,
+  llmEnabled = true,
 }: {
   onChange: (key: SeedSponsorsKey, value: boolean) => void;
+  llmEnabled?: boolean;
 }) {
   const [detection, setDetection] = useState(true);
   const [verification, setVerification] = useState(true);
@@ -33,6 +40,7 @@ function Harness({
     onChange(key, value);
   };
 
+  setLlmEnabled(llmEnabled);
   return (
     <SeedSponsorsSection
       detection={detection}
@@ -136,5 +144,22 @@ describe('SeedSponsorsSection: other toggles', () => {
     await user.click(screen.getByRole('switch', { name: 'Resurrect' }));
 
     expect(calls).toEqual([['seedSponsorsResurrect', false]]);
+  });
+});
+
+describe('SeedSponsorsSection: LLM provider None', () => {
+  it('disables the toggles with the reason and ignores clicks', async () => {
+    const calls: string[] = [];
+    render(<Harness llmEnabled={false} onChange={(key) => calls.push(key)} />);
+    const toggle = screen.getByRole('switch', { name: 'Detection' });
+    expectGatedByLlm(toggle);
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(toggle);
+    expect(calls).toEqual([]);
+  });
+
+  it('is enabled when the provider is set', () => {
+    render(<Harness onChange={() => {}} />);
+    expectNotGatedByLlm(screen.getByRole('switch', { name: 'Detection' }));
   });
 });

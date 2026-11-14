@@ -1,8 +1,7 @@
-"""Tests for the issue #181 processed_only filter on RSSParser.modify_feed.
+"""The processed_only filter on RSSParser.modify_feed (#181).
 
-When processed_only=True, upstream RSS items whose generated episode_id is
-not in processed_episode_ids must be dropped before URL rewrite. When
-processed_only=False (default), behavior must be identical to pre-#181.
+processed_only=True drops upstream items whose generated episode_id is not in processed_episode_ids before
+URL rewrite; processed_only=False (default) behaves as before.
 """
 
 import re

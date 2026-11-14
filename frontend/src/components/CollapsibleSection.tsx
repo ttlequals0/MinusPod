@@ -2,16 +2,15 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useInSettingsSearchRegion, useSettingsSearch } from '../context/SettingsSearchContext';
 import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
+import { useSettingsSectionTarget } from '../context/SettingsSectionTargetContext';
+import { revealSection } from '../utils/revealSection';
 import ChevronCaret from './ChevronCaret';
 import { focusRing } from './fieldStyles';
 import { cardTitle, subHeading } from './pageStyles';
 
-// Mirror of a CollapsibleSection's persisted open state, for hosts that need
-// to know whether their section is open (e.g. to gate a query on visibility)
-// without owning it. Seeds from the same localStorage key the section writes,
-// then tracks toggles: pass `storageKey` and wire the setter to `onToggle`.
-// Lives here so knowledge of the storage-key contract stays next to the
-// component that owns it.
+// Mirror of a CollapsibleSection's persisted open state, for hosts that gate work (e.g. a query) on it without
+// owning it. Seeds from the section's localStorage key, then tracks toggles: pass `storageKey` and wire the
+// setter to `onToggle`. Lives here to keep the storage-key contract next to its owner.
 /** Search matches override saved openness when gating section queries. */
 export function sectionVisible(matchKeys: Set<string> | null, storageKey: string, open: boolean): boolean {
   return matchKeys !== null ? matchKeys.has(storageKey) : open;
@@ -46,18 +45,16 @@ interface CollapsibleSectionProps {
   storageKey?: string;
   variant?: 'card' | 'subsection';
   onToggle?: (isOpen: boolean) => void;
-  // When true, children are only mounted while the section is open. Use for
-  // children that misbehave when rendered into a zero-size collapsed container
-  // (e.g. recharts ResponsiveContainer logs width(-1)/height(-1)). Default
-  // false keeps children mounted while collapsed, preserving their state.
+  // When true, children mount only while open. For children that misbehave in a zero-size collapsed container
+  // (e.g. recharts ResponsiveContainer logs width(-1)/height(-1)). Default false keeps children mounted and
+  // their state preserved.
   unmountWhenClosed?: boolean;
-  // Expands the section regardless of its persisted/clicked isOpen state,
-  // without writing that expansion to storage -- for a host that needs a
-  // section visible on demand (e.g. a validation error inside it) but must
-  // not clobber the user's own collapsed/expanded preference. Does not
-  // affect the toggle click handler, which still flips the underlying
-  // isOpen the section will return to once forceOpen clears.
+  // Expands the section regardless of isOpen, without writing that to storage: for a host that needs it visible
+  // on demand (e.g. a validation error inside) without clobbering the user's preference. Does not affect the
+  // toggle click, which still flips the underlying isOpen.
   forceOpen?: boolean;
+  // DOM id for /settings#<anchorId> deep links: the section opens, scrolls into view and takes focus.
+  anchorId?: string;
 }
 
 function CollapsibleSection({
@@ -71,6 +68,7 @@ function CollapsibleSection({
   onToggle,
   unmountWhenClosed = false,
   forceOpen = false,
+  anchorId,
 }: CollapsibleSectionProps) {
   const subsection = variant === 'subsection';
   const resolvedKey = storageKey || `settings-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
@@ -95,15 +93,9 @@ function CollapsibleSection({
   // 'none' is fully open, '0px' collapsed, a pixel height mid-animation.
   const animating = contentMaxHeight !== 'none' && contentMaxHeight !== '0px';
 
-  // Settings bulk expand/collapse: Expand all / Collapse all bump `seq` on
-  // each click, telling every section to snap to `open`. Goes through the
-  // same setIsOpen + onToggle path a manual click takes, so localStorage
-  // persistence and host mirrors (useCollapsibleOpen) stay coherent. Ignored
-  // during search, matching how manual toggles are ignored during search.
-  // lastAppliedSeq seeds from the signal's seq at mount time so a section
-  // that mounts after a click already happened (e.g. behind an async data
-  // load) doesn't retroactively apply a stale signal -- only a seq that
-  // changes AFTER mount is a real, freshly-clicked signal.
+  // Settings bulk expand/collapse: each click bumps `seq`, snapping every section to `open` through the same
+  // setIsOpen + onToggle path as a manual click. Ignored during search. lastAppliedSeq seeds from the signal's
+  // seq at mount, so a late-mounting section ignores a stale signal.
   const bulkSignal = useSettingsBulkCollapse();
   const lastAppliedSeq = useRef(bulkSignal?.seq);
   useEffect(() => {
@@ -114,6 +106,19 @@ function CollapsibleSection({
     onToggle?.(bulkSignal.open);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkSignal?.seq]);
+
+  // Deep link: open, scroll and focus when the settings hash targets this section.
+  const target = useSettingsSectionTarget();
+  const targetSeq = anchorId && target?.id === anchorId ? target.seq : null;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (targetSeq === null || !rootRef.current) return;
+    setIsOpen(true);
+    onToggle?.(true);
+    return revealSection(rootRef.current, toggleRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetSeq]);
 
   useEffect(() => {
     if (openState) {
@@ -153,8 +158,10 @@ function CollapsibleSection({
 
   return (
     <div
+      id={anchorId}
+      ref={rootRef}
       data-search-key={resolvedKey}
-      className={`${subsection ? 'border-t border-border first:border-t-0' : 'bg-card rounded-lg border border-border'}${hiddenBySearch ? ' hidden' : ''}`}
+      className={`${anchorId ? 'scroll-mt-[calc(var(--status-bar-height,0px)+5rem)] ' : ''}${subsection ? 'border-t border-border first:border-t-0' : 'bg-card rounded-lg border border-border'}${hiddenBySearch ? ' hidden' : ''}`}
     >
       {/* The row div (not a wrapping button) carries the click target so a
           button passed via headerRight never nests inside a button. */}
@@ -173,6 +180,7 @@ function CollapsibleSection({
         {/* No handler of its own: mouse and keyboard activation bubble to
             the row's single toggle handler above. */}
         <button
+          ref={toggleRef}
           type="button"
           aria-expanded={expanded}
           className={`flex-1 min-w-0 text-left ${subsection ? 'flex min-h-11 flex-col items-start justify-center sm:min-h-0' : ''} ${focusRing}`}

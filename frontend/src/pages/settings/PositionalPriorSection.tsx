@@ -24,9 +24,9 @@ function PositionalPriorSection({ enabled, onChange }: PositionalPriorSectionPro
           </span>
         </label>
         <p className="mt-2 text-sm text-muted-foreground ml-14">
-          Positions come from a feed's past cuts and your corrections; a feed needs at
+          Positions come from a feed's past cuts and your corrections. A feed needs at
           least 5 processed episodes before the hint kicks in. The hint never marks an
-          ad on its own; the model must still find ad content in the transcript.
+          ad on its own. A detector must still find ad content in the episode.
         </p>
       </div>
     </CollapsibleSection>

@@ -1,23 +1,11 @@
-"""
-LLM Client Abstraction for MinusPod
+"""LLM Client Abstraction for MinusPod
 
-Supports multiple backends:
-- anthropic: Direct Anthropic API (default, uses API credits)
-- openrouter: OpenRouter API (access 200+ models via one API key)
-- openai-compatible: OpenAI-compatible APIs (Claude Code wrapper, Ollama, etc.)
+Backends: anthropic (direct API, default), openrouter (200+ models via one key), openai-compatible
+(Claude Code wrapper, Ollama, etc.).
 
-Configuration via environment variables:
-    LLM_PROVIDER: "anthropic" (default), "openrouter", or "openai-compatible"
-
-    For anthropic:
-        ANTHROPIC_API_KEY: Your API key
-
-    For openrouter:
-        OPENROUTER_API_KEY: Your OpenRouter API key
-
-    For openai-compatible:
-        OPENAI_BASE_URL: API endpoint (default: http://localhost:8000/v1)
-        OPENAI_API_KEY: API key if required (default: "not-needed")
+Environment variables: LLM_PROVIDER ("anthropic" default, "openrouter" or "openai-compatible");
+ANTHROPIC_API_KEY; OPENROUTER_API_KEY; OPENAI_BASE_URL (default http://localhost:8000/v1);
+OPENAI_API_KEY (default "not-needed").
 """
 
 import copy
@@ -29,6 +17,7 @@ import socket
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from urllib.parse import urlparse
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
@@ -65,6 +54,7 @@ from config import (
     PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_TYPESAFE,
     PROVIDER_SYSTEMONE_COMPATIBLE,
+    PROVIDER_NONE,
     SYSTEMONE_PROVIDERS,
     TYPESAFE_BASE_URL,
     TYPESAFE_SYSTEMONE_URL,
@@ -89,7 +79,7 @@ import database
 from llm_timeout import get_llm_timeout_from_snapshot
 from systemone.admission import operation_admission
 from systemone.settings import get_systemone_settings
-from systemone.transport import SystemOneTransport, DispatchResponse
+from systemone import transport as systemone_transport
 from systemone.client import response_payload
 from systemone.adapter import ReviewInconclusiveError, run_chat_completion
 from systemone.protocol import GUIDANCE as SYSTEMONE_GUIDANCE, jev_ask
@@ -109,10 +99,9 @@ _JSON_SCHEMA_SETTING_KEY = 'llm_json_schema_supported'
 _SCHEMA_PROBE_ATTEMPTED: set[tuple[str, str]] = set()
 _schema_probe_lock = threading.Lock()
 
-# Both probe results are a JSON {model: bool} map, keyed by model rather than
-# endpoint (#693): one URL can serve models that differ, and one model's 400
-# must not downgrade the rest. A legacy bare bool answers for all until
-# re-probed.
+# Both probe results are a JSON {model: bool} map, keyed by model rather than endpoint (#693): one URL can
+# serve models that differ, and one model's 400 must not downgrade the rest. A legacy bare bool answers for
+# all until re-probed.
 _WILDCARD_MODEL = '*'
 _PROBE_SETTING_KEYS = {
     'json_object': _JSON_FORMAT_SETTING_KEY,
@@ -146,9 +135,8 @@ def _format_flag_for(setting_key: str, model: str | None) -> bool | None:
 def _record_format_flag(setting_key: str, model: str, supported: bool) -> None:
     """Persist one model's answer, merging onto the stored map.
 
-    The read-merge-write runs in one immediate transaction, so two workers
-    probing different models in the same window serialize instead of the
-    second write dropping the first model's answer.
+    Read-merge-write runs in one immediate transaction, so two workers probing different models serialize
+    instead of the second write dropping the first model's answer.
     """
     def merge(stored):
         flags = _parse_format_flags(stored)
@@ -205,10 +193,7 @@ def _rejects_json_mode(err: str) -> bool:
 
 
 def _log_content(label: str, content: str, max_length: int = 2000):
-    """Log LLM content at DEBUG level with intelligent truncation.
-
-    Shows head (80%) + tail (20%) for content exceeding max_length.
-    """
+    """Log LLM content at DEBUG level, head (80%) + tail (20%) when over max_length."""
     if not io_logger.isEnabledFor(logging.DEBUG):
         return
     if len(content) <= max_length:
@@ -376,6 +361,35 @@ def get_effective_provider() -> str:
     return get_effective_provider_from_snapshot({'llm_provider': _get_cached_setting('llm_provider')})
 
 
+class LLMDisabledError(RuntimeError):
+    """A model call was requested while the LLM provider is none."""
+
+
+_EFFECTIVE_PROVIDER = object()
+
+
+def llm_disabled(provider=_EFFECTIVE_PROVIDER) -> bool:
+    """True when the given provider, or the effective one if omitted, is none; an explicit None is not none."""
+    if provider is _EFFECTIVE_PROVIDER:
+        provider = get_effective_provider()
+    return provider == PROVIDER_NONE
+
+
+def require_llm(message: str | None = None) -> None:
+    """Raise LLMDisabledError while the effective provider is none; the API answers it with a 409."""
+    if llm_disabled():
+        raise LLMDisabledError(message or 'The LLM provider is set to none; no client is available')
+
+
+@contextmanager
+def llm_off_is_quiet(log: logging.Logger, what: str):
+    """Background loop boundary: skip the work at DEBUG when the provider is none, recording no error."""
+    try:
+        yield
+    except LLMDisabledError:
+        log.debug("%s skipped: the LLM provider is none", what)
+
+
 def model_matches_provider(model_id: str, provider: str) -> bool:
     """Check whether a model ID plausibly belongs to the given provider."""
     if provider == PROVIDER_OPENROUTER:
@@ -396,9 +410,8 @@ def _omit_temperature_override() -> bool:
 def supports_json_schema_for_calls(model: str | None = None, provider: str | None = None) -> bool:
     """Return whether JSON calls on the routed (else global) provider send json_schema.
 
-    OpenAI-compatible endpoints need the operator opt-in and a passing probe.
-    Ollama needs only the opt-in: its native client sends the schema as the
-    /api/chat ``format``, which constrains decoding to it, while plain json
+    OpenAI-compatible endpoints need the operator opt-in and a passing probe. Ollama needs only the opt-in:
+    its native client sends the schema as the /api/chat ``format``, which constrains decoding, while plain json
     mode leaves the model to pick the array's key itself.
     """
     provider = provider or get_effective_provider()
@@ -432,9 +445,8 @@ def clear_settings_cache() -> None:
 
 
 def invalidate_provider_cache() -> None:
-    """Flush the provider settings TTL cache and bump the shared config
-    revision so already-built clients rebuild with the new credentials or
-    endpoint. Call from every provider-settings write path (api_key, base_url,
+    """Flush the provider settings TTL cache and bump the shared config revision so built clients rebuild
+    with new credentials or endpoint. Call from every provider-settings write path (api_key, base_url,
     llm_provider, model selectors)."""
     # Bump the revision (a DB write) before clearing the TTL cache: clearing
     # first would let a concurrent read re-cache the pre-write revision for the
@@ -472,8 +484,8 @@ def _bump_provider_config_revision() -> None:
 def get_effective_openrouter_api_key() -> str | None:
     """Return the OpenRouter API key, checking DB first then env var.
 
-    Note: DB reset stores '' (empty string) which is intentionally falsy
-    so we fall through to the env var.  Do not change to ``is not None``.
+    DB reset stores '' (empty string), intentionally falsy so it falls through to the env var. Do not change
+    to ``is not None``.
     """
     db_val = _get_cached_secret('openrouter_api_key')
     if db_val:
@@ -492,9 +504,8 @@ def get_effective_anthropic_api_key() -> str | None:
 def get_effective_openai_api_key() -> str | None:
     """Return the OpenAI-compatible API key, DB first then env var.
 
-    The legacy ``OPENAI_API_KEY`` -> ``ANTHROPIC_API_KEY`` fallback was
-    removed: ``OPENAI_API_KEY`` must be set explicitly for OpenAI-compatible
-    provider calls. Local Ollama still accepts ``not-needed``.
+    ``OPENAI_API_KEY`` must be set explicitly (the legacy fallback to ``ANTHROPIC_API_KEY`` was removed).
+    Local Ollama still accepts ``not-needed``.
     """
     db_val = _get_cached_secret('openai_api_key')
     if db_val:
@@ -714,10 +725,9 @@ class LLMClient(ABC):
         # Which account this client authenticates as; part of the model-list
         # cache identity so two accounts on one endpoint never share a list.
         self.credential_slot = 'primary'
-        # Provider type this client was built for. A stage routed to Provider
-        # B may differ from the global provider, and request shapes such as
-        # the reasoning field must follow the provider actually called. None
-        # for clients built outside the factory, which use the global provider.
+        # Provider type this client was built for. A stage routed to Provider B may differ from the global
+        # provider, and request shapes such as the reasoning field must follow the provider actually called.
+        # None for clients built outside the factory, which use the global provider.
         self.provider_key: str | None = None
         # Provider-config revision this client was built on; a mismatch at
         # acquire time rebuilds it so a rotated credential is never reused.
@@ -804,12 +814,10 @@ class LLMClient(ABC):
         started_in_fallback: bool,
         send_fn,
     ):
-        """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on
-        4xx-tunable-rejection. send_fn must return the provider response or raise.
+        """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on 4xx-tunable-rejection.
 
-        Centralises the circuit-breaker / fallback bookkeeping that was duplicated
-        across each concrete client. Returns the response and the final
-        (eff_max, eff_temp, eff_reasoning) actually used so the caller can log
+        send_fn must return the provider response or raise. Centralises circuit-breaker / fallback bookkeeping.
+        Returns the response and the (eff_max, eff_temp, eff_reasoning) finally used, so the caller can log
         truncation against the right max_tokens.
         """
         try:
@@ -882,14 +890,7 @@ class LLMClient(ABC):
 
     @abstractmethod
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
-        """List available models.
-
-        Args:
-            bypass_cache: If True, skip the TTL cache and fetch fresh data.
-
-        Returns:
-            List of LLMModel objects
-        """
+        """List available models (LLMModel objects); bypass_cache=True skips the TTL cache."""
         pass
 
     @abstractmethod
@@ -955,7 +956,7 @@ class SystemOneClient(LLMClient):
                 payload = response_payload(data)
                 usage = data.get('usage') or {}
                 result = LLMResponse(
-                    content=json.dumps(payload, separators=(',', ':')),
+                    content=json.dumps(payload),
                     model=data.get('model') or settings.model,
                     usage={
                         'input_tokens': usage.get('prompt_tokens'),
@@ -1055,7 +1056,7 @@ class SystemOneClient(LLMClient):
             return self._http_client
 
     def _make_transport(self, settings, http_client):
-        return SystemOneTransport(
+        return systemone_transport.SystemOneTransport(
             url=(TYPESAFE_SYSTEMONE_URL if self.provider == PROVIDER_TYPESAFE
                  else f'{self.base_url}/systemone'), api_key=self.api_key,
             model=settings.model, timeout=settings.request_timeout,
@@ -1096,7 +1097,7 @@ class SystemOneClient(LLMClient):
                     latency = round((time.monotonic() - started) * 1000)
                     response = getattr(error, 'usage_response', None)
                     if not dispatched:
-                        response = DispatchResponse(usage={}, actual_dispatch_count=0)
+                        response = systemone_transport.DispatchResponse(usage={}, actual_dispatch_count=0)
                     if getattr(response, 'actual_dispatch_count', 1) == 0:
                         latency = None
                     attempts.append((attempt_id, response, latency))
@@ -1372,10 +1373,9 @@ class OllamaNativeChatError(Exception):
 
 
 class OllamaContextOverflowError(ContextOverflowError):
-    """Ollama cut a prompt longer than num_ctx down to about num_ctx/2,
-    dropping its start (system prompt and instructions included), and answered
-    anyway (#893). Terminal: the same prompt overflows again. Carries the
-    response so the ledger can still record the tokens Ollama evaluated."""
+    """Ollama cut a prompt longer than num_ctx down to about num_ctx/2, dropping its start (system prompt
+    and instructions included), and answered anyway (#893). Terminal: the same prompt overflows again.
+    Carries the response so the ledger can still record the tokens Ollama evaluated."""
 
     def __init__(self, message: str, *, num_ctx: int, prompt_tokens: int,
                  estimated_tokens: int, response=None):
@@ -1411,13 +1411,7 @@ def ollama_prompt_was_truncated(prompt_tokens, num_ctx, estimated_tokens) -> boo
 
 
 class OpenAICompatibleClient(LLMClient):
-    """OpenAI-compatible API client.
-
-    Works with:
-    - Claude Code OpenAI wrapper (uses Max subscription)
-    - Ollama
-    - Any OpenAI-compatible API
-    """
+    """OpenAI-compatible API client (Claude Code OpenAI wrapper, Ollama, any OpenAI-compatible API)."""
 
     def __init__(
         self,
@@ -1510,10 +1504,9 @@ class OpenAICompatibleClient(LLMClient):
         cached_param = self._token_param_cache.get(model)
         token_param = cached_param or "max_completion_tokens"
 
-        # Provider detection picks the right reasoning shape (OpenRouter vs
-        # OpenAI-native vs Ollama). Use the provider this client was built
-        # for: the global provider (get_effective_provider() reads DB+env)
-        # can be another type when this stage is routed to Provider B.
+        # Provider detection picks the right reasoning shape (OpenRouter vs OpenAI-native vs Ollama). Use the
+        # provider this client was built for: the global provider (get_effective_provider() reads DB+env) can
+        # be another type when this stage is routed to Provider B.
         active_provider = self.provider_key or get_effective_provider()
 
         def _build_kwargs(tok, tmp, reasoning):
@@ -1523,10 +1516,9 @@ class OpenAICompatibleClient(LLMClient):
                 "messages": all_messages,
                 "timeout": timeout,
             }
-            # Anthropic's adaptive-thinking models (e.g. via OpenRouter) reject
-            # temperature with a 400; omit it rather than let the request fail.
-            # Re-consulted on every call (not hoisted) so a retry after
-            # mark_model_omits_temperature() picks up the freshly-learned state.
+            # Anthropic's adaptive-thinking models (e.g. via OpenRouter) reject temperature with a 400; omit it
+            # rather than fail. Re-consulted on every call (not hoisted) so a retry after
+            # mark_model_omits_temperature() sees the freshly-learned state.
             if not model_omits_temperature(model, omit_temp_override):
                 kw["temperature"] = tmp
             if response_format:
@@ -1690,11 +1682,9 @@ class OpenAICompatibleClient(LLMClient):
         return llm_response
 
     def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
-        """List models from the OpenAI-compatible API.
+        """List models from the OpenAI-compatible API, unfiltered.
 
-        Returns all models reported by the endpoint without filtering.
-        This ensures Ollama models (qwen3, mistral, phi4-mini, etc.) are
-        visible alongside Claude/GPT models from other providers.
+        Unfiltered so Ollama models (qwen3, mistral, phi4-mini, etc.) are visible alongside Claude/GPT models.
         """
         cache_key = f"openai:{self.base_url}:{self.credential_slot}"
         cached = None if bypass_cache else _get_cached_model_list(cache_key)
@@ -1728,10 +1718,9 @@ class OpenAICompatibleClient(LLMClient):
         if native:
             _set_cached_model_list(cache_key, native)
             return native
-        # Only a transient failure serves the last good catalog; a hard failure
-        # (revoked key, 404) must surface the empty list rather than resurrect a
-        # prior key's or provider's models. Cache the served list under the TTL
-        # so repeat loads skip the slow failure path.
+        # Only a transient failure serves the last good catalog; a hard failure (revoked key, 404) must surface
+        # the empty list rather than resurrect a prior key's or provider's models. Cache the served list under
+        # the TTL so repeat loads skip the slow failure path.
         stale = _get_last_good_model_list(cache_key)
         if stale and _is_transient_list_error(last_error):
             _set_cached_model_list(cache_key, stale)
@@ -1745,16 +1734,9 @@ class OpenAICompatibleClient(LLMClient):
         return f"openai-compatible ({safe_url_for_log(self.base_url, keep_path=True)})"
 
     def verify_connection(self, timeout: float = 10.0) -> bool:
-        """Verify the endpoint is reachable by fetching models.
+        """Verify the endpoint is reachable by fetching models; returns True on success, False otherwise.
 
-        Args:
-            timeout: Request timeout in seconds
-
-        Returns:
-            True if connection successful, False otherwise
-
-        Raises:
-            ConnectionError: If connection fails and raise_on_error=True
+        Raises ConnectionError on failure when raise_on_error=True. timeout is in seconds.
         """
         self._ensure_client()
 
@@ -1813,16 +1795,14 @@ class OpenAICompatibleClient(LLMClient):
     def probe_json_schema_support(self, model: str | None = None) -> bool | None:
         """Send a minimal completion to test json_schema support for `model`.
 
-        Only called when the operator opt-in is on, so endpoints that will
-        reject it are never pestered.
+        Only called under the operator opt-in, so endpoints that would reject it are never pestered.
         """
         return self._probe_format_support('json_schema', model)
 
     def _probe_format_support(self, kind: str, model: str | None) -> bool | None:
-        """One minimal completion to test a response_format kind's support.
+        """One minimal completion to test a response_format kind.
 
-        Returns True (supported), False (rejected), or None (inconclusive;
-        nothing is persisted).
+        Returns True (supported), False (rejected), or None (inconclusive; nothing persisted).
         """
         self._ensure_client()
 
@@ -1887,10 +1867,8 @@ class OpenAICompatibleClient(LLMClient):
     def _probe_json_schema_if_enabled(self, fallback_model: str) -> None:
         """Probe json_schema support for each model the pipeline will use.
 
-        Only runs under the operator opt-in, so unopted endpoints never see a
-        structured-output request. Per model rather than per endpoint (#693):
-        one URL can serve models that differ on schema support. Each
-        (endpoint, model) gets one attempt per process while inconclusive.
+        Only under the operator opt-in, so unopted endpoints never see a structured-output request. Per model,
+        not per endpoint (#693); each (endpoint, model) gets one attempt per process while inconclusive.
         """
         if not coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled')):
             return
@@ -1919,11 +1897,7 @@ class OpenAICompatibleClient(LLMClient):
         return root
 
     def _try_ollama_native_list(self) -> list[LLMModel]:
-        """Try Ollama's native /api/tags endpoint as a fallback for model listing.
-
-        Queries GET {root}/api/tags. Returns a list of LLMModel on success,
-        empty list on any failure.
-        """
+        """Try Ollama's native GET {root}/api/tags as a fallback for model listing (LLMModel list, [] on failure)."""
         url = f"{self._ollama_native_root()}/api/tags"
         try:
             from utils.safe_http import URLTrust, safe_get
@@ -2188,13 +2162,10 @@ def get_llm_max_retries(provider_key: str | None = None, credential_slot: str = 
 _client_lock = threading.Lock()
 _UNSET_API_KEY = object()
 
-# Cache of built clients keyed by (provider_key, normalized_base,
-# credential_slot). Multiple providers can be active concurrently (per-phase
-# routing), so this is no longer a single global slot: each (provider, base,
-# slot) triple gets its own entry and rebuilds independently when its own
-# config changes. credential_slot is required in the key (not just base_url):
-# anthropic and openrouter have no configurable per-slot endpoint, so a
-# same-type primary/secondary pair would otherwise resolve to the identical
+# Cache of built clients keyed by (provider_key, normalized_base, credential_slot). Multiple providers can be
+# active concurrently (per-phase routing), so each triple has its own entry and rebuilds independently.
+# credential_slot must be in the key (not just base_url): anthropic and openrouter have no configurable
+# per-slot endpoint, so a same-type primary/secondary pair would otherwise resolve to the identical
 # (provider_key, base) pair and silently share one client and credential.
 _client_cache: dict[tuple[str, str | None, str], LLMClient] = {}
 
@@ -2208,10 +2179,9 @@ _circuit_breaker_lock = threading.Lock()
 def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
     """Apply provider-specific base_url normalization.
 
-    Ollama exposes its OpenAI-compatible surface at ``/v1``; the rest of the
-    code expects this suffix. Centralising the rule keeps the cache key and
-    the actual built client byte-identical, so the new cross-worker
-    invalidation in ``get_llm_client`` does not rebuild on a phantom diff.
+    Ollama exposes its OpenAI-compatible surface at ``/v1``, which the rest of the code expects. One rule keeps
+    the cache key and the built client identical, so cross-worker invalidation in ``get_llm_client`` does not
+    rebuild on a phantom diff.
     """
     if provider == PROVIDER_OLLAMA and not base_url.rstrip('/').endswith('/v1'):
         return base_url.rstrip('/') + '/v1'
@@ -2233,14 +2203,10 @@ def _resolve_cache_key(provider_key: str, base_url: str | None = None,
                        credential_slot: str = 'primary') -> tuple[str, str | None, str]:
     """Client cache key for a provider: (provider_key, normalized_base, credential_slot).
 
-    When base_url is omitted, falls back to the effective DB/env setting for
-    that provider: this is what makes get_llm_client's global-provider path
-    pick up cross-worker settings changes without an explicit force_new.
-    Never includes a credential: callers resolve API keys separately inside
-    _build_client at build time. credential_slot IS included (it is a label,
-    not a secret): anthropic and openrouter resolve the same base for both
-    slots, so without the slot in the key a same-type secondary account would
-    collide with primary's entry and silently reuse its client and credential.
+    base_url omitted falls back to the effective DB/env setting for that provider, which lets get_llm_client's
+    global path pick up cross-worker settings changes without force_new. Never includes a credential (resolved
+    in _build_client). credential_slot is included (a label, not a secret): anthropic and openrouter resolve the
+    same base for both slots, so without it a same-type secondary would collide with primary's client.
     """
     if provider_key == PROVIDER_ANTHROPIC:
         return (provider_key, None, credential_slot)
@@ -2266,11 +2232,9 @@ def _get_circuit_breaker_for_provider(provider_key: str,
                                       base_url: str | None = None) -> CircuitBreaker:
     """Return (creating if needed) the per-route circuit breaker.
 
-    Keyed by the same (provider, normalized_base, credential_slot) identity as
-    the client cache so an outage on one provider, slot, or endpoint does not
-    open another's, and swapping a failing endpoint gets a fresh breaker.
-    cause_classifier is a lazy lambda (not `is_auth_error` directly) because
-    that function is defined further down this module.
+    Keyed like the client cache so an outage on one provider, slot or endpoint does not open another's, and a
+    swapped failing endpoint gets a fresh breaker. cause_classifier is a lazy lambda (not `is_auth_error`
+    directly) because that function is defined further down this module.
     """
     key = _resolve_cache_key(provider_key, base_url, credential_slot)
     label = provider_key if credential_slot == 'primary' else f'{provider_key}:{credential_slot}'
@@ -2314,27 +2278,22 @@ def get_episode_token_totals() -> dict:
 def get_client_for_provider(provider_key: str, base_url: str | None = None,
                             credential_slot: str = 'primary',
                             force_new: bool = False) -> LLMClient:
-    """Cache-per-(provider, base, credential_slot) client with its own
-    circuit breaker attached. Concurrent phases on different
-    providers, or on different slots of the same provider type, each get
-    their own client and breaker, so an outage on one does not open another's.
+    """Cache-per-(provider, base, credential_slot) client with its own circuit breaker attached.
 
-    ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
-    providers (used by per-phase routing); omit it to use the effective
-    setting, which is also what makes the cache auto-invalidate on a
-    cross-worker settings change (see ``_resolve_cache_key``). ``credential_slot``
-    is 'primary' (default, the provider type's own secret) or 'secondary'
-    (reads secondary_provider_api_key instead). It IS part of both the cache
-    key and the circuit breaker key: anthropic/openrouter have no per-slot
-    endpoint, so a same-type secondary account would otherwise resolve to the
-    same (provider_key, base) pair as primary and silently reuse its client,
-    credential, and breaker. Credentials are resolved inside ``_build_client``
-    at build time from provider_key/credential_slot. Never put an API key in
-    the cache key: credential_slot is a label ('primary'/'secondary'), not a
-    secret.
+    Concurrent phases on different providers (or slots of one type) get their own client and breaker, so an
+    outage on one does not open another's.
+
+    ``base_url`` overrides the DB/env endpoint for non-Anthropic providers (per-phase routing); omit it to use
+    the effective setting, which also auto-invalidates the cache on a cross-worker change (see
+    ``_resolve_cache_key``). ``credential_slot`` is 'primary' (the provider type's own secret) or 'secondary'
+    (secondary_provider_api_key); it is part of both the cache key and the breaker key, since anthropic/openrouter
+    have no per-slot endpoint and a same-type secondary would otherwise share primary's client, credential and
+    breaker. Credentials resolve inside ``_build_client``; never put an API key in the cache key.
 
     force_new=True also flushes the provider settings cache.
     """
+    if llm_disabled(provider_key):
+        raise LLMDisabledError('The LLM provider is set to none; no client is available')
     if force_new:
         _clear_provider_cache()
         _clear_model_list_cache()
@@ -2373,32 +2332,17 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
 
 
 def get_llm_client(force_new: bool = False) -> LLMClient:
-    """
-    Factory function that returns the client for the globally configured
-    provider. Deprecated for per-phase calls: resolve a Route via
-    llm_route.resolve_route and call get_client_for_provider directly so
-    each phase gets its own cached client and circuit breaker.
+    """Factory returning the client for the globally configured provider.
 
-    The client is cached for reuse. Use force_new=True to create a fresh client
-    (also flushes the provider settings cache). The cache also auto-invalidates
-    when the effective provider or base_url changes since the last call: only
-    the gunicorn worker that handled a settings PUT runs ``force_new``, so
-    sibling workers detect the diff at next call and rebuild themselves.
+    Deprecated for per-phase calls: resolve a Route via llm_route.resolve_route and call
+    get_client_for_provider so each phase gets its own cached client and circuit breaker.
 
-    Settings are read from the database first, falling back to environment
-    variables:
-        LLM_PROVIDER: "anthropic" (default) or "openai-compatible"
+    The client is cached; force_new=True creates a fresh one (also flushing the provider settings cache). The
+    cache also auto-invalidates when the effective provider or base_url changes: only the gunicorn worker that
+    handled a settings PUT runs ``force_new``, so siblings detect the diff at the next call and rebuild.
 
-        For anthropic:
-            ANTHROPIC_API_KEY: Your API key
-
-        For openai-compatible:
-            OPENAI_BASE_URL: API endpoint (default: http://localhost:8000/v1)
-            OPENAI_API_KEY: API key if required
-            OPENAI_MODEL: Default model to use
-
-    Returns:
-        LLMClient instance
+    Settings come from the database first, then environment variables (LLM_PROVIDER and the per-provider
+    key/base_url/model variables).
     """
     return get_client_for_provider(get_effective_provider(), force_new=force_new)
 
@@ -2490,13 +2434,9 @@ def create_client_for_provider(
 ) -> LLMClient | None:
     """Create a non-cached LLM client for a specific provider.
 
-    Used for previewing available models before saving provider settings.
-    Unlike get_llm_client(), this does not touch the global cache and does
-    not set a usage callback -- only suitable for list_models() calls.
-    credential_slot='secondary' resolves the secondary slot's credential
-    instead of the provider type's own primary secret; base_url overrides
-    the primary slot's endpoint setting, for previewing the secondary
-    slot's own configurable endpoint.
+    For previewing models before saving provider settings: does not touch the global cache or set a usage
+    callback, so only suitable for list_models(). credential_slot='secondary' resolves the secondary slot's
+    credential; base_url overrides the primary slot's endpoint setting to preview the secondary's own endpoint.
     """
     try:
         client = _build_client(
@@ -2514,12 +2454,9 @@ def create_client_for_provider(
 
 
 def get_api_key() -> str | None:
-    """Get the API key for the current provider.
+    """Get the API key for the current provider, or None if not set.
 
-    Returns:
-        API key string or None if not set.
-        Non-anthropic providers default to "not-needed" since local
-        endpoints like Ollama don't require authentication.
+    Non-anthropic providers default to "not-needed" since local endpoints like Ollama need no authentication.
     """
     provider = get_effective_provider()
 
@@ -2566,7 +2503,7 @@ def _probe_secondary_provider_formats() -> None:
 
 def probe_secondary_provider_formats() -> None:
     """Probe an enabled secondary slot on a daemon thread so boot and saves never wait on it."""
-    if not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
+    if llm_disabled() or not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
         return
     threading.Thread(target=_probe_secondary_provider_formats, daemon=True).start()
 
@@ -2579,17 +2516,16 @@ def verify_llm_connection() -> bool:
 
 
 def _verify_primary_connection() -> bool:
-    """Verify the LLM endpoint is reachable at startup.
+    """Verify the LLM endpoint is reachable at startup; returns True if verification passed.
 
-    For OpenRouter and openai-compatible providers (including Ollama),
-    delegates to _verify_endpoint which tests endpoint connectivity.
-    For Anthropic, just verifies the API key is set.
-
-    Returns:
-        True if verification passed, False otherwise
+    OpenRouter and openai-compatible providers (including Ollama) go through _verify_endpoint; Anthropic just
+    verifies the API key is set.
     """
     provider = get_effective_provider()
 
+    if llm_disabled(provider):
+        logger.info("LLM provider is none; the LLM is disabled and no connection was checked")
+        return True
     if provider == PROVIDER_OPENROUTER:
         api_key = get_effective_openrouter_api_key()
         if not api_key:
@@ -2623,8 +2559,7 @@ def _anthropic_exc():
 class _AbsentOpenAIError(Exception):
     """Sentinel for an openai error class missing from the installed SDK.
 
-    Returned in place of a renamed/removed class so callers' isinstance checks
-    degrade to 'not this error' instead of raising AttributeError.
+    Returned in place of a renamed/removed class so callers' isinstance checks degrade to 'not this error'.
     """
 
 
@@ -2637,9 +2572,8 @@ _OPENAI_ERROR_NAMES = (
 def _openai_exc():
     """Namespace of openai error classes if openai is installed, else None.
 
-    Each name resolves to the SDK's class if present, else a sentinel that no
-    real error matches, so a future SDK that drops or renames an error class
-    can't crash the error-classification path with AttributeError.
+    Each name is the SDK's class if present, else a sentinel no real error matches, so an SDK that drops or
+    renames a class cannot crash error classification with AttributeError.
     """
     try:
         import openai
@@ -2670,16 +2604,13 @@ def is_permanent_request_rejection_status(status) -> bool:
 
 
 def is_retryable_error(error: Exception) -> bool:
-    """Check if an error is retryable (transient).
-
-    Works with both Anthropic and OpenAI error types.
-    """
+    """Check if an error is retryable (transient), for both Anthropic and OpenAI error types."""
     # Unconfigured model never self-resolves; no LLM call was even attempted.
     if isinstance(error, ModelNotConfiguredError):
         return False
     if isinstance(error, ProviderRequestRejectedError):
         return False
-    # Structural 429s are never retryable -- the request itself exceeds the
+    # Structural 429s are never retryable; the request itself exceeds the
     # provider's per-minute cap, no amount of backoff will help.
     if isinstance(error, StructuralRateLimitError):
         return False
@@ -2723,12 +2654,10 @@ def is_retryable_error(error: Exception) -> bool:
 
 
 def is_connectivity_error(error: Exception) -> bool:
-    """True when the error means the LLM endpoint is unreachable (connection
-    refused, DNS failure, timeout, 5xx) rather than a real request failure.
+    """True when the error means the LLM endpoint is unreachable (connection refused, DNS failure, timeout, 5xx).
 
-    Gates offline-queue deferral (#482), so the negative cases matter as much
-    as the positive ones: auth failures, rate limits, and not-found are
-    explicitly excluded -- deferring those would hide genuine problems.
+    Gates offline-queue deferral (#482), so the negatives matter: auth failures, rate limits and not-found are
+    excluded, since deferring those would hide genuine problems.
     """
     if isinstance(error, StructuralRateLimitError):
         return False
@@ -2790,16 +2719,11 @@ _AUTH_ERROR_MARKERS = ('claude_cli_not_authenticated', 'authentication_error')
 def is_auth_error(error: Exception) -> bool:
     """Check if error is an LLM authentication/authorization failure (401/403).
 
-    Billing/quota 401/403s are excluded -- they classify as
-    ``is_limit_exceeded_error`` instead, so each error fires exactly one of
-    the Auth Failure / Limit Exceeded webhook events. Falls back to string
-    markers for wrapped errors (e.g. multi-window failures) that lose the
-    original SDK exception type; a bare "401"/"403" also requires auth
-    wording so a wrapped billing error is not misclassified as an auth
-    outage. ``auth_cause`` short-circuits this for a CircuitBreakerOpen
-    raised while the breaker is open: it was classified from the full,
-    untruncated triggering error at open time (see CircuitBreaker), so it
-    survives the ~200-char truncation applied to the embedded cause text.
+    Billing/quota 401/403s are excluded (they classify as ``is_limit_exceeded_error``), so each error fires exactly
+    one of the Auth Failure / Limit Exceeded webhook events. Falls back to string markers for wrapped errors that
+    lose the SDK exception type; a bare "401"/"403" also needs auth wording so a wrapped billing error is not
+    misclassified. ``auth_cause`` short-circuits this for a CircuitBreakerOpen: it was classified from the full,
+    untruncated triggering error at open time (see CircuitBreaker), surviving the ~200-char cause truncation.
     """
     if getattr(error, 'auth_cause', False):
         return True
@@ -2830,13 +2754,11 @@ def is_auth_error(error: Exception) -> bool:
 def is_limit_exceeded_error(error: Exception) -> bool:
     """Check if error is a provider spend/quota limit rather than bad credentials.
 
-    Distinguishes billing exhaustion (OpenRouter monthly key limit 403s,
-    HTTP 402, OpenAI insufficient_quota 429s, Anthropic low-credit 400s) from
-    invalid-key auth errors and transient rate limits so webhooks can alert
-    with the right event. Keyword markers are scoped per status code: on 429
-    only the literal OpenAI ``insufficient_quota`` code counts, because
-    Gemini's transient per-minute 429 message also says "exceeded your
-    current quota ... billing details" and must keep retrying.
+    Distinguishes billing exhaustion (OpenRouter monthly key limit 403s, HTTP 402, OpenAI insufficient_quota 429s,
+    Anthropic low-credit 400s) from invalid-key auth errors and transient rate limits so webhooks alert with the
+    right event. Keyword markers are scoped per status code: on 429 only the literal OpenAI ``insufficient_quota``
+    counts, because Gemini's transient per-minute 429 also says "exceeded your current quota ... billing details"
+    and must keep retrying.
     """
     if isinstance(error, LimitExceededError):
         return True
@@ -2859,10 +2781,8 @@ def is_limit_exceeded_error(error: Exception) -> bool:
 def is_not_found_error(error: Exception) -> bool:
     """Check if error is a model/resource not-found failure (404).
 
-    A not-found usually means the configured model ID is wrong or the provider's
-    advertised model list is incomplete, so retrying will not help. Works with
-    both Anthropic and OpenAI error types, with a status-code and string fallback
-    for wrapped errors.
+    Usually the configured model ID is wrong or the provider's model list is incomplete, so retrying will not help.
+    Handles Anthropic and OpenAI error types, with a status-code and string fallback for wrapped errors.
     """
     if error is None:
         return False
@@ -2885,10 +2805,7 @@ def is_not_found_error(error: Exception) -> bool:
 
 
 def is_rate_limit_error(error: Exception) -> bool:
-    """Check if an error is specifically a rate limit error.
-
-    Used for special handling (longer backoff).
-    """
+    """Check if an error is specifically a rate limit error (for special handling such as longer backoff)."""
     # Held 429s (#696) are rate limits by construction; no string matching.
     if isinstance(error, ProviderRateLimitedError):
         return True
@@ -2911,9 +2828,8 @@ def is_rate_limit_error(error: Exception) -> bool:
 class StructuralRateLimitError(Exception):
     """A 429 whose token request structurally exceeds the provider's cap.
 
-    Retrying cannot succeed at the current window size; callers must shrink
-    the detection window or change provider/tier. Explicitly excluded from
-    ``is_retryable_error`` below.
+    Retrying cannot succeed at the current window size; callers must shrink the detection window or change
+    provider/tier. Excluded from ``is_retryable_error`` below.
     """
     pass
 
@@ -2921,10 +2837,8 @@ class StructuralRateLimitError(Exception):
 class LimitExceededError(Exception):
     """A provider rejection caused by an exhausted spend/usage limit.
 
-    Used to carry the limit-exceeded classification across layers that
-    stringify errors (ad detector -> episode failure handler, #491).
-    Recognized by ``is_limit_exceeded_error`` and therefore excluded from
-    ``is_retryable_error``.
+    Carries the limit-exceeded classification across layers that stringify errors (ad detector -> episode
+    failure handler, #491). Recognized by ``is_limit_exceeded_error``, so excluded from ``is_retryable_error``.
     """
     pass
 
@@ -2938,14 +2852,11 @@ class ProviderRequestRejectedError(ValueError):
 
 
 class ProviderRateLimitedError(Exception):
-    """A 429 carrying a provider-reported reset time, raised into the
-    pipeline while the rate-limit queue hold (#696) is enabled.
+    """A 429 carrying a provider-reported reset time, raised while the rate-limit queue hold (#696) is enabled.
 
-    The retry loop returns it as ``call_llm``'s ``last_error`` instead of
-    sleeping the worker thread; the window-failure dict and the episode
-    failure handler use it to defer the episode and pause the queue until
-    the provider's reset time. Excluded from retryable, transient, and
-    connectivity classification so nothing downstream re-drives it.
+    The retry loop returns it as ``call_llm``'s ``last_error`` instead of sleeping the worker thread; the window-
+    failure dict and episode failure handler use it to defer the episode and pause the queue until the reset time.
+    Excluded from retryable, transient and connectivity classification so nothing downstream re-drives it.
     """
 
     def __init__(self, message: str, retry_after_seconds: float,
@@ -2966,13 +2877,11 @@ class ProviderRateLimitedError(Exception):
 
 
 class ProviderAccountChangedError(Exception):
-    """A route's frozen provider account no longer matches the slot's
-    configuration, so its endpoint and the slot's current key belong to
-    different accounts.
+    """A route's frozen provider account no longer matches the slot's configuration, so its endpoint and the slot's
+    current key belong to different accounts.
 
-    Raised instead of building a client: sending the new credential to the
-    frozen endpoint would authenticate to the wrong destination. Processing
-    turns it into an explicit lifecycle decision (requeue or cancel).
+    Raised instead of building a client: sending the new credential to the frozen endpoint would authenticate to
+    the wrong destination. Processing turns it into an explicit lifecycle decision (requeue or cancel).
     """
 
     def __init__(self, message: str, *, credential_slot: str = 'primary',
@@ -2986,10 +2895,9 @@ class ProviderAccountChangedError(Exception):
 
 
 def extract_error_body(error: Exception) -> Any:
-    """Pull the raw body off a provider error.
+    """Pull the raw body off a provider error (Anthropic and OpenAI SDK exceptions expose it in different shapes).
 
-    Both Anthropic and OpenAI SDK exceptions expose the response body in
-    slightly different shapes. Returns None when nothing is reachable.
+    Returns None when nothing is reachable.
     """
     body = getattr(error, 'body', None)
     if body is not None:
@@ -3005,10 +2913,8 @@ def extract_error_body(error: Exception) -> Any:
 def classify_structural_rate_limit(error: Exception) -> dict | None:
     """Detect a 429 whose request structurally exceeds the provider's cap.
 
-    Returns the parsed ``{limit, used, requested}`` dict when the error is a
-    rate limit AND the parsed body's requested count exceeds the limit.
-    Returns None for transient 429s and any parse failure, so the caller can
-    branch with a single value (no second parse needed).
+    Returns the parsed ``{limit, used, requested}`` dict when the error is a rate limit and the requested count
+    exceeds the limit; None for transient 429s and any parse failure, so the caller branches on one value.
     """
     if not is_rate_limit_error(error):
         return None
@@ -3025,9 +2931,8 @@ def classify_structural_rate_limit(error: Exception) -> dict | None:
 def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
     """Detect a Google/Gemini free-tier daily-quota 429 (cannot recover this run).
 
-    Returns ``{limit, model, quota_id}`` when the error is a rate limit whose body
-    is a per-day RESOURCE_EXHAUSTED quota; None otherwise (per-minute and other
-    429s stay on the retry path, honoring any body retryDelay).
+    Returns ``{limit, model, quota_id}`` for a rate limit whose body is a per-day RESOURCE_EXHAUSTED quota; None
+    otherwise (per-minute and other 429s stay on the retry path, honoring any body retryDelay).
     """
     if not is_rate_limit_error(error):
         return None
@@ -3037,13 +2942,10 @@ def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
 def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> float | None:
     """Pull a recommended wait (seconds) from a provider rate-limit exception.
 
-    Reads, in order: the larger of the `Retry-After` header and a body-carried
-    reset field, then Google/Gemini's RetryInfo ``retryDelay`` / "retry in Ns"
-    hint. Returns ``None`` when nothing is usable, so callers fall through to
-    their existing backoff curve.
-
-    A body reset can exceed the header (or be the only value present), so the
-    in-process sleep this drives can reach the caller's `max_seconds` cap.
+    Reads the larger of the `Retry-After` header and a body-carried reset field, then Google/Gemini's RetryInfo
+    ``retryDelay`` / "retry in Ns" hint. Returns ``None`` when nothing is usable so callers fall through to their
+    backoff curve. A body reset can exceed the header (or be the only value), so the in-process sleep this drives
+    can reach the caller's `max_seconds` cap.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None

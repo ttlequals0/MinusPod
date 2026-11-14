@@ -1,5 +1,4 @@
-"""content_transition cue type (#350 follow-up): config role/label and the
-type-aware LLM prompt wording in audio_enforcer."""
+"""content_transition cue type (#350): config role/label and the type-aware LLM prompt wording in audio_enforcer."""
 from audio_enforcer import AudioEnforcer
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 from config import (

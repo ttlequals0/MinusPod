@@ -96,3 +96,19 @@ describe('SponsorsPage list state in the URL', () => {
     expect(screen.queryByText('Sponsor 01')).toBeNull();
   });
 });
+
+describe('SponsorsPage card layout', () => {
+  it('offers the table sort fields and the category and created date on each card', async () => {
+    mockGetSponsors.mockResolvedValue([{
+      id: 1, name: 'Acme', aliases: [], category: 'Consumer goods', segment_category: null, common_ctas: [],
+      tags: [], is_active: true, pattern_count: 3, last_matched_at: null, created_at: '2026-01-01T00:00:00Z',
+    }]);
+    renderPage('/?sort=created_at&dir=asc');
+    await screen.findAllByText('Acme');
+    const sort = screen.getByLabelText('Sort by') as HTMLSelectElement;
+    expect([...sort.options].map((o) => o.text)).toEqual(['Name', 'Category', 'Patterns', 'Created', 'Last matched']);
+    expect(sort.value).toBe('created_at');
+    expect(screen.getAllByText('Consumer goods').length).toBeGreaterThan(0);
+    expect(screen.getByText(/^created /)).toBeTruthy();
+  });
+});

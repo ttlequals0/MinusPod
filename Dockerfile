@@ -1,8 +1,8 @@
 ARG BASE_APP_IMAGE=ubuntu:26.04
 
 # Patched packages image, pinned by digest; scripts/bump_security_packages.sh rewrites both lines.
-# patch-inputs-hash: 0586002b8159c406
-ARG SECURITY_PACKAGES_IMAGE=ttlequals0/minuspod-security-packages@sha256:6cd21e5bb8a80a1c667446c968693ec53801fcfc76f44ed6037a141a901c0115
+# patch-inputs-hash: c946d2b250995061
+ARG SECURITY_PACKAGES_IMAGE=ttlequals0/minuspod-security-packages@sha256:f838ca9e8211d9e9f168f172c14b88f564eb171f52ae09c87e4ca6d8f9057ac2
 # SECURITY_SRC=stub uses stock Ubuntu packages (local use only).
 ARG SECURITY_SRC=image
 
@@ -68,6 +68,8 @@ RUN : "$MINUSPOD_VERSION" && apt-get update && apt-get install -y --no-install-r
     tzdata \
     unzip \
     && apt-get upgrade -y \
+    # CVE-2026-18374 fix ships in Ubuntu glibc 2.43-2ubuntu2.7
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libc6)" ge 2.43-2ubuntu2.7 \
     && rm -rf /usr/lib/python3/dist-packages/cryptography* \
               /usr/lib/python3/dist-packages/PyJWT* \
               /usr/lib/python3/dist-packages/jwt* \

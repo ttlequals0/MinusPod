@@ -1,16 +1,27 @@
 """Audio, peaks and transcript routes."""
 
+import time
+
 from flask import request, send_file, abort
 from werkzeug.utils import secure_filename
 from api import (
-    api, log_request, json_response, error_response,
+    api, log_request, json_response, error_response, retry_after_response,
     get_database, get_storage, extract_transcript_segment, _resolve_original_audio,
 )
-from audio_peaks import compute_peaks, PeaksError
+from utils.audio import get_audio_duration
+import audio_peaks
+from audio_peaks import PeaksError
 from split_planning import build_split_candidates, build_split_pieces
 from utils.markers import find_marker_in_list
 from utils.text import extract_timed_spans_in_range
+from utils.ttl_cache import TTLCache
 from api.episodes import common
+
+
+PEAKS_RETRY_AFTER_SECONDS = 5
+PEAKS_PROBE_RETRY_SECONDS = 60
+_clock = time.monotonic
+_probe_failures = TTLCache(PEAKS_PROBE_RETRY_SECONDS, 256, clock=lambda: _clock())
 
 
 def _float_arg(name, default=None):
@@ -114,10 +125,7 @@ def _audio_response(path, download_name=None):
 @log_request
 def serve_original_audio(slug, episode_id):
     """Serve the retained pre-cut audio for ad-editor Review mode.
-
-    Returns 404 when the episode has no original retained (global setting
-    off, old episode processed before the feature, or retention expired).
-    """
+    404 when no original is retained (setting off, episode processed before the feature, or retention expired)."""
     # Blueprint url_value_preprocessor validated `slug` and `episode_id`.
     db = get_database()
     episode = db.get_episode(slug, episode_id)
@@ -145,22 +153,56 @@ def serve_processed_audio(slug, episode_id):
     return _audio_response(path, name)
 
 
+def _peaks_pending_response():
+    return retry_after_response('Waveform is being prepared', PEAKS_RETRY_AFTER_SECONDS, 503)
+
+
+def _original_duration(path, episode):
+    """Episode duration from the row, else a probe; a failed probe is remembered briefly."""
+    known = (episode or {}).get('original_duration')
+    if known:
+        return known
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    key = f'{path}:{st.st_size}:{st.st_mtime_ns}'
+    if _probe_failures.get(key) is not None:
+        return None
+    duration = get_audio_duration(str(path))
+    if not duration:
+        _probe_failures.set(key, True)
+    return duration
+
+
+def _ensure_peaks_file(path, episode):
+    """Build the original's peaks file now, or start a long build; returns a BuildResult (BUILD_BUSY means 503)."""
+    peaks_path = audio_peaks.peaks_file_path(path)
+    if audio_peaks.build_failed_recently(peaks_path, path):
+        return audio_peaks.BuildResult(audio_peaks.BUILD_FAILED)
+    duration = _original_duration(path, episode)
+    if duration and duration > audio_peaks.PEAKS_INLINE_MAX_SECONDS:
+        audio_peaks.start_background_build(
+            peaks_path, path, duration, name=f'peaks-build-{path.stem}')
+        return audio_peaks.BuildResult(audio_peaks.BUILD_BUSY)
+    return audio_peaks.build_peaks_file_locked(
+        peaks_path, path, duration or 0.0, wait_seconds=audio_peaks.PEAKS_BUILD_WAIT_SECONDS)
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/peaks', methods=['GET'])
 @log_request
 def get_episode_peaks(slug, episode_id):
     """Return waveform peaks for the requested window of an episode.
 
-    Query params:
-        start    (float, default 0)         - window start in seconds
-        end      (float, default duration)  - window end in seconds
-        resolution_ms (int, default 50)     - peak bucket width
-
-    Used by the AdEditor's wavesurfer view to render a waveform scoped to
-    the current ad selection plus a user-selectable context window.
+    Query: start (float seconds, default 0), end (float seconds, default duration),
+    resolution_ms (int, default 50; peak bucket width). The AdEditor's wavesurfer view uses
+    it to render the ad selection plus a user-selectable context window.
     """
     db = get_database()
     storage = get_storage()
-    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True)
+    episode = db.get_episode(slug, episode_id)
+    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True,
+                                        episode=episode)
     if err is not None:
         return err
 
@@ -178,14 +220,29 @@ def get_episode_peaks(slug, episode_id):
     resolution_ms = _i('resolution_ms', 50)
 
     try:
-        peaks, effective_resolution_ms = compute_peaks(
-            path,
-            start_seconds=start_seconds,
-            end_seconds=end_seconds,
-            resolution_ms=resolution_ms,
-        )
+        result = audio_peaks.compute_peaks_from_file(
+            audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds, resolution_ms)
+        if result is None and audio_peaks.is_grid_aligned(start_seconds, resolution_ms):
+            built = _ensure_peaks_file(path, episode)
+            if built.status == audio_peaks.BUILD_BUSY:
+                return _peaks_pending_response()
+            if built.buckets is not None:
+                result = audio_peaks.compute_peaks_from_buckets(
+                    built.buckets, start_seconds, end_seconds, resolution_ms)
+            else:
+                result = audio_peaks.compute_peaks_from_file(
+                    audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds,
+                    resolution_ms)
+        if result is None:
+            result = audio_peaks.compute_peaks(
+                path,
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
+                resolution_ms=resolution_ms,
+            )
     except PeaksError as e:
         return error_response(str(e), 400)
+    peaks, effective_resolution_ms = result
 
     return json_response({
         'episodeId': episode_id,
@@ -202,11 +259,8 @@ def get_episode_peaks(slug, episode_id):
 @api.route('/feeds/<slug>/episodes/<episode_id>/transcript-span', methods=['GET'])
 @log_request
 def get_episode_transcript_span(slug, episode_id):
-    """Return the transcript text spanning a [start, end] window.
-
-    Used by the AdEditor create mode to auto-populate the text_template
-    field from the currently selected window of the episode's VTT.
-    """
+    """Return the transcript text spanning a [start, end] window, used by AdEditor create
+    mode to fill the text_template field from the selected window of the VTT."""
     db = get_database()
     episode = db.get_episode(slug, episode_id)
     if not episode:
@@ -240,11 +294,8 @@ def get_episode_transcript_span(slug, episode_id):
 @api.route('/feeds/<slug>/episodes/<episode_id>/split-candidates', methods=['GET'])
 @log_request
 def get_episode_split_candidates(slug, episode_id):
-    """Propose divider points for a marker spanning several sponsors.
-
-    A span with no transition phrase returns one piece and no candidates,
-    a valid answer rather than an error (issue #563).
-    """
+    """Propose divider points for a marker spanning several sponsors (#563).
+    A span with no transition phrase returns one piece and no candidates: a valid answer, not an error."""
     db = get_database()
     episode = db.get_episode(slug, episode_id)
     if not episode:

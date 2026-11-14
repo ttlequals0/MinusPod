@@ -19,6 +19,7 @@ from transcriber.remote import probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_llm_client, create_client_for_provider, get_client_for_provider,
+    llm_disabled,
 )
 from llm_route import (
     ALL_CREDENTIAL_SLOTS, SLOT_FAILOVER, SLOT_PRIMARY, SLOT_SECONDARY,
@@ -294,10 +295,8 @@ def reset_single_prompt(name):
 
 
 def _ensure_openrouter_aliases_present(models: list) -> None:
-    """Prepend OpenRouter router aliases (openrouter/free, openrouter/auto) that
-    aren't already in the list. These are valid model IDs but are not returned by
-    /api/v1/models, so they'd otherwise never appear in the dropdown.
-    """
+    """Prepend OpenRouter router aliases (openrouter/free, openrouter/auto) missing from the list.
+    They are valid model IDs but not returned by /api/v1/models, so they would never appear in the dropdown."""
     existing_ids = {m.get('id') for m in models}
     missing = [
         {'id': alias_id, 'name': alias_name, 'created': None}
@@ -309,6 +308,8 @@ def _ensure_openrouter_aliases_present(models: list) -> None:
 
 def _current_provider_models():
     """Current provider's model list, with OpenRouter aliases and pricing."""
+    if llm_disabled():
+        return []
     models = AdDetector().get_available_models()
     if get_effective_provider() == PROVIDER_OPENROUTER:
         _ensure_openrouter_aliases_present(models)
@@ -318,10 +319,8 @@ def _current_provider_models():
 
 def _models_from_client(client, provider: str) -> list:
     """Catalog rows for a built client, with OpenRouter aliases and pricing.
-
-    An unreachable or unauthenticated provider yields an empty list rather
-    than an error: the UI previews providers before their key is saved.
-    """
+    An unreachable or unauthenticated provider yields an empty list, not an error: the UI
+    previews providers before their key is saved."""
     models = []
     if client:
         try:
@@ -360,12 +359,10 @@ def _failover_slot_base_url(provider: str) -> str | None:
 @api.route('/settings/models', methods=['GET'])
 @log_request
 def get_available_models():
-    """Get list of available models for the current or requested provider.
+    """Get available models for the current or requested provider.
 
-    Accepts optional ?provider= query param to preview models for a different
-    provider before saving settings, and ?slot=secondary to preview them
-    using the secondary provider slot's own credentials and base URL instead
-    of the primary slot's (the default).
+    ?provider= previews another provider before saving; ?slot=secondary previews with the
+    secondary slot's own credentials and base URL instead of the primary's (the default).
     """
     provider_override = request.args.get('provider')
     slot = request.args.get('slot', SLOT_PRIMARY)
@@ -378,6 +375,8 @@ def get_available_models():
             return error_response(
                 f'provider must be one of: {", ".join(common.VALID_LLM_PROVIDERS)}', 400
             )
+        if llm_disabled(provider_override):
+            return json_response({'models': []})
         if slot == SLOT_FAILOVER and provider_override in SYSTEMONE_PROVIDERS:
             return error_response('Failover LLM is chat-only', 400)
         if slot == SLOT_SECONDARY:
@@ -403,10 +402,9 @@ def get_available_models():
 def refresh_models():
     """Force refresh the model list for one credential slot.
 
-    Optional body {"slot": "primary"|"secondary"}; primary by default, so a
-    bodyless call behaves as before. ``force_new=True`` rebuilds that slot's
-    client and clears ``_model_list_cache`` in llm_client, so the next
-    ``list_models()`` call repopulates from upstream.
+    Optional body {"slot": "primary"|"secondary"} (default primary). ``force_new=True``
+    rebuilds that slot's client and clears ``_model_list_cache`` in llm_client so the next
+    ``list_models()`` repopulates from upstream.
     """
     data = request.get_json(silent=True)
     slot = data.get('slot', SLOT_PRIMARY) if isinstance(data, dict) else SLOT_PRIMARY
@@ -433,6 +431,8 @@ def refresh_models():
             provider, base_url=_failover_slot_base_url(provider),
             credential_slot=SLOT_FAILOVER, force_new=True)
         models = _models_from_client(client, provider)
+    elif llm_disabled():
+        models = []
     else:
         get_llm_client(force_new=True)
         models = _current_provider_models()
@@ -488,11 +488,8 @@ def get_whisper_models():
 @api.route('/settings/whisper/capacity', methods=['GET'])
 @log_request
 def get_whisper_capacity():
-    """Resolved Whisper pool: what is configured, what is active, what is in flight.
-
-    Refreshes only this worker's pool; the leader's dispatcher refreshes its
-    own pool every pass (5s settings TTL), so no cross-process signal needed.
-    """
+    """Resolved Whisper pool: what is configured, active and in flight.
+    Refreshes only this worker's pool; the leader's dispatcher refreshes its own every pass."""
     pool = get_pool()
     pool.refresh(force=True)
     snap = pool.snapshot()

@@ -1,9 +1,7 @@
-"""Cover-art refresh action (issue #420 follow-up).
+"""Cover-art refresh action (#420).
 
-refresh_feed_artwork re-pulls a feed's cover and rebuilds its served RSS so the
-artwork_watermark_enabled setting takes effect, WITHOUT re-discovering or
-queuing episodes (so the "Refresh all artwork" button never triggers
-processing). refresh_all_artwork does it across every feed.
+refresh_feed_artwork re-pulls a feed's cover and rebuilds its served RSS so artwork_watermark_enabled takes
+effect, without re-discovering or queuing episodes. refresh_all_artwork does it across every feed.
 """
 import io
 import os

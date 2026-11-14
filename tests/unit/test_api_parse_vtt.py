@@ -1,9 +1,5 @@
-"""Pin the public name + behavior of parse_vtt_to_segments after the 2.0.25 rename.
-
-Was `_parse_vtt_to_segments` (module-private). Renamed for the offline LLM
-benchmark, which imports it directly to feed transcripts through the same
-parser production uses.
-"""
+"""Pins the public name and behavior of parse_vtt_to_segments (renamed from the private
+`_parse_vtt_to_segments` in 2.0.25 so the LLM benchmark can import it)."""
 from api.episodes.chapters import parse_vtt_to_segments
 
 

@@ -1,13 +1,11 @@
-"""Prompt placeholder substitution helpers.
+"""Prompt ``{placeholder}`` substitution helpers.
 
-Detection, verification, and reviewer prompts all use ``{placeholder}``
-substitution rather than appending content unconditionally. ``str.replace``
-(not ``str.format``) is intentional so literal ``{...}`` JSON examples in
-prompt bodies stay intact (also avoids injection attacks).
+``str.replace``, not ``str.format``, so literal ``{...}`` JSON examples in
+prompt bodies stay intact (and format-string injection is avoided).
 """
 import re
 
-from config import DETECTION_NOTES_MAX_CHARS
+from config import DETECTION_NOTES_MAX_CHARS, coerce_bool_setting
 
 SPONSOR_DATABASE_HEADER = (
     "\n\nDYNAMIC SPONSOR DATABASE (current known sponsors - treat as high confidence):\n"
@@ -15,11 +13,10 @@ SPONSOR_DATABASE_HEADER = (
 
 
 def render_prompt(prompt: str, **vars: str) -> str:
-    """Substitute ``{name}`` placeholders in ``prompt`` with provided values.
+    """Substitute ``{name}`` placeholders in ``prompt``.
 
-    Variables without a corresponding placeholder are silently dropped: that
-    is the supported way for a user to opt out of an injection by removing
-    the placeholder from their customized prompt.
+    Variables without a placeholder are dropped: removing a placeholder from a
+    customized prompt is how a user opts out of that injection.
     """
     rendered = prompt
     for name, value in vars.items():
@@ -30,9 +27,8 @@ def render_prompt(prompt: str, **vars: str) -> str:
 def render_prompt_once(prompt: str, **vars: str) -> str:
     """Single-pass ``{name}`` substitution over the template only.
 
-    Required when values carry untrusted text (transcripts, feed
-    descriptions): a substituted value is never rescanned, so it cannot
-    smuggle another placeholder into the prompt.
+    For untrusted values (transcripts, feed descriptions): a substituted value
+    is never rescanned, so it cannot smuggle in another placeholder.
     """
     if not vars:
         return prompt
@@ -43,13 +39,24 @@ def render_prompt_once(prompt: str, **vars: str) -> str:
 def format_sponsor_block(sponsor_list: str) -> str:
     """Wrap a non-empty sponsor list with the standard header.
 
-    Empty list returns empty string so substitution does not produce a
-    dangling header on prompts whose ``{sponsor_database}`` placeholder is
-    left in place.
+    An empty list returns "" so no dangling header is left behind.
     """
     if not sponsor_list:
         return ""
     return SPONSOR_DATABASE_HEADER + sponsor_list
+
+
+def seed_sponsors_enabled(db, toggle_key: str, log) -> bool:
+    """Whether the given seed-sponsors toggle is on. Fails open (True):
+    a missing or unreadable setting must not silently strip the block."""
+    try:
+        value = db.get_setting(toggle_key)
+    except Exception as e:
+        log.warning(f"Could not read {toggle_key}: {e}")
+        return True
+    if value is None:
+        return True
+    return coerce_bool_setting(value)
 
 
 OVERRIDE_HEADER = "\n\nADDITIONAL INSTRUCTIONS (these take precedence):\n"
@@ -58,11 +65,9 @@ OVERRIDE_HEADER = "\n\nADDITIONAL INSTRUCTIONS (these take precedence):\n"
 def apply_override(prompt: str, override: str) -> str:
     """Inject an optional per-pass override into an already-rendered prompt.
 
-    Empty/None override leaves the prompt unchanged, so the built-in default
-    prompts render byte-identically to today. When the prompt contains an
-    ``{override}`` placeholder, the user's text is inserted there verbatim -- they
-    control its placement and the wording around it. Otherwise the override is
-    appended under a precedence header.
+    An empty override leaves the prompt unchanged. With an ``{override}``
+    placeholder, the text is inserted there verbatim; otherwise it is appended
+    under a precedence header.
     """
     if not override or not override.strip():
         return prompt.replace('{override}', '') if '{override}' in prompt else prompt
@@ -73,10 +78,9 @@ def apply_override(prompt: str, override: str) -> str:
 def strip_html(text: str|None) -> str:
     """Convert simple HTML to plain text for show-note timestamp parsing.
 
-    Block-level tags must be turned into newlines (not just stripped) so the
-    downstream `_TIMESTAMP_PATTERNS` regex sees each timestamp on its own line.
-    A bare tag-stripper like nh3 would collapse `<p>00:00 A</p><p>05:30 B</p>`
-    into `00:00 A05:30 B` and miss every anchor after the first.
+    Block-level tags become newlines so `_TIMESTAMP_PATTERNS` sees each
+    timestamp on its own line; a bare tag-stripper (nh3) would collapse
+    `<p>00:00 A</p><p>05:30 B</p>` into `00:00 A05:30 B`.
     """
     if not text:
         return ""
@@ -90,16 +94,11 @@ def strip_html(text: str|None) -> str:
     return text.strip()
 
 def scrub_description(description: str|None, max_length: int|None = None, split_location: float = 1.0) -> str:
-    """Scrub the description of HTML, timestamps, URLs, excessive whitespace,
-    and then truncate to `max_length` characters by splitting on a word
-    boundary at the specified location and inserting ellipsis.
+    """Strip HTML, timestamps, URL paths and extra whitespace, then truncate to
+    `max_length` characters (None for no limit) on word boundaries.
 
-    Args:
-        description: The text to be scrubbed and truncated.
-        max_length: The maximum allowed length of the output string. Use None for no limit.
-        split_location: When truncating, this indicates how much of `max_length`
-          should be taken from the beginning, with the remainder from the end
-          and an ellipsis in between. Default is 1.0 (100% from beginning).
+    split_location is the fraction of `max_length` kept from the start; the
+    rest comes from the end with an ellipsis between. Default 1.0 keeps the start.
     """
     if not description:
         return ""
@@ -143,15 +142,11 @@ def format_detection_notes_block(notes: str|None) -> str:
     )
 
 def strip_comments_from_prompt(prompt: str|None) -> str:
-    """Remove HTML-style comments from the prompt following markdown
-    conventions.
+    """Remove HTML-style comments from the prompt, following markdown conventions.
 
-    Multiline comments can start at the beginning of a line (up to three
-    leading spaces allowed), and single-line comments can appear anywhere.
-    If a ML comment ends with a line break, the line break is also removed.
-
-    HTML-style comments cannot be nested (the nested comment's end will
-    terminate the outer comment).
+    Multiline comments must start a line (up to three leading spaces) and take
+    their trailing line break with them; single-line comments can appear
+    anywhere. Comments do not nest.
 
     Examples:
         Text <!-- This is a single-line comment -->

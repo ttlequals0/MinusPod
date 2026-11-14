@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Check } from 'lucide-react';
+import { useGroupDisabled } from './DisabledGroup';
 
 interface CheckboxProps {
   checked: boolean;
@@ -17,9 +18,11 @@ interface CheckboxProps {
 }
 
 function Checkbox({
-  checked, onChange, disabled, className = '', ariaLabel, title, label,
+  checked, onChange, disabled: ownDisabled, className = '', ariaLabel, title, label,
   labelClassName = 'text-sm text-foreground', id,
 }: CheckboxProps) {
+  const groupDisabled = useGroupDisabled();
+  const disabled = ownDisabled || groupDisabled;
   const Wrapper = id ? 'span' : 'label';
   return (
     <Wrapper
@@ -38,7 +41,7 @@ function Checkbox({
       <span className={`h-4 w-4 shrink-0 rounded-sm border-2 transition-colors flex items-center justify-center ${
         checked
           ? 'bg-primary border-primary'
-          : 'border-muted-foreground/70 bg-transparent hover:border-primary/80'
+          : `border-muted-foreground/70 bg-transparent ${disabled ? '' : 'hover:border-primary/80'}`
       } peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-card`}>
         {checked && (
           <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} aria-hidden="true" />

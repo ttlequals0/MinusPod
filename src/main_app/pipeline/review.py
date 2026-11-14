@@ -57,10 +57,9 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
         'slug': slug,
         'episode_id': episode_id,
         'podcast_id': podcast_id,
-        # Optional: the reviewer renders any audio_cue signals near an ad's
-        # boundaries into the per-ad user prompt. Pass-2 leaves this None
-        # because its analysis is in processed-audio coordinates that do not
-        # align with the original-audio ad spans the reviewer sees (#350).
+        # Optional: the reviewer renders audio_cue signals near ad boundaries
+        # into the per-ad prompt. Pass-2 passes None: its analysis is in
+        # processed-audio coordinates, not the original-audio spans (#350).
         'audio_analysis': audio_analysis,
         'effective_category_actions': effective_category_actions,
         # Kept audio in the reviewer's coordinates; a widened edge stops at it.
@@ -123,16 +122,13 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     Maps adjustments only to surviving, unprotected pass-1 output; redundant
     spans are dropped and ambiguous proposals become holds.
 
-    Contradiction holds (verdict confirmed/adjust whose reasoning denies the
-    ad exists) divert the ad out of the cut list into ``v_ads_held`` as an
-    original-coordinate pending-review marker, the same shape pass-1 holds
-    take via _apply_reviewer_verdict_to_ad. The accepted pool the reviewer
-    sees IS ``v_ads_for_ui`` (original coords), so no processed-to-original
-    mapping is needed for the held marker.
+    Contradiction holds (confirmed/adjust verdict whose reasoning denies the ad)
+    divert the ad into ``v_ads_held`` as an original-coordinate pending-review
+    marker, like pass-1 holds from _apply_reviewer_verdict_to_ad. The reviewer's
+    accepted pool is ``v_ads_for_ui`` (original coords), so no mapping is needed.
 
-    ``cue_gate_enabled``: when True, resurrection is suppressed entirely. A
-    resurrected non-held reject would become a cue-less auto-cut, violating the
-    gate's guarantee.
+    ``cue_gate_enabled``: suppresses resurrection entirely, since a resurrected
+    non-held reject would become a cue-less auto-cut, violating the gate.
     """
     ledger = ledger or Pass2Ledger()
     slug = ctx.slug
@@ -518,11 +514,9 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         ad['hold_reason'] = HOLD_REASON_REVIEWER_CONTRADICTION
         ad['source'] = 'reviewer'
         ad['reviewer_contradiction'] = True
-        # Preserve the reviewer's proposed trim so the review UI can offer
-        # approving the trimmed span instead of all-or-nothing. Adjust
-        # verdicts carry adjusted_* natively; confirmed verdicts carry them
-        # only when the trim-recovery follow-up call reconstructed the
-        # sub-span from the reasoning text (ad_reviewer._recover_contradiction_trim).
+        # Keep the reviewer's proposed trim so the UI can offer approving the
+        # trimmed span. Adjust verdicts carry adjusted_* natively; confirmed ones
+        # only when trim-recovery reconstructed it (ad_reviewer._recover_contradiction_trim).
         if (v.adjusted_start is not None
                 and v.adjusted_end is not None):
             ad['reviewer_proposed_start'] = v.adjusted_start
@@ -616,17 +610,15 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                      audio_analysis=None, cue_gate_enabled=False,
                      segment_actions=None, keep_ads=(), user_rejects=(),
                      detection_notes=None):
-    """Run the LLM ad reviewer over the cut list and resurrection-eligible
-    rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
+    """Run the LLM ad reviewer over the cut list and resurrection-eligible rejects.
 
-    ``keep_ads`` and ``user_rejects`` are the hard barriers the reviewer may not cross.
+    Returns updated ``(ads_to_remove, all_ads_with_validation)``.
+    ``keep_ads`` and ``user_rejects`` are hard barriers the reviewer may not cross.
+    A reviewer failure holds unsupported cuts as reviewer_failed; skips entirely
+    when ``enable_ad_review`` is false.
 
-    A reviewer failure holds unsupported cuts as reviewer_failed. Skips
-    entirely when ``enable_ad_review`` is false.
-
-    ``cue_gate_enabled``: when True, resurrection is suppressed. A resurrected
-    non-held reject would become a cue-less auto-cut, violating the gate's
-    guarantee.
+    ``cue_gate_enabled``: suppresses resurrection, since a resurrected non-held
+    reject would become a cue-less auto-cut, violating the gate.
     """
     clear_fallback(episode_id, PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2)
 

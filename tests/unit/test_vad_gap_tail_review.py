@@ -98,10 +98,10 @@ def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
     assert captured['audio_analysis'] == stored
 
 
-# Load-bearing: the last segment ends exactly at the marker start (10557.6)
-# and is included by the boundary-inclusive overlap (seg_end >= start) in
-# src/utils/text.py:137. A strict comparison would empty ad_text and bypass
-# the vad_gap clamp branch, changing both tests' routing.
+# Load-bearing: the last segment ends exactly at the marker start (10557.6) and is included by the
+# boundary-inclusive overlap (seg_end >= start) in get_timestamped_transcript_for_range
+# (src/utils/text.py). A strict comparison would empty ad_text and bypass the vad_gap clamp
+# branch, changing both tests' routing.
 TAIL_SEGMENTS = [
     {'start': 10520.0, 'end': 10545.0,
      'text': 'So that is our show for this week everybody.'},
@@ -172,10 +172,9 @@ def test_corroborated_tail_marker_is_cut_not_pending():
     assert count_pending_review(result.ads) == 0
 
 
-# Segments that end BEFORE the marker start so ad_text is empty.
-# _verify_in_transcript returns early (no clamp), confidence stays 0.80
-# (0.75 + 0.05 POST_ROLL boost), and _make_decision returns ACCEPT.
-# Finding 2: Rule 4 must also hold ACCEPT-decision uncorroborated tails.
+# Segments end before the marker start so ad_text is empty: _verify_in_transcript returns early (no clamp),
+# confidence stays 0.80 (0.75 + 0.05 POST_ROLL boost) and _make_decision returns ACCEPT.
+# Rule 4 must also hold ACCEPT-decision uncorroborated tails.
 _EARLY_SEGMENTS = [
     {'start': 10400.0, 'end': 10500.0,
      'text': 'That is our show for today everyone.'},

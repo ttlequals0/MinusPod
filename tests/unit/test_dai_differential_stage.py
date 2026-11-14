@@ -15,7 +15,7 @@ _DIFF = {'status': 'ok', 'regions': [
 
 def test_differential_with_stage_overlap_becomes_cut():
     # #541: a differential region that overlaps another stage's marker is
-    # corroborated and cuts exactly as before -- 0.95, not held.
+    # corroborated and cuts exactly as before: 0.95, not held.
     ads = dai_differential_ads(_DIFF, [], corroborating_spans=[(110.0, 150.0)])
     assert len(ads) == 1
     ad = ads[0]
@@ -124,10 +124,9 @@ def test_unmerged_adjacent_differential_keeps_core_on_its_own_marker():
 
 
 def test_merge_clears_held_state_when_claude_verifies_transcribed_span():
-    # A held uncorroborated differential that a Claude ad overlaps upgrades to
-    # a cut ONLY when the span has transcript coverage: claude saw the region
-    # as a prompt hint, so its flag is independent evidence only when there was
-    # ad text to read (#541). Held differential sorts first (start 100).
+    # A held uncorroborated differential upgrades to a cut only with transcript coverage:
+    # claude saw the region as a prompt hint, so its flag is independent evidence only when
+    # there was ad text to read (#541). The held differential sorts first (start 100).
     detector = AdDetector(api_key='test-key')
     segments = [
         {'start': 95.0, 'end': 130.0, 'text': 'this episode is sponsored by BetterHelp'},
@@ -194,11 +193,9 @@ def test_merge_hold_survives_fold_when_differential_is_second():
 
 
 def test_merge_upgrades_hold_when_claude_sorts_first():
-    # Observed case: the claude ad started 0.24s before the differential region,
-    # so it became `last` in the merge and stage priority rewrote its stage
-    # to dai_differential BEFORE the upgrade check read it. The check then
-    # saw no claude corroborator and re-held the marker despite 72%
-    # transcript coverage. The corroborator's pre-merge stage must decide.
+    # The claude ad starts 0.24s before the differential, so it becomes `last` and stage priority
+    # rewrote its stage to dai_differential before the upgrade check; the corroborator's
+    # pre-merge stage must decide, or the marker is re-held despite 72% coverage.
     detector = AdDetector(api_key='test-key')
     segments = [
         {'start': 891.3, 'end': 919.6, 'text': 'Ship a Ton is back'},
@@ -268,11 +265,9 @@ def test_merge_keeps_held_state_when_only_differentials_overlap():
 
 
 def test_merge_nulls_claude_sponsor_when_dai_reason_is_longer():
-    # PIN current behavior: the merge keeps reason+sponsor as a consistent pair
-    # from the member with the LONGER reason (fingerprint-mirror heuristic). The
-    # corroborated-cut DAI reason is longer than a short Claude reason, so the
-    # Claude ad's real sponsor is dropped with it (sponsor becomes None). This
-    # is the spec-mandated pattern; the test exists to make the loss visible.
+    # Pins current behavior: the merge keeps reason+sponsor as a pair from the member with the
+    # longer reason (fingerprint-mirror heuristic), so the corroborated DAI reason drops the
+    # Claude ad's sponsor (becomes None). The test makes that loss visible.
     detector = AdDetector(api_key='test-key')
     dai_reason = ('Dynamically inserted: audio differs across fetches '
                   '(corroborated by overlapping ad marker)')
@@ -292,9 +287,9 @@ def test_merge_nulls_claude_sponsor_when_dai_reason_is_longer():
 
 
 def test_merge_does_not_fold_adjacent_held_differential_into_real_ad():
-    # Adjacency is not corroboration (#541): a held differential ENDING 1s
-    # before a real Claude ad must not merge with it -- merging would cut the
-    # held span (or hold the ad). Both markers survive independently.
+    # Adjacency is not corroboration (#541): a held differential ending 1s before a real
+    # Claude ad must not merge with it (merging would cut the held span or hold the ad).
+    # Both markers survive independently.
     detector = AdDetector(api_key='test-key')
     merged = detector._merge_detection_results([
         {'start': 100.0, 'end': 160.0, 'confidence': 0.95,

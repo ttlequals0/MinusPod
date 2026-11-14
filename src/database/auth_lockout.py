@@ -1,10 +1,8 @@
 """Auth-failure lockout mixin.
 
-Tracks failed login attempts per source IP and blocks further attempts once a
-threshold is crossed in the rolling window. Counters live in the ``auth_failures``
-table so the decision is consistent across gunicorn workers (the flask-limiter
-in-memory store is per-worker; lockout must be global or attackers can sidestep
-it by getting routed to a second worker).
+Tracks failed logins per source IP and blocks further attempts once a threshold
+is crossed in the rolling window. Counters live in ``auth_failures`` so the decision
+holds across gunicorn workers (the flask-limiter store is per-worker).
 """
 from __future__ import annotations
 
@@ -54,13 +52,10 @@ class AuthLockoutMixin:
         return row["locked_until"]
 
     def record_auth_failure(self, ip: str) -> str | None:
-        """Record a failed login for ``ip``. Returns the ``locked_until``
-        timestamp when the failure crossed the lockout threshold; returns
-        None otherwise.
+        """Record a failed login for ``ip``; return ``locked_until`` if it crossed the lockout threshold, else None.
 
-        The count is incremented with a single atomic UPSERT (no SELECT-then-
-        write) so concurrent failed attempts cannot each read the same count and
-        race past the threshold, undercounting the lockout (auth-2).
+        A single atomic UPSERT (no SELECT-then-write) keeps concurrent failures
+        from reading the same count and racing past the threshold (auth-2).
         """
         if not ip:
             return None
@@ -107,10 +102,7 @@ class AuthLockoutMixin:
         conn.commit()
 
     def cleanup_auth_failures(self) -> int:
-        """Remove rows whose window expired and whose lockout (if any) is
-        also in the past. Callers invoke this from the existing cleanup task.
-        Returns the count of deleted rows for telemetry.
-        """
+        """Delete rows whose window and lockout have passed; return the count."""
         now = _now_iso()
         window_start = _window_start_iso()
         conn = self.get_connection()

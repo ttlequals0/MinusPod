@@ -1,10 +1,7 @@
-"""Pure-logic tests for templates manifest parsing and rejection.
+"""Pure-logic tests for templates manifest parsing and rejection (no network or audio decode)."""
 
-No network, no audio decode, no file I/O beyond fixtures.
-"""
 import io
 import json
-import struct
 import wave
 import zipfile
 from pathlib import Path
@@ -85,7 +82,7 @@ class TestValidateManifest:
     def test_missing_sample_rate_accepted(self):
         manifest = _make_manifest()
         del manifest["sampleRate"]
-        _validate_manifest(manifest, Path("x"))  # optional field -- must not raise
+        _validate_manifest(manifest, Path("x"))  # optional field, must not raise
 
     def test_wrong_n_coeffs_rejected(self):
         manifest = _make_manifest(nCoeffs=20)
@@ -99,7 +96,7 @@ class TestValidateManifest:
     def test_missing_n_coeffs_accepted(self):
         manifest = _make_manifest()
         del manifest["nCoeffs"]
-        _validate_manifest(manifest, Path("x"))  # optional field -- must not raise
+        _validate_manifest(manifest, Path("x"))  # optional field, must not raise
 
 
 # ---------------------------------------------------------------------------

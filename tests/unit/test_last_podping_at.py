@@ -16,11 +16,9 @@ SLUG = 'last-podping-at-feed'
 
 @pytest.fixture
 def db():
-    # Resolved at test-run time, not at module-import time: the Database
-    # singleton can be re-pointed by a later-collected test module's own
-    # bootstrap() call before this file's tests actually run, so binding
-    # `db` at import time risks a stale reference relative to what the
-    # Flask routes under test resolve via get_database().
+    # Resolved at test-run time: a later-collected module's bootstrap() can re-point the Database
+    # singleton, so binding `db` at import time risks a stale reference vs. what the Flask routes
+    # resolve via get_database().
     return Database()
 
 

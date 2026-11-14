@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 from datetime import datetime, timedelta, timezone
 
 import diagnostic_log
@@ -401,3 +402,19 @@ def test_export_keeps_detail_fields_only_when_well_formed(tmp_path):
 
     pairs = sorted(((e.get('message') or ''), (e.get('exception') or '')) for e in result['events'])
     assert pairs == [('', ''), ('', ''), ('', ''), ('', ''), ('refresh failed for %s', 'TimeoutError')]
+
+
+def test_handler_stores_no_url_query_from_message_or_traceback(tmp_path):
+    url = "https://cdn.example.com/a.mp3?key=secret123"
+    try:
+        raise RuntimeError(f"403 Client Error: Forbidden for url: {url}")
+    except RuntimeError:
+        exc_info = sys.exc_info()
+    handler = DiagnosticHandler(tmp_path)
+    record = logging.LogRecord(
+        'podcast.api', logging.ERROR, __file__, 12, f'fetch failed {url}', (), exc_info)
+
+    handler.emit(record)
+
+    line = (tmp_path / 'logs' / 'diagnostics' / f'diagnostic-{record.process}.jsonl').read_text()
+    assert 'secret123' not in line

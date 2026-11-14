@@ -28,6 +28,7 @@ https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 **Transcription and LLMs**
 - Transcribe locally with faster-whisper or NVIDIA Parakeet on GPU or CPU, or remotely through whisper.cpp, Groq, OpenAI, or OpenVINO. [Transcription](docs/transcription.md)
 - Anthropic, OpenRouter, Ollama, System One, or any OpenAI-compatible endpoint, switchable at runtime with per-stage models and editable prompts. [LLM providers](docs/llm-providers.md)
+- Or no LLM at all. With the provider set to None, MinusPod uses audio cues, fingerprints, text patterns, the cross-fetch differential and SponsorBlock. A fresh install finds little on a regular podcast feed until you mark ads. [Running without an LLM](docs/llm-providers.md#running-without-an-llm)
 - A/B routing between two providers, [failover](docs/failover.md) to a standby, rate-limit holds, a weekly processing schedule, and an offline queue for self-hosted endpoints
 
 **Patterns and sponsors**
@@ -62,7 +63,7 @@ The full pipeline, including the verification pass, sliding windows, pattern lea
 ## Requirements
 
 - Docker on an amd64 or arm64 host. An NVIDIA GPU speeds up local transcription but is not required.
-- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint.
+- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint. An LLM is optional. Set `LLM_PROVIDER=none` to run without one, as described in [Running without an LLM](docs/llm-providers.md#running-without-an-llm). A fresh install on None finds little on a regular podcast feed until you mark ads, and SponsorBlock covers YouTube feeds only.
 
 Whisper and Parakeet sizing and RAM/VRAM figures are in [Installation](docs/installation.md#memory-requirements).
 

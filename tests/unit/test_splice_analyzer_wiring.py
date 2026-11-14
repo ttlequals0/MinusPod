@@ -1,11 +1,9 @@
-"""Analyzer wiring tests for splice-evidence detection (docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
+"""Analyzer wiring for splice-evidence detection
+(docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
 
-Verifies:
-- splice detector runs when splice_evidence_enabled is on (the default).
-- flag off / no db -> detector not invoked, result.splice_evidence is None.
-- payload lands on result.splice_evidence and in to_dict().
-- detector exception -> errors entry, analysis continues.
-- calculate_component_timeouts includes a decode-sized 'splice' timeout.
+The detector runs when splice_evidence_enabled is on (default) and is skipped with no db or the flag off
+(result.splice_evidence None); the payload lands on result.splice_evidence and in to_dict(); detector
+exceptions become errors entries; calculate_component_timeouts includes a decode-sized 'splice' timeout.
 """
 import os
 import sys
@@ -48,8 +46,8 @@ def _run_analyze(db):
     frames = [LoudnessFrame(start=0.0, end=5.0, loudness_lufs=-20.0)]
     with patch.object(analyzer.volume_analyzer, 'analyze',
                       return_value=([], -20.0, frames)), \
-         patch.object(analyzer.splice_detector, 'detect',
-                      return_value=_PAYLOAD) as mock_detect, \
+         patch.object(analyzer.splice_detector, 'detect_with_peaks',
+                      return_value=(_PAYLOAD, None)) as mock_detect, \
          patch('audio_analysis.audio_analyzer.get_audio_duration',
                return_value=600.0), \
          patch('os.path.exists', return_value=True):
@@ -81,7 +79,7 @@ def test_detector_exception_recorded_and_continues():
     analyzer = AudioAnalyzer(db=_FakeDB(splice_enabled=True))
     with patch.object(analyzer.volume_analyzer, 'analyze',
                       return_value=([], -20.0, [])), \
-         patch.object(analyzer.splice_detector, 'detect',
+         patch.object(analyzer.splice_detector, 'detect_with_peaks',
                       side_effect=RuntimeError('boom')), \
          patch('audio_analysis.audio_analyzer.get_audio_duration',
                return_value=600.0), \

@@ -1,8 +1,7 @@
 """Sponsor label hygiene: sanitize_sponsor_label and duplicate-overlap merge.
 
-Real-world case (example-podcast a1b2c3d4e5f6): Claude labeled an ad's
-sponsor 'Xbox segment' (the segment name) and emitted overlapping markers
-for ONE ad read; other holds carried reasoning prose as sponsors.
+Covers a segment name used as the sponsor ('Xbox segment'), overlapping markers for one ad read, and
+reasoning prose carried as sponsors.
 """
 import os
 import sys
@@ -148,10 +147,9 @@ class TestMergeOverlappingAcceptedDuplicates:
 
 
 class TestSegmentAndStructureNames:
-    """Production shape: the model puts a segment label in the sponsor slot.
+    """The model puts a segment label in the sponsor slot.
 
-    These reached pattern creation and were stopped only incidentally by the
-    intro check, which then blamed contamination.
+    These used to reach pattern creation and were stopped only incidentally by the intro check.
     """
 
     @pytest.mark.parametrize('label', [

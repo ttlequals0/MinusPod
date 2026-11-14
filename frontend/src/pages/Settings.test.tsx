@@ -556,3 +556,87 @@ describe('Settings search', () => {
     expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', false);
   });
 });
+
+describe('Settings: audio fingerprinting entries', () => {
+  beforeEach(() => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      fingerprintEnabled: { value: true, isDefault: true },
+      fingerprintMatchStrictness: { value: 0.65, isDefault: true },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+  });
+
+  it('holds Save while an entry is out of range and focuses that field', async () => {
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    const gap = screen.getByLabelText('Gap tolerance (s)');
+    await user.clear(gap);
+    await user.type(gap, '6');
+    const strictness = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    await user.clear(strictness);
+    await user.type(strictness, '0.2');
+    expect(strictness.getAttribute('aria-invalid')).toBe('true');
+    expect(strictness.className).toContain('aria-invalid:border-destructive');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(strictness);
+    await user.clear(strictness);
+    await user.type(strictness, '0.8');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ fingerprintGapToleranceS: 6, fingerprintMatchStrictness: 0.8 }),
+    ));
+  });
+
+  it('does not block Save for a stored out-of-range value the person did not type', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      fingerprintMatchStrictness: { value: 0.3, isDefault: false },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    const gap = screen.getByLabelText('Gap tolerance (s)');
+    await user.clear(gap);
+    await user.type(gap, '6');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ fingerprintGapToleranceS: 6 }),
+    ));
+    expect(vi.mocked(updateSettings).mock.calls[0][0]).not.toHaveProperty('fingerprintMatchStrictness');
+  });
+
+  it('uses the limits the settings response reports', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      fingerprintMatchStrictness: { value: 0.7, isDefault: false, min: 0.7, max: 0.9, step: 0.01 },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    const input = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    expect([input.min, input.max, input.step]).toEqual(['0.7', '0.9', '0.01']);
+  });
+
+  it('offers Save for an invalid entry alone so the block is visible', async () => {
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    const field = screen.getByLabelText('Minimum ad length (s)');
+    await user.clear(field);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(field);
+  });
+});

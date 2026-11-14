@@ -1,10 +1,7 @@
-"""Regression: create_pattern_from_ad must stamp the per-feed language override.
+"""create_pattern_from_ad stamps the per-feed language override (#376).
 
-The detector and verification pass call create_pattern_from_ad with the feed
-SLUG as `podcast_id` (see ad_detector __init__ "podcast_id = ctx.slug" and
-pattern_service "podcast_id=slug"). The stamped source_language must therefore
-resolve the per-feed language_override via the slug, not via an integer-PK
-lookup that silently misses and falls back to the global setting (#376).
+Callers pass the feed SLUG as `podcast_id`, so source_language must resolve language_override via the slug,
+not an integer-PK lookup that misses and falls back to the global setting.
 """
 import os
 import sys

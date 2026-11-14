@@ -1,11 +1,9 @@
 """Tests for tunable learning confidence thresholds.
 
-record_verification_misses (pattern_service) and learn_from_detections /
-_ad_passes_learning_filters (ad_detector) must read learning_min_confidence
-and learning_min_confidence_long from the DB at call time instead of the
-LEARNING_MIN_CONFIDENCE / _LONG constants directly, so a settings change
-takes effect on the next run without any caching.
-"""
+record_verification_misses, learn_from_detections and _ad_passes_learning_filters must read
+learning_min_confidence and learning_min_confidence_long from the DB at call time, not the
+LEARNING_MIN_CONFIDENCE / _LONG constants, so a settings change applies on the next run without
+caching."""
 import os
 import sys
 from unittest.mock import MagicMock
@@ -67,7 +65,7 @@ def _claude_ad(confidence, duration):
 
 
 class TestPatternServiceConfigurableThreshold:
-    """record_verification_misses (~pattern_service.py:833-845)."""
+    """record_verification_misses (pattern_service)."""
 
     def test_configured_low_threshold_admits_0_6_confidence_miss(self, db):
         db.set_setting('learning_min_confidence', '0.5')
@@ -99,7 +97,7 @@ class TestPatternServiceConfigurableThreshold:
 
 
 class TestAdPassesLearningFiltersConfigurableLongThreshold:
-    """_ad_passes_learning_filters long-duration check (~ad_detector/__init__.py:1576-1610)."""
+    """_ad_passes_learning_filters long-duration check (ad_detector)."""
 
     def test_configured_low_long_threshold_admits_0_6_confidence_100s_ad(self, detector):
         detector.db.get_setting_float = MagicMock(side_effect=lambda key, default: 0.5)
@@ -115,7 +113,7 @@ class TestAdPassesLearningFiltersConfigurableLongThreshold:
 
 
 class TestLearnFromDetectionsConfigurableThreshold:
-    """learn_from_detections min_confidence read (~ad_detector/__init__.py:1747)."""
+    """learn_from_detections min_confidence read (ad_detector)."""
 
     def test_configured_low_threshold_lets_0_6_confidence_ad_through(self, detector):
         detector.db.get_setting_float = MagicMock(side_effect=lambda key, default: 0.5)

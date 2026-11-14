@@ -32,10 +32,10 @@ PREPROCESS_AUDIO_FILTERS = 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=
 
 
 def _max_download_mb() -> int:
-    """Episode download cap in MB (#493). Env-backed: the UI value wins,
-    the env var MAX_AUDIO_DOWNLOAD_MB seeds the default at boot. No hard
-    ceiling -- deployments deliberately above 10 GB keep working -- but the
-    cap is the disk-fill guard, so oversized values leave a trace.
+    """Episode download cap in MB (#493). The UI value wins; MAX_AUDIO_DOWNLOAD_MB seeds the default.
+
+    No hard ceiling (deployments above 10 GB keep working), but values over the
+    advisory are logged since the cap is the disk-fill guard.
     """
     mb = get_env_backed_int('max_audio_download_mb',
                             floor=MAX_AUDIO_DOWNLOAD_MB_MIN)
@@ -49,10 +49,9 @@ def _max_download_mb() -> int:
 def _get_whisper_settings() -> dict[str, str]:
     """Read all whisper backend settings from DB with env var fallbacks.
 
-    Returns a dict with keys: backend, api_base_url, api_key, api_model,
-    language. Does NOT include compute_type, which is read separately via
-    _get_whisper_compute_type to keep its value out of any dict that also
-    holds api_key (CodeQL py/clear-text-logging-sensitive-data).
+    Keys: backend, api_base_url, api_key, api_model, language. compute_type is
+    read separately (_get_whisper_compute_type) to keep it out of the dict holding
+    api_key (CodeQL py/clear-text-logging-sensitive-data).
     """
     defaults = {
         'backend': os.environ.get('WHISPER_BACKEND', WHISPER_BACKEND_LOCAL),
@@ -154,8 +153,8 @@ def active_whisper_settings() -> dict[str, str]:
 def _clamp_api_timeout(value) -> float:
     """Coerce and clamp a Whisper request timeout (#593).
 
-    Env vars and direct DB writes skip the API validator, so the range is
-    enforced here as well; an unusable value falls back to the shipped default.
+    Env vars and direct DB writes skip the API validator, so clamp here too;
+    an unusable value falls back to the default.
     """
     try:
         return float(min(WHISPER_API_TIMEOUT_MAX,
@@ -172,10 +171,8 @@ def _api_timeout(whisper_settings: dict) -> float:
 def _connection_test_timeout(whisper_settings: dict = None) -> float:
     """How long the Settings test-connection probe waits.
 
-    A backend slow enough to need a raised request timeout can also be slow to
-    cold-load a model, so the probe follows that setting rather than failing
-    while transcription works. Capped so a hung backend cannot hold the
-    settings page for the full transcription timeout.
+    Follows the request timeout setting (slow backends also cold-load slowly),
+    capped so a hung backend cannot hold the settings page.
     """
     settings = whisper_settings if whisper_settings is not None else _get_whisper_settings()
     return max(HTTP_TIMEOUT_CONNECTION_TEST,
@@ -200,9 +197,8 @@ _local_model_override: contextvars.ContextVar[str | None] = contextvars.ContextV
 def _get_chunk_settings() -> dict[str, int]:
     """Read chunked-transcription tuning settings from DB with defaults.
 
-    Returns dict with keys: max_chunk_seconds, concurrent_chunks,
-    chunk_overlap_seconds. All ints. Used by the parallel API path to
-    size chunks per backend (e.g. 600 for Whisper, 28 for Parakeet).
+    Int keys: max_chunk_seconds, concurrent_chunks, chunk_overlap_seconds. The
+    parallel API path sizes chunks per backend with them (600 Whisper, 28 Parakeet).
     """
     defaults: dict[str, int] = {
         'max_chunk_seconds': API_CHUNK_DURATION_SECONDS,
@@ -225,11 +221,9 @@ def _get_chunk_settings() -> dict[str, int]:
     except Exception as e:
         logger.warning(f"Could not read chunk settings from DB, using defaults: {e}")
 
-    # Clamp to the same bounds the API validator enforces. Values set via env
-    # var or a direct DB write skip that validator, so guard at the point of
-    # use: an unbounded concurrency would thread-bomb the API, and an overlap
-    # >= chunk size makes merge_overlapping_segments over-dedupe and drop real
-    # transcript content.
+    # Clamp to the API validator's bounds (env/direct DB writes skip it): unbounded
+    # concurrency would thread-bomb the API; overlap >= chunk size makes
+    # merge_overlapping_segments drop real transcript content.
     defaults['max_chunk_seconds'] = min(7200, defaults['max_chunk_seconds'])
     defaults['concurrent_chunks'] = min(32, defaults['concurrent_chunks'])
     defaults['chunk_overlap_seconds'] = min(
@@ -245,11 +239,8 @@ def _log_prefix() -> str:
     return f"[{ctx.key}] " if ctx else ''
 
 
-# Canonical lookup: keys are what we accept, values are the literal constants
-# from WHISPER_COMPUTE_TYPES. Looking up untrusted input and returning its
-# canonical form re-sources the value from this module-level literal, so any
-# downstream log of the returned value is references a known-safe constant
-# (CodeQL py/clear-text-logging-sensitive-data).
+# Canonical lookup: returning the module-level literal (not the untrusted input)
+# keeps downstream logs on a known-safe constant (CodeQL py/clear-text-logging-sensitive-data).
 _CANONICAL_COMPUTE_TYPES = {t: t for t in WHISPER_COMPUTE_TYPES}
 
 
@@ -281,9 +272,8 @@ def _get_whisper_compute_type() -> str:
 def _effective_language(language_override: str | None, whisper_settings: dict[str, str]) -> str:
     """Resolve the effective Whisper language as a lowercased code.
 
-    A non-empty per-call override beats the global whisper_language setting;
-    blank falls through to the setting; default 'en'. 'auto' is preserved so
-    callers can branch on it.
+    A non-empty per-call override beats the whisper_language setting; default
+    'en'. 'auto' is preserved for callers to branch on.
     """
     override = (language_override or '').strip().lower()
     if override:

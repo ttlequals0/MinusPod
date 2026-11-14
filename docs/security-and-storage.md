@@ -48,7 +48,7 @@ The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.rem
 3. **Audit logs carry the wrong IP.** Every `[ip]` bracket in the access log is the proxy hop. Forensics are much harder.
 4. **Auth-failure webhooks carry the wrong IP** in the `clientIp` field, so any Auth Failure alerting points at the proxy.
 
-Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. Treat the WARN as load-bearing: if you're behind a reverse proxy and it's still firing after a deploy, your lockout and rate limits are not working.
+Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. If you're behind a reverse proxy and the WARN still fires after a deploy, your lockout and rate limits are not working.
 
 ### Security recommendations
 
@@ -66,7 +66,7 @@ Operator checklist:
 
 MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
 
-Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. Later changes use the current password instead of CSRF. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's.
+Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. Later changes use the current password instead of CSRF. A normal session lasts 24 hours from its last use by default. A sign-in that ticks "Remember me" lasts 30 days from its last use. Both lengths are set in Settings > Security, and each use of the session restarts the period. A long "Remember me" session on a shared device stays signed in for that whole window, so leave the box unticked there. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's. Signing out clears the session in this browser only, and a copied cookie stays usable until its idle limit. Changing the password signs out every device and every copy of a cookie. Raising a session length can make a session that had passed the old limit valid again while it is still inside the new one.
 
 **Cloudflare WAF example.** Allow only Pocket Casts on the feed host, block admin paths:
 

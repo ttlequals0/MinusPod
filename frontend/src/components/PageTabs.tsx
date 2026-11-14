@@ -1,30 +1,23 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { focusRing } from './fieldStyles';
+import { touchTarget } from './buttonStyles';
 
-export const tabStrip = 'flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden';
-// Short tab sets wrap on a phone so every tab stays inside the viewport.
-export const tabStripWrap = 'flex flex-wrap gap-1 border-b border-border mb-6';
-export const tabItem = `shrink-0 px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing}`;
+export const tabStrip = 'flex flex-wrap gap-1 border-b border-border mb-6';
+// Sits at the bottom of a dialog header, with no margin below.
+const tabStripFlush = 'flex flex-wrap gap-1 border-b border-border';
+export const tabItem = `${touchTarget} shrink-0 px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing}`;
 
-export default function PageTabs<T extends string>({ id, label, tabs, active, onChange, wrap = false }: {
+export default function PageTabs<T extends string>({ id, label, tabs, active, onChange, flush = false }: {
   id: string;
   label: string;
   tabs: readonly { value: T; label: string; badge?: ReactNode; accessibleLabel?: string }[];
   active: T;
   onChange: (value: T) => void;
-  wrap?: boolean;
+  flush?: boolean;
 }) {
   const list = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const tab = list.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!tab || !list.current) return;
-    const container = list.current.getBoundingClientRect();
-    const bounds = tab.getBoundingClientRect();
-    if (bounds.left < container.left) list.current.scrollLeft -= container.left - bounds.left;
-    if (bounds.right > container.right) list.current.scrollLeft += bounds.right - container.right;
-  }, [active]);
   return (
-    <div ref={list} role="tablist" aria-label={label} className={wrap ? tabStripWrap : tabStrip}>
+    <div ref={list} role="tablist" aria-label={label} className={flush ? tabStripFlush : tabStrip}>
       {tabs.map((tab, index) => (
         <button key={tab.value} type="button" role="tab" id={`${id}-tab-${tab.value}`}
           aria-controls={`${id}-panel-${tab.value}`} aria-selected={active === tab.value}

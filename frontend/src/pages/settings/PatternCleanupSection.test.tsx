@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { formatDateTime } from '../../utils/format';
@@ -7,6 +7,13 @@ import { MemoryRouter } from 'react-router';
 import PatternCleanupSection from './PatternCleanupSection';
 import { ApiError } from '../../api/client';
 import type { PatternCleanupSettings, PatternCleanupStatus } from '../../api/patternCleanup';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { LLM_DISABLED_REASON } from './LlmGate';
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
@@ -431,5 +438,66 @@ describe('PatternCleanupSection', () => {
     mockGet.mockResolvedValue(makeStatus());
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByLabelText(/patterns per run/i)).toBeDefined();
+  });
+});
+
+describe('PatternCleanupSection: LLM provider None', () => {
+  it('disables the controls with the reason and drops the missing model nag', async () => {
+    mockGet.mockResolvedValue(makeStatus({ model: '', modelMissing: true }));
+    llmState.enabled = false;
+    renderSection();
+    const model = await screen.findByLabelText(/cleanup model/i);
+    expectGatedByLlm(model);
+    expectGatedByLlm(screen.getByRole('button', { name: /run now/i }));
+    expectGatedByLlm(screen.getByRole('button', { name: /^save$/i }));
+    expect(screen.queryByText('Pick a model before processing episodes.')).toBeNull();
+  });
+
+  it('does not fetch a model list while disabled', async () => {
+    llmState.enabled = false;
+    renderSection();
+    await screen.findByLabelText(/cleanup model/i);
+    expect(mockCatalog.mock.calls.every((call) => call[2] === false)).toBe(true);
+  });
+
+  it('shows the reason, not a failure, when a stale page gets 409 llm_disabled', async () => {
+    mockRun.mockRejectedValue(new ApiError('LLM disabled', 409, { code: 'llm_disabled' }));
+    renderSection();
+    await userEvent.setup().click(await screen.findByRole('button', { name: /run now/i }));
+    const note = await screen.findByText(LLM_DISABLED_REASON);
+    expect(note.className).not.toContain('text-destructive');
+    expect(screen.queryByText('A cleanup run is already in progress.')).toBeNull();
+  });
+
+  it('refreshes the settings query after a 409 llm_disabled', async () => {
+    mockRun.mockRejectedValue(new ApiError('LLM disabled', 409, { code: 'llm_disabled' }));
+    const view = renderSection();
+    const spy = vi.spyOn(view.queryClient, 'invalidateQueries');
+    await userEvent.setup().click(await screen.findByRole('button', { name: /run now/i }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ['settings'] }));
+  });
+
+  it('is enabled when the provider is set', async () => {
+    renderSection();
+    expectNotGatedByLlm(await screen.findByLabelText(/cleanup model/i));
+  });
+});
+
+describe('PatternCleanupSection: unsaved changes under None', () => {
+  it('stops reporting an edited draft as unsaved once the section is disabled', async () => {
+    const view = renderSection();
+    const batch = await screen.findByLabelText(/patterns per run/i);
+    await userEvent.setup().type(batch, '5');
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(true));
+    view.rerender(
+      <MemoryRouter>
+        <QueryClientProvider client={view.queryClient}>
+          llmState.enabled = false;
+          <PatternCleanupSection primaryProvider="anthropic" secondaryProvider="openrouter"
+            secondaryEnabled detectionSlot="secondary" />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(false));
   });
 });

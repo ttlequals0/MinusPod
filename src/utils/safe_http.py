@@ -3,23 +3,20 @@
 Two trust tiers:
 
 - ``OPERATOR_CONFIGURED``: admin-typed URLs (LLM base URL, webhook URL,
-  operator-configured RSS source). Allows private/loopback; blocks cloud
-  metadata, multicast, and reserved.
+  operator RSS source). Allows private/loopback; blocks cloud metadata,
+  multicast, and reserved.
 - ``FEED_CONTENT``: URLs parsed out of fetched RSS (artwork, enclosures).
   Blocks every private range.
 
-Defenses layered on top of the tier check:
+Layered defenses:
 
-- Per-hop redirect revalidation (the Session subclass below rechecks every
-  redirect target against the tier rules before allowing the follow).
-- HTTPS -> HTTP downgrade blocked at every tier.
-- Validates the final URL every request so a compromised DNS lookup cannot
-  turn a registered hostname into a private IP mid-flight.
-- DNS-rebinding defense: every request (and every redirect hop) resolves the
-  hostname once, validates all resolved addresses, and connects to the pinned
-  address with the URL, Host header, SNI, and certificate verification left on
-  the original hostname. Set ``SSRF_IP_PINNING=false`` to fall back to the
-  stock adapters and validate-then-fetch behavior.
+- Every redirect target is revalidated against the tier before it is followed.
+- HTTPS -> HTTP downgrade is blocked at every tier.
+- The final URL is validated on every request.
+- DNS-rebinding defense: each request and redirect hop resolves the hostname
+  once, validates all addresses, and connects to the pinned address while the
+  URL, Host header, SNI, and certificate check stay on the hostname. Set
+  ``SSRF_IP_PINNING=false`` for the stock adapters and validate-then-fetch.
 """
 
 from __future__ import annotations
@@ -33,7 +30,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
+from config import HTTP_MAX_REDIRECTS_API, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
 from utils.pinned_transport import PinnedHTTPAdapter
 from utils.url import SSRFError, validate_base_url, validate_url
 
@@ -194,6 +191,25 @@ def safe_get(
             session.close()
 
 
+def get_feed_content_with_agents(url: str, agents: list[str], accept: str) -> requests.Response:
+    """Streamed feed-content GET that tries each User-Agent in order, moving on after a 403."""
+    if not agents:
+        raise ValueError("no User-Agent to fetch with")
+    for i, agent in enumerate(agents):
+        response = safe_get(
+            url,
+            trust=URLTrust.FEED_CONTENT,
+            max_redirects=HTTP_MAX_REDIRECTS_FEED,
+            timeout=HTTP_TIMEOUT_API,
+            stream=True,
+            headers={'User-Agent': agent, 'Accept': accept},
+        )
+        if response.status_code == 403 and i < len(agents) - 1:
+            response.close()
+            continue
+        return response
+
+
 def get_capped(
     url: str,
     trust: URLTrust,
@@ -248,11 +264,8 @@ def safe_post(
 ) -> requests.Response:
     """POST ``url`` via a session that revalidates every redirect hop.
 
-    Webhooks and other outbound POSTs commonly follow redirects; this
-    wrapper runs the same trust-tier revalidation on every hop as
-    ``safe_get`` does. Raises ``SSRFError`` on rejected URLs. With
-    ``stream=True`` the caller owns closing the response (same contract
-    as ``safe_get``).
+    Same per-hop trust-tier revalidation as ``safe_get``. Raises ``SSRFError``
+    on rejected URLs. With ``stream=True`` the caller closes the response.
     """
     _validate_for_tier(url, trust)
     session = _RevalidatingSession(trust, max_redirects)

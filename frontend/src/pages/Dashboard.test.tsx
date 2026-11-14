@@ -92,6 +92,7 @@ vi.mock('../api/feeds', () => ({
 const mockExportOpml = vi.fn<(mode?: string) => Promise<void>>(async () => {});
 vi.mock('../api/settings', () => ({
   exportOpml: (mode?: string) => mockExportOpml(mode),
+  getSettings: async () => ({ llmEnabled: true }),
 }));
 
 const mockSearch = vi.fn();

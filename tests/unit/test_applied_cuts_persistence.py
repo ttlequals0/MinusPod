@@ -1,10 +1,7 @@
 """Persistence and migration tests for episode_details.applied_cuts_json.
 
-The recut chapter remap loads this authoritative applied cut list instead of
-reconstructing it from was_cut markers. None (never persisted) and [] (nothing
-cut) are distinct: the recut treats None as a skip, [] as an authoritative
-empty list.
-"""
+None (never persisted) and [] (nothing cut) are distinct: recut skips None and treats [] as an
+authoritative empty list."""
 import json
 
 from database import Database
@@ -111,11 +108,8 @@ class TestChaptersAndAppliedCutsAtomicSave:
 
 class TestAppliedCutsMigration:
     def test_column_added_default_null_rows_intact_idempotent(self, temp_dir):
-        # Faithful pre-deploy state: build the full current schema, seed an
-        # episode with details, then DROP applied_cuts_json to simulate a DB
-        # from before this column existed. Reopening must re-add the column
-        # (NULL default), preserve the existing row, and be idempotent -- no
-        # data loss (CLAUDE.md migration rule).
+        # Pre-deploy state: build the current schema, seed an episode, then DROP applied_cuts_json.
+        # Reopening must re-add it (NULL default), keep the row, and be idempotent (no data loss).
         Database._instance = None
         seed = Database(data_dir=temp_dir)
         seed.create_podcast('p', 'u', 'P')

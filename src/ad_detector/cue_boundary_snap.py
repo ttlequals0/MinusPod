@@ -1,17 +1,16 @@
 """Snap detected ad edges to nearby audio cues (#350).
 
-Many shows play a short ding or stinger right before an ad break starts and
-another right when content resumes. When the cue detector flags one within a
-small window of an LLM-detected ad's ``start`` or ``end``, we snap the edge
-to the matching side of the cue so the cut lands on the chime boundary
-rather than a beat into / out of the spoken copy.
+Many shows play a short ding or stinger right before an ad break and another
+when content resumes. When the cue detector flags one within a small window of
+an LLM-detected ad's ``start`` or ``end``, the edge snaps to the matching side
+of the cue so the cut lands on the chime boundary, not a beat into the copy.
 
-Both edges are bounded by ``max_boundary_shift_seconds`` (the same setting
-the reviewer pass honors) so a misfiring cue cannot warp the boundary by
-more than the user-permitted amount. A text pattern ad whose outro phrase
-pulled the end inside its content match keeps ``content_end``; an end cue
-between the refined end and that bound is evidence the matched text already
-covered, so it may set the end past the cap (#838).
+Both edges are bounded by ``max_boundary_shift_seconds`` (the setting the
+reviewer pass honors) so a misfiring cue cannot warp the boundary past the
+user-permitted amount. A text pattern ad whose outro phrase pulled the end
+inside its content match keeps ``content_end``; an end cue between the refined
+end and that bound is evidence the matched text already covered, so it may set
+the end past the cap (#838).
 
 Pure function over ad dicts and audio signals; no DB, no LLM, no IO.
 """
@@ -49,9 +48,9 @@ MIN_CUE_CONFIDENCE_FOR_SNAP = AUDIO_CUE_SNAP_CONFIDENCE
 def _cue_role(cue) -> str:
     """Matching role carried in a cue's details.
 
-    Template cues carry the role of their type ('start' / 'end' / 'boundary' /
-    'non_ad'); spectral fallback cues and any legacy signal default to
-    'boundary' so their existing both-edges behavior is preserved.
+    Template cues carry their type's role ('start' / 'end' / 'boundary' /
+    'non_ad'); spectral fallback and legacy signals default to 'boundary' to
+    preserve their both-edges behavior.
     """
     return (cue.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT)
 
@@ -98,7 +97,7 @@ def cue_snap_edge_limit(record: dict, edge: str) -> float | None:
 
     A kept cue stays outside the ad; a removed cue stays inside it, so the limit
     sits on the far side of a removed cue. Records from before 2.99.6 lack
-    remove_with_ad and mean kept, so a missing key must stay kept.
+    remove_with_ad and mean kept, so a missing key must read as kept.
     """
     if (edge == 'start') == bool(record.get('remove_with_ad')):
         key, offset = 'cue_start', -SNAP_GAP_SECONDS
@@ -247,14 +246,13 @@ def _pick_cue_for_start(
 ):
     """Find the best cue to snap ``ad_start`` to.
 
-    Returns (best_cue, n_eligible) where n_eligible is the count of cues that
-    passed the window filter. When n_eligible >= 2 the caller records an
-    ambiguity flag.
+    Returns (best_cue, n_eligible), n_eligible being the cues that passed the
+    window filter; at >= 2 the caller records an ambiguity flag.
 
-    Selection key: (-round(abs(distance), 1), confidence) -- nearest-first,
-    ties (within 0.1s) broken by confidence. Within the old +/-4s window
-    confidence-first was fine; at 10s a farther higher-confidence cue must not
-    beat a nearer one (all candidates cleared the 0.80 floor).
+    Selection key: (-round(abs(distance), 1), confidence): nearest first, ties
+    (within 0.1s) broken by confidence. Confidence-first was fine in the old
+    +/-4s window; at 10s a farther higher-confidence cue must not beat a nearer
+    one (all candidates cleared the 0.80 floor).
     """
     low = ad_start - snap_lead_s
     high = ad_start + snap_lag_s
@@ -288,26 +286,23 @@ def _pick_cue_for_end(
 ):
     """Find the best cue to snap ``ad_end`` to.
 
-    Returns (best_cue, n_eligible) where n_eligible is the count of cues that
-    passed the window filter. When n_eligible >= 2 the caller records an
-    ambiguity flag.
+    Returns (best_cue, n_eligible), n_eligible being the cues that passed the
+    window filter; at >= 2 the caller records an ambiguity flag.
 
     A cue whose START sits within ``[ad_end - lag, ad_end + lead]`` is a
-    candidate -- the resume-content stinger plays at break boundary so its
-    start marks where content returns. Cues already used for the start
-    snap of this ad are excluded so the same cue cannot collapse the ad
-    to a single instant. Cues whose start is before ``ad_start`` cannot
-    bound the end edge.
+    candidate: the resume-content stinger plays at the break boundary, so its
+    start marks where content returns. Cues already used for this ad's start
+    snap are excluded so one cue cannot collapse the ad to an instant, and cues
+    starting before ``ad_start`` cannot bound the end edge.
 
-    Selection key: (-round(abs(distance), 1), confidence) -- nearest-first,
-    ties (within 0.1s) broken by confidence. Within the old +/-4s window
-    confidence-first was fine; at 10s a farther higher-confidence cue must not
-    beat a nearer one (all candidates cleared the 0.80 floor).
+    Selection key: (-round(abs(distance), 1), confidence): nearest first, ties
+    (within 0.1s) broken by confidence. Confidence-first was fine in the old
+    +/-4s window; at 10s a farther higher-confidence cue must not beat a nearer
+    one (all candidates cleared the 0.80 floor).
     """
-    # The end-side stinger can sit a beat before the LLM's end (snap_lag)
-    # because the LLM tends to overshoot into post-break silence, or a beat
-    # after it (snap_lead) because the LLM sometimes cuts at the last word
-    # of the ad copy and the stinger plays a moment later.
+    # The end-side stinger can sit a beat before the LLM's end (snap_lag; the LLM
+    # overshoots into post-break silence) or a beat after it (snap_lead; the LLM
+    # cuts at the last word of the copy and the stinger follows).
     # window replaces the lag/lead band, e.g. with the content-match span.
     low, high = window or (ad_end - snap_lag_s, ad_end + snap_lead_s)
     eligible = []

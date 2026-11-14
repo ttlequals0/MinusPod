@@ -140,6 +140,53 @@ describe('QueuePage', () => {
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ queueManualBoost: 30 }));
   });
 
+  it('renders Queue priority as an h3 sub-heading like its sibling groups', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    mockGetSettings.mockResolvedValue(settings());
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    const heading = screen.getByRole('heading', { level: 3, name: 'Queue priority' });
+    expect(heading.className).toBe(screen.getByRole('heading', { level: 3, name: 'Processing order' }).className);
+  });
+
+  it('shows the saved processing order and saves a change', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    mockGetSettings.mockResolvedValue({ ...settings(), queueOrder: { value: 'oldest_first', isDefault: false } });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    const select = screen.getByRole('combobox', { name: 'Processing order' }) as HTMLSelectElement;
+    expect(select.value).toBe('oldest_first');
+    expect(select.getAttribute('aria-describedby')).toBe('queueOrder-help');
+    expect(screen.getByText('Applies within each feed. Priorities still come first.')).toBeDefined();
+    await userEvent.selectOptions(select, 'newest_first');
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ queueOrder: 'newest_first' }));
+  });
+
+  it('refetches the queue list after the global order changes', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    const calls = mockGetEpisodes.mock.calls.length;
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processing order' }), 'newest_first');
+    await waitFor(() => expect(mockGetEpisodes.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it('shows the save error when the server rejects the order', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    mockUpdateSettings.mockRejectedValue(new Error('invalid queueOrder'));
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processing order' }), 'oldest_first');
+    expect(await screen.findByText('Could not save queue controls. Try again.')).toBeDefined();
+  });
+
+  it('renders As queued when the settings omit queueOrder', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    expect((screen.getByRole('combobox', { name: 'Processing order' }) as HTMLSelectElement).value).toBe('queued');
+  });
+
   it('does not describe an active-only queue as having no processing', async () => {
     mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 1, queuedEpisodes: 0 });
     mockGetEpisodes.mockResolvedValue([

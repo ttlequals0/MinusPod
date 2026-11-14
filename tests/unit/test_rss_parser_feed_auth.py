@@ -1,8 +1,7 @@
-"""Served-RSS URL emission for authenticated feeds (2.33.0).
+"""Served-RSS URL emission for authenticated feeds.
 
-modify_feed(feed_auth_key=...) must key every fetchable URL (enclosure, vtt,
-chapters, badged cover) while leaving the podcast:guid seed untouched, and
-extract_cached_feed_auth_key must round-trip the rendered feed.
+modify_feed(feed_auth_key=...) keys every fetchable URL (enclosure, vtt, chapters, badged cover) but not the
+podcast:guid seed, and extract_cached_feed_auth_key round-trips the rendered feed.
 """
 import os
 import re

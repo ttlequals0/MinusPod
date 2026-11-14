@@ -20,7 +20,7 @@ from database.queue import (
     compute_queue_priority, PENDING_QUEUE_LIMIT,
     QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
 )
-from llm_client import start_episode_token_tracking, get_episode_token_totals
+from llm_client import start_episode_token_tracking, get_episode_token_totals, llm_disabled
 import run_context
 from processing_schedule import schedule_state
 from reprocess_modes import (
@@ -60,9 +60,8 @@ def _overlaps_any(marker, spans) -> bool:
 def _marker_wants_cut(marker, action, false_positives, confirmed) -> bool:
     """Whether the recorded decisions ask for this marker to leave the audio.
 
-    Conservative: anything not plainly kept/marked, rejected, or awaiting
-    review counts as wanted, so an unclear marker costs a recut rather than
-    a silently dropped decision.
+    Conservative: anything not plainly kept/marked, rejected or awaiting review counts as
+    wanted, so an unclear marker costs a recut, not a silently dropped decision.
     """
     if is_keep_like(action):
         return False
@@ -91,13 +90,10 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
                             keep_override=None, replacement_sound_enabled=True):
     """True when cutting the current markers reproduces the applied cuts.
 
-    The decisions then changed only which ad chapters the audio should carry,
-    so an apply can rebuild those instead of re-rendering the file. `actions`
-    is the feed's resolved category action map, so a recategorized marker is
-    judged the way the recut would judge it; `keep_override(marker)` is True
-    where a pattern or differential rule cuts a keep anyway. Unknown inputs
-    (no persisted cut list, no known duration) answer False: a recut is the
-    safe fallback.
+    Then the decisions changed only which ad chapters the audio carries, so an apply can
+    rebuild those instead of re-rendering. `actions` is the feed's resolved category action
+    map; `keep_override(marker)` is True where a pattern or differential rule cuts a keep
+    anyway. Unknown inputs (no persisted cut list or duration) answer False: recut is safe.
     """
     if applied_cuts is None or not original_duration:
         return False
@@ -145,15 +141,11 @@ def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
         keep_override=lambda m: _keep_overridden(dict(m), differential_override))
 
 
-# Reprocess-mode rules shared by the three reprocess endpoints
-# (reprocess_all_episodes = 'batch', bulk_episode_action = 'bulk',
-# reprocess_episode_with_mode = 'single'). Fields:
-#   contexts:         endpoints that may request the mode. recut stays
-#                     single-episode-only by design.
-#   preconditions:    extra per-episode input checks, single-episode-only
-#                     (returns an error_response or None).
-# What each mode wipes before requeueing, and which modes need a saved
-# transcript, live in reprocess_modes, which the pipeline imports as well.
+# Reprocess-mode rules shared by the three reprocess endpoints (reprocess_all_episodes =
+# 'batch', bulk_episode_action = 'bulk', reprocess_episode_with_mode = 'single'). Fields:
+#   contexts:       endpoints that may request the mode (recut is single-episode-only).
+#   preconditions:  extra per-episode input checks, single-episode-only (error_response or None).
+# What each mode wipes and which need a saved transcript live in reprocess_modes.
 REPROCESS_MODE_SPECS = {
     'reprocess': {
         'contexts': ('batch', 'bulk', 'single'),
@@ -195,16 +187,11 @@ def reprocess_episode(slug, episode_id):
 @limiter.limit("2 per minute")
 @log_request
 def reprocess_all_episodes(slug):
-    """Queue all processed episodes for reprocessing.
+    """Queue all processed episodes for reprocessing, e.g. after detection logic improves.
 
-    This is useful when ad detection logic has improved and you want to
-    re-detect ads in all episodes of a podcast.
-
-    Modes:
-    - reprocess (default): Use pattern DB + Claude (leverages learned patterns)
-    - full: Skip pattern DB entirely, Claude does fresh analysis without learned patterns
-    - llm: Re-detect + re-cut using each saved transcript, skipping
-      re-transcription (issue #349). Episodes without a transcript are skipped.
+    Modes: reprocess (default; pattern DB + Claude), full (skip the pattern DB, fresh Claude
+    analysis), llm (re-detect and re-cut from each saved transcript without re-transcribing,
+    #349; episodes without a transcript are skipped).
     """
     db = get_database()
 
@@ -215,7 +202,7 @@ def reprocess_all_episodes(slug):
     if not _mode_allowed(mode, 'batch'):
         return error_response('Invalid mode. Use "reprocess", "full", or "llm"', 400)
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -232,6 +219,8 @@ def reprocess_all_episodes(slug):
 
     queued = []
     skipped = []
+    with_transcript = (db.get_episode_ids_with_transcript(slug)
+                       if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] else set())
 
     for episode in episodes:
         episode_id = episode['episode_id']
@@ -242,7 +231,7 @@ def reprocess_all_episodes(slug):
             continue
 
         # LLM-only reprocess needs a saved transcript; skip episodes without one.
-        if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
+        if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and episode_id not in with_transcript:
             skipped.append({'episodeId': episode_id,
                             'reason': 'No transcript for LLM-only reprocess'})
             continue
@@ -293,13 +282,13 @@ REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred
 def bulk_episode_action(slug):
     """Bulk actions on episodes: process, reprocess, reprocess_full, reprocess_llm, delete.
 
-    reprocess_llm re-detects + re-cuts using each saved transcript, skipping
-    re-transcription (issue #349); episodes without a transcript are skipped.
+    reprocess_llm re-detects and re-cuts from each saved transcript without re-transcribing
+    (#349); episodes without a transcript are skipped.
     """
     db = get_database()
     storage = get_storage()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -374,6 +363,7 @@ def bulk_episode_action(slug):
         # File cleanup must be per-episode, but DB updates are batched
         mode = {'reprocess_full': 'full', 'reprocess_llm': 'llm'}.get(action, 'reprocess')
         eligible_ids = []
+        with_transcript = None
         for episode_id in episode_ids:
             try:
                 episode = episodes_by_id.get(episode_id)
@@ -381,9 +371,12 @@ def bulk_episode_action(slug):
                     skipped += 1
                     continue
                 # LLM-only reprocess needs a saved transcript; skip episodes without one.
-                if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
-                    skipped += 1
-                    continue
+                if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode]:
+                    if with_transcript is None:
+                        with_transcript = db.get_episode_ids_with_transcript(slug)
+                    if episode_id not in with_transcript:
+                        skipped += 1
+                        continue
                 # Keep existing audio until the new version is durable (orchestration-5).
                 eligible_ids.append(episode_id)
             except Exception as e:
@@ -433,19 +426,15 @@ def bulk_episode_action(slug):
                 logger.error(f"Bulk delete error for {slug}: {e}")
                 errors.append('bulk delete failed')
 
-    # Enqueue episodes into auto_process_queue so the background processor
-    # picks them up sequentially. Previously this called start_background_processing()
-    # with no arguments (a TypeError silently swallowed by `except Exception: pass`),
-    # which meant episodes were marked pending in the DB but never actually processed.
+    # Enqueue into auto_process_queue so the background processor picks episodes up
+    # sequentially (episodes marked pending in the DB are otherwise never processed).
     if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm') and enqueue_ids:
         for episode_id in enqueue_ids:
             try:
                 ep = episodes_by_id.get(episode_id)
                 if ep:
-                    # Bulk work enqueues at base + fresh only. Stamping a
-                    # whole backlog with the manual boost starved JIT plays
-                    # and single reprocesses for days (93 two-year-old
-                    # episodes at +20 once pinned a fresh episode 94th).
+                    # Bulk work enqueues at base + fresh only: stamping a whole backlog with
+                    # the manual boost starved JIT plays and single reprocesses for days.
                     priority = compute_queue_priority(
                         podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
                     if is_youtube_feed(podcast):
@@ -484,20 +473,17 @@ def bulk_episode_action(slug):
 @limiter.limit("5 per minute")
 @log_request
 def set_episodes_passthrough(slug):
-    """Set or clear the per-episode pass-through override (#746) for one or
-    more episodes. An episode flagged this way runs pass-through
-    (download + relay, no transcription/detection/LLM) even when its feed
-    is in a non-passthrough mode.
+    """Set or clear the per-episode pass-through override (#746) for one or more episodes.
 
-    Enabling enqueues a normal reprocess for each affected episode so the
-    resolver's now-flagged episode takes the pass-through branch this run;
-    disabling only clears the flag and so applies to future processing.
-    An episode a run already owns is rejected when enabling, because that
-    run has already resolved its mode, and accepted when disabling.
+    A flagged episode runs pass-through (download + relay, no transcription/detection/LLM)
+    even when its feed is not in a passthrough mode. Enabling enqueues a normal reprocess for
+    each episode so this run takes the pass-through branch; disabling only clears the flag
+    for future processing. An episode a run already owns is rejected when enabling (that run
+    already resolved its mode) and accepted when disabling.
     """
     db = get_database()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -589,7 +575,7 @@ def retry_ad_detection(slug, episode_id):
     db = get_database()
     storage = get_storage()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
     # Per-episode override included (#746): an episode marked pass-through
@@ -638,11 +624,12 @@ def retry_ad_detection(slug, episode_id):
             segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
             podcast_id=slug,  # Pass slug as podcast_id for pattern matching
             podcast_tags=podcast_tags,
+            skip_llm=llm_disabled(),
         )
 
         ad_detection_status = ad_result.get('status', 'failed')
 
-        if ad_detection_status == 'success':
+        if ad_detection_status in ('success', 'llm_skipped'):
             storage.save_ads_json(slug, episode_id, ad_result)
             db.upsert_episode(slug, episode_id, ad_detection_status='success')
 
@@ -684,10 +671,8 @@ def retry_ad_detection(slug, episode_id):
 def _annotate_queue_admission(db, queued: list[dict], pending_rows: list[dict]) -> None:
     """Stamp each waiting entry with why it is not starting.
 
-    Resolves the route snapshot and feature gates once for the page, and
-    memoizes each hold marker, so a long backlog costs one pass rather than
-    one settings read per row. Never raises: an unexplained entry reports
-    unblocked rather than failing the panel.
+    Resolves the route snapshot and feature gates once per page and memoizes each hold marker,
+    so a long backlog costs one pass. Never raises: an unexplained entry reports unblocked.
     """
     from main_app.pipeline.admission import _admission_gates, _resolve_route_snapshot, admission_explanation
     from processing_queue import is_processing_paused
@@ -722,15 +707,12 @@ def _annotate_queue_admission(db, queued: list[dict], pending_rows: list[dict]) 
 @api.route('/episodes/processing', methods=['GET'])
 @log_request
 def get_processing_episodes():
-    """Episodes processing now, then the pending queue in dequeue order.
+    """Episodes processing now, then the pending queue in dequeue order (#236).
 
-    Sources: the DB's 'processing' rows plus StatusService.jobs for the
-    active jobs; auto_process_queue pending rows plus StatusService's display
-    queue for the backlog. Issue #236. The waiting list is paginated with the
-    `offset`/`limit` query params (limit default 200, cap 1000); rows carry an
-    offset-aware `queuePosition` so the panel can page through a long backlog
-    (#696). Each waiting row also carries an `admission` object saying whether
-    it is blocked and, if so, by which phase and account.
+    Sources: DB 'processing' rows plus StatusService.jobs for active jobs; auto_process_queue
+    pending rows plus StatusService's display queue for the backlog. The waiting list is
+    paginated with `offset`/`limit` (default 200, cap 1000), rows carry an offset-aware
+    `queuePosition` (#696) and an `admission` object saying whether and by what it is blocked.
     """
     db = get_database()
     conn = db.get_connection()
@@ -774,11 +756,10 @@ def get_processing_episodes():
                 'stage': job.stage,
             })
 
-    # Append the waiting queue after the active job(s). The auto_process_queue
-    # rows are the real backlog, so they come first and in dequeue order
-    # (priority DESC, created_at ASC, the ORDER BY the worker claims by),
-    # sliced to the requested page. StatusService's display queue only holds
-    # hand-enqueued entries, so it trails the DB backlog with the rest.
+    # Append the waiting queue after the active job(s). auto_process_queue rows are the
+    # real backlog, first and in dequeue order (priority DESC, then the feed's processing
+    # order), sliced to the page. StatusService's display queue only holds hand-enqueued
+    # entries, so it trails.
     seen = {(e['slug'], e['episodeId']) for e in episodes}
     queued = []
     pending_rows = db.get_pending_queued_episodes(limit=limit, offset=offset)
@@ -857,12 +838,9 @@ def cancel_episode_processing(slug, episode_id):
         return error_response('Episode not found', 404)
 
     if episode['status'] != EpisodeStatus.PROCESSING:
-        # Queued (waiting on the lock): close the DB queue row first so the
-        # background worker stops seeing it as pending, then drop from the
-        # display queue. Reversing this order would leave a window between
-        # the display-queue write and the DB write in which the worker could
-        # pick up the row and start processing it after the user clicked
-        # Cancel.
+        # Queued (waiting on the lock): close the DB queue row first so the worker stops
+        # seeing it as pending, then drop it from the display queue. The reverse order leaves
+        # a window where the worker could claim the row after the user clicked Cancel.
         closed_db_rows = db.close_queue_rows_for_episode(slug, episode_id)
         removed_from_display = status_service.remove_queued_episode(slug, episode_id)
         if not removed_from_display and not closed_db_rows:
@@ -907,10 +885,9 @@ def cancel_episode_processing(slug, episode_id):
 def set_episode_queue_priority(slug, episode_id):
     """Change a queued episode's priority (#696).
 
-    Body: {"priority": int} to set an absolute value, or {"delta": int} to
-    nudge the stored one (applied in SQL, so a stepper cannot lose a click
-    to a stale read). Either way the write can raise or lower, unlike the
-    monotonic MAX() rule on re-enqueue, and a later feed-level queuePriority
+    Body: {"priority": int} sets an absolute value, {"delta": int} nudges the stored one
+    (applied in SQL so a stepper cannot lose a click to a stale read). Either can raise or
+    lower, unlike the monotonic MAX() rule on re-enqueue; a later feed-level queuePriority
     change restamps the row.
     """
     data = request.get_json(silent=True)
@@ -927,7 +904,7 @@ def set_episode_queue_priority(slug, episode_id):
             f'Value must be between {QUEUE_PRIORITY_MIN} and {QUEUE_PRIORITY_MAX}', 400)
 
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     stored = db.set_queue_row_priority(slug, episode_id, priority=priority, delta=delta)
     if stored is None:
@@ -944,11 +921,10 @@ def set_episode_queue_priority(slug, episode_id):
 def _recut_handled_by_own_run(row) -> bool:
     """Whether a pending-recut row's episode has its own run coming.
 
-    Such a run reads the recorded decisions itself, and upserting a recut
-    over it would downgrade a queued full/llm rerun. An episode left
-    'pending' with no queue row (a cleared queue) has no run coming, so a
-    recut is the only path for its decisions. Shared by the apply loop and
-    the readiness flags so the button never counts rows apply would skip.
+    That run reads the recorded decisions itself, and upserting a recut over it would
+    downgrade a queued full/llm rerun. A 'pending' episode with no queue row (cleared queue)
+    has no run coming, so a recut is the only path. Shared by the apply loop and the
+    readiness flags so the button never counts rows apply would skip.
     """
     return bool(
         row['status'] == EpisodeStatus.PROCESSING.value
@@ -958,10 +934,9 @@ def _recut_handled_by_own_run(row) -> bool:
 def _start_chapter_rebuilds(db, rows):
     """Rebuild the chapters of the chapters-only episodes on one daemon thread.
 
-    Each rebuild is a full-file remux, so the apply request must not wait on
-    them; one thread walks them in turn rather than starting an ffmpeg per
-    episode. A stamp is cleared only once its episode is rebuilt, so a failure
-    is retried by the next apply.
+    Each rebuild is a full-file remux, so the apply request must not wait; one thread walks
+    them rather than starting an ffmpeg per episode. A stamp is cleared only once its episode
+    is rebuilt, so a failure is retried by the next apply.
     """
     if not rows:
         return
@@ -985,10 +960,7 @@ def _start_chapter_rebuilds(db, rows):
 @log_request
 def get_pending_recuts():
     """Episodes carrying review decisions that are not in the audio yet.
-
-    Review is bulk work, so decisions are recorded as they are made and cut
-    in one pass per episode when the operator applies them.
-    """
+    Decisions are recorded as made and cut in one pass per episode when the operator applies them."""
     db = get_database()
     slug = request.args.get('slug') or None
     episodes = db.get_episodes_pending_recut(slug=slug)
@@ -1030,18 +1002,49 @@ def get_pending_recuts():
     })
 
 
+def _queue_recut(db, slug, episode_id, episode, podcast, *, bulk):
+    """Mark an episode for recut and start it, falling back to the queue."""
+    from main_app.processing import start_background_processing
+
+    db.upsert_episode(
+        slug, episode_id,
+        status=EpisodeStatus.PENDING.value,
+        reprocess_mode='recut',
+        reprocess_requested_at=utc_now_iso(),
+        retry_count=0,
+        error_message=None,
+    )
+    started, _reason = start_background_processing(
+        slug, episode_id, episode.get('original_url'),
+        episode.get('title', 'Unknown'), podcast.get('title', slug),
+        episode.get('description'), None, episode.get('published_at'),
+    )
+    if not started:
+        # Bulk recut gets no manual boost, so JIT plays and single reprocesses outrank it.
+        priority = compute_queue_priority(
+            podcast.get('queue_priority'), episode.get('published_at'),
+            **({'bulk': True} if bulk else {'manual': True}))
+        db.upsert_episode_for_processing(
+            slug, episode_id, episode.get('original_url'),
+            episode.get('title', 'Unknown'),
+            episode.get('published_at'), episode.get('description'),
+            priority=priority,
+        )
+        get_status_service().queue_episode(
+            slug, episode_id, episode.get('title', 'Unknown'),
+            podcast.get('title', slug))
+
+
 @api.route('/episodes/pending-recuts/apply', methods=['POST'])
 @limiter.limit("5 per minute")
 @log_request
 def apply_pending_recuts():
     """Recut every episode holding unapplied review decisions, once each.
 
-    Same recut path and preconditions as the per-feed segment re-render, so
-    there is still one recut queue. An episode failing them is left stamped
-    rather than silently cleared, so its decisions are not lost.
+    Same recut path and preconditions as the per-feed segment re-render (one recut queue). An
+    episode failing them stays stamped so its decisions are not lost.
     """
     db = get_database()
-    from main_app.processing import start_background_processing
 
     payload = request.get_json(silent=True)
     scope = (payload.get('slug') or None) if isinstance(payload, dict) else None
@@ -1050,7 +1053,7 @@ def apply_pending_recuts():
     for row in db.get_episodes_pending_recut(slug=scope):
         slug, episode_id = row['podcast_slug'], row['episode_id']
         episode = db.get_episode(slug, episode_id)
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         if not episode or not podcast:
             skipped += 1
             continue
@@ -1069,32 +1072,7 @@ def apply_pending_recuts():
             skipped += 1
             continue
         try:
-            db.upsert_episode(
-                slug, episode_id,
-                status=EpisodeStatus.PENDING.value,
-                reprocess_mode='recut',
-                reprocess_requested_at=utc_now_iso(),
-                retry_count=0,
-                error_message=None,
-            )
-            started, _reason = start_background_processing(
-                slug, episode_id, episode.get('original_url'),
-                episode.get('title', 'Unknown'), podcast.get('title', slug),
-                episode.get('description'), None, episode.get('published_at'),
-            )
-            if not started:
-                priority = compute_queue_priority(
-                    podcast.get('queue_priority'), episode.get('published_at'),
-                    manual=True)
-                db.upsert_episode_for_processing(
-                    slug, episode_id, episode.get('original_url'),
-                    episode.get('title', 'Unknown'),
-                    episode.get('published_at'), episode.get('description'),
-                    priority=priority,
-                )
-                get_status_service().queue_episode(
-                    slug, episode_id, episode.get('title', 'Unknown'),
-                    podcast.get('title', slug))
+            _queue_recut(db, slug, episode_id, episode, podcast, bulk=False)
             queued += 1
         except Exception:
             logger.exception(
@@ -1113,17 +1091,12 @@ def apply_pending_recuts():
 @api.route('/episodes/<slug>/<episode_id>/reprocess', methods=['POST'])
 @log_request
 def reprocess_episode_with_mode(slug, episode_id):
-    """Reprocess an episode with specified mode.
+    """Reprocess an episode with the specified mode.
 
-    Modes:
-    - reprocess (default): Use pattern DB + Claude (leverages learned patterns)
-    - full: Skip pattern DB entirely, Claude does fresh analysis without learned patterns
-    - llm: Re-run ad detection and re-cut using the SAVED transcript, skipping
-      re-transcription (issue #349). Requires an existing transcript.
-    - recut: Re-cut the retained original audio from the CURRENT ad detections
-      (applying the user's edits) and re-time the saved transcript. No
-      transcription or LLM (issue #422). Requires the retained original audio,
-      saved segments, and existing ad markers.
+    Modes: reprocess (default; pattern DB + Claude), full (skip the pattern DB), llm (re-run
+    detection and re-cut from the saved transcript, #349; needs a transcript), recut (re-cut
+    the retained original from the current ad detections and re-time the saved transcript;
+    no transcription or LLM, #422; needs the original audio, saved segments and ad markers).
     """
     return _reprocess_episode_with_mode(slug, episode_id)
 
@@ -1156,7 +1129,7 @@ def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
             'jobState': common._episode_job_state(db, slug, episode_id, episode['status']),
         }, 409)
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Podcast not found', 404)
 

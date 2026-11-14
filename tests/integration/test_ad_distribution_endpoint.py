@@ -1,9 +1,7 @@
 """Integration tests for GET /feeds/<slug>/ad-distribution (issue #360 panel).
 
-The endpoint surfaces a feed's historical ad-cut position distribution for the
-detail-page panel. It is setting-independent: it returns data with the
-positional-prior experiment toggle off.
-"""
+Surfaces a feed's historical ad-cut position distribution; setting-independent (data returns with
+the positional-prior toggle off)."""
 import os
 import sys
 

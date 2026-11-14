@@ -115,12 +115,10 @@ class ModelStats:
     p99_call_latency_ms: float = 0.0
     max_call_latency_ms: float = 0.0
     json_compliance_mean: float = 0.0
-    # JSON request-mode telemetry. `json_format_used` is logged per call as
-    # "native" (the provider accepted response_format=json_object) or
-    # "prompt_injection" (provider rejected it and we fell back to instructing
-    # JSON in the prompt). Surfacing this helps explain compliance variance:
-    # a low score on a model that needed prompt_injection is a different
-    # signal than the same score with native support.
+    # JSON request-mode telemetry: `json_format_used` is "native" (provider accepted
+    # response_format=json_object) or "prompt_injection" (fell back to asking in the
+    # prompt). Explains compliance variance: a low score on a prompt_injection model
+    # is a different signal than the same score with native support.
     json_format_native_pct: float = 0.0
     json_format_total: int = 0
     json_format_primary: str = "n/a"
@@ -139,17 +137,15 @@ class ModelStats:
     category_missing_total: int = 0
     output_tokens_total: int = 0
     detected_ads_total: int = 0
-    # Verbosity / truncation telemetry. Useful for spotting models that
-    # don't follow "respond with valid JSON only" and emit chatty `reason`
-    # fields (phi-4, some Gemini variants). `call_count` is the denominator
-    # for the three percentages computed at render time.
+    # Verbosity / truncation telemetry for models that ignore "valid JSON only" and
+    # emit chatty `reason` fields (phi-4, some Gemini variants). `call_count` is the
+    # denominator for the three percentages computed at render time.
     call_count: int = 0
     truncated_count: int = 0
     over_1024_count: int = 0
-    # Provider refused the transcript outright. Counted before errored calls are
-    # skipped, because a blocked window never reaches scoring: F0.5 is computed
-    # only on the windows that got through, which flatters a model on exactly the
-    # content it cannot handle. `attempted_count` is the denominator.
+    # Provider refused the transcript. Counted before errored calls are skipped: a
+    # blocked window never reaches scoring, so F0.5 flatters a model on content it
+    # cannot handle. `attempted_count` is the denominator.
     moderation_blocked: int = 0
     attempted_count: int = 0
     salvaged_count: int = 0
@@ -188,11 +184,10 @@ def _json_format_summary(counts: dict[str, int]) -> tuple[str, float]:
 
 
 def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
-    """`calls.jsonl` is append-only. A `benchmark run --retry-errors` that
-    successfully retries a previously-failed tuple appends a new row alongside
-    the original error row. The report should reflect the final state, not the
-    historical errors, so dedup per (model, episode_id, trial, window_index)
-    and keep the last row encountered.
+    """Dedup `calls.jsonl` (append-only) per (model, episode_id, trial, window_index), keeping the last row.
+
+    A `benchmark run --retry-errors` appends a new row beside the old error row; the
+    report should show the final state.
     """
     return [rows[-1] for rows in _group_by_unit(calls).values()]
 
@@ -200,11 +195,10 @@ def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
 def campaign_mixing(calls: list[dict]) -> dict[str, int]:
     """Work units that appear under more than one prompt_hash, per model.
 
-    Dedup keeps the last row per work unit and does not consult prompt_hash, so
-    rows from an earlier campaign scored against a different system prompt win
-    or lose on file order alone. A fully re-run sweep is fine because every unit
-    is rewritten. A partial one is not, and nothing else would say so. Rotate
-    with `benchmark rotate-raw` between campaigns.
+    Dedup keeps the last row per unit without consulting prompt_hash, so rows from
+    an earlier campaign with a different system prompt win or lose on file order. A
+    fully re-run sweep is fine; a partial one is not and nothing else says so.
+    Rotate with `benchmark rotate-raw` between campaigns.
     """
     mixed: dict[str, int] = defaultdict(int)
     for (model, _, _, _), rows in _group_by_unit(calls).items():
@@ -295,10 +289,9 @@ def _aggregate(
         call_count_per_model[rec["model"]] += 1
         if rec.get("truncated"):
             truncated_per_model[rec["model"]] += 1
-        # over_1024 has an explicit flag on new records and falls back to a
-        # direct comparison on output_tokens for historical records collected
-        # before the flag existed. Truncated has no fallback: stop_reason
-        # was never captured pre-flag, so we accept 0% on legacy data.
+        # over_1024 uses the explicit flag, falling back to output_tokens for records
+        # predating it. Truncated has no fallback (stop_reason was never captured
+        # pre-flag), so legacy data reads 0%.
         if rec.get("over_1024_tokens") or out_toks > 1024:
             over_1024_per_model[rec["model"]] += 1
         # "n/a" is the runner's placeholder when the LLM call errored before a
@@ -323,13 +316,11 @@ def _aggregate(
         per_window_pred: list[list[tuple[float, float]]] = [
             [(_start(ad), _end(ad)) for ad in w] for w in per_window_ads
         ]
-        # Deduplicate ads that span the 180s window overlap before scoring: an
-        # ad emitted by two adjacent windows would otherwise be counted as a TP
-        # plus a duplicate FP, systematically depressing precision/F1. This
-        # matches the production pipeline (derive_episode_results), which runs
-        # the same dedup (benchmark-1). The production dedup keys on 'start'/
-        # 'end'; benchmark ads use 'start_time'/'end_time', so normalize into
-        # copies first (without mutating the per-window records).
+        # Dedup ads spanning the 180s window overlap before scoring, else an ad from
+        # two adjacent windows counts as TP plus a duplicate FP and depresses
+        # precision/F1 (matches production's derive_episode_results). Production keys
+        # on 'start'/'end' while benchmark ads use 'start_time'/'end_time', so
+        # normalize into copies without mutating the per-window records.
         norm_ads: list[dict] = []
         for w in per_window_ads:
             for ad in w:
@@ -586,13 +577,11 @@ def _ci_half_width(values: list[float]) -> float:
 
 
 def _sig_worse(leader: dict[str, float], model: dict[str, float]) -> bool:
-    """Paired one-sided t-test (95%): is `model` significantly worse than
-    `leader` across the episodes they share? Models are scored on the same
-    episodes, so the per-episode difference cancels shared episode difficulty
-    and is far less noisy than each model's own spread. Two models that trade
-    wins across episodes (mean difference near zero) are NOT separated; a model
-    that is consistently below the leader is. Ties / < 2 shared episodes -> not
-    worse (same tier)."""
+    """Paired one-sided t-test (95%): is `model` significantly worse than `leader`?
+
+    Compared over shared episodes, so per-episode difficulty cancels. Models that
+    trade wins (mean difference near zero) are not separated; ties or fewer than 2
+    shared episodes mean not worse (same tier)."""
     eps = [e for e in leader if e in model]
     diffs = [leader[e] - model[e] for e in eps]
     n = len(diffs)
@@ -642,10 +631,12 @@ def _per_model_alignment(
     agreement: dict[tuple[str, int], dict[str, int]],
     n_models: int,
 ) -> list[dict]:
-    """For each (episode, window): majority = >half of active models voted yes.
-    For each model: count its alignment vs that majority into 4 buckets.
-    Returns list of {model, with_yes, with_no, broke_yes, broke_no, alignment}.
+    """Per (episode, window), majority = more than half of active models voted yes.
+
+    Counts each model's alignment vs that majority into 4 buckets. Returns a list of
+    {model, with_yes, with_no, broke_yes, broke_no, alignment}.
     """
+
     # Pre-resolve majority per window
     window_majority: dict[tuple[str, int], bool] = {}
     for key, per_model in agreement.items():

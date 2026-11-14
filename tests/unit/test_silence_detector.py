@@ -1,14 +1,7 @@
-"""Unit tests for SilenceDetector (task B2).
+"""Unit tests for SilenceDetector.
 
-ffmpeg is never invoked; tracked_run is patched throughout. Tests cover:
-- Paired silence_start / silence_end lines parsed correctly.
-- Unterminated trailing silence_start closed at file duration.
-- Interleaved non-silencedetect lines tolerated.
-- Timeout -> [].
-- Nonzero exit -> [].
-- noise_db and min_silence_s appear in the -af argument.
-- Spans sorted by start.
-- File-not-found -> [].
+ffmpeg is never invoked; tracked_run is patched. Covers paired and unterminated silence lines, interleaved
+non-silencedetect lines, timeout / nonzero exit / missing file returning [], the -af arguments, and sort order.
 """
 import os
 import subprocess
@@ -91,7 +84,7 @@ def test_multiple_pairs_sorted_by_start():
 def test_unterminated_trailing_silence_closed_at_duration():
     stderr = [
         '[silencedetect @ 0x...] silence_start: 595.0',
-        # No silence_end follows -- file ends mid-silence.
+        # No silence_end follows: the file ends mid-silence.
     ]
     result = _make_result(stderr)
     run_p, dur_p, ex_p = _patch_run(result)
@@ -174,7 +167,7 @@ def test_tracked_run_exception_returns_empty():
 
 
 def test_file_not_found_returns_empty():
-    # No patches needed -- the detector bails before calling ffmpeg.
+    # No patches needed: the detector bails before calling ffmpeg.
     spans = SilenceDetector(noise_db=-50.0, min_silence_s=0.3).detect('/nonexistent/path.mp3')
     assert spans == []
 

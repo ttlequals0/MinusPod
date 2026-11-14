@@ -1,11 +1,8 @@
 """Per-feed title override (#375).
 
-A MinusPod-processed feed otherwise shows the exact source title in podcast
-apps, so it's easy to tap the ad-laden original. title_override lets a user
-rename a feed; the rename must actually replace the channel title in the
-SERVED RSS, survive RSS refreshes, and fall back to the source title when
-cleared.
-"""
+Otherwise a processed feed shows the exact source title, making it easy to tap the ad-laden
+original. The rename must replace the channel title in the served RSS, survive refreshes, and fall
+back to the source title when cleared."""
 import os
 import sys
 
@@ -76,7 +73,7 @@ class TestServedFeedTitle:
     def test_served_feed_with_special_title_is_well_formed(self):
         import defusedxml.ElementTree as ET
         served = _serve(title_override="A & B <C> \"D\" ']]>")
-        # must parse without raising -- the override cannot break the document
+        # must parse without raising: the override cannot break the document
         root = ET.fromstring(served)
         assert root.find('channel/title').text == "A & B <C> \"D\" ']]>"
 

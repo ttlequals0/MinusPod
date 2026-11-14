@@ -74,7 +74,7 @@ export function PatternExportEditRow({
   }
 
   const inputClass =
-    'flex-1 rounded border border-border bg-background px-2 py-1 text-xs ' +
+    'h-auto flex-1 rounded border border-border bg-background px-2 py-1 text-xs ' +
     'focus:outline-none focus:ring-1 focus:ring-ring';
 
   return (
@@ -122,7 +122,7 @@ export function PatternExportEditRow({
             id={`tags-${patternId}`}
             type="text"
             placeholder="comma-separated, e.g. universal, business"
-            className={'w-full rounded border border-border bg-background px-2 py-1 text-xs ' +
+            className={'h-auto w-full rounded border border-border bg-background px-2 py-1 text-xs ' +
               'focus:outline-none focus:ring-1 focus:ring-ring'}
             value={tags.join(', ')}
             onChange={(e) => update({ sponsor_tags: chips(e.target.value) })}

@@ -17,6 +17,7 @@ from chapters_generator import ChaptersGenerator
 from embedded_chapters import embed_chapters
 from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
+    LLMDisabledError, require_llm,
 )
 import run_context
 from llm_route import resolve_route
@@ -26,6 +27,7 @@ from rate_limit_hold import (
     resolve_hold_scope,
 )
 from utils.constants import EpisodeStatus
+from utils.http import redact_exc
 from utils.text import truncate
 from api.episodes import common
 
@@ -42,6 +44,7 @@ def regenerate_chapters(slug, episode_id):
     episode = db.get_episode_state(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
+    require_llm('Chapter regeneration is unavailable while the LLM provider is set to None')
     if not episode['has_transcript_vtt']:
         return error_response('No VTT transcript available - full reprocess required', 400)
     chapters_route = None
@@ -90,6 +93,7 @@ def regenerate_chapters(slug, episode_id):
 def _regenerate_chapters_job(slug, episode_id, stamp):
     db = get_database()
     error = None
+    skipped = False
     podcast_name = slug
     episode = None
     ctx = run_context.begin(slug, episode_id, run_id=uuid.uuid4().hex)
@@ -102,12 +106,12 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         episode = db.get_episode(slug, episode_id)
         if not episode:
             raise RuntimeError('Episode not found')
-        podcast = db.get_podcast_by_slug(slug) or {}
+        podcast = db.get_podcast_row(slug) or {}
         podcast_name = podcast.get('title') or slug
         _regenerate_chapters(db, get_storage(), slug, episode_id, episode,
                              podcast, podcast_name, stamp)
     except ProviderRateLimitedError as exc:
-        error = truncate(str(exc), 500) or 'Chapter regeneration failed'
+        error = truncate(redact_exc(exc), 500) or 'Chapter regeneration failed'
         try:
             hold_until = hold_queue_for_provider_limit(
                 db, exc, slug=slug, episode_id=episode_id,
@@ -115,20 +119,25 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
             error = hold_message(hold_until, exc)
         except Exception:
             logger.exception(f"Failed to record the rate-limit hold for {slug}:{episode_id}")
+    except LLMDisabledError:
+        # The provider became none after the route was accepted: end as a no-op, not a failed run.
+        skipped = True
+        logger.debug(f"[{slug}:{episode_id}] Chapter regeneration skipped: the LLM provider is none")
     except Exception as exc:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
-        error = truncate(str(exc), 500) or 'Chapter regeneration failed'
+        error = truncate(redact_exc(exc), 500) or 'Chapter regeneration failed'
     finally:
         token_totals = get_episode_token_totals()
         try:
-            _record_history_row(
-                db, slug, episode_id,
-                (episode or {}).get('title') or 'Unknown', podcast_name,
-                status='failed' if error else 'completed',
-                processing_time=time.perf_counter() - started,
-                ads_detected=0, token_totals=token_totals,
-                error_message=error, run_stats={'mode': 'chapters'},
-            )
+            if not skipped:
+                _record_history_row(
+                    db, slug, episode_id,
+                    (episode or {}).get('title') or 'Unknown', podcast_name,
+                    status='failed' if error else 'completed',
+                    processing_time=time.perf_counter() - started,
+                    ads_detected=0, token_totals=token_totals,
+                    error_message=error, run_stats={'mode': 'chapters'},
+                )
         except Exception:
             logger.exception(f"Failed to record chapter regeneration history for {slug}:{episode_id}")
         finally:
@@ -151,10 +160,9 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     episode_description = episode.get('description', '')
     episode_title = episode.get('title', 'Unknown')
 
-    # Segment markers and applied cuts (both persisted from the run that
-    # produced this VTT) let chapter regen give the topic detector the same
-    # ad/segment-position hints the pipeline gets. Missing either just falls
-    # back to no hints.
+    # Segment markers and applied cuts (both persisted from the run that produced this VTT)
+    # give chapter regen the same ad/segment-position hints the pipeline gets; if either
+    # is missing it falls back to no hints.
     segment_markers = common._markers_from_row(episode)
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 

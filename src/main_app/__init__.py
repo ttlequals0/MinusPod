@@ -15,25 +15,26 @@ from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
+# SingleLineFormatter stays importable from main_app for its test.
+from utils.log_format import (  # noqa: F401
+    QueryStringRedactingFilter, SingleLineFormatter, guard_handler_errors,
+    install_exception_hooks, make_formatter)
 from pathlib import Path
 
 import defusedxml
-# Neutralize DTD/external-entity expansion in every stdlib XML parser
-# (xml.etree.ElementTree, xml.sax, xml.dom.minidom, xml.dom.pulldom)
-# before anything else imports them. feedparser routes namespace
-# handling through xml.sax, so this also hardens RSS ingestion.
+# Neutralize DTD/external-entity expansion in every stdlib XML parser before
+# anything else imports them. feedparser routes namespace handling through
+# xml.sax, so this also hardens RSS ingestion.
 defusedxml.defuse_stdlib()
 
-from flask import Flask
+from flask import Flask, request
 from flask_compress import Compress
 
 import config
+from llm_client import llm_disabled
 
 # Configure structured logging
 _logging_configured = False
-
-
-_HOSTNAME = os.environ.get('HOSTNAME') or socket.gethostname()
 
 
 class _RequestIDFilter(logging.Filter):
@@ -51,63 +52,6 @@ class _RequestIDFilter(logging.Filter):
         return True
 
 
-class SingleLineFormatter(logging.Formatter):
-    """Text formatter that keeps one record on one line.
-
-    Docker splits a multi-line record into separate lines, and the
-    continuation lines carry no level prefix, so a scraper re-sniffs their
-    level from the text: a logged prompt body whose line reads "CRITICAL:"
-    arrives as a critical entry. The record is copied rather than mutated,
-    since the per-episode run log handler formats the same record and wants
-    the real line breaks. An exc_info traceback is appended by the base
-    formatter and keeps its own.
-    """
-
-    def format(self, record: logging.LogRecord) -> str:
-        # Args are interpolated only when present, so the common no-args
-        # record is not built twice per line at DEBUG volume.
-        message = record.getMessage() if record.args else str(record.msg)
-        if '\n' not in message and '\r' not in message:
-            return super().format(record)
-        flat = copy.copy(record)
-        flat.msg = (message.replace('\r\n', '\\n')
-                    .replace('\n', '\\n').replace('\r', '\\n'))
-        flat.args = ()
-        return super().format(flat)
-
-
-class JSONFormatter(logging.Formatter):
-    """JSON log formatter for structured logging.
-
-    Outputs logs as JSON objects for easier parsing by log aggregators
-    like Loki, Elasticsearch, or CloudWatch. Each line carries hostname
-    and PID to make it easier to correlate across multi-worker
-    deployments; request_id is populated from Flask ``g`` when the
-    log call happens inside an active request context (see
-    :func:`_attach_request_id`).
-    """
-
-    def format(self, record: logging.LogRecord) -> str:
-        log_data = {
-            'timestamp': self.formatTime(record, self.datefmt),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'hostname': _HOSTNAME,
-            'pid': os.getpid(),
-        }
-
-        for attr in ('episode_id', 'slug', 'request_id'):
-            value = getattr(record, attr, None)
-            if value is not None:
-                log_data[attr] = value
-
-        if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
-
-        return json.dumps(log_data)
-
-
 def setup_logging():
     """Configure application logging.
 
@@ -123,14 +67,9 @@ def setup_logging():
     log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
     log_format = os.environ.get('LOG_FORMAT', 'text').lower()
 
-    # Create appropriate formatter based on LOG_FORMAT
-    if log_format == 'json':
-        formatter = JSONFormatter(datefmt='%Y-%m-%dT%H:%M:%S')
-    else:
-        formatter = SingleLineFormatter(
-            '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+    formatter = make_formatter(log_format)
+    guard_handler_errors()
+    install_exception_hooks()
 
     # Console handler only - Docker captures stdout for logging
     console_handler = logging.StreamHandler(sys.stdout)
@@ -139,6 +78,7 @@ def setup_logging():
     # so the JSON formatter's request_id field is always accurate inside
     # request handlers.
     console_handler.addFilter(_RequestIDFilter())
+    console_handler.addFilter(QueryStringRedactingFilter())
 
     # Configure root logger - clear existing handlers first to prevent duplicates
     root = logging.getLogger()
@@ -150,18 +90,15 @@ def setup_logging():
     logging.getLogger('werkzeug').setLevel(logging.INFO)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
-    # Third-party HTTP / LLM SDK loggers stay at WARNING even when
-    # LOG_LEVEL=DEBUG: their DEBUG output is request/response dumps that
-    # bleed into Loki and bury real signal. The application's own
-    # podcast.llm_io logger still emits prompt/response bodies at DEBUG when
-    # the operator asks for it.
+    # Third-party HTTP / LLM SDK loggers stay at WARNING even when LOG_LEVEL=DEBUG:
+    # their DEBUG output is request/response dumps that bury real signal in Loki.
+    # The app's own podcast.llm_io logger still emits prompt bodies at DEBUG.
     #
-    # Names are matched exactly by the logging tree, so a transport that
-    # renames itself escapes this list. openai 3.x did exactly that: it
-    # moved to httpx2/httpcore2, whose records went unsuppressed until
-    # 2.89.4. Check this list when an SDK crosses a major version.
+    # Names match exactly, so a transport that renames itself escapes this list
+    # (openai 3.x moved to httpx2/httpcore2, unsuppressed until 2.89.4). Check it
+    # when an SDK crosses a major version.
     for noisy in ('openai', 'httpx', 'httpcore', 'httpx2', 'httpcore2',
-                  'anthropic', 'asyncio', 'charset_normalizer', 'requests'):
+                  'anthropic', 'asyncio', 'charset_normalizer', 'requests', 'filelock'):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # Create application loggers
@@ -211,11 +148,9 @@ processing_queue = ProcessingQueue()
 _previous_signal_handlers = {}
 _shutdown_started = False
 
-# One-shot startup backfills, version-gated via system_settings so
-# they only run on the first boot that ships the corresponding code.
-# Previously every worker boot scanned the episodes table on every
-# commit that touched these features; the guard avoids that churn on
-# deployments that already ran the backfill.
+# One-shot startup backfills, version-gated via system_settings so they run only
+# on the first boot that ships the corresponding code, not on every worker boot
+# (which would rescan the episodes table on deployments that already ran them).
 _BACKFILL_VERSION_KEY = 'startup_backfills_version'
 _BACKFILL_VERSION = '2.76.0'
 _stored_backfill_version = None
@@ -272,11 +207,10 @@ if _stored_backfill_version != _BACKFILL_VERSION:
 def _validate_configured_base_urls():
     """Best-effort sanity check on operator-configured base URLs.
 
-    Runs once at startup. Any env var or DB setting that holds a URL the
-    SSRF validator would refuse surfaces at ERROR so an operator sees the
-    problem during deploy instead of at the first outbound call. A failure
-    never aborts startup; the fetch-time validators catch the same URL
-    when it is actually used.
+    Runs once at startup. Any env var or DB setting holding a URL the SSRF
+    validator would refuse surfaces at ERROR, so an operator sees it during
+    deploy instead of at the first outbound call. It never aborts startup; the
+    fetch-time validators catch the same URL when used.
     """
     from utils.url import validate_base_url, SSRFError
     checks = [
@@ -309,20 +243,17 @@ def _validate_configured_base_urls():
 _validate_configured_base_urls()
 
 
-# Re-encrypt any legacy plaintext provider secrets under the current
-# master passphrase. Idempotent on ``enc:v1:`` rows and no-op when there
-# is no plaintext to migrate, so racing gunicorn workers cannot corrupt
-# the DB; backup filenames include PID and a UUID suffix to avoid
-# collisions when two workers do encrypt at the same wall-clock second.
+# Re-encrypt any legacy plaintext provider secrets under the current master
+# passphrase. Idempotent on ``enc:v1:`` rows, so racing gunicorn workers cannot
+# corrupt the DB; backup filenames include PID and a UUID suffix.
 try:
     migrate_plaintext_secrets(db)
 except Exception as e:
     audio_logger.warning(f"Secret migration failed: {e}")
 
-# The legacy OPENAI_API_KEY -> ANTHROPIC_API_KEY fallback was removed.
-# Warn operators whose env still fits the old shape so the behavior
-# change is discoverable. The check is env-only so the warning fires
-# once per worker boot regardless of migration sentinel state.
+# The legacy OPENAI_API_KEY -> ANTHROPIC_API_KEY fallback was removed. Warn
+# operators whose env still fits the old shape. The check is env-only so the
+# warning fires once per worker boot regardless of migration sentinel state.
 if not os.environ.get('OPENAI_API_KEY') and os.environ.get('ANTHROPIC_API_KEY'):
     audio_logger.warning(
         "OPENAI_API_KEY is not set but ANTHROPIC_API_KEY is. The "
@@ -341,20 +272,19 @@ def _secret_key_lockfile_path() -> Path:
 class SecretKeyUnavailableError(RuntimeError):
     """Raised when the Flask secret key cannot be loaded or minted safely.
 
-    Without a stable secret key, signed session cookies issued by one worker
-    cannot be verified by another, and a forged cookie can't be distinguished
-    from a legitimate one. Refuse to start rather than silently shipping a
-    diverging or attacker-controllable key. Override `SECRET_KEY` via env to
-    bypass this path entirely (e.g. in dev or ephemeral test environments).
+    Without a stable secret key, signed session cookies from one worker cannot be
+    verified by another, and a forged cookie can't be told from a real one.
+    Refuse to start rather than ship a diverging or attacker-controllable key.
+    Set `SECRET_KEY` via env to bypass this (e.g. dev or ephemeral test envs).
     """
 
 
 def get_or_create_secret_key():
     """Get secret key from database or create and persist one under flock.
 
-    Raises SecretKeyUnavailableError if both the lockfile AND the DB write
-    fail; without coordination, two workers racing the mint path produce
-    divergent keys and silently invalidate each other's sessions.
+    Raises SecretKeyUnavailableError if both the lockfile and the DB write fail;
+    without coordination, two workers racing the mint path produce divergent
+    keys and silently invalidate each other's sessions.
     """
     from database import Database
     _db = Database()
@@ -439,11 +369,9 @@ def graceful_shutdown(signum, frame):
     if owned:
         logger.warning("Shutdown drain expired with %d processing run(s) active", len(owned))
 
-    # Release the background-leader flock explicitly. Linux frees the
-    # advisory lock when the FD closes anyway, so this is defensive;
-    # on NFS and weird filesystem layers with buggy close-on-exit
-    # semantics, the explicit LOCK_UN is the only way to guarantee
-    # release inside the graceful window.
+    # Release the background-leader flock explicitly. Linux frees it on FD close,
+    # so this is defensive: on NFS and layers with buggy close-on-exit semantics,
+    # LOCK_UN is the only way to guarantee release inside the graceful window.
     lock_file = getattr(_try_become_background_leader, '_lock_file', None)
     if lock_file is not None:
         try:
@@ -471,8 +399,8 @@ def _background_leader_lock_path() -> Path:
 def _try_become_background_leader() -> bool:
     """Try to acquire exclusive lock for background thread ownership.
 
-    Only one Gunicorn worker should run background tasks (RSS refresh,
-    queue processor) to avoid SQLite write contention.
+    Only one Gunicorn worker should run background tasks (RSS refresh, queue
+    processor), to avoid SQLite write contention.
     """
     lock_path = _background_leader_lock_path()
     try:
@@ -489,12 +417,10 @@ def _try_become_background_leader() -> bool:
 def _init_sentry():
     """Opt-in Sentry bootstrap.
 
-    Enabled only when both ``SENTRY_DSN`` and ``sentry-sdk`` are
-    available. Scrubs cookies, the ``Authorization`` and
-    ``X-CSRF-Token`` headers, and any URL-query key whose lowercased
-    name contains ``key``, ``secret``, ``token``, or ``password``
-    before events leave the process. Does not enable performance
-    tracing.
+    Enabled only when both ``SENTRY_DSN`` and ``sentry-sdk`` are available.
+    Scrubs cookies, the ``Authorization`` and ``X-CSRF-Token`` headers, and any
+    URL-query key whose lowercased name contains ``key``, ``secret``, ``token``
+    or ``password`` before events leave the process. No performance tracing.
     """
     dsn = os.environ.get('SENTRY_DSN', '').strip()
     if not dsn:
@@ -550,11 +476,10 @@ _init_sentry()
 # Initialize Flask app
 app = Flask(__name__)
 
-# Reverse-proxy awareness. Cloudflare + cloudflared puts the real client IP
-# in X-Forwarded-For, so request.remote_addr is otherwise the tunnel's
-# loopback hop. The lockout logic in api/auth.py keys its decision on
-# remote_addr; without ProxyFix, every failed login looks like it came
-# from 127.0.0.1 and lockout never fires. Configure via
+# Reverse-proxy awareness. Cloudflare + cloudflared puts the real client IP in
+# X-Forwarded-For, so request.remote_addr is the tunnel's loopback hop. The
+# lockout in api/auth.py keys on remote_addr; without ProxyFix every failed login
+# looks like 127.0.0.1 and lockout never fires. Configure via
 # MINUSPOD_TRUSTED_PROXY_COUNT=1 (most single-proxy setups) or higher.
 _trusted_proxy_hops = int(os.environ.get('MINUSPOD_TRUSTED_PROXY_COUNT', '0') or 0)
 if _trusted_proxy_hops > 0:
@@ -606,12 +531,12 @@ app.config['SESSION_COOKIE_SECURE'] = _default_session_cookie_secure()
 app.config['SESSION_COOKIE_PATH'] = config.cookie_path()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Strict')
-app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get('SESSION_LIFETIME_HOURS', '24')) * 3600
+# Ceiling only; each session's real idle limit is enforced in api.auth_state.
+app.config['PERMANENT_SESSION_LIFETIME'] = config.SESSION_LIFETIME_HOURS_MAX * 3600
 
-# Hard cap on request body size. Chosen to cover the largest legitimate
-# request (OPML import and patterns export round-trip both target ~10 MB);
-# pure JSON endpoints can reject well below this with per-route checks.
-# Clients receive 413 Payload Too Large automatically when exceeded.
+# Hard cap on request body size, chosen to cover the largest legitimate request
+# (OPML import and patterns export both target ~10 MB); pure JSON endpoints can
+# reject well below this per route. Clients get 413 Payload Too Large above it.
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 # Enable gzip compression for responses
@@ -628,28 +553,37 @@ app.config['COMPRESS_LEVEL'] = 6  # Balance between speed and compression
 app.config['COMPRESS_MIN_SIZE'] = 500  # Only compress responses > 500 bytes
 compress.init_app(app)
 
-# CORS is intentionally NOT enabled. MinusPod is single-origin (browser
-# talks to the same host that serves the API); the Vite dev server at
-# :5173 proxies /api/* to :8000, so cross-origin requests never reach
-# the Python process in practice. Removing flask-cors closes an
-# allow-credentials-from-any-origin footgun and simplifies the
-# middleware stack.
+# CORS is intentionally not enabled. MinusPod is single-origin; the Vite dev
+# server at :5173 proxies /api/* to :8000, so cross-origin requests never reach
+# Python. Removing flask-cors closed an allow-credentials-from-any-origin footgun.
 
 # Import and register API blueprint
-from api import api as api_blueprint, init_limiter, limiter
+from api import api as api_blueprint, init_limiter, limiter, register_api_routing_errors
+from api.auth_state import load_request_auth
+from main_app.session_interface import IdleExpiryCookieSessionInterface
+app.session_interface = IdleExpiryCookieSessionInterface()
 app.register_blueprint(api_blueprint)
-init_limiter(app)
+register_api_routing_errors(app)
 
 
 @app.before_request
 def _attach_request_id():
-    """Populate Flask ``g.request_id`` with either the inbound
-    ``X-Request-ID`` header or a fresh UUID hex. The value gets
-    propagated to the JSON log formatter via a filter, and echoed
-    back on the response so clients can correlate."""
+    """Populate Flask ``g.request_id`` from the inbound ``X-Request-ID`` header
+    or a fresh UUID hex. It is propagated to the JSON log formatter via a filter
+    and echoed on the response so clients can correlate."""
     from flask import g, request
     inbound = request.headers.get('X-Request-ID', '').strip()
     g.request_id = inbound[:128] if inbound else uuid.uuid4().hex[:16]
+
+
+@app.before_request
+def _check_session():
+    """Reset this request's auth state and mark it for one check on first use; anonymous pages read no settings."""
+    # Public feed endpoints never read the session, so their responses stay cacheable.
+    load_request_auth(check=request.endpoint not in PUBLIC_FEED_ENDPOINTS)
+
+
+init_limiter(app)
 
 
 @app.teardown_request
@@ -670,13 +604,13 @@ def _echo_request_id(response):
 
 @app.after_request
 def _apply_csrf_cookie(response):
-    """Mint a CSRF cookie alongside the session cookie so the frontend can
-    populate the X-CSRF-Token header on mutating requests. Delegated to
-    api.csrf.apply_csrf_cookie; see that module for the full contract.
+    """Mint a CSRF cookie alongside the session cookie so the frontend can set
+    the X-CSRF-Token header on mutating requests. Delegated to
+    api.csrf.apply_csrf_cookie; see that module for the contract.
 
-    Public podcast-app endpoints opt out: a session they cannot use costs
-    them a `Vary: Cookie` that makes their (often large) responses
-    uncacheable. See main_app.routes.PUBLIC_FEED_ENDPOINTS.
+    Public podcast-app endpoints opt out: a session they cannot use costs them a
+    `Vary: Cookie` that makes their (often large) responses uncacheable. See
+    main_app.routes.PUBLIC_FEED_ENDPOINTS.
     """
     from flask import request
     from api.csrf import apply_csrf_cookie
@@ -691,11 +625,10 @@ def _apply_csrf_cookie(response):
 def _apply_security_headers(response):
     """Attach baseline security headers to every response.
 
-    HSTS is only meaningful over HTTPS and would break clients that hit the
-    instance on plain HTTP for recovery, so it is opt-in via env. CSP is
-    scoped to HTML responses so RSS, VTT, and JSON payloads are not given
-    a policy they cannot meaningfully enforce; the Content-Type check
-    avoids emitting CSP on podcast-app consumer endpoints.
+    HSTS is only meaningful over HTTPS and would break clients that reach the
+    instance on plain HTTP for recovery, so it is opt-in via env. CSP is scoped
+    to HTML responses (checked via Content-Type) so RSS, VTT and JSON payloads
+    and podcast-app consumer endpoints get no policy they cannot enforce.
     """
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('X-Frame-Options', 'DENY')
@@ -728,7 +661,7 @@ def _apply_security_headers(response):
     return response
 
 # Register routes from routes module
-from main_app.routes import register_routes
+from main_app.routes import PUBLIC_FEED_ENDPOINTS, register_routes
 register_routes(app)
 limiter.exempt(app.view_functions['serve_ui'])
 
@@ -737,7 +670,7 @@ from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_
 from main_app.processing import start_background_processing
 from main_app.background import (
     background_rss_refresh, background_queue_processor,
-    reset_stuck_processing_episodes,
+    reset_stuck_processing_episodes, start_deferred_upgrade_steps,
 )
 from whisper_pool import set_background_role
 from podping_listener import podping_listener_loop
@@ -761,10 +694,9 @@ _BANNER = r"""
 def _background_threads_enabled() -> bool:
     """Whether to start the daemon threads below.
 
-    Tests import this module for the app object, which used to start a real
-    RSS refresh, queue processor and podping listener against the test
-    database. They also share patched globals with the test, which made
-    assertions depend on which module won the leader lock first.
+    Tests import this module for the app object, which used to start a real RSS
+    refresh, queue processor and podping listener against the test database and
+    made assertions depend on which module won the leader lock first.
     """
     background_threads = os.environ.get('MINUSPOD_BACKGROUND_THREADS')
     if background_threads in ('0', '1'):
@@ -773,7 +705,9 @@ def _background_threads_enabled() -> bool:
 
 
 def _log_missing_model_settings(db_instance):
-    """Log one ERROR line naming any of the three model settings left unset."""
+    """Log one ERROR line naming any of the three model settings left unset; silent under none."""
+    if llm_disabled():
+        return
     missing_models = [
         key for key in ('claude_model', 'verification_model', 'chapters_model')
         if not db_instance.get_setting(key)
@@ -789,10 +723,9 @@ def _log_missing_model_settings(db_instance):
 def _startup():
     """Initialize the application on startup.
 
-    Gunicorn runs N workers; only one of them is the background leader.
-    Operator-facing banners (version, base URL, LLM verification, web
-    UI hint) fire ONLY on the leader to keep the boot log surface a
-    single copy instead of N copies. Followers emit one DEBUG line.
+    Gunicorn runs N workers; only one is the background leader. Operator-facing
+    banners (version, base URL, LLM verification, web UI hint) fire only on the
+    leader so the boot log has one copy, not N. Followers emit one DEBUG line.
     """
 
     is_leader = _try_become_background_leader()
@@ -852,10 +785,9 @@ def _startup():
         except Exception as e:
             logger.warning(f"Model configuration check skipped: {e}")
 
-        # Seed sponsor and normalization data. The 2.0.13 rewrite made this
-        # idempotent (per-startup name-diff insert), so it must run on the
-        # leader only or the workers race on writes and trigger
-        # "database is locked" cascades on the reprocess endpoint.
+        # Seed sponsor and normalization data. It is idempotent (per-startup
+        # name-diff insert) but must run on the leader only, or workers race on
+        # writes and trigger "database is locked" cascades on reprocess.
         sponsor_service.seed_initial_data()
         logger.info("Sponsor service initialized (leader)")
 
@@ -874,6 +806,9 @@ def _startup():
             queue_thread.start()
             logger.info("Started auto-process queue processor thread")
 
+            # Upgrade scans run here, not under the startup lock the other worker waits on.
+            start_deferred_upgrade_steps()
+
             # Start podping listener thread (active only when podping_enabled)
             podping_thread = threading.Thread(target=podping_listener_loop, daemon=True)
             podping_thread.start()
@@ -881,10 +816,9 @@ def _startup():
         else:
             logger.debug("Background threads not started")
 
-        # No inline initial RSS refresh here: background_rss_refresh (started
-        # above) begins staggering the due feeds on its first tick. On a fresh
-        # boot every feed is due, so the first ticks drain them a batch at a
-        # time. An inline sequential pass would only block leader boot.
+        # No inline initial RSS refresh: background_rss_refresh (started above)
+        # staggers due feeds from its first tick, draining a fresh boot in batches;
+        # an inline sequential pass would only block leader boot.
 
         logger.info(f"Web UI available at: {base_url}/ui/")
     else:

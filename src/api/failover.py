@@ -5,6 +5,7 @@ from flask import request
 from werkzeug.exceptions import BadRequest, UnsupportedMediaType
 
 import failover
+from database.error_text import redact_error
 from api import api, error_response, json_response, log_request, get_database
 
 logger = logging.getLogger(__name__)
@@ -12,12 +13,14 @@ _TARGET_API_NAME = {v: k for k, v in failover.API_TARGET_NAMES.items()}
 
 
 def _target_view(target: str) -> dict:
-    return {**failover.state(target), 'configured': failover.is_configured(target),
+    state = failover.state(target)
+    state['reason'] = redact_error(state['reason'])
+    return {**state, 'configured': failover.is_configured(target),
             'enabled': failover.target_enabled(target)}
 
 
 def _probe_view(data: dict) -> dict:
-    return {'reachable': data['reachable'], 'status': data['status'], 'detail': data['detail'],
+    return {'reachable': data['reachable'], 'status': data['status'], 'detail': redact_error(data['detail']),
             'checkedAt': data['checked_at'], 'healthyStreak': data['healthy_streak'],
             'failedStreak': data['failed_streak']}
 
@@ -32,7 +35,7 @@ def targets_view() -> dict:
 
 def _event_view(e: dict) -> dict:
     return {'id': e['id'], 'target': _TARGET_API_NAME.get(e['target'], e['target']),
-            'action': e['action'], 'source': e['source'], 'reason': e['reason'],
+            'action': e['action'], 'source': e['source'], 'reason': redact_error(e['reason']),
             'createdAt': e['created_at']}
 
 

@@ -1,22 +1,10 @@
 import { useState } from 'react';
 
-// Render-phase form seeder. Calls onSync whenever the upstream query data
-// identity changes (typically: undefined -> first payload, or a refetch
-// produces a new object reference). Mirrors the React 19 conditional-
-// setState pattern: a snapshot of the last-seen data is held in useState,
-// and the seed runs synchronously during render so form inputs reflect
-// the new value on the same render cycle that data arrived.
-//
-// The snapshot seeds to `undefined`, NOT `data`. Seeding to `data` meant a
-// cached-first render (React Query already holding the payload at mount, e.g.
-// a remount within gcTime) had `data === snapshot` on the first render, so
-// onSync never fired and any consumer gating render on the synced value stuck
-// forever (issue #527 - EmailSettingsForm "Loading email settings..."). With
-// `undefined`, a cached first render is `undefined !== data` and syncs too.
-//
-// Use this instead of useEffect+setState for query->form sync; useEffect
-// would seed AFTER commit (one frame of stale UI) and was the exact
-// anti-pattern fixed in Settings.tsx on May 4 2026.
+// Render-phase form seeder: calls onSync when the upstream query data identity changes (first payload or a
+// refetch with a new reference). A snapshot of the last-seen data lives in useState and the seed runs during
+// render, so inputs reflect new data in the same render; useEffect+setState would seed after commit.
+// The snapshot starts as `undefined`, not `data`: otherwise a cached-first render (remount within gcTime)
+// has `data === snapshot`, onSync never fires, and consumers gating render on it stick forever (#527).
 export function useSyncFromQuery<T>(data: T | undefined, onSync: (d: T, previous: T | undefined) => void): void {
   const [snapshot, setSnapshot] = useState<T | undefined>(undefined);
   if (data !== snapshot) {

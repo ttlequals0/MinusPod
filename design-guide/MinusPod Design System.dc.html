@@ -50,7 +50,7 @@ a:hover{text-decoration:underline}
 .ds-detection-actions>span{grid-column:span 2;white-space:nowrap}
 .ds-detection-actions>span:nth-last-child(-n+2){grid-column:span 3}
 @media(min-width:430px){.ds-detection-actions{grid-template-columns:repeat(5,minmax(0,1fr))}.ds-detection-actions>span,.ds-detection-actions>span:nth-last-child(-n+2){grid-column:auto}}
-@media(min-width:640px){.ds-icon-visual{width:28px;height:28px}}
+@media(min-width:640px) and (pointer:fine){.ds-icon-visual{width:28px;height:28px}}
 @media(pointer:coarse){.ds-player button{min-width:44px;min-height:44px}}
 @container(min-width:336px){.ds-player-speed{grid-column:3;grid-row:1;justify-self:end}}
 @keyframes ds-spin{to{transform:rotate(360deg)}}
@@ -167,7 +167,7 @@ a:hover{text-decoration:underline}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button aria-label="Play" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;padding:0"><span class="ds-icon-visual" style="display:inline-flex;align-items:center;justify-content:center;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));box-shadow:0 0 0 2px hsl(var(--ring))"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span></button>
-        <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">iconTarget</span> 44px box, <span style="font-family:ui-monospace,monospace;font-size:12px">iconVisual</span> fills the target below sm (28px from sm). Ring shown on the visual.</span>
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">iconTarget</span> 44px box, <span style="font-family:ui-monospace,monospace;font-size:12px">iconVisual</span> fills the target on phones and on coarse pointers (row size, 28px, from sm on a fine pointer; <span style="font-family:ui-monospace,monospace;font-size:12px">iconSizes</span> also has 32px, 40px and 44px to equal the control beside it). Ring shown on the visual.</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <div style="display:flex;gap:8px">
@@ -504,7 +504,7 @@ metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
 <section id="nav" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Navigation, tabs &amp; toggles</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Top nav: ghost links, active = solid primary pill. Page-level views split with underline tabs. Compact binary choices (grid/list, sort) use a joined segmented toggle where active is also solid primary. Below <span style="font-family:ui-monospace,monospace;font-size:13px">xl (1280px)</span> the nav collapses behind the hamburger into a stacked list.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Top nav: ghost links, active = solid primary pill. Page-level views split with underline tabs. Tabs and section links wrap when they do not fit, keeping every section visible. Compact binary choices (grid/list, sort) use a joined segmented toggle where active is also solid primary. Below <span style="font-family:ui-monospace,monospace;font-size:13px">xl (1280px)</span> the nav collapses behind the hamburger into a stacked list.</p>
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:20px">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -513,7 +513,7 @@ metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">History</span>
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">Settings</span>
     </div>
-    <div style="border-bottom:1px solid hsl(var(--border));display:flex">
+    <div style="border-bottom:1px solid hsl(var(--border));display:flex;flex-wrap:wrap">
       <button onClick="{{ tab0 }}" style="{{ tabStyle0 }}">Text patterns</button>
       <button onClick="{{ tab1 }}" style="{{ tabStyle1 }}">Audio cues</button>
       <button onClick="{{ tab2 }}" style="{{ tabStyle2 }}">Sponsors</button>
@@ -585,7 +585,7 @@ fill             = adds w-full to the group and flex-1 min-w-11 to each segment<
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
     <div style="font-size:15px;font-weight:600">badgeStyles.ts</div>
     <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">The badge shape and the reusable tints. Each hue pairs with its own on-tint text token, solved for the worst backdrop a badge meets: a 30 percent hover fill inside a 10 percent panel of that hue.</p>
-    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">badgeBase = px-2 py-0.5 text-xs rounded
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">badgeBase = px-2 py-0.5 text-xs rounded   (Badge adds max-w-full and the truncating inner span)
 
 tint.neutral     = bg-muted text-secondary-foreground
 tint.secondary   = bg-secondary text-secondary-foreground

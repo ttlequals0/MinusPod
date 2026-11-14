@@ -12,14 +12,10 @@ def _clamp_seconds(value: float, max_seconds: float) -> float:
 
 
 def parse_retry_after(value: str | None, *, max_seconds: float = 300.0) -> float | None:
-    """Parse an HTTP `Retry-After` header into seconds-to-wait.
+    """Parse an HTTP `Retry-After` header (delta-seconds or RFC 7231 date) into seconds-to-wait.
 
-    Accepts either a delta-seconds string (e.g. ``"7"``) or an RFC 7231
-    HTTP-date. Returns ``None`` when the value is missing or unparseable so
-    callers can fall back to their normal backoff curve.
-
-    The result is clamped to ``[0, max_seconds]`` to bound pathological server
-    hints (e.g. a one-hour Retry-After) without making the caller wait forever.
+    None when missing or unparseable, so callers use their normal backoff. Clamped to
+    ``[0, max_seconds]`` so a pathological hint cannot stall the caller.
     """
     if value is None:
         return None
@@ -43,25 +39,18 @@ def parse_retry_after(value: str | None, *, max_seconds: float = 300.0) -> float
     return _clamp_seconds(seconds, max_seconds)
 
 
-# Groq's 429 body for a tokens-per-minute exceedance includes a message like:
-#   Limit 6000, Used 0, Requested 7500
-# along with a structured type/code pair. We parse defensively: any failure
-# returns None so the caller falls back to the transient retry path.
+# Groq's tokens-per-minute 429 body has a message like "Limit 6000, Used 0, Requested 7500".
+# Parsed defensively: any failure returns None (transient retry path).
 _GROQ_LIMIT_RE = re.compile(r"limit\s+(\d[\d,]*)", re.IGNORECASE)
 _GROQ_USED_RE = re.compile(r"used\s+(\d[\d,]*)", re.IGNORECASE)
 _GROQ_REQUESTED_RE = re.compile(r"requested\s+~?(\d[\d,]*)", re.IGNORECASE)
 
 
 def parse_groq_rate_limit_body(body: Any) -> dict | None:
-    """Extract limit/used/requested from a Groq-style 429 body.
+    """Extract integer ``limit``, ``used``, ``requested`` from a Groq-style 429 body.
 
-    Accepts a dict (already-parsed JSON), a string (raw JSON or plain text),
-    or any object with a string repr. Returns a dict with integer fields
-    ``limit``, ``used``, ``requested`` when all three numbers can be parsed
-    and the message describes a tokens-per-minute exceedance, otherwise None.
-
-    Defensive by design: any unparseable input returns None so the existing
-    transient retry path remains in charge.
+    Takes parsed JSON, a string or any object with a string repr. None unless all three parse
+    and the message describes a tokens-per-minute exceedance (the transient retry path stays in charge).
     """
     if body is None:
         return None
@@ -115,20 +104,17 @@ def parse_groq_rate_limit_body(body: Any) -> dict | None:
     return {"limit": limit, "used": used, "requested": requested}
 
 
-# Google/Gemini RPC 429 bodies (also seen via OpenRouter's OpenAI-compatible path)
-# put the recommended wait in the body, not the Retry-After header: a RetryInfo
-# detail (retryDelay: "4s") and/or a "Please retry in 4.2s" hint in the message.
-# Float patterns are anchored to a real number (\d+ optional .\d+) so a malformed
-# token like "1.2.3" or a lone "." cannot reach float() and raise ValueError.
+# Google/Gemini 429 bodies (also via OpenRouter) carry the wait in the body, not Retry-After:
+# a RetryInfo detail (retryDelay: "4s") and/or "Please retry in 4.2s". Float patterns are
+# anchored to a real number so "1.2.3" or a lone "." cannot reach float().
 _GOOGLE_RETRY_IN_RE = re.compile(r"retry in\s+(\d+(?:\.\d+)?)\s*s", re.IGNORECASE)
 _DURATION_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*s$", re.IGNORECASE)
 
 
 def _reset_seconds_from_error(err: dict) -> float | None:
-    """Unclamped seconds-to-wait from one error dict's own reset fields, or None.
+    """Unclamped seconds-to-wait from an error dict's reset fields, or None.
 
-    Tries ``seconds_until_reset``, ``resets_at`` (epoch), then ``resets_at_iso``;
-    an unparseable field is skipped rather than counted as present.
+    Tries ``seconds_until_reset``, ``resets_at`` (epoch), then ``resets_at_iso``, skipping unparseable ones.
     """
     seconds = err.get("seconds_until_reset")
     if seconds is not None:
@@ -159,18 +145,12 @@ def _reset_seconds_from_error(err: dict) -> float | None:
 
 
 def _coerce_error_dict(body: Any) -> dict | None:
-    """Normalize a body to its inner ``error`` dict (or the payload itself).
+    """Normalize a body (dict, list wrapping one, or JSON string) to its inner ``error`` dict, else the payload.
 
-    Shared by the Google coercer and ``parse_upstream_reset``: accepts a dict,
-    a list wrapping one, or a JSON string, and descends into an ``error`` key
-    when present. When the error is proxied through OpenRouter, the upstream
-    error (with its own ``details``/``status``) is a JSON string under
-    ``error.metadata.raw``; descend into it so callers see the real fields.
-    Skipped when the outer error already carries its own parseable reset
-    field (``seconds_until_reset``, ``resets_at``, ``resets_at_iso``) so it is
-    not shadowed by the proxied body. An empty, non-numeric, or null outer
-    value does not count, and descent still happens. Any parse failure
-    returns None.
+    When proxied through OpenRouter, the upstream error (own ``details``/``status``) is a JSON
+    string under ``error.metadata.raw``; descend into it so callers see the real fields. Skipped
+    when the outer error has its own parseable reset field (an empty, non-numeric or null one
+    does not count). Any parse failure returns None.
     """
     payload = body
     if isinstance(payload, str):
@@ -200,20 +180,16 @@ def _coerce_error_dict(body: Any) -> dict | None:
 
 
 def _coerce_google_error(body: Any) -> dict | None:
-    """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
-
-    Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
-    return None so callers can fall back to a regex over ``str(body)``.
-    """
+    """Normalize a Google 429 body to its inner ``error`` dict; plain non-JSON strings give None
+    (callers regex ``str(body)``)."""
     return _coerce_error_dict(body)
 
 
 def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> float | None:
     """Seconds-to-wait from a Google 429 body, or None.
 
-    Prefers the structured RetryInfo detail (``retryDelay: "4s"``); falls back to a
-    "Please retry in <n>s" hint in the message, then to the raw repr. Clamped to
-    ``[0, max_seconds]``. Returns None when no delay is present.
+    Prefers the RetryInfo detail (``retryDelay: "4s"``), then a "Please retry in <n>s" message hint,
+    then the raw repr. Clamped to ``[0, max_seconds]``.
     """
     err = _coerce_google_error(body)
     seconds = None
@@ -238,11 +214,10 @@ def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> float 
 
 
 def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | None:
-    """Seconds until a provider's own stated reset time, or None.
+    """Seconds until a provider's stated reset time, or None.
 
-    Reads, in order, ``seconds_until_reset`` (already relative), ``resets_at``
-    (epoch seconds) and ``resets_at_iso`` (ISO 8601 with offset), skipping any
-    field that is missing or unparseable. Clamped to ``[0, max_seconds]``.
+    Reads ``seconds_until_reset``, ``resets_at`` (epoch) then ``resets_at_iso`` (ISO 8601 with
+    offset), skipping missing or unparseable fields. Clamped to ``[0, max_seconds]``.
     """
     err = _coerce_error_dict(body)
     if not isinstance(err, dict):
@@ -254,12 +229,10 @@ def parse_upstream_reset(body: Any, *, max_seconds: float = 300.0) -> float | No
 
 
 def parse_google_daily_quota(body: Any) -> dict | None:
-    """Detect a Google free-tier DAILY quota exhaustion (cannot recover today).
+    """Detect a Google free-tier daily quota exhaustion (cannot recover today).
 
-    Returns ``{limit, model, quota_id}`` when the 429 is RESOURCE_EXHAUSTED with a
-    per-day quota (a QuotaFailure violation whose ``quotaId`` contains "PerDay", or
-    "per day" in the message). Per-minute limits and other 429s return None so they
-    stay on the normal retry path.
+    Returns ``{limit, model, quota_id}`` for a RESOURCE_EXHAUSTED 429 with a per-day quota
+    (``quotaId`` contains "PerDay", or "per day" in the message); other 429s return None.
     """
     err = _coerce_google_error(body)
     if not isinstance(err, dict):
@@ -291,10 +264,8 @@ def parse_google_daily_quota(body: Any) -> dict | None:
         if quota_id:
             break
 
-    # Authoritative signal is a PerDay quotaId violation. Fall back to the message
-    # only when it names a daily limit and does NOT also name a per-minute one --
-    # Google free-tier messages sometimes enumerate both, and misreading a
-    # recoverable per-minute throttle as daily would fail the episode for good.
+    # A PerDay quotaId is authoritative. Use the message only if it names a daily limit and
+    # not a per-minute one: misreading a recoverable throttle as daily would fail the episode for good.
     if quota_id is None:
         msg = message.lower()
         mentions_daily = "per day" in msg or "perday" in msg or "per-day" in msg

@@ -12,6 +12,12 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
+
+
+    A path under /api/ that no route matches answers 404 (the UnknownApiPath
+    response), and a path that does not accept the method answers 405 with an
+    Allow header (the MethodNotAllowed response). Both bodies are JSON and
+    apply to every operation below.
   # Placeholder. The served /api/v1/openapi.yaml substitutes the running
   # version from version.py, so this value is never bumped by hand.
   version: 0.0.0-source
@@ -107,7 +113,7 @@ paths:
       tags:
         - Auth
       summary: Login with password
-      description: Authenticate with the configured password. Rate limited to 3 attempts per minute and 10 attempts per hour.
+      description: Authenticate with the configured password. Rate limited to 3 attempts per minute and 10 attempts per hour. A public IP address is also locked out after repeated failures.
       operationId: login
       security: []
       requestBody:
@@ -122,6 +128,10 @@ paths:
                 password:
                   type: string
                   description: The application password
+                rememberMe:
+                  type: boolean
+                  default: false
+                  description: Give this device the longer "Remember me" session length. Any non-boolean value is a 400.
       responses:
         '200':
           description: Login successful
@@ -134,12 +144,27 @@ paths:
                     type: boolean
                   message:
                     type: string
+        '400':
+          description: Missing password, or rememberMe is not a boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           description: Invalid password
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many sign-in attempts, from the rate limit or the failed-login lockout. The Retry-After header and retryAfterSeconds both give the wait in whole seconds.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
         '503':
           description: Authentication is required but the first password has not been set
           content:
@@ -252,6 +277,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds:
     get:
@@ -383,7 +410,9 @@ paths:
                   format: uri
                   description: >-
                     URL of the source RSS feed. Required unless feedType is
-                    "local".
+                    "local". Leading and trailing whitespace is stripped; a URL
+                    still holding whitespace or a control character is
+                    rejected with 400.
                   example: https://feeds.example.com/podcast.xml
                 slug:
                   type: string
@@ -514,6 +543,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/import-opml:
     post:
@@ -523,6 +554,8 @@ paths:
       description: |
         Import podcast feeds from an OPML file upload. Accepts .opml or .xml files.
         Automatically generates slugs from feed titles and refreshes the first 5 imported feeds.
+        Leading and trailing whitespace is stripped from each feed URL; one still holding
+        whitespace or a control character is listed under failed.
       operationId: importOpml
       requestBody:
         required: true
@@ -594,6 +627,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/export-opml:
     get:
@@ -850,7 +885,9 @@ paths:
                     and nothing is saved. On success the stored
                     ETag/Last-Modified validators are cleared and an immediate
                     forced refresh runs. Existing episodes are kept (matched
-                    by GUID). Cannot be null or empty.
+                    by GUID). Cannot be null or empty. Leading and trailing
+                    whitespace is stripped; a URL still holding whitespace or a
+                    control character is rejected with 400.
                 networkIdOverride:
                   type:
                     - string
@@ -858,8 +895,11 @@ paths:
                   description: >-
                     Network to assign this feed to: a known network id, or a
                     custom name that links feeds sharing the same value (null
-                    uses the auto-detected network). The effective network is
-                    the override when set, else the auto-detected one.
+                    uses the auto-detected network). Surrounding whitespace is
+                    trimmed and a blank value clears the override. A changed value may be
+                    at most 100 characters. The
+                    effective network is the override when set, else the
+                    auto-detected one.
                 daiPlatform:
                   type: string
                   description: DAI platform identifier (e.g., megaphone, acast)
@@ -979,6 +1019,16 @@ paths:
                     - low
                     - null
                   description: Per-feed auto-process queue priority (issue 625). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting; 'normal' or null uses the default ordering. Changing it re-stamps this feed's already-queued pending episodes immediately.
+                queueOrder:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - queued
+                    - oldest_first
+                    - newest_first
+                    - null
+                  description: Order of this feed's queued episodes within one priority. 'queued' keeps the order they were queued in, 'oldest_first' and 'newest_first' follow the publish date (undated episodes go last). null follows the global queueOrder setting.
                 lowAdYieldAction:
                   type:
                     - string
@@ -1429,6 +1479,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/refresh:
     post:
@@ -1473,6 +1525,8 @@ paths:
                 $ref: '#/components/schemas/RefreshAllResult'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/refresh-artwork:
     post:
@@ -1498,6 +1552,8 @@ paths:
                     type: string
                   feedCount:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/regenerate:
     post:
@@ -1524,6 +1580,8 @@ paths:
                     type: string
                   feedCount:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/artwork:
     get:
@@ -1613,6 +1671,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/ad-distribution:
     get:
@@ -1860,6 +1920,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}:
     get:
@@ -2030,6 +2092,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/transcript:
     get:
@@ -2233,6 +2297,16 @@ paths:
         the ad editor. The server auto-coarsens the resolution
         for very long windows so the JSON payload stays bounded; the response
         echoes the effective resolution actually used.
+
+        Requests are served from a cached peaks file kept beside the retained
+        original, which stores one value per 10 ms. A request is served from it
+        when `resolution_ms` is a multiple of 10 and `start` is on the 10 ms
+        grid. Any other request is decoded from the audio. The file is built
+        on the first open, so that first request waits for the build. An
+        original longer than 45 minutes is built in the background, and the route
+        answers 503 with a `Retry-After` header until the file exists. An
+        original up to 45 minutes also answers 503 when another request has held
+        its build for more than 30 seconds.
       operationId: getEpisodePeaks
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -2248,7 +2322,11 @@ paths:
         - in: query
           name: resolution_ms
           schema: { type: integer }
-          description: Requested peak bucket width in ms (default 50, range 1-1000)
+          description: |
+            Requested peak bucket width in ms (default 50, range 1-1000). A
+            width the server coarsens to stay under 60000 buckets is rounded
+            up to a whole multiple of 10 ms, and `resolutionMs` in the response
+            reports the width actually used.
       responses:
         '200':
           description: Peaks payload
@@ -2268,6 +2346,19 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: The waveform file is being built. Retry after the interval in the Retry-After header.
+          headers:
+            Retry-After:
+              description: Seconds to wait before asking again (5).
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  status: { type: integer }
 
   /feeds/{slug}/episodes/{episode_id}/transcript-span:
     get:
@@ -2490,7 +2581,7 @@ paths:
                     type: string
                     enum: [started]
         '400':
-          description: No VTT transcript available (full reprocess required)
+          description: No VTT transcript is available (full reprocess required), or the configured chapters provider and model cannot generate chapters (System One does not support chapters)
           content:
             application/json:
               schema:
@@ -2498,9 +2589,15 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: A regeneration is already running, the episode is being processed, or an LLM provider rate-limit hold is active
+          description: A regeneration is already running, the episode is being processed, an LLM provider rate-limit hold is active, or the LLM provider is set to none (`code` is `llm_disabled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/sponsorblock/candidates:
     get:
@@ -2596,11 +2693,20 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
-          description: SponsorBlock rate limited the submission, or the endpoint limit was reached. The outcome is recorded.
+          description: >-
+            SponsorBlock rate limited the submission, and the outcome is recorded.
+            When this endpoint's own limit is reached instead, nothing is sent or
+            recorded, and the body and Retry-After header follow the shared
+            RateLimited response.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SponsorBlockSubmitResult'
+                anyOf:
+                  - $ref: '#/components/schemas/SponsorBlockSubmitResult'
+                  - $ref: '#/components/schemas/RateLimitError'
         '502':
           description: The request to SponsorBlock failed. The outcome is recorded.
           content:
@@ -2743,6 +2849,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/retry-ad-detection:
     post:
@@ -2767,9 +2875,13 @@ paths:
                 properties:
                   message:
                     type: string
-                  adsDetected:
+                  episodeId:
+                    type: string
+                  adsFound:
                     type: integer
                   status:
+                    type: string
+                  note:
                     type: string
         '400':
           description: Episode has no transcript (must use reprocess instead)
@@ -2781,6 +2893,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/reprocess:
     post:
@@ -2839,6 +2953,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/original.mp3:
     get:
@@ -3100,6 +3216,7 @@ paths:
                   skipped:
                     type: integer
         '429':
+          $ref: '#/components/responses/RateLimited'
           description: Rate limited (5 per minute)
 
   /episodes/awaiting-approval:
@@ -3218,6 +3335,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
+          $ref: '#/components/responses/RateLimited'
           description: Rate limited (10 per minute)
 
   /episodes/held:
@@ -3317,6 +3435,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /episodes/{slug}/{episode_id}/corrections:
     post:
@@ -3328,12 +3448,24 @@ paths:
         the cross-episode pattern database for better future detection.
 
         Actions:
-        - confirm: Mark detection as correct (creates/updates pattern)
+        - confirm: Mark detection as correct (creates/updates pattern). When the pattern
+          has no audio fingerprint and its audio was not deleted, one is stored from the
+          confirmed span of the retained original. This is best effort and never fails the request.
+          The response carries fingerprintStored and, when it is false, fingerprintSkippedReason.
+          If the confirm removes a rejection of the same span, the audio match that rejection
+          marked is restored.
         - reject: Mark as false positive. Stores transcript text for cross-episode matching -
           similar text in future episodes of the same podcast will be automatically excluded
-          using TF-IDF similarity matching (threshold: 0.75)
+          using TF-IDF similarity matching (threshold: 0.75). If the pattern's audio
+          fingerprint recorded a match for the span, that match is marked rejected.
         - adjust: Correct ad boundaries. Also creates patterns from the adjusted boundaries
-          (like confirm), ensuring accurate pattern text is learned from the corrected segment
+          (like confirm), ensuring accurate pattern text is learned from the corrected segment.
+          The pattern's audio fingerprint is rebuilt from the adjusted span of the retained
+          original, even if its audio was deleted earlier, and the deleted marker is cleared
+          when the rebuild succeeds. This is best effort and never fails the request.
+          The response carries fingerprintStored and, when it is false, fingerprintSkippedReason.
+          If the adjustment removes a rejection of the adjusted span, the audio match that
+          rejection marked is restored.
         - create: Mark a brand-new ad on an episode the detector missed. Top-level
           start/end/sponsor/text_template required (no original_ad). Creates a new
           pattern with created_by='user' and a pattern_corrections row of type 'create'.
@@ -3342,6 +3474,12 @@ paths:
           pattern per sponsor segment instead of a single oversized pattern; the
           response's patternIds lists every pattern created or reused this way, and
           pattern_id/sponsor still identify the sponsor-matched primary.
+          Each created pattern also gets an audio fingerprint of the marked span of the
+          retained original. This is best effort, so the pattern is saved either way, and
+          fingerprintStored reports the outcome. Each pattern is fingerprinted over its own
+          span only. When the text was split into several patterns, a pattern whose own range
+          cannot be found in the transcript gets none. A pattern that already has a
+          fingerprint keeps it.
         - split: Replace one marker covering back-to-back ads with N
           single-sponsor markers (issue #563). Send `original_ad` plus
           `split_points` (a list of times strictly inside the span) and an
@@ -3377,8 +3515,10 @@ paths:
                     type: string
                     description: Human-readable result, returned by every type
                   pattern_id:
-                    type: integer
-                    description: Pattern created or updated; returned by confirm, adjust, and create
+                    type: [integer, 'null']
+                    description: >-
+                      Pattern created or updated, returned by confirm, adjust and create.
+                      Null when no pattern was created or linked.
                   sponsor:
                     type: string
                     description: Canonical sponsor name; returned by create
@@ -3387,6 +3527,11 @@ paths:
                     items:
                       type: integer
                     description: Patterns created or reused; returned by create and split
+                  fingerprintStored:
+                    type: boolean
+                    description: Whether an audio fingerprint was stored for at least one pattern. Returned by create, confirm and adjust. Absent when the request created or linked no pattern.
+                  fingerprintSkippedReason:
+                    $ref: '#/components/schemas/FingerprintSkippedReason'
                   markerCount:
                     type: integer
                     description: Number of markers that replaced the original; returned by split
@@ -3852,6 +3997,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CleanupStats'
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+
+  /stats/audio-matching:
+    get:
+      tags:
+        - Stats
+      summary: Audio fingerprint matching statistics
+      description: |
+        Counts from the audio match history for a period, plus how many patterns
+        carry audio. `audioMatches` and `foundByAudioOnly` count history rows
+        that are not marked "not this ad" and were created in the period.
+        `foundByAudioOnly` is the subset whose ad only the audio fingerprint
+        found. `notThisAd` counts history rows marked "not this ad" whose
+        rejection time falls in the period. `notThisAd` counts the same
+        rejected match rows that a pattern's `counts.rejected` counts.
+        `patternsTotal` counts active patterns and `patternsWithAudio`
+        counts those with an enabled fingerprint.
+
+        With `podcastSlug`, the row counts cover that feed's rows and the two
+        pattern counts cover the patterns whose scope applies to that feed,
+        by the same scope rule both matchers use (global, the feed's own
+        podcast scope, its effective network, and community tag eligibility).
+        An unknown `podcastSlug` answers 200 with every count 0.
+
+        Dates work as on the other ledger Stats routes. `from` is the start of
+        the UTC day it names and `to` is inclusive of the whole UTC day it
+        names, so a `to` timestamp counts as that day. Either accepts a date
+        or an ISO 8601 timestamp, and a value that does not parse is a 400.
+      operationId: getAudioMatchingStats
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+          description: Start of the selected UTC date range; accepts a date or ISO 8601 timestamp.
+        - name: to
+          in: query
+          schema:
+            type: string
+          description: Inclusive final UTC day; accepts a date or ISO 8601 timestamp.
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+          description: Limit rows and pattern counts to one feed.
+      responses:
+        '200':
+          description: Audio matching counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [patternsWithAudio, patternsTotal, audioMatches, foundByAudioOnly, notThisAd, historyBackfillPending]
+                properties:
+                  patternsWithAudio:
+                    type: integer
+                    description: Active patterns in scope with an enabled fingerprint.
+                  patternsTotal:
+                    type: integer
+                    description: Active patterns in scope.
+                  audioMatches:
+                    type: integer
+                    description: History rows created in the period and not marked "not this ad".
+                  foundByAudioOnly:
+                    type: integer
+                    description: Those rows whose ad only the audio fingerprint found.
+                  notThisAd:
+                    type: integer
+                    description: History rows marked "not this ad" in the period.
+                  historyBackfillPending:
+                    type: boolean
+                    description: True while the one-time fill of match history from older episodes is still running, so the counts are not final.
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
@@ -4482,6 +4700,26 @@ paths:
                 sponsor:
                   type: string
                   description: Sponsor name for this pattern
+                scope:
+                  type: string
+                  enum: [global, network, podcast]
+                  description: >-
+                    Scope of the pattern. Network scope also sets the pattern's
+                    network to networkId when sent. Otherwise a pattern that is
+                    already network scope keeps its network, and any other
+                    pattern takes the effective network of its feed (the
+                    network override when set, else the detected network). A pattern with no feed network and no
+                    networkId is rejected with 400. The global and podcast
+                    scopes leave the network as it is.
+                networkId:
+                  type: string
+                  description: >-
+                    Network for a pattern becoming network scope. Used only
+                    when scope is network. The value is trimmed, then must be
+                    at most 100 characters and not blank, or the request is
+                    rejected with 400. Without it, a pattern already at network scope
+                    keeps its own network and any other pattern takes its
+                    feed's network.
                 disabled_reason:
                   type: string
                   description: Reason for disabling the pattern
@@ -4568,7 +4806,10 @@ paths:
       tags:
         - Patterns
       summary: Deduplicate patterns
-      description: Manually trigger deduplication of similar patterns in the database
+      description: |
+        Manually trigger deduplication of similar patterns in the database.
+        A fingerprint and its match history move with the pattern that is kept.
+        Deduplication never puts audio onto a pattern whose audio was deleted.
       operationId: deduplicatePatterns
       responses:
         '200':
@@ -4656,6 +4897,8 @@ paths:
                     type: integer
                   skipped:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /patterns/stats:
     get:
@@ -4838,6 +5081,311 @@ paths:
                         scope:
                           type: string
 
+  /patterns/{pattern_id}/audio/matches:
+    get:
+      tags:
+        - Patterns
+      summary: Match history of a pattern's audio
+      description: |
+        Pages through where the pattern's fingerprint matched, newest first.
+        `perPage` defaults to 10 and is capped at 50. A `page` or `perPage` that is
+        not a number falls back to its default, and one below 1 is raised to 1. A page past
+        the end is lowered to one page after the last and answers 200 with an empty
+        list, and `page` in the response is the page actually served. `available` is true when that
+        match's episode still keeps its original audio on disk. A match outlives
+        its episode, so `episodeTitle` is null once the episode is gone.
+        `audioOnly` is true when only the audio fingerprint found the ad, and is
+        null on a row that does not record it. History from before audio matching
+        kept a record is rebuilt once from the stored markers, with the same
+        rules a reprocess uses.
+        A pattern with no audio has an empty history.
+      operationId: listPatternAudioMatches
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: One page of matches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches, page, perPage, total]
+                properties:
+                  matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatternAudioMatch'
+                  page:
+                    type: integer
+                  perPage:
+                    type: integer
+                  total:
+                    type: integer
+                    description: All match rows of the pattern, rejected ones included.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /patterns/{pattern_id}/audio/preview:
+    get:
+      tags:
+        - Patterns
+      summary: Play the source span of a pattern's audio
+      description: |
+        Streams an mp3 slice of a retained original episode, for listening to
+        what a pattern's fingerprint was built from or what it matched. With no
+        `matchId` the source is the newest non-rejected match whose original is
+        still retained, else the episode the fingerprint was built from. With a
+        `matchId` it is that match's measured span. The slice is capped at 600
+        seconds. Supports Range requests.
+
+        A rejected match is never the default source, but it can still be played
+        by its `matchId`. At most two slices are encoded at once per process, and
+        a third request answers 503 with `Retry-After: 2`. A slice just encoded
+        is kept for 120 seconds, so Range requests and seeks do not encode it
+        again. The response is sent with `Cache-Control: no-store`. A `Range`
+        that cannot be satisfied answers 416.
+
+        404 carries a `code`: `no_audio` when the pattern has no fingerprint,
+        `original_not_retained` when no source episode keeps its original. An
+        unknown pattern or a `matchId` that does not belong to the pattern is a
+        404 without a code. A `matchId` that is not digits, or has more than 18
+        digits, is a 400. 500 means the slice could not be built.
+      operationId: previewPatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+        - name: matchId
+          in: query
+          required: false
+          description: Match history row to play. Digits only.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Audio slice
+          headers:
+            Accept-Ranges:
+              description: Always `bytes`.
+              schema: { type: string }
+            Cache-Control:
+              description: Always `no-store`.
+              schema: { type: string }
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial audio slice for a Range request
+          headers:
+            Accept-Ranges:
+              description: Always `bytes`.
+              schema: { type: string }
+            Cache-Control:
+              description: Always `no-store`.
+              schema: { type: string }
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Unknown pattern or match, no audio, or no retained original
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Original audio not retained for this pattern
+                status: 404
+                code: original_not_retained
+        '416':
+          description: The Range header cannot be satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: The server cannot provide the requested range.
+                status: 416
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          description: Two slices are already being encoded. Retry after the interval in the Retry-After header.
+          headers:
+            Retry-After:
+              description: Seconds to wait before asking again (2).
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /patterns/{pattern_id}/audio:
+    get:
+      tags:
+        - Patterns
+      summary: Audio fingerprint detail of a pattern
+      description: |
+        State, length, source and match counts of the pattern's audio
+        fingerprint. A pattern without a fingerprint answers 200 with
+        `state: none`. `counts.matches` and `meanSimilarity` leave out matches
+        marked "not this ad"; `counts.rejected` and `counts.outOfScope` are
+        separate figures, and `outOfScope` does not include rejected matches.
+        `lastMatchedAt` also ignores rejected matches.
+        `available` is true when a retained original can be played now.
+      operationId: getPatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      responses:
+        '200':
+          description: Audio detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternAudioDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Patterns
+      summary: Turn a pattern's audio matching on or off
+      description: |
+        Stops or resumes audio matching for the pattern. Text matching is not
+        affected. Returns the detail object. 400 when `enabled` is missing or
+        not a boolean. 404 with `code: no_audio` when the pattern has no
+        fingerprint, and 404 without a code when the pattern is unknown.
+      operationId: setPatternAudioEnabled
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Audio detail after the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternAudioDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Patterns
+      summary: Delete a pattern's audio
+      description: |
+        Removes the fingerprint and its match history in one transaction and
+        marks the pattern so automatic detection does not rebuild its audio.
+        The pattern stays. Adjusting the ad edges or rebuilding is explicit and
+        does create audio again. 404 with `code: no_audio` when the pattern has
+        no fingerprint, and 404 without a code when the pattern is unknown.
+      operationId: deletePatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      responses:
+        '200':
+          description: Audio deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: boolean
+                    enum: [true]
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /patterns/{pattern_id}/audio/rebuild:
+    post:
+      tags:
+        - Patterns
+      summary: Rebuild a pattern's audio from an episode span
+      description: |
+        Fingerprints `[start, end]` of the named episode's retained original and
+        stores it as the pattern's audio, replacing any existing fingerprint and
+        clearing the deleted-audio marker. The on/off setting is kept. All four
+        body fields are required. `start` and `end` are finite seconds with
+        `0 <= start < end`, the span is at most 600 seconds, and `end` may not
+        pass the episode's duration when that is known; otherwise the answer is
+        400. When the file holds less audio than the span asks for, the stored
+        span is cut to the audio that was decoded, and `length` and
+        `builtFrom.end` report that. The pattern's match history is kept.
+
+        A span that cannot be stored is still a 200 with
+        `fingerprintStored: false` and a `fingerprintSkippedReason`:
+        `original_not_retained`, `segment_too_short` (shorter than the minimum
+        ad length setting), `not_distinctive` (too little distinctive audio to reach
+        the minimum coverage setting), `fingerprint_failed`. The same two fields and
+        reasons come back from the corrections route. 404 when the pattern or
+        the episode is unknown. The response is the audio detail object with
+        `fingerprintStored` and `fingerprintSkippedReason` added at the same level.
+      operationId: rebuildPatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [podcastSlug, episodeId, start, end]
+              properties:
+                podcastSlug:
+                  type: string
+                episodeId:
+                  type: string
+                start:
+                  type: number
+                  minimum: 0
+                end:
+                  type: number
+      responses:
+        '200':
+          description: Rebuild outcome and the audio detail after it
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PatternAudioDetail'
+                  - type: object
+                    required: [fingerprintStored]
+                    properties:
+                      fingerprintStored:
+                        type: boolean
+                      fingerprintSkippedReason:
+                        $ref: '#/components/schemas/FingerprintSkippedReason'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /patterns/{pattern_id}/split:
     post:
       tags:
@@ -4846,7 +5394,12 @@ paths:
       description: |
         Split a pattern containing multiple ad transition phrases into separate
         single-sponsor patterns. The original pattern is disabled and new patterns
-        are created for each detected sponsor segment.
+        are created for each detected sponsor segment. When the original has audio that
+        is on and not deleted, each new pattern is fingerprinted over its own span of
+        the pattern's recorded source episode, or of a retained in-scope match when the
+        recorded source is missing or no longer retained. When no retained source exists
+        the response carries `fingerprintStored: false` with `original_not_retained`.
+        This is best effort and never fails the split.
       operationId: splitPattern
       parameters:
         - name: pattern_id
@@ -4873,6 +5426,11 @@ paths:
                       type: integer
                   message:
                     type: string
+                  fingerprintStored:
+                    type: boolean
+                    description: Whether an audio fingerprint was stored for at least one new pattern. Absent when the original had no usable audio.
+                  fingerprintSkippedReason:
+                    $ref: '#/components/schemas/FingerprintSkippedReason'
         '400':
           description: Pattern does not need splitting or not found
           content:
@@ -5049,15 +5607,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: 'A cleanup run is already in progress (error: cleanup_in_progress)'
+          description: 'A cleanup run is already in progress (error: cleanup_in_progress), or the LLM provider is set to none (`code` is `llm_disabled`)'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+          $ref: '#/components/responses/RateLimited'
 
   /patterns/cleanup/runs:
     get:
@@ -5139,7 +5694,12 @@ paths:
       summary: Approve a pattern cleanup suggestion
       description: >-
         Applies the change in place; the pattern keeps a `before` snapshot
-        so it can be undone.
+        so it can be undone. After a split, each new pattern is fingerprinted
+        over its own span of the original's source episode; after a trim, the
+        pattern's fingerprint is rebuilt from the trimmed text's span. Both are
+        best effort, run after the change is saved, and never fail the approval.
+        The response carries `fingerprintStored` and `fingerprintSkippedReason`
+        when audio was involved.
       operationId: approvePatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -5207,7 +5767,9 @@ paths:
       description: >-
         Restores only fields owned by the approval, using its before and
         post-approval snapshots. Split undo restores the original pattern
-        and disables its unchanged children.
+        and disables its unchanged children. Trim undo rebuilds the earlier
+        fingerprint from its source span when the trim replaced it, and reports
+        `fingerprintStored` like approve does.
       operationId: undoPatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -5241,6 +5803,9 @@ paths:
       tags:
         - Patterns
       summary: Approve or reject several pattern cleanup suggestions
+      description: >-
+        Each approved split or trim rebuilds audio fingerprints after its own change is saved,
+        like a single approve. This is best effort and a failure never fails the batch.
       operationId: bulkPatternCleanupSuggestions
       requestBody:
         required: true
@@ -5272,6 +5837,11 @@ paths:
                         id: { type: integer }
                         status: { type: string, enum: [approved, rejected] }
                         error: { type: string, enum: [not_found, invalid_transition] }
+                        fingerprintStored:
+                          type: boolean
+                          description: Approve only. Whether a split or trim stored an audio fingerprint. Absent when no audio was involved.
+                        fingerprintSkippedReason:
+                          $ref: '#/components/schemas/FingerprintSkippedReason'
         '400':
           description: Malformed ids or action
           content:
@@ -5350,6 +5920,8 @@ paths:
           description: Source not found or private
         '502':
           description: The lookup failed upstream
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /youtube/search:
     get:
       tags:
@@ -5406,6 +5978,8 @@ paths:
           description: Missing search query
         '502':
           description: The search failed upstream
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /youtube/test-key:
     post:
       tags:
@@ -5435,6 +6009,8 @@ paths:
                     type: [string, 'null']
         '400':
           description: No key available or YouTube rejected it
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /youtube/cookies:
     post:
       tags:
@@ -5496,6 +6072,8 @@ paths:
                     type: [string, 'null']
         '503':
           description: yt-dlp is not installed
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /podcast-search:
     get:
@@ -5554,6 +6132,8 @@ paths:
           description: Search provider unreachable
         '503':
           description: PodcastIndex selected but credentials not configured
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /search:
     get:
@@ -5662,6 +6242,8 @@ paths:
                   indexedCount:
                     type: integer
                     description: Total items indexed
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /search/stats:
     get:
@@ -6492,6 +7074,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProcessingHistoryEntry'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /failover:
     get:
@@ -6503,7 +7087,8 @@ paths:
         the five health probes that drive them (llm-a, llm-b, llm-failover,
         transcriber, transcriber-failover), the auto-trigger/recovery policy,
         and the most recent manual/auto/probe events (#806). Reads committed
-        control state without running health probes.
+        control state without running health probes. When the LLM provider is
+        none, the LLM probe targets read as unknown with detail "LLM disabled".
       operationId: getFailover
       responses:
         '200':
@@ -6597,7 +7182,10 @@ paths:
         rules as the background probe tick. A local transcription diagnostic decode
         requested from a web request is never run inline: it is handed to the
         background worker to run on its next tick, and this response carries
-        that target's last stored verdict instead of a fresh one.
+        that target's last stored verdict instead of a fresh one. While the LLM
+        provider is `none`, the LLM targets are not probed and are reported
+        as unknown (`reachable` null, `detail` "LLM disabled")
+        instead of their results from before the provider was set to none.
       operationId: probeFailover
       responses:
         '200':
@@ -6767,6 +7355,8 @@ paths:
       operationId: rotateMasterPassphrase
       responses:
         '409': { description: 'Rotation requires the offline command' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/providers/{provider}/test:
     post:
       tags:
@@ -6973,6 +7563,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConnectionTestResult'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/feed-auth/regenerate-key:
     post:
       tags:
@@ -6993,6 +7585,8 @@ paths:
                 properties:
                   feedAuthKey: { type: string, description: 'New global feed auth key (64 hex chars)' }
         '409': { description: 'feed_auth_disabled (enable feed auth before rotating the key)' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings:
     get:
       tags:
@@ -7256,6 +7850,34 @@ paths:
                 audioCueCutMatches:
                   type: boolean
                   description: Cut every matched cue on its own, with no ad next to it. Templates and feeds can override. Off by default.
+                fingerprintEnabled:
+                  type: boolean
+                  default: true
+                  description: Turns audio fingerprint matching on or off for the install (default true). It never depends on the LLM provider. Must be a boolean.
+                fingerprintMatchStrictness:
+                  type: number
+                  default: 0.65
+                  description: Lowest similarity that counts as a match (default 0.65). A number from 0.65 to 0.95; anything else is a 400.
+                  minimum: 0.65
+                  maximum: 0.95
+                fingerprintMinCoverage:
+                  type: number
+                  default: 0.5
+                  description: Share of the stored ad that must be found for a match with under 20 seconds of matching evidence (default 0.5). A match with 20 seconds or more is accepted below it, and only the matched part is cut. A number from 0.1 to 1; anything else is a 400.
+                  minimum: 0.1
+                  maximum: 1
+                fingerprintGapToleranceS:
+                  type: number
+                  default: 3.5
+                  description: Longest dropout, in seconds, bridged inside one match (default 3.5). A number from 0 to 15; anything else is a 400.
+                  minimum: 0
+                  maximum: 15
+                fingerprintMinAdLengthS:
+                  type: number
+                  default: 5
+                  description: Shortest span, in seconds, that gets a fingerprint (default 5). A number from 3 to 30; anything else is a 400. Changing it never re-fingerprints stored ads.
+                  minimum: 3
+                  maximum: 30
                 silenceSnapNoiseDb:
                   type: number
                   description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
@@ -7539,6 +8161,10 @@ paths:
                   type: string
                   enum: ['auto', 'generate', 'off']
                   description: Default chapter mode for feeds that inherit this setting.
+                queueOrder:
+                  type: string
+                  enum: ['queued', 'oldest_first', 'newest_first']
+                  description: Default order of a feed's queued episodes within one priority. 'queued' keeps the order they were queued in; the other two follow the publish date. A feed's own queueOrder overrides it. Default queued.
                 skipSecondPass:
                   type: boolean
                   description: When true, feeds that inherit this setting skip the pass-2 verification scan.
@@ -7661,6 +8287,18 @@ paths:
                     disabled or unconfigured.
                   enum: [primary, secondary, same_as_pass]
                   example: same_as_pass
+                sessionLifetimeHours:
+                  type: [integer, 'null']
+                  minimum: 1
+                  maximum: 8760
+                  description: Idle session length in hours for a normal sign-in. Whole numbers only; a whole-number string such as "5" is also accepted. Null resets to the default.
+                  example: 24
+                sessionRememberDays:
+                  type: [integer, 'null']
+                  minimum: 1
+                  maximum: 365
+                  description: Idle session length in days for a sign-in that ticked "Remember me". Whole numbers only; a whole-number string such as "5" is also accepted. Null resets to the default.
+                  example: 30
                 maxArtworkBytes:
                   type: integer
                   minimum: 65536
@@ -7686,8 +8324,8 @@ paths:
                   example: 1024
                 llmProvider:
                   type: string
-                  description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible]
+                  description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled. none runs episodes with the model-free detectors only and needs no key, base URL or model; saved keys and models are kept.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible, none]
                   example: anthropic
                 omitTemperature:
                   type: boolean
@@ -8250,16 +8888,16 @@ paths:
       tags:
         - Settings
       summary: Get available AI models
-      description: Returns list of available AI models for ad detection. Optionally accepts a provider query param to preview models for a different provider before saving settings.
+      description: Returns list of available AI models for ad detection. The list is empty while the LLM provider is none. Optionally accepts a provider query param to preview models for a different provider before saving settings.
       operationId: getAvailableModels
       parameters:
         - name: provider
           in: query
           required: false
-          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible.
+          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible, none. none returns an empty list.
           schema:
             type: string
-            enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
+            enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible, none]
         - name: slot
           in: query
           required: false
@@ -8301,7 +8939,7 @@ paths:
       tags:
         - Settings
       summary: Refresh available AI models
-      description: Force refresh the model list for one credential slot. Recreates that slot's LLM client and fetches a fresh model list. The optional body selects the slot; with no body the primary slot is refreshed.
+      description: Force refresh the model list for one credential slot. Recreates that slot's LLM client and fetches a fresh model list. With the LLM provider set to none the primary slot returns an empty list and builds no client. The optional body selects the slot; with no body the primary slot is refreshed.
       operationId: refreshModels
       requestBody:
         required: false
@@ -8393,15 +9031,14 @@ paths:
                         type: boolean
                       storage:
                         type: boolean
-                      queue_available:
-                        type: boolean
                       llm_model_configured:
                         type: boolean
                         description: >-
                           Whether a detection model is configured. Informational
                           only; false does not flip overall status to unhealthy,
                           since an instance with no model still serves
-                          already-processed feeds.
+                          already-processed feeds. Always true while the LLM
+                          provider is none, which needs no model.
                   version:
                     type: string
         '503':
@@ -8560,13 +9197,49 @@ paths:
     post:
       tags:
         - System
-      summary: Run a passive SQLite WAL checkpoint
+      summary: Run a SQLite WAL checkpoint (passive or truncate)
+      description: >-
+        Runs a passive checkpoint by default. Mode truncate also resets the
+        write-ahead log file to zero length when no reader blocks it.
       operationId: checkpointDatabase
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [passive, truncate]
+                  default: passive
       responses:
         '200':
           description: Checkpoint completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseCheckpointResult'
+        '400':
+          description: The mode is not passive or truncate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '409':
           description: Active readers prevented the checkpoint from completing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseCheckpointResult'
+        '503':
+          description: SQLite failed to run the checkpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/updates:
     get:
@@ -8618,11 +9291,7 @@ paths:
                   updateAvailable:
                     type: boolean
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
         '502':
           description: GitHub unreachable or fetch failed
           content:
@@ -8757,6 +9426,12 @@ paths:
                   modelsUpdated:
                     type: integer
                     description: Number of models with pricing data
+        '409':
+          description: The LLM provider is set to none, so there is no price catalog to refresh (`code` is `llm_disabled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '502':
           description: Pricing fetch failed
           content:
@@ -8766,6 +9441,8 @@ paths:
                 properties:
                   error:
                     type: string
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/cleanup:
     post:
@@ -8788,6 +9465,8 @@ paths:
                     type: integer
                   spaceFreedMb:
                     type: number
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/vacuum:
     post:
@@ -8810,6 +9489,8 @@ paths:
                     type: string
                   durationMs:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /docs:
     get:
@@ -8949,6 +9630,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/subscriber-keys/{key_id}:
     parameters:
@@ -8974,6 +9657,8 @@ paths:
                   revoked: { type: boolean, const: true }
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/subscriber-keys/{key_id}/record:
     parameters:
@@ -9004,6 +9689,8 @@ paths:
           description: Subscriber key not found
         '409':
           description: Subscriber key is still active
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /settings/provider-budget:
     get:
@@ -9038,11 +9725,8 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '429':
+          $ref: '#/components/responses/RateLimited'
           description: Update limit of 10 requests per hour exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '503':
           description: Currency service unavailable for a non-USD update
           content:
@@ -9154,11 +9838,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /system/config-backup:
     get:
@@ -9181,6 +9861,8 @@ paths:
           description: Authentication required
         '413':
           description: Complete configuration exceeds the supported import request size
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           description: Configuration or credentials could not be exported
 
@@ -9209,6 +9891,8 @@ paths:
           description: Invalid configuration, scope, selection, or conflicting feed identity
         '413':
           description: Request exceeds 10 MiB
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/config-import:
     post:
@@ -9257,6 +9941,8 @@ paths:
           description: Preview is stale; preview the selected configuration again
         '413':
           description: Request exceeds 10 MiB
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/config-export:
     get:
@@ -9302,11 +9988,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /system/diagnostic-export:
     get:
@@ -9398,11 +10080,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /system/db-backup/run:
     post:
@@ -9425,10 +10103,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+          $ref: '#/components/responses/RateLimited'
         '500':
           description: Backup failed
           content:
@@ -9682,6 +10357,12 @@ paths:
                     type: string
                   rateLimitProbeMinutes:
                     type: integer
+        '400':
+          description: Invalid value, such as a usage URL the server refuses to call
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/rate-limit-hold/reset:
     post:
@@ -9800,6 +10481,8 @@ paths:
                     type: string
         '404':
           description: No ID is stored (error "not_configured")
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/youtube/sb-user-id/generate:
     post:
       tags:
@@ -9827,6 +10510,8 @@ paths:
                     maxLength: 48
         '409':
           description: Error "configured" when an ID is already stored, or "provider_crypto_unavailable" when secret encryption is unavailable
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/youtube/reset:
     post:
       tags:
@@ -10290,11 +10975,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /settings/webhooks/validate-template:
     post:
@@ -10332,11 +11013,7 @@ paths:
                     type: [string, 'null']
                     description: Error message (when invalid)
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /settings/notifications/timezone:
     get:
@@ -10445,11 +11122,7 @@ paths:
                   message:
                     type: string
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/bulk:
     post:
@@ -10514,6 +11187,8 @@ paths:
                     description: Present for process/reprocess/reprocess_full/reprocess_llm actions. Bulk enqueues never start processing synchronously, so this is queued whenever anything was queued, else idle. Not present for delete.
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/passthrough:
     post:
@@ -10618,6 +11293,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/import/upload:
     post:
@@ -10917,6 +11594,8 @@ paths:
                   deleted:
                     type: integer
                     description: Number of pending items removed
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /patterns/bulk-delete:
     post:
@@ -11389,6 +12068,8 @@ paths:
                   skipped: { type: integer }
         '404':
           description: Feed not found
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /sponsors/{sponsor_id}/tags:
     put:
@@ -11557,6 +12238,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
     delete:
       summary: Restore the default replacement audio
       description: Removes an uploaded file so the shipped default applies again.
@@ -11701,7 +12384,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CommunitySyncSummary' }
         '429':
-          description: Rate-limited
+          $ref: '#/components/responses/RateLimited'
         '502':
           description: Manifest fetch or apply failed
 
@@ -13083,6 +13766,20 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    DatabaseCheckpointResult:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [passive, truncate]
+        busy:
+          type: boolean
+        logPages:
+          type: integer
+        checkpointedPages:
+          type: integer
+        durationMs:
+          type: number
     YoutubeCookiesStatus:
       type: object
       properties:
@@ -14446,6 +15143,11 @@ components:
             sourceContext:
               type: string
               description: Optional retained source transcript around the reviewed pattern, with its span marked by double brackets. Absent when unavailable.
+        fingerprintStored:
+          type: boolean
+          description: Returned by approve and undo only. Whether an audio fingerprint was stored. Absent when no audio was involved.
+        fingerprintSkippedReason:
+          $ref: '#/components/schemas/FingerprintSkippedReason'
         applied:
           type: [object, 'null']
           description: >-
@@ -14468,6 +15170,9 @@ components:
               type: string
             sponsorId:
               type: integer
+            audioSource:
+              type: [object, 'null']
+              description: Source episode span of the pattern's fingerprint when it was approved, used to restore audio on undo. Null when it had none.
             after:
               type: object
               description: Post-approval values of fields owned by this change.
@@ -14925,6 +15630,16 @@ components:
             - normal
             - low
           description: Per-feed auto-process queue priority (issue 625), always resolved to one of the three values ('normal' covers both an explicit normal setting and no override). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting.
+        queueOrder:
+          type:
+            - string
+            - 'null'
+          enum:
+            - queued
+            - oldest_first
+            - newest_first
+            - null
+          description: Order of this feed's queued episodes within one priority. 'queued' keeps the order they were queued in, 'oldest_first' and 'newest_first' follow the publish date (undated episodes go last). null follows the global queueOrder setting.
         lowAdYieldAction:
           type:
             - string
@@ -16693,6 +17408,30 @@ components:
           type: [number, 'null']
           description: confirmed / (confirmed + rejected), or null if none reviewed
 
+    FingerprintSkippedReason:
+      type: string
+      enum:
+        - audio_removed
+        - fingerprint_exists
+        - span_covers_multiple_patterns
+        - span_not_found
+        - original_not_retained
+        - segment_too_short
+        - not_distinctive
+        - fingerprint_failed
+      description: >-
+        Why no fingerprint was stored. Present only when fingerprintStored is false.
+        Both fields are absent when the request created or linked no pattern.
+        When patterns differ, the first reason in this order is reported.
+        audio_removed means the pattern's audio was deleted. fingerprint_exists means
+        the pattern already has a fingerprint that Add ad and confirm do not replace.
+        span_covers_multiple_patterns means the text was split into several patterns and
+        this one's own range could not be found. span_not_found means a split or trim
+        could not locate the pattern's own text in the source transcript. original_not_retained means the episode
+        keeps no original. segment_too_short means the span is under the minimum ad length.
+        not_distinctive means the span has too little distinctive audio to reach the
+        minimum coverage setting, so it could never be matched, and a forced rebuild
+        does not bypass it. fingerprint_failed means the audio could not be fingerprinted.
     AdMarker:
       type: object
       properties:
@@ -16717,6 +17456,21 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
           description: Which detection stage found this ad
           example: first_pass
+        pattern_id:
+          type: [integer, 'null']
+          description: The ad pattern this marker matched or created, when any.
+        patternAudioState:
+          type: string
+          enum: [active, 'off', none]
+          description: >-
+            Audio fingerprint state of the marker's pattern. Present only when the
+            marker's pattern_id refers to an existing pattern; absent for a deleted
+            pattern or no pattern.
+        merged_stages:
+          type: array
+          items:
+            type: string
+          description: Every detection stage that contributed to a merged marker. Absent on markers that were never merged and on markers saved before this field existed.
         corroborated_by:
           type: string
           enum: [transition_pair, template_cue, volume_anomaly, splice_evidence, dai_differential, transcript_differential]
@@ -16896,6 +17650,10 @@ components:
         sponsor: {type: [string, 'null']}
         reason: {type: [string, 'null']}
         patternId: {type: [integer, 'null']}
+        patternAudioState:
+          type: string
+          enum: [active, 'off', none]
+          description: Audio fingerprint state of the detection's pattern. Present only when patternId refers to an existing pattern; absent for a deleted pattern or no pattern.
         detectionStage: {type: [string, 'null']}
         category:
           type: [string, 'null']
@@ -17561,6 +18319,95 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        fingerprintEnabled:
+          type: object
+          description: Whether audio fingerprint matching is on (default true).
+          properties:
+            value:
+              type: boolean
+              default: true
+            isDefault:
+              type: boolean
+        fingerprintMatchStrictness:
+          type: object
+          description: Lowest similarity that counts as a match (default 0.65, range 0.65 to 0.95).
+          properties:
+            value:
+              type: number
+              default: 0.65
+              minimum: 0.65
+              maximum: 0.95
+            isDefault:
+              type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
+        fingerprintMinCoverage:
+          type: object
+          description: Share of the stored ad that must be found for a match with under 20 seconds of matching evidence (default 0.5, range 0.1 to 1). A match with 20 seconds or more is accepted below it, and only the matched part is cut.
+          properties:
+            value:
+              type: number
+              default: 0.5
+              minimum: 0.1
+              maximum: 1
+            isDefault:
+              type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
+        fingerprintGapToleranceS:
+          type: object
+          description: Longest dropout bridged inside one match, seconds (default 3.5, range 0 to 15).
+          properties:
+            value:
+              type: number
+              default: 3.5
+              minimum: 0
+              maximum: 15
+            isDefault:
+              type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
+        fingerprintMinAdLengthS:
+          type: object
+          description: Shortest span that gets a fingerprint, seconds (default 5, range 3 to 30).
+          properties:
+            value:
+              type: number
+              default: 5
+              minimum: 3
+              maximum: 30
+            isDefault:
+              type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
         silenceSnapNoiseDb:
           type: object
           description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
@@ -17783,6 +18630,36 @@ components:
               maximum: 32
             isDefault:
               type: boolean
+        sessionLifetimeHours:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 8760
+            isDefault:
+              type: boolean
+            min:
+              type: integer
+              description: Lowest accepted value.
+            max:
+              type: integer
+              description: Highest accepted value.
+        sessionRememberDays:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 365
+            isDefault:
+              type: boolean
+            min:
+              type: integer
+              description: Lowest accepted value.
+            max:
+              type: integer
+              description: Highest accepted value.
         maxArtworkBytes:
           type: object
           properties:
@@ -18185,6 +19062,20 @@ components:
               enum: ['auto', 'generate', 'off']
             isDefault:
               type: boolean
+        queueOrder:
+          type: object
+          description: Default order of a feed's queued episodes within one priority.
+          properties:
+            value:
+              type: string
+              enum: ['queued', 'oldest_first', 'newest_first']
+            isDefault:
+              type: boolean
+            options:
+              type: array
+              items:
+                type: string
+              description: Accepted values.
         skipSecondPass:
           type: object
           description: Skip the pass-2 verification scan by default for feeds that inherit this setting.
@@ -18309,9 +19200,12 @@ components:
           properties:
             value:
               type: string
-              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible)
+              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible, none)
             isDefault:
               type: boolean
+        llmEnabled:
+          type: boolean
+          description: False when the LLM provider is none, so no model is called. Read-only.
         omitTemperature:
           type: object
           description: |
@@ -18850,6 +19744,29 @@ components:
               type: integer
               minimum: 1
               maximum: 32
+            sessionLifetimeHours:
+              type: integer
+            sessionRememberDays:
+              type: integer
+            fingerprintEnabled:
+              type: boolean
+            fingerprintGapToleranceS:
+              type: number
+            fingerprintMatchStrictness:
+              type: number
+            fingerprintMinAdLengthS:
+              type: number
+            fingerprintMinCoverage:
+              type: number
+            queueOrder:
+              type: string
+              enum: [queued, oldest_first, newest_first]
+            queueFreshBoost:
+              type: integer
+            queueManualBoost:
+              type: integer
+            queueBulkBoost:
+              type: integer
             maxArtworkBytes:
               type: integer
             maxRssBytes:
@@ -19537,6 +20454,200 @@ components:
             or creation timestamp is also older than 365 days. unproven: no
             recent local match, but not stale; includes all local
             (non-community) patterns, which are never 'stale'.
+        audio_removed:
+          type: integer
+          enum: [0, 1]
+          description: 1 when the operator removed this pattern's audio fingerprint, so automatic fingerprinting skips it; 0 otherwise. Stored as an integer flag, not a boolean.
+        audio:
+          $ref: '#/components/schemas/PatternAudioSummary'
+
+    PatternAudioSummary:
+      type: object
+      description: >-
+        Audio fingerprint summary on a pattern, computed in the database with no
+        file checks. `available` is true when the episode the fingerprint was
+        built from, or the episode of a non-rejected match, still has its
+        original retained. `GET /patterns/{pattern_id}/audio` does the real file
+        check.
+      required: [state, available, matchCount, meanSimilarity]
+      properties:
+        state:
+          type: string
+          enum: [active, 'off', none]
+        available:
+          type: boolean
+        matchCount:
+          type: integer
+          description: Matches not marked "not this ad".
+        meanSimilarity:
+          type:
+            - number
+            - 'null'
+
+    PatternAudioSpan:
+      type: object
+      properties:
+        podcastSlug:
+          type: string
+        episodeId:
+          type: string
+        start:
+          type: number
+          description: Seconds into the episode's original audio
+        end:
+          type: number
+
+    PatternAudioMatch:
+      type: object
+      properties:
+        id:
+          type: integer
+        episodeId:
+          type: string
+        podcastSlug:
+          type: string
+        episodeTitle:
+          type:
+            - string
+            - 'null'
+        start:
+          type: number
+          description: Measured start of the match in seconds
+        end:
+          type: number
+        similarity:
+          type:
+            - number
+            - 'null'
+        coverage:
+          type:
+            - number
+            - 'null'
+        storedLength:
+          type:
+            - number
+            - 'null'
+          description: Length of the pattern's stored fingerprint in seconds.
+        inScope:
+          type: boolean
+        audioOnly:
+          type:
+            - boolean
+            - 'null'
+          description: True when no other detection stage flagged the same span.
+        rejected:
+          type: boolean
+          description: Marked "not this ad".
+        available:
+          type: boolean
+          description: Whether the episode's original audio is retained now.
+        createdAt:
+          type: string
+          format: date-time
+
+    PatternAudioDetail:
+      type: object
+      required: [state, available, matchable, counts]
+      properties:
+        state:
+          type: string
+          enum: [active, 'off', none]
+          description: "`none` means the pattern has no fingerprint."
+        available:
+          type: boolean
+          description: Whether any source episode still has a playable original.
+        matchable:
+          type: boolean
+          description: >-
+            False when the stored fingerprint cannot be matched under the current
+            minimum coverage setting, for example after the setting was raised.
+            True when the pattern has no fingerprint.
+        length:
+          type:
+            - number
+            - 'null'
+          description: Length of the stored fingerprint in seconds.
+        createdAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        builtFrom:
+          description: >-
+            The episode span the fingerprint was built from; null when unknown. For a
+            fingerprint stored before sources were recorded it is the newest retained
+            in-scope match, and a rebuild records it.
+          oneOf:
+            - type: 'null'
+            - allOf:
+                - $ref: '#/components/schemas/PatternAudioSpan'
+                - type: object
+                  properties:
+                    available:
+                      type: boolean
+                      description: Whether that episode's original is retained now.
+        source:
+          description: The playable span preview uses; null when no source is playable.
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/PatternAudioSpan'
+        editSource:
+          description: >-
+            The span Edit edges uses: the newest non-rejected, in-scope match whose
+            original is retained, then the recorded source. Null when neither is
+            available. The recorded source stays in builtFrom even after it expires.
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/PatternAudioSpan'
+        addSource:
+          description: >-
+            Only for a pattern with no fingerprint: the span of its own marker that a
+            fingerprint could be built from. The origin episode is used when it
+            qualifies, otherwise the 5 most recently processed episodes that keep
+            their original and hold a confirmation, creation or boundary correction
+            of the pattern, then the 5 most recent in-scope episodes that keep their
+            original and store an accepted marker of the pattern, or a merged member of one (the member's own span, clipped to its marker). An origin episode of
+            a pattern with no podcast is looked up by episode id within the pattern's
+            scope. It uses the pre-trim span of a reviewer-adjusted marker
+            and the earliest marker when there are several. When no marker source with a
+            retained original exists, the 10 newest in-scope episodes that keep their
+            original and its transcript are searched for the pattern's own text, and the
+            first matched span is returned. Null when the pattern has a fingerprint or
+            neither search finds a source.
+          oneOf:
+            - type: 'null'
+            - allOf:
+                - $ref: '#/components/schemas/PatternAudioSpan'
+                - type: object
+                  properties:
+                    available:
+                      type: boolean
+                      description: Whether that episode's original is retained now.
+        counts:
+          type: object
+          properties:
+            matches:
+              type: integer
+              description: Matches not marked "not this ad".
+            rejected:
+              type: integer
+            outOfScope:
+              type: integer
+              description: Non-rejected matches found outside the pattern's scope.
+        meanSimilarity:
+          type:
+            - number
+            - 'null'
+          description: Mean similarity of the non-rejected matches that recorded one.
+        lastMatchedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Newest match not marked "not this ad"; null when there is none.
+        historyBackfillPending:
+          type: boolean
+          description: True while the one-time fill of match history from older episodes is still running, so the counts are not final.
 
     Network:
       type: object
@@ -20390,6 +21501,32 @@ components:
           type: integer
         details:
           type: [object, 'null']
+        code:
+          type: string
+          description: >-
+            Machine-readable reason, present on some 404 and 409 responses.
+            `llm_disabled` means the action needs an LLM and the LLM provider is
+            set to none. `no_audio` means the pattern has no audio fingerprint.
+            `original_not_retained` means no source episode keeps its original audio.
+          example: llm_disabled
+
+    RateLimitError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [retryAfterSeconds]
+          properties:
+            retryAfterSeconds:
+              type: integer
+              minimum: 1
+              description: The same wait as the Retry-After header, in whole seconds.
+
+  headers:
+    RetryAfter:
+      description: Whole seconds to wait before trying again, at least 1.
+      schema:
+        type: integer
+        minimum: 1
 
   responses:
     BadRequest:
@@ -20418,9 +21555,50 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
 
+    UnknownApiPath:
+      description: >-
+        No route matches the path under /api/. This includes an id too large
+        for the route. A route that finds no record answers with its own message instead.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Not found
+            status: 404
+
+    MethodNotAllowed:
+      description: >-
+        The path exists under /api/ but not for this method. The Allow header lists the methods it accepts.
+      headers:
+        Allow:
+          description: Methods the path accepts.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Method not allowed
+            status: 405
+
     ServerError:
       description: Internal server error
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: >-
+        Too many requests from this client under the route's own limit or the
+        default limit of 200 a minute and 1000 an hour. The Retry-After header
+        and retryAfterSeconds both give the wait in whole seconds.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'

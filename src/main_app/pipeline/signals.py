@@ -14,6 +14,7 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 
+from utils.http import redact_exc
 from utils.time import (
     parse_iso_utc, utc_now_iso,
 )
@@ -28,7 +29,7 @@ from config import (
 from database.podcasts import has_upstream_audio, is_youtube_feed
 from transcript_differential import align, fetch_upstream_transcript
 from splice_calibration import compute_splice_calibration
-from user_agent import download_user_agent
+from user_agent import download_user_agent, feed_user_agent, settled_download_user_agent
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, audio_analyzer)
@@ -36,18 +37,17 @@ from main_app.pipeline.shared import (db, audio_analyzer)
 audio_logger = logging.getLogger('podcast.audio')
 
 
-def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):
+def _run_audio_analysis(slug, episode_id, audio_path, force_cue_detection=False):
     """Pipeline stage: Run volume + transition detection on audio."""
     common._publish_status('update_job_stage', slug, episode_id, "pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
     try:
         # Resolve the feed PK so the cue analyzer can pick a per-feed template
         # matcher when the user has marked any (issue #350).
-        podcast_row = db.get_podcast_by_slug(slug)
+        podcast_row = db.get_podcast_row(slug)
         feed_id = podcast_row.get('id') if podcast_row else None
         result = audio_analyzer.analyze(
             audio_path,
-            transcript_segments=segments,
             feed_id=feed_id,
             force_cue_detection=force_cue_detection,
             status_callback=lambda stage, progress: common._publish_status(
@@ -79,10 +79,9 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detect
 def _make_validator_audio_analysis(audio_analysis_result, dai_differential):
     """Build the audio_analysis dict passed to AdValidator.
 
-    Carries dai_differential even when Layer 2 (audio analysis) returned None
-    so that a Layer 2 failure does not suppress Layer 3 (cross-fetch
-    differential) corroboration. Mirrors the recut path which manually merges
-    dai_differential into the stored audio_analysis dict.
+    Carries dai_differential even when Layer 2 (audio analysis) returned None,
+    so a Layer 2 failure does not suppress Layer 3 (cross-fetch differential)
+    corroboration. Mirrors the recut path's merge into the stored audio_analysis.
     """
     if audio_analysis_result is not None:
         return audio_analysis_result.to_dict()
@@ -95,10 +94,9 @@ def _feed_cue_matcher(podcast_id):
     """The feed's template cue matcher for differential cue fusion, or None.
 
     Reuses the analyzer's resolver (master toggle, per-feed templates, score
-    threshold, formant profile) so both scans agree on what counts as a cue;
-    the spectral fallback detector is deliberately excluded -- only precise
-    template matches may anchor alignment or corroborate a differential.
-    Never raises.
+    threshold, formant profile) so both scans agree on what is a cue. The
+    spectral fallback detector is excluded: only precise template matches may
+    anchor alignment or corroborate a differential. Never raises.
     """
     if podcast_id is None:
         return None
@@ -157,24 +155,21 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
                             primary_cue_future=None, download_outcome=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
 
-    Runs when the per-feed flag is on, or -- when the flag is unset -- when
-    the feed looks DAI-served (a detected platform or a DAI-prefix enclosure
-    URL), so inserted ads are caught on the first processing without manual
-    opt-in (#519). An explicit per-feed 0 still disables it.
+    Runs when the per-feed flag is on, or when the flag is unset and the feed
+    looks DAI-served (a detected platform or a DAI-prefix enclosure URL), so
+    inserted ads are caught on first processing (#519). An explicit per-feed 0
+    still disables it.
 
-    Returns the fetch_and_diff result dict, or None when the stage is
-    skipped or an unexpected failure occurs. Never raises (except
-    ProcessingCancelled): the flag read, fetch, and store are all guarded so
-    nothing here can fail the episode. The pipeline continues.
+    Returns the fetch_and_diff result dict, or None when skipped or on an
+    unexpected failure. Never raises (except ProcessingCancelled): flag read,
+    fetch and store are guarded so nothing here can fail the episode.
 
-    Runs on a worker thread; it must never stamp job status. The caller
-    stamps pass1:differential from the main thread before starting the
-    worker, so an abandoned worker (episode failed meanwhile) can never
+    Runs on a worker thread and must never stamp job status; the caller stamps
+    pass1:differential from the main thread first, so an abandoned worker cannot
     stamp a different job.
 
-    `podcast`: the caller's already-fetched podcast row (avoids a redundant
-    per-episode db.get_podcast_by_slug on this worker thread). None is
-    treated as non-local, matching the behavior when no row is available.
+    `podcast`: the caller's already-fetched podcast row, avoiding a per-episode
+    db.get_podcast_by_slug on this thread. None is treated as non-local.
     """
     if not has_upstream_audio(podcast):
         audio_logger.debug(
@@ -237,7 +232,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
             result = {'status': 'error', 'regions': [], 'refetch_meta': {},
-                      'error': str(e)}
+                      'error': redact_exc(e)}
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
         try:
@@ -273,7 +268,7 @@ def _reusable_transcript_diff(stored, url):
 
 
 def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, podcast=None,
-                         segments_reused=False):
+                         download_outcome=None, segments_reused=False):
     """Diff the publisher transcript; reuse results only when transcript segments were reused."""
     url = (episode_row or {}).get('upstream_transcript_url')
     payload = {'status': 'none', 'source_url': url, 'mime': None, 'timed': None,
@@ -305,7 +300,8 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                     try:
                         transcript = fetch_upstream_transcript(
                             url, episode_row.get('upstream_transcript_type'),
-                            user_agent=download_user_agent(podcast))
+                            user_agent=settled_download_user_agent(download_outcome, podcast),
+                            fallback_user_agent=feed_user_agent(podcast))
                         if transcript is None:
                             fail('fetch or parse failed')
                         else:

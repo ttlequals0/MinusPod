@@ -1,11 +1,9 @@
 """Shared module-level app bootstrap for tests.
 
-Many test modules import main_app (or other src modules that construct the
-Database/Storage singletons at import time). Those singletons default to
-/app/data, so each module must mint a temp data dir and rebind the defaults
-BEFORE the first src import. Call bootstrap() at the very top of the test
-module, before importing main_app or anything that instantiates Database()
-or Storage():
+The Database/Storage singletons are built at import time and default to
+/app/data, so each test module must mint a temp data dir and rebind the defaults
+before the first src import. Call bootstrap() at the very top of the module,
+before importing main_app or anything that instantiates Database() or Storage():
 
     from tests.app_bootstrap import bootstrap
 
@@ -15,13 +13,12 @@ Notes:
 - Once main_app is imported, later module collection reuses its data directory.
   Resetting the Database singleton while imported modules retain the original
   database object splits one test across two database files.
-- reset_storage=True additionally clears the Storage singleton so the next
-  Storage() call constructs one rooted at the new data dir. Off by default
-  because modules that never re-instantiate Storage should keep whatever
-  instance an earlier module's main_app import created.
-- model_env sets OPENAI_MODEL so a seeded DB gets a model, mirroring the
-  SECRET_KEY setdefault (first bootstrap() call wins). Pass model_env=None
-  to opt out; the env var may persist from an earlier module regardless.
+- reset_storage=True also clears the Storage singleton so the next Storage() is
+  rooted at the new data dir. Off by default so modules that never re-instantiate
+  Storage keep the instance an earlier main_app import created.
+- model_env sets OPENAI_MODEL so a seeded DB gets a model (first bootstrap() call
+  wins, like SECRET_KEY). Pass model_env=None to opt out; the env var may persist
+  from an earlier module regardless.
 """
 import atexit
 import os
@@ -36,11 +33,10 @@ _SRC_DIR = os.path.abspath(
 
 def bootstrap(prefix, secret_key='test-secret', passphrase=None,
               reset_storage=False, model_env='test-model'):
-    """Create a temp data dir and point the app singletons at it.
+    """Create a temp data dir and point the app singletons at it; returns the path.
 
-    Returns the created data dir path. Environment (SECRET_KEY, DATA_DIR,
-    OPENAI_MODEL, optionally MINUSPOD_MASTER_PASSPHRASE) is set before any
-    src import so modules that read env at import time see the test values.
+    Env (SECRET_KEY, DATA_DIR, OPENAI_MODEL, optionally MINUSPOD_MASTER_PASSPHRASE)
+    is set before any src import so import-time env reads see the test values.
     """
     os.environ.setdefault('SECRET_KEY', secret_key)
     if passphrase is not None:
@@ -77,9 +73,7 @@ def bootstrap(prefix, secret_key='test-secret', passphrase=None,
 def ensure_model_configured(db, model='test-model'):
     """Ensure claude_model is set so model resolvers do not raise.
 
-    No-op if already seeded from OPENAI_MODEL; call after DB construction
-    for a path (e.g. temp_db) that may not have OPENAI_MODEL in its env.
-    """
+    No-op if already seeded from OPENAI_MODEL; for paths (e.g. temp_db) without it in env."""
     if not db.get_setting('claude_model'):
         db.set_setting('claude_model', model, is_default=True)
     return model

@@ -1,9 +1,7 @@
-"""Channel-level <podcast:podping> ingestion, per the podping tag spec.
+"""Channel-level <podcast:podping> ingestion per the podcast-namespace podping spec.
 
-Spec: proposal-docs/podping/podping.md in podcast-namespace. The optional
-usesPodping attribute opts a feed out of podping, and each nested
-<podcast:hiveAccount account="..."/> names an account allowed to podping
-this feed.
+The optional usesPodping attribute opts a feed out; each nested <podcast:hiveAccount account="..."/>
+names an account allowed to podping this feed.
 """
 import os
 import sys

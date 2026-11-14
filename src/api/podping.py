@@ -4,7 +4,7 @@ import logging
 
 from flask import request
 
-from api import api, get_database, json_response, log_request
+from api import api, error_response, get_database, json_response, log_request
 from config import PODPING_HOST_ACTIVE_DAYS
 from podping_listener import (
     DEGRADED_SETTING, DEGRADED_SINCE_SETTING, PODPING_NODE_SETTING,
@@ -34,7 +34,7 @@ def update_podping_node_settings():
     try:
         nodes = normalize_podping_nodes(payload['nodes'])
     except ValueError as exc:
-        return json_response({'error': str(exc)}, 400)
+        return error_response(str(exc), 400)
     db = get_database()
     db.set_setting(PODPING_NODE_SETTING, json.dumps(nodes))
     return json_response({'nodes': nodes, 'defaults': list(PODPING_NODES)})
@@ -55,10 +55,8 @@ def reset_podping_node_settings():
 @log_request
 def list_podping_hosts():
     """Domains seen sending podpings on the Hive chain, newest activity first.
-
-    Counts are per domain rather than per notification; the listener aggregates
-    as it goes, so there is no ping-by-ping history to return.
-    """
+    Counts are per domain, not per notification: the listener aggregates as it goes, so there is no
+    ping-by-ping history."""
     db = get_database()
     limit = min(max(1, request.args.get('limit', 100, type=int)), 500)
     # Compared per row rather than against a materialized set: the table is

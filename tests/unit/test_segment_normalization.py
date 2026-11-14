@@ -42,10 +42,8 @@ def make_words_from_text(text: str,
                          start: float|int,
                          end: float|int|None = None
                          ) -> list[WordSegmentLike]:
-    """
-    Generate a list of word segments from the given text, distributed evenly
-    between start and end. If end is not provided, it defaults to start + len(words).
-    """
+    """Generate word segments from the text, distributed evenly between start and end (default end:
+    start + len(words))."""
     words = text.split()
     if not words:
         return []

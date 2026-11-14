@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { PatternScope } from './patterns';
+import type { FingerprintOutcome, PatternScope } from './patterns';
 import type { SegmentCategory } from '../utils/segmentCategory';
 
 export const patternCleanupQueryKey = ['patternCleanup'] as const;
@@ -29,7 +29,7 @@ export interface PatternCleanupStatus extends PatternCleanupSettings {
   pending: { total: number; byKind: Partial<Record<CleanupKind, number>> };
 }
 
-export interface PatternCleanupRun {
+interface PatternCleanupRun {
   id: number;
   startedAt: string | null;
   finishedAt: string | null;
@@ -67,7 +67,7 @@ export interface FlagPayload {
 }
 
 // Pattern snapshot taken when the suggestion was made.
-export interface CleanupBefore {
+interface CleanupBefore {
   textTemplate: string | null;
   category?: SegmentCategory | null;
   sourceContext?: string | null;
@@ -78,7 +78,7 @@ export interface CleanupBefore {
   disabledReason: string | null;
 }
 
-export interface CleanupPatternSummary {
+interface CleanupPatternSummary {
   id: number;
   sponsor: string | null;
   scope: PatternScope;
@@ -91,7 +91,7 @@ export interface CleanupPatternSummary {
   createdAt: string | null;
 }
 
-export interface PatternCleanupSuggestion {
+export interface PatternCleanupSuggestion extends FingerprintOutcome {
   id: number;
   runId: number | null;
   patternId: number;
@@ -108,7 +108,7 @@ export interface PatternCleanupSuggestion {
   pattern?: CleanupPatternSummary;
 }
 
-export interface SuggestionQuery {
+interface SuggestionQuery {
   status?: CleanupStatus;
   kind?: CleanupKind;
   limit?: number;
@@ -117,7 +117,7 @@ export interface SuggestionQuery {
   beforeId?: number;
 }
 
-export type BulkResult = { id: number; status: CleanupStatus } | { id: number; error: 'not_found' | 'invalid_transition' };
+type BulkResult = ({ id: number; status: CleanupStatus } & FingerprintOutcome) | { id: number; error: 'not_found' | 'invalid_transition' };
 
 export async function getPatternCleanupStatus(): Promise<PatternCleanupStatus> {
   return apiRequest<PatternCleanupStatus>('/patterns/cleanup');

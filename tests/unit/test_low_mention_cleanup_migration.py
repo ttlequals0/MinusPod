@@ -1,20 +1,8 @@
-"""Tests for the 2.5.13 _cleanup_low_mention_patterns migration.
-
-The migration retires structurally-shaped false-positive patterns without
-touching patterns that have already matched real ads. Conditions:
-
-  Criterion 1: occurrences<2 AND created_by='auto' AND conf=0 AND fp=0
-  Criterion 2a: sponsor starts with a SPONSOR_REASONING_PREFIXES entry
-  Criterion 2b: sponsor ends with an LLM-suffix tell
-  Criterion 2c: sponsor not canonical AND no variant appears in template
-
-Reversible per row. Idempotent via low_mention_cleanup_revision settings flag.
-
-The audit on this prod (177 active patterns) identified 8 conf>0 patterns in
-the 1-mention bucket that legitimate or arguably-legitimate match real ads
-(SoFi conf=7, Chubbiesshorts conf=5, etc). The naive 2.5.13a migration would
-have wrongly killed them; this rewrite must not.
-"""
+"""2.5.13 _cleanup_low_mention_patterns migration: retires false-positive patterns that never matched a real ad.
+Criteria: 1) occurrences<2 AND created_by='auto' AND conf=0 AND fp=0; 2a) sponsor starts with a
+SPONSOR_REASONING_PREFIXES entry; 2b) sponsor ends with an LLM-suffix tell; 2c) sponsor not
+canonical AND no variant in template. Reversible, idempotent via low_mention_cleanup_revision;
+conf>0 patterns must survive."""
 import os
 import sys
 
@@ -80,10 +68,8 @@ def test_low_mention_auto_never_matched_is_disabled(db):
 
 
 def test_low_mention_with_confirmation_is_kept(db):
-    """A 1-mention pattern that has matched real ads (conf>0) is left alone
-    even though it sits in the low-mention bucket. We cannot tell legit-but-
-    rare from bad-but-self-boosted here, so the conservative choice is to
-    keep it for human review."""
+    """A 1-mention pattern that has matched real ads (conf>0) is left alone: legit-but-rare cannot be told from
+    bad-but-self-boosted here, so it is kept for human review."""
     pid = _make_pattern(
         db, 'SoFi',
         template="SoFi can help you save. (one mention only).",

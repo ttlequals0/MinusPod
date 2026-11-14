@@ -77,10 +77,8 @@ class TestExtractSponsorsExcludesOwnSite:
 class TestReasonKeepsItsDescription:
     """A bare sponsor name must not swallow the note that explains the read.
 
-    The name is both a prefix of its own description and a full word subset of
-    it, so the duplicate check discarded the description and left markers
-    reading only "Box" or "Gusto". A long ad then failed the evidence gate and
-    was dropped outright.
+    The name is both a prefix and a full word subset of its description, so the duplicate check discarded
+    the description and a long ad then failed the evidence gate.
     """
 
     NOTE = ("Box sponsor read begins at 'This episode is brought to you by "
@@ -298,9 +296,8 @@ class TestBrandFurtherFromTheReadPhrase:
 
 
 class TestAdvertisersListedAfterAColon:
-    """A break that names its advertisers after a colon matched nothing, so
-    the ad-evidence gate saw no sponsor and dropped a real 158s break as
-    content. A hyphenated compound before "sponsor" also captured a fragment.
+    """A break that names its advertisers after a colon must still match, and a hyphenated compound before
+    "sponsor" must not capture a fragment; otherwise the evidence gate drops a real break as content.
     """
 
     def _extract(self, text):

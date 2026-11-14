@@ -1,12 +1,7 @@
 """Tests for the iTunes + standard RSS channel-metadata passthrough.
 
-Apple Podcasts and most podcast apps require several iTunes channel tags
-(author, category, explicit, owner) to ingest a feed; without them apps
-silently drop the feed or refuse to render artwork. Before this work the
-served feed only emitted title/link/description/language/image at
-channel scope, so feeds whose web-UI artwork looked fine still showed
-no cover in subscribers' apps.
-"""
+Apple Podcasts and most apps need iTunes channel tags (author, category, explicit, owner) to ingest
+a feed or show artwork."""
 import re
 
 import defusedxml
@@ -93,9 +88,8 @@ class TestItunesPassthrough:
 
 class TestItunesNewFeedUrlStripped:
     def test_itunes_new_feed_url_must_not_leak(self):
-        # CRITICAL: if this passes through, podcast apps interpret it as a
-        # migration signal and move every MinusPod subscriber to the
-        # upstream feed URL. Never carry through.
+        # Critical: if passed through, apps read it as a migration signal and move
+        # every subscriber to the upstream feed URL.
         out = _served(
             '<itunes:new-feed-url>https://upstream.example.com/migrate.xml</itunes:new-feed-url>'
         )

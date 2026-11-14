@@ -304,9 +304,9 @@ def get_email_notification_settings():
 def update_email_notification_settings():
     """Update email notification settings.
 
-    Partial body; smtpPassword is write-only (empty string clears it).
-    Validation stages every field first and one transaction applies them, so
-    neither a late 400 nor a failed write leaves part of the payload saved.
+    Partial body; smtpPassword is write-only (empty string clears it). Every field is
+    validated first and one transaction applies them, so neither a late 400 nor a failed
+    write leaves part of the payload saved.
     """
     db = get_database()
     data = request.get_json() or {}

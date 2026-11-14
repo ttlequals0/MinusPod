@@ -72,19 +72,19 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                             strict_pair_roles=False, episode_duration=0.0,
                             run_stats=None, recurrence_spans=None,
                             action_map=None, transcript_spans=None):
-    """Pipeline stage: Run first-pass Claude ad detection.
+    """Pipeline stage: run first-pass ad detection.
 
-    ``keep_content``: None lets the detector resolve the per-feed mode from
-    the DB at detection time (the pipeline passes None so a detection_mode
-    toggle during the minutes-long download/transcription window is
-    honored); True/False forces the mode without a DB read.
+    ``keep_content``: None lets the detector resolve the per-feed mode from the
+    DB at detection time (the pipeline passes None so a detection_mode toggle
+    during the long download/transcription window is honored); True/False
+    forces the mode without a DB read.
     ``skip_llm``/``force_create_from_pairs``/``strict_pair_roles``: cue_only
-    preset plumbing. ``episode_duration`` backstops the cue-pair fraction
-    guard when transcription (and its segment list) is skipped.
-    ``run_stats``: caller's run_stats dict; stamped with detection_degraded
-    when pass 1 fails but publishes on pattern/cross-fetch markers alone.
-    ``recurrence_spans``: optional cross-episode text-recurrence spans
-    (hushpod adoption); rendered per-window, pass-1 only.
+    preset plumbing. ``episode_duration`` backstops the cue-pair fraction guard
+    when transcription is skipped.
+    ``run_stats``: stamped with detection_degraded when pass 1 fails but
+    publishes on pattern/cross-fetch markers alone.
+    ``recurrence_spans``: optional cross-episode text-recurrence spans, rendered
+    per window, pass-1 only.
     ``action_map``: the run's resolved category actions, shared with detection.
     ``transcript_spans``: upstream transcript gaps for detector stage 2.6.
 
@@ -154,12 +154,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             db.upsert_episode(slug, episode_id, ad_detection_status='failed')
             raise typed
         # Degraded continue: a transient, non-auth failure that still left
-        # pattern/cross-fetch markers publishes those instead of failing the
-        # episode. Auth-class failures and zero markers still raise.
-        # A partial window failure (some windows answered) is excluded: the
-        # provider is working well enough that a retry will likely complete,
-        # so publishing pattern-only cuts permanently would discard the LLM
-        # markers the successful windows found. Only a total outage degrades.
+        # pattern/cross-fetch markers publishes those instead of failing.
+        # Auth-class failures and zero markers still raise. A partial window
+        # failure is excluded (a retry will likely complete, and pattern-only cuts
+        # would discard the successful windows' markers); only a total outage degrades.
         windows_total = ad_result.get('windows_total') or 0
         windows_failed = ad_result.get('windows_failed') or 0
         partial_window_failure = 0 < windows_failed < windows_total
@@ -195,12 +193,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     snap_lag = cue_settings['snap_lag']
     allow_transition = cue_settings['transition_snap_enabled']
 
-    # Cue-pair ad synthesis (opt-in): when the LLM missed a break that the cue
-    # matcher bracketed with two high-confidence cues, materialize a synthetic
-    # ad spanning the pair so downstream cuts include the missed break. Off by
-    # default because it breaks the "cue is supporting evidence only" contract;
-    # enable per the audio_cue_create_from_pairs setting once the matcher is
-    # trusted. The reviewer still evaluates every synthesized ad (issue #350).
+    # Cue-pair ad synthesis (opt-in): when the LLM missed a break bracketed by two
+    # high-confidence cues, synthesize an ad spanning the pair. Off by default
+    # because it breaks the "cue is supporting evidence only" contract
+    # (audio_cue_create_from_pairs); the reviewer still evaluates every one (#350).
     cue_pair_skip_diagnostics = {}
     if audio_analysis_result and (cue_settings['create_from_pairs'] or force_create_from_pairs):
         try:
@@ -247,11 +243,9 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 f"[{slug}:{episode_id}] Cue cut skipped: {e}"
             )
 
-    # Snap both ad edges to nearby audio cues when the analyzer flagged any.
-    # Capped by the reviewer's max_boundary_shift setting so a misfiring cue
-    # cannot warp the boundary beyond what the user has authorised. Implicitly
-    # gated: there are no audio_cue signals unless cue detection ran, so this
-    # is a no-op when the master toggle is off (issue #350).
+    # Snap both ad edges to nearby audio cues, capped by the reviewer's
+    # max_boundary_shift so a misfiring cue cannot warp a boundary past what the
+    # user authorised. A no-op without audio_cue signals (#350).
     # Edge snapshot before snap, for telemetry edge distances.
     pre_snap_ads = ([{'start': a.get('start'), 'end': a.get('end')} for a in first_pass_ads]
                     if audio_analysis_result else [])
@@ -364,8 +358,8 @@ def _notify_quiet_cue_templates(slug, podcast_name, podcast_id, cue_templates,
     """Fire Cue Template Quiet for each enabled template gone quiet on this feed.
 
     ``threshold_suggestions`` maps template id to the threshold its near-miss
-    streak would have needed, so the alert says what to change.
-    Best-effort (issue #599): a notification failure must not break the run.
+    streak needed, so the alert says what to change. Best-effort (#599): a
+    notification failure must not break the run.
     """
     try:
         activity = db.cue_template_recent_activity(podcast_id)
@@ -393,12 +387,11 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
                        podcast_name=None, keep_ads=None):
     """Apply the boundary refinement pipeline. Returns updated list.
 
-    ``false_positive_corrections`` are threaded to the filler-gap merge so it
-    never collapses a span the user rejected (merging would dilute the
-    validator's overlap ratio). ``podcast_name`` keeps the host's own site out
-    of the harvested sponsor tokens. ``keep_ads`` (partitioned out of
-    ``all_ads`` upstream) still act as extension barriers: a cut must not
-    grow into a span the feed keeps.
+    ``false_positive_corrections`` reach the filler-gap merge so it never
+    collapses a span the user rejected (merging would dilute the validator's
+    overlap ratio). ``podcast_name`` keeps the host's own site out of harvested
+    sponsor tokens. ``keep_ads`` (partitioned out of ``all_ads`` upstream) still
+    act as extension barriers: a cut must not grow into a kept span.
     """
     if all_ads and segments:
         all_ads = refine_ad_boundaries(all_ads, segments)
@@ -461,7 +454,7 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
 
 def _load_user_corrections(slug, episode_id, db):
     """Load FP and confirmed corrections for the episode and log counts."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     podcast_id = podcast['id'] if podcast else None
     false_positive_corrections = db.get_false_positive_corrections(
         podcast_id, episode_id) if podcast_id is not None else []
@@ -510,9 +503,8 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
             )
             continue
         # REVIEW fall-through guard: the validator's rounding keeps a REVIEW ad
-        # below threshold here, so this is belt-and-suspenders for any REVIEW ad
-        # that reaches the gate at/above threshold (e.g. non-validator inputs) --
-        # on a cue-gated feed hold it instead of cutting when it has no cue.
+        # below threshold, so this is belt-and-suspenders for one at/above it (e.g.
+        # non-validator inputs): on a cue-gated feed hold it if it has no cue.
         if cue_gate_enabled and not is_cue_backed(ad):
             ad['was_cut'] = False
             ad['held_for_review'] = True
@@ -534,13 +526,12 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      splice_veto=True, podcast_id=None, podcast_name=None,
                      cue_only_safety=None, cue_unproven_template_ids=None,
                      transcript_spans=None):
-    """Single construction point for AdValidator; owns the splice-veto
-    settings reads. Per-site differences are stated by the callers:
+    """Single construction point for AdValidator; owns the splice-veto settings reads.
 
     - pass 1 passes positional_prior (original-timeline zones);
-    - pass 2 sets splice_veto=False because there is no audio analysis in
-      pass 2, so the veto could never corroborate a splice, and omits
-      positional_prior/confirmed_corrections (processed-audio coordinates);
+    - pass 2 sets splice_veto=False (no audio analysis, so the veto could never
+      corroborate a splice) and omits positional_prior/confirmed_corrections
+      (processed-audio coordinates);
     - recut passes everything except positional_prior.
     """
     from ad_validator import AdValidator
@@ -593,9 +584,9 @@ def _description_chapter_marker(description, episode_duration, description_trim)
 def reconcile_description_chapter(all_ads, description, episode_duration, description_trim):
     """Re-derive trim markers from the feed's current rule; returns the new list.
 
-    Description-derived markers are recomputed from the description. Chapter-derived
-    markers (source set) cannot be recomputed once the chapter is cut, so they stay
-    while the pattern still matches their title; a mode change only re-ends them.
+    Description-derived markers are recomputed. Chapter-derived markers (source
+    set) cannot be recomputed once the chapter is cut, so they stay while the
+    pattern matches their title; a mode change only re-ends them.
     """
     pattern, mode = description_trim or (None, None)
     mode = mode or TO_END
@@ -637,15 +628,14 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
                           corrections, transcript_spans=None, description_trim=None):
-    """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
+    """Pipeline stage: refine ad boundaries, detect rolls, validate, gate by confidence.
 
-    ``keep_ads`` are the keep-partitioned markers, passed so boundary
-    extension treats them as barriers even though they left ``all_ads``.
-    ``cue_only_safety``/``cue_unproven_template_ids`` pass through to the
-    validator; both None outside cue_only runs. ``apply_heuristic_rolls``
-    is False under cue_only, where cuts must come only from cue and
-    pattern-DB evidence. ``segment_actions`` is the resolved category ->
-    action map, passed to the validator's merge step so it never folds
+    ``keep_ads`` are keep-partitioned markers, passed so boundary extension
+    treats them as barriers though they left ``all_ads``.
+    ``cue_only_safety``/``cue_unproven_template_ids`` pass to the validator (None
+    outside cue_only runs). ``apply_heuristic_rolls`` is False under cue_only,
+    where cuts must come only from cue and pattern-DB evidence. ``segment_actions``
+    is the resolved category -> action map, so the validator's merge never folds
     ads whose categories resolve to different actions.
 
     Returns (ads_to_remove, all_ads_with_validation).

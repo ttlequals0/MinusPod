@@ -8,6 +8,9 @@ import { splitTrim } from './TrimDiff';
 import { ApiError } from '../../api/client';
 import type { PatternCleanupSuggestion } from '../../api/patternCleanup';
 
+const mockSettings = vi.fn();
+vi.mock('../../api/settings', () => ({ getSettings: (...a: unknown[]) => mockSettings(...a) }));
+
 const mockList = vi.fn();
 const mockApprove = vi.fn();
 const mockReject = vi.fn();
@@ -83,6 +86,7 @@ function card(id: number) {
 }
 
 beforeEach(() => {
+  mockSettings.mockResolvedValue({ llmEnabled: true });
   vi.clearAllMocks();
   mockList.mockResolvedValue(ALL_KINDS);
   mockApprove.mockImplementation(async (id: number) => ({ ...ALL_KINDS[0], id, status: 'approved' }));
@@ -297,6 +301,45 @@ describe('CleanupTab', () => {
     await waitFor(() => expect(mockReject).toHaveBeenCalledWith(2));
   });
 
+  it('tells the operator when an approval could not update the pattern audio', async () => {
+    mockApprove.mockResolvedValueOnce({
+      ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: false,
+      fingerprintSkippedReason: 'original_not_retained',
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    expect((await screen.findByRole('status')).textContent)
+      .toBe("The pattern's audio was not updated because no retained episode has it.");
+    await user.click(within(card(2)).getByRole('button', { name: 'Reject' }));
+    await waitFor(() => expect(mockReject).toHaveBeenCalledWith(2));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows no audio notice when the fingerprint was stored or the field is absent', async () => {
+    mockApprove.mockResolvedValueOnce({ ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: true });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(1));
+    await user.click(within(card(2)).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('summarizes the audio notice of a bulk approval', async () => {
+    const miss = { id: 1, status: 'approved', fingerprintStored: false, fingerprintSkippedReason: 'original_not_retained' };
+    mockBulk.mockResolvedValue([miss, { ...miss, id: 2 }]);
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(screen.getByLabelText('Select all'));
+    await user.click(screen.getByRole('button', { name: /Approve selected/ }));
+    expect((await screen.findByRole('status')).textContent).toContain('(2 suggestions)');
+  });
+
   it('offers Undo instead of Approve and Reject on an approved suggestion', async () => {
     mockList.mockResolvedValue([suggestion(1, 'trim', { text: KEPT }, {
       status: 'approved', reviewedAt: '2026-10-05T05:00:00Z',
@@ -381,6 +424,16 @@ describe('CleanupTab', () => {
     renderTab();
     expect(await screen.findByText(/No suggestions yet\./)).toBeDefined();
     const link = screen.getByRole('link', { name: 'Settings > Experiments' });
-    expect(link.getAttribute('href')).toBe('/settings');
+    expect(link.getAttribute('href')).toBe('/settings#pattern-cleanup-section');
+  });
+});
+
+describe('CleanupTab under LLM provider None', () => {
+  it('explains that cleanup is unavailable instead of telling the operator to run it', async () => {
+    mockSettings.mockResolvedValue({ llmEnabled: false });
+    mockList.mockResolvedValue([]);
+    renderTab();
+    expect(await screen.findByText('No suggestions yet. Pattern cleanup is unavailable. LLM provider is set to None.')).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Settings > Experiments' })).toBeNull();
   });
 });

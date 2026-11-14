@@ -1,11 +1,6 @@
-"""Tests for the commit half of local_import.py: staging/import-dir moves,
-embedded artwork extraction, and the cross-worker (file + flock backed) job
-state (Task 10, and the field-test cross-worker fix).
-
-Mirrors test_local_episode_api.py's ffmpeg fixture pattern (real tiny mp3s,
-skip via requires_ffmpeg) and thread_fakes.SyncThread for deterministic
-synchronous execution of the background commit worker.
-"""
+"""Tests for the commit half of local_import.py: staging/import-dir moves, embedded artwork extraction,
+and the cross-worker (file + flock) job state. Uses real tiny mp3s (requires_ffmpeg) and
+thread_fakes.SyncThread to run the background commit worker synchronously."""
 import json
 import os
 import shutil
@@ -17,22 +12,11 @@ from unittest.mock import patch
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-# local_feed_builder.rebuild_local_feed (mocked per-test below) pulls in
-# main_app at import time, which -- absent this -- defaults its data dir to
-# /app/data and fails to create it outside a container. Matches
-# test_local_episode_api.py's identical guard.
+# local_feed_builder.rebuild_local_feed (mocked per-test) pulls in main_app at import time, which
+# defaults its data dir to /app/data and fails outside a container without this.
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='local-import-commit-test-'))
 
-# Importing main_app FIRST (before local_feed_builder is ever touched)
-# matters: local_feed_builder.py does `from main_app import db, rss_parser,
-# storage` at module level, and main_app/feeds.py does
-# `from local_feed_builder import rebuild_local_feed` at module level. If
-# local_feed_builder is the very first of the two to start importing (e.g.
-# via a bare `patch('local_feed_builder.rebuild_local_feed')` in a test),
-# that second import hits local_feed_builder mid-initialization and raises
-# ImportError. Pre-loading main_app here makes local_feed_builder load as
-# one of *its* dependents instead, same as every route-level test does via
-# the app_client fixture importing `from main_app import app`.
+# The app loads first so its singletons bind to the data dir set above.
 import main_app  # noqa: E402,F401
 import local_import  # noqa: E402
 from embedded_chapters import probe_chapters
@@ -54,13 +38,8 @@ JPEG_BYTES = b'\xff\xd8\xff\xe0' + b'\x00' * 64
 
 @pytest.fixture
 def db_storage(tmp_path):
-    """Fresh Database + Storage singletons sharing one data dir.
-
-    Storage.__init__ constructs its own Database(str(self.data_dir)), which
-    -- since Database is also a singleton -- returns the very instance
-    created below rather than a second one, so db and storage.db are the
-    same connection.
-    """
+    """Fresh Database + Storage singletons sharing one data dir: Storage.__init__ builds its own
+    Database, which returns the singleton created below, so db and storage.db share one connection."""
     from database import Database
     from storage import Storage
 
@@ -83,8 +62,8 @@ def local_feed(db_storage):
 
 @pytest.fixture(scope='session')
 def real_mp3_bytes(tmp_path_factory):
-    """A small, structurally valid mp3 -- generated once per test session,
-    same command as test_local_episode_api.py's identical fixture."""
+    """A small, structurally valid mp3, generated once per test session (same command as
+    test_local_episode_api.py's fixture)."""
     if shutil.which('ffmpeg') is None:
         pytest.skip('ffmpeg not available')
     mp3_path = tmp_path_factory.mktemp('audio') / 'fixture.mp3'
@@ -111,9 +90,7 @@ def _committed_ids(report):
 
 
 # ---------------------------------------------------------------------------
-# Pure (no ffmpeg) coverage: job state shape, staging/source dir paths,
-# free-space refusal, concurrent-start refusal, slug mismatch, thread-start
-# failure.
+# Pure (no ffmpeg) coverage: job state, dir paths, free-space/concurrent-start/slug refusals, thread-start failure.
 # ---------------------------------------------------------------------------
 
 def test_get_import_status_idle_for_unknown_slug():
@@ -123,9 +100,8 @@ def test_get_import_status_idle_for_unknown_slug():
 
 
 def test_get_import_status_does_not_create_jobs_dir(db_storage, local_feed):
-    """Status polls are a read path -- they must not have the side effect
-    of conjuring <data>/.import-jobs/ for a feed that never committed
-    anything."""
+    """Status polls are a read path: they must not create <data>/.import-jobs/ for a feed that
+    never committed anything."""
     db, storage = db_storage
     slug = local_feed
     jobs_dir = storage.data_dir / '.import-jobs'
@@ -174,9 +150,8 @@ def test_free_space_refusal(db_storage, local_feed, monkeypatch):
 
 
 def test_concurrent_start_commit_refused(db_storage, local_feed):
-    """Two start_commits racing for the same feed: the second's flock
-    acquire fails while the first (simulated here by holding the lock
-    directly) is still in flight -- exactly one wins."""
+    """Two start_commits racing for the same feed: the second's flock acquire fails while the first
+    (simulated by holding the lock directly) is in flight, so exactly one wins."""
     db, storage = db_storage
     slug = local_feed
     plan = {
@@ -233,19 +208,16 @@ def test_start_commit_clears_registry_when_thread_start_fails(db_storage, local_
     # No phantom 'running' job left behind that would block every future
     # start_commit for this feed.
     assert local_import.get_import_status(slug, storage)['state'] == 'idle'
-    # And the lock itself was released too -- not just the state file --
-    # otherwise a future start_commit would be refused forever even though
-    # status reads idle.
+    # The lock was released too, not just the state file, or a future start_commit would be
+    # refused forever even though status reads idle.
     lock_fh = local_import._try_acquire_import_lock(storage, slug)
     assert lock_fh is not None
     local_import._release_import_lock(lock_fh)
 
 
 def test_get_import_status_reads_directly_from_file_no_registry(db_storage, local_feed):
-    """Status must be readable straight from the state file -- there is no
-    in-process registry backing it, so a job state written by hand (as a
-    stand-in for "some other worker process wrote this") is visible exactly
-    as if start_commit itself had run in this process."""
+    """Status must be readable straight from the state file (no in-process registry), so a job state
+    written by hand, standing in for another worker process, is visible as if start_commit ran here."""
     db, storage = db_storage
     slug = local_feed
 
@@ -266,10 +238,9 @@ def test_get_import_status_reads_directly_from_file_no_registry(db_storage, loca
 
 
 def test_stale_running_state_with_free_lock_reports_interrupted(db_storage, local_feed):
-    """A worker that crashed mid-commit (e.g. OOM-killed) leaves the state
-    file stuck on 'running' but the OS releases its flock -- get_import_status
-    must self-heal that into 'error' rather than claiming the import is
-    still going forever."""
+    """A worker that crashed mid-commit (e.g. OOM-killed) leaves the state file on 'running' but the
+    OS releases its flock; get_import_status must self-heal that into 'error', not claim the import
+    is still going."""
     db, storage = db_storage
     slug = local_feed
 
@@ -279,7 +250,7 @@ def test_stale_running_state_with_free_lock_reports_interrupted(db_storage, loca
         'state': 'running', 'processed': 1, 'total': 3,
         'startedAt': NOW_ISO, 'report': None,
     }))
-    # No lock held for this slug -- the orphaned-state case.
+    # No lock held for this slug: the orphaned-state case.
 
     status = local_import.get_import_status(slug, storage)
     assert status['state'] == 'error'
@@ -455,7 +426,7 @@ def test_changed_file_after_scan_produces_per_file_error_and_imports_rest(
 @requires_ffmpeg
 def test_mtime_only_change_after_scan_produces_per_file_error(
         db_storage, local_feed, real_mp3_bytes):
-    """Same size, different mtime -- a size-only re-stat would miss this."""
+    """Same size, different mtime: a size-only re-stat would miss this."""
     db, storage = db_storage
     slug = local_feed
     src_dir = storage.import_source_dir(slug)
@@ -488,11 +459,9 @@ def test_mtime_only_change_after_scan_produces_per_file_error(
 @requires_ffmpeg
 def test_overwrite_clears_processing_columns_and_artwork(
         db_storage, local_feed, real_mp3_bytes):
-    """Critical fix: overwrite must be a full reset. A stale new_duration,
-    ads_removed, processed_version, error_message, ad_detection_status, and
-    cached artwork from a previous processing run must not survive into the
-    re-imported episode -- otherwise the rebuilt RSS advertises the
-    previous audio's duration."""
+    """Overwrite must be a full reset: a stale new_duration, ads_removed, processed_version,
+    error_message, ad_detection_status and cached artwork must not survive into the re-imported
+    episode, or the rebuilt RSS advertises the previous audio's duration."""
     db, storage = db_storage
     slug = local_feed
     src_dir = storage.import_source_dir(slug)
@@ -548,10 +517,9 @@ def test_overwrite_clears_processing_columns_and_artwork(
 @requires_ffmpeg
 def test_overwrite_false_refuses_when_episode_created_after_plan(
         db_storage, local_feed, real_mp3_bytes):
-    """Critical fix: the destructive reset must be gated on plan['overwrite'],
-    not row existence. A concurrent single-episode upload landing between
-    the plan scan and the commit must never be clobbered by a plan that was
-    built (and approved by the operator) with overwrite=False."""
+    """The destructive reset is gated on plan['overwrite'], not row existence: a concurrent
+    single-episode upload landing between the plan scan and the commit must not be clobbered by a
+    plan built with overwrite=False."""
     db, storage = db_storage
     slug = local_feed
     src_dir = storage.import_source_dir(slug)
@@ -648,11 +616,9 @@ def test_overwrite_resets_episode_details(db_storage, local_feed, real_mp3_bytes
 @requires_ffmpeg
 def test_overwrite_replaces_wide_id_row_instead_of_duplicating(
         db_storage, local_feed, real_mp3_bytes):
-    """(Review round 3) A pre-fix wide-spelled row (s01e0006, imported
-    before ac2d1eb3's id canonicalization) must be REPLACED by an overwrite
-    commit of the same logical episode, not left behind alongside a second
-    row created under the canonical id (s01e06) -- the operator's live
-    scenario."""
+    """A pre-fix wide-spelled row (s01e0006, imported before id canonicalization) must be replaced
+    by an overwrite commit of the same logical episode, not left behind beside a second row under
+    the canonical id (s01e06)."""
     db, storage = db_storage
     slug = local_feed
 
@@ -689,7 +655,7 @@ def test_overwrite_replaces_wide_id_row_instead_of_duplicating(
     assert report['failed'] == []
     assert _committed_ids(report) == ['s01e06']
 
-    # Exactly one row survives, under the canonical id -- not two.
+    # Exactly one row survives, under the canonical id, not two.
     assert db.get_episode(slug, wide_id) is None
     assert db.get_episode(slug, 's01e06') is not None
     _, total = db.get_episodes(slug, status='all', limit=100)
@@ -703,9 +669,8 @@ def test_overwrite_replaces_wide_id_row_instead_of_duplicating(
 @requires_ffmpeg
 def test_wide_id_collision_without_overwrite_still_errors(
         db_storage, local_feed, real_mp3_bytes):
-    """Without overwrite, a wide-id collision is still a plain collision
-    error, exactly as a same-spelled collision would be -- nothing on disk
-    or in the database is touched."""
+    """Without overwrite, a wide-id collision is a plain collision error, as a same-spelled collision
+    would be; nothing on disk or in the database is touched."""
     db, storage = db_storage
     slug = local_feed
 
@@ -733,8 +698,8 @@ def test_wide_id_collision_without_overwrite_still_errors(
     started, _reason, _mock = _commit_synchronously(slug, plan, db, storage)
     assert started is True
     report = local_import.get_import_status(slug, storage)['report']
-    # Skipped at the plan level (errors non-empty) -- never reaches
-    # _commit_entry at all.
+    # Skipped at the plan level (errors non-empty), so it never reaches
+    # _commit_entry.
     assert report['committed'] == []
     assert any(s['episodeId'] == 's01e06' for s in report['skipped'])
 
@@ -746,13 +711,9 @@ def test_wide_id_collision_without_overwrite_still_errors(
 @requires_ffmpeg
 def test_overwrite_with_both_wide_and_canonical_rows_resets_canonical_deterministically(
         db_storage, local_feed, real_mp3_bytes):
-    """(Review round 4) Both spellings present for the same episode --
-    s01e0006 AND s01e06 -- is an inconsistent state that shouldn't happen,
-    but an overwrite commit must still behave deterministically: it resets
-    the canonical-spelled row (s01e06) in place (details cleared) and
-    leaves the wide-spelled row (s01e0006) untouched. Cleaning up that
-    leftover stays a manual/operator step (the docs already point at
-    deleting the duplicate)."""
+    """Both spellings present for one episode (s01e0006 and s01e06) is an inconsistent state, but an
+    overwrite commit must still be deterministic: it resets the canonical-spelled row (s01e06) in place
+    and leaves the wide-spelled row (s01e0006) untouched; cleanup is a manual operator step."""
     db, storage = db_storage
     slug = local_feed
 
@@ -800,7 +761,7 @@ def test_overwrite_with_both_wide_and_canonical_rows_resets_canonical_determinis
     assert storage.get_transcript(slug, canonical_id) is None
     assert storage.get_original_path(slug, canonical_id).exists()
 
-    # The wide row is untouched -- leftover cleanup is a manual step.
+    # The wide row is untouched; leftover cleanup is a manual step.
     assert db.get_episode(slug, wide_id) is not None
     assert wide_original_path.exists()
 
@@ -811,13 +772,9 @@ def test_overwrite_with_both_wide_and_canonical_rows_resets_canonical_determinis
 @requires_ffmpeg
 def test_commit_uses_plan_resolved_path_not_basename_lookup(
         db_storage, local_feed, real_mp3_bytes):
-    """Important fix: a same-named file sitting in the OTHER scanned
-    directory must never cause the wrong file to be committed. The commit
-    engine must use the plan's own resolved path, not a basename lookup
-    across staging + the import dir. Also pins the scoped-sweep fix: a
-    source='directory' plan never scanned staging, so it must never touch
-    it either, even though a finished commit otherwise sweeps staging
-    clean (Fix 11)."""
+    """The commit engine uses the plan's own resolved path, not a basename lookup across staging + the
+    import dir, so a same-named file in the other directory is never committed. A source='directory'
+    plan never scanned staging, so it must not touch it though a finished commit usually sweeps it."""
     db, storage = db_storage
     slug = local_feed
     import_dir = storage.import_source_dir(slug)
@@ -830,9 +787,8 @@ def test_commit_uses_plan_resolved_path_not_basename_lookup(
     (import_dir / name).write_bytes(import_bytes)
     (staging_dir / name).write_bytes(staging_bytes)
 
-    # Plan built ONLY from the import dir -- the same-named staging file
-    # must never be picked up, even though basename resolution alone would
-    # be ambiguous.
+    # Plan built only from the import dir: the same-named staging file must never be picked up,
+    # even though basename resolution alone would be ambiguous.
     plan = build_import_plan(slug, [import_dir / name], existing_ids=set(),
                              overwrite=False, now_iso=NOW_ISO, source='directory')
     assert plan['entries'][0]['bytes'] == len(import_bytes)
@@ -842,13 +798,12 @@ def test_commit_uses_plan_resolved_path_not_basename_lookup(
     assert local_import.get_import_status(slug, storage)['report']['failed'] == []
 
     committed_path = storage.get_original_path(slug, 's01e01')
-    # The wrong (staging) bytes were never used as the source -- the plan's
-    # own resolved import_dir path won.
+    # The wrong (staging) bytes were never used as the source; the plan's own resolved import_dir
+    # path won.
     assert committed_path.read_bytes() == import_bytes
 
-    # The staging file was irrelevant to THIS plan AND this plan's source
-    # was 'directory' -- a directory-sourced commit must never touch
-    # staging, so the unrelated file survives untouched.
+    # The staging file was irrelevant to this plan, whose source was 'directory': such a commit
+    # must never touch staging, so the unrelated file survives.
     assert (staging_dir / name).exists()
     assert (staging_dir / name).read_bytes() == staging_bytes
 
@@ -892,9 +847,8 @@ def test_staged_audio_commits_and_cleans_up_staging(db_storage, local_feed, real
 
 @requires_ffmpeg
 def test_import_dir_sidecars_consumed_on_successful_commit(db_storage, local_feed, real_mp3_bytes):
-    """Operator ruling: a successfully committed entry's sidecars are
-    consumed regardless of source -- the user-managed import dir is no
-    longer special-cased to leave them behind."""
+    """Operator ruling: a successfully committed entry's sidecars are consumed regardless of source;
+    the user-managed import dir is not special-cased to leave them behind."""
     db, storage = db_storage
     slug = local_feed
     src_dir = storage.import_source_dir(slug)
@@ -951,14 +905,9 @@ def test_import_dir_sidecars_of_rejected_entry_survive_commit(
 @requires_ffmpeg
 def test_staging_swept_after_commit_even_with_rejected_files_present(
         db_storage, local_feed, real_mp3_bytes):
-    """A finished commit removes a file the plan REJECTED outright (bad
-    naming scheme here) even though it was never part of any entry, and
-    removes the now-empty directory itself -- not just the entries that
-    were part of this plan. Only when the plan's source actually included
-    staging (Fix: scoped sweep) -- explicit source='staging' here pins
-    that. (A skipped/errored ENTRY's own files are a different case, spared
-    by the sweep -- see test_sweep_spares_skipped_and_errored_entry_files
-    below.)"""
+    """A finished commit removes a file the plan rejected outright (bad naming scheme) and the now-empty
+    directory, but only when the plan's source included staging (source='staging' here). Skipped/errored
+    entries' files are spared: see test_sweep_spares_skipped_and_errored_entry_files."""
     db, storage = db_storage
     slug = local_feed
     staging_dir = storage.import_staging_dir(slug, create=True)
@@ -979,21 +928,16 @@ def test_staging_swept_after_commit_even_with_rejected_files_present(
     report = local_import.get_import_status(slug, storage)['report']
     assert _committed_ids(report) == ['s01e01']
 
-    # Everything is gone -- the committed audio (moved) AND the rejected
-    # leftover -- and so is the directory itself.
+    # Everything is gone: the committed audio (moved), the rejected leftover, and the directory itself.
     assert not staging_dir.exists()
 
 
 @requires_ffmpeg
 def test_sweep_spares_skipped_and_errored_entry_files(
         db_storage, local_feed, real_mp3_bytes):
-    """Item 4 fix: the post-commit sweep used to remove EVERYTHING left in
-    staging, including a skipped or errored entry's own audio and sidecars
-    -- so fixing a bad sidecar meant re-uploading a perfectly good mp3 too.
-    Now the sweep only removes a committed entry's leftovers (already
-    consumed by _commit_entry) and files the plan rejected outright; a
-    skipped or errored entry's files are left for the operator to fix and
-    rescan."""
+    """The post-commit sweep removes only a committed entry's leftovers (already consumed by
+    _commit_entry) and files the plan rejected outright; a skipped or errored entry's files are left
+    for the operator to fix and rescan, so fixing a bad sidecar doesn't mean re-uploading the mp3."""
     db, storage = db_storage
     slug = local_feed
     staging_dir = storage.import_staging_dir(slug, create=True)
@@ -1075,7 +1019,7 @@ def test_invalid_sidecar_artwork_falls_back_to_embedded_with_warning(
     warnings = report['committed'][0]['warnings']
     assert any('invalid' in w for w in warnings)
     # No embedded picture stream either (the fixture mp3 has none), so no
-    # artwork ends up saved -- the warning is what tells the operator why.
+    # artwork ends up saved; the warning is what tells the operator why.
     assert not storage.has_episode_artwork(slug, 's01e01')
 
 

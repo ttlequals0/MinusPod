@@ -1,7 +1,4 @@
-"""Unit tests: differential fetch pipeline stage (Layer 3).
-
-Mirrors test_silence_snap_plumbing.py setup for main_app.processing.
-"""
+"""Differential fetch pipeline stage (Layer 3); mirrors test_silence_snap_plumbing.py setup for main_app.processing."""
 import json
 import os
 import sys

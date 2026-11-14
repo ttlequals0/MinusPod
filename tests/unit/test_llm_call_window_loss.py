@@ -529,11 +529,10 @@ class TestLostWindowSweep:
         assert sweep_calls == []
 
     def test_sweep_hold_defers_instead_of_crashing(self):
-        """A rate limit hit mid-sweep must defer the episode like a held
-        window in the main loop, not raise out of the pass. Whatever the
-        sweep already recovered before the hold still gets merged in.
-        `_process_single_window` reports the hold as a failed WindowResult
-        rather than raising, so the sweep must read it off `last_error`."""
+        """A rate limit hit mid-sweep defers the episode like a held main-loop window instead of
+        raising; already-recovered results still merge.
+
+        `_process_single_window` reports the hold as a failed WindowResult, so the sweep reads it off `last_error`."""
         held = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
         results = [_failed_window(0, _ProviderError('bad gateway', 502)),
                    _failed_window(1, _ProviderError('bad gateway', 502))]

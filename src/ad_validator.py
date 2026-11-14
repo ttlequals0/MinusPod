@@ -272,20 +272,15 @@ def _clip_reviewer_proposal(piece: dict) -> None:
 
 
 class AdValidator:
-    """Validates and corrects ad detection results.
+    """Validates and corrects ad detection results after Claude detection, before audio processing.
 
-    Runs after Claude ad detection but before audio processing to:
-    - Catch errors (invalid boundaries, suspicious durations)
-    - Flag low-confidence detections for review
-    - Auto-correct common issues (merge close ads, clamp boundaries)
-    - Verify ads against transcript content
+    Catches errors (invalid boundaries, suspicious durations), flags low-confidence detections for review,
+    auto-corrects common issues (merge close ads, clamp boundaries) and verifies ads against the transcript.
     """
 
-    # Thresholds imported from config.py:
-    # MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
-    # MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
-    # REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_*,
-    # POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN, MERGE_GAP_THRESHOLD
+    # Thresholds imported from config.py: MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
+    # MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE, REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL,
+    # MID_ROLL_*, POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN, MERGE_GAP_THRESHOLD
 
     # Sponsor patterns for verification
     SPONSOR_PATTERNS = SPONSOR_SUBSTRING_PATTERNS
@@ -329,12 +324,10 @@ class AdValidator:
         'possible ad', 'likely ad', 'advertisement segment'
     ]
 
-    # Patterns that indicate Claude determined this is NOT an ad
-    # The second branch only matches "(show|episode|regular|actual) content" when
-    # preceded by assertion verbs (is, appears to be, etc.) or at start-of-string.
-    # This avoids false positives on phrases like "transition from show content".
-    # The "no"/"not" branches start at a word boundary: without it "Casino ad"
-    # and "Casino sponsorship" match "no ad" / "no sponsor".
+    # Patterns that indicate Claude determined this is NOT an ad. The second branch only matches
+    # "(show|episode|regular|actual) content" after assertion verbs (is, appears to be, etc.) or at
+    # start-of-string, avoiding false positives like "transition from show content". The "no"/"not"
+    # branches start at a word boundary: without it "Casino ad" matches "no ad" / "no sponsor".
     NOT_AD_PATTERNS = re.compile(
         r'\bnot\s+an?\s+(ad|advertisement|sponsor|promo|commercial)|'
         r'(?:^|(?:is|appears\s+to\s+be|seems\s+like|contains)\s+)(episode|show|regular|actual)\s+content|'
@@ -375,35 +368,18 @@ class AdValidator:
                  transcript_spans: list[dict] = None):
         """Initialize validator.
 
-        Args:
-            episode_duration: Total episode duration in seconds
-            segments: List of transcript segments with 'start', 'end', 'text' keys
-            episode_description: Episode description (may contain sponsor info)
-            false_positive_corrections: List of dicts with 'start' and 'end' keys
-                                        for user-marked false positives to auto-reject
-            confirmed_corrections: List of dicts with 'start' and 'end' keys
-                                   for user-confirmed ads to auto-accept
-            min_cut_confidence: Minimum confidence to auto-accept (user's slider value)
-            positional_prior: Optional PositionalPrior with this feed's learned
-                              ad-break zones; replaces the global position boosts
-            max_ad_duration_override: Per-feed cap in seconds; None = no cap
-            cue_gate_enabled: When True, ads without cue evidence are held for review
-            cue_only_safety: Cue-only run safety policy ('hold_new' or
-                'auto_cut'); None on non-cue-only runs, where Rule 6 is inert
-            cue_unproven_template_ids: Template ids without enough paired
-                history yet; only consulted under 'hold_new'
-            differential_corr_max: Resolved differential_measured_corr_max
-                setting (threaded by the caller; the validator has no db
-                handle). A differential region corroborates a marker only
-                when its measured corr is <= this value.
-            sponsor_service: Sponsor registry, used to confirm a long ad names
-                a real advertiser when the episode description does not list
-                sponsors. Optional; without it only the description counts.
-            max_ad_duration: Length above which an ad needs a confirmed
-                sponsor. Resolved per feed by the caller.
-            max_ad_duration_confirmed: Length above which even a confirmed
-                sponsor does not help.
-            transcript_spans: Upstream transcript gaps (original timeline).
+        episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
+        confirmed_corrections are start/end dicts for user-marked false positives (auto-reject) and confirmed ads
+        (auto-accept). min_cut_confidence is the user's slider value. positional_prior is an optional PositionalPrior
+        with this feed's learned ad-break zones, replacing the global position boosts. max_ad_duration_override is a
+        per-feed cap in seconds (None = no cap). cue_gate_enabled holds ads without cue evidence for review.
+        cue_only_safety is the cue-only run policy ('hold_new' or 'auto_cut'; None otherwise, where Rule 6 is inert);
+        cue_unproven_template_ids are templates without enough paired history, consulted only under 'hold_new'.
+        differential_corr_max is the resolved differential_measured_corr_max setting (threaded by the caller; no db
+        handle here): a differential region corroborates a marker only at or under it. sponsor_service confirms a
+        long ad names a real advertiser when the description lists none (optional). max_ad_duration is the length
+        above which an ad needs a confirmed sponsor (per feed); max_ad_duration_confirmed the length above which even
+        that does not help. transcript_spans are upstream transcript gaps (original timeline).
         """
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
@@ -447,8 +423,7 @@ class AdValidator:
     def _registry_confirms(self, ad: dict, texts: list[str]) -> bool:
         """Whether the ad's own audio names a sponsor from the registry.
 
-        A repeated name confirms only the marker's advertiser, and only when
-        the same candidate also contains promotional language.
+        A repeated name confirms only the marker's advertiser, and only alongside promotional language.
         """
         if not self.sponsor_service:
             return False
@@ -540,11 +515,9 @@ class AdValidator:
         return False
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
-        """Where the ad's sponsor was confirmed: 'transcript' (a description
-        sponsor or one the detection named is advertised in the span),
-        'registry' (see _registry_confirms), 'reason' (only the detection
-        model's own prose names it), or None.
-        Prose is checked last: it is the one source the model wrote itself.
+        """Where the ad's sponsor was confirmed: 'transcript' (a description or detection-named sponsor is
+        advertised in the span), 'registry' (see _registry_confirms), 'reason' (only the detection model's own
+        prose names it), or None. Prose is checked last: it is the one source the model wrote itself.
         """
         texts = self._bounded_text_segments(ad)
         if self._description_sponsor_re is not None:
@@ -590,16 +563,9 @@ class AdValidator:
 
     def _overlaps_corrections(self, corrections: list[dict], start: float, end: float,
                                overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
-        """Check if a time range overlaps with any correction in the given list.
+        """Check if a time range (seconds) overlaps any correction ({'start','end'} dicts).
 
-        Args:
-            corrections: List of correction dicts with 'start' and 'end' keys
-            start: Segment start time in seconds
-            end: Segment end time in seconds
-            overlap_threshold: Minimum overlap ratio to consider a match (0.0-1.0)
-
-        Returns:
-            True if segment overlaps significantly with any correction
+        overlap_threshold is the minimum overlap ratio (0.0-1.0) to count as a match.
         """
         if not corrections:
             return False
@@ -633,20 +599,12 @@ class AdValidator:
     def validate(self, ads: list[dict],
                  audio_analysis: dict | None = None,
                  actions_map: dict[str, str] | None = None) -> ValidationResult:
-        """Validate all ads and return results.
+        """Validate all ads and return a ValidationResult with validated ads and statistics.
 
-        Args:
-            ads: List of ad markers from detection
-            audio_analysis: Stored audio-analysis dict for the episode
-                (AudioAnalysisResult.to_dict() shape); used to corroborate
-                heuristic markers with measured audio evidence
-            actions_map: Resolved segment-category -> action map (see
-                config.resolve_segment_category_actions_map); when given,
-                the merge step will not fold ads whose categories resolve
-                to different actions
-
-        Returns:
-            ValidationResult with validated ads and statistics
+        audio_analysis: stored audio-analysis dict (AudioAnalysisResult.to_dict() shape), used to
+            corroborate heuristic markers with measured audio evidence.
+        actions_map: resolved segment-category -> action map (see config.resolve_segment_category_actions_map);
+            the merge step will not fold ads whose categories resolve to different actions.
         """
         self._audio_analysis = audio_analysis
         # Rebuilt per run so a registry edit between runs is seen.
@@ -695,11 +653,10 @@ class AdValidator:
 
         ads = self._split_multi_release_holds(ads)
 
-        # Human false-positive decisions apply to the detected span the user
-        # actually reviewed. Preserve that match before measured DAI bounds
-        # restore portions removed by an automatic snap. Keep matching and
-        # non-matching markers separate so a nearby real ad is not rejected
-        # as collateral damage during the tiny-gap merge below.
+        # Human false-positive decisions apply to the detected span the user actually reviewed. Preserve that
+        # match before measured DAI bounds restore portions removed by an automatic snap. Matching and
+        # non-matching markers stay separate so a nearby real ad is not rejected as collateral damage in the
+        # tiny-gap merge below.
         confirmed_candidates = {}
         plain_candidates = {}
         for ad in ads:
@@ -737,10 +694,9 @@ class AdValidator:
                 # it still needs normal validation and must not consume the
                 # approved-span match.
                 continue
-            # A re-detection can split one user-approved span into multiple
-            # markers. Give the correction to the earliest eligible marker
-            # and suppress the others below so action partitioning cannot
-            # render overlapping replacements.
+            # A re-detection can split one user-approved span into multiple markers. Give the correction to the
+            # earliest eligible marker and suppress the others below so action partitioning cannot render
+            # overlapping replacements.
             ad['_has_confirmed_correction_candidate'] = True
             # Judge false-positive overlap against the prospective restored
             # DAI bounds: a fragment whose restoration would reach into
@@ -796,11 +752,9 @@ class AdValidator:
         for confirmed, ad in list(confirmed_candidates.values()) + plain_sources:
             if confirmed.get('confirmed_span') is None or '_orig_twin' in ad:
                 continue
-            # The clamp below discards audio outside the approved span. The
-            # part inside the reviewed bounds is user-trimmed-out and stays
-            # dropped, but audio beyond both the reviewed bounds and the
-            # approved span is new territory the human never saw: validate
-            # it as its own marker.
+            # The clamp below discards audio outside the approved span. The part inside the reviewed bounds is
+            # user-trimmed-out and stays dropped, but audio beyond both the reviewed bounds and the approved span
+            # is new territory the human never saw: validate it as its own marker.
             span = confirmed['confirmed_span']
             seen_start = min(confirmed['start'], span['start'])
             seen_end = max(confirmed['end'], span['end'])
@@ -838,10 +792,9 @@ class AdValidator:
             dai_will_expand = (
                 (core_start is not None and core_start < ad['start'])
                 or (core_end is not None and core_end > ad['end']))
-            # Exact human-approved spans survive every automatic expansion,
-            # including tiny-gap merges and trailing extension. A plain
-            # confirmation is carried only across measured DAI restoration;
-            # allowing it across unrelated growth would authorize new audio.
+            # Exact human-approved spans survive every automatic expansion, including tiny-gap merges and trailing
+            # extension. A plain confirmation is carried only across measured DAI restoration; carrying it across
+            # unrelated growth would authorize new audio.
             if (confirmed is not None
                     and (confirmed.get('confirmed_span') or dai_will_expand)):
                 ad['_pre_dai_restore_confirmed_correction'] = confirmed
@@ -933,19 +886,12 @@ class AdValidator:
             flags.append(REVIEWER_REJECT_PRESERVED_FLAG)
 
     def _validate_ad(self, ad: dict) -> dict:
-        """Validate a single ad marker.
-
-        Args:
-            ad: Ad marker dict with start, end, confidence, reason
-
-        Returns:
-            Ad marker with 'validation' field added
-        """
+        """Validate a single ad marker (start, end, confidence, reason); returns it with a 'validation' field."""
         flags = []
         corrections = []
         confidence = ad.get('confidence', 1.0)
 
-        # Pop stale held/corroboration state -- re-derived on every pass.
+        # Pop stale held/corroboration state, re-derived on every pass.
         remainder_reason = (ad.get('hold_reason') if ad.get('pass2_hold_remainder')
                             else None)
         ad.pop('held_for_review', None)
@@ -1022,7 +968,7 @@ class AdValidator:
                     ad['start'] < approved_end and ad['end'] > approved_start)
                 if not overlaps_approved or approved_end <= approved_start:
                     # The detection lies entirely inside user-kept content;
-                    # do not auto-accept -- let normal validation judge it.
+                    # do not auto-accept; let normal validation judge it.
                     auto_accept = False
                 elif (approved_start, approved_end) != (ad['start'], ad['end']):
                     logger.info(
@@ -1033,10 +979,9 @@ class AdValidator:
                     invalidate_tail_provenance(ad, approved_end)
                     ad['start'] = approved_start
                     ad['end'] = approved_end
-                    # Human trims are authoritative. A measured DAI core may
-                    # have been clipped to the wider detected bounds earlier;
-                    # keep it inside the approved span so the reviewer cannot
-                    # later widen the marker back into user-kept content.
+                    # Human trims are authoritative. A measured DAI core may have been clipped to the wider detected
+                    # bounds earlier; keep it inside the approved span so the reviewer cannot later widen the marker
+                    # back into user-kept content.
                     clip_merge_spans(ad, approved_start, approved_end)
             if auto_accept:
                 approved = span or confirmed
@@ -1075,11 +1020,9 @@ class AdValidator:
                     'corrections': corrections
                 }
                 if confirmed.get('correction_type') != 'boundary_adjustment':
-                    # Nested under the validator-owned result so an arbitrary
-                    # detector/model field cannot forge this trust signal. An
-                    # adjustment clamps bounds but keeps the reviewer in the
-                    # loop: its stored bounds can go stale on a DAI feed
-                    # whose ad timing drifts between fetches.
+                    # Nested under the validator-owned result so an arbitrary detector/model field cannot forge this
+                    # trust signal. An adjustment clamps bounds but keeps the reviewer in the loop: its stored bounds
+                    # can go stale on a DAI feed whose ad timing drifts between fetches.
                     validation['user_confirmed'] = True
                 # Carry the exact approved bounds through late reviewer and
                 # tail mutations, including plain confirmations.
@@ -1173,18 +1116,10 @@ class AdValidator:
         return ad
 
     def _apply_position_boost(self, confidence: float, position: float) -> float:
-        """Boost confidence for typical ad positions.
+        """Boost confidence for typical ad positions (position is 0.0-1.0 through the episode).
 
-        When a learned positional prior is present it replaces the global
-        zones entirely: positions are only boosted where this feed's own
-        history supports it, and never outside.
-
-        Args:
-            confidence: Current confidence score
-            position: Position in episode (0.0 - 1.0)
-
-        Returns:
-            Adjusted confidence
+        A learned positional prior replaces the global zones entirely: positions are boosted only where this
+        feed's own history supports it, and never outside.
         """
         if self.positional_prior is not None:
             # Adjacent zones can overlap by their margins; take the strongest.
@@ -1207,16 +1142,7 @@ class AdValidator:
 
     def _check_reason_quality(self, ad: dict, confidence: float,
                                flags: list[str]) -> float:
-        """Adjust confidence based on reason quality.
-
-        Args:
-            ad: Ad marker
-            confidence: Current confidence
-            flags: List to append warnings to
-
-        Returns:
-            Adjusted confidence
-        """
+        """Adjust confidence based on reason quality, appending warnings to `flags`; returns the new confidence."""
         reason = ad.get('reason', '').lower()
 
         # Check if reason indicates this is NOT an ad - auto-reject
@@ -1238,19 +1164,10 @@ class AdValidator:
 
     def _verify_in_transcript(self, ad: dict, confidence: float,
                                flags: list[str], transcript_hits: list[dict] | None = None) -> float:
-        """Verify ad content appears in transcript.
+        """Verify ad content appears in transcript; returns the adjusted confidence.
 
-        For ``detection_stage == 'vad_gap'`` markers without sponsor or
-        ad-signal corroboration in range, clamps confidence below
-        ``self.min_cut_confidence`` so the marker routes to REVIEW.
-
-        Args:
-            ad: Ad marker
-            confidence: Current confidence
-            flags: List to append warnings to
-
-        Returns:
-            Adjusted confidence
+        For ``detection_stage == 'vad_gap'`` markers without sponsor or ad-signal corroboration in range,
+        confidence is clamped below ``self.min_cut_confidence`` so the marker routes to REVIEW. Warnings go to `flags`.
         """
         if not self.segments:
             # No segments: check vad_gap corroboration early. Untranscribed
@@ -1327,13 +1244,11 @@ class AdValidator:
         return identical_coverage(payload, ad['start'], ad['end'])
 
     def _audio_corroboration_source(self, ad: dict) -> str | None:
-        """Return the strongest stored-audio evidence source near the ad's
-        boundaries, or None.
+        """Return the strongest stored-audio evidence source near the ad's boundaries, or None.
 
-        Layer 1 checks DAI transition pairs, ad-break template cues (role
-        non_ad excluded), and >= 12 dB volume anomalies within +-5s of the
-        ad start or end. Layer 2 adds splice_evidence events (+-3s);
-        Layer 3 adds dai_differential region overlap.
+        Layer 1: DAI transition pairs, ad-break template cues (role non_ad excluded) and >= 12 dB volume
+        anomalies within +-5s of the ad start or end. Layer 2 adds splice_evidence events (+-3s); layer 3
+        adds dai_differential region overlap.
         """
         analysis = self._audio_analysis
         if not analysis:
@@ -1385,11 +1300,10 @@ class AdValidator:
                         <= end_time + SPLICE_CORROBORATION_WINDOW_SECONDS):
                     return 'splice_evidence'
 
-        # Layer 3: a cross-fetch differential region overlapping the marker is
-        # the strongest corroboration class (audio proven to differ). Same
-        # measured-corr gate as candidate minting (2.76.0): a high-corr
-        # "differential" mostly matched across fetches and proves nothing;
-        # legacy stored regions (corr hard-coded 0.0) still corroborate.
+        # Layer 3: a cross-fetch differential region overlapping the marker is the strongest corroboration
+        # class (audio proven to differ). Same measured-corr gate as candidate minting (2.76.0): a high-corr
+        # "differential" mostly matched across fetches and proves nothing; legacy stored regions (corr
+        # hard-coded 0.0) still corroborate.
         if differential_region_overlapping(
                 (self._audio_analysis or {}).get('dai_differential'),
                 ad.get('start', 0.0), ad.get('end', 0.0),
@@ -1411,24 +1325,13 @@ class AdValidator:
         return 'transcript_differential' if hits else None
 
     def _get_text_in_range(self, start: float, end: float) -> str:
-        """Get transcript text within time range.
-
-        Delegates to utils.text.extract_text_from_segments.
-        """
+        """Get transcript text within time range (via utils.text.extract_text_from_segments)."""
         return extract_text_from_segments(self.segments, start, end)
 
     def _make_decision(self, confidence: float, flags: list[str],
                         duration: float = 0.0) -> Decision:
-        """Decide ACCEPT/REVIEW/REJECT based on confidence and flags.
-
-        Args:
-            confidence: Adjusted confidence score
-            flags: List of flags/warnings
-            duration: Ad duration in seconds (for high-confidence override check)
-
-        Returns:
-            Decision enum value
-        """
+        """Decide ACCEPT/REVIEW/REJECT from adjusted confidence and flags; duration (seconds) feeds
+        the high-confidence override."""
         has_errors = any('ERROR' in f for f in flags)
         has_long_error = any('Very long' in f for f in flags)
 
@@ -1458,12 +1361,11 @@ class AdValidator:
                           corroboration: str | None) -> Decision:
         """Apply per-feed hold rules after the base decision.
 
-        A held ad gets decision=REVIEW with held_for_review=True so the gate
-        keeps it in the audio. Returns the (possibly updated) decision.
+        A held ad gets decision=REVIEW with held_for_review=True so the gate keeps it in the audio.
+        Returns the (possibly updated) decision.
         """
-        # Adjacency is boundary evidence, not authority to classify an
-        # arbitrarily large untranscribed span. This safety marker is stamped
-        # before validation so it cannot merge into the neighboring ad, then
+        # Adjacency is boundary evidence, not authority to classify an arbitrarily large untranscribed span.
+        # This safety marker is stamped before validation so it cannot merge into the neighboring ad, then
         # re-derived here before generic duration holds choose another reason.
         if (ad.get('detection_stage') == 'vad_gap'
                 and ad.get('vad_gap_requires_review')):
@@ -1538,9 +1440,8 @@ class AdValidator:
                 self._mark_held(ad, flags, HOLD_REASON_CUE_LOW_CONFIDENCE)
                 return Decision.REVIEW
 
-        # Rule 3: zero-splice-evidence veto (spec 2.3c). A long LLM/pattern
-        # cut with no splice event inside the span or near either edge goes
-        # to the review queue instead of shipping silently. Calibrated feeds
+        # Rule 3: zero-splice-evidence veto (spec 2.3c). A long LLM/pattern cut with no splice event inside the
+        # span or near either edge goes to the review queue instead of shipping silently. Calibrated feeds
         # only: cold-start evidence corroborates but never vetoes.
         if (self.splice_veto_enabled and decision == Decision.ACCEPT
                 and duration >= self.veto_min_cut_seconds
@@ -1562,14 +1463,12 @@ class AdValidator:
                 self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
                 return Decision.REVIEW
 
-        # Rule 4: an uncorroborated vad_gap marker at the episode tail must
-        # surface in the pending-review queue instead of shipping silently.
-        # Fires on REVIEW (clamp already routed it there) AND on ACCEPT (the
-        # empty-text early-return left confidence unclamped; 0.80 >= threshold
-        # = ACCEPT but there is no stored evidence to justify the cut). A
-        # corroborated tail (source not None) cuts regardless of decision.
-        # Calls the corroboration helper directly so tails with no transcript
-        # text in range still count stored audio evidence.
+        # Rule 4: an uncorroborated vad_gap marker at the episode tail must surface in the
+        # pending-review queue, not ship silently. Fires on REVIEW (clamp already routed it) and on
+        # ACCEPT (the empty-text early-return left confidence unclamped, so 0.80 >= threshold but no
+        # stored evidence justifies the cut). A corroborated tail cuts regardless. Calls the
+        # corroboration helper directly so tails with no transcript text still count stored audio
+        # evidence.
         if (decision in (Decision.REVIEW, Decision.ACCEPT)
                 and ad.get('detection_stage') == 'vad_gap'
                 and self.episode_duration > 0
@@ -1872,21 +1771,11 @@ class AdValidator:
 
     def _clamp_boundaries(self, ads: list[dict],
                           result: ValidationResult) -> list[dict]:
-        """Clamp ad boundaries to valid range.
-
-        Args:
-            ads: List of ad markers
-            result: ValidationResult to record corrections
-
-        Returns:
-            Ads with clamped boundaries
-        """
+        """Clamp ad boundaries to the valid range, recording corrections in `result`."""
         for ad in ads:
-            # Cue/silence snaps are advisory and may move inward before this
-            # validator runs. Measured DAI evidence is not advisory: restore
-            # any core portion an automatic snap crossed before applying the
-            # real file-range clamp. A later human-confirmed trim remains
-            # authoritative and clips the core in _validate_ad.
+            # Cue/silence snaps are advisory and may move inward before this validator runs. Measured DAI evidence
+            # is not: restore any core portion an automatic snap crossed before the real file-range clamp. A later
+            # human-confirmed trim stays authoritative and clips the core in _validate_ad.
             core_start, core_end = dai_core_bounds(ad)
             if core_start is not None:
                 if (core_start < ad['start']
@@ -1928,18 +1817,9 @@ class AdValidator:
     def _extend_trailing_ad(self, ads: list[dict],
                             result: ValidationResult,
                             max_gap: float = 30.0) -> list[dict]:
-        """Extend the last ad to the end of episode if close enough.
+        """Extend the last ad to the end of episode if it ends within max_gap seconds (default 30s).
 
-        DAI post-roll ads often end slightly before the actual episode end.
-        If an ad ends within max_gap seconds of the episode end, extend it.
-
-        Args:
-            ads: List of ad markers
-            result: ValidationResult to record corrections
-            max_gap: Maximum gap (seconds) to extend. Default 30s.
-
-        Returns:
-            Ads with potentially extended trailing ad
+        DAI post-roll ads often end slightly before the actual episode end. Corrections are recorded in `result`.
         """
         if not ads or self.episode_duration <= 0:
             return ads
@@ -1989,17 +1869,10 @@ class AdValidator:
 
     def _merge_close_ads(self, ads: list[dict], result: ValidationResult,
                          actions_map: dict[str, str] | None = None) -> list[dict]:
-        """Merge ads with tiny gaps.
+        """Merge ads with tiny gaps, recording corrections in `result`.
 
-        Args:
-            ads: List of ad markers
-            result: ValidationResult to record corrections
-            actions_map: Resolved segment-category -> action map; blocks a
-                merge across ads whose categories resolve to different
-                actions
-
-        Returns:
-            Merged ads
+        actions_map (segment-category -> action) blocks a merge across ads whose categories resolve to
+        different actions.
         """
         if len(ads) < 2:
             return ads
@@ -2025,16 +1898,11 @@ class AdValidator:
             last = merged[-1]
             gap = current['start'] - last['end']
 
-            # Pending-review markers represent individual human decisions.
-            # Never merge one with a cut marker or another hold: either fold
-            # can absorb content that was not part of the reviewed span --
-            # and on an auto-approve recut it would grow the marker past its
-            # trimmed confirm so the confirmed_span clamp never fires and
-            # trimmed-out audio gets cut. A false-positive-correction match
-            # on only one side likewise blocks the fold: the match must keep
-            # describing exactly the span the human rejected. A confirmed
-            # correction on either marker also blocks the merge: even a
-            # shared correction must not authorize the adjacent audio.
+            # Pending-review markers are individual human decisions: never merge one with a cut marker or another hold,
+            # since either fold can absorb content outside the reviewed span (on an auto-approve recut the marker would
+            # outgrow its trimmed confirm so the confirmed_span clamp never fires and trimmed-out audio gets cut). A
+            # false-positive match on only one side also blocks the fold (it must keep describing the rejected span),
+            # as does a confirmed correction on either marker (a shared one must not authorize adjacent audio).
             if (last.get('_user_kept_by_trim')
                     or current.get('_user_kept_by_trim')
                     or last.get('held_for_review')
@@ -2111,11 +1979,7 @@ class AdValidator:
         return merged
 
     def _check_ad_density(self, result: ValidationResult) -> None:
-        """Check overall ad density for suspicious patterns.
-
-        Args:
-            result: ValidationResult to add warnings to
-        """
+        """Check overall ad density for suspicious patterns, adding warnings to `result`."""
         if not result.ads or self.episode_duration <= 0:
             return
 

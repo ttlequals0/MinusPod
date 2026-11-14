@@ -1,12 +1,4 @@
-"""Regression guard: the served feed MUST NOT advertise upstream URLs
-in `<podcast:transcript>` or `<podcast:chapters>` tags.
-
-Background: 2.5.4 introduced a per-episode passthrough that emitted
-upstream publisher URLs for any episode MinusPod had not yet
-processed. This violated the core MinusPod contract (subscribers must
-reach MinusPod for all content, never the publisher). 2.5.5 reverted
-that change. These tests fail loudly if the regression is reintroduced.
-"""
+"""The served feed must not advertise upstream URLs in `<podcast:transcript>` or `<podcast:chapters>` tags."""
 import re
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -72,10 +64,7 @@ class TestUnprocessedEpisodeDoesNotLeakUpstream:
 
     def test_upstream_urls_never_appear_in_output(self):
         out = _serve(has_vtt=False, has_chapters=False)
-        # Scan ALL podcast:transcript/podcast:chapters attribute URLs and
-        # confirm none have an upstream netloc. Parsed equality avoids the
-        # substring-containment pitfall flagged by CodeQL on the earlier
-        # 2.5.4 test file (alert: incomplete URL substring sanitization).
+        # Parsed netloc equality, not substring containment (CodeQL incomplete URL sanitization).
         for url in re.findall(r'<podcast:transcript[^>]*url="([^"]+)"', out):
             assert _netloc(url) != UPSTREAM_NETLOC, f"transcript leak: {url}"
         for url in re.findall(r'<podcast:chapters[^>]*url="([^"]+)"', out):

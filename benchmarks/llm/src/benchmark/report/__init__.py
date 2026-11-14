@@ -75,12 +75,9 @@ def render(
 ) -> None:
     """Render results/report.md from calls.jsonl.
 
-    ``addressing_mode`` isolates the report to one addressing scheme: calls
-    are filtered to records whose ``addressing_mode`` field (missing on every
-    call written before this field existed, which defaults to 'timestamps')
-    matches. A store holding both timestamps- and segment_ids-mode calls
-    never blends them into one set of numbers; run twice with each mode to
-    get two separate reports.
+    ``addressing_mode`` filters to calls with that ``addressing_mode`` (missing
+    means 'timestamps'), so timestamps- and segment_ids-mode calls are never
+    blended; run once per mode.
     """
     title = "# MinusPod LLM Benchmark Report"
     if addressing_mode != "timestamps":

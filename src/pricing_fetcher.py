@@ -1,9 +1,7 @@
 """Live pricing fetcher for multi-provider LLM cost tracking.
 
-Fetches model pricing from:
-- OpenRouter API (GET /api/v1/models) for OpenRouter users
-- pricepertoken.com HTML scraping for all other providers
-- Falls back to DEFAULT_MODEL_PRICING if live fetch fails and table is empty
+Sources: OpenRouter API, pricepertoken.com scraping, LiteLLM JSON; seeds
+DEFAULT_MODEL_PRICING if the live fetch fails and the table is empty.
 """
 import json
 import logging
@@ -36,20 +34,17 @@ from utils.safe_http import (
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
 
-# Hard byte cap on pricing response bodies. These are operator-trusted but
-# remote hosts; without a cap a hostile or broken host could stream a
-# multi-gigabyte body and OOM the worker. 16 MB leaves ample headroom for
-# LiteLLM's full model-price JSON (a few MB and growing) while bounding memory.
+# Byte cap on pricing bodies so a broken remote host cannot OOM the worker.
+# 16 MB leaves headroom for LiteLLM's full price JSON (a few MB and growing).
 PRICING_MAX_BYTES = 16 * 1024 * 1024
 
 
 def _fetch_capped_body(url: str) -> bytes:
-    """GET a pricing URL under the operator-configured SSRF tier, enforcing the
-    status check and a hard byte cap on the streamed body.
+    """GET a pricing URL (operator SSRF tier) with a status check and byte cap.
 
-    Keeps ``raise_for_status`` (which ``get_capped`` does not do) so a non-2xx
-    pricing response fails cleanly into the caller's ConnectionError fallback.
-    Raises ``SSRFError``, ``requests.RequestException`` or ``ResponseTooLargeError``.
+    Calls ``raise_for_status`` (``get_capped`` does not) so non-2xx fails into the
+    caller's ConnectionError fallback. Raises ``SSRFError``,
+    ``requests.RequestException`` or ``ResponseTooLargeError``.
     """
     resp = safe_get(
         url,
@@ -86,9 +81,7 @@ def _cache_rate_per_mtok(per_token) -> float | None:
 def fetch_openrouter_pricing() -> list[dict]:
     """Fetch pricing from OpenRouter's /api/v1/models endpoint.
 
-    Returns list of dicts:
-      [{match_key, raw_model_id, display_name,
-        input_cost_per_mtok, output_cost_per_mtok, cache_read_cost_per_mtok}, ...]
+    Rows: match_key, raw_model_id, display_name, input/output/cache_read_cost_per_mtok.
     """
     try:
         body = _fetch_capped_body('https://openrouter.ai/api/v1/models')
@@ -143,13 +136,9 @@ def _parse_price(text: str) -> float | None:
 def fetch_pricepertoken_pricing(url: str) -> list[dict]:
     """Scrape model pricing from a pricepertoken.com provider/endpoint page.
 
-    Dynamically detects column layout from <th> headers:
-      Provider pages: Model | Context | Input | Output | ...
-      Endpoint pages: Provider | Model | Context | Speed | Input/1M | Output/1M | ...
-
-    Returns list of dicts:
-      [{match_key, raw_model_id, display_name,
-        input_cost_per_mtok, output_cost_per_mtok}, ...]
+    Detects the column layout from <th> headers (provider pages and endpoint
+    pages differ). Rows: match_key, raw_model_id, display_name,
+    input/output_cost_per_mtok.
     """
     try:
         body = _fetch_capped_body(url)
@@ -241,16 +230,14 @@ LITELLM_PRICING_URL = (
 def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
     """Fetch pricing from the LiteLLM community pricing JSON.
 
-    This is a fallback source when the primary provider fetch returns nothing
-    (e.g. pricepertoken page missing, unknown provider domain). The JSON is
-    maintained by the LiteLLM project and updated frequently.
+    Fallback when the primary provider fetch returns nothing (page missing,
+    unknown provider domain).
 
     Args:
-        provider_filter: Optional ``litellm_provider`` value to filter on
-            ('anthropic', 'openai', 'bedrock', etc.). None returns all providers
-            that report per-token input/output costs.
+        provider_filter: ``litellm_provider`` value to filter on ('anthropic',
+            'openai', ...); None returns every provider with per-token costs.
 
-    Returns list of dicts in the same shape as fetch_openrouter_pricing.
+    Returns rows shaped like fetch_openrouter_pricing.
     """
     try:
         body = _fetch_capped_body(LITELLM_PRICING_URL)
@@ -297,7 +284,7 @@ def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
 def _fetch_single_source(source: dict) -> list[dict]:
     """Fetch one source with no cross-source fallback (chain handles that).
 
-    A per-source failure logs a WARNING and returns [] so the chain continues.
+    A per-source failure logs a warning and returns [] so the chain continues.
     """
     source_type = source.get('type')
     if source_type == 'free':
@@ -319,12 +306,9 @@ def _fetch_single_source(source: dict) -> list[dict]:
 def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
     """Fetch an ordered source chain and merge by match_key (first source wins).
 
-    Each source is fetched in order; a per-source failure logs WARNING and the
-    chain continues. Later sources only fill keys the earlier ones did not
-    provide, plus a missing cache read rate on a row an earlier source won.
-    Each merged row carries a '_source' key with the type of the
-    source that actually contributed it. Logs one INFO summarizing per-source
-    contribution counts.
+    A failing source is skipped. Later sources only fill keys earlier ones did
+    not provide, plus a missing cache read rate on an already-won row. Each row
+    carries '_source', the type of the source that contributed it.
     """
     merged: dict[str, dict] = {}
     summary: list[str] = []
@@ -351,14 +335,19 @@ def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
 
 
 def refresh_pricing_if_stale(force: bool = False):
-    """Fetch and persist pricing if cache has expired. Thread-safe.
+    """Fetch and persist pricing if the cache expired; no-op when the LLM is disabled. Thread-safe.
 
-    If live fetch fails and model_pricing is empty, seeds from DEFAULT_MODEL_PRICING.
+    Seeds DEFAULT_MODEL_PRICING if the live fetch fails and the table is empty.
 
     Args:
         force: Skip both in-memory and DB TTL checks (used by force_refresh_pricing).
     """
     global _last_fetch
+    # Deferred imports to avoid circular dependency:
+    # pricing_fetcher -> llm_client -> database -> ... -> pricing_fetcher
+    from llm_client import get_effective_provider, get_effective_base_url, llm_disabled
+    if llm_disabled():
+        return
     if not force:
         with _fetch_lock:
             if time.monotonic() - _last_fetch < PRICING_CACHE_TTL:
@@ -384,10 +373,6 @@ def refresh_pricing_if_stale(force: bool = False):
     # If fetch fails, allows retry in 5 minutes instead of waiting full TTL.
     with _fetch_lock:
         _last_fetch = time.monotonic() - PRICING_CACHE_TTL + 300
-
-    # Deferred imports to avoid circular dependency:
-    # pricing_fetcher -> llm_client -> database -> ... -> pricing_fetcher
-    from llm_client import get_effective_provider, get_effective_base_url
 
     provider = get_effective_provider()
     base_url = get_effective_base_url()
@@ -420,20 +405,16 @@ def refresh_pricing_if_stale(force: bool = False):
             with _fetch_lock:
                 _last_fetch = time.monotonic()
         else:
-            # Live fetch failed or returned nothing -- seed defaults if table is empty
+            # Live fetch failed or returned nothing: seed defaults if table is empty
             existing = db.get_model_pricing()
             if not existing:
                 db.seed_default_pricing()
                 logger.info("Live pricing unavailable, seeded from DEFAULT_MODEL_PRICING")
 
-        # Backfill known Claude defaults UNCONDITIONALLY after the fetch/upsert
-        # attempt (success or failure). seed_default_pricing() is DO NOTHING, so
-        # live rows always win; this only fills gaps for just-released Claude
-        # models the live source has not published yet. Gated so non-Claude
-        # provider tables don't gain stray Anthropic rows. This is the fix for
-        # the third incident of this class: the old code only backfilled after a
-        # SUCCESSFUL fetch AND only for provider==anthropic, so an unknown
-        # openai-compatible domain running Claude never got seeded.
+        # Backfill Claude defaults whether or not the fetch succeeded. seed_default_pricing()
+        # is DO NOTHING so live rows win; this fills gaps for just-released models
+        # and covers an openai-compatible proxy fronting Claude. Gated to avoid
+        # stray Anthropic rows in non-Claude tables.
         if _should_backfill_claude_defaults(db, provider):
             db.seed_default_pricing()
     except Exception as e:
@@ -444,9 +425,8 @@ def _should_backfill_claude_defaults(db, provider: str) -> bool:
     """True when Claude default pricing should be seeded.
 
     Fires for provider == anthropic, or when any configured stage model
-    (claude_model/verification_model/review_model/chapters_model) normalizes to
-    a key starting with 'claude' -- covers an openai-compatible proxy fronting
-    Claude on an unknown domain.
+    normalizes to a key starting with 'claude' (an openai-compatible proxy
+    fronting Claude).
     """
     if provider == PROVIDER_ANTHROPIC:
         return True

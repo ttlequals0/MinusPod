@@ -114,12 +114,10 @@ def test_safe_methods_do_not_require_csrf(csrf_client):
 
 
 def test_authenticated_session_without_csrf_token_is_rejected(csrf_client):
-    """Simulate a stale pre-2.0 session cookie that has authenticated=True
-    but no _csrf_token key. The CSRF layer must still 403, not pass through.
+    """A stale pre-2.0 session cookie (authenticated=True, no _csrf_token) must still 403.
 
-    Requires a configured app_password so the auth layer takes effect;
-    without one, the server treats every request as authenticated and
-    the CSRF check is moot by design.
+    Needs a configured app_password; without one every request counts as authenticated
+    and the CSRF check is moot by design.
     """
     from werkzeug.security import generate_password_hash
     db = database.Database()

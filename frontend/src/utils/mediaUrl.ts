@@ -1,7 +1,7 @@
 import { IS_DEMO } from '../demo/flag';
 import { apiUrl } from '../urlPrefix';
 
-export type MediaRef =
+type MediaRef =
   | { kind: 'feedArtwork'; slug: string; apiArtworkUrl?: string | null }
   | { kind: 'episodeArtwork'; slug: string; episodeId: string }
   | { kind: 'audio'; url: string };

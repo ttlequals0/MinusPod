@@ -1,11 +1,5 @@
-"""A confirmed span must not mint a pattern the auto path would refuse.
-
-Confirming an ad is a statement about one episode. Turning that span into a
-pattern generalizes it to every future episode, and the correction path used
-to do that with no gates at all: a 176s confirm whose first 87s were show
-content produced a pattern keyed on the content, which then dragged the same
-overshoot onto later episodes.
-"""
+"""A confirmed span must not mint a pattern the auto path would refuse: a pattern generalizes one
+episode's confirm to every future episode, so the correction path needs the same gates."""
 import json
 from unittest.mock import MagicMock, patch
 
@@ -48,6 +42,7 @@ def _mock_db(transcript):
     db = MagicMock()
     db.get_transcript_for_timestamps.return_value = transcript
     db.get_podcast_by_slug.return_value = {'id': 42, 'slug': SLUG}
+    db.get_podcast_row.return_value = {'id': 42, 'slug': SLUG}
     db.find_pattern_by_text.return_value = None
     db.get_known_sponsor_by_name.return_value = None
     db.get_ad_patterns.return_value = []

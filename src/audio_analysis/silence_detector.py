@@ -1,4 +1,4 @@
-"""Silence span detection via ffmpeg silencedetect (task B2, Phase B).
+"""Silence span detection via ffmpeg silencedetect.
 
 Runs a single ffmpeg pass with the silencedetect filter and parses the
 stderr output into a list of silence spans. Used by AudioAnalyzer when
@@ -30,11 +30,7 @@ class SilenceDetector:
         self.min_silence_s = min_silence_s
 
     def detect(self, audio_path: str) -> list[dict]:
-        """Return silence spans for audio_path, empty list on any failure.
-
-        Each span is {'start': float, 'end': float, 'duration': float},
-        sorted by start.
-        """
+        """Return silence spans for audio_path as {'start', 'end', 'duration'} floats sorted by start; [] on failure."""
         if not os.path.exists(audio_path):
             logger.warning('Silence detector: file not found: %s', audio_path)
             return []

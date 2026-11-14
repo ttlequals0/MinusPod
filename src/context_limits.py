@@ -1,4 +1,4 @@
-"""Context-window primitives; top level and dependency-free so the utils package init (which pulls in llm_client) is not triggered."""
+"""Context-window primitives; top level and dependency-free."""
 
 # Rough chars-per-token for prompt size estimates.
 CHARS_PER_TOKEN = 4

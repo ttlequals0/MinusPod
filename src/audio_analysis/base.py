@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from enum import Enum
 
+import numpy as np
+
 
 class SignalType(Enum):
     """Types of audio signals that can be detected."""
@@ -17,16 +19,7 @@ class SignalType(Enum):
 
 @dataclass
 class AudioSegmentSignal:
-    """
-    Represents an audio signal detected in a time range.
-
-    Attributes:
-        start: Start time in seconds
-        end: End time in seconds
-        signal_type: Type of signal (volume_change, dai_transition_pair, etc.)
-        confidence: Confidence score from 0.0 to 1.0
-        details: Additional analyzer-specific data
-    """
+    """An audio signal in a time range (seconds); confidence is 0.0 to 1.0, details is analyzer-specific."""
     start: float
     end: float
     signal_type: str
@@ -52,15 +45,7 @@ class AudioSegmentSignal:
 
 @dataclass
 class LoudnessFrame:
-    """
-    Loudness measurement for a single analysis frame.
-
-    Attributes:
-        start: Frame start time in seconds
-        end: Frame end time in seconds
-        loudness_lufs: Integrated loudness in LUFS
-        peak_dbfs: True peak in dBFS
-    """
+    """Loudness of one analysis frame: start/end in seconds, integrated LUFS, true peak dBFS."""
     start: float
     end: float
     loudness_lufs: float
@@ -69,22 +54,17 @@ class LoudnessFrame:
 
 @dataclass
 class AudioAnalysisResult:
-    """
-    Combined results from all audio analyzers.
+    """Combined results from all analyzers.
 
-    Attributes:
-        signals: List of all detected audio signals
-        loudness_baseline: Median loudness of the episode in LUFS
-        loudness_frames: Raw loudness frames from volume analysis
-        analysis_time_seconds: How long the analysis took
-        errors: List of any errors that occurred during analysis
+    loudness_baseline is the episode median in LUFS, loudness_frames the raw volume-pass frames,
+    analysis_time_seconds the run time, errors any failures during analysis.
     """
     signals: list[AudioSegmentSignal] = field(default_factory=list)
     loudness_baseline: float | None = None
     loudness_frames: list[LoudnessFrame] = field(default_factory=list)
     analysis_time_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
-    # Near-miss telemetry (#350). Advisory only -- never signals.
+    # Near-miss telemetry (#350). Advisory only; never signals.
     cue_near_misses: list[dict[str, Any]] = field(default_factory=list)
     # True when the template cue scan ran cleanly, so an empty cue list means
     # "none present" rather than "never looked". Not serialized.
@@ -92,7 +72,7 @@ class AudioAnalysisResult:
     # Per-template {'id', 'label', 'peak_score', 'match_count', 'eff_threshold'}
     # from the matcher pass. Not serialized; the cue_detections rows persist it.
     cue_templates_debug: list[dict[str, Any]] = field(default_factory=list)
-    # Silence spans from silencedetect (Phase B). Advisory only -- never signals.
+    # Silence spans from silencedetect (Phase B). Advisory only; never signals.
     silence_spans: list[dict[str, Any]] = field(default_factory=list)
     # Resolved silence-snap tunables from the analyzer pass; set when silence
     # detection ran so processing.py can reuse them without a second DB read.
@@ -101,8 +81,10 @@ class AudioAnalysisResult:
     # analyzer pass, never by the analyzer itself.
     dai_differential: dict[str, Any] | None = None
     # Splice-evidence payload (spec 2.1): {'version', 'events', 'calibration'}.
-    # None when the detector did not run. Evidence only -- never cuts alone.
+    # None when the detector did not run. Evidence only; never cuts alone.
     splice_evidence: dict[str, Any] | None = None
+    # 10 ms abs-max (uint16) from the splice decode; in memory only, never serialized.
+    peaks_10ms: np.ndarray | None = None
 
     def get_signals_by_type(self, signal_type: str) -> list[AudioSegmentSignal]:
         """Get all signals of a specific type."""

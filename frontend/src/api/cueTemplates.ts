@@ -28,10 +28,8 @@ export function cueTypeLabel(cueType: CueTemplateType): string {
   return CUE_TYPE_OPTIONS.find((o) => o.value === cueType)?.label ?? cueType;
 }
 
-// Per-type capture ceiling (seconds). Intro/outro stingers run longer than
-// ad-break dings; their ceilings are the DB-settable audio_cue_capture_max_
-// intro/outro_seconds settings, passed in here. Other types fall back to the
-// global capture-max setting. The server enforces the same bound.
+// Per-type capture ceiling (seconds). Intro/outro stingers use the audio_cue_capture_max_intro/outro_seconds
+// settings; other types use the global capture-max. The server enforces the same bound.
 export function captureMaxForType(
   cueType: CueTemplateType,
   globalMax: number,
@@ -70,10 +68,8 @@ export interface CueTemplate {
   // Per-template match-score threshold. Overrides per-feed and global when set.
   // null = inherit from feed/global. Range [0, 0.99].
   scoreThreshold?: number | null;
-  // Create-response only: how many times the captured cue recurs in its source
-  // episode, and whether that makes it a weak (non-recurring) ad-break cue.
-  // longCapture is true when an ad-break cue exceeds captureWarnSeconds (issue
-  // #350: long captures degrade match quality). Absent on list rows.
+  // Create-response only: how often the cue recurs in its source episode, and whether that makes it a weak
+  // ad-break cue. longCapture: an ad-break cue exceeded captureWarnSeconds (#350). Absent on list rows.
   selfMatchCount?: number;
   weakCue?: boolean;
   longCapture?: boolean;
@@ -85,7 +81,7 @@ export interface CueTemplate {
   quiet?: boolean;
 }
 
-export interface CueTemplateListResponse {
+interface CueTemplateListResponse {
   templates: CueTemplate[];
 }
 
@@ -96,7 +92,7 @@ export interface CueTemplateMatch {
   score: number;
 }
 
-export interface CueTemplatePreviewResponse {
+interface CueTemplatePreviewResponse {
   templateId: number;
   peakScore: number;
   matches: CueTemplateMatch[];
@@ -192,7 +188,7 @@ export async function previewCueTemplate(
   );
 }
 
-export interface CueScanTemplateResult {
+interface CueScanTemplateResult {
   id: number;
   label: string;
   durationS: number;
@@ -222,7 +218,7 @@ export async function scanEpisodeCues(
   );
 }
 
-export interface ThresholdSuggestion {
+interface ThresholdSuggestion {
   confidence: 'high' | 'partial' | 'low';
   suggested: number | null;
   reason?: string;
@@ -256,14 +252,13 @@ export async function suggestCueThreshold(
   );
 }
 
-export type CueCandidateKind = 'recurring' | 'intro' | 'outro';
+type CueCandidateKind = 'recurring' | 'intro' | 'outro';
 
 export interface CueCandidate {
   start: number;
   end: number;
-  // 'recurring' (repeats within the episode -- an ad-break sting) or 'intro'/
-  // 'outro' (a head/tail segment shared across sibling episodes). Older servers
-  // omit kind and only returned recurring candidates, so missing = recurring.
+  // 'recurring' (repeats within the episode: an ad-break sting) or 'intro'/'outro' (a head/tail segment shared
+  // across sibling episodes). Older servers omit kind, so missing means recurring.
   kind?: CueCandidateKind;
   count?: number;          // recurring: times the sound recurs within the episode
   episodeMatches?: number; // intro/outro: how many sibling episodes share it
@@ -288,15 +283,15 @@ export function cueCandidateLabel(c: CueCandidate): string {
   return `Repeats ${c.count ?? '?'}x`;
 }
 
-// Cue types the backend treats as non-ad (never cut) -- mirrors the 'non_ad' role
-// in AUDIO_CUE_TYPES (src/config.py). Keep in sync when adding a non-ad type.
+// Cue types the backend treats as non-ad (never cut); mirrors the 'non_ad' role in AUDIO_CUE_TYPES
+// (src/config.py). Keep in sync when adding one.
 export function cueTypeIsNonAd(t: CueTemplateType): boolean {
   return t === 'show_intro' || t === 'show_outro' || t === 'content_transition';
 }
 
-export type CueCandidateScanStatus = 'scanning' | 'ready' | 'error' | 'idle';
+type CueCandidateScanStatus = 'scanning' | 'ready' | 'error' | 'idle';
 
-export interface CueCandidatesResponse {
+interface CueCandidatesResponse {
   episodeId: string;
   // Background-scan status. Older servers omit it; treat a missing status with
   // candidates present as 'ready'.
@@ -307,16 +302,16 @@ export interface CueCandidatesResponse {
 
 // Cross-episode scan types and client (D1b backend).
 
-export type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
+type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
 
-export interface CrossEpisodeMatch {
+interface CrossEpisodeMatch {
   start: number;
   end: number;
 }
 
 // One scanned episode's occurrences of a candidate, in that episode's own
 // timeline. matchCount 0 = the sound was not found there.
-export interface CrossEpisodeCandidateEpisode {
+interface CrossEpisodeCandidateEpisode {
   episodeId: string;
   matchCount: number;
   matches: CrossEpisodeMatch[];
@@ -354,9 +349,9 @@ export async function crossEpisodeScan(
 
 // Window-optimizer types and client (D2a backend).
 
-export type CueWindowOptimizeStatus = 'scanning' | 'ready' | 'error';
+type CueWindowOptimizeStatus = 'scanning' | 'ready' | 'error';
 
-export interface CueWindowOptimizeEpisodeScore {
+interface CueWindowOptimizeEpisodeScore {
   episodeId: string;
   peakScore: number;
 }
@@ -392,7 +387,7 @@ export async function optimizeCueWindow(
 
 // Feed-wide "not a cue" feedback (2.44.0). Dismissing stores the sound's
 // fingerprint; future scans of any episode suppress matching candidates.
-export interface CueCandidateDismissal {
+interface CueCandidateDismissal {
   id: number;
   label: string | null;
   sourceEpisodeId: string;
@@ -424,10 +419,9 @@ export async function undoCueCandidateDismissal(id: number): Promise<void> {
   await apiRequest(`/cue-candidate-dismissals/${id}`, { method: 'DELETE' });
 }
 
-// On-demand scan: fingerprint the whole episode and return the sounds that
-// recur across it (the ones worth templating). Loudness-independent, so it
-// catches level-matched stings. The scan runs in the background and returns a
-// status to poll; pass rescan to force a fresh run after an error.
+// On-demand scan: fingerprint the whole episode and return the sounds that recur across it (worth templating).
+// Loudness-independent, so it catches level-matched stings. Runs in the background and returns a status to
+// poll; pass rescan to force a fresh run after an error.
 export async function getCueCandidates(
   slug: string,
   episodeId: string,

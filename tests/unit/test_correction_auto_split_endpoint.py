@@ -1,8 +1,6 @@
-"""End-to-end coverage of the auto-split guard (issue #563) through the real
-/corrections endpoint: confirm and adjust, with no pattern_id, on transcript
-text spanning three ad-transition phrases. Each should split into three
-patterns, with the correction row linked to the sponsor-matched primary.
-"""
+"""Auto-split guard (issue #563) through the real /corrections endpoint: confirm and adjust without
+pattern_id on text with three ad-transition phrases give three patterns, the correction linked to
+the sponsor-matched primary."""
 import json
 import os
 import tempfile

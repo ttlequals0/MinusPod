@@ -1,9 +1,8 @@
-"""Unit tests for the recut chapter remap (served chapters JSON, AI-free).
+"""The recut chapter remap (served chapters JSON, AI-free).
 
-The recut path re-cuts the retained ORIGINAL audio, so applied_cuts are in
-original-episode coordinates while the stored chapters JSON sits on the
-previous processed timeline. The remap goes previous-processed -> original
-(inverse of the previous cut adjustment) -> recut timeline.
+Recut uses the retained original audio, so applied_cuts are in original-episode coordinates while stored
+chapters sit on the previous processed timeline. The remap goes previous-processed to original (inverse of
+the previous cut adjustment) to the recut timeline.
 """
 import os
 import sys

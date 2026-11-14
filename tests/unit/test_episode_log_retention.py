@@ -178,7 +178,7 @@ class TestCleanupWiring:
                             lambda db, data_dir, days: calls.append(days) or (0, 0))
         monkeypatch.setattr(background.db, 'cleanup_old_episodes',
                             lambda storage=None: (0, 0.0))
-        monkeypatch.setattr(background.db, 'get_all_podcasts', lambda: [])
+        monkeypatch.setattr(background.db, 'get_all_podcast_rows', lambda: [])
         if hasattr(background.run_cleanup, '_last_run_log_sweep'):
             del background.run_cleanup._last_run_log_sweep
         yield background, calls

@@ -1,12 +1,9 @@
 """Shared intro/outro variant derivation, union, dedupe, and cap (#399).
 
-One implementation for every path that writes a pattern's intro/outro variants:
-manual create, the manual merge endpoint, and auto-promotion. Manual patterns
-are born with empty variant arrays, so this derives them from the full
-text_template; the merge/promotion paths union arrays from several patterns.
-Both keep arrays distinct (phrases >=95% similar on their canonical form are
-folded) and bounded (VARIANT_CAP per array) so the budget covers real opening/
-closing variation rather than near-duplicates.
+Used by manual create, manual merge and auto-promotion. Manual patterns start
+with empty variant arrays, so these are derived from text_template; merge and
+promotion union arrays. Arrays stay distinct (>=95% similar phrases fold) and
+capped at VARIANT_CAP.
 """
 import json
 from collections.abc import Sequence

@@ -1,10 +1,8 @@
-"""Regression tests for processed/original twin pairing through AdValidator.
+"""Processed/original twin pairing through AdValidator.
 
-AdValidator.validate() sorts, merges and drops ads, so the old positional
-keep_indices pairing could attach a surviving processed ad to the WRONG
-original-coordinates twin (e.g. after A+B merge, C paired with B's original).
-The fix carries each original through validation as a reference on the
-processed dict.
+validate() sorts, merges and drops ads, so positional keep_indices pairing could attach a surviving processed
+ad to the wrong original twin (after A+B merge, C paired with B's original). Each original now travels
+through validation as a reference on the processed dict.
 """
 import inspect
 import threading
@@ -368,9 +366,9 @@ def test_below_threshold_non_held_not_in_v_ads_held():
 
 
 def test_pass2_cut_inside_pass1_held_span_is_dropped():
-    """A pass-2 ad whose original span overlaps a pass-1 held span must be dropped
-    (never cut, never re-held) -- the pass-1 held marker already protects the
-    region, so adding a second held marker would double-count the review."""
+    """A pass-2 ad whose original span overlaps a pass-1 held span is dropped (never cut, never re-held).
+
+    The pass-1 held marker already protects the region; a second held marker would double-count the review."""
     proc = [_plain_proc(100.0, 160.0)]  # would-be cut
     orig = [_orig(120.0, 250.0, 'inside')]  # original coords overlap held 100-500
     pass1_held = [_held_marker(100.0, 500.0)]
@@ -747,12 +745,11 @@ def test_auto_approve_dedupes_existing_confirm(monkeypatch):
 
 
 def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
-    """A stale confirm that merely grazes the hold -- typical after a
-    reprocess fetched a copy with a shifted DAI timeline -- covers too
-    little of the span to force-accept it at recut time. Treating the graze
-    as an equivalent confirm skips filing, the caller's recut re-holds the
-    marker, and the approval silently does nothing (seen on a reprocess).
-    Only a confirm covering at least half the hold counts as on file."""
+    """A stale confirm that merely grazes the hold covers too little to force-accept it at recut time.
+
+    Typical after a reprocess fetched a copy with a shifted DAI timeline. Treating the graze as an equivalent
+    confirm skips filing, so the recut re-holds the marker and the approval does nothing. Only a confirm
+    covering at least half the hold counts as on file."""
     db = MagicMock()
     db.get_false_positive_corrections.return_value = []
     # Covers 32.6s of the 107.4s hold (30%): below the validator's
@@ -828,11 +825,10 @@ def test_no_cue_hold_is_never_corroborated():
 
 
 def test_padded_hold_tail_still_corroborates_and_records_span():
-    """example-podcast a1b2c3d4e5f6: a 239.9s hold with a 24.3s alignment-padding
-    tail scored 0.899 coverage and missed the old 0.9 bar; the Acme break
-    shipped audible. Under the 0.75 bar it stamps, and the corroborated
-    sub-span (what pass 2 actually attested, clamped into the hold) is
-    recorded for the trimmed auto-approve confirm."""
+    """A 239.9s hold with a 24.3s alignment-padding tail scored 0.899 coverage and missed the old 0.9 bar.
+
+    Under the 0.75 bar it stamps, and the corroborated sub-span (what pass 2 attested, clamped into the
+    hold) is recorded for the trimmed auto-approve confirm."""
     proc = [_plain_proc(100.0, 317.9)]
     orig = [_orig(835.1, 1053.0, 'acme')]
     hold = _diff_hold(837.4, 1077.3)
@@ -1063,6 +1059,7 @@ def _feed_db():
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = []
     db.get_podcast_by_slug.return_value = {'id': 7}
+    db.get_podcast_row.return_value = {'id': 7}
     return db
 
 
@@ -1213,10 +1210,8 @@ def test_filing_skips_without_retained_original(monkeypatch):
 
 
 def _run_fold_branch(recut_result=True, recut_mutates=False):
-    """Drive process_episode far enough to reach the approval-recut fold.
-
-    Returns the patched seams so a test can assert on the recut and the
-    finalize that follows it.
+    """Drive process_episode far enough to reach the approval-recut fold, returning the patched seams
+    so a test can assert on the recut and the finalize after it.
     """
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'spoken content here'}]
     ad = {'start': 5.0, 'end': 25.0, 'confidence': 0.9, 'reason': 'ad',
@@ -1269,6 +1264,7 @@ def _run_fold_branch(recut_result=True, recut_mutates=False):
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = {'id': 1, 'slug': 'fold-feed'}
+        db.get_podcast_row.return_value = {'id': 1, 'slug': 'fold-feed'}
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = {}
@@ -1327,6 +1323,7 @@ def test_the_recut_run_stat_is_capped_with_the_history_row():
     """The history row caps the pass-2 share against the recut's own total;
     run_stats reports the same number, from the same source line."""
     src = inspect.getsource(recut._recut_episode)
+    assert '_split_recut_counts(' in src, 'recut.py changed on disk since import'
     split = src.split('_split_recut_counts(')[1]
 
     assert "run_stats['verification_ads_cut'] = verification_count" in split

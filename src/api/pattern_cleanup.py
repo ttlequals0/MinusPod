@@ -5,6 +5,9 @@ from flask import request
 
 import pattern_cleanup
 from api import api, limiter, log_request, json_response, error_response, get_database
+from api.patterns import fingerprint_response_fields
+from llm_client import require_llm
+from database.error_text import redact_error
 from database.settings import registry_default, registry_get_default
 
 logger = logging.getLogger('podcast.api')
@@ -77,6 +80,7 @@ def _suggestion_view(s: dict) -> dict:
     }
     if 'pattern' in s:
         view['pattern'] = _pattern_summary_view(s['pattern'])
+    view.update(fingerprint_response_fields(s.get('fingerprint_outcomes') or []))
     return view
 
 
@@ -95,7 +99,7 @@ def _run_view(r: dict) -> dict:
         'suggestedCount': r.get('suggested_count') or 0,
         'skippedCount': r.get('skipped_count') or 0,
         'errorCount': r.get('error_count') or 0,
-        'error': r.get('error'),
+        'error': redact_error(r.get('error')),
     }
 
 
@@ -109,7 +113,7 @@ def get_pattern_cleanup_status():
     view.update({
         'inProgress': pattern_cleanup.is_cleanup_running(db),
         'lastRun': latest[0]['started_at'] if latest else None,
-        'lastError': (finished or {}).get('error') or None,
+        'lastError': redact_error((finished or {}).get('error')) or None,
         'lastSummary': _run_view(finished) if finished else None,
         'pending': db.get_cleanup_pending_counts(),
     })
@@ -127,6 +131,7 @@ def run_pattern_cleanup():
     force = data.get('force', False)
     if not isinstance(force, bool):
         return error_response('force must be a boolean', 400)
+    require_llm('Pattern cleanup is unavailable while the LLM provider is set to None')
     db = get_database()
     try:
         run_id = pattern_cleanup.start_cleanup_run(db, force=force, trigger='manual')
@@ -211,7 +216,8 @@ def bulk_cleanup_suggestions():
     for sid in ids:
         try:
             suggestion = fn(db, sid)
-            results.append({'id': sid, 'status': suggestion['status']})
+            results.append({'id': sid, 'status': suggestion['status'],
+                            **fingerprint_response_fields(suggestion.get('fingerprint_outcomes') or [])})
         except pattern_cleanup.SuggestionNotFoundError:
             results.append({'id': sid, 'error': 'not_found'})
         except pattern_cleanup.SuggestionStateError:

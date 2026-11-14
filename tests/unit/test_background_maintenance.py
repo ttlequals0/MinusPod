@@ -1,7 +1,5 @@
-"""Background loop pacing: a shared RSS outage backs off across passes instead
-of re-arming the same short retry, and a failed search-index rebuild waits out
-a bounded cooldown rather than retrying every cleanup pass.
-"""
+"""Background loop pacing: a shared RSS outage backs off across passes, and a failed search-index
+rebuild waits out a bounded cooldown instead of retrying every cleanup pass."""
 import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -13,6 +11,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('background_maintenance_test_')
 import main_app
 from main_app import background
+from utils.log_format import QueryStringRedactingFilter
 from utils.time import parse_iso_utc
 
 
@@ -105,11 +104,12 @@ class TestSearchIndexRebuildBackoff:
     def _run_cleanup(self, monkeypatch, *, rebuild, slots=0, last=0.0, full_last=0.0, refresh=None):
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
-        db.get_all_podcasts.return_value = []
+        db.get_all_podcast_rows.return_value = []
         db.rebuild_search_index.side_effect = rebuild
         db.refresh_search_index.side_effect = refresh
+        db.get_system_setting.return_value = str(full_last) if full_last else None
         monkeypatch.setattr(background, 'db', db)
-        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         background._INDEX_STATE['last_refresh'] = last
         background._INDEX_STATE['last_full'] = full_last
         queue = MagicMock()
@@ -165,9 +165,9 @@ class TestSearchIndexRebuildBackoff:
         the index untouched."""
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
-        db.get_all_podcasts.return_value = []
+        db.get_all_podcast_rows.return_value = []
         monkeypatch.setattr(background, 'db', db)
-        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         last = time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS - 60
         background._INDEX_STATE['last_refresh'] = last
         with patch('processing_queue.ProcessingQueue',
@@ -194,10 +194,10 @@ class TestDownloadPruneCadence:
     def _run(self, monkeypatch):
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
-        db.get_all_podcasts.return_value = []
+        db.get_all_podcast_rows.return_value = []
         db.get_setting_int.return_value = 90
         monkeypatch.setattr(background, 'db', db)
-        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         queue = MagicMock()
         queue.slot_count.return_value = 1
         with patch('processing_queue.ProcessingQueue', return_value=queue):
@@ -258,6 +258,20 @@ class TestGeoLookupThread:
         background._run_maintenance_tick(MagicMock())
         assert started == [1]
 
+    def test_tick_ends_with_the_wal_checkpoint(self, monkeypatch):
+        fake_db = MagicMock()
+        fake_db.reset_orphaned_queue_items.return_value = (0, 0)
+        fake_db.reset_failed_queue_items.return_value = 0
+        monkeypatch.setattr(background, 'db', fake_db)
+        monkeypatch.setattr(background, 'reset_stuck_processing_episodes', lambda: None)
+        monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
+        monkeypatch.setattr(background, '_start_geo_lookup', lambda: None)
+        seen = []
+        monkeypatch.setattr(background, '_maybe_checkpoint_wal', seen.append)
+        registry = MagicMock()
+        background._run_maintenance_tick(registry)
+        assert seen == [registry]
+
     def test_failure_is_logged_not_raised(self, monkeypatch):
         monkeypatch.setattr(background.geo_lookup, 'run_geo_lookup',
                             lambda db: (_ for _ in ()).throw(RuntimeError('boom')))
@@ -273,3 +287,141 @@ class TestYouTubeTicksWired:
         background.background_rss_refresh()
         assert 'youtube_sponsorblock_tick' in names
         assert 'youtube_ytdlp_update_tick' in names
+
+
+class _InlineThread:
+    """Runs the target when started, so the test needs no wait."""
+
+    def __init__(self, target, name=None, daemon=None):
+        self.target = target
+        self.started = False
+
+    def start(self):
+        self.started = True
+        self.target()
+
+    def is_alive(self):
+        return False
+
+
+def _upgrade_harness(monkeypatch, pending, ok=True):
+    fake_db = MagicMock()
+    fake_db.pending_upgrade_steps.return_value = pending
+    fake_db.run_deferred_upgrade_steps.return_value = ok
+    monkeypatch.setattr(background, 'db', fake_db)
+    monkeypatch.setattr(background.threading, 'Thread', _InlineThread)
+    monkeypatch.setitem(background._UPGRADE_STATE, 'thread', None)
+    monkeypatch.setitem(background._UPGRADE_STATE, 'retry_at', None)
+    return fake_db
+
+
+def test_pending_upgrade_steps_run_on_a_background_thread(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'])
+    background.start_deferred_upgrade_steps()
+    fake_db.run_deferred_upgrade_steps.assert_called_once()
+
+
+def test_nothing_starts_when_no_step_is_pending(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, [])
+    background.start_deferred_upgrade_steps()
+    fake_db.run_deferred_upgrade_steps.assert_not_called()
+
+
+def test_a_failed_step_is_retried_after_an_hour_not_before(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'], ok=False)
+    background.start_deferred_upgrade_steps(clock=lambda: 1000.0)
+    background.start_deferred_upgrade_steps(clock=lambda: 1000.0 + 3599.0)
+    assert fake_db.run_deferred_upgrade_steps.call_count == 1
+    fake_db.run_deferred_upgrade_steps.return_value = True
+    background.start_deferred_upgrade_steps(clock=lambda: 1000.0 + 3600.0)
+    assert fake_db.run_deferred_upgrade_steps.call_count == 2
+    assert background._UPGRADE_STATE['retry_at'] is None
+
+
+def test_a_still_failing_step_keeps_the_hourly_interval(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'], ok=False)
+    background.start_deferred_upgrade_steps(clock=lambda: 0.0)
+    background.start_deferred_upgrade_steps(clock=lambda: 3600.0)
+    assert background._UPGRADE_STATE['retry_at'] == 7200.0
+    background.start_deferred_upgrade_steps(clock=lambda: 7199.0)
+    assert fake_db.run_deferred_upgrade_steps.call_count == 2
+
+
+def test_a_raising_run_logs_type_and_message_redacted_and_schedules_a_retry(monkeypatch, caplog):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'])
+    key = 'ab' * 32
+    fake_db.run_deferred_upgrade_steps.side_effect = RuntimeError(
+        f'boom fetching https://user:hunter2@example.com/feed?token=qq&k=1 key {key}')
+    caplog.handler.addFilter(QueryStringRedactingFilter())
+    with caplog.at_level('WARNING'):
+        background.start_deferred_upgrade_steps(clock=lambda: 10.0)
+    assert background._UPGRADE_STATE['retry_at'] == 3610.0
+    assert 'Deferred upgrade steps failed with RuntimeError: boom fetching' in caplog.text
+    assert 'hunter2' not in caplog.text and 'token=qq' not in caplog.text and key not in caplog.text
+
+
+def test_the_maintenance_tick_starts_the_upgrade_steps(monkeypatch):
+    started = []
+    monkeypatch.setattr(background, 'start_deferred_upgrade_steps', lambda: started.append(1))
+    monkeypatch.setattr(background, '_start_geo_lookup', lambda: None)
+    monkeypatch.setattr(background, '_maybe_checkpoint_wal', lambda registry: None)
+    monkeypatch.setattr(background, 'reset_stuck_processing_episodes', lambda: None)
+    monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
+    fake_db = MagicMock()
+    fake_db.reset_orphaned_queue_items.return_value = (0, 0)
+    fake_db.reset_failed_queue_items.return_value = 0
+    monkeypatch.setattr(background, 'db', fake_db)
+    background._run_maintenance_tick(MagicMock())
+    assert started == [1]
+
+
+class TestAuthFailureCleanup:
+    @pytest.fixture
+    def conn(self, monkeypatch):
+        monkeypatch.setattr(background.db, 'cleanup_old_episodes', lambda storage=None: (0, 0.0))
+        monkeypatch.setattr(background.db, 'get_all_podcasts', lambda: [])
+        monkeypatch.setattr(background.run_log, 'sweep_expired_logs', lambda *a: (0, 0))
+        monkeypatch.setattr(background.storage, 'sweep_peaks_temp_files', lambda: 0)
+        conn = background.db.get_connection()
+        conn.execute("DELETE FROM auth_failures")
+        conn.commit()
+        yield conn
+        conn.execute("DELETE FROM auth_failures")
+        conn.commit()
+
+    @staticmethod
+    def _insert(conn, ip, last_failed_at, locked_until=None):
+        conn.execute(
+            "INSERT INTO auth_failures (ip, failed_count, first_failed_at, last_failed_at, locked_until) "
+            "VALUES (?, 1, ?, ?, ?)", (ip, last_failed_at, last_failed_at, locked_until))
+        conn.commit()
+
+    @staticmethod
+    def _ips(conn):
+        return {r[0] for r in conn.execute("SELECT ip FROM auth_failures")}
+
+    def test_expired_row_is_removed_and_live_rows_are_kept(self, conn):
+        now = datetime.now(timezone.utc)
+        fmt = "%Y-%m-%dT%H:%M:%SZ"
+        old = (now - timedelta(days=2)).strftime(fmt)
+        recent = now.strftime(fmt)
+        future = (now + timedelta(hours=1)).strftime(fmt)
+        self._insert(conn, '203.0.113.1', old)
+        self._insert(conn, '203.0.113.2', recent)
+        self._insert(conn, '203.0.113.3', old, locked_until=future)
+
+        background.run_cleanup()
+
+        assert self._ips(conn) == {'203.0.113.2', '203.0.113.3'}
+
+    def test_a_failing_sweep_does_not_stop_the_rest_of_the_pass(self, conn, monkeypatch):
+        def boom():
+            raise RuntimeError('db busy')
+        monkeypatch.setattr(background.db, 'cleanup_auth_failures', boom)
+        pruned = []
+        monkeypatch.setattr(background.db, 'prune_downloads', lambda days: pruned.append(days))
+        monkeypatch.setitem(background._DOWNLOAD_STATE, 'last_prune', 0)
+
+        background.run_cleanup()
+
+        assert pruned

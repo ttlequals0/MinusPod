@@ -2,6 +2,7 @@
 from tests.app_bootstrap import bootstrap
 bootstrap('ttl_bounds_test_')
 
+import threading
 import time
 
 from main_app.cache import TTLCache as MainAppTTLCache
@@ -106,3 +107,37 @@ def test_utils_default_construction_unchanged():
     cache = UtilsTTLCache(ttl_seconds=60)
     cache.set('k', 'v')
     assert cache.get('k') == 'v'
+
+
+class _MutatingStore(dict):
+    """Runs hook once, in the middle of an items() walk."""
+    hook = None
+
+    def items(self):
+        for position, pair in enumerate(super().items()):
+            yield pair
+            if position == 0 and self.hook:
+                hook, self.hook = self.hook, None
+                hook()
+
+
+def test_utils_eviction_survives_a_concurrent_insert():
+    cache = UtilsTTLCache(ttl_seconds=60, max_size=2)
+    store = _MutatingStore()
+    cache._store = store
+    cache.set('a', 1)
+    cache.set('b', 2)
+
+    def insert_from_another_thread():
+        worker = threading.Thread(target=cache.set, args=('other', 3))
+        worker.start()
+        # Without a lock the insert lands inside the walk; with one it waits for the walk to end.
+        worker.join(timeout=0.2)
+        workers.append(worker)
+
+    workers = []
+    store.hook = insert_from_another_thread
+    cache.set('c', 4)
+    workers[0].join(timeout=5)
+    assert not workers[0].is_alive()
+    assert len(cache._store) <= 2

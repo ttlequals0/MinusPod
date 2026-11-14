@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from tests.queue_helpers import peek_next_queued
 from database import Database
 
 
@@ -692,7 +693,7 @@ class TestResetFailedQueueItems:
         assert {first['episode_id'], second['episode_id']} == {'cep1', 'cep2'}
         # Both claimed, nothing pending left.
         assert third is None
-        assert temp_db.get_next_queued_episode() is None
+        assert peek_next_queued(temp_db) is None
 
     def test_resets_eligible_transient_failure(self, temp_db):
         """Failed queue items with transient episode failure should be reset to pending."""
@@ -702,7 +703,7 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 1
-        queued = temp_db.get_next_queued_episode()
+        queued = peek_next_queued(temp_db)
         assert queued is not None
         assert queued['episode_id'] == 'ep1'
 
@@ -714,7 +715,7 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 0
-        queued = temp_db.get_next_queued_episode()
+        queued = peek_next_queued(temp_db)
         assert queued is None
 
     def test_respects_retry_limit(self, temp_db):
@@ -1219,13 +1220,9 @@ class TestSonnet5Fable5CostRecomputeMigration:
         assert abs(stat['value'] - 2.5) < 0.001  # untouched
 
     def test_sibling_row_with_correct_cost_is_not_clobbered(self, temp_db):
-        """Two rows share claudesonnet5 match_key: one $0 (needs fix), one $42 (correct).
-        After migration the $0 row gets its own recomputed cost and the $42 row is untouched.
-        Sonnet 5 rates: in=3.0/Mtok out=15.0/Mtok.
-        $0 row: 1M in + 1M out -> 3 + 15 = $18.
-        $42 row: dated model_id, already correct, must stay at $42.
-        Global resets to sum of all token_usage rows = 18 + 42 = $60.
-        """
+        """Two rows share the claudesonnet5 match_key: one $0 (needs fix), one $42 (correct). At
+        in=3.0/Mtok out=15.0/Mtok the $0 row (1M in + 1M out) recomputes to $18, the $42 row (dated
+        model_id) stays, and global resets to $60."""
         conn = temp_db.get_connection()
         conn.execute(
             """INSERT INTO token_usage
@@ -1408,11 +1405,11 @@ class TestBulkUpsertDiscoveredEpisodes:
         first = temp_db.bulk_upsert_discovered_episodes(slug, episodes)
         assert first == 5
 
-        # Re-upsert the same five GUIDs -- no new rows, count must be 0.
+        # Re-upsert the same five GUIDs: no new rows, count must be 0.
         second = temp_db.bulk_upsert_discovered_episodes(slug, episodes)
         assert second == 0
 
-        # Mix: 3 existing + 2 new -- count must be 2.
+        # Mix: 3 existing + 2 new: count must be 2.
         mixed = episodes + [self._make_episode('ep-new-a'), self._make_episode('ep-new-b')]
         third = temp_db.bulk_upsert_discovered_episodes(slug, mixed)
         assert third == 2
@@ -1477,32 +1474,6 @@ class TestDeleteEpisodes:
         count, freed = temp_db.delete_episodes(slug, ['ep-1'], storage)
         assert count == 0
         assert freed == 0.0
-
-
-class TestResetEpisodeToDiscovered:
-    """Tests for _reset_episode_to_discovered."""
-
-    def test_reset_clears_all_fields(self, temp_db):
-        slug = 'reset-test'
-        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
-        temp_db.upsert_episode(slug, 'ep-1',
-                               original_url='https://example.com/1.mp3',
-                               status='processed',
-                               processed_file='/path/to/file.mp3',
-                               original_duration=3600.0,
-                               new_duration=3400.0,
-                               ads_removed=3,
-                               error_message='some error')
-
-        temp_db._reset_episode_to_discovered(slug, 'ep-1')
-
-        ep = temp_db.get_episode(slug, 'ep-1')
-        assert ep['status'] == 'discovered'
-        assert ep['processed_file'] is None
-        assert ep['original_duration'] is None
-        assert ep['new_duration'] is None
-        assert ep['ads_removed'] == 0
-        assert ep['error_message'] is None
 
 
 class TestCleanupOldEpisodes:
@@ -1641,7 +1612,7 @@ class TestEpisodeSorting:
         temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
         temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
 
-        # Should not crash -- falls back to created_at
+        # Should not crash: falls back to created_at
         episodes, total = temp_db.get_episodes(slug, sort_by='bobby_tables; DROP TABLE--', sort_dir='asc')
         assert total >= 1
 
@@ -1655,8 +1626,13 @@ class TestBatchMethods:
         temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
         temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3')
 
-        # batch_clear_episode_details should not crash even with no details
+        temp_db.save_episode_details(slug, 'ep-1', transcript_text='transcript one')
+        assert temp_db.has_transcript(slug, 'ep-1')
+
         temp_db.batch_clear_episode_details(slug, ['ep-1', 'ep-2'])
+
+        assert not temp_db.has_transcript(slug, 'ep-1')
+        assert not temp_db.has_transcript(slug, 'ep-2')
 
     def test_batch_reset_episodes_to_discovered(self, temp_db):
         slug = 'batch-reset'
@@ -1954,10 +1930,8 @@ class TestStalePromptRefresh:
         assert is_default == 0
 
     def test_the_refresh_is_not_on_the_seeding_path(self, temp_db):
-        """Seeding is reached through _migrate_from_json, which returns early
-        on any database that already has podcasts. Putting the refresh there
-        skipped every install that needed it, which is how it shipped once
-        without working."""
+        """Seeding runs through _migrate_from_json, which returns early on a database that already has
+        podcasts, so the refresh must not live there."""
         import inspect
         src = inspect.getsource(temp_db.__class__._seed_default_settings)
         assert 'iter_refreshable_defaults' not in src

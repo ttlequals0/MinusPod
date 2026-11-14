@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -200,7 +199,7 @@ def report(
     typer.echo(f"report written: {md_path}")
 
 
-# -- helpers --
+# Helpers
 
 def _mfcc_frame_count(row: dict) -> int:
     mfcc = deserialize_mfcc(row["mfcc_blob"], row["n_coeffs"])

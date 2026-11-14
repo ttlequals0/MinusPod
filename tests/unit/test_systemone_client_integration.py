@@ -159,6 +159,8 @@ def test_call_llm_runs_review_through_native_protocol_and_extracts_envelope(
             'start': 100.0,
         }],
     }
+    # A space after each comma keeps a redacted URL query from swallowing the fields after it.
+    assert response.content == json.dumps(payload)
     assert fake_http.payloads
     row = temp_db.get_connection().execute(
         "SELECT state, phase_key, dispatch_count FROM llm_call_usage "

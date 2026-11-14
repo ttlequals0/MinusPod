@@ -15,6 +15,8 @@ import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -42,7 +44,7 @@ const CHAPTER_GEOMETRY_FIELDS = [
 type GeometryKey = (typeof CHAPTER_GEOMETRY_FIELDS)[number]['key'];
 const CHAPTER_GEOMETRY_KEYS = CHAPTER_GEOMETRY_FIELDS.map((f) => f.key);
 
-export interface ChapterGeometryProps {
+interface ChapterGeometryProps {
   tunables: StageTunables;
   defaults: Record<keyof StageTunables, number | string | null>;
   onSave: (payload: UpdateSettingsPayload) => void;
@@ -59,6 +61,7 @@ function ChapterGeometryBlock({
   saveIsSuccess,
   saveError,
 }: ChapterGeometryProps) {
+  const llmEnabled = useLlmEnabled();
   const serverBaseline = useMemo(
     () => baselineFromTunables(tunables, CHAPTER_GEOMETRY_KEYS),
     [tunables],
@@ -66,6 +69,7 @@ function ChapterGeometryBlock({
   const { draft, dirty, setField, buildPayload } = useServerDraft(
     CHAPTER_GEOMETRY_KEYS,
     serverBaseline,
+    llmEnabled,
   );
 
   const eff = (key: GeometryKey) => (draft[key] ?? defaults[key]) as number | null;
@@ -184,6 +188,7 @@ function Podcasting20Section({
   adChapters,
   geometry,
 }: Podcasting20SectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection title="Transcripts and chapters" storageKey="settings-section-transcripts-&-chapters">
       <div className="space-y-4 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
@@ -209,11 +214,13 @@ function Podcasting20Section({
           </label>
           <select id="globalChaptersMode" value={chaptersMode}
             onChange={(e) => onChaptersModeChange(e.target.value as 'auto' | 'generate' | 'off')}
+            aria-describedby={llmEnabled ? undefined : 'globalChaptersMode-llm-disabled'}
             className={`w-full ${selectBase}`}>
             <option value="auto">Auto</option>
-            <option value="generate">Always generate</option>
+            <option value="generate" disabled={!llmEnabled}>Always generate</option>
             <option value="off">Off</option>
           </select>
+          {!llmEnabled && <LlmDisabledNote id="globalChaptersMode-llm-disabled" className="mt-1" text={chaptersMode === 'generate' ? GENERATE_AS_AUTO_NOTE : undefined} />}
         </div>
 
         {adChapters && <AdChaptersBlock {...adChapters} />}
@@ -231,7 +238,11 @@ function Podcasting20Section({
           anyone reading the feed. Feeds can override this.
         </ToggleRow>
 
-        {geometry && <ChapterGeometryBlock {...geometry} />}
+        {geometry && (
+          <LlmGate disabled={!llmEnabled} id="chapter-density" className="space-y-2">
+            <ChapterGeometryBlock {...geometry} />
+          </LlmGate>
+        )}
       </div>
     </CollapsibleSection>
   );

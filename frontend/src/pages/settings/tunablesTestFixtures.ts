@@ -4,7 +4,7 @@
 import { screen } from '@testing-library/react';
 import type { StageTunableEntry, StageTunables } from '../../api/types';
 
-export function entry<T>(value: T): StageTunableEntry<T> {
+function entry<T>(value: T): StageTunableEntry<T> {
   return { value, isDefault: true, envOverride: null };
 }
 

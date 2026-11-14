@@ -1,19 +1,15 @@
-"""Splice-evidence detection (spec 2.1).
+"""Splice-evidence detection (spec 2.1) for dynamic ad-insertion splice points.
 
-Detects encoding artifacts that mark dynamic ad-insertion splice points:
+- deep silences: RMS on 10ms frames of an 8kHz mono decode. Runs below -80 dBFS for >= 0.5s are
+  'digital_silence' (encoded zeros); runs below -70 dBFS for >= 1.4s are 'deep_silence'.
+- loudness_steps: level change straddling a silence event, measured on the ebur128 frames the
+  volume pass already produced.
+- spectral_steps: change in energy-weighted spectral centroid/flatness across a silence event.
+  Per-frame values are power-weighted over each side window; naive per-frame means are
+  silence-contaminated and can flip a boundary's sign.
 
-- deep silences: RMS on 10ms frames of an 8kHz mono decode. Runs below
-  -80 dBFS for >= 0.5s are 'digital_silence' (encoded zeros); runs below
-  -70 dBFS for >= 1.4s are 'deep_silence'.
-- loudness_steps: level change straddling a silence event, measured on the
-  ebur128 frames the volume pass already produced.
-- spectral_steps: change in energy-weighted spectral centroid/flatness
-  across a silence event. Per-frame values are power-weighted over each
-  side window; naive per-frame means are silence-contaminated and can flip
-  a boundary's sign.
-
-Evidence only: consumers corroborate, snap, veto, and annotate LLM prompts.
-Nothing here cuts audio on its own.
+Evidence only: consumers corroborate, snap, veto, and annotate LLM prompts. Nothing here cuts
+audio on its own.
 """
 
 import logging
@@ -29,6 +25,7 @@ from config import (
     SPLICE_CENTROID_STEP_MIN_HZ, SPLICE_FLATNESS_STEP_MIN,
     SPLICE_STEP_SIDE_WINDOW_SECONDS,
 )
+from audio_peaks import abs_max_i16
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 from utils.subprocess_registry import tracked_run
 
@@ -75,11 +72,25 @@ class SpliceDetector:
     def detect(self, audio_path: str, duration: float | None,
                loudness_frames) -> dict:
         """Return the splice_evidence payload; empty payload on any failure."""
+        return self.detect_with_peaks(audio_path, duration, loudness_frames)[0]
+
+    def detect_with_peaks(self, audio_path: str, duration: float | None,
+                          loudness_frames) -> tuple[dict, np.ndarray | None]:
+        """Return (splice payload, 10 ms abs-max uint16) from one decode."""
         if not os.path.exists(audio_path):
             logger.warning('Splice detector: file not found: %s', audio_path)
-            return _empty_payload()
+            return _empty_payload(), None
 
         pcm = self._decode_8k_mono(audio_path, duration or 0.0)
+        peaks = None
+        if pcm is not None:
+            n = len(pcm) // RMS_FRAME_SAMPLES
+            frames = pcm[:n * RMS_FRAME_SAMPLES].reshape(n, RMS_FRAME_SAMPLES)
+            peaks = abs_max_i16(frames).astype('<u2')
+        return self._events_from_pcm(pcm, loudness_frames, audio_path), peaks
+
+    def _events_from_pcm(self, pcm: np.ndarray | None, loudness_frames,
+                         audio_path: str) -> dict:
         if pcm is None or len(pcm) < SPECTRAL_FRAME_SAMPLES:
             return _empty_payload()
 

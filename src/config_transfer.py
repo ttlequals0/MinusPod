@@ -17,10 +17,10 @@ import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
-    PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
+    PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS, SETTING_CONSTRAINTS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
     PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles_for_feed,
-    get_stage_tunable, resolve_community_sync_categories,
+    get_env_backed_int, get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
     SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX,
@@ -30,7 +30,7 @@ from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
-from database.podcasts import FEED_TYPES
+from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS, normalize_network_id
 from database.settings import SETTINGS_REGISTRY, registry_default
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
@@ -44,7 +44,7 @@ from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_cipher
 from utils.cron import is_valid_expression
 from utils.safe_http import _validate_for_tier
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from utils.url import SSRFError
+from utils.url import SSRFError, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_slug
 from utils.feed_guid import compute_feed_guid
@@ -56,6 +56,8 @@ EXCLUDED_SETTINGS = frozenset({
     'pattern_cleanup_schedule_anchor', 'provider_budget_fx_fetched_at',
     'provider_budget_fx_source_date', 'provider_budget_fx_rate',
     'provider_crypto_salt', 'provider_config_revision', 'config_transfer_revision',
+    # model fields to restore after none are tied to this instance's accounts
+    'llm_pre_none_identity',
     # yt-dlp runtime status is instance state, not configuration
     'youtube_ytdlp_version', 'youtube_ytdlp_last_update_at',
     'youtube_ytdlp_last_check_at', 'youtube_ytdlp_last_error',
@@ -157,7 +159,7 @@ FEED_COLUMNS = (
     'website_url', 'passthrough_enabled', 'skip_ad_detection',
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
-    'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+    'queue_priority', 'queue_order', 'title_skip_patterns', 'description_skip_patterns',
     'description_trim_pattern', 'description_trim_mode',
     'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
@@ -328,6 +330,9 @@ def _portable_value(key, value):
     if not isinstance(value, str):
         return value
     spec = SETTINGS_REGISTRY.get(key)
+    if spec and spec.env_backed and key in SETTING_CONSTRAINTS and SETTING_CONSTRAINTS[key].kind == 'int':
+        # Same read-time fallback as every other reader: a blank or bad row means the default.
+        return get_env_backed_int(key, settings={key: {'value': value}})
     if key in {'llm_timeout_seconds', 'secondary_llm_timeout_seconds'}:
         try:
             number = float(value)
@@ -445,6 +450,15 @@ def _validate_request_envelope(document, scope, selected_feeds=None):
         raise ConfigTransferError('Configuration transfer exceeds the 10 MiB request limit', 413)
 
 
+def _percent_encode(match: re.Match) -> str:
+    return ''.join(f'%{byte:02X}' for byte in match.group().encode('utf-8'))
+
+
+def _import_source_url(url: str) -> str:
+    """The URL trimmed, with only its whitespace and control chars percent-encoded; older versions stored them raw."""
+    return URL_SPACE_OR_CONTROL_RE.sub(_percent_encode, url.strip())
+
+
 def _validate_document(document):
     if len(_canonical_json(document).encode('utf-8')) > MAX_CONFIG_REQUEST_BYTES:
         raise ConfigTransferError('Configuration file exceeds the 10 MiB request limit', 413)
@@ -466,6 +480,7 @@ def _validate_document(document):
             'provider_config_revision'} for key in settings):
         raise ConfigTransferError('File contains non-transferable runtime or account settings')
     seen = set()
+    checked_feeds = []
     for feed in feeds:
         if not isinstance(feed, dict) or not isinstance(feed.get('settings', {}), dict):
             raise ConfigTransferError('Each feed must be an object with a settings object')
@@ -485,6 +500,8 @@ def _validate_document(document):
         if feed_type == 'subscribed':
             if not isinstance(source_url, str):
                 raise ConfigTransferError(f'Feed {slug} needs an HTTP(S) source_url')
+            source_url = _import_source_url(source_url)
+            feed = {**feed, 'settings': {**fields, 'source_url': source_url}}
             try:
                 parsed_url = urlsplit(source_url)
                 port = parsed_url.port
@@ -518,11 +535,12 @@ def _validate_document(document):
                 {'author', 'explicit', 'categories'}
                 | (set() if feed_type == 'youtube' else {'p20_channel_json'})):
             raise ConfigTransferError(f'Feed {slug} contains local-only metadata')
+        checked_feeds.append(feed)
     for key, value in settings.items():
         if key in PORTABLE_SETTINGS:
             _validate_setting_value(key, value)
     _validate_pattern_cleanup_settings(settings)
-    return {'settings': settings, 'feeds': feeds, 'unknown': unknown}
+    return {'settings': settings, 'feeds': checked_feeds, 'unknown': unknown}
 
 
 def _validate_pattern_cleanup_settings(settings):
@@ -615,7 +633,11 @@ def _validate_setting_value(key, value):
             raise ConfigTransferError(f'{key} must be a number')
         elif spec.payload_kind == 'str' and not isinstance(value, str):
             raise ConfigTransferError(f'{key} must be a string')
-    if spec and spec.validator and not spec.validator(_setting_to_storage(value)):
+    if spec and spec.constraint is not None and spec.payload_key:
+        _checked, issue = spec.constraint.payload_issue(key, value)
+        if issue is not None:
+            raise ConfigTransferError(issue)
+    elif spec and spec.validator and not spec.validator(_setting_to_storage(value)):
         if key != 'provider_budget_display_currency':
             raise ConfigTransferError(f'{key} has an invalid value')
     if key == 'provider_budget_display_currency' and (
@@ -863,6 +885,24 @@ def _normalize_import_settings(settings, db=None):
     return normalized
 
 
+def _stored_source(row):
+    """The destination row's source URL in the form an imported one takes."""
+    return _import_source_url(row['source_url']) if row['feed_type'] == 'subscribed' else row['source_url']
+
+
+def _source_owners(conn):
+    """Stored source URLs, normalized as on import, mapped to the slugs holding them."""
+    owners = {}
+    for row in conn.execute('SELECT slug, feed_type, source_url FROM podcasts WHERE source_url IS NOT NULL'):
+        owners.setdefault(_stored_source(row), []).append(row['slug'])
+    return owners
+
+
+def _source_owner(owners, source, slug):
+    """Another feed whose stored source URL equals source."""
+    return next((other for other in owners.get(source, ()) if other != slug), None)
+
+
 def _validate_import_feed_urls(feeds):
     trust = _feed_trust()
     for feed in feeds:
@@ -870,6 +910,7 @@ def _validate_import_feed_urls(feeds):
             continue
         source_url = feed['settings'].get('source_url', '')
         try:
+            reject_url_whitespace(source_url)
             _validate_for_tier(source_url, trust)
         except SSRFError as exc:
             raise ConfigTransferError(
@@ -920,6 +961,7 @@ def build_preview(db, document, scope, selected_feeds=None):
     added, updated = [], []
     confirmed_ceiling = settings.get(
         'max_ad_duration_confirmed_seconds', resolve_max_ad_duration_confirmed(db))
+    source_owners = _source_owners(db.get_connection())
     for feed in feeds:
         slug = feed['slug']
         current = db.get_connection().execute(
@@ -937,22 +979,21 @@ def build_preview(db, document, scope, selected_feeds=None):
             if current['feed_type'] != feed['feedType']:
                 raise ConfigTransferError(f'Feed identity conflict for {slug}')
             source = feed.get('settings', {}).get('source_url', '')
-            if current['source_url'] != source:
+            if _stored_source(current) != source:
                 raise ConfigTransferError(f'Feed source conflict for {slug}')
             updated.append(slug)
         source = feed.get('settings', {}).get('source_url', '')
         if feed['feedType'] in ('subscribed', 'youtube'):
-            duplicate = db.get_connection().execute(
-                'SELECT slug FROM podcasts WHERE source_url = ? AND slug != ? LIMIT 1',
-                (source, slug),
-            ).fetchone()
-            if duplicate:
+            source = _stored_source({'feed_type': feed['feedType'], 'source_url': source})
+            if _source_owner(source_owners, source, slug):
                 raise ConfigTransferError('Source URL already belongs to another feed')
+            if current is None:
+                source_owners.setdefault(source, []).append(slug)
         if feed.get('settings', {}).get('detection_mode') == 'cue_only':
             cue_templates = []
             podcast = None
             if current is not None:
-                podcast = db.get_podcast_by_slug(slug)
+                podcast = db.get_podcast_row(slug)
                 cue_templates = db.list_cue_templates_for_feed_ui(podcast['id']) if podcast else []
             if cue_only_missing_roles_for_feed(db, podcast['id'] if podcast else None, cue_templates):
                 warnings.append(f'{slug} uses cue-only processing and needs enabled start and end cue templates on the destination.')
@@ -1070,6 +1111,11 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             value, error = feed_api._normalize_detection_mode(value)
             if error:
                 raise ConfigTransferError(error)
+        elif key == 'queue_order':
+            value, error = feed_api._normalize_override(
+                value, SETTING_CONSTRAINTS['queue_order'].options, 'queue_order')
+            if error:
+                raise ConfigTransferError(error)
         elif key == 'chapters_mode':
             value, error = feed_api._normalize_chapters_mode(value)
             if error:
@@ -1134,6 +1180,9 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                      'network_id_override', 'website_url', 'auto_process_override'):
             if value is not None and not isinstance(value, str):
                 raise ConfigTransferError(f'{key} must be a string or null')
+            if (key == 'network_id_override' and value is not None and len(value.strip()) > MAX_NETWORK_ID_CHARS
+                    and normalize_network_id(value) != normalize_network_id((podcast or {}).get(key))):
+                raise ConfigTransferError(f'network_id_override must be at most {MAX_NETWORK_ID_CHARS} characters')
             if key == 'auto_process_override' and value not in (None, 'true', 'false', '1', '0'):
                 raise ConfigTransferError('auto_process_override is invalid')
         if key in float_columns:
@@ -1163,7 +1212,7 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         effective = {**(podcast or {}), **updates}
         if resolve_feed_processing_mode(effective) != PROCESSING_MODE_CUE_ONLY:
             raise ConfigTransferError('skip_transcription requires cue_only processing mode')
-    if podcast and 'source_url' in updates and updates['source_url'] != podcast['source_url']:
+    if podcast and 'source_url' in updates and updates['source_url'] != _stored_source(podcast):
         raise ConfigTransferError('Import cannot repoint an existing feed')
     return updates
 
@@ -1392,6 +1441,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     common.after_commit(ad_detection.invalidate_user_agent_cache)
                 if 'feed_auth_key' in settings:
                     common.after_commit(db.clear_all_podcast_etags)
+                source_owners = _source_owners(conn)
                 for feed in feeds:
                     slug = feed['slug']
                     current_row = conn.execute(
@@ -1400,14 +1450,10 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         (slug,),
                     ).fetchone()
                     if current_row and (current_row['feed_type'] != feed['feedType']
-                                        or current_row['source_url'] != feed.get('settings', {}).get('source_url', '')):
+                                        or _stored_source(current_row) != feed.get('settings', {}).get('source_url', '')):
                         raise ConfigTransferError(f'Feed identity conflict for {slug}')
                     source_url = feed.get('settings', {}).get('source_url', '')
-                    duplicate_source = conn.execute(
-                        'SELECT slug FROM podcasts WHERE source_url = ? AND slug != ? LIMIT 1',
-                        (source_url, slug),
-                    ).fetchone()
-                    if feed['feedType'] in ('subscribed', 'youtube') and duplicate_source:
+                    if feed['feedType'] in ('subscribed', 'youtube') and _source_owner(source_owners, source_url, slug):
                         raise ConfigTransferError('Source URL already belongs to another feed')
                     updates = _validated_feed_updates(
                         db, dict(current_row) if current_row else None,
@@ -1420,6 +1466,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         title = updates.pop('title', None)
                         source_url = updates.pop('source_url', f'local://{slug}')
                         db.create_podcast(slug, source_url, title, feed['feedType'], conn=conn)
+                        source_owners.setdefault(
+                            _stored_source({'feed_type': feed['feedType'], 'source_url': source_url}), []).append(slug)
                         if feed['feedType'] in ('local', 'youtube') and 'p20_channel_json' not in updates:
                             from api.feeds import _apply_p20_merge, _public_feed_url
                             feed_url = _public_feed_url(slug, db.get_setting('feed_auth_key'))
@@ -1441,7 +1489,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                             priority_changes.append((current_row['id'], updates['queue_priority'] or 0))
                     fresh = conn.execute('SELECT id, network_id, network_id_override, queue_priority FROM podcasts WHERE slug = ?', (slug,)).fetchone()
                     if 'network_id' in updates or 'network_id_override' in updates:
-                        effective_network = updates.get('network_id_override') or fresh['network_id_override'] or fresh['network_id']
+                        effective_network = fresh['network_id_override'] or fresh['network_id']
                         db.retag_network_cue_templates(fresh['id'], effective_network, conn=conn)
                 for stage, key in model_settings.items():
                     if stage in old_models and db.get_setting(key) != old_models[stage]:
@@ -1492,7 +1540,7 @@ def _after_feed_commit(db, slugs, priority_changes, refresh_slugs):
             continue
         try:
             db.update_podcast_etag(slug, None, None)
-            podcast = db.get_podcast_by_slug(slug)
+            podcast = db.get_podcast_row(slug)
             if podcast:
                 outcome = refresh_rss_feed(slug, podcast.get('source_url'), force=True)
                 if not outcome.success:

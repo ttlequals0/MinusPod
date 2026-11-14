@@ -15,4 +15,18 @@ describe('reprocessMenuCopy', () => {
     expect(copy.full.subtitle).toBe('Skip patterns, AI only');
     expect(copy.redetect.subtitle).toBe('Keep transcript, re-cut');
   });
+
+  it('describes model-free detection when the LLM provider is None', () => {
+    const copy = reprocessMenuCopy(undefined, false);
+    expect(copy.reprocess.subtitle).toBe('Use patterns and the other model-free detectors');
+    expect(copy.full.subtitle).toBe('Same as Reprocess while the LLM provider is set to None');
+    expect(copy.full.tooltip).not.toMatch(/AI/);
+    expect(copy.redetect.subtitle).toBe('Keep transcript, re-cut');
+  });
+
+  it('drops the pass 1 LLM wording for youtube feeds under None', () => {
+    const copy = reprocessMenuCopy('youtube', false);
+    expect(JSON.stringify(copy)).not.toMatch(/pass 1 LLM/);
+    expect(copy.full.subtitle).toBe('Same as Reprocess while the LLM provider is set to None');
+  });
 });

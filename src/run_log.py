@@ -1,9 +1,8 @@
 """Per-run pipeline log capture (issue #660).
 
-A RunLogRecorder is attached to the root logger for the duration of one
-processing run and streams the run's records to a temp JSONL file, which
-the pipeline renames onto the run's processing_history row when the row
-lands. Nothing in here may raise into the pipeline.
+A RunLogRecorder attached to the root logger streams one run's records to a temp
+JSONL file, renamed onto the processing_history row when it lands. Nothing here may
+raise into the pipeline.
 """
 import json
 import logging
@@ -16,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import run_context
+from utils.log_format import ScrubbingFormatter
 
 logger = logging.getLogger('podcast.run_log')
 
@@ -26,7 +26,7 @@ EPISODE_LOG_PREFIX = 'logs/episodes/'
 # A .jsonl.tmp younger than this may belong to a run still writing it.
 TEMP_MIN_AGE_SECONDS = 6 * 3600
 
-_MESSAGE_FORMATTER = logging.Formatter('%(message)s')
+_MESSAGE_FORMATTER = ScrubbingFormatter('%(message)s')
 _TEMP_NAME_UNSAFE = re.compile(r'[^A-Za-z0-9._-]')
 
 
@@ -75,10 +75,9 @@ def run_log_path(data_dir, slug, episode_id, history_id):
 
 
 def resolve_stored_log_path(data_dir, relative_path):
-    """Absolute path for a stored pointer, refusing anything outside the log tree.
+    """Absolute path for a stored pointer, refusing anything outside the episode log root.
 
-    Contained under the episode log root, not the data dir: a poisoned pointer
-    must not be able to name the database or an audio file.
+    Contained to the log root, not the data dir, so a poisoned pointer cannot name the database or audio.
     """
     from storage import PathContainmentError, _safe_join_under
     relative = str(relative_path)
@@ -114,11 +113,10 @@ def _safe_feed_log_dir(data_dir, slug):
 
 
 def sweep_expired_logs(db, data_dir, retention_days):
-    """Delete run logs past retention, clearing the pointers that named them.
+    """Delete run logs past retention and clear their pointers.
 
-    Returns (pruned, orphans): rows whose log was deleted, and files with no
-    row (including temp files a killed run left behind). Retention 0 removes
-    everything, matching the setting that turns storage off.
+    Returns (pruned, orphans): rows whose log was deleted, and files with no row (including
+    temp files from a killed run). Retention 0 removes everything.
     """
     now = time.time()
     cutoff = now - max(0, int(retention_days or 0)) * 86400
@@ -229,8 +227,7 @@ class RunLogRecorder(logging.Handler):
     def attach(self):
         """Start capturing on the root logger. Idempotent.
 
-        The attaching thread is the pipeline thread, so its untagged lines
-        (ffmpeg, transcriber, storage) belong to this run.
+        The attaching thread is the pipeline thread, so its untagged lines belong to this run.
         """
         try:
             root = logging.getLogger()
@@ -349,8 +346,7 @@ class RunLogRecorder(logging.Handler):
     def finalize(self, final_path):
         """Move the temp file to ``final_path``; returns bytes/truncated or None.
 
-        A recorder that disabled itself mid-run keeps the lines it did write,
-        with a marker saying capture stopped there.
+        A recorder that disabled itself mid-run keeps its lines plus a stop marker.
         """
         # The handler lock is what emit runs under, so no record can be
         # mid-write while the file is closed and renamed.

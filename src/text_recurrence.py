@@ -1,14 +1,11 @@
-"""Cross-episode text recurrence (hushpod adoption, spec 2026-08-25).
+"""Cross-episode text recurrence.
 
-Formulaic shows repeat spoken boilerplate near-verbatim every episode
-(intro spiels, disclaimers, credits) in wording even when the audio is
-re-recorded, so audio fingerprints miss it. This module finds spans of the
-current transcript whose 8-word shingles appear in at least 2 prior
-episodes. Output feeds the pass-1 prompt as a hint only; nothing is ever
-cut on text recurrence alone.
+Formulaic shows repeat boilerplate (intros, disclaimers, credits) near-verbatim even when
+the audio is re-recorded, so audio fingerprints miss it. Finds transcript spans whose
+8-word shingles appear in at least 2 prior episodes. Feeds the pass-1 prompt as a hint
+only; nothing is cut on text recurrence alone.
 
-Pure functions, no Flask or DB imports (unit tests import directly, same
-convention as split_planning.py).
+Pure functions, no Flask or DB imports.
 """
 import re
 
@@ -62,10 +59,8 @@ def find_recurring_spans(segments, prior_segment_lists):
             for j in range(i, i + SHINGLE_SIZE):
                 recurring[j] = True
 
-    # Roll token marks up to segments by word coverage.
-    # Short segments (< SHINGLE_SIZE words) require 100% coverage to avoid
-    # false positives from connector-phrase bleed across segment boundaries.
-    # Longer segments use standard SEGMENT_COVERAGE threshold.
+    # Roll token marks up to segments by word coverage. Segments under SHINGLE_SIZE words
+    # need 100% to avoid connector-phrase bleed; longer ones use SEGMENT_COVERAGE.
     total = [0] * len(segments)
     hit = [0] * len(segments)
     for (_, seg_idx), is_rec in zip(tokens, recurring, strict=True):

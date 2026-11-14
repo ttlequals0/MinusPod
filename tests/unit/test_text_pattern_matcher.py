@@ -339,12 +339,10 @@ def _make_bare_matcher():
 
 
 class TestConstrainOverlongSpans:
-    """Regression tests for the text_pattern over-cut fix.
+    """text_pattern over-cut fix.
 
-    Reproduces an observed case: a merged span whose leading minutes
-    are show content with zero sponsor mentions and the real ad only at the
-    tail. The matcher must trim the span to the brand-bearing region instead of
-    cutting the content.
+    A merged span whose leading minutes are show content with no sponsor mentions and the real ad only at the
+    tail must be trimmed to the brand-bearing region instead of cutting the content.
     """
 
     def _overcut_segments(self):
@@ -371,9 +369,8 @@ class TestConstrainOverlongSpans:
         assert result[0].end == 420.0
 
     def test_brand_substring_in_content_does_not_block_trim(self):
-        # Leading content contains 'whims' -- a substring of 'Hims' but not a
-        # whole word. Word-boundary matching must ignore it so the span still
-        # trims to the real ad, not the content.
+        # Leading content contains 'whims', a substring of 'Hims' but not a whole word. Word-boundary
+        # matching must ignore it so the span still trims to the real ad.
         matcher = _make_bare_matcher()
         segs = [{'start': i * 30.0, 'end': (i + 1) * 30.0,
                  'text': 'the whims of the knicks parade and minor things'}
@@ -454,8 +451,8 @@ class TestMergeSponsorGating:
 
     def test_unattributed_match_not_merged_into_named_ad(self):
         # A brand-free (sponsor=None) content match must not absorb an adjacent
-        # named ad and inherit its sponsor -- that lets content ride along as ad
-        # in a span too short for the over-long trim to catch.
+        # A brand-free (sponsor=None) content match must not absorb an adjacent named ad and inherit its
+        # sponsor, which lets content ride along as ad in a span too short for the over-long trim to catch.
         matcher = _make_bare_matcher()
         m1 = TextMatch(pattern_id=1, start=100.0, end=160.0, confidence=0.8,
                        sponsor=None, match_type='content')
@@ -475,19 +472,16 @@ class TestMergeSponsorGating:
 
 
 class TestMergeDetectionResults:
-    """Cross-stage merge must keep a marker's sponsor and reason consistent --
-    both from the SAME member -- so it never shows one ad's sponsor with another
-    ad's description (the Flagrant mislabels: a Nordstrom pattern that matched a
-    host tour-promo, a David Protein read folded into a ZipRecruiter marker)."""
+    """Cross-stage merge keeps a marker's sponsor and reason consistent, both from the same member, so it
+    never shows one ad's sponsor with another ad's description."""
 
     def _det(self):
         return AdDetector.__new__(AdDetector)
 
     def test_false_attribution_label_follows_content_reason(self):
-        # text_pattern wrongly tagged a host tour-promo as Nordstrom (short,
-        # sponsor-derived reason); Claude read the content (longer reason, no
-        # external sponsor). The marker must take sponsor AND reason from the
-        # content-aware member, not Nordstrom + tour-promo.
+        # text_pattern wrongly tagged a host tour-promo as Nordstrom (short, sponsor-derived reason) while
+        # Claude read the content (longer reason, no external sponsor). The marker must take sponsor and
+        # reason from the content-aware member.
         det = self._det()
         ads = [
             {'start': 2074.0, 'end': 2130.0, 'detection_stage': 'text_pattern',

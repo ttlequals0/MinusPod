@@ -61,10 +61,8 @@ def test_delete_processed_file_keep_original(db, tmp_path):
 
 
 def test_local_original_and_processed_survive_force_all(db, tmp_path):
-    """The manual 'Clear all processed audio' path (force_all=True) must
-    exempt local feeds exactly like the scheduled sweep: it holds the only
-    copy of the audio, so neither the original nor the processed file may
-    be deleted, and the episode row must not be reset."""
+    """Manual 'Clear all processed audio' (force_all=True) exempts local feeds like the scheduled sweep: they hold the
+    only audio copy, so neither original nor processed file is deleted and the episode row is not reset."""
     from storage import Storage
     storage = Storage(str(tmp_path))
     orig = _make_local_with_old_episode(db, storage)

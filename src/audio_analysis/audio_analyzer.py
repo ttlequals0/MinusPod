@@ -1,9 +1,5 @@
-"""
-Unified audio analysis facade.
-
-Orchestrates volume and transition analysis to provide
-audio signals for ad detection.
-"""
+"""Unified audio analysis facade: orchestrates volume and transition analysis to provide audio
+signals for ad detection."""
 
 import logging
 import time
@@ -40,11 +36,7 @@ MIN_VOLUME_TIMEOUT = 180    # 3 minutes
 
 
 def calculate_component_timeouts(duration_seconds: float) -> dict[str, int]:
-    """Calculate per-component timeouts based on episode duration.
-
-    Returns timeouts in seconds for each analysis component.
-    Longer episodes get proportionally longer timeouts.
-    """
+    """Per-component timeouts in seconds from episode duration; longer episodes get proportionally longer ones."""
     duration_minutes = duration_seconds / 60.0
 
     return {
@@ -58,26 +50,21 @@ def calculate_component_timeouts(duration_seconds: float) -> dict[str, int]:
     }
 
 
-class AudioAnalyzer:
-    """
-    Unified audio analysis for podcast ad detection.
+def _splice_pair(result) -> tuple[Any, Any]:
+    """Unpack the detector's (evidence, peaks) result; ValueError on a malformed one."""
+    evidence, peaks = result
+    return evidence, peaks
 
-    Combines volume and transition analysis to provide
-    signals for ad detection enforcement.
-    """
+
+class AudioAnalyzer:
+    """Unified audio analysis for podcast ad detection (volume and transition signals)."""
 
     def __init__(
         self,
         db=None,
         volume_threshold_db: float = 3.0,
     ):
-        """
-        Initialize the audio analyzer.
-
-        Args:
-            db: Database instance for loading settings
-            volume_threshold_db: dB change to flag as volume anomaly
-        """
+        """db supplies settings; volume_threshold_db is the dB change flagged as a volume anomaly."""
         self.db = db
 
         # Load settings from database if available
@@ -125,25 +112,15 @@ class AudioAnalyzer:
 
     def _load_cue_config(self, feed_id: int | None = None, force: bool = False,
                          errors: list[str] | None = None):
-        """Resolve the audio cue detector for this run (issue #350).
+        """Resolve the audio cue detector for this run (issue #350); returns ``(enabled, detector)``.
 
-        This analyzer is a long-lived singleton, so reading the settings here --
-        not at construction -- lets the Settings toggle take effect without a
-        container restart. Gated by the master ``audio_cue_detection_enabled``
-        toggle, unless ``force`` is set (cue-only preset runs): force bypasses
-        the toggle for the template path only, since forcing the spectral
-        fallback would mint pair candidates from coarse bursts.
-
-        1. If the feed has at least one enabled cue template, use the per-feed
-           template matcher -- it finds the exact user-marked sound.
-        2. Otherwise fall back to the spectral burst detector.
-
-        When the toggle is off, no cue detector runs, unless ``force`` is set
-        and the template matcher fails to load: that failure is logged and,
-        via ``errors``, surfaced on the analysis result rather than silent.
-        Both detectors expose ``.detect(audio_path)`` and emit the same
-        ``audio_cue`` ``AudioSegmentSignal``. Returns ``(enabled, detector)``;
-        the detector is None when cue detection is off or no DB is available.
+        This analyzer is a long-lived singleton, so settings are read here, not at construction,
+        letting the Settings toggle apply without a restart. Gated by ``audio_cue_detection_enabled``
+        unless ``force`` (cue-only preset runs), which bypasses the toggle for the template path only,
+        since forcing the spectral fallback would mint pair candidates from coarse bursts. With at
+        least one enabled cue template the per-feed template matcher is used, else the spectral burst
+        detector. If ``force`` is set and the template matcher fails to load, that is logged and
+        surfaced via ``errors``. The detector is None when cue detection is off or no DB is available.
         """
         if not self.db:
             return False, None
@@ -221,12 +198,10 @@ class AudioAnalyzer:
             return False, None
 
     def _load_silence_config(self, feed_id: int | None = None):
-        """Return a SilenceDetector when silence-snap is enabled for this feed.
+        """Return a SilenceDetector when silence-snap is enabled for this feed, else None (flag off or no DB).
 
-        Returns None when the flag is off (default) or no DB is available.
-        Settings are read per run so the toggle takes effect without restart.
-        Also caches the resolved tunables on self._silence_tunables so analyze()
-        can expose them on AudioAnalysisResult without a second DB read.
+        Settings are read per run so the toggle applies without a restart. Caches the resolved
+        tunables on self._silence_tunables so analyze() can expose them without a second DB read.
         """
         self._silence_tunables = None
         if not self.db:
@@ -255,15 +230,16 @@ class AudioAnalyzer:
             return False
 
     @staticmethod
-    def _collect_component(name: str, future, timeout: int) -> tuple[Any, str | None]:
+    def _collect_component(name: str, future, timeout: int,
+                           shape=None) -> tuple[Any, str | None]:
         """Collect a pooled component future with timeout protection.
 
-        Returns (result, error); result is None if timeout/error occurred.
-        The degradation strings match what the old per-component wrapper
-        (_run_component_with_timeout) produced.
+        Returns (result, error); result is None on timeout/error. ``shape`` reshapes the result
+        inside the handler, so a malformed result degrades like any failure.
         """
         try:
-            return future.result(timeout=timeout), None
+            result = future.result(timeout=timeout)
+            return (shape(result) if shape else result), None
         except FuturesTimeoutError:
             error_msg = f"{name} analysis exceeded {timeout}s timeout"
             logger.warning(error_msg)
@@ -276,27 +252,15 @@ class AudioAnalyzer:
     def analyze(
         self,
         audio_path: str,
-        transcript_segments: list[dict] | None = None,
-        run_parallel: bool = False,
         status_callback: Callable | None = None,
         feed_id: int | None = None,
         force_cue_detection: bool = False,
     ) -> AudioAnalysisResult:
-        """
-        Run audio analysis (volume + transition detection).
+        """Run audio analysis (volume + transition detection).
 
-        Args:
-            audio_path: Path to the audio file
-            transcript_segments: Optional transcript (unused, kept for API compat)
-            run_parallel: Unused (kept for API compatibility)
-            status_callback: Optional callback(stage, progress) for status updates
-            feed_id: Optional feed PK; when set, selects the per-feed cue
-                template matcher over the spectral fallback (issue #350)
-            force_cue_detection: Bypass the global cue toggle for the
-                per-feed template path (cue-only preset runs)
-
-        Returns:
-            AudioAnalysisResult with all detected signals
+        status_callback(stage, progress) reports status. feed_id selects the per-feed cue template
+        matcher over the spectral fallback (issue #350); force_cue_detection bypasses the global cue
+        toggle for the template path (cue-only preset runs). Returns AudioAnalysisResult.
         """
         start_time = time.time()
 
@@ -324,32 +288,23 @@ class AudioAnalyzer:
         frames = []
 
         # Resolve per-run component config up front so independent components
-        # can be scheduled together. These are DB reads only -- no audio I/O.
+        # can be scheduled together. DB reads only, no audio I/O.
         cue_enabled, cue_detector = self._load_cue_config(
             feed_id=feed_id, force=force_cue_detection, errors=errors)
         silence_detector = self._load_silence_config(feed_id=feed_id)
         splice_enabled = self._splice_enabled()
 
-        # Each enabled component runs a full-file ffmpeg decode. Volume, cue,
-        # and silence are mutually independent, so they run concurrently on a
-        # shared pool sized to that peak. The RAW callables are submitted (no
-        # per-component inner executor: that doubled the thread count, and on
-        # timeout its shutdown(wait=True) exit pinned the pool worker until
-        # the hung decode ended). Timeouts are enforced at the ordered
-        # collection points via future.result(timeout); status callbacks fire
-        # there too, so progress stays monotonic (30/35/40/45/50) instead of
-        # regressing when later stages were announced at submission. Splice
-        # needs the volume frames, so it is submitted only after volume
-        # resolves and reuses volume's freed worker -- peak concurrency stays
-        # at 1 + cue + silence.
+        # Each enabled component runs a full-file ffmpeg decode. Volume, cue and silence are independent,
+        # so they run concurrently on a shared pool. RAW callables are submitted (no per-component inner
+        # executor: it doubled threads and its shutdown(wait=True) pinned a pool worker on a hung decode).
+        # Timeouts and status callbacks fire at ordered collection points, keeping progress monotonic
+        # (30/35/40/45/50). Splice needs the volume frames, so it is submitted after volume resolves and
+        # reuses its freed worker: peak concurrency is 1 + cue + silence.
         n_components = (1 + (1 if (cue_enabled and cue_detector) else 0)
                         + (1 if silence_detector else 0))
-        # The per-component timeouts were sized for sequential execution; up
-        # to n_components full-file decodes now contend for CPU at once, so on
-        # low-core hosts a component that fits its solo budget can blow past
-        # it. Scale every concurrent component's budget (volume/cue/silence,
-        # and splice which overlaps cue/silence) by the number of
-        # simultaneously-running full-decode components.
+        # Timeouts were sized for sequential runs; concurrent full-file decodes contend for CPU, so on
+        # low-core hosts a component can blow past its solo budget. Scale each concurrent component's
+        # budget (volume/cue/silence, and splice which overlaps them) by n_components.
         timeout_factor = n_components
 
         cue_near_misses: list[dict[str, Any]] = []
@@ -357,12 +312,13 @@ class AudioAnalyzer:
         cue_scan_complete = False
         silence_spans: list[dict[str, Any]] = []
         splice_evidence = None
+        splice_peaks = None
 
         pool = ThreadPoolExecutor(max_workers=n_components)
         try:
             vol_future = pool.submit(run_in_worker_thread(self.volume_analyzer.analyze), audio_path)
 
-            # Audio cue detection (issue #350) -- opt-in. Settings are read per
+            # Audio cue detection (issue #350), opt-in. Settings are read per
             # run so the toggle takes effect without a restart. Runs its own
             # band-passed ffmpeg pass, so only when the experiment is enabled.
             cue_future = None
@@ -377,7 +333,7 @@ class AudioAnalyzer:
                     audio_path,
                 )
 
-            # Silence detection (Phase B) -- per-feed opt-in via silence_snap_enabled.
+            # Silence detection (Phase B), per-feed opt-in via silence_snap_enabled.
             # Runs its own ffmpeg silencedetect pass; skipped when flag is off (default).
             silence_future = None
             if silence_detector:
@@ -397,17 +353,14 @@ class AudioAnalyzer:
                 frames = vol_frames
                 logger.info(f"Volume analysis complete: {len(vol_signals)} signals, {len(vol_frames)} frames")
 
-            # Splice-evidence detection (spec 2.1): deep silences plus loudness
-            # and spectral steps at those silences. Consumes the ebur128 frames
-            # from the volume pass (so it is submitted only after volume
-            # resolves; a timed-out or failed volume leaves frames=[] and
-            # splice degrades to no loudness steps, exactly as before); its
-            # own 8kHz mono decode then overlaps with any cue/silence work
-            # still running.
+            # Splice-evidence detection (spec 2.1): deep silences plus loudness and spectral steps at them.
+            # Consumes the ebur128 frames from the volume pass, so it is submitted after volume resolves
+            # (a timed-out or failed volume leaves frames=[] and splice degrades to no loudness steps);
+            # its own 8kHz mono decode then overlaps any cue/silence work still running.
             splice_future = None
             if splice_enabled:
                 splice_future = pool.submit(
-                    run_in_worker_thread(self.splice_detector.detect),
+                    run_in_worker_thread(self.splice_detector.detect_with_peaks),
                     audio_path, duration, frames)
 
             # Transition detection (runs on volume frames, no extra I/O)
@@ -460,16 +413,15 @@ class AudioAnalyzer:
                     status_callback("analyzing: splice evidence", 50)
                 splice_result, splice_error = self._collect_component(
                     'splice', splice_future,
-                    timeouts.get('splice', timeouts['volume']) * timeout_factor)
+                    timeouts.get('splice', timeouts['volume']) * timeout_factor,
+                    shape=_splice_pair)
                 if splice_error:
                     errors.append(splice_error)
                 else:
-                    splice_evidence = splice_result
+                    splice_evidence, splice_peaks = splice_result
         finally:
-            # wait=False: a hung decode must not block the return of the
-            # already-degraded result; the worker ends when the component's
-            # own ffmpeg timeout fires. cancel_futures drops queued work that
-            # was already collected as timed out.
+            # wait=False: a hung decode must not block returning the degraded result; the worker ends when
+            # the component's ffmpeg timeout fires. cancel_futures drops queued work already timed out.
             pool.shutdown(wait=False, cancel_futures=True)
 
         result.signals = signals
@@ -481,6 +433,7 @@ class AudioAnalyzer:
         # for snap_ad_boundaries_to_silence without a second DB read.
         result.silence_tunables = getattr(self, '_silence_tunables', None)
         result.splice_evidence = splice_evidence
+        result.peaks_10ms = splice_peaks
         result.errors = errors
         result.loudness_baseline = baseline
         result.loudness_frames = frames

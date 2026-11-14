@@ -1,8 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SystemOneProfile, SystemOneProfiles } from '../../api/types';
 import SystemOneTunablesSection from './SystemOneTunablesSection';
+import { expectGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const profile: SystemOneProfile = {
   detectionEnter: 0.7,
@@ -185,5 +190,27 @@ describe('SystemOneTunablesSection', () => {
     render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getByText('Applies per request even when the provider timeout is longer.')).toBeTruthy();
+  });
+});
+
+describe('SystemOneTunablesSection: LLM provider None', () => {
+  it('disables the tuning with the reason', async () => {
+    llmState.enabled = false;
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
+    expectGatedByLlm(screen.getByRole('button', { name: 'Save System One tuning' }));
+  });
+
+  it('hides the amber System One notice and keeps it when the LLM is enabled', async () => {
+    const props = { connections, profiles, defaults, isDefault, onSave: vi.fn(), pending: false, error: null };
+    llmState.enabled = false;
+    const { unmount } = render(<SystemOneTunablesSection {...props} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
+    expect(screen.queryByText(/unavailable for System One models/)).toBeNull();
+    unmount();
+    llmState.enabled = true;
+    render(<SystemOneTunablesSection {...props} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
+    expect(screen.getByText(/unavailable for System One models/)).toBeTruthy();
   });
 });

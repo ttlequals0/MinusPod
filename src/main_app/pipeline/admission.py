@@ -15,7 +15,7 @@ from config import (
 )
 
 from database import Database
-from llm_client import ProviderAccountChangedError
+from llm_client import ProviderAccountChangedError, llm_disabled
 
 from llm_route import apply_failover_dict, resolve_route, route_account_mismatch
 from rate_limit_hold import (
@@ -73,10 +73,9 @@ def _admission_gates(settings_db) -> dict:
 def _chapters_enabled_for_admission(chapters_enabled, podcast_row, settings_db) -> bool:
     """Whether this run's chapter step could call the chapters LLM at all.
 
-    Mirrors the two settings that turn chapters off outright: the global
-    chapters_enabled flag and the per-feed chapters_mode. Fails open (True)
-    on an unresolved/'auto' mode, since counting an unused provider as
-    required is always the safe direction; only a definite 'off' excludes it.
+    Mirrors the global chapters_enabled flag and the per-feed chapters_mode.
+    Fails open (True) on an unresolved/'auto' mode, since counting an unused
+    provider as required is the safe direction; only a definite 'off' excludes.
     """
     if chapters_enabled is not None and chapters_enabled.lower() != 'true':
         return False
@@ -104,24 +103,20 @@ def _required_providers_for_admission(slug: str, episode_id: str | None = None,
                                       gates: dict | None = None,
                                       queue_row: dict | None = None
                                       ) -> list[tuple[str, str]] | None:
-    """Distinct (provider_key, credential_slot) pairs this run's *enabled*
-    phases would resolve to right now, or None when resolution fails
-    (admission then falls back to the legacy unscoped hold check, a safe
-    superset of any real per-provider hold).
+    """Distinct (provider_key, credential_slot) pairs this run's enabled phases resolve to.
 
-    A phase whose feature is off for this run is excluded: a held account
-    that this run will never actually call must not refuse it. The resolved
-    processing mode counts here too, so a pass-through run needs no account
-    at all and a skip-detection or cue-only run needs only the chapters
-    account. A phase snapshot with no credential_slot (older callers, tests)
-    defaults to 'primary', matching single-provider installs today.
+    Returns None when resolution fails (admission then falls back to the legacy
+    unscoped hold check, a safe superset of any per-provider hold).
 
-    Inside a run, uses the run's frozen route snapshot so a settings change
-    during transcription cannot make the reservation cover different
-    providers than the run will actually call; at dispatch admission (no
-    installed snapshot yet) it resolves fresh from live settings. Callers
-    scanning many feeds in one pass pass `snapshot` and `gates` in, since
-    neither varies by feed, and `queue_row` so the mode needs no lookup.
+    A phase this run will never call is excluded so a held account cannot
+    refuse it. The processing mode counts: a pass-through run needs no
+    account, and a skip-detection or cue-only run needs only the chapters
+    account. A snapshot phase without credential_slot defaults to 'primary'.
+
+    Inside a run it uses the frozen route snapshot, so a settings change during
+    transcription cannot change the reserved providers; at dispatch admission
+    it resolves from live settings. Callers scanning many feeds pass
+    `snapshot` and `gates` (neither varies by feed) and `queue_row`.
     """
     active_phases = _active_phases_for_admission(
         slug, episode_id, snapshot=snapshot, gates=gates, queue_row=queue_row)
@@ -136,13 +131,13 @@ def _active_phases_for_admission(slug: str, episode_id: str | None = None,
                                  gates: dict | None = None,
                                  queue_row: dict | None = None
                                  ) -> dict | None:
-    """{phase: route} for the phases this run's configuration actually
-    enables, or None when the routes cannot be resolved.
+    """{phase: route} for the phases this run enables, or None when routes cannot resolve.
 
-    The phase-keyed form of _required_providers_for_admission, so a caller
-    that must name the blocked phase (the queue admission explanation) reads
-    the same resolved set admission itself gates on.
+    The phase-keyed form of _required_providers_for_admission, so a caller that
+    names the blocked phase reads the same set admission gates on.
     """
+    if llm_disabled():
+        return {}
     ctx = run_context.current()
     if snapshot is None:
         snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
@@ -190,11 +185,10 @@ def admission_explanation(settings_db, slug: str, episode_id: str | None = None,
                           schedule: dict | None = None) -> dict:
     """Why a queued job is or is not admissible right now.
 
-    {'blocked', 'phase', 'slot', 'reason', 'resumesAt'}: computed from the
-    same resolved phase set admission gates on, so a phase this run will not
-    run (a skipped verification, chapters turned off) never appears as the
-    blocker. `paused`, `schedule` (a schedule_state dict) and `hold_cache` let
-    a caller scoring a whole page of rows read each once instead of once per row.
+    Returns {'blocked', 'phase', 'slot', 'reason', 'resumesAt'} from the same
+    resolved phase set admission gates on, so a phase this run will not run
+    never appears as the blocker. `paused`, `schedule` and `hold_cache` let a
+    caller scoring a page of rows read each once.
     """
     idle = {'blocked': False, 'phase': None, 'slot': None,
             'reason': None, 'resumesAt': None}
@@ -240,18 +234,18 @@ def admission_explanation(settings_db, slug: str, episode_id: str | None = None,
 
 
 def _resolve_route_snapshot() -> dict | None:
-    """Resolve this run's per-phase LLM routes once, non-secret only
-    ({provider_key, configured_model, base_url, credential_slot}). None when
-    resolution fails (e.g. no model configured yet): callers then fall back
-    to today's per-call resolution against the live global settings.
+    """Resolve this run's per-phase LLM routes once, non-secret fields only.
 
-    The review entry also freezes the raw review_provider/review_model
-    setting VALUES as of run start under 'gate'. AdReviewer resolves its
-    route from this frozen gate (honoring same_as_pass against whichever
-    pass is calling) instead of re-reading settings per call, so an
-    operator changing review_provider mid-run cannot change pass-2's
-    provider after pass-1 already ran on a different one.
+    Each entry holds {provider_key, configured_model, base_url, credential_slot}.
+    Returns None when resolution fails (e.g. no model configured yet); callers
+    then resolve per call against live settings.
+
+    The review entry also freezes the raw review_provider/review_model values
+    under 'gate'. AdReviewer resolves from it (honoring same_as_pass), so an
+    operator changing review_provider mid-run cannot switch pass-2's provider.
     """
+    if llm_disabled():
+        return None
     try:
         detection = resolve_route('detection')
         verification = resolve_route('verification')
@@ -305,6 +299,8 @@ def _assert_route_snapshot_current(snapshot: dict | None) -> None:
     A recovered run reloads its persisted snapshot, so without this it would
     spend calls pairing the old endpoint with the slot's new credential.
     """
+    if llm_disabled():
+        return
     for phase, route in (snapshot or {}).items():
         if isinstance(route, dict) and route.get('credential_slot') == 'failover':
             raise ProviderAccountChangedError(
@@ -340,8 +336,8 @@ def clear_route_snapshot(run_id: str | None) -> None:
 def runs_for_account(account_id: str, credential_slot: str) -> list[dict]:
     """Active runs whose frozen routes name this (slot, account) pair.
 
-    The rows a provider-account change strands: their endpoint belongs to the
-    old account while the slot's key now belongs to the new one.
+    A provider-account change strands these: their endpoint is the old account's
+    while the slot's key is the new one.
     """
     try:
         rows = db.get_connection().execute(
@@ -374,9 +370,10 @@ def runs_for_account(account_id: str, credential_slot: str) -> list[dict]:
 
 
 def _resolve_or_load_route_snapshot(run_id: str | None) -> dict | None:
-    """This run's immutable route snapshot: reused from the row when a
-    prior resolution for the same run_id already persisted one (recovery),
-    else resolved fresh from current settings and persisted.
+    """This run's immutable route snapshot.
+
+    Reused when a prior resolution for the same run_id persisted one (recovery),
+    else resolved from current settings and persisted.
     """
     if run_id:
         existing = _load_route_snapshot(run_id)

@@ -1,9 +1,7 @@
-"""Tests for channel-level Podcasting 2.0 tag emission in RSSParser.
+"""Channel-level Podcasting 2.0 tag emission in RSSParser.
 
-Covers the pass/regenerate/strip contract documented in
-``docs/podcasting-2.0.md``: minted guid, locked default, passthrough set,
-strip set, txt-purpose filtering, attribute escaping, malformed-input
-safety, and end-to-end well-formedness of the served feed.
+Covers the pass/regenerate/strip contract in ``docs/podcasting-2.0.md``: minted guid, locked default,
+passthrough and strip sets, txt-purpose filtering, attribute escaping, malformed input, and well-formedness.
 """
 import os
 
@@ -207,10 +205,8 @@ class TestPassthroughSet:
             assert needle in out, f"missing {needle}"
 
     def test_podcast_block_passed_through_with_all_variants(self):
-        # Upstream commonly emits one generic <podcast:block> plus per-platform
-        # blocks (apple/spotify/amazon). All four must reach the served feed
-        # verbatim. Stripping would silently relist the show in directories
-        # the publisher chose to keep it out of.
+        # Upstream commonly emits one generic <podcast:block> plus per-platform blocks (apple/spotify/amazon).
+        # All four must reach the served feed verbatim, or the show is relisted where the publisher opted out.
         upstream = _minimal_upstream("""
             <podcast:block>no</podcast:block>
             <podcast:block id="apple">yes</podcast:block>
@@ -230,10 +226,8 @@ class TestPassthroughSet:
         assert "<podcast:complete>yes</podcast:complete>" in out
 
     def test_self_closing_block_serializer_does_not_invent_body(self):
-        # An upstream that emits <podcast:block id="apple"/> with no body
-        # must NOT round-trip as "<podcast:block id='apple'>yes</...>" or
-        # any other invented payload. The serializer must keep the empty
-        # body shape so consumers see exactly what upstream meant.
+        # A bodyless <podcast:block id="apple"/> must not round-trip with an invented payload such as
+        # "yes"; the serializer keeps the empty body shape.
         upstream = _minimal_upstream('<podcast:block id="apple"/>')
         out = _emit(_build_parser(), upstream)
         assert '<podcast:block id="apple" />' in out
@@ -332,10 +326,8 @@ class TestRegressionGuards:
         assert 'purpose="applepodcastsverify"' not in out
 
     def test_self_closing_locked_falls_back_to_default(self):
-        # Spec violation: ``<podcast:locked>`` MUST contain "yes" or "no".
-        # When upstream emits self-closing locked with only an owner
-        # attribute, MinusPod must not propagate the empty body; fall back to
-        # the default "yes".
+        # Spec violation: ``<podcast:locked>`` must contain "yes" or "no". A self-closing locked with only
+        # an owner attribute must fall back to the default "yes", not propagate the empty body.
         upstream = _minimal_upstream('<podcast:locked owner="orig@example.com"/>')
         out = _emit(_build_parser(), upstream)
         assert "<podcast:locked>yes</podcast:locked>" in out
@@ -378,10 +370,8 @@ class TestRegressionGuards:
 class TestNamespaceEquivalence:
     """The Podcast Namespace spec treats several xmlns URIs as equivalent.
 
-    The reference pc20.xml feed (Podcasting 2.0 show) declares the
-    GitHub-blob form, not the canonical podcastindex.org URI. The parser
-    MUST accept all spec-equivalent forms or channel passthrough silently
-    drops on every real-world feed that uses the alternate URI.
+    The reference pc20.xml feed declares the GitHub-blob form, not the canonical podcastindex.org URI;
+    the parser must accept every equivalent form or channel passthrough drops on real feeds.
     """
 
     @pytest.mark.parametrize("xmlns_uri", [
@@ -432,12 +422,9 @@ class TestNamespaceEquivalence:
 class TestPc20SnapshotFixture:
     """Integration smoke against a trimmed snapshot of feeds.podcastindex.org/pc20.xml.
 
-    pc20.xml is the de-facto reference feed for the Podcast Namespace; it
-    declares the GitHub-blob xmlns and exercises podroll with 8
-    remoteItems, value with nested recipients, two podcast:person entries,
-    funding, medium, and an owner-bearing locked. Holding this as a
-    fixture guards against regression in either direction (passthrough
-    breakage OR accidental promotion of stripped tags).
+    The reference feed declares the GitHub-blob xmlns and exercises podroll (8 remoteItems), value with
+    nested recipients, two persons, funding, medium and an owner-bearing locked. Guards passthrough
+    breakage and accidental promotion of stripped tags.
     """
 
     @pytest.fixture
@@ -477,10 +464,8 @@ class TestPc20SnapshotFixture:
         assert out.count('<podcast:txt purpose="ai-content">true</podcast:txt>') == 1
 
     def test_block_and_complete_survive_from_real_fixture(self):
-        # The pc20 snapshot itself contains <podcast:complete>no</podcast:complete>
-        # and four <podcast:block> entries (generic + apple/spotify/amazon).
-        # Before the 2.5.6 passthrough additions these were silently dropped
-        # and this fixture-driven test passed regardless.
+        # The snapshot contains <podcast:complete>no</podcast:complete> and four <podcast:block> entries
+        # (generic + apple/spotify/amazon), which a fixture-only test would pass without asserting.
         with open(os.path.join(FIXTURES_DIR, "pc20_snapshot.xml"), encoding="utf-8") as f:
             served = _full_feed(_build_parser(), f.read())
         # Channel block only; exclude any item-level matches by trimming.

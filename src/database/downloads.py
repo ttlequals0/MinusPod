@@ -70,8 +70,8 @@ class DownloadHistoryMixin:
                         request_headers: str | None = None) -> None:
         """Count a download, merging repeats from one client inside 15 minutes.
 
-        Reads happen outside any transaction; a repeat under 60 s old needs no write.
-        Raises on a database error; the serving route swallows it.
+        Reads run outside any transaction; a repeat under 60 s old needs no write.
+        Raises on a database error (the serving route swallows it).
         """
         now = now or utc_now_iso()
         conn = self.get_connection()

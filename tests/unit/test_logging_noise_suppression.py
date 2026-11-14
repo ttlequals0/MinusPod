@@ -1,17 +1,16 @@
 """Third-party transport loggers stay quiet at LOG_LEVEL=DEBUG.
 
-Their DEBUG output is per-request connection chatter (connect_tcp.started,
-close.complete) that buries real signal in Loki and, since 2.89.2, fills a
-quarter of every episode run log. The suppression list matches logger names
-exactly, so an SDK that renames its transport escapes it: openai 3.x moved
-to httpx2/httpcore2 and went unsuppressed until 2.89.4. This test fails when
-an installed transport is missing from the list.
-"""
+Their per-request chatter (connect_tcp.started, close.complete) buries real signal in Loki and,
+since 2.89.2, fills a quarter of every episode run log. The suppression list matches logger names
+exactly, so an SDK that renames its transport escapes it (openai 3.x moved to httpx2/httpcore2 and
+went unsuppressed until 2.89.4); this test fails when an installed transport is missing."""
 
 import importlib
 import logging
 import os
+import sys
 import tempfile
+import threading
 
 import pytest
 
@@ -25,7 +24,7 @@ SUPPRESSED = (
     'openai', 'anthropic',
     'httpx', 'httpcore',
     'httpx2', 'httpcore2',
-    'urllib3', 'asyncio', 'charset_normalizer', 'requests',
+    'urllib3', 'asyncio', 'charset_normalizer', 'requests', 'filelock',
 )
 
 
@@ -38,6 +37,8 @@ def configured_logging(monkeypatch):
     saved_root = logging.getLogger().level
     monkeypatch.setenv('LOG_LEVEL', 'DEBUG')
     monkeypatch.setattr(main_app, '_logging_configured', False)
+    monkeypatch.setattr(threading, 'excepthook', threading.excepthook)
+    monkeypatch.setattr(sys, 'excepthook', sys.excepthook)
     main_app.setup_logging()
     try:
         yield

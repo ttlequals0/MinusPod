@@ -1,7 +1,7 @@
 """Provider API key management: /settings/providers/*
 
-Stores LLM/Whisper credentials encrypted at rest. GET never returns key
-values (booleans + source only). All outbound base URLs pass SSRF validation.
+Credentials are stored encrypted at rest; GET never returns key values (booleans + source
+only). All outbound base URLs pass SSRF validation.
 """
 import logging
 import os
@@ -84,10 +84,7 @@ _AFFECTED_RUNS_ACTIONS = ('requeue', 'cancel')
 
 def _primary_account_identity(provider: str) -> str | None:
     """Primary-slot account identity for this endpoint's provider type.
-
-    Keyed by the type being edited, not the globally selected one: a save
-    here moves the account of the type it writes, whichever type is active.
-    """
+    Keyed by the type being edited, not the selected one: a save moves the account of the type it writes."""
     return account_identity_for_primary_provider(_HOLD_PROVIDER_KEY.get(provider))
 
 
@@ -101,10 +98,7 @@ def _affected_runs(account_id: str | None, credential_slot: str) -> list[dict]:
 
 def _apply_affected_runs_action(runs: list[dict], action: str) -> None:
     """Detach or cancel the runs an account change stranded.
-
-    Both drop the frozen routes so a resumed run re-resolves; 'cancel' also
-    asks the owner to stop now rather than at its next provider call.
-    """
+    Both drop the frozen routes so a resumed run re-resolves; 'cancel' also asks the owner to stop now."""
     from cancel import request_cancellation
     from main_app.pipeline.admission import clear_route_snapshot
     for run in runs:
@@ -290,11 +284,8 @@ def clear_provider(provider):
 @api.route('/settings/providers/<slot>/affected-runs', methods=['GET'])
 def account_affected_runs(slot):
     """Runs a change to this account slot would strand, for a pre-save check.
-
-    Lists the active runs whose frozen routes still name the slot's current
-    account, so the UI can show what a provider or endpoint change is about
-    to interrupt before it writes anything.
-    """
+    Lists active runs whose frozen routes still name the slot's current account, so the UI
+    can show what a change will interrupt before anything is written."""
     slot = SLOT_ALIASES.get(slot, slot)
     if slot not in VALID_SLOTS:
         return error_response('unknown provider slot', 404)
@@ -395,9 +386,8 @@ _CONNECTION_TEST_PROVIDERS = (
 def _health_detail(health: dict) -> str:
     """One sentence on a health probe for the connection-test detail, or ''.
 
-    Hedges the count when the probe only established a floor, and reports a
-    disagreement rather than one replica's model, so this never contradicts
-    the same probe's warning in Settings.
+    Hedges the count when the probe only established a floor, and reports a disagreement
+    rather than one replica's model, so it never contradicts the probe's Settings warning.
     """
     instances = health.get('instances') or []
     if not health.get('available') or not instances:
@@ -450,18 +440,40 @@ def _whisper_connection_test(saved: dict, body: dict):
     return json_response(result, 200)
 
 
+def _probe_models_for_base(provider, base, saved_key, gate_base):
+    """Validate a tested base URL and probe its models endpoint (#544)."""
+    if base is not None and not isinstance(base, str):
+        return error_response('baseUrl must be a string', 400)
+    if not base or not base.strip():
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Enter a base URL first.'}, 200)
+    base = base.strip()
+    if url_has_userinfo(base):
+        return error_response(BASE_URL_USERINFO_ERROR, 400)
+
+    # The saved API key goes out only when the tested URL points at the same server as the
+    # explicitly saved base URL; otherwise any session could exfiltrate the stored key by
+    # "testing" a URL they control.
+    api_key = saved_key if _same_server(base, gate_base) else ''
+
+    # The real client appends /v1 for Ollama; the probe must match or a
+    # URL that works for episodes would fail the test and vice versa.
+    norm = _normalize_base_url_for_provider(
+        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
+        else PROVIDER_OPENAI_COMPATIBLE, base)
+    return json_response(_probe_models_endpoint(norm, api_key), 200)
+
+
 @api.route('/settings/providers/<provider>/test-connection', methods=['POST'])
 def test_provider_connection(provider):
     """End-to-end probe of a configured external endpoint (#544).
 
-    Unlike /test (which needs a stored key and always probes the saved
-    settings), this accepts unsaved baseUrl values in the body so the user
-    can test before saving; a baseUrl key present in the body is
-    authoritative, even when empty, so the test never silently probes a URL
-    that is not in the form. whisper uploads a generated audio sample
-    through the real transcription request shape; openai/ollama hit the
-    same /models route the real LLM client uses for discovery; anthropic
-    and openrouter probe their fixed public endpoints (no body input).
+    Unlike /test (stored key, saved settings), this accepts unsaved baseUrl values so the user
+    can test before saving; a baseUrl key in the body is authoritative even when empty, so it
+    never silently probes a URL that is not in the form. whisper uploads a generated audio
+    sample in the real transcription shape; openai/ollama hit the /models route the LLM client
+    uses for discovery; anthropic and openrouter probe fixed public endpoints.
     """
     if provider not in _CONNECTION_TEST_PROVIDERS:
         return error_response('unknown provider', 404)
@@ -477,10 +489,9 @@ def test_provider_connection(provider):
         return json_response(_probe_fixed_endpoint(provider, api_key), 200)
 
     if provider == 'whisper':
-        # Saved values come from the same resolver the real transcription
-        # path uses, so the probe cannot drift from what an episode upload
-        # would do. Its base URL is empty when unconfigured, so the key
-        # gate inside the helper fails closed.
+        # Saved values come from the resolver the real transcription path uses, so the probe
+        # cannot drift from an episode upload. Its base URL is empty when unconfigured, so
+        # the key gate in the helper fails closed.
         return _whisper_connection_test(transcriber.settings._get_whisper_settings(), body)
 
     if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
@@ -513,29 +524,7 @@ def test_provider_connection(provider):
         or os.environ.get(cfg['base_env'], '')
 
     base = body['baseUrl'] if 'baseUrl' in body else saved_base
-    if base is not None and not isinstance(base, str):
-        return error_response('baseUrl must be a string', 400)
-    if not base or not base.strip():
-        return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Enter a base URL first.'}, 200)
-    base = base.strip()
-    if url_has_userinfo(base):
-        return error_response(BASE_URL_USERINFO_ERROR, 400)
-
-    # The saved API key goes out only when the tested URL points at the
-    # same server as the explicitly saved base URL. Without this gate, any
-    # caller with a session could exfiltrate the stored key by "testing" a
-    # URL they control -- a secret this API otherwise never returns.
-    api_key = saved_key if _same_server(base, gate_base) else ''
-
-    # The real client appends /v1 for Ollama; the probe must match or a
-    # URL that works for episodes would fail the test and vice versa.
-    norm = _normalize_base_url_for_provider(
-        PROVIDER_OLLAMA if provider == 'ollama'
-        else PROVIDER_OPENAI_COMPATIBLE, base)
-    result = _probe_models_endpoint(norm, api_key)
-    return json_response(result, 200)
+    return _probe_models_for_base(provider, base, saved_key, gate_base)
 
 
 # Provider types the secondary slot accepts, matching VALID_LLM_PROVIDERS
@@ -549,18 +538,14 @@ _SECONDARY_PROVIDER_TYPES = (
 def test_secondary_provider_connection():
     """End-to-end probe of the optional secondary provider slot.
 
-    Mirrors /settings/providers/<provider>/test-connection above, but reads
-    its type, base URL, and key from the secondary_provider_* settings and
-    the secondary_provider_api_key secret instead of the primary provider
-    config, so the operator can validate the secondary slot before routing
-    any stage to it. A fixed-endpoint type (anthropic/openrouter) probes its
-    public URL with the secondary key; a configurable-endpoint type
-    (openai-compatible, ollama) probes the same /models route the real
-    client uses. A `provider` field in the body overrides the saved type
-    (like `baseUrl` already does) so an unsaved dropdown change can be
-    tested before Save, matching the primary test-connection route. The
-    saved key travels only when the requested type still matches the saved
-    type and the tested URL is the explicitly saved one.
+    Mirrors /settings/providers/<provider>/test-connection but reads type, base URL and key
+    from the secondary_provider_* settings and secondary_provider_api_key secret, so the
+    operator can validate the slot before routing a stage to it. Fixed-endpoint types
+    (anthropic/openrouter) probe their public URL with the secondary key; configurable ones
+    (openai-compatible, ollama) probe the /models route. A `provider` body field overrides
+    the saved type (like `baseUrl`) so an unsaved dropdown change can be tested. The saved
+    key travels only when the requested type matches the saved type and the tested URL is
+    the explicitly saved one.
     """
     db = Database()
     return _llm_slot_connection_test(
@@ -630,25 +615,7 @@ def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: di
     # Effective default matches llm_route; the key gate below sees only an
     # explicitly saved URL, never that default.
     base = body['baseUrl'] if 'baseUrl' in body else (gate_base or DEFAULT_OPENAI_BASE_URL)
-    if base is not None and not isinstance(base, str):
-        return error_response('baseUrl must be a string', 400)
-    if not base or not base.strip():
-        return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Enter a base URL first.'}, 200)
-    base = base.strip()
-    if url_has_userinfo(base):
-        return error_response(BASE_URL_USERINFO_ERROR, 400)
-
-    # Same anti-exfiltration gate as the primary test-connection route
-    # (#544): the saved key only goes out when the tested URL matches the
-    # explicitly saved base URL.
-    api_key = saved_key if _same_server(base, gate_base) else ''
-
-    norm = _normalize_base_url_for_provider(
-        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
-        else PROVIDER_OPENAI_COMPATIBLE, base)
-    return json_response(_probe_models_endpoint(norm, api_key), 200)
+    return _probe_models_for_base(provider, base, saved_key, gate_base)
 
 
 @api.route('/settings/providers/failover-whisper/test-connection', methods=['POST'])

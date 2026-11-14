@@ -1,10 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LLMProviderSection from './LLMProviderSection';
 import type { ProvidersResponse } from '../../api/providers';
 import { LLM_PROVIDERS } from '../../api/types';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const providersState: ProvidersResponse = {
   cryptoReady: true,
@@ -327,5 +332,75 @@ describe('LLMProviderSection: rate-limit grouping and field chrome', () => {
     const input = screen.getByLabelText('Base URL');
     expect(input.className).toContain('px-3 py-2');
     expect(input.className).not.toContain('px-4');
+  });
+});
+
+describe('LLMProviderSection: None provider', () => {
+  const options = (select: HTMLElement) =>
+    within(select).getAllByRole('option').map((option) => option.textContent);
+
+  it('offers None in the primary provider select only', () => {
+    renderSection({ secondaryProviderEnabled: true });
+    expect(options(screen.getByLabelText('Provider'))).toContain('None');
+    expect(options(screen.getByLabelText('Provider B type'))).not.toContain('None');
+  });
+
+  it('reports the choice through the select', async () => {
+    const onProviderChange = vi.fn();
+    renderSection({ onProviderChange });
+    await userEvent.setup().selectOptions(screen.getByLabelText('Provider'), 'none');
+    expect(onProviderChange).toHaveBeenCalledWith('none');
+  });
+
+  it('shows only the select and a note when None is chosen', () => {
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'none' });
+    expect((screen.getByLabelText('Provider') as HTMLSelectElement).value).toBe('none');
+    expect(screen.getByText(/No model calls are made/)).toBeDefined();
+    expect(screen.queryByLabelText('Anthropic API key')).toBeNull();
+    expect(screen.queryByLabelText('Provider A request timeout (seconds)')).toBeNull();
+    expect(screen.queryByLabelText('Requests per minute')).toBeNull();
+  });
+
+  it('keeps the provider select editable and gates the model-only settings from the saved flag', () => {
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'none' });
+    expectNotGatedByLlm(screen.getByLabelText('Provider'));
+    expectGatedByLlm(screen.getByLabelText('Pricing source'));
+    expectGatedByLlm(screen.getByRole('switch', { name: 'Enable provider B' }));
+  });
+
+  it('does not gate from the pending select value before the save lands', () => {
+    renderSection({ llmProvider: 'none' });
+    expectNotGatedByLlm(screen.getByLabelText('Pricing source'));
+  });
+
+  it('tells the operator to save before the toggle takes effect', () => {
+    renderSection({ llmProvider: 'none' });
+    expect(screen.getByText('Save to turn off all model features.')).toBeDefined();
+    expect(screen.queryByText(/No model calls are made/)).toBeNull();
+  });
+
+  it('shows the saved-state note once the saved flag is off', () => {
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'none' });
+    expect(screen.getByText(/No model calls are made\. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison\. Text and audio matching need saved patterns\. Mark ads to add them\./)).toBeDefined();
+    expect(screen.queryByText('Save to turn off all model features.')).toBeNull();
+    const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
+    expect(document.getElementById(fieldset.getAttribute('aria-describedby')!)?.textContent).toContain('No model calls are made');
+  });
+
+  it('never points the fieldset at a note that is not on screen', () => {
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'anthropic' });
+    const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
+    expect(document.getElementById(fieldset.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
+  });
+
+  it('labels the free pricing option Free, not None', () => {
+    renderSection();
+    const select = screen.getByLabelText('Pricing source') as HTMLSelectElement;
+    expect(within(select).getByRole('option', { name: 'Free (local models)' }).getAttribute('value')).toBe('free');
+    expect(screen.getByText('Auto picks by provider. Choose Free only if your endpoint serves free local models.')).toBeDefined();
   });
 });

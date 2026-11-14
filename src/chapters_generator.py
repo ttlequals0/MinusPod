@@ -17,7 +17,7 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    OllamaContextOverflowError, ProviderAccountChangedError, ProviderRateLimitedError,
+    LLMDisabledError, OllamaContextOverflowError, ProviderAccountChangedError, ProviderRateLimitedError,
 )
 from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from llm_route import client_for_route, live_route_params
@@ -34,10 +34,6 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
-# Topic-detection LLM temperature. Low value keeps boundary choices reproducible
-# across reruns of the same transcript (title generation uses its own temperature).
-TOPIC_DETECTION_TEMPERATURE = 0.1
-
 # Patterns for MM:SS timestamps embedded in episode descriptions.
 _TIMESTAMP_PATTERNS = (
     re.compile(r'(?:^|\n)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-:]*\s*(.+?)(?=\n|$)'),
@@ -49,8 +45,8 @@ _TIMESTAMP_PATTERNS = (
 def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
     """Extract (timestamp, title) pairs from an episode description.
 
-    Returns deduplicated, sorted-by-time anchors. Used as soft hints in the
-    topic-detection prompt; the LLM still chooses whether to honor them.
+    Returns deduplicated, time-sorted anchors used as soft hints in the topic-detection prompt;
+    the LLM still chooses whether to honor them.
     """
     if not description:
         return []
@@ -79,21 +75,14 @@ def _format_mmss(seconds: float) -> str:
 
 def build_segment_hints(markers: list[dict] | None, cuts: list[dict] | None,
                          replacement_duration: float = 0.0) -> list[dict]:
-    """Map applied ad/segment markers onto the processed timeline as
-    candidate topic-boundary hints for the topic-detection prompt.
+    """Map applied ad/segment markers onto the processed timeline as topic-boundary hints.
 
-    The processed transcript has no trace of a cut ad, so the topic
-    detector loses the signal that a topic change likely happened there;
-    this reconstructs it from the same markers and applied-cut list the
-    rest of the pipeline uses (via utils.time.adjust_timestamp, so
-    positions stay in lockstep with the transcript's own mapping).
-
-    A 'remove' marker becomes a single seam position (where the
-    surrounding content now joins); 'keep'/'mark'/'beep' markers become a
-    start/end range, since that time still exists in the processed audio.
-    Any other action, including markers still pending review, is skipped.
-    Returns [] when there are no markers, so callers can skip the hints
-    block entirely and leave the prompt unchanged.
+    The processed transcript has no trace of a cut ad, so the topic detector loses the signal that a
+    topic change likely happened there. This rebuilds it from the markers and applied-cut list via
+    utils.time.adjust_timestamp, keeping positions in lockstep with the transcript mapping.
+    A 'remove' marker becomes a single seam position; 'keep'/'mark'/'beep' markers become a start/end
+    range, since that time still exists in the processed audio. Other actions (including markers
+    pending review) are skipped. Returns [] without markers so the prompt stays unchanged.
     """
     if not markers:
         return []
@@ -177,11 +166,7 @@ class ChaptersGenerator:
     """Generate JSON chapters from episode content."""
 
     def __init__(self, api_key: str = None):
-        """Initialize the chapters generator.
-
-        Args:
-            api_key: LLM API key (defaults to environment configuration)
-        """
+        """Initialize the chapters generator; api_key defaults to the environment configuration."""
         self._api_key_override: str | None = api_key
         self._llm_client_override: LLMClient | None = None
         self._episode_id: str | None = None
@@ -238,6 +223,8 @@ class ChaptersGenerator:
         try:
             client = get_llm_client()
             logger.debug(f"LLM client initialized for chapters generator: {client.get_provider_name()}")
+        except LLMDisabledError:
+            return
         except Exception as e:
             logger.error(f"Failed to initialize LLM client: {e}")
 
@@ -295,14 +282,12 @@ class ChaptersGenerator:
     ) -> list[dict] | None:
         """Use the LLM to detect topic boundaries in a transcript range.
 
-        hints: optional candidate boundaries derived from detected ad/segment
-        markers (see build_segment_hints). Empty/None leaves the prompt unchanged.
+        hints: optional candidate boundaries from ad/segment markers (see build_segment_hints); empty/None
+        leaves the prompt unchanged. previous_title: the chapter this window opens inside, so a windowed
+        run does not reopen a topic the previous window just closed.
 
-        previous_title: the title of the chapter this window opens inside, so a
-        windowed run does not reopen a topic the previous window just closed.
-
-        Returns a list of {'original_time': float, 'title': str}, or None when
-        the LLM call itself failed (as opposed to a legitimately empty range).
+        Returns a list of {'original_time': float, 'title': str}, or None when the LLM call itself failed
+        (as opposed to a legitimately empty range).
         """
         hints_block = _format_hints_block(hints or [])
         continuation_block = (
@@ -430,7 +415,7 @@ class ChaptersGenerator:
             logger.warning(f"Chapter topic detection skipped: {e}")
             self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             return None
-        except (ProviderRateLimitedError, ProviderAccountChangedError,
+        except (ProviderRateLimitedError, ProviderAccountChangedError, LLMDisabledError,
                 ProcessingCancelled, ProcessingOwnershipLost):
             raise
         except Exception as e:
@@ -456,8 +441,7 @@ class ChaptersGenerator:
     ) -> list[dict]:
         """Generate titles for chapters that need them.
 
-        Chapters and segments share the same post-ad-removal timeline, so the
-        chapter startTime is used directly for transcript lookup.
+        Chapters and segments share the post-ad-removal timeline, so chapter startTime indexes the transcript directly.
         """
         chapters_needing_titles = [
             (i, ch) for i, ch in enumerate(chapters)
@@ -505,7 +489,7 @@ class ChaptersGenerator:
             self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             self._title_generation_failed = True
             return self._apply_generic_titles(chapters)
-        except (ProviderRateLimitedError, ProviderAccountChangedError,
+        except (ProviderRateLimitedError, ProviderAccountChangedError, LLMDisabledError,
                 ProcessingCancelled, ProcessingOwnershipLost):
             raise
         except Exception as e:
@@ -613,8 +597,7 @@ class ChaptersGenerator:
     ) -> list[dict]:
         """Drop chapters shorter than min_duration by absorbing into the previous.
 
-        Assumes chapters and episode_duration are already on the post-ad-removal
-        timeline. First chapter is always retained.
+        Assumes the post-ad-removal timeline; the first chapter is always retained.
         """
         if len(chapters) <= 1:
             return chapters
@@ -657,9 +640,8 @@ class ChaptersGenerator:
     ) -> list[dict]:
         """Project raw segments onto the post-ad-removal timeline.
 
-        Drops segments that fall entirely inside an ad span. Shifts the
-        remaining segment start/end times back by the cumulative duration of
-        earlier ads via utils.time.adjust_timestamp.
+        Drops segments entirely inside an ad span and shifts the rest back by the cumulative duration
+        of earlier ads via utils.time.adjust_timestamp.
         """
         if not ads_removed:
             return segments
@@ -690,8 +672,8 @@ class ChaptersGenerator:
     ) -> list[dict]:
         """Detect topic boundaries a window at a time, earliest first.
 
-        An empty window is legitimate (a stretch can be one topic); only a
-        failed call or every window coming back empty degrades the run.
+        An empty window is legitimate (a stretch can be one topic); only a failed call or every window
+        coming back empty degrades the run.
         """
         window_count = max(1, math.ceil(episode_duration / window_span))
         found: list[dict] = []
@@ -778,39 +760,27 @@ class ChaptersGenerator:
     ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
-        Shared entry point for the main processing pipeline and the manual
-        /regenerate-chapters endpoint.
+        Shared entry point for the main pipeline and the manual /regenerate-chapters endpoint.
 
-        Args:
-            segments: Transcript segments. Pipeline callers pass raw segments
-                plus ads_removed; regen callers pass pre-adjusted VTT segments
-                and omit ads_removed.
-            episode_description: Optional RSS description; when present it is
-                injected into the topic-detection prompt so the model can
-                honor curated timestamp markers.
-            ads_removed: Optional list of {'start', 'end'} ad spans. When
-                provided, segments are projected onto the post-ad-removal
-                timeline before detection runs.
-            podcast_name: Podcast name (used for title generation).
-            episode_title: Episode title (used for title generation).
-            segment_markers: Optional list of detected ad/segment markers
-                (each with 'start', 'end', 'category', 'action_applied') used
-                to build topic-boundary hints (see build_segment_hints). None
-                or empty leaves the topic-detection prompt unchanged.
-            marker_cuts: Applied cut list used to map segment_markers onto
-                the processed timeline; defaults to `ads_removed`. The
-                regenerate-chapters endpoint must pass this explicitly: its
-                segments are already on the processed timeline, but hints
-                still need the original applied-cut list to map from marker
-                (original-time) coordinates.
-            chapter_notes: Per-feed notes appended to the topic-detection prompt
-                as a final "Feed notes:" paragraph; None or blank adds nothing.
-            slug: Podcast slug, for the llm_call_usage ledger's podcast
-                linkage. Omitted call sites still ledger the attempt, just
-                without a resolved podcast_id.
+        segments: pipeline callers pass raw segments plus ads_removed; regen callers pass pre-adjusted
+            VTT segments and omit ads_removed.
+        episode_description: optional RSS description, injected into the topic-detection prompt so the
+            model can honor curated timestamp markers.
+        ads_removed: optional list of {'start', 'end'} ad spans; segments are projected onto the
+            post-ad-removal timeline before detection.
+        podcast_name, episode_title: used for title generation.
+        segment_markers: optional detected markers (each with 'start', 'end', 'category',
+            'action_applied') used for topic-boundary hints (see build_segment_hints); None or empty
+            leaves the prompt unchanged.
+        marker_cuts: applied cut list mapping segment_markers onto the processed timeline; defaults to
+            `ads_removed`. regenerate-chapters must pass it explicitly: its segments are already on the
+            processed timeline but hints need the original applied-cut list to map from marker coordinates.
+        chapter_notes: per-feed notes appended to the topic-detection prompt as a final "Feed notes:"
+            paragraph; None or blank adds nothing.
+        slug: podcast slug for the llm_call_usage ledger's podcast linkage; omitted call sites still
+            ledger the attempt, without a resolved podcast_id.
 
-        Returns:
-            {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}
+        Returns {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}.
         """
         logger.info(f"Generating chapters for '{episode_title}'")
         self._episode_id = episode_id

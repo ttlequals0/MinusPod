@@ -1,20 +1,6 @@
-"""Regression test for the history ad-count bug.
-
-Before this fix, `_record_history_and_event` recorded
-``ads_detected=len(ads_to_remove)`` but ignored the ``verification_count``
-it received as a parameter. The episodes table got the total
-(``pass1_cut_count + verification_count``) via
-``_persist_episode_state``, but the history table and the downstream
-``EVENT_EPISODE_PROCESSED`` webhook got the pass-1-only count.
-
-User-visible symptom: the Settings -> History page (and the corresponding
-``/api/v1/history`` endpoint) showed pass-1 cuts only. Episodes where
-verification re-cut found additional ads were undercounted by exactly the
-verification re-cut count.
-
-Also covers the matching log-line bug in ``_log_completion_summary``
-where the "Complete: N ads removed" message used the same wrong value.
-"""
+"""Regression: `_record_history_and_event` ignored ``verification_count``, so the history table and
+EVENT_EPISODE_PROCESSED webhook got the pass-1-only ``ads_detected``; also covers
+`_log_completion_summary`'s log line."""
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -27,6 +13,7 @@ from main_app.pipeline.finalize import _record_history_and_event, _log_completio
 def _make_db():
     db = MagicMock()
     db.get_podcast_by_slug.return_value = {'id': 42, 'title': 'Daily Show'}
+    db.get_podcast_row.return_value = {'id': 42, 'title': 'Daily Show'}
     return db
 
 
@@ -35,13 +22,8 @@ def _make_token_totals():
 
 
 class TestHistoryAdCountIncludesVerification:
-    """history.ads_detected = pass1_cut_count + verification_count.
-
-    This is the field rendered by the Settings -> History page and the
-    /api/v1/history endpoint. It is also the field the EVENT_EPISODE_PROCESSED
-    webhook reads via ``webhook_service`` when populating
-    ``episode.ads_removed`` in the payload.
-    """
+    """history.ads_detected = pass1_cut_count + verification_count, as shown on the History page,
+    /api/v1/history and the webhook's ``episode.ads_removed``."""
 
     def test_records_total_not_just_pass_1(self):
         db = _make_db()
@@ -86,10 +68,8 @@ class TestHistoryAdCountIncludesVerification:
         assert kwargs['ads_detected'] == 1
 
     def test_zero_pass_1_records_only_verification(self):
-        """Pass-1 reviewer rejected everything but verification found ads:
-        this is exactly the ``a1b2c3d4e5f6`` scenario that originally
-        prompted the audit. history.ads_detected must reflect the
-        verification cuts, not the pre-reviewer 0."""
+        """Pass-1 reviewer rejected everything but verification found ads (the a1b2c3d4e5f6
+        scenario): history.ads_detected must reflect the verification cuts, not 0."""
         db = _make_db()
 
         with patch('main_app.pipeline.finalize.fire_event'):
@@ -105,11 +85,8 @@ class TestHistoryAdCountIncludesVerification:
 
 
 class TestCompletionLogLineIncludesVerification:
-    """The "Complete: N ads removed, T.s" log line must report total cuts,
-    not pass-1 only. This is the log the user reads to understand episode
-    outcome and the source of the misleading ``0 ads removed`` line we saw
-    on episodes where pass 1 rejected everything but verification re-cut
-    found 1."""
+    """The "Complete: N ads removed, T.s" log line must report total cuts, not pass-1 only (it once
+    read ``0 ads removed`` when verification re-cut found 1)."""
 
     def test_log_includes_verification_count(self, caplog):
         db = MagicMock()

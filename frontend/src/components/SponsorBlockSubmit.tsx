@@ -130,6 +130,7 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
                   <AuditionPlayButton
                     playing={audition.playingKey === key}
                     onClick={() => audition.toggle(key, originalUrl, c.start, c.end)}
+                    size="full"
                     label={`segment ${from} to ${to}`}
                     disabled={!hasOriginalAudio || !originalUrl}
                     title={!originalUrl ? DEMO_AUDIO_TOOLTIP : hasOriginalAudio ? undefined : 'The original audio is no longer kept'}

@@ -1,8 +1,6 @@
 """GET /episodes/processing surfaces the whole pending queue, not just the head.
 
-The Settings panel previously showed only the active job plus StatusService's
-display queue, so an auto-process backlog was invisible. These cover the DB
-rows now included, their dequeue ordering, and the dedupe against the active job.
+Covers the DB rows included, their dequeue ordering, and the dedupe against the active job.
 """
 import os
 import sys

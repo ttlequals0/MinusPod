@@ -1,10 +1,7 @@
-"""A requeue written while a run is in flight must survive the drainer's
-verdict on that run.
+"""A requeue written while a run is in flight must survive the drainer's verdict on that run.
 
-auto_process_queue is unique per (podcast, episode), so a hook that re-queues
-an episode mid-run reuses the very row the drainer claimed. An unconditional
-verdict write then closed or failed the fresh requeue, and nothing re-opened
-it: the rerun never ran.
+auto_process_queue is unique per (podcast, episode), so a mid-run requeue reuses the row the drainer
+claimed; an unconditional verdict write would close or fail it and the rerun would never happen.
 """
 from unittest.mock import MagicMock, patch
 

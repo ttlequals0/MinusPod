@@ -1,9 +1,6 @@
-"""Tests for the URL-path slug fallback used by both add_feed and OPML import.
+"""URL-path slug fallback used by add_feed and OPML import.
 
-Triggered when neither an OPML title nor an RSS ``<title>`` is available
-(e.g. host blocks the initial fetch). Without this fallback the user is
-forced to invent a slug by hand for any feed whose host is UA-strict or
-otherwise unreachable.
+Used when neither an OPML title nor an RSS ``<title>`` is available (e.g. the host blocks the initial fetch).
 """
 import pytest
 

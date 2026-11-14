@@ -1,11 +1,6 @@
-"""Unit tests for config.resolve_cue_template_score (#350 Phase 5).
-
-Tests verify:
-- Per-feed override wins over global setting.
-- None override falls back to global setting.
-- None override + no global falls back to the hard-coded constant.
-- Exception in DB layer falls back gracefully.
-"""
+"""Unit tests for config.resolve_cue_template_score (#350 Phase 5): per-feed override beats global,
+None override falls back to global, then to the hard-coded constant, and a DB-layer exception
+falls back gracefully."""
 import os
 import sys
 
@@ -67,7 +62,6 @@ def test_no_podcast_id_skips_override_uses_global():
     db = _DB(per_feed=0.65, global_val=0.82)
     # podcast_id=None means no per-feed lookup possible
     result = resolve_cue_template_score(db, None)
-    # should use global (not the per_feed stub -- but our stub returns per_feed
-    # regardless of id; so what matters is the resolver skips the call when
-    # podcast_id is None and falls back to global)
+    # The stub returns per_feed regardless of id, so this pins that the resolver skips the lookup
+    # when podcast_id is None and falls back to global
     assert result == 0.82

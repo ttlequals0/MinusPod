@@ -24,7 +24,8 @@ from utils.text import transcript_gaps
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
 from utils.url import SSRFError
-from utils.http import redirect_chain_for_log, safe_url_for_log
+from utils.http import redact_exc, redact_log_text, redirect_chain_for_log, safe_url_for_log
+from utils.log_format import KEEP_URL_QUERY
 from utils.safe_http import (
     URLTrust, safe_get, stream_to_file_capped,
     ResponseTooLargeError,
@@ -80,12 +81,11 @@ EXTRACT_PREFETCH_AHEAD = 2
 class _ChunkPrefetcher:
     """Runs chunk extractions ahead of the GPU during chunked transcription.
 
-    Futures are keyed by (start, end_with_overlap) from _chunk_bounds_ahead,
-    the same helper the chunk loop reads its own bounds from. When the chunk
-    size changes mid-run (OOM shrink, extraction-timeout shrink) the next
-    take() computes bounds the queue does not hold, and the whole stale
-    queue is discarded. Discarded and leftover extractions unlink their
-    temp files on completion. Single-threaded caller; no locking needed.
+    Futures are keyed by (start, end_with_overlap) from _chunk_bounds_ahead, the
+    helper the chunk loop also uses. If the chunk size changes mid-run (OOM or
+    extraction-timeout shrink), take() finds no matching bounds and discards the
+    stale queue; discarded and leftover extractions unlink their temp files.
+    Single-threaded caller, no locking.
     """
 
     def __init__(self, audio_path):
@@ -156,10 +156,8 @@ class _ChunkPlanContext:
     """Per-episode inputs shared by every pass of a chunk plan.
 
     switch_event: set once this pass decides to switch backend or abort, so
-    chunks already in flight stop before extraction or upload instead of
-    wasting work on a result that will be discarded (#806). Scoped to one
-    pass: a caller rerunning remaining chunks on a new backend builds a
-    fresh context rather than reusing this one.
+    in-flight chunks stop before extraction or upload (#806). Scoped to one
+    pass: rerunning chunks on a new backend needs a fresh context.
     """
     audio_path: str
     language_override: str | None
@@ -192,18 +190,15 @@ class Transcriber:
     ) -> list[dict] | None:
         """Transcribe audio using an OpenAI-compatible whisper API.
 
-        Sends the preprocessed audio to a remote API endpoint and maps
-        the verbose_json response to the internal segment format.
+        Maps the endpoint's verbose_json response to the internal segment format.
 
         Args:
             audio_path: Path to the audio file to transcribe.
             whisper_settings: Pre-fetched settings dict from _get_whisper_settings().
-            preprocessed: The file already went through the preprocess filter
-                chain (extract_audio_chunk(preprocess=True)); skip the
-                redundant preprocess pass.
-            vad_filter: False sends `vad_filter=false` so a server that
-                supports the switch keeps quiet audio (tail pass, spec 1.2).
-                True sends nothing, leaving the server's own default alone.
+            preprocessed: Already filtered (extract_audio_chunk(preprocess=True));
+                skip the preprocess pass.
+            vad_filter: False sends `vad_filter=false` so a supporting server keeps
+                quiet audio (tail pass). True sends nothing (server default).
 
         Returns:
             List of transcript segments, or None on failure.
@@ -227,10 +222,8 @@ class Transcriber:
                 preprocessed_path = self.preprocess_audio(audio_path)
             transcribe_path = preprocessed_path if preprocessed_path else audio_path
 
-            # After preprocessing, compress to FLAC for upload (lossless, ~4-5x smaller than WAV).
-            # Prevents 413 errors from APIs with tight upload limits (e.g. OpenRouter).
-            # Self-hosted Whisper servers that accept WAV directly can opt out via the
-            # skip_flac_compression setting and avoid the extra encode pass.
+            # FLAC (lossless, ~4-5x smaller than WAV) avoids 413s on APIs with tight
+            # upload limits (e.g. OpenRouter); skip_flac_compression opts out.
             skip_flac = bool(whisper_settings.get('skip_flac_compression', False))
             if not skip_flac and transcribe_path.endswith('.wav'):
                 fd, flac_path = tempfile.mkstemp(suffix='.flac')
@@ -244,7 +237,7 @@ class Transcriber:
                         transcribe_path = flac_path
                         logger.info(f"Compressed for upload: {os.path.getsize(flac_path) / 1024 / 1024:.1f}MB FLAC")
                     else:
-                        # Compression failed -- remove orphaned temp file
+                        # Compression failed: remove orphaned temp file
                         common.unlink_quiet(flac_path)
                         flac_path = None
                 except Exception as e:
@@ -597,17 +590,14 @@ class Transcriber:
                                  user_agent: str = None) -> tuple:
         """Check if audio URL is accessible without downloading.
 
-        Performs a HEAD request to verify the CDN has the file ready.
-        Use this before downloading to avoid failures on newly published episodes
-        where the CDN hasn't propagated the file yet.
+        HEAD request to verify the CDN has propagated a newly published file.
 
         Args:
             url: Audio file URL to check
             timeout: Request timeout in seconds
             user_agent: Sent instead of the download User-Agent when given
 
-        Returns:
-            Tuple of (available: bool, error_message: str or None)
+        Returns (available, error_message or None).
         """
         from utils.safe_http import safe_head
         headers = {'User-Agent': user_agent or download_user_agent()}
@@ -616,28 +606,27 @@ class Transcriber:
                 url,
                 trust=URLTrust.FEED_CONTENT,
                 timeout=timeout,
-                # Megaphone / Art19 / simplecast often chain 6-8 redirects
-                # (CDN edge -> regional -> asset), and Acast adds analytics
-                # bouncers on top. Bumped to 10 so we don't false-fail
-                # CDN checks for legitimate feeds.
+                # Megaphone / Art19 / simplecast chain 6-8 redirects and Acast adds
+                # analytics bouncers; the higher cap avoids false CDN-check failures.
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 headers=headers,
             )
         except SSRFError as e:
             logger.warning(f"SSRF blocked in check_audio_availability: {e}")
-            return False, f"URL blocked: {e}"
+            return False, redact_log_text(f"URL blocked: {e}")
         except requests.exceptions.Timeout:
             # A slow HEAD says nothing about the file; the download has its own timeout and retry.
             logger.warning("CDN check timed out, trying the download")
             return True, None
         except requests.RequestException as e:
-            return False, f"CDN check failed: {e}"
+            return False, redact_log_text(f"CDN check failed: {e}")
 
         keep_query = log_download_query_enabled()
+        mark = {KEEP_URL_QUERY: keep_query}
         logger.info("Checking audio availability: "
-                    f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
+                    f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}", extra=mark)
         for line in redirect_chain_for_log(response, keep_query=keep_query):
-            logger.info(line)
+            logger.info(line, extra=mark)
 
         if response.status_code == 200:
             return True, None
@@ -662,13 +651,13 @@ class Transcriber:
 
         Raises:
             AudioTooLargeError: the enclosure exceeds the MAX_AUDIO_DOWNLOAD_MB
-                cap (default 500MB). Other failures keep the return-None
-                contract.
+                cap (default 500MB). Other failures return None.
         """
         keep_query = log_download_query_enabled()
+        mark = {KEEP_URL_QUERY: keep_query}
         try:
             logger.info("Downloading audio from: "
-                        f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
+                        f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}", extra=mark)
             headers = {
                 'User-Agent': user_agent or download_user_agent(),
                 'Accept': '*/*',
@@ -683,7 +672,7 @@ class Transcriber:
                 headers=headers,
             )
             for line in redirect_chain_for_log(response, keep_query=keep_query):
-                logger.info(line)
+                logger.info(line, extra=mark)
             response.raise_for_status()
         except SSRFError as e:
             logger.warning(f"SSRF blocked in download_audio: {e}")
@@ -871,15 +860,11 @@ class Transcriber:
                         self.clear_cuda_cache()
 
                     # word_timestamps=True enables precise boundary refinement later.
-                    # Pinning a language prevents Whisper from misdetecting on music
-                    # intros or sound effects (e.g. English podcast detected as Spanish
-                    # at 93% confidence). `whisper_language=auto` (or blank env var)
-                    # lets Whisper auto-detect -- useful for multilingual / non-English
-                    # podcasts. The non-English DAI heuristic downstream
-                    # (segments.detect_non_english_segment) is gated by
-                    # segments.should_detect_foreign_language so it only runs when the audio
-                    # is English; on non-English podcasts it would false-positive
-                    # every segment.
+                    # Pinning a language stops misdetection on music intros or effects
+                    # (English read as Spanish at 93%). `whisper_language=auto` (or blank
+                    # env var) auto-detects for multilingual podcasts; the non-English DAI
+                    # heuristic is gated by segments.should_detect_foreign_language,
+                    # else it would flag every segment.
                     settings._note_whisper_settings(whisper_settings)
                     segments_generator, info = model.transcribe(
                         transcribe_path,
@@ -932,10 +917,8 @@ class Transcriber:
                                     "end": w.end
                                 })
 
-                        # Detect non-English segments (potential DAI ads).
-                        # Whisper segments don't have per-segment language, but we can
-                        # detect non-English by checking for non-ASCII characters or
-                        # using the overall detected language with segment analysis.
+                        # Segments carry no language, so detect non-English via non-ASCII
+                        # characters or the overall detected language (potential DAI ads).
                         segment_text = segment.text.strip()
                         is_foreign = should_detect_foreign and segments.detect_non_english_segment(
                             segment_text, detected_lang
@@ -1020,7 +1003,7 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             self._record_local_stats('failed', batch_size, retry_count, device,
-                                     current_model, error=str(e),
+                                     current_model, error=redact_exc(e),
                                      backend=whisper_settings['backend'])
             # Clean up GPU memory on ANY failure to prevent memory leaks
             # This is critical for OOM recovery - free memory before retry
@@ -1145,21 +1128,17 @@ class Transcriber:
                     ctx.switch_event.set()
                     return chunk_idx, connectivity_errors
                 seen_connectivity = len(connectivity_errors)
-                # Short-circuit like the sequential path: once the failure
-                # budget is blown the run can't succeed, so stop instead of
-                # burning a full HTTP timeout on each remaining doomed chunk.
-                # Returning here still runs the finally below (pool shutdown).
+                # Short-circuit like the sequential path: past the failure budget the
+                # run cannot succeed. The finally below still shuts down the pool.
                 if failed > max_failed_chunks:
                     ctx.switch_event.set()
                     logger.error(
                         f"{prefix}Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
                     )
-                    # Classify the abort as an outage only when connectivity
-                    # failures are the majority cause; a single timeout among
-                    # mostly content/request failures must not defer the
-                    # episode (#482). The reverse mix falls back to the normal
-                    # transient-retry ladder, whose next attempt re-classifies.
+                    # Outage only when connectivity failures are the majority; one
+                    # timeout among content/request failures must not defer the
+                    # episode (#482). Otherwise the normal retry ladder re-classifies.
                     if len(connectivity_errors) * 2 > failed:
                         raise connectivity_errors[0]
                     # Name local extraction as the cause when it dominates
@@ -1446,10 +1425,8 @@ class Transcriber:
         # chunk file outlives the run.
         prefetcher = _ChunkPrefetcher(audio_path)
         try:
-            # Start the first extractions now and load the model while they
-            # run; done in sequence these are the two longest serial waits
-            # of the pass. Load failures surface inside the loop, which
-            # keeps its OOM handling.
+            # Overlap the first extractions with the model load (the two longest serial
+            # waits). Load failures surface inside the loop, keeping its OOM handling.
             prefetcher.prime(chunk_start, chunk_duration, duration, overlap)
             try:
                 if whisper_settings['backend'] == WHISPER_BACKEND_PARAKEET:

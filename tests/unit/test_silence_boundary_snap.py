@@ -186,10 +186,8 @@ def test_skips_end_edge_that_has_cue_snap():
 # ---------------------------------------------------------------------------
 
 def test_same_span_not_used_for_both_edges():
-    # Span A mid=102.0 is within max_distance of BOTH start=100.0 (dist=2.0) and
-    # end=104.0 (dist=2.0). Without the id-exclusion path the end edge would select
-    # span A as its sole candidate. The exclusion (and the sanity bound, which also
-    # kicks in after start snaps) must prevent end from snapping to the same span.
+    # Span A mid=102.0 is within max_distance of BOTH start=100.0 and end=104.0 (dist=2.0 each). The
+    # id-exclusion (and the sanity bound once start snaps) must stop end snapping to the same span.
     ads = [_ad(100.0, 104.0)]
     spans = [_span(101.3, 102.7)]  # mid=102.0, dur=1.4; equidistant from both edges
     snap_ad_boundaries_to_silence(ads, spans, max_distance_s=2.0, min_silence_s=0.3)
@@ -226,10 +224,8 @@ def test_tie_within_01s_longer_silence_wins():
     assert ads[0]['start'] == 99.05
 
 
-# ---------------------------------------------------------------------------
-# Guard A: 10s revert -- if snapped ad would fall below MIN_AD_DURATION_FOR_REMOVAL,
-# revert the entire ad's silence snap
-# ---------------------------------------------------------------------------
+# Guard A: 10s revert. If the snapped ad would fall below MIN_AD_DURATION_FOR_REMOVAL,
+# revert the entire ad's silence snap.
 
 def test_guard_revert_when_snapped_ad_too_short():
     # Ad 100.0-115.0 = 15s (>= 10s). Silence snap would move start to 108.0 and
@@ -310,24 +306,11 @@ def test_guard_merge_gap_allows_large_enough_gap():
 # ---------------------------------------------------------------------------
 
 def test_start_snap_cannot_push_past_ad_end():
-    # A span whose midpoint is past the ad end must not snap start past end.
-    # Use max_distance_s=5.0 but a span so far past end that it can't snap start.
-    # span mid=105.0, ad start=100.0 (dist=5.0 at boundary), ad end=101.0;
-    # proposed_must_be_less_than=101.0 rejects mid=105.0 for start edge.
-    # For end edge: dist from end(101.0) = 4.0 <= 5.0 -> end snaps to 105.0.
-    # We need a span that is ONLY reachable by start AND whose mid > ad_end.
-    # Solution: tiny ad where any snap would violate start < end. Use a span
-    # straddling the ad with mid > ad_end so start-snap is rejected, and also
-    # far enough from ad_end that end-snap is also rejected (dist > max_distance).
+    # A span whose midpoint is past the ad end must not snap start past end; the tiny ad below makes any
+    # such snap violate start < end.
     ads = [_ad(100.0, 101.0)]
-    # mid=101.5 is 1.5s past end (101.0) and 1.5s past start (100.0).
-    # Start snap: proposed_must_be_less_than=101.0, mid=101.5 -> rejected.
-    # End snap: dist from end=101.0 to mid=101.5 = 0.5 <= max_distance -> end snaps.
-    # That's fine - only start is constrained to stay < end.
-    # To test that start is NOT pushed past end, place a span entirely before the ad
-    # whose midpoint is past end is impossible. Instead test directly:
-    # ad is tiny (100.0-100.2), span mid=100.5 > ad end=100.2.
-    # Start would snap to 100.5 but 100.5 >= end 100.2 -> rejected by proposed_must_be_less_than.
+    # Ad is tiny (100.0-100.2), span mid=100.5 > ad end=100.2: start would snap to 100.5 but
+    # proposed_must_be_less_than rejects it.
     ads = [_ad(100.0, 100.2)]
     spans = [_span(100.3, 100.7)]   # mid=100.5 > end=100.2; dist from start=0.5
     snap_ad_boundaries_to_silence(ads, spans, max_distance_s=2.0, min_silence_s=0.0)
@@ -351,10 +334,8 @@ def test_end_snap_cannot_pull_before_ad_start():
 # ---------------------------------------------------------------------------
 
 def test_cross_ad_dual_span_start_rejected_after_neighbor_snap():
-    # ad1=[50,100], ad2=[102,160]. A silence span sits between them at mid=100.5.
-    # ad1.end snaps to 100.5 (processed first, gap to ad2.start=102.0-100.5=1.5 >= 1.0).
-    # A second span at mid=101.0 is within range of ad2.start=102.0 (dist=1.0).
-    # Gap from ad1.post-snap-end=100.5 to proposed ad2.start=101.0 = 0.5 < 1.0 -> rejected.
+    # ad1=[50,100], ad2=[102,160]. A span at mid=100.5 lets ad1.end snap (gap to ad2.start is 1.5 >= 1.0).
+    # A second span at mid=101.0 would put ad2.start only 0.5 < 1.0 after ad1's new end, so it is rejected.
     ad1 = _ad(50.0, 100.0)
     ad2 = _ad(102.0, 160.0)
     spans = [
@@ -375,12 +356,9 @@ def test_cross_ad_dual_span_start_rejected_after_neighbor_snap():
 # ---------------------------------------------------------------------------
 
 def test_both_guards_trigger_causes_whole_ad_revert():
-    # Ad [50,60] is exactly at MIN_AD_DURATION_FOR_REMOVAL=10s.
-    # A span near start (mid=55.0) passes Guard B (gap from prev_end=10.0 is large).
-    # Start snaps to 55.0 -> snapped duration = 60.0-55.0 = 5.0s < 10.0s -> Guard A reverts.
-    # A span near end (mid=60.6) fails Guard B (gap to next_ad.start=61.0 is 0.4s < 1.0).
-    # End snap is rejected. snap_record has start only; Guard A then reverts the whole ad.
-    # The neighbor ads must remain unchanged.
+    # Ad [50,60] is exactly MIN_AD_DURATION_FOR_REMOVAL=10s. A start span (mid=55.0) passes Guard B and
+    # would leave 5.0s; an end span (mid=60.6) fails Guard B (gap to next_ad.start is 0.4s < 1.0). With only
+    # the start snap recorded, Guard A reverts the whole ad; neighbors stay unchanged.
     prev_ad = _ad(0.0, 10.0)
     ad = _ad(50.0, 60.0)      # 10s exactly, at threshold
     next_ad = _ad(61.0, 120.0)
@@ -400,14 +378,9 @@ def test_both_guards_trigger_causes_whole_ad_revert():
     assert next_ad['start'] == 61.0
 
 
-# ---------------------------------------------------------------------------
 # Bisect bound-edge correctness (2a)
-#
-# Eligibility criterion: |midpoint - edge| <= max_distance_s.
-# midpoint = (start + end) / 2.
-# Lower bound cut: end < edge - max_distance_s => mid < edge - max_distance_s => ineligible.
-# Upper bound cut: start > edge + max_distance_s => mid > edge + max_distance_s => ineligible.
-# ---------------------------------------------------------------------------
+# Eligibility: |midpoint - edge| <= max_distance_s, midpoint = (start + end) / 2. A span with
+# end < edge - max_distance_s (lower cut) or start > edge + max_distance_s (upper cut) is ineligible.
 
 def test_lower_bound_span_end_just_inside_is_eligible():
     # edge=100, max_distance=2.0. A zero-width span at end=98.001 has

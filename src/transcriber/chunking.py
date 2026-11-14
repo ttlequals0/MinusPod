@@ -42,22 +42,13 @@ def extract_audio_chunk(
     preprocess: bool = False,
     flac: bool = False,
 ) -> str | None:
-    """Extract a time range from an audio file using ffmpeg.
+    """Extract a time range (seconds) from an audio file using ffmpeg.
 
-    Args:
-        audio_path: Path to source audio file
-        start_time: Start time in seconds
-        end_time: End time in seconds
-        preprocess: Apply the same filter chain as preprocess_audio in this
-            single pass, so the chunk needs no second ffmpeg pass. Callers
-            that set this must skip preprocessing downstream
-            (transcribe(..., preprocessed=True)).
-        flac: Encode the chunk as FLAC (ready for API upload) instead of
-            PCM WAV, skipping the separate encode pass.
+    preprocess: apply the preprocess_audio filter chain in this pass; callers must then
+        skip preprocessing downstream (transcribe(..., preprocessed=True)).
+    flac: encode FLAC (ready for API upload) instead of PCM WAV.
 
-    Returns:
-        Path to temporary chunk file, or None on failure.
-        Caller is responsible for cleaning up the temp file.
+    Returns the temporary chunk path (caller cleans it up), or None on failure.
     """
     tmp = tempfile.NamedTemporaryFile(suffix='.flac' if flac else '.wav', delete=False)
     output_path = tmp.name
@@ -71,11 +62,8 @@ def extract_audio_chunk(
             '-ss', str(start_time),
             '-i', audio_path,
             '-t', str(duration),
-            # Ignore embedded cover art (#556). FLAC output can carry
-            # pictures, so a malformed APIC frame (ID3 declares PNG, bytes
-            # are JPEG) aborts the whole extract without this; WAV output
-            # cannot carry pictures, which is why 2.62.0's fold-in of the
-            # FLAC encode surfaced it.
+            # Ignore embedded cover art (#556): FLAC output can carry pictures, so a
+            # malformed APIC frame (ID3 says PNG, bytes are JPEG) aborts the extract.
             '-vn',
             '-ar', '16000',  # Whisper native sample rate
             '-ac', '1',      # Mono
@@ -85,11 +73,8 @@ def extract_audio_chunk(
         # FLAC for upload; otherwise uncompressed for faster processing
         cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
 
-        # With filtering folded in, allow the same budget the standalone
-        # preprocess pass had (FFMPEG_LONG_TIMEOUT floor) instead of the
-        # tighter extract-only timeout. Scale by chunk length the way every
-        # other ffmpeg call site does (#644): chunk size follows available GPU
-        # memory, so a flat budget silently fails once chunks grow past it.
+        # With filtering folded in, use the standalone preprocess budget (FFMPEG_LONG_TIMEOUT
+        # floor). Scale by chunk length (#644): chunks grow with GPU memory, so a flat budget fails.
         timeout = (FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
         result = utils.subprocess_registry.tracked_run(cmd, capture_output=True, timeout=timeout)
 
@@ -128,22 +113,10 @@ def merge_overlapping_segments(
     chunk_start: float,
     overlap_duration: float
 ) -> list[dict]:
-    """Merge new segments into existing, handling overlap deduplication.
+    """Merge new segments into existing, deduplicating the overlap_duration seconds transcribed in both chunks.
 
-    At chunk boundaries, we have overlap_duration seconds of audio that was
-    transcribed in both chunks. We need to:
-    1. Keep segments from the previous chunk up to the overlap zone
-    2. Discard duplicate segments in the overlap zone from the new chunk
-    3. Add remaining segments from the new chunk
-
-    Args:
-        existing_segments: Segments from previous chunks
-        new_segments: Segments from current chunk (timestamps already adjusted)
-        chunk_start: Start time of the current chunk in the full audio
-        overlap_duration: Duration of overlap in seconds
-
-    Returns:
-        Merged list of segments with duplicates removed
+    Keeps previous-chunk segments up to the overlap zone, drops the new chunk's duplicates
+    inside it, and appends the rest. new_segments timestamps are already adjusted to the full audio.
     """
     if not existing_segments:
         return new_segments
@@ -191,8 +164,7 @@ def merge_overlapping_segments(
 def _chunk_bounds_ahead(start, chunk_duration, duration, overlap, count):
     """Next `count` (start, end_with_overlap) pairs of the chunked loop.
 
-    Single owner of the boundary math: the loop reads its current bounds
-    from element 0 and the prefetcher keys its queue on the same pairs.
+    Single owner of the boundary math: the loop and the prefetcher key on the same pairs.
     """
     bounds = []
     while start < duration and len(bounds) < count:
@@ -214,9 +186,7 @@ def _unlink_future_chunk(future):
 def _ffmpeg_error_tail(stderr, limit: int = 500) -> str:
     """The diagnosable part of ffmpeg stderr for logs.
 
-    A head-truncated slice is consumed entirely by the version banner and
-    configuration line (#556 was undiagnosable from logs because of it), so
-    surface lines that look like errors, falling back to the tail.
+    The head is all version banner and config (#556), so surface error-looking lines, else the tail.
     """
     if not stderr:
         return 'no error output'
@@ -229,10 +199,9 @@ def _ffmpeg_error_tail(stderr, limit: int = 500) -> str:
 
 
 def _attach_top_level_words(segments, words) -> None:
-    """Fold an OpenAI verbose_json top-level `words` array into its segments.
+    """Fold an OpenAI verbose_json top-level `words` array into segments.
 
-    Spec-compliant servers return words top-level, not nested; place each in
-    the segment nearest its midpoint so boundary refinement finds them."""
+    Servers return words top-level, not nested; each goes to the segment nearest its midpoint."""
     if not segments or not words:
         return
     if any(seg.get('words') for seg in segments):
@@ -273,19 +242,10 @@ def calculate_optimal_chunk_duration(
     model_name: str,
     device: str = "cuda",
 ) -> tuple[int, str]:
-    """Calculate optimal chunk duration based on available memory and model size.
+    """Chunk duration for the model and available memory, as (chunk_duration_seconds, reasoning_message).
 
-    Uses model-specific memory profiles and current available memory to
-    determine how much audio can be safely processed in one chunk. Only the
-    local backend reaches this path; the API backend branches to
-    _transcribe_chunked_parallel_api before chunk sizing.
-
-    Args:
-        model_name: Whisper model name (e.g., "small", "large-v3")
-        device: "cuda" or "cpu"
-
-    Returns:
-        Tuple of (chunk_duration_seconds, reasoning_message)
+    Local backend only; the API backend branches to _transcribe_chunked_parallel_api first.
+    device is "cuda" or "cpu".
     """
     # Get model memory profile
     profile = WHISPER_MEMORY_PROFILES.get(model_name, WHISPER_DEFAULT_PROFILE)
@@ -356,9 +316,8 @@ def _hole_recorded(hole, records) -> bool:
 def _full_span_clips(duration: float | None) -> list[dict] | None:
     """Cover the whole file with 30s clips for a VAD-off transcription.
 
-    BatchedInferencePipeline derives its chunks from VAD speech timestamps, so
-    with VAD off it needs clip_timestamps or it raises. Returns None when the
-    duration is unknown or too short to clip.
+    BatchedInferencePipeline chunks from VAD timestamps and raises without clip_timestamps
+    when VAD is off. None when the duration is unknown or too short.
     """
     if not duration or duration <= 0:
         return None

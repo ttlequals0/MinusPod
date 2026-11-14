@@ -30,6 +30,7 @@ from podping_listener import (
     get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
     get_node_check_status, MONITOR_HEARTBEAT_SETTING, NODE_CHECK_SETTING,
 )
+from llm_client import llm_disabled, require_llm
 from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
@@ -91,12 +92,8 @@ def _effective_whisper_config(db):
 
 @api.route('/health/live', methods=['GET'])
 def health_live():
-    """Liveness probe: answers 200 if the process is running. No side effects.
-
-    Safe for per-second polling by Kubernetes-style liveness probes and for
-    health checks on shared hosts where the full readiness check is too
-    heavy. Does not require authentication.
-    """
+    """Liveness probe: 200 if the process is running; no side effects, no authentication.
+    Safe for per-second polling and for shared hosts where the readiness check is too heavy."""
     return jsonify({'status': 'ok'}), 200
 
 
@@ -104,11 +101,8 @@ def health_live():
 def health_check():
     """Readiness probe: verifies DB and storage are reachable.
 
-    Returns 200 if healthy, 503 if unhealthy. Does not require authentication.
-    Dropped the ProcessingQueue instantiation that previously ran on every
-    call; a busy queue is not an ill-health signal, and the construction
-    opened a file lock that showed up in profiles. Existing Docker / Portainer
-    healthchecks that poll /health continue to receive the same 200/503 shape.
+    Returns 200 if healthy, 503 if unhealthy; no authentication. A busy ProcessingQueue is not
+    an ill-health signal, so it is not instantiated (its file lock showed up in profiles).
     """
     db = get_database()
     storage = get_storage()
@@ -133,7 +127,7 @@ def health_check():
     # Visible but never gates readiness: an instance with no model
     # configured still serves already-processed feeds.
     try:
-        checks['llm_model_configured'] = bool(db.get_setting('claude_model'))
+        checks['llm_model_configured'] = llm_disabled() or bool(db.get_setting('claude_model'))
     except Exception:
         checks['llm_model_configured'] = False
 
@@ -216,10 +210,9 @@ def get_system_status():
             'outageAffectedCount': int(db.get_setting('feeds_refresh_outage_affected_count') or 0),
             'nextRetryAt': db.get_setting('feeds_next_refresh_retry_at') or None,
         },
-        # Informational only, never gates readiness (see /health above): the
-        # RPC listener is one input path among several (RSS polling remains
-        # the fallback), so an all-nodes-down Podping outage degrades ping
-        # timeliness, not the process.
+        # Informational only, never gates readiness (see /health above): the RPC listener is
+        # one input path among several (RSS polling is the fallback), so a Podping outage
+        # degrades ping timeliness, not the process.
         'podping': {
             'listenerEnabled': db.get_setting_bool('podping_enabled', False),
             'allNodesDown': db.get_setting(DEGRADED_SETTING) == '1',
@@ -227,11 +220,10 @@ def get_system_status():
             'nodes': get_node_health_summary(db),
             'check': get_node_check_status(db),
         },
-        # Informational only, never gates readiness (see /health above): a
-        # GPU-OOM exhaustion on the local Whisper backend degrades
-        # transcription, not the process (episodes re-queue as transient).
-        # Reports the configured backend, since the local reading says
-        # nothing when transcription runs on a remote API.
+        # Informational only, never gates readiness (see /health above): GPU-OOM exhaustion on
+        # the local Whisper backend degrades transcription, not the process (episodes requeue
+        # as transient). Reports the configured backend, since the local reading says nothing
+        # when transcription runs on a remote API.
         'transcriber': transcriber.remote.get_transcriber_health(),
         'failover': {'targets': targets_view(), 'probes': probes_view()},
     })
@@ -281,11 +273,20 @@ def check_podping_nodes():
 @limiter.limit("6 per hour")
 @log_request
 def checkpoint_database():
-    """Run a passive WAL checkpoint."""
-    result = get_database().checkpoint_wal()
+    """Run a passive or truncating WAL checkpoint."""
+    body = request.get_json(silent=True)
+    mode = body.get('mode', 'passive') if isinstance(body, dict) else 'passive'
+    if mode not in ('passive', 'truncate'):
+        return error_response('mode must be passive or truncate', 400)
+    try:
+        result = get_database().checkpoint_wal(mode=mode)
+    except sqlite3.Error as exc:
+        logger.warning("SQLite %s checkpoint failed: %s", mode, exc)
+        return error_response('Checkpoint failed; the database may be busy', 503)
     logger.info(
-        "SQLite checkpoint: busy=%s log_pages=%s checkpointed_pages=%s duration_ms=%s",
-        result['busy'], result['logPages'], result['checkpointedPages'], result['durationMs'])
+        "SQLite %s checkpoint: busy=%s log_pages=%s checkpointed_pages=%s duration_ms=%s",
+        result['mode'], result['busy'], result['logPages'],
+        result['checkpointedPages'], result['durationMs'])
     return json_response(result, 409 if result['busy'] else 200)
 
 
@@ -326,6 +327,7 @@ def get_model_pricing():
 @log_request
 def refresh_model_pricing():
     """Force refresh pricing data from provider's pricing source."""
+    require_llm('Pricing refresh is unavailable while the LLM provider is none')
     try:
         force_refresh_pricing()
         db = get_database()
@@ -343,12 +345,10 @@ def refresh_model_pricing():
 @limiter.limit("1 per hour")
 @log_request
 def trigger_cleanup():
-    """Reset ALL processed episodes to discovered (ignores retention period).
+    """Reset all processed episodes to discovered (ignores retention period).
 
-    Rate-limited to one invocation per hour and audit-logged at WARN so the
-    destructive reset shows up in operator dashboards even when the request
-    completes successfully. The API-only threat model assumes deliberate
-    intent; the limit is a brake on runaway scripts rather than on people.
+    Rate-limited to one call per hour and audit-logged at WARN so the destructive reset shows
+    up in operator dashboards. The limit brakes runaway scripts, not people.
     """
     db = get_database()
     storage = get_storage()
@@ -639,10 +639,7 @@ def export_diagnostic_log():
 @log_request
 def run_db_backup():
     """Force a scheduled-style DB backup now, ignoring the enabled flag.
-
-    Distinct from GET /system/backup (which streams a one-off download);
-    this writes to the configured backup destination with rotation.
-    """
+    Unlike GET /system/backup (a one-off download), this writes to the configured destination with rotation."""
     db = get_database()
     try:
         summary = backup_now(db)
@@ -656,16 +653,12 @@ def run_db_backup():
 
 
 # ========== API Documentation ==========
-#
-# Registered on the blueprint so the same ``check_auth`` gate that guards
-# every other /api/v1/* route applies. The route lived at the app level
-# previously, which skipped the gate -- anyone inside the trust boundary
-# could read the OpenAPI spec without logging in.
+# Registered on the blueprint so the same ``check_auth`` gate as every other /api/v1/*
+# route applies (an app-level route skipped it).
 
-# All scripts are served as static assets (no inline <script> blocks)
-# so the ``script-src 'self'`` CSP applies without an `unsafe-inline`
-# exception. `/ui/swagger-init.js` ships from the frontend bundle
-# (see `frontend/public/swagger-init.js`).
+# All scripts are served as static assets (no inline <script> blocks) so the
+# ``script-src 'self'`` CSP applies without `unsafe-inline`. `/ui/swagger-init.js` ships
+# from the frontend bundle (`frontend/public/swagger-init.js`).
 _SWAGGER_HTML = '''<!DOCTYPE html>
 <html>
 <head>
@@ -689,11 +682,8 @@ def swagger_ui():
 
 @lru_cache(maxsize=1)
 def _render_openapi_yaml(openapi_path_str: str, version: str, prefix: str = '') -> str:
-    """Cache the version-substituted OpenAPI document for the lifetime of
-    the worker. Both key components are stable within a process, so the
-    cache invalidates naturally on container restart (when a version
-    bump or file change takes effect).
-    """
+    """Cache the version-substituted OpenAPI document for the worker's lifetime.
+    Both key components are stable within a process, so the cache invalidates on restart."""
     content = Path(openapi_path_str).read_text()
     if prefix:
         content = re.sub(r'^([ \t]*- url: )(/api/v1|/)[ \t]*$', rf'\g<1>{prefix}\g<2>', content, flags=re.MULTILINE)

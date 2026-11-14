@@ -1,8 +1,7 @@
 """Boundary-refinement helpers for detected ads.
 
 Pure functions over ad dicts and transcript segments. No DB, no LLM client.
-Split out of ``ad_detector/__init__.py`` for readability; behavior is
-unchanged from the pre-split module.
+Split out of ``ad_detector/__init__.py``.
 """
 import copy
 import logging
@@ -63,7 +62,7 @@ def _edge_locked(ad: dict, edge: str) -> bool:
     """Whether an edge is pinned by a cue snap, a valid quote or valid word timing.
 
     A cue-cut marker (#874) is bounded by the measured cue, so a return phrase
-    right after it must not pull the end into the host's speech.
+    after it must not pull the end into the host's speech.
     """
     return (ad.get('detection_stage') == CUE_MATCH_STAGE
             or is_edge_cue_snapped(ad, edge) or _quote_edge_valid(ad, edge)
@@ -224,11 +223,9 @@ def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
 def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
     """Refine ad boundaries using word timestamps and keyword detection.
 
-    For each ad:
-    1. Look at segment before/at ad start for transition phrases
-    2. Use word timestamps to find exact phrase timing
-    3. Adjust ad start to phrase start time
-    4. Similarly for ad end - find return-to-content phrases
+    For each ad, look at the segment before/at the start for transition phrases,
+    use word timestamps for exact phrase timing, and move the start to the phrase
+    start; likewise find return-to-content phrases for the end.
 
     Args:
         ads: List of detected ad segments
@@ -265,8 +262,8 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
         Args:
             words: List of word dicts with 'word', 'start', 'end'
             phrases: List of phrases to search for
-            search_start: If True, search for ad START phrases (return first match)
-                         If False, search for ad END phrases (return last match)
+            search_start: True searches ad START phrases (first match); False
+                searches ad END phrases (last match)
 
         Returns:
             Dict with 'start', 'end', 'phrase' if found, None otherwise
@@ -464,13 +461,13 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
 def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THRESHOLD) -> list[dict]:
     """Snap ads that start near the beginning of the episode to 0:00.
 
-    Pre-roll ads often have a brief intro or music before the actual ad content
-    is detected. If an ad starts within the threshold of the episode start,
-    it's almost certainly a pre-roll ad that should start at 0:00.
+    Pre-roll ads often have a brief intro or music before the ad content is
+    detected, so an ad starting within the threshold of the episode start is
+    almost certainly a pre-roll that should start at 0:00.
 
     Args:
         ads: List of detected ad segments
-        threshold: Maximum seconds from start to trigger snapping (default 30.0)
+        threshold: Maximum seconds from start to trigger snapping
 
     Returns:
         List of ads with early ads snapped to 0:00
@@ -681,12 +678,10 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                                     barriers: list[dict] = None) -> list[dict]:
     """Extend ad boundaries by checking adjacent segments for ad-like content.
 
-    For each detected ad, examines transcript text immediately before and after
-    the ad boundary. If the adjacent text contains ad indicators (sponsor names,
-    URLs, promotional language), the boundary is extended to include it.
-
-    This addresses DAI ads where detection cuts off ~5 seconds too early,
-    missing the final call-to-action or URL mention.
+    Examines transcript text just before and after each ad boundary; if it holds
+    ad indicators (sponsor names, URLs, promotional language) the boundary is
+    extended to include it. This addresses DAI ads where detection cuts off ~5
+    seconds early, missing the final call-to-action or URL mention.
 
     Args:
         ads: List of detected ad segments
@@ -857,9 +852,6 @@ def _text_has_ad_content(text: str, sponsor_names: set = None) -> bool:
     Args:
         text: Lowercase text to check
         sponsor_names: Set of known sponsor names from the parent ad
-
-    Returns:
-        True if text contains ad content indicators
     """
     if not text:
         return False
@@ -884,9 +876,8 @@ def extract_sponsor_names(text: str, ad_reason: str = None,
                           exclude: set = None) -> set:
     """Extract potential sponsor names from transcript text and ad reason.
 
-    Thin delegation to SponsorService.extract_sponsors_from_transcript
-    (canonical implementation). Retained as a module-level alias because
-    several call sites and tests import this name directly.
+    Thin alias for SponsorService.extract_sponsors_from_transcript (the canonical
+    implementation), kept because call sites and tests import this name.
     """
     return SponsorService.extract_sponsors_from_transcript(
         text, ad_reason, exclude=exclude)
@@ -898,14 +889,8 @@ def extract_sponsor_names(text: str, ad_reason: str = None,
 def _extract_ad_keywords(ad: dict) -> list[str]:
     """Extract searchable brand/sponsor keywords from an ad's metadata.
 
-    Uses the sponsor field as primary signal, then extracts capitalized words
-    from reason and end_text fields.
-
-    Args:
-        ad: Ad dict with optional 'sponsor', 'reason', 'end_text' fields
-
-    Returns:
-        Lowercase deduplicated list of keywords (length >= MIN_KEYWORD_LENGTH)
+    Uses the sponsor field first, then capitalized words from reason and end_text.
+    Returns a lowercase deduplicated list (length >= MIN_KEYWORD_LENGTH).
     """
     keywords = set()
 
@@ -947,17 +932,8 @@ def _find_keyword_region(segments: list[dict], keywords: list[str],
                          window_start: float, window_end: float) -> dict | None:
     """Search window segments for keyword occurrences and return the best cluster.
 
-    Finds segments containing any keyword, clusters them (merge if gap < 30s),
-    and returns the cluster with the most keyword hits.
-
-    Args:
-        segments: Transcript segments within the window
-        keywords: Lowercase keywords to search for
-        window_start: Window start time in seconds
-        window_end: Window end time in seconds
-
-    Returns:
-        Dict with 'start' and 'end' of best cluster, or None if no matches
+    Clusters segments containing any keyword (merging when gap < 30s) and returns
+    the cluster with the most hits as a dict with 'start' and 'end', or None.
     """
     if not keywords or not segments:
         return None
@@ -1003,18 +979,9 @@ def validate_ad_timestamps(ads: list[dict], segments: list[dict],
                            window_start: float, window_end: float) -> list[dict]:
     """Validate and correct ad timestamps against actual transcript content.
 
-    For each ad, checks whether the keywords (sponsor, brand names) actually
-    appear at the reported position in the transcript. If not, searches the
-    window for where they actually appear and corrects the timestamps.
-
-    Args:
-        ads: List of ad dicts from Claude
-        segments: Transcript segments for the window
-        window_start: Window start time in seconds
-        window_end: Window end time in seconds
-
-    Returns:
-        List of ads with corrected timestamps where needed
+    For each ad, checks whether its keywords (sponsor, brand names) appear at the
+    reported position; if not, searches the window for where they do and corrects
+    the timestamps.
     """
     if not ads:
         return []
@@ -1023,7 +990,7 @@ def validate_ad_timestamps(ads: list[dict], segments: list[dict],
     for ad in ads:
         keywords = _extract_ad_keywords(ad)
 
-        # No extractable keywords -- can't validate, pass through
+        # No extractable keywords: can't validate, pass through
         if not keywords:
             validated.append(ad)
             continue
@@ -1040,11 +1007,11 @@ def validate_ad_timestamps(ads: list[dict], segments: list[dict],
             validated.append(ad)
             continue
 
-        # Keywords not found at reported position -- search the window
+        # Keywords not found at reported position: search the window
         region = _find_keyword_region(segments, keywords, window_start, window_end)
 
         if region is None:
-            # Keywords not found anywhere in window -- pass through unchanged
+            # Keywords not found anywhere in window: pass through unchanged
             # (let downstream filtering handle it)
             validated.append(ad)
             continue
@@ -1079,11 +1046,11 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
                             slug=None, episode_id=None) -> None:
     """Snap an oversized pattern span to the one LLM detection inside it.
 
-    A pattern span is minted from a stored average duration, so on a given
-    episode it can far overrun the actual read, while the LLM edges are
-    word-timestamped. Left oversized, the marker's edges sit far from any
-    splice evidence and the whole span gets held while the precise
-    detection is dropped as covered. Mutates the region and its marker.
+    A pattern span is minted from a stored average duration, so it can far
+    overrun the actual read, while LLM edges are word-timestamped. Left
+    oversized, its edges sit far from any splice evidence and the whole span gets
+    held while the precise detection is dropped as covered. Mutates the region
+    and its marker.
     """
     for region in pattern_matched_regions:
         marker = next((m for m in all_ads if region_matches_marker(region, m)),
@@ -1190,10 +1157,9 @@ def removal_coverage_regions(pattern_matched_regions: list, action_map) -> list:
     """Pattern regions eligible to shadow (trim) a Claude detection.
 
     A keep-resolving pattern region never cuts, so letting it cover a
-    remove-resolving detection trims the only marker that could remove the
-    ad while the covering marker keeps the audio (seen on a production episode). Regions
-    without category information (bare tuples, uncategorized patterns)
-    resolve to the default remove action and stay eligible.
+    remove-resolving detection would trim the only marker that could remove the
+    ad. Regions without category information (bare tuples, uncategorized
+    patterns) resolve to the default remove action and stay eligible.
     """
     if action_map is None:
         return pattern_matched_regions
@@ -1209,18 +1175,18 @@ def get_uncovered_portions(ad: dict, covered_regions: list,
                            min_duration: float = None) -> list[dict]:
     """Find portions of an ad not covered by pattern-matched regions.
 
-    Instead of binary "covered or not", this identifies uncovered gaps
-    (head, middle, tail) and returns them as separate ad segments.
+    Rather than binary "covered or not", returns the uncovered gaps (head,
+    middle, tail) as separate ad segments.
 
     Args:
         ad: Ad dict with 'start' and 'end'
         covered_regions: List of region dicts or (start, end) tuples
-        min_duration: Minimum duration for an uncovered portion to keep
-                     (defaults to MIN_UNCOVERED_TAIL_DURATION)
+        min_duration: Minimum duration of an uncovered portion to keep
+            (defaults to MIN_UNCOVERED_TAIL_DURATION)
 
     Returns:
-        List of ad copies with adjusted start/end for uncovered portions.
-        Empty list if fully covered. Original ad unchanged if >50% uncovered.
+        List of ad copies for the uncovered portions; empty if fully covered;
+        the original ad if >50% is uncovered.
     """
     if min_duration is None:
         min_duration = MIN_UNCOVERED_TAIL_DURATION
@@ -1242,7 +1208,7 @@ def get_uncovered_portions(ad: dict, covered_regions: list,
             clipped.append((c_start, c_end))
 
     if not clipped:
-        # No overlap at all -- return original ad
+        # No overlap at all: return original ad
         return [ad]
 
     # Merge overlapping coverage regions
@@ -1258,7 +1224,7 @@ def get_uncovered_portions(ad: dict, covered_regions: list,
     # Calculate total covered duration
     total_covered = sum(end - start for start, end in merged_coverage)
 
-    # If >50% uncovered, overlap is incidental -- return original ad
+    # If >50% uncovered, overlap is incidental: return original ad
     if total_covered / ad_duration <= 0.5:
         return [ad]
 
@@ -1287,12 +1253,12 @@ def get_uncovered_portions(ad: dict, covered_regions: list,
 
 
 def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
-    """Fold ``next_ad`` into ``current_ad`` in place. Shared by both merge passes
-    so their bookkeeping (end extension, confidence, reason, sponsor, cue
-    evidence) stays consistent. Pass-specific fields (sponsor_names, gap text)
-    are set by the caller.
+    """Fold ``next_ad`` into ``current_ad`` in place.
 
-    ``gap_desc`` is appended to the merged reason when set (filler-gap pass).
+    Shared by both merge passes so their bookkeeping (end extension, confidence,
+    reason, sponsor, cue evidence) stays consistent. Pass-specific fields
+    (sponsor_names, gap text) are set by the caller; ``gap_desc`` is appended to
+    the merged reason when set (filler-gap pass).
     """
     mark_distinct_merge(current_ad, next_ad)
     # A fold is a union: a nested next_ad must not pull the measured end inward.
@@ -1352,12 +1318,12 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
 def _gap_only_text(segments: list[dict], gap_start: float, gap_end: float) -> str:
     """Transcript text lying strictly inside a gap.
 
-    get_transcript_text_for_range is inclusive at both ends, so asking it for
-    the span between two ads also returns the ads' own boundary segments. When
-    both ads name the sponsor that makes "does the gap mention the sponsor?"
-    answer yes for any gap. Segments straddling a boundary are dropped rather
-    than clipped: partial ad text would reintroduce the same contamination,
-    and losing a little gap text only biases toward leaving ads separate.
+    get_transcript_text_for_range is inclusive at both ends, so asking for the
+    span between two ads also returns their own boundary segments, which makes
+    "does the gap mention the sponsor?" yes for any gap when both ads name it.
+    Boundary-straddling segments are dropped rather than clipped (partial ad text
+    would reintroduce the contamination); losing a little gap text only biases
+    toward leaving ads separate.
     """
     return ' '.join(
         seg.get('text', '') for seg in segments
@@ -1397,22 +1363,17 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
                            ) -> list[dict]:
     """Merge ads that mention the same sponsor.
 
-    This handles cases where Claude fragments a long ad into multiple pieces
-    or mislabels part of an ad as a different sponsor.
-
-    Merge logic:
-    - Sharing a sponsor is necessary but not sufficient. The gap must also be
-      filler: less than ``min_content_seconds`` of speech, the same
-      discriminator merge_ads_across_short_content_gaps uses.
-    - A gap carrying real speech merges only when that speech still mentions
-      the sponsor, which means the read never actually stopped.
+    Handles Claude fragmenting a long ad or mislabeling part of it as another
+    sponsor. Sharing a sponsor is necessary but not sufficient:
+    - The gap must also be filler: less than ``min_content_seconds`` of speech,
+      the discriminator merge_ads_across_short_content_gaps uses.
+    - A gap with real speech merges only when that speech still mentions the
+      sponsor, meaning the read never stopped.
     - If gap > max_gap: never merge.
 
-    A short gap alone used to be enough, on the theory that a nearby mention of
-    the same sponsor belonged to the same break. On shows where the host
-    name-drops a sponsor through the episode that swallowed the show content
-    between the two mentions: two detections of 1.9s and 2.6s, 83s apart,
-    became one 88s span that was 95% conversation.
+    A short gap alone is not enough: where a host name-drops a sponsor through
+    the episode, it swallowed show content between mentions (two detections of
+    1.9s and 2.6s, 83s apart, became one 88s span that was 95% conversation).
 
     Args:
         ads: List of detected ad segments (sorted by start time)
@@ -1567,13 +1528,10 @@ def merge_ads_across_short_content_gaps(
 ) -> list[dict]:
     """Merge consecutive ads whose gap contains less than min_content_seconds of speech.
 
-    Within a single ad-break, individual ads are sometimes separated by
-    ad-transition music or silence (~10s filler). This pass collapses those
-    filler gaps so the whole break is cut as one contiguous span.
-
-    Discriminator: actual show content (speech segments) in the gap, NOT
-    wall-clock duration. Music and silence are untranscribed and contribute ~0.
-    Two ads separated by >= min_content_seconds of speech are left separate.
+    Within one ad break, ads are sometimes separated by transition music or
+    silence (~10s filler); collapsing those gaps cuts the break as one span.
+    The discriminator is actual speech in the gap, not wall-clock duration:
+    music and silence are untranscribed and contribute ~0.
 
     Args:
         ads: Detected ad segments (any order; sorted internally).
@@ -1584,7 +1542,7 @@ def merge_ads_across_short_content_gaps(
         false_positive_corrections: User FP ranges ({'start','end'}). Merging
             dilutes the validator's per-ad overlap ratio, so any merge whose
             component ad or resulting span intersects an FP range is skipped
-            (conservative: the validator decides those spans un-merged).
+            (the validator decides those spans un-merged).
 
     Returns:
         Sorted list of ads with filler-gap pairs collapsed.
@@ -1621,7 +1579,7 @@ def merge_ads_across_short_content_gaps(
             # Measure actual show-content duration in the gap.
             content_seconds = _content_duration_in_range(segments, gap_start, gap_end)
             if content_seconds >= min_content_seconds:
-                # Real show content between ads -- do not merge.
+                # Real show content between ads: do not merge.
                 break
 
             # Safety: skip if result would be too long.
@@ -1635,8 +1593,8 @@ def merge_ads_across_short_content_gaps(
                 break
 
             # FP-correction guard: never merge if a component ad or the merged
-            # span touches a user FP range -- merging would dilute the
-            # validator's overlap ratio and cut/keep the wrong span.
+            # span touches a user FP range; merging would dilute the validator's
+            # overlap ratio and cut/keep the wrong span.
             if (_overlaps_fp(current_ad['start'], current_ad['end'])
                     or _overlaps_fp(next_ad['start'], next_ad['end'])
                     or _overlaps_fp(current_ad['start'], next_ad['end'])):
@@ -1671,8 +1629,8 @@ def merge_ads_across_short_content_gaps(
 def _content_duration_in_range(segments: list[dict], range_start: float, range_end: float) -> float:
     """Return total speech duration (seconds) for segments overlapping [range_start, range_end).
 
-    Segments that fall entirely outside the range contribute 0. Partial overlaps
-    are clipped to the range boundary.
+    Segments entirely outside the range contribute 0; partial overlaps are
+    clipped to the range boundary.
     """
     total = 0.0
     for seg in segments:
@@ -1680,7 +1638,7 @@ def _content_duration_in_range(segments: list[dict], range_start: float, range_e
         seg_end = seg.get('end', 0.0)
         text = seg.get('text', '').strip()
         if not text:
-            # Untranscribed gap (music/silence) -- contributes 0.
+            # Untranscribed gap (music/silence) contributes 0.
             continue
         total += overlap_seconds(seg_start, seg_end, range_start, range_end)
     return total
@@ -1690,7 +1648,7 @@ def resolve_category_action(category, action_map: dict[str, str]) -> str:
     """Resolve a marker's category to its feed-configured action.
 
     Only call with a non-None action_map; callers with no map treat every
-    category as the same action and never call this.
+    category as the same action.
     """
     return action_map.get(normalize_segment_category(category), DEFAULT_SEGMENT_ACTION)
 
@@ -1751,18 +1709,19 @@ def _in_start_order(new_last, entries):
 def split_conflicting_action_span(last: dict, current: dict,
                                   last_action: str | None = None,
                                   current_action: str | None = None) -> tuple:
-    """Resolve two adjacent-or-overlapping ads whose resolved actions differ:
-    never merge a keep-resolving detection into a remove-resolving one, and
-    never let a span fully nested inside the other collapse to nothing.
+    """Resolve two adjacent-or-overlapping ads whose resolved actions differ.
+
+    Never merges a keep-resolving detection into a remove-resolving one, and
+    never lets a span nested inside the other collapse to nothing.
 
     Returns ``(updated_last_or_None, new_entries)``: ``new_entries`` replaces
-    ``current`` in the merged list; ``updated_last`` (None when fully
-    consumed) replaces ``last``.
+    ``current`` in the merged list; ``updated_last`` (None when fully consumed)
+    replaces ``last``.
 
     - No true overlap: both survive untouched.
-    When actions are supplied, precedence is keep > beep > remove. The
-    higher-priority action owns contested audio; without actions, preserve
-    the historical behavior where ``current`` owns it.
+    When actions are supplied, precedence is keep > beep > remove and the
+    higher-priority action owns contested audio; without actions, ``current``
+    owns it (historical behavior).
     """
     if current['start'] >= last['end']:
         return last, [current.copy()]
@@ -1847,18 +1806,17 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
                            action_map: dict[str, str] | None = None) -> list[dict]:
     """Deduplicate and merge ads detected across multiple windows.
 
-    When the same ad spans two windows, both windows may detect it.
-    This function merges overlapping detections.
+    An ad spanning two windows may be detected by both; this merges the
+    overlapping detections.
 
     Args:
         all_ads: Combined list of ads from all windows
         merge_threshold: Seconds within which ads are considered overlapping
         action_map: Feed's resolved category->action map (see
-            ``AdDetector._resolve_segment_action_map``). When given, gates
-            the merge so two raw window detections whose categories resolve
-            to different actions are never fused into one marker before
-            categories are normalized. None treats every category as the
-            same action, unchanged.
+            ``AdDetector._resolve_segment_action_map``). When given, two raw
+            window detections whose categories resolve to different actions are
+            never fused before categories are normalized. None treats every
+            category as the same action.
 
     Returns:
         Deduplicated list with overlapping ads merged
@@ -1905,10 +1863,9 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
             # Keep higher confidence
             if current.get('confidence', 0) > last.get('confidence', 0):
                 last['confidence'] = current['confidence']
-            # Keep sponsor and reason as a consistent pair from the SAME member
-            # (mirrors _merge_detection_results): a merged marker must never show
-            # one ad's sponsor with another ad's description. The longer reason is
-            # the content-aware one, so take its sponsor with it.
+            # Keep sponsor and reason as a pair from the same member (mirrors
+            # _merge_detection_results) so a merged marker never mixes one ad's
+            # sponsor with another's description; the longer reason wins.
             current_reason = current.get('reason', '')
             last_reason = last.get('reason', '')
             if len(current_reason) > len(last_reason):
@@ -1935,15 +1892,15 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
                                podcast_name: str = None) -> list[dict]:
     """Snap a terminal ad's start back to the strongest deep-silence splice.
 
-    DAI post-roll blocks often begin at an encoded silence a few seconds
-    before where the LLM or reviewer placed the marker start. For a marker
-    whose end is within eof_tolerance_s of EOF, scan back from its start up
-    to window_s for digital_silence/deep_silence events and snap the start
-    to the deepest one whose extension span is safe to cut: every
-    transcribed segment in [event_time, old_start) must either overlap a
-    detected marker (ad-classified / pattern-matched) or read as ad content
-    (sponsor names, URLs, promo phrases). Untranscribed audio always passes;
-    a content-classified sentence blocks that candidate.
+    DAI post-roll blocks often begin at an encoded silence a few seconds before
+    the LLM or reviewer placed the marker start. For a marker ending within
+    eof_tolerance_s of EOF, scan back up to window_s for
+    digital_silence/deep_silence events and snap to the deepest one whose
+    extension span is safe to cut: every transcribed segment in
+    [event_time, old_start) must overlap a detected marker (ad-classified /
+    pattern-matched) or read as ad content (sponsors, URLs, promo phrases).
+    Untranscribed audio always passes; a content-classified sentence blocks the
+    candidate.
 
     Returns a new list with snapped copies; other ads pass through.
     """
@@ -2007,10 +1964,10 @@ def transition_pair_silence_events(signals: list,
                                    min_confidence: float = 0.9) -> list[dict]:
     """Derive precise terminal-boundary evidence from a coarse DAI pair.
 
-    Transition pairs use five-second loudness frames, so their edge alone is
-    too coarse for a destructive snap. A nearby measured silence gives the
-    precise boundary. Return splice-shaped events so the terminal content
-    guard can apply its existing transcript safety checks.
+    Transition pairs use five-second loudness frames, too coarse for a
+    destructive snap; a nearby measured silence gives the precise boundary.
+    Returns splice-shaped events so the terminal content guard can apply its
+    existing transcript safety checks.
     """
     def is_finite_number(value):
         return (isinstance(value, (int, float))
@@ -2074,12 +2031,12 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
                                      podcast_name: str | None = None) -> list[dict]:
     """Finish a content-extended ad at a nearby forward splice boundary.
 
-    The post-review tail sweep can recover a spoken CTA from transcript text,
-    but a short untranscribed sonic logo may follow it. Only markers that the
-    tail sweep already extended are eligible. From their new end, scan forward
-    for strong silence splice evidence without crossing another marker or any
-    transcribed content. This keeps the recovery narrow while preventing the
-    final few seconds of a DAI spot from leaking into the processed episode.
+    The post-review tail sweep can recover a spoken CTA from transcript text, but
+    a short untranscribed sonic logo may follow. Only markers the tail sweep
+    already extended are eligible; from their new end, scan forward for strong
+    silence splice evidence without crossing another marker or transcribed
+    content. This keeps recovery narrow while stopping the final seconds of a DAI
+    spot leaking into the processed episode.
     """
     memo = {}
     if not ads or not splice_events or window_s <= 0:

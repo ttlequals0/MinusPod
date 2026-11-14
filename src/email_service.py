@@ -1,15 +1,12 @@
 """Native email notifications.
 
-Sends per-event emails through an operator-configured SMTP server, sharing
-the event stream (and the alert dedup window) with webhooks. One SMTP
-connection per send, opened with a hard timeout, so calls are safe from the
-webhook dispatch daemon threads. ``send_event_email`` never raises into its
+Per-event emails through an operator-configured SMTP server, sharing the event stream (and
+alert dedup window) with webhooks. One SMTP connection per send with a hard timeout, so calls
+are safe from webhook dispatch daemon threads. ``send_event_email`` never raises into its
 caller: a broken mail server must not break episode processing.
 
-Emails are multipart: a plain-text body in the reference mailer's
-"Label:  value" style, plus an HTML alternative with the MinusPod logo
-embedded via CID (no external image fetch, so it renders with images
-blocked-by-default clients too once allowed).
+Multipart: plain text in the reference mailer's "Label:  value" style plus an HTML alternative
+with the logo embedded via CID (no external fetch).
 """
 import functools
 import html
@@ -21,6 +18,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
 
+from utils.http import redact_log_text
 from utils.paths import LOGO_PATH
 from utils.url import validate_outbound_host
 
@@ -443,9 +441,8 @@ def build_message(subject, rows, action_hint, from_addr, recipients) -> EmailMes
 def _send(cfg: EmailConfig, msg: EmailMessage) -> None:
     """Deliver one message; raises on failure. One connection per call.
 
-    Revalidates the host at connect time (not only at save time) so a DNS
-    rebind cannot point a saved hostname at a blocked target, matching the
-    per-dispatch revalidation webhooks get from safe_post.
+    Revalidates the host at connect time so a DNS rebind cannot point a saved hostname at a
+    blocked target (as webhooks do via safe_post).
     """
     validate_outbound_host(cfg.host, cfg.port)
     context = ssl.create_default_context()
@@ -487,10 +484,7 @@ def send_event_email(event: str, context: dict) -> None:
 
 
 def send_test_email(db=None):
-    """Send a test email using the saved settings.
-
-    Returns (success, message) for the settings test endpoint.
-    """
+    """Send a test email using the saved settings; returns (success, message)."""
     if db is None:
         from database import Database  # deferred to avoid circular imports
         db = Database()
@@ -515,4 +509,4 @@ def send_test_email(db=None):
         return True, f"Test email sent to {len(cfg.recipients)} recipient(s)"
     except Exception as e:
         logger.exception("Test email failed")
-        return False, f"Sending failed: {e}"
+        return False, redact_log_text(f"Sending failed: {e}")

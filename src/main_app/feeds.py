@@ -2,7 +2,6 @@
 import copy
 import logging
 import random
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
@@ -19,12 +18,14 @@ from config import (
 )
 
 from database.episodes import normalize_published_at
+from database.error_text import redact_error
 from database.settings import feed_itunes_block_enabled
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
-from local_feed_builder import rebuild_local_feed
-from recents_feed import rebuild_recents_feed
+# Module imports: both builders import main_app, so their names may not exist yet when this loads.
+import local_feed_builder
+import recents_feed
 from utils.http import safe_url_for_log
 from utils.retry import calculate_backoff
 from utils.time import parse_iso_utc, utc_now_iso
@@ -34,12 +35,9 @@ from youtube.feed import rebuild_youtube_feed
 from slugify import slugify
 
 from main_app.cache import TTLCache
-# Singletons are created in main_app/__init__.py before the explicit
-# `from main_app.feeds import ...` near the bottom of that module, so
-# importing them here at module level is safe despite the surface-level
-# circular shape. The previous _get_components() helper returned a
-# positional 5-tuple; replacing it with direct imports removes the
-# tuple-reorder footgun the audit flagged.
+# Singletons are created in main_app/__init__.py before it imports this module
+# (near its bottom), so a module-level import is safe despite the circular
+# shape. Replaces the positional tuple from _get_components().
 from main_app import db, rss_parser, storage, status_service, pattern_service
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
@@ -52,13 +50,10 @@ feed_logger = logging.getLogger('podcast.feed')
 # Initialize caches for performance
 _feed_cache = TTLCache(ttl_seconds=30)
 
-# Coalesce back-to-back refreshes of the same feed. When a PocketCasts
-# poll triggers serve_rss's on-demand refresh at the same moment the
-# 15-min background loop hits the same feed, we see two "Starting RSS
-# refresh" calls 3-5 seconds apart -- both conditional-GET, both hit
-# upstream. Skip the second one. `force=True` (finalize hook, manual
-# reprocess, API force-refresh) bypasses the skip but still stamps so
-# subsequent non-force calls within the window coalesce.
+# Coalesce back-to-back refreshes of the same feed (a client poll's on-demand
+# refresh and the background loop would otherwise both hit upstream seconds
+# apart). `force=True` (finalize hook, manual reprocess, API force-refresh)
+# bypasses the skip but still stamps so later non-force calls coalesce.
 _refresh_coalesce = TTLCache(ttl_seconds=30)
 
 # Unparseable-body backoff: a body that never parses used to force a full
@@ -76,32 +71,24 @@ class RefreshOutcome:
     error: str | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {**asdict(self), 'error': redact_error(self.error)}
 
     def __bool__(self) -> bool:
         return self.success
-
-
-def _scrub_query_strings(text: str) -> str:
-    """Drop query strings from any URL embedded in an error message --
-    private-feed tokens live there, and this text is persisted, shown in
-    the UI, and sent to webhooks/email."""
-    return re.sub(r'(https?://[^\s?]*)\?\S+', r'\1?<redacted>', text)
 
 
 def _record_refresh_failure(slug: str, error_message: str, podcast=None):
     """Persist per-feed failure state and alert once per outage.
 
     Only failures spaced at least FEED_REFRESH_FAILURE_COUNT_INTERVAL apart
-    are counted, so client-poll-driven retries during a brief blip cannot
-    reach the alert threshold in minutes; the notification fires only on
-    the exact transition to the threshold, so a feed that stays broken does
-    not re-alert. Callers that already hold the podcast row pass it to skip
-    the re-read.
+    count, so client-poll retries during a brief blip cannot reach the alert
+    threshold in minutes. The notification fires only on the exact transition to
+    the threshold, so a feed that stays broken does not re-alert. Callers that
+    hold the podcast row pass it to skip the re-read.
     """
     try:
         if podcast is None:
-            podcast = db.get_podcast_by_slug(slug)
+            podcast = db.get_podcast_row(slug)
         if not podcast:
             return
         now = datetime.now(timezone.utc)
@@ -109,11 +96,10 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
         if last_counted and (now - last_counted).total_seconds() < FEED_REFRESH_FAILURE_COUNT_INTERVAL:
             return
         count = (podcast.get('refresh_failure_count') or 0) + 1
-        scrubbed_error = _scrub_query_strings(str(error_message))
         db.update_podcast(
             slug,
             refresh_failure_count=count,
-            last_refresh_error=scrubbed_error[:500],
+            last_refresh_error=error_message,
             # Stamp only the first failure of a run so the UI shows how
             # long the feed has been broken, not the latest attempt.
             last_refresh_error_at=(podcast.get('last_refresh_error_at')
@@ -126,13 +112,13 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
                 podcast_name=podcast.get('title') or slug,
                 feed_url=safe_url_for_log(podcast.get('source_url') or '',
                                           keep_path=True),
-                error_message=scrubbed_error,
+                error_message=error_message,
                 failure_count=count,
             )
             if not sent:
-                # Suppressed by the dedup/burst caps. Step the count back
-                # so the next counted failure re-crosses the threshold and
-                # retries -- otherwise this outage's one alert is lost.
+                # Suppressed by the dedup/burst caps. Step the count back so
+                # the next counted failure re-crosses the threshold and retries,
+                # otherwise this outage's one alert is lost.
                 db.update_podcast(slug, refresh_failure_count=count - 1)
     except Exception:
         refresh_logger.exception(f"[{slug}] Failed to record refresh failure")
@@ -304,7 +290,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
         status_service.complete_feed_refresh(slug, 0)
         return RefreshOutcome(True, 'refreshed', inserted, scheduled)
     except Exception as e:
-        refresh_logger.error(f"[{slug}] YouTube refresh failed: {_scrub_query_strings(str(e))}")
+        refresh_logger.error(f"[{slug}] YouTube refresh failed: {e}")
         status_service.remove_feed_refresh(slug)
         _refresh_coalesce.invalidate(slug)
         return RefreshOutcome(False, 'internal_error', error='Internal refresh error')
@@ -317,21 +303,20 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
     Args:
         slug: Podcast slug
         feed_url: URL of the original RSS feed
-        force: If True, bypass conditional GET (ETag/Last-Modified) to force full fetch.
-               Use this when the RSS cache was deleted and needs regeneration.
-               Also bypasses the refresh-attempt throttle.
+        force: If True, bypass conditional GET (ETag/Last-Modified) to force full
+               fetch (e.g. the RSS cache was deleted). Also bypasses the
+               refresh-attempt throttle.
         record_failure: If False, an origin fetch/parse failure is returned
-               without touching refresh_failure_count or firing the alert.
-               refresh_all_feeds passes False and applies counting itself
-               once it knows whether the whole batch looks like a shared
-               outage.
+               without touching refresh_failure_count or firing the alert;
+               refresh_all_feeds passes False and counts itself once it knows
+               whether the batch looks like a shared outage.
     """
     podcast = db.get_podcast_row(slug)
     if is_local_feed(podcast):
-        success = bool(rebuild_local_feed(slug, podcast))
+        success = bool(local_feed_builder.rebuild_local_feed(slug, podcast))
         return RefreshOutcome(success, 'refreshed' if success else 'failed')
     if is_recents_feed(podcast):
-        success = bool(rebuild_recents_feed(podcast))
+        success = bool(recents_feed.rebuild_recents_feed(podcast))
         return RefreshOutcome(success, 'refreshed' if success else 'failed')
     if is_youtube_feed(podcast):
         return _refresh_youtube_feed(slug, podcast, force, record_failure)
@@ -434,12 +419,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             _refresh_coalesce.invalidate(slug)
             return RefreshOutcome(False, 'fetch_failed', error='Failed to fetch RSS feed')
 
-        # Parse feed to extract metadata. A body that yields neither channel
-        # metadata nor entries AND tripped the parser (bozo) is an origin
-        # failure (error page served with an RSS content type), not a
-        # success -- treating it as success would reset the failure counter
-        # mid-outage. A clean parse of an empty placeholder feed still
-        # counts as success.
+        # Parse feed to extract metadata. A body with neither channel metadata nor
+        # entries that also tripped the parser (bozo) is an origin failure (error
+        # page served as RSS), not a success that would reset the failure counter
+        # mid-outage. A clean parse of an empty placeholder feed is a success.
         parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
         if parsed_feed is None:
             # One immediate refetch usually clears a body cut in transfer before falling back to backoff.
@@ -498,12 +481,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                 feed_content, channel=channel_elem)
 
             prev = podcast or {}
-            # "Changed" means the resolved cover has dropped out of the
-            # feed's current candidate set entirely, not just that the
-            # preferred candidate differs from it: otherwise a
-            # persistently-broken itunes:image (while the RSS <image> keeps
-            # resolving fine) would look "changed" on every single refresh
-            # and force a redownload attempt of the known-bad URL each time.
+            # "Changed" means the resolved cover dropped out of the feed's candidate
+            # set entirely, not just that the preferred candidate differs: otherwise
+            # a persistently-broken itunes:image (with a working RSS <image>) would
+            # force a redownload of the known-bad URL every refresh.
             artwork_source_changed = (bool(artwork_candidates)
                                       and prev.get('artwork_url') not in artwork_candidates)
             changed = [
@@ -520,11 +501,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                 refresh_logger.info(
                     f"[{slug}] Feed metadata changed upstream: {', '.join(changed)}")
 
-            # Update podcast metadata (and ETag if available) in a single DB
-            # call. artwork_url/artwork_cached are deliberately NOT written
-            # here: storage.download_artwork is the sole writer of those two
-            # fields (via save_artwork), so a failed candidate never clears
-            # or overwrites a still-valid cached cover.
+            # Update podcast metadata (and ETag if available) in one DB call.
+            # artwork_url/artwork_cached are not written here: storage.download_artwork
+            # is their sole writer (via save_artwork), so a failed candidate never
+            # clears a still-valid cached cover.
             update_kwargs = dict(
                 title=title,
                 description=description,
@@ -665,12 +645,12 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         status_service.complete_feed_refresh(slug, 0)
         return RefreshOutcome(True, 'refreshed', inserted, queued_count)
     except Exception as e:
-        # Deliberately NOT recorded as a feed failure: exceptions here are
-        # internal faults (DB locked, disk full, downstream bugs), and the
-        # Feed Refresh Failed alert blames the publisher's feed. Origin
-        # failures are recorded at the fetch/parse boundaries above.
+        # Deliberately not recorded as a feed failure: these are internal faults
+        # (DB locked, disk full, bugs) and the Feed Refresh Failed alert blames the
+        # publisher's feed. Origin failures are recorded at the fetch/parse
+        # boundaries above.
         refresh_logger.error(
-            f"[{slug}] RSS refresh failed: {_scrub_query_strings(str(e))}")
+            f"[{slug}] RSS refresh failed: {e}")
         status_service.remove_feed_refresh(slug)
         _refresh_coalesce.invalidate(slug)
         return RefreshOutcome(False, 'internal_error', error='Internal refresh error')
@@ -681,18 +661,17 @@ def refresh_all_feeds(force: bool = False):
 
     Args:
         force: If True, bypass each feed's ETag and 30s refresh-coalesce window
-               so every feed is fully re-fetched. Used by the UI Force Refresh
-               All action; the background scheduler staggers instead (see
-               refresh_due_feeds).
+               so every feed is fully re-fetched (UI Force Refresh All). The
+               background scheduler staggers instead (see refresh_due_feeds).
     """
     return _run_refresh_batch(force, label=f"all RSS feeds (force={force})")
 
 
 def refresh_due_feeds(batch_size: int, interval_seconds: float):
-    """Refresh only the subscribed feeds whose last refresh is older than
-    interval_seconds, oldest first, capped at batch_size. The scheduler calls
-    this on a short tick so feed writes spread across the interval instead of
-    contending in one whole-corpus burst."""
+    """Refresh only subscribed feeds last refreshed more than interval_seconds ago.
+
+    Oldest first, capped at batch_size. The scheduler calls this on a short tick
+    so feed writes spread across the interval instead of one whole-corpus burst."""
     due = db.get_due_feed_slugs(interval_seconds, batch_size)
     if not due:
         return {'success': True, 'succeeded': 0, 'failed': 0, 'outcomes': {},
@@ -708,20 +687,19 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         refresh_logger.info(f"Refreshing {label}")
 
         # The force sweep enumerates every configured feed; the staggered tick
-        # passes the due slugs. Either way the fetch URL and feed_type come from
-        # the podcast row, so a due slug never has to round-trip through the
-        # slugify-keyed feed map.
+        # passes the due slugs. Either way the fetch URL and feed_type come from the
+        # podcast row, so a due slug never round-trips through the slugify-keyed map.
         candidates = slugs if slugs is not None else list(get_feed_map().keys())
 
         # Parallelize feed refresh with ThreadPoolExecutor. record_failure=False:
         # per-feed failure counting is deferred until the batch fraction is
         # known below, so a shared outage never marks healthy feeds broken.
+        feed_rows = {r['slug']: r for r in db.get_podcast_feed_urls()}
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
             for slug in candidates:
-                # get_podcast_row, not get_podcast_by_slug: only feed_type and
-                # source_url are read, so the episode aggregation is wasted.
-                row = db.get_podcast_row(slug)
+                # One slug/source_url/feed_type query for all feeds, not a row per slug.
+                row = feed_rows.get(slug)
                 if not row or is_local_feed(row) or is_recents_feed(row):
                     continue
                 source_url = row.get('source_url')
@@ -737,7 +715,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
                     outcomes[slug] = outcome
                 except Exception as e:
                     refresh_logger.error(
-                        f"[{slug}] Feed refresh failed: {_scrub_query_strings(str(e))}")
+                        f"[{slug}] Feed refresh failed: {e}")
                     outcomes[slug] = RefreshOutcome(
                         False, 'internal_error', error='Internal refresh error')
 
@@ -762,12 +740,11 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         outage_info = {'detected': False, 'affectedCount': failed, 'nextRetryAt': None}
 
         if outage_detected:
-            # Shared outage: origin feeds did not individually break, the
-            # network path did. Cached feed data and conditional-fetch
-            # validators (etag/last-modified) are untouched by a failed
-            # refresh_rss_feed call, so nothing needs preserving here beyond
-            # not counting the failures. One jittered retry avoids every
-            # instance hammering the same upstream host back-to-back.
+            # Shared outage: the network path broke, not the origin feeds. A failed
+            # refresh_rss_feed leaves cached feed data and conditional-fetch
+            # validators untouched, so nothing needs preserving beyond not counting
+            # the failures. One jittered retry avoids every instance hammering the
+            # same upstream host back-to-back.
             refresh_logger.warning(
                 f"RSS refresh: shared outage detected ({failed}/{attempted} feeds "
                 "failed together) - skipping per-feed failure counting, "
@@ -805,7 +782,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
             'outage': outage_info,
         }
     except Exception as e:
-        refresh_logger.error(f"RSS refresh failed: {_scrub_query_strings(str(e))}")
+        refresh_logger.error(f"RSS refresh failed: {e}")
         return {'success': False, 'succeeded': 0, 'failed': 0, 'outcomes': {},
                 'outage': {'detected': False, 'affectedCount': 0, 'nextRetryAt': None}}
 
@@ -813,7 +790,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
 def refresh_single_feed(slug: str) -> bool:
     """Refresh one feed by slug. Used by the podping listener; the background
     scheduler staggers feeds through refresh_due_feeds instead."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast or not podcast.get('source_url'):
         return False
     if is_local_feed(podcast):
@@ -827,7 +804,7 @@ def refresh_single_feed(slug: str) -> bool:
         return outcome.success or outcome.status == 'parse_backoff'
     except Exception as e:
         refresh_logger.error(
-            f"[{slug}] Single-feed refresh failed: {_scrub_query_strings(str(e))}")
+            f"[{slug}] Single-feed refresh failed: {e}")
         return False
 
 
@@ -846,9 +823,10 @@ def _without_episodes(parsed_feed, episode_ids):
 
 
 def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
-    """Run modify_feed for the current feed/output settings and persist the
-    served RSS. Both feed_cap and processed_only resolve per-feed override ->
-    global default -> hard fallback via the database mixin.
+    """Run modify_feed for the current feed/output settings and persist the served RSS.
+
+    Both feed_cap and processed_only resolve per-feed override -> global default
+    -> hard fallback via the database mixin.
     """
     feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
     extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
@@ -910,16 +888,16 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
 
 
 def rebuild_served_rss(slug, podcast=None):
-    """Re-render one feed's served RSS with the current URL settings (feed
-    auth key, cover badge, BASE_URL). Fetches the upstream source feed for
-    fresh content but never re-discovers or queues episodes, so it cannot
-    trigger processing or touch episode rows/stats. Returns True on success.
+    """Re-render one feed's served RSS with the current URL settings (feed auth
+    key, cover badge, BASE_URL). Fetches upstream for fresh content but never
+    re-discovers or queues episodes, so it cannot trigger processing or touch
+    episode rows/stats. Returns True on success.
     """
     podcast = podcast or db.get_podcast_by_slug(slug)
     if is_local_feed(podcast):
-        return rebuild_local_feed(slug, podcast)
+        return local_feed_builder.rebuild_local_feed(slug, podcast)
     if is_recents_feed(podcast):
-        return rebuild_recents_feed(podcast)
+        return recents_feed.rebuild_recents_feed(podcast)
     if is_youtube_feed(podcast):
         return rebuild_youtube_feed(slug, podcast)
     if not podcast or not podcast.get('source_url'):
@@ -938,7 +916,7 @@ def rebuild_served_rss(slug, podcast=None):
 
 def refresh_feed_artwork(slug, podcast=None):
     """Re-pull a feed's cover art and rebuild its served RSS so the cover-art
-    badge setting (issue #420) takes effect -- without re-discovering or queuing
+    badge setting (issue #420) takes effect, without re-discovering or queuing
     episodes (so it never triggers processing). Returns True on success.
     """
     podcast = podcast or db.get_podcast_by_slug(slug)
@@ -953,10 +931,9 @@ def refresh_feed_artwork(slug, podcast=None):
             _youtube_artwork_retry_at.pop(slug, None)
             storage.clear_watermark_cache(slug)
             return rebuild_served_rss(slug, podcast)
-        # Re-derive candidates from the live feed so a manual refresh can
-        # recover from a preferred candidate that has started 404ing, not
-        # just re-fetch the URL already on the row. Falls back to the
-        # stored URL if the feed can't be fetched.
+        # Re-derive candidates from the live feed so a manual refresh can recover
+        # from a preferred candidate that started 404ing, not just re-fetch the
+        # URL on the row. Falls back to the stored URL if the feed can't be fetched.
         candidates = []
         try:
             feed_content = rss_parser.fetch_feed(podcast['source_url'], podcast=podcast)
@@ -966,10 +943,9 @@ def refresh_feed_artwork(slug, podcast=None):
             refresh_logger.warning(f"[{slug}] artwork candidate fetch failed: {e}")
         if not candidates and podcast.get('artwork_url'):
             candidates = [podcast['artwork_url']]
-        # force, because the guard reads the same URL back off the row and
-        # would always match; without it this only cleared the badge variant.
-        # Then drop the cached badge so it recomposites with the current
-        # badge rendering even when the cover itself has not changed.
+        # force, because the guard reads the same URL off the row and would always
+        # match; without it this only cleared the badge variant. Then drop the
+        # cached badge so it recomposites even when the cover itself is unchanged.
         if candidates:
             storage.download_artwork(slug, candidates, force=True)
         storage.clear_watermark_cache(slug)
@@ -998,8 +974,8 @@ def refresh_all_artwork():
 
 
 def rebuild_all_served_feeds():
-    """Re-render every feed's served RSS with the current URL settings (feed
-    auth key, cover badge, BASE_URL). Same no-processing guarantee as
+    """Re-render every feed's served RSS with the current URL settings (feed auth
+    key, cover badge, BASE_URL). Same no-processing guarantee as
     rebuild_served_rss. Returns the number of feeds rebuilt.
     """
     feed_map = get_feed_map()

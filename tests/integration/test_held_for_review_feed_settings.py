@@ -1,12 +1,9 @@
 """Integration tests for per-feed held-for-review settings (Phase C, C1).
 
-Covers maxAdDurationOverride and cueGatedApproval:
-- PATCH accepts valid values and null (clears).
-- PATCH rejects out-of-range / wrong-type values with 400.
-- GET /feeds and GET /feeds/<slug> both surface the fields.
-- Round-trip: set then read back.
-
-Mirrors test_feed_cue_settings_endpoint.py (Phase A) in structure.
+maxAdDurationOverride and cueGatedApproval: PATCH accepts valid values and null
+(clears) and rejects out-of-range / wrong-type values with 400; GET /feeds and
+GET /feeds/<slug> surface the fields; set then read back. Mirrors
+test_feed_cue_settings_endpoint.py (Phase A) in structure.
 """
 import os
 import sys

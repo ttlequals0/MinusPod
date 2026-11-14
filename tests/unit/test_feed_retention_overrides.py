@@ -1,12 +1,8 @@
 """Per-feed retention overrides: archive mode and keep-original.
 
-Covers:
-- `retention_days_override` beats the global `retention_days` setting.
-- An override of 0 archives the feed: the scheduled sweep never touches it,
-  and neither does the operator's force_all wipe.
-- Feeds on different windows are swept correctly in the same run.
-- `keep_original_audio_override` beats the global `keep_original_audio`.
-"""
+`retention_days_override` beats the global setting; an override of 0 archives the feed (neither the
+scheduled sweep nor force_all touches it); feeds on different windows sweep correctly in one run;
+`keep_original_audio_override` beats the global `keep_original_audio`."""
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -87,12 +83,6 @@ def test_zero_override_marks_the_feed_archived(db):
     db.create_podcast('show-a', 'https://example.com/a.xml', 'show-a')
     db.update_podcast('show-a', retention_days_override=0)
     assert db.resolve_retention_days('show-a') == 0
-    assert db.is_archived('show-a') is True
-
-
-def test_a_feed_on_the_global_window_is_not_archived(db):
-    db.create_podcast('show-a', 'https://example.com/a.xml', 'show-a')
-    assert db.is_archived('show-a') is False
 
 
 # --- scheduled sweep --------------------------------------------------------

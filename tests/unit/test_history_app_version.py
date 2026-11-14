@@ -1,9 +1,6 @@
-"""Tests for the processing_history.app_version column (2.78.4).
-
-Covers: the additive migration on an existing DB (no data loss),
-record_processing_history stamping the running app version, and a
-fresh DB already having the column via TABLE_DDL.
-"""
+"""Tests for the processing_history.app_version column (2.78.4): the additive migration on an existing
+DB (no data loss), record_processing_history stamping the running version, and fresh DBs having the
+column via TABLE_DDL."""
 import sqlite3
 
 import pytest

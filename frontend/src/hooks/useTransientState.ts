@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Show-then-auto-reset state ("Saved" notices, copied checkmarks, status
-// flashes). Setting any non-initial value schedules a reset back to
-// `initial` after `defaultMs`, or a per-call override; pass null to persist
-// a value with no auto-reset (e.g. an in-flight 'loading'). The pending
-// timer is cleared on unmount and whenever set() is called, so a stale
-// reset can never fire on unmounted or superseded state. A nonce is stored
-// alongside the value so re-setting the same value restarts the timer
-// (a second "Saved" flash gets its full duration, not the first timer's
-// remainder).
+// Show-then-auto-reset state ("Saved" notices, copied checkmarks, status flashes). Any non-initial value
+// schedules a reset to `initial` after `defaultMs` (or a per-call override); null persists with no auto-reset
+// (e.g. an in-flight 'loading'). The timer is cleared on unmount and on every set(). A nonce stored with the
+// value restarts the timer when the same value is set again, so a second "Saved" gets its full duration.
 export function useTransientState<T>(
   initial: T,
   defaultMs: number,

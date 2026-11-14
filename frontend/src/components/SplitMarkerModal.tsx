@@ -15,14 +15,14 @@ import { usePeaks } from './ad-editor/usePeaks';
 import { usePeakSlice } from './ad-editor/usePeakSlice';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import ZoomControl from './ad-editor/ZoomControl';
+import { WaveformError, WaveformLoading } from './ad-editor/WaveformStatus';
 import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import {
   commitTimeInput, formatTime, timeInputKeyDown,
 } from '../utils/adReviewHelpers';
-import { edgeBtn } from './ad-editor/controlStyles';
 import { Plus } from 'lucide-react';
 import { btnBase, btnPrimary, btnOutline, btnGhost } from './buttonStyles';
-import { focusRing, inputBase } from './fieldStyles';
+import { inputBase } from './fieldStyles';
 
 // Matches MIN_AD_DURATION in src/config.py. A piece shorter than this is not an
 // ad the validator would accept, so the server rejects it too.
@@ -31,7 +31,7 @@ const MIN_PIECE_SECONDS = 7.0;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 50;
 
-export interface SplitMarkerTarget {
+interface SplitMarkerTarget {
   podcastSlug: string;
   episodeId: string;
   start: number;
@@ -58,10 +58,9 @@ function piecesFrom(
   const bounds = [start, ...dividers, end];
   const out: PieceView[] = [];
   for (let i = 0; i < bounds.length - 1; i += 1) {
-    // Text is a preview from the server's original geometry, so after a drag
-    // it stays the nearest piece's words. Enough to name the sponsor, and it
-    // avoids a refetch per pointer move. Most-overlapping wins, or a nudged
-    // divider flips the guess to whichever piece it barely touches.
+    // Text is a preview from the server's original geometry, so after a drag it stays the nearest piece's words:
+    // enough to name the sponsor, with no refetch per pointer move. Most-overlapping wins, or a nudged divider
+    // would flip the guess to whichever piece it barely touches.
     let nearest: SplitPiece | undefined;
     let bestOverlap = 0;
     for (const p of base) {
@@ -91,7 +90,7 @@ function tooShort(pieces: PieceView[]): number | null {
 // stops, not scrub a decorative region, and the peaks are already fetched.
 function PeakStrip({ peaks }: { peaks: number[] | null }) {
   if (!peaks || peaks.length === 0) {
-    return <div className="h-20 bg-secondary rounded" />;
+    return <div className="h-20 bg-secondary rounded" aria-hidden />;
   }
   // ~200 gapless bars: per-bar gaps at this density would out-measure the
   // bars themselves on a phone-width strip and render as empty space.
@@ -158,7 +157,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   );
   // Fetch peaks from episode start: usePeakSlice indexes by absolute time,
   // so a window-scoped fetch would slice past the array and render nothing.
-  const { peaks, peakResolutionMs } = usePeaks(
+  const { peaks, peakResolutionMs, peaksError, loading: peaksLoading, retry: retryPeaks } = usePeaks(
     podcastSlug, episodeId, 0, end, 0);
   const windowPeaks = usePeakSlice(
     peaks, peakResolutionMs, window_.windowStart, window_.windowEnd);
@@ -294,7 +293,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
         </>
       )}
       footer={!isLoading && !isError ? (
-        <div className="flex items-center gap-2 flex-wrap p-5 pt-3 border-t border-border">
+        <div className="flex items-center gap-2 flex-wrap max-sm:w-full max-sm:grid max-sm:grid-cols-2">
           <button
             type="button"
             onClick={addDivider}
@@ -306,16 +305,16 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
           <button
             type="button"
             onClick={addDividerAtPlayhead}
-            className={`${edgeBtn} ${focusRing}`}
+            className={`${dialogFooterBtn} ${btnOutline}`}
           >
-            <span className="sm:hidden">At playhead</span>
-            <span className="hidden sm:inline">Add divider at playhead</span>
+            <span className="md:hidden">At playhead</span>
+            <span className="hidden md:inline">Add divider at playhead</span>
           </button>
           <button
             type="button"
             onClick={submit}
             disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-            className={`ml-auto ${dialogFooterBtn} ${btnPrimary}`}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
           >
             Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
           </button>
@@ -368,6 +367,9 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             {/* Waveform plus the dividers laid over it. */}
             <div ref={containerRef} className="relative">
               <PeakStrip peaks={windowPeaks} />
+              {peaksLoading && (
+                <WaveformLoading className="absolute left-2 top-2 z-20 rounded bg-secondary/90 px-1 pointer-events-none" />
+              )}
               {effectiveDividers.map((t, i) => (
                 <Pin
                   key={i}
@@ -385,6 +387,9 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                 />
               ))}
             </div>
+
+            {/* Outside the pin overlay so no divider crosses it. */}
+            {peaksError && <WaveformError onRetry={retryPeaks} />}
 
             {/* The piece strip: one segment per resulting ad, gapped so the
                 boundaries read as boundaries rather than a colour change. */}
@@ -433,6 +438,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                       p.start, p.end)}
                     disabled={!originalUrl}
                     title={originalUrl ? undefined : DEMO_AUDIO_TOOLTIP}
+                    size="field"
                   />
                   <span className="flex items-center gap-1 shrink-0">
                     {i === 0 ? (
@@ -468,7 +474,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     <button
                       type="button"
                       onClick={() => removeDivider(i - 1)}
-                      className={`${btnBase} ${btnOutline}`}
+                      className={`${btnBase} sm:min-h-10 ${btnOutline}`}
                     >
                       Remove divider
                     </button>

@@ -1,8 +1,4 @@
-"""Time utility functions.
-
-Provides shared timestamp parsing, formatting, and adjustment functions
-used across the ad detection, transcription, and chapters pipeline.
-"""
+"""Shared timestamp parsing, formatting, and cut-adjustment helpers."""
 
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -59,10 +55,9 @@ def utc_now() -> datetime:
 
 
 def parse_iso_utc(value: str | None) -> datetime | None:
-    """Parse an ISO 8601 string to a UTC-aware datetime, or None on failure.
+    """Parse an ISO 8601 string to a UTC-aware datetime; None if empty or unparseable.
 
-    Returns None for empty/None input or an unparseable value. A naive result
-    (no tzinfo) is treated as UTC.
+    A naive result is treated as UTC.
     """
     if not value:
         return None
@@ -76,22 +71,10 @@ def parse_iso_utc(value: str | None) -> datetime | None:
 
 
 def parse_timestamp(ts) -> float:
-    """Convert timestamp value to seconds.
+    """Convert a timestamp to seconds.
 
-    Supports multiple input types and formats:
-    - int/float: passed through directly (e.g., 1178.5 -> 1178.5)
-    - String with 's' suffix: "1178.5s" -> 1178.5
-    - Float string: "1178.5" -> 1178.5
-    - HH:MM:SS.mmm (e.g., "01:23:45.678")
-    - HH:MM:SS (e.g., "01:23:45")
-    - MM:SS.mmm (e.g., "23:45.678")
-    - MM:SS (e.g., "23:45")
-    - M:SS (e.g., "3:45")
-
-    Also handles comma as decimal separator (common in some VTT files).
-
-    Raises:
-        ValueError: If the timestamp cannot be parsed
+    Accepts int/float, "1178.5" or "1178.5s", and [HH:]MM:SS[.mmm]. A comma
+    decimal separator (common in VTT) is accepted. Raises ValueError if unparseable.
     """
     if isinstance(ts, (int, float)):
         return float(ts)
@@ -138,11 +121,7 @@ def format_duration(seconds: float) -> str:
 
 
 def format_time(seconds: float, include_hours: bool = False) -> str:
-    """Format seconds as human-readable timestamp string.
-
-    Returns:
-        Formatted timestamp (H:MM:SS.ss or M:SS.ss)
-    """
+    """Format seconds as H:MM:SS.ss, or M:SS.ss when under an hour and not include_hours."""
     if seconds < 0:
         seconds = 0
 
@@ -156,10 +135,7 @@ def format_time(seconds: float, include_hours: bool = False) -> str:
 
 
 def format_vtt_timestamp(seconds: float) -> str:
-    """Format seconds as VTT/SRT timestamp (HH:MM:SS.mmm).
-
-    Always includes hours, zero-padded to 2 digits, with 3-digit milliseconds.
-    """
+    """Format seconds as a VTT/SRT timestamp (HH:MM:SS.mmm)."""
     if seconds < 0:
         seconds = 0
 
@@ -174,12 +150,10 @@ def merge_cut_spans(cuts: list[dict], default_replacement: float = 0.0) -> list[
     """Merge overlapping/touching cut spans into [start, end, n_spans,
     total_replacement] groups.
 
-    total_replacement sums each span's own `replacement_duration` ('remove'
-    uses the fixed beep clip, 'beep' pads to its own length; see
+    total_replacement sums each span's own `replacement_duration` (see
     audio_processor.compute_applied_cuts), falling back to
-    `default_replacement` when a span omits the key. This credits one
-    replacement per source span even when cuts from different render
-    passes merge in original coordinates.
+    `default_replacement` when a span omits it. One replacement is credited
+    per source span even when cuts from different render passes merge.
     """
     sorted_cuts = sorted(cuts, key=lambda x: x.get('start', 0))
     merged: list[list[float]] = []
@@ -203,42 +177,28 @@ def merge_cut_spans(cuts: list[dict], default_replacement: float = 0.0) -> list[
 def span_inside_any_cut(start: float, end: float, cuts: list[dict]) -> bool:
     """True when [start, end] sits entirely inside the removed spans' union.
 
-    The counterpart of adjust_timestamp's snap-inside-cut behavior: a span
-    this predicate matches has no surviving content and should be dropped
-    rather than remapped. Cuts are merged first so a span covered by two
-    overlapping cuts is treated the same as one covered by a single cut.
+    A matching span has no surviving content and should be dropped rather
+    than remapped. Cuts are merged first, so two overlapping cuts count as one.
     """
     return any(s <= start and end <= e for s, e, _, _ in merge_cut_spans(cuts))
 
 
 def adjust_timestamp(original_time: float, ads_removed: list[dict],
                      replacement_duration: float = 0.0) -> float:
-    """Adjust a timestamp to account for removed ad segments.
+    """Map an original-audio timestamp (seconds) to its position after ad removal.
 
-    For each ad that ends before the original timestamp, subtracts the
-    ad's duration. If the timestamp falls within an ad, adjusts to
-    the ad's start boundary.
+    Each ad ending before the timestamp subtracts its duration; a timestamp
+    inside an ad snaps to that ad's start.
 
-    Args:
-        original_time: Original timestamp in seconds
-        ads_removed: List of {'start': float, 'end': float} for removed ads.
-            A span's own 'replacement_duration', if present, wins over the
-            `replacement_duration` argument for that span (see merge_cut_spans).
-        replacement_duration: Seconds of audio inserted in place of a removed
-            span with no 'replacement_duration' of its own (the beep). Post-cut
-            content shifts by (cut length - replacement) per cut, assuming
-            one replacement per merged span.
-
-    Returns:
-        Adjusted timestamp reflecting position in processed audio
+    ads_removed: [{'start', 'end'}]; a span's own 'replacement_duration' wins
+    over the `replacement_duration` argument (seconds of beep inserted per
+    span without one; content shifts by cut length minus replacement).
     """
     if not ads_removed:
         return original_time
 
-    # Merge overlapping/touching spans first: the combined cut list can mix
-    # pass-1 applied cuts with pass-2 rendered cuts mapped back to original
-    # time, and an overlap would otherwise have its duration subtracted
-    # twice. Each source span still carries its own replacement beep.
+    # Merge first: pass-1 and pass-2 cuts can overlap in original time and
+    # would otherwise have the overlap subtracted twice.
     merged = merge_cut_spans(ads_removed, default_replacement=replacement_duration)
 
     return shift_for_merged_cuts(original_time, merged)
@@ -249,13 +209,10 @@ def shift_for_merged_cuts(original_time: float, merged: list[list[float]]) -> fl
     adjustment = 0.0
     for ad_start, ad_end, _n_spans, total_replacement in merged:
         if ad_end <= original_time:
-            # Entire group was before our timestamp; its replacement audio
-            # (one beep per cut, or a full pad for a beeped span) shifts us
-            # back by (removed length - inserted replacements).
+            # Group fully precedes us: shift back by removed length minus inserted replacements.
             adjustment += (ad_end - ad_start) - total_replacement
         elif ad_start < original_time < ad_end:
-            # Timestamp falls within an ad -- snap to the replacement's start
-            # (this cut's own replacement plays at that position).
+            # Timestamp falls within an ad: snap to the replacement's start.
             adjustment += (original_time - ad_start)
             break
         else:
@@ -266,17 +223,7 @@ def shift_for_merged_cuts(original_time: float, merged: list[list[float]]) -> fl
 
 
 def parse_iso_datetime(value: str) -> datetime:
-    """Parse an ISO 8601 datetime string to a timezone-aware datetime.
-
-    Handles the 'Z' suffix that Python's fromisoformat() doesn't support
-    before Python 3.11.
-
-    Args:
-        value: ISO 8601 string (e.g. '2024-01-15T12:00:00Z' or '2024-01-15T12:00:00+00:00')
-
-    Returns:
-        Timezone-aware datetime object
-    """
+    """Parse an ISO 8601 string, accepting the 'Z' suffix fromisoformat() rejects before 3.11."""
     return datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
@@ -289,12 +236,7 @@ def overlap_seconds(start_a: float, end_a: float, start_b: float, end_b: float) 
 
 
 def overlap_ratio(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
-    """Return the fraction of region B covered by region A (0.0-1.0).
-
-    Used by ad detection / validation pipelines that need to know how much
-    of one time range is contained inside another. If B has zero or negative
-    duration, returns 0.0.
-    """
+    """Return the fraction of region B covered by region A (0.0-1.0); 0.0 if B has no duration."""
     overlap = overlap_seconds(start_a, end_a, start_b, end_b)
     b_duration = end_b - start_b
     return overlap / b_duration if b_duration > 0 else 0.0
@@ -302,9 +244,9 @@ def overlap_ratio(start_a: float, end_a: float, start_b: float, end_b: float) ->
 
 def ranges_overlap(start_a: float, end_a: float, start_b: float, end_b: float,
                    tolerance: float = 0.0) -> bool:
-    """Boolean check: do [start_a, end_a] and [start_b, end_b] overlap?
+    """True if [start_a, end_a] and [start_b, end_b] overlap.
 
-    `tolerance` widens both ranges symmetrically -- a positive tolerance
-    treats touching or near-adjacent ranges as overlapping.
+    A positive `tolerance` widens both ranges symmetrically, so near-adjacent
+    ranges count as overlapping.
     """
     return start_a <= end_b + tolerance and end_a >= start_b - tolerance

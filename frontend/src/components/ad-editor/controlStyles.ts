@@ -18,22 +18,19 @@ export const primaryBtn =
   'disabled:opacity-50 disabled:cursor-not-allowed';
 
 
-// "Set START/END at playhead". Once the waveform is zoomed the pins sit off
-// screen, and on a phone there is no wheel to zoom back out, so these are the
-// only way to place a boundary; 44px keeps them on the tap-target floor.
-// Deliberately not built on ghostBtn: its text-foreground competes with the
-// caller's text-success/text-destructive, and which one wins is down to
-// Tailwind's output order (END rendered grey while START rendered green).
+// "Set START/END at playhead". Once zoomed the pins sit off screen and a phone has no wheel to zoom out, so
+// these are the only way to place a boundary; 44px is the tap-target floor. Not built on ghostBtn: its
+// text-foreground competes with text-success/text-destructive and Tailwind output order picks the winner.
 export const edgeBtn =
   'flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center ' +
-  'whitespace-nowrap px-2 py-1.5 rounded text-sm border border-border bg-card ' +
+  'whitespace-nowrap px-3 py-1.5 rounded text-sm border border-border bg-card ' +
   'transition-colors hover:bg-accent hover:border-foreground/30 ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
 // Amber "play selection" button, matched to the amber selection region/badge.
 // Wider than the ghost icon buttons to fit the bracketed [play] glyphs.
 export const selectionBtn =
-  'inline-flex items-center gap-0.5 px-1 sm:px-2 py-1.5 rounded transition-colors ' +
+  'inline-flex items-center gap-px sm:gap-0.5 px-0.5 sm:px-2 py-1.5 rounded transition-colors ' +
   'border border-warning/50 text-warning bg-warning/10 ' +
   'hover:bg-warning/20 hover:border-warning ' +
   'dark:border-warning/60 dark:text-warning dark:hover:border-warning ' +

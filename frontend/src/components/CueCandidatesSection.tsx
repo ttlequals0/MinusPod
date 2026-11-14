@@ -139,10 +139,9 @@ function CueCandidatesSection({
       armStop();
       a.play().catch(() => stopPreview());
     } else {
-      // Metadata not loaded yet. Call play() synchronously so it keeps the
-      // click's user gesture (autoplay policy) and triggers the load; seek to
-      // the candidate start once metadata arrives. Deferring play() into a
-      // loadedmetadata callback loses the gesture and is blocked.
+      // Metadata not loaded yet. Call play() synchronously to keep the click's user gesture (autoplay policy) and
+      // trigger the load; seek to the candidate start once metadata arrives. Deferring play() into a loadedmetadata
+      // callback loses the gesture and is blocked.
       a.play().then(() => {
         if (reqRef.current !== req) return;  // a newer click took over
         const seek = () => { a.currentTime = c.start; armStop(); };
@@ -219,6 +218,7 @@ function CueCandidatesSection({
                     <AuditionPlayButton
                       playing={isPlaying}
                       onClick={() => togglePreview(c)}
+                      size="base"
                       label="this sound"
                       disabled={!hasOriginalAudio || !originalUrl}
                       title={!originalUrl ? DEMO_AUDIO_TOOLTIP : hasOriginalAudio ? undefined : 'Original audio not retained for this episode'}

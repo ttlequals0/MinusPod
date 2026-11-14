@@ -10,6 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from utils.http import redact_exc, redact_log_text
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -253,7 +254,7 @@ def trimmed_error(stderr: str) -> str:
     lines = [ln.strip() for ln in (stderr or '').splitlines() if ln.strip()]
     errors = [ln for ln in lines if ln.startswith('ERROR:')]
     text = (errors or lines or ['yt-dlp failed'])[-1]
-    return text[:500]
+    return redact_log_text(text)[:500]
 
 
 def needs_update(stderr: str) -> bool:
@@ -314,7 +315,7 @@ def update_tick(db):
     except Exception as exc:
         logger.warning(f"yt-dlp update failed: {exc}")
         try:
-            db.set_setting('youtube_ytdlp_last_error', str(exc)[:500], is_default=False)
+            db.set_setting('youtube_ytdlp_last_error', redact_exc(exc, 500), is_default=False)
         except Exception:
             logger.warning("could not record yt-dlp error", exc_info=True)
 

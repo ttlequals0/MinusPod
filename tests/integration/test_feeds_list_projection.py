@@ -1,7 +1,5 @@
-"""Integration tests for feed-list pagination and the opt-in latest-episode
-projection: GET /feeds?page=&limit= and
-GET /feeds?includeLatestEpisodes=true&episodesPerFeed=N.
-"""
+"""Integration tests for feed-list pagination and the opt-in latest-episode projection (GET
+/feeds?page=&limit= and ?includeLatestEpisodes=true&episodesPerFeed=N)."""
 import os
 import json
 import sys
@@ -52,7 +50,7 @@ def test_feed_list_resolves_global_segment_actions_once(app_client, feeds):
     try:
         body = app_client.get('/api/v1/feeds').get_json()
     finally:
-        db.get_setting = original_get_setting
+        del db.get_setting  # Database() is a singleton; an instance attribute would outlive the test
 
     assert len(body['feeds']) >= len(feeds['slugs'])
     assert len(calls) == 1

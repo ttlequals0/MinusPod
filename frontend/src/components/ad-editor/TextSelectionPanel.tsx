@@ -203,11 +203,9 @@ function TextSelectionPanel({
   // O(1) membership for the per-word render highlight.
   const matchSet = useMemo(() => new Set(matchIndices), [matchIndices]);
 
-  // Derive the highlighted word range from the resolved bounds. This survives
-  // focus changes (clicking into the Text template textarea below clears the
-  // browser's native Selection, which would otherwise wipe the visible
-  // highlight). Recomputed whenever adStart/adEnd change so audio-mode pin
-  // drags also re-highlight when the user toggles back.
+  // Derive the highlighted word range from the resolved bounds, so it survives focus changes (clicking the Text
+  // template textarea clears the native Selection). Recomputed when adStart/adEnd change so audio-mode pin
+  // drags re-highlight on toggling back.
   const selectedRange = useMemo(() => {
     if (flatWords.length === 0 || !(adEnd > adStart)) return null;
     let startIdx = -1;
@@ -478,12 +476,13 @@ function TextSelectionPanel({
         {frozenRuns.map((run, i) => (
           <span key={`${run.start.toFixed(3)}-${run.end.toFixed(3)}`} className={chipClass}>
             {formatTime(run.start)} - {formatTime(run.end)}
+            {/* Negative margins pull the 44 px target's empty sides back over the chip, about (44 - 14) / 2. */}
             <button
               type="button"
               onClick={() => removeRun(i)}
               disabled={disabled}
               aria-label={`Remove span ${formatTime(run.start)} to ${formatTime(run.end)}`}
-              className={`${touchTarget} max-sm:-mx-2.5 max-sm:-my-2.5 rounded text-muted-foreground hover:text-destructive disabled:opacity-40 ${focusRing}`}
+              className={`${touchTarget} max-sm:-ml-1.5 max-sm:-mr-3.5 max-sm:-my-2.5 sm:pointer-coarse:-ml-1.5 sm:pointer-coarse:-mr-[15px] rounded text-muted-foreground hover:text-destructive disabled:opacity-40 ${focusRing}`}
             >
               <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -500,10 +499,9 @@ function TextSelectionPanel({
         </button>
       </div>
 
-      {/* Transcript. selection:bg-primary/40 keeps the active drag visible
-          on mobile (default selection color is near-invisible in dark mode);
-          per-word bg-primary/30 highlight below persists after the browser
-          Selection clears (e.g., when focus moves to the textarea). */}
+      {/* Transcript. selection:bg-primary/40 keeps the active drag visible on mobile (the default selection color
+          is near-invisible in dark mode); per-word bg-primary/30 persists after the browser Selection clears
+          (e.g. focus moves to the textarea). */}
       <div
         ref={transcriptRef}
         className={`bg-secondary/40 rounded-lg p-3 max-h-[40vh] overflow-y-auto text-sm leading-relaxed select-text selection:bg-primary/50 selection:text-primary-foreground ${disabled ? 'pointer-events-none select-none' : ''}`}

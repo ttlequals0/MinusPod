@@ -6,7 +6,7 @@ MinusPod includes a native System One adapter for ad detection, verification, an
 
 ## Providers and credentials
 
-Open Settings > AI & Processing > LLM Provider to choose a provider for each credential slot. System One providers are:
+Open Settings > AI and processing > LLM Provider to choose a provider for each credential slot. System One providers are:
 
 | Provider | Endpoint | Credential |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ One detection window becomes one System One request. The whole window transcript
 
 System One tuning is stored independently for each credential slot and provider type: Provider A TypeSafe, Provider A System One compatible, Provider B TypeSafe, and Provider B System One compatible. Switching providers or slots keeps each profile. Profiles also remain in configuration exports. Importing an older export merges only fields it contains, preserving newer values already saved at the destination. Reset profile restores that profile's defaults.
 
-Open the System One Tuneables section under AI & Processing. It shows one profile for the selected slot's current native provider type. When both slots use native providers, the Provider selector switches between Provider A and Provider B. Changing a slot's provider type preserves the other profile's saved values and unsaved edits. A saved native Provider B profile remains editable while Provider B is disabled.
+Open the System One Tuneables section under AI and processing. It shows one profile for the selected slot's current native provider type. When both slots use native providers, the Provider selector switches between Provider A and Provider B. Changing a slot's provider type preserves the other profile's saved values and unsaved edits. A saved native Provider B profile remains editable while Provider B is disabled.
 
 | Setting | TypeSafe default | Compatible default | Meaning |
 | --- | ---: | ---: | --- |

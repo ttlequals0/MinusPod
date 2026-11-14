@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
+from database.error_text import redact_error, redact_json_error
+from database.fingerprint_cleanup import delete_matches_for_episodes
 from database.maintenance import _chunked
 from database.podcasts import RECENTS_MEMBER_FEED_TYPES
 # Shared with the stats mixin so both agree on what counts as processed.
@@ -19,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Busy wait for the best-effort cache fill, so a feed read never stalls behind a writer.
 _FEED_FILL_BUSY_MS = 1000
+_ERROR_KEYS = frozenset({'error_message', 'chapters_regen_error', 'detection_degraded'})
+_DETAIL_ERROR_JSON = frozenset({'dai_differential_json', 'upstream_transcript_json'})
 
 
 def parse_applied_cuts(raw) -> list[dict] | None:
@@ -37,11 +41,8 @@ HAS_TRANSCRIPT_SQL = (
 # Servable means not held for manual approval; episodes is the only table with the column.
 NOT_AWAITING_APPROVAL = "approval_pending_at IS NULL"
 
-# Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
-# reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
-# Episodes per discovery write transaction. One transaction spanning a large
-# archive feed held the single write lock long enough for every other writer to
-# exceed its 30s busy_timeout and fail with "database is locked".
+# Episodes per discovery write transaction. One spanning a large archive feed
+# held the write lock past other writers' 30s busy_timeout ("database is locked").
 DISCOVERY_UPSERT_CHUNK = 50
 
 # Preference order when several existing rows fall inside the fuzzy match
@@ -83,17 +84,20 @@ AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
 def normalize_published_at(value: str | None) -> str | None:
     """Normalize a published_at value to ISO 8601 format.
 
-    Handles RFC 2822 (e.g. 'Tue, 10 Mar 2026 19:10:06 PDT') and passes
-    through values that already look like ISO 8601.
+    Reads ISO 8601, then RFC 2822 (e.g. 'Tue, 10 Mar 2026 19:10:06 PDT' or
+    '10 Mar 2026 19:10:06 GMT'); a value neither reads is returned unchanged.
     """
     if not value:
         return value
     # Stored as true UTC: cross-feed ordering and the recents cutoff compare
     # these strings directly, so a publisher's local offset must not survive.
     try:
-        parsed = datetime.fromisoformat(value) if value[0].isdigit() else parsedate_to_datetime(value)
-    except (ValueError, TypeError):
-        return value
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (ValueError, TypeError):
+            return value
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc).strftime(ISO_FORMAT)
@@ -102,10 +106,9 @@ def normalize_published_at(value: str | None) -> str | None:
 def _serialize_applied_cut(cut: dict) -> dict:
     """Trim an applied-cut dict to the fields persisted in applied_cuts_json.
 
-    'replacement_duration' (see audio_processor.compute_applied_cuts) is kept
-    only when present, so a legacy cut dict round-trips as {'start', 'end'}
-    unchanged. A missing key falls back to the fixed beep clip length on read
-    (utils.time.merge_cut_spans).
+    'replacement_duration' (see audio_processor.compute_applied_cuts) is kept only
+    when present, so a legacy cut round-trips as {'start', 'end'}; a missing key
+    falls back to the fixed beep clip length on read (utils.time.merge_cut_spans).
     """
     out = {'start': float(cut['start']), 'end': float(cut['end'])}
     replacement = cut.get('replacement_duration')
@@ -135,10 +138,10 @@ def _add_to_fuzzy_index(fuzzy_index: dict, row: dict) -> None:
 
 
 def _remove_from_fuzzy_index(fuzzy_index: dict, row: dict | None) -> None:
-    """Drop the entry for row['episode_id'] from the bucket row's title maps
-    to. Matches by id, not object identity: titles are immutable once set
-    (see _upsert_one_discovered_episode), so a stale cached copy of a row
-    always shares its bucket with a freshly re-fetched copy of that row."""
+    """Drop the entry for row['episode_id'] from the bucket row's title maps to.
+
+    Matches by id, not identity: titles are immutable once set (see
+    _upsert_one_discovered_episode), so a stale copy shares its bucket with a fresh one."""
     if row is None:
         return
     key, _ = _fuzzy_index_key_and_dt(row)
@@ -177,7 +180,7 @@ class EpisodeMixin:
         conn = self.get_connection()
 
         # Get podcast ID
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return [], 0
 
@@ -240,7 +243,7 @@ class EpisodeMixin:
 
     def has_episodes(self, slug: str) -> bool:
         """Whether a podcast has any episode rows at all, of any status."""
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return False
         conn = self.get_connection()
@@ -252,10 +255,8 @@ class EpisodeMixin:
                                          per_feed_limit: int) -> dict[int, list[dict]]:
         """Latest `per_feed_limit` episodes for each of `podcast_ids`, newest first.
 
-        One windowed query (ROW_NUMBER partitioned by podcast_id) ranks every
-        feed at once instead of a query per feed. Ordering matches
-        get_episodes: COALESCE(published_at, created_at) DESC, id DESC as a
-        tie-breaker.
+        One ROW_NUMBER query ranks every feed at once. Ordering matches
+        get_episodes: COALESCE(published_at, created_at) DESC, id DESC.
         """
         result: dict[int, list[dict]] = {pid: [] for pid in podcast_ids}
         if not podcast_ids:
@@ -308,15 +309,14 @@ class EpisodeMixin:
         return dict(row) if row else None
 
     def get_episode_neighbors(self, slug: str, episode_id: str) -> dict[str, dict | None]:
-        """Adjacent episodes in the same feed, by the feed's default newest-first
-        order. The total order is (COALESCE(published_at, created_at), id); `id`
-        is a stable tiebreak so episodes sharing a timestamp are deterministic.
-        'previous' is the newer neighbor (up the list), 'next' the older one
-        (down the list); either is None at a feed boundary. Each ref is
-        {'id': episode_id, 'title': title}.
+        """Adjacent episodes in the feed's default newest-first order.
+
+        Order is (COALESCE(published_at, created_at), id); `id` breaks timestamp
+        ties. 'previous' is the newer neighbor, 'next' the older; either is None
+        at a feed boundary. Each ref is {'id': episode_id, 'title': title}.
         """
         empty = {'previous': None, 'next': None}
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return empty
         podcast_id = podcast['id']
@@ -351,14 +351,11 @@ class EpisodeMixin:
     ) -> tuple[dict[str, str], dict[tuple[str, str], str]]:
         """Bulk-load episode statuses for a podcast (lightweight, no JOINs to details).
 
-        Returns:
-            Tuple of:
-                - {episode_id: status} dict
-                - {(title, published_at): episode_id} dict for dedup lookups
+        Returns ({episode_id: status}, {(title, published_at): episode_id} for dedup).
         """
         conn = self.get_connection()
         if podcast_id is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
             if not podcast:
                 return {}, {}
             podcast_id = podcast['id']
@@ -385,7 +382,7 @@ class EpisodeMixin:
             kwargs['published_at'] = normalize_published_at(kwargs['published_at'])
 
         # Get podcast ID
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             raise PodcastNotFoundError(f"Podcast not found: {slug}")
 
@@ -423,7 +420,7 @@ class EpisodeMixin:
                                'processed_size_bytes', 'yt_metadata_at',
                                'approval_pending_at', 'approved_at'):
                         fields.append(f"{key} = ?")
-                        values.append(value)
+                        values.append(redact_error(value) if key in _ERROR_KEYS and isinstance(value, str) else value)
                     elif key == 'tags':
                         fields.append("tags = ?")
                         values.append(
@@ -465,7 +462,7 @@ class EpisodeMixin:
                     kwargs.get('ads_removed', 0),
                     kwargs.get('ads_removed_firstpass', 0),
                     kwargs.get('ads_removed_secondpass', 0),
-                    kwargs.get('error_message'),
+                    redact_error(kwargs.get('error_message')),
                     kwargs.get('ad_detection_status'),
                     kwargs.get('artwork_url'),
                     kwargs.get('episode_number'),
@@ -491,10 +488,7 @@ class EpisodeMixin:
         return db_id
 
     def _get_episode_db_id(self, slug: str, episode_id: str) -> int | None:
-        """Lightweight lookup: resolve (slug, episode_id) to the episodes.id PK.
-
-        Only joins episodes + podcasts (skips episode_details).
-        Returns the integer PK, or None if not found.
+        """Resolve (slug, episode_id) to the episodes.id PK, or None; skips episode_details.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -586,12 +580,12 @@ class EpisodeMixin:
                WHERE episode_id = ?
                  AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
                  AND chapters_regen_started_at = ?""",
-            (error, episode_id, slug, stamp)
+            (redact_error(error), episode_id, slug, stamp)
         )
         conn.commit()
         if cursor.rowcount == 0:
             logger.info(f"[{slug}:{episode_id}] Chapter regen stamp {stamp} was taken over; "
-                        f"outcome dropped (error={error})")
+                        f"outcome dropped (error={redact_error(error)})")
 
     def clear_chapters_regen_stamps(self) -> int:
         """Drop every in-flight stamp; a restart killed the threads behind them."""
@@ -615,8 +609,8 @@ class EpisodeMixin:
                             pending_review_count: int | None = None):
         """Save or update episode details (transcript, VTT, chapters, ad markers, pass data).
 
-        pending_review_count, when provided, is written to episodes.pending_review_count
-        (denormalized for cheap list views; avoids per-row JSON parsing).
+        pending_review_count, when given, is written to episodes.pending_review_count
+        (denormalized so list views skip per-row JSON parsing).
         """
         conn = self.get_connection()
 
@@ -823,6 +817,9 @@ class EpisodeMixin:
         normalized = {**assets}
         if normalized.get('applied_cuts') is not None:
             normalized['applied_cuts'] = [_serialize_applied_cut(cut) for cut in normalized['applied_cuts']]
+        if isinstance(normalized.get('upstream_transcript'), dict):
+            normalized['upstream_transcript'] = json.loads(
+                redact_json_error(json.dumps(normalized['upstream_transcript'])))
         values = [None if normalized.get(key) is None else
                   json.dumps(normalized[key]) if key in json_keys
                   else assets[key] for key in keys]
@@ -869,17 +866,13 @@ class EpisodeMixin:
         logger.debug(f"[{slug}:{episode_id}] Saved {len(segments)} final segments to database")
 
     def save_applied_cuts(self, slug: str, episode_id: str, cuts: list[dict]):
-        """Save the applied cut list (original-episode coordinates) the served
-        chapters JSON was generated against. Overwrites on reprocess/recut.
+        """Save the applied cut list (original-episode coordinates) the served chapters were generated against.
 
-        The recut chapter remap loads this authoritative list instead of
-        reconstructing it from was_cut markers (which drops trusted sub-10s
-        cuts and cannot reproduce pass-2 boundary shifts). start/end are
-        always needed; a span's 'replacement_duration' (beep clip length, or
-        the span's own length for a 'beep' action) is kept when present so
-        merge_cut_spans reads it per span instead of assuming one constant.
-        A cut without the key round-trips as {start, end}, so legacy rows
-        are unaffected.
+        Overwrites on reprocess/recut. The recut chapter remap loads this instead
+        of rebuilding it from was_cut markers (which drop trusted sub-10s cuts and
+        cannot reproduce pass-2 boundary shifts). A span's 'replacement_duration'
+        (beep clip length, or the span's own length for 'beep') is kept when present
+        so merge_cut_spans reads it per span; cuts without it round-trip as {start, end}.
         """
         conn = self.get_connection()
 
@@ -902,14 +895,11 @@ class EpisodeMixin:
 
     def save_chapters_and_applied_cuts(self, slug: str, episode_id: str,
                                        chapters_json: str, cuts: list[dict]):
-        """Persist chapters JSON and the applied cut list it was generated
-        against as ONE upsert (single statement, single commit).
+        """Persist chapters JSON and the applied cut list it was generated against in one upsert.
 
-        The pair must move together: fresh chapters paired with stale cuts
-        would make the next recut remap through the wrong previous-cut list
-        and ship wrong timestamps, while a failure that leaves both old is
-        merely stale-but-consistent. Two separate writes had a failure window
-        between them; one statement has none.
+        They must move together: fresh chapters with stale cuts would make the
+        next recut remap through the wrong cut list and ship wrong timestamps,
+        whereas both old is merely stale-but-consistent.
         """
         conn = self.get_connection()
 
@@ -934,10 +924,9 @@ class EpisodeMixin:
     def get_applied_cuts(self, slug: str, episode_id: str) -> list[dict] | None:
         """Get the persisted applied cut list, or None when never persisted.
 
-        None (column NULL) means no authoritative cuts exist (episode rendered
-        before this was added, or cleared for reprocess); the recut remap must
-        treat that as a skip, not as an empty cut list. A persisted empty list
-        [] is authoritative (an episode where nothing was cut).
+        None (NULL) means no authoritative cuts exist (rendered before the column
+        existed, or cleared for reprocess); the recut remap must skip, not treat it
+        as an empty list. A persisted [] is authoritative (nothing was cut).
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -985,9 +974,8 @@ class EpisodeMixin:
     def get_transcript_for_timestamps(self, slug: str, episode_id: str) -> str:
         """Get the best transcript for timestamp-based extraction.
 
-        Prefers original (pre-cut) transcript so ad timestamps align with actual
-        content. Falls back to edited transcript for episodes processed before
-        original transcript storage was added (v1.0.51).
+        Prefers the original (pre-cut) transcript so ad timestamps align; falls
+        back to the edited one for episodes processed before v1.0.51.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -1028,6 +1016,8 @@ class EpisodeMixin:
             logger.warning(f"Episode not found for {column}: {slug}/{episode_id}")
             return False
         with self.transaction(immediate=True) as conn:
+            if column in _DETAIL_ERROR_JSON:
+                value = redact_json_error(value)
             conn.execute(self._DETAIL_JSON_UPSERT[column], (db_episode_id, value))
         return True
 
@@ -1109,9 +1099,8 @@ class EpisodeMixin:
     def get_transcribed_details_created_at(self, slug: str, episode_id: str) -> str | None:
         """created_at of the details row, when it holds a transcript.
 
-        A forced re-transcription deletes and recreates the row, so a row
-        newer than the reprocess request carries that request's transcript
-        and a retry may reuse it instead of transcribing again.
+        A forced re-transcription recreates the row, so one newer than the
+        reprocess request holds that request's transcript and a retry may reuse it.
         """
         db_episode_id = self._get_episode_db_id(slug, episode_id)
         if not db_episode_id:
@@ -1145,16 +1134,13 @@ class EpisodeMixin:
         logger.debug(f"[{slug}:{episode_id}] Cleared episode details from database")
 
     def clear_episode_ad_data(self, slug: str, episode_id: str):
-        """Clear ad-detection outputs and regenerated assets while PRESERVING
-        the transcript inputs (issue #349 LLM-only reprocess).
+        """Clear ad-detection outputs and regenerated assets, preserving the transcript (#349 LLM-only reprocess).
 
-        Nulls the columns the ad-detection and cut stages regenerate (ad
-        markers, both LLM passes, chapters, VTT, post-cut segments) but keeps
-        ``transcript_text``, ``original_transcript_text`` and
-        ``original_segments_json`` so ``_download_and_transcribe`` reuses the
-        saved transcript and skips the expensive re-transcription. Unlike
-        ``clear_episode_details`` this UPDATEs to NULL rather than DELETEing the
-        row, so the transcript is never lost.
+        Nulls what the detection and cut stages regenerate (ad markers, both LLM
+        passes, chapters, VTT, post-cut segments) but keeps ``transcript_text``,
+        ``original_transcript_text`` and ``original_segments_json`` so
+        ``_download_and_transcribe`` skips re-transcription. Unlike
+        ``clear_episode_details`` it UPDATEs to NULL instead of deleting the row.
         """
         conn = self.get_connection()
 
@@ -1179,11 +1165,10 @@ class EpisodeMixin:
         )
 
     def has_transcript(self, slug: str, episode_id: str) -> bool:
-        """True if a non-empty transcript is saved for the episode, without
-        loading the transcript blob. Gates LLM-only reprocess (#349); cheaper
-        than ``storage.get_transcript`` which fetches the full text. The
-        ``!= ''`` check matches ``storage.get_transcript``'s truthiness
-        semantics so the guard and the transcript-reuse path agree."""
+        """True if a non-empty transcript is saved, without loading the blob (gates #349 LLM-only reprocess).
+
+        The ``!= ''`` check matches ``storage.get_transcript``'s truthiness so the
+        guard and the transcript-reuse path agree."""
         db_episode_id = self._get_episode_db_id(slug, episode_id)
         if not db_episode_id:
             return False
@@ -1195,6 +1180,19 @@ class EpisodeMixin:
             (db_episode_id,)
         ).fetchone()
         return row is not None
+
+    def get_episode_ids_with_transcript(self, slug: str) -> set[str]:
+        """episode_ids of a feed with a saved non-empty transcript; the batch form
+        of has_transcript (same truthiness rule) for per-episode loops."""
+        rows = self.get_connection().execute(
+            "SELECT e.episode_id FROM episode_details d "
+            "JOIN episodes e ON e.id = d.episode_id "
+            "JOIN podcasts p ON p.id = e.podcast_id "
+            "WHERE p.slug = ? AND d.transcript_text IS NOT NULL "
+            "AND d.transcript_text != ''",
+            (slug,)
+        ).fetchall()
+        return {row['episode_id'] for row in rows}
 
     def get_recent_ad_yields(self, podcast_id: int, exclude_episode_id: str,
                              limit: int = 5) -> list[float]:
@@ -1386,8 +1384,8 @@ class EpisodeMixin:
             dict[str, str], dict[str, str], dict[str, tuple[bool, bool]]]:
         """(chapters, applied_cuts, podcasting2_flags) by episode_id from one scan.
 
-        Chapters and cuts cover processed episodes only: their timestamps are on the cut
-        timeline, so they must not be listed against original audio. Flags cover every episode.
+        Chapters and cuts cover processed episodes only (their timestamps are on the
+        cut timeline). Flags cover every episode.
         """
         rows = self._feed_detail_rows(podcast_id)
         processed = [r for r in rows if r['status'] == 'processed']
@@ -1447,9 +1445,8 @@ class EpisodeMixin:
                                       min_duration: float = 60) -> list[dict]:
         """Get recent processed episodes' ad markers for positional prior learning.
 
-        Returns newest-first rows with episode_id, original_duration and the raw
-        ad_markers_json. Episodes at or under min_duration seconds
-        (trailers/bonus clips) are excluded.
+        Newest-first rows with episode_id, original_duration and raw
+        ad_markers_json; episodes at or under min_duration seconds are excluded.
         """
         return self._get_recent_episode_json_col(
             slug, 'ad_markers_json', exclude_episode_id, limit, min_duration)
@@ -1460,8 +1457,7 @@ class EpisodeMixin:
                                   min_duration: float = 60) -> list[dict]:
         """Get recent processed episodes' audio analysis for splice calibration.
 
-        Returns newest-first rows with episode_id, original_duration and the
-        raw audio_analysis_json.
+        Newest-first rows with episode_id, original_duration and raw audio_analysis_json.
         """
         return self._get_recent_episode_json_col(
             slug, 'audio_analysis_json', exclude_episode_id, limit, min_duration)
@@ -1470,11 +1466,10 @@ class EpisodeMixin:
                                      exclude_episode_id: str | None = None,
                                      limit: int = 5,
                                      min_duration: float = 60) -> list[list[dict]]:
-        """Original (pre-cut) Whisper segments of the feed's most recent
-        processed episodes, newest first, for text recurrence.
+        """Original (pre-cut) Whisper segments of the feed's recent processed episodes, newest
+        first, for text recurrence.
 
-        Episodes at or under min_duration seconds (trailers/bonus clips)
-        are excluded from the prior pool.
+        Episodes at or under min_duration seconds are excluded.
         """
         rows = self._get_recent_episode_json_col(
             slug, 'original_segments_json', exclude_episode_id, limit,
@@ -1549,10 +1544,10 @@ class EpisodeMixin:
         conn.commit()
 
     def batch_clear_episode_ad_data(self, slug: str, episode_ids: list[str]) -> None:
-        """Clear ad-detection outputs for multiple episodes while PRESERVING
-        their transcripts (issue #349 LLM-only bulk reprocess). UPDATE-to-NULL
-        mirror of ``batch_clear_episode_details``; see ``clear_episode_ad_data``
-        for the per-column rationale."""
+        """Clear ad-detection outputs for many episodes, keeping transcripts (#349 bulk reprocess).
+
+        UPDATE-to-NULL mirror of ``batch_clear_episode_details``; see
+        ``clear_episode_ad_data`` for the per-column rationale."""
         if not episode_ids:
             return
         episodes = self.get_episodes_by_ids(slug, episode_ids)
@@ -1580,7 +1575,7 @@ class EpisodeMixin:
         if not episode_ids:
             return
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return
         placeholders = ','.join('?' for _ in episode_ids)
@@ -1608,16 +1603,13 @@ class EpisodeMixin:
         never overwrites an existing episode's status or non-empty metadata.
         Returns count of newly inserted rows.
 
-        Not atomic across the feed: a chunk raising leaves earlier chunks
-        committed, and the caller records a refresh failure and retries. The
-        upsert is idempotent, so the retry reconciles.
+        Not atomic across the feed: a failing chunk leaves earlier chunks committed
+        and the caller retries; the upsert is idempotent.
 
-        Each chunk runs in its own immediate transaction: a deferred begin
-        upgrades to a write lock at the first INSERT, and that upgrade fails
-        instantly with "database is locked" rather than waiting on
-        busy_timeout (issue #566). Chunking bounds how long that lock is
-        held, since one transaction spanning a large archive feed starved
-        every other writer past its busy_timeout (#728 follow-up).
+        Each chunk runs in its own immediate transaction: a deferred begin fails
+        instantly with "database is locked" at the first INSERT instead of waiting
+        on busy_timeout (#566), and chunking keeps the lock from starving other
+        writers on a large archive feed (#728).
         """
         podcast = self.get_podcast_row(slug)
         if not podcast:
@@ -1693,8 +1685,7 @@ class EpisodeMixin:
             conn, podcast_id, chunk, existing_by_id, title_date_map):
         """Refresh the chunk's dedup keys after taking the writer lock.
 
-        Returns the episode_ids whose existing_by_id entry may have changed
-        (id-matched plus title/date-matched), for fuzzy-index resync.
+        Returns episode_ids whose existing_by_id entry may have changed, for fuzzy-index resync.
         """
         ids = [episode['id'] for episode in chunk if episode.get('id')]
         title_dates = [
@@ -1768,8 +1759,8 @@ class EpisodeMixin:
             self, conn, podcast_id, slug, ep, existing_by_id, title_date_map, fuzzy_index, stamp_now=None):
         """Upsert one discovered episode. Returns an (inserted, skipped) delta.
 
-        Lock errors propagate so the whole batch fails and the caller retries the
-        feed; only per-row data faults are counted as skipped.
+        Lock errors propagate so the caller retries the feed; only per-row data
+        faults count as skipped.
         """
         try:
             iso_published = ep['_iso_published']
@@ -1911,24 +1902,6 @@ class EpisodeMixin:
             return 0, 1
         return 0, 0
 
-    def _reset_episode_to_discovered(self, slug: str, episode_id: str) -> None:
-        """Clear episode_details and reset an episode back to 'discovered' state."""
-        self.clear_episode_details(slug, episode_id)
-        self.upsert_episode(
-            slug, episode_id,
-            status=EpisodeStatus.DISCOVERED.value,
-            processed_file=None,
-            processed_at=None,
-            processed_size_bytes=None,
-            original_duration=None,
-            new_duration=None,
-            ads_removed=0,
-            ads_removed_firstpass=0,
-            ads_removed_secondpass=0,
-            error_message=None,
-            ad_detection_status=None,
-        )
-
     def batch_set_episodes_pending(self, slug: str, episode_ids: list[str],
                                     reprocess_mode: str = None,
                                     reprocess_requested_at: str = None) -> int:
@@ -1936,7 +1909,7 @@ class EpisodeMixin:
         if not episode_ids:
             return 0
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return 0
         placeholders = ','.join('?' for _ in episode_ids)
@@ -1953,15 +1926,15 @@ class EpisodeMixin:
                                   enabled: bool, *,
                                   reprocess_ids: list[str] | None = None,
                                   reprocess_requested_at: str = None) -> int:
-        """Set passthrough_enabled for a feed's episodes (#746). ``reprocess_ids``
-        (a subset) are marked pending with a reprocess stamp in the same
-        transaction as the flag, so the obligation survives a failed enqueue
-        (requeue_stranded_pending_episodes picks up a pending row with no queue
-        entry). Returns count updated.
+        """Set passthrough_enabled for a feed's episodes (#746). Returns count updated.
+
+        ``reprocess_ids`` (a subset) are marked pending with a reprocess stamp in
+        the same transaction, so the obligation survives a failed enqueue
+        (requeue_stranded_pending_episodes picks up a pending row with no queue entry).
         """
         if not episode_ids:
             return 0
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return 0
         value = 1 if enabled else 0
@@ -1994,11 +1967,9 @@ class EpisodeMixin:
                          keep_original: bool = False) -> tuple[int, float]:
         """Delete audio files and reset episodes to 'discovered'.
 
-        Does NOT delete DB rows. Does NOT touch processing_history.
-        keep_original=True preserves the retained pre-cut original (local
-        feeds: it is the only copy, no upstream to re-download) and only
-        removes the processed output.
-        Returns (count reset, MB freed).
+        Does not delete DB rows or touch processing_history. keep_original=True
+        keeps the retained pre-cut original (the only copy for local feeds) and
+        removes only the processed output. Returns (count reset, MB freed).
         """
         episodes = self.get_episodes_by_ids(slug, episode_ids)
         episodes_by_id = {ep['episode_id']: ep for ep in episodes}
@@ -2071,7 +2042,7 @@ class EpisodeMixin:
                                         episode_ids: list[str]) -> None:
         if not episode_ids:
             return
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return
         placeholders = ','.join('?' for _ in episode_ids)
@@ -2083,22 +2054,17 @@ class EpisodeMixin:
         self.get_connection().commit()
 
     def delete_episode_rows(self, slug: str, episode_ids: list[str], storage) -> int:
-        """Hard-delete episode rows (local feeds only; subscribed feeds only
-        reset to discovered via delete_episodes). Removes files first.
+        """Hard-delete episode rows (local feeds only), removing files first. Returns rows deleted.
 
-        Unlike delete_episodes, this drops the row entirely -- appropriate
-        for local (imported-archive) feeds, which have no upstream RSS to
-        re-discover the episode from on a future refresh. Also drops any
-        auto_process_queue row for these ids: leaving one behind would let
-        the background queue processor resurrect a deleted episode (it
-        reads original_url/title/etc. off the queue row, not the episodes
-        table), and the queue table's UNIQUE(podcast_id, episode_id) +
-        ON CONFLICT DO NOTHING on enqueue would silently swallow a future
-        re-upload of the same id. Returns the number of episode rows
-        deleted.
+        Unlike delete_episodes this drops the row, since local (imported-archive)
+        feeds have no upstream RSS to re-discover from. It also drops any
+        auto_process_queue rows for these ids: the queue processor would otherwise
+        resurrect the episode (it reads title/url off the queue row), and the
+        UNIQUE(podcast_id, episode_id) + ON CONFLICT DO NOTHING enqueue would
+        swallow a future re-upload of the same id.
         """
         conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast or not episode_ids:
             return 0
 
@@ -2112,6 +2078,7 @@ class EpisodeMixin:
             f"DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
             params
         )
+        delete_matches_for_episodes(conn, slug, episode_ids)
         cursor = conn.execute(
             f"DELETE FROM episodes WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
             params

@@ -6,7 +6,7 @@ import {
   type MutableRefObject,
 } from 'react';
 
-export interface WaveformWindow {
+interface WaveformWindow {
   zoom: number;
   /** Visible time span [windowStart, windowEnd]; the rendered view IS the window. */
   windowStart: number;
@@ -25,13 +25,10 @@ export interface WaveformWindow {
 }
 
 /**
- * Shared zoomable waveform window for the cue-marking and ad-edit modals
- * (issue #350). Zoom narrows the rendered time span around windowCenter rather
- * than widening a scrollable canvas -- wavesurfer caps its canvas at ~16000px
- * and leaves everything past that blank, so a giant-canvas zoom went blank at
- * the far end. Zooming recenters on the live playhead (Audacity-style) so the
- * cursor stays put in the view. Deferred so dragging the zoom slider stays
- * responsive while the windowed peaks re-slice.
+ * Shared zoomable waveform window for the cue-marking and ad-edit modals (#350). Zoom narrows the rendered
+ * span around windowCenter rather than widening a scrollable canvas, since wavesurfer blanks everything past
+ * ~16000px. Zooming recenters on the live playhead (Audacity-style). Deferred so dragging the zoom slider
+ * stays responsive while windowed peaks re-slice.
  */
 export function useWaveformWindow(
   totalDuration: number,

@@ -1,10 +1,7 @@
 """Review decisions accumulate, then apply in one pass per episode.
 
-Review is bulk work: an episode often collects several decisions at
-different times, so each one stamps the episode instead of rewriting its
-audio or its chapters, and the operator applies them together. The apply
-decides per episode whether the decisions need a recut or only a chapter
-rebuild.
+Each decision only stamps the episode; the apply step decides per episode whether a recut or only a
+chapter rebuild is needed.
 """
 import json
 import os
@@ -72,7 +69,7 @@ def _original(ad):
 
 
 def _pending(db):
-    return db.count_episodes_pending_recut()
+    return len(db.get_episodes_pending_recut())
 
 
 def _markers(db):

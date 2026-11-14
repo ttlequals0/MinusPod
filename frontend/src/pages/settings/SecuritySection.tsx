@@ -1,18 +1,67 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { RemovableChip } from '../../components/RemovableChip';
-import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
+import { tableBody, tableCard, tableHead, tableRow, td, th } from '../../components/tableStyles';
+import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { limitsOf } from '../../utils/settingLimits';
 
 const MIN_PASSWORD_LENGTH = 12;
+// Ranges and defaults used until the server reports them (older servers and fixtures omit them).
+const HOURS_FALLBACK = { min: 1, max: 8760 };
+const DAYS_FALLBACK = { min: 1, max: 365 };
+const DEFAULT_HOURS = 24;
+const DEFAULT_DAYS = 30;
+
+const isInRange = (v: number | null | undefined, { min, max }: { min: number; max: number }): v is number =>
+  v != null && Number.isInteger(v) && v >= min && v <= max;
+
+function SessionLengthField({ id, label, unit, help, value, range, valid, disabled, onChange }: {
+  id: string;
+  label: string;
+  unit: string;
+  help: string;
+  value: number | null;
+  range: { min: number; max: number };
+  valid: boolean;
+  disabled: boolean;
+  onChange: (v: number | null) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={labelBase}>{label}</label>
+      <DraftNumberInput
+        id={id}
+        value={value}
+        fallback={null}
+        parse={parseOptionalNumber}
+        onChange={onChange}
+        min={range.min}
+        max={range.max}
+        step={1}
+        disabled={disabled}
+        ariaInvalid={!valid}
+        ariaDescribedBy={`${id}-help${!valid ? ` ${id}-error` : ''}`}
+        className="w-full aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive"
+      />
+      <p id={`${id}-help`} className="mt-1 text-sm text-muted-foreground">{help}</p>
+      {!valid && (
+        <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-destructive">
+          Enter a whole number of {unit} from {range.min} to {range.max}.
+        </p>
+      )}
+    </div>
+  );
+}
 
 interface SecuritySectionProps {
   cryptoReady?: boolean;
@@ -73,13 +122,59 @@ function SecuritySection({
     });
   };
 
+  const removeAgentButton = (agent: string) => (
+    <button
+      type="button"
+      onClick={() => removeBlockedAgent(agent)}
+      disabled={agentsMutation.isPending}
+      aria-label={`Remove ${agent}`}
+      className={`${btnBase} ${btnDestructiveOutline} shrink-0`}
+    >
+      Remove
+    </button>
+  );
+
+  const savedHours = settings?.sessionLifetimeHours?.value ?? DEFAULT_HOURS;
+  const savedDays = settings?.sessionRememberDays?.value ?? DEFAULT_DAYS;
+  // undefined means untouched; null means cleared or not a number.
+  const [hoursDraft, setHoursDraft] = useState<number | null | undefined>(undefined);
+  const [daysDraft, setDaysDraft] = useState<number | null | undefined>(undefined);
+  const [sessionSaved, setSessionSaved] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const hoursRange = limitsOf(settings?.sessionLifetimeHours, HOURS_FALLBACK);
+  const daysRange = limitsOf(settings?.sessionRememberDays, DAYS_FALLBACK);
+  const hours = hoursDraft === undefined ? savedHours : hoursDraft;
+  const days = daysDraft === undefined ? savedDays : daysDraft;
+  const hoursValid = isInRange(hours, hoursRange);
+  const daysValid = isInRange(days, daysRange);
+  const sessionDirty = hours !== savedHours || days !== savedDays;
+
+  const sessionMutation = useMutation({
+    mutationFn: (payload: { sessionLifetimeHours: number; sessionRememberDays: number }) => updateSettings(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+      setHoursDraft(undefined);
+      setDaysDraft(undefined);
+      setSessionSaved(true);
+    },
+    onError: (e) => setSessionError(getErrorMessage(e, 'Could not save session lengths.')),
+  });
+
+  const saveSessionLengths = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isInRange(hours, hoursRange) || !isInRange(days, daysRange) || sessionMutation.isPending) return;
+    setSessionError(null);
+    setSessionSaved(false);
+    sessionMutation.mutate({ sessionLifetimeHours: hours, sessionRememberDays: days });
+  };
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  useUnsavedChanges(!!(agentInput || currentPassword || newPassword || confirmPassword));
+  useUnsavedChanges(!!(agentInput || currentPassword || newPassword || confirmPassword) || sessionDirty);
 
   const handleLogout = async () => {
     await logout();
@@ -92,12 +187,12 @@ function SecuritySection({
     setPasswordSuccess(null);
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match');
+      setPasswordError('Passwords do not match.');
       return;
     }
 
     if (newPassword && newPassword.length < MIN_PASSWORD_LENGTH) {
-      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
 
@@ -105,10 +200,10 @@ function SecuritySection({
     try {
       if (newPassword) {
         await setPassword(newPassword, currentPassword);
-        setPasswordSuccess(isPasswordSet ? 'Password changed successfully' : 'Password set successfully');
+        setPasswordSuccess(isPasswordSet ? 'Password changed.' : 'Password set.');
       } else {
         await removePassword(currentPassword);
-        setPasswordSuccess('Password protection removed');
+        setPasswordSuccess('Password protection removed.');
       }
       await refreshStatus();
       setCurrentPassword('');
@@ -148,8 +243,7 @@ function SecuritySection({
       )}
 
       <form onSubmit={handlePasswordSubmit} className="space-y-4">
-        {/* Single-user app: a hidden username keeps password managers and
-            Chrome's accessibility check happy without a visible field. */}
+        {/* Password managers need a username. */}
         <input type="text" name="username" autoComplete="username"
                value="minuspod" readOnly hidden />
         {isPasswordSet && (
@@ -213,7 +307,7 @@ function SecuritySection({
         )}
 
         {passwordSuccess && (
-          <div className="p-3 rounded-lg bg-success/10 text-success text-sm">
+          <div role="status" className="p-3 rounded-lg bg-success/10 text-success text-sm">
             {passwordSuccess}
           </div>
         )}
@@ -233,6 +327,54 @@ function SecuritySection({
               : 'Set password'}
           </button>
         </DemoDisabled>
+      </form>
+
+      <form onSubmit={saveSessionLengths} noValidate className="mt-6 pt-6 border-t border-border">
+        <h3 className={`${subHeading} mb-1`}>Session length</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          How long a sign-in stays valid before the password is asked for again.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SessionLengthField
+            id="sessionLifetimeHours"
+            label="Session length (hours)"
+            unit="hours"
+            help="How long a normal sign-in stays valid, counted from its last use."
+            value={hours}
+            range={hoursRange}
+            valid={hoursValid}
+            disabled={sessionMutation.isPending}
+            onChange={(v) => { setHoursDraft(v); setSessionSaved(false); }}
+          />
+          <SessionLengthField
+            id="sessionRememberDays"
+            label="Remember me length (days)"
+            unit="days"
+            help="Applies only to sign-ins that tick the Remember me box; counted from last use."
+            value={days}
+            range={daysRange}
+            valid={daysValid}
+            disabled={sessionMutation.isPending}
+            onChange={(v) => { setDaysDraft(v); setSessionSaved(false); }}
+          />
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <DemoDisabled>
+            <button
+              type="submit"
+              disabled={!sessionDirty || !hoursValid || !daysValid || sessionMutation.isPending}
+              className={`${btnLg} ${btnPrimary}`}
+            >
+              {sessionMutation.isPending ? 'Saving...' : 'Save session lengths'}
+            </button>
+          </DemoDisabled>
+          {sessionSaved && (
+            <span role="status" className="text-sm text-success">Session lengths saved.</span>
+          )}
+        </div>
+        {sessionError && (
+          <p role="alert" className="mt-2 text-sm text-destructive">{sessionError}</p>
+        )}
       </form>
 
       <div className="mt-6 pt-6 border-t border-border">
@@ -265,14 +407,40 @@ function SecuritySection({
         <p className="text-sm text-muted-foreground mb-4">
           Agents listed here get the original audio instead of triggering processing. Case-insensitive, matches anywhere in the agent string. Start a pattern with ^ to match only the beginning, for example ^atc/.
         </p>
-        {blockedAgents.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {blockedAgents.map((agent) => (
-              <RemovableChip key={agent} label={agent} onRemove={() => removeBlockedAgent(agent)}
-                disabled={agentsMutation.isPending} />
-            ))}
-          </div>
-        )}
+        <div className="mb-2 space-y-2">
+          {blockedAgents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No agents yet.</p>
+          ) : (
+            <>
+              <div className={`hidden sm:block ${tableCard}`}>
+                <table className="w-full">
+                  <thead className={tableHead}>
+                    <tr>
+                      <th className={th}>Agent</th>
+                      <th className={th}><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className={tableBody}>
+                    {blockedAgents.map((agent) => (
+                      <tr key={agent} className={tableRow}>
+                        <td className={`${td} min-w-0 break-all font-mono text-foreground`}>{agent}</td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{removeAgentButton(agent)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="sm:hidden space-y-2">
+                {blockedAgents.map((agent) => (
+                  <div key={agent} className="bg-muted/40 rounded-lg p-4 flex items-center justify-between gap-3">
+                    <span className="min-w-0 break-all font-mono text-sm text-foreground">{agent}</span>
+                    {removeAgentButton(agent)}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {!addingAgent ? (
             <button
@@ -281,7 +449,8 @@ function SecuritySection({
               disabled={agentsMutation.isPending}
               className={`${btnBase} ${btnOutline}`}
             >
-              + Add agent
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Add agent
             </button>
           ) : (
             <>

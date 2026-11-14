@@ -188,7 +188,7 @@ class TestBootLogsMissingModelSettings:
             'claude-sonnet-5' if k == 'claude_model' else None)
         with caplog.at_level(logging.ERROR, logger='podcast.app'):
             _log_missing_model_settings(stub_db)
-        errors = [r.message for r in caplog.records if r.levelno == logging.ERROR]
+        errors = [r.message for r in caplog.records if r.name == 'podcast.app' and r.levelno == logging.ERROR]
         assert len(errors) == 1
         assert 'verification_model' in errors[0]
         assert 'chapters_model' in errors[0]
@@ -202,7 +202,7 @@ class TestBootLogsMissingModelSettings:
         stub_db.get_setting.return_value = 'claude-sonnet-5'
         with caplog.at_level(logging.ERROR, logger='podcast.app'):
             _log_missing_model_settings(stub_db)
-        assert not [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert not [r for r in caplog.records if r.name == 'podcast.app' and r.levelno == logging.ERROR]
 
 
 class TestDetectAdsFirstPassPreservesModelNotConfiguredType:

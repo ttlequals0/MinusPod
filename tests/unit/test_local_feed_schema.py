@@ -5,7 +5,7 @@ from database.podcasts import is_local_feed
 
 @pytest.fixture
 def db(tmp_path):
-    # Database is a singleton (see tests/conftest.py::temp_db) -- reset it
+    # Database is a singleton (see tests/conftest.py::temp_db): reset it
     # so each test gets a fresh database rather than reusing a prior one.
     Database._instance = None
     instance = Database(str(tmp_path))

@@ -18,13 +18,9 @@ import main_app.background as background_module
 class _FakeShutdownEvent:
     """Stand-in for the real, process-wide shutdown_event.
 
-    main_app._startup() starts a real daemon thread running
-    background_rss_refresh() against the actual shutdown_event singleton, so
-    monkeypatching that shared object's wait()/is_set() races with it.
-    background_rss_refresh() resolves `shutdown_event` as a module global on
-    every call, so swapping main_app.background.shutdown_event isolates the
-    synchronous, in-test call from the ambient thread (which keeps its own
-    reference to the real object for any call already in flight).
+    main_app._startup() starts a daemon thread running background_rss_refresh() against the real singleton,
+    so patching its wait()/is_set() races. background_rss_refresh() resolves `shutdown_event` as a module
+    global per call, so swapping main_app.background.shutdown_event isolates the in-test call.
     """
 
     def __init__(self):

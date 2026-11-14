@@ -10,12 +10,14 @@ import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import SavedBadge from './SavedBadge';
+import { LlmGate } from './LlmGate';
 import DraftNumberInput from '../../components/DraftNumberInput';
 import { isSystemOneRoute } from './systemoneWarnings';
 import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 // Which per-phase provider override (see llm_route.py) governs a stage block.
 // Both chapter blocks route through chaptersProvider.
@@ -151,6 +153,8 @@ export function baselineFromTunables<K extends keyof StageTunables>(
 export function useServerDraft<K extends string, V>(
   keys: readonly K[],
   serverBaseline: Record<K, V>,
+  // A disabled section holds no editable draft, so it must not block navigation.
+  active = true,
 ) {
   const equal = (a: Record<K, V>, b: Record<K, V>) => keys.every((k) => a[k] === b[k]);
   const [draft, setDraft] = useState(serverBaseline);
@@ -163,7 +167,7 @@ export function useServerDraft<K extends string, V>(
   }
 
   const dirty = !equal(draft, serverBaseline);
-  useUnsavedChanges(dirty);
+  useUnsavedChanges(dirty && active);
 
   const setField = (key: K, value: V) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -206,7 +210,7 @@ export function readEnvOverride(entry: StageTunables[keyof StageTunables]): stri
   return entry?.envOverride ?? null;
 }
 
-export function ResetButton({
+function ResetButton({
   disabled,
   onClick,
 }: {
@@ -602,11 +606,12 @@ function StageTunablesSection({
   parallelWindowsDefault,
   omitTemperature,
 }: StageTunablesSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const serverBaseline = useMemo(
     () => buildBaseline(tunables, parallelWindows, omitTemperature),
     [tunables, parallelWindows, omitTemperature],
   );
-  const { draft, dirty, setField, buildPayload } = useServerDraft(DRAFT_KEYS, serverBaseline);
+  const { draft, dirty, setField, buildPayload } = useServerDraft(DRAFT_KEYS, serverBaseline, llmEnabled);
 
   const sizeEff = (draft.windowSizeSeconds ?? defaults.windowSizeSeconds) as number | null;
   const overlapEff = (draft.windowOverlapSeconds ?? defaults.windowOverlapSeconds) as number | null;
@@ -649,7 +654,7 @@ function StageTunablesSection({
       <p className="text-sm text-muted-foreground mb-3">
         Temperature, max tokens, reasoning, detection-window geometry, and parallelism. Applies on the next episode.
       </p>
-      <div className="space-y-3">
+      <LlmGate disabled={!llmEnabled} id="stage-tunables" className="space-y-3">
         {reviewEnabled && reviewIsNative.some(Boolean) && (
           <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
             Ad review with System One models is experimental.
@@ -704,7 +709,7 @@ function StageTunablesSection({
             <span className="ml-3 text-sm text-destructive">{saveError}</span>
           )}
         </div>
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

@@ -42,7 +42,7 @@ function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
       to={to}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
+      className={`touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
         active
           ? 'bg-primary text-primary-foreground'
           : btnGhost
@@ -109,7 +109,7 @@ function Layout() {
         <div className="safe-x safe-x-wide max-w-7xl mx-auto">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
-              <Link to="/" className={`flex h-11 shrink-0 items-center ${focusRing} xl:h-auto`}>
+              <Link to="/" className={`touch-target flex h-11 shrink-0 items-center ${focusRing} xl:h-auto`}>
                 <img
                   src={uiUrl(theme === 'dark' ? '/logo-dark.svg' : '/logo.svg')}
                   alt="MinusPod"

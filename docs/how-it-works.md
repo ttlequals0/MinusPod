@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/cf3d38d7-3df6-4e8d-bac1-c5dd720dc4b6
 ## How It Works
 
 1. **Transcription** - audio is converted to text with timestamps by faster-whisper or Parakeet (local, GPU or CPU), or by a remote OpenAI-compatible API
-2. **Ad Detection** - An LLM analyzes the transcript to identify ad segments, with an automatic verification pass
+2. **Ad Detection** - An LLM analyzes the transcript to identify ad segments, with an automatic verification pass. With the provider set to None, learned patterns and audio fingerprints do this instead; see [Running without an LLM](llm-providers.md#running-without-an-llm)
 3. **Audio Processing** - FFmpeg removes detected ads and inserts short audio markers
 4. **Serving** - Flask serves modified RSS feeds and processed audio files
 
@@ -58,7 +58,7 @@ A pass-2 detection that overlaps an already-accepted ad is folded into the recut
 
 - Above the autocut floor (Settings > Ad Detection, off by default): cuts automatically, the same as any other gated cut.
 - Otherwise, once it clears the hold floor (default 0.60): holds for review with hold reason `verification_miss`, shown as a "Verification catch" chip in [Held for Review](#held-for-review).
-- Below the hold floor: dropped, with a log line naming what was dropped and why. Never silent.
+- Below the hold floor: dropped, with a log line naming what was dropped and why.
 
 A third case is a pass-2 finding that lands on a span pass 1 deliberately kept. The keep reflects your segment-action map, so pass 2 never cuts through it, but the finding is not discarded: it holds for review with hold reason `verification_kept_conflict`.
 
@@ -126,7 +126,7 @@ A fourth outcome is **held for review**. An ad is held when one of these rules b
 - **Max ad duration** - per-feed rule, off by default (feed settings page). The detection exceeds the feed's cap, even if the model was highly confident.
 - **Cue gating** - per-feed rule, off by default. The feed has cue-gated approval on and the detection has no audio-cue evidence. Manual markers are exempt from cue gating (the duration cap still applies to them). On cue-gated feeds, verification-pass (pass 2) proposals are always held because they cannot carry cue evidence.
 - **Standalone verification-pass miss** - global tunable (Settings > Ad Detection, default 0.60 confidence). A pass-2 detection overlapping no pass-1 marker clears the verification-miss hold floor but not the (off-by-default) autocut floor. Shown with a "Verification catch" chip. See [Verification Pass](#verification-pass).
-- **No splice evidence** - global rule with a per-feed override. A cut of 60 seconds or more from the detector or a learned pattern is held unless the audio shows an edit point near one of its edges. That can be a DAI transition pair, an ad-break cue template, a volume step of 12 dB or more, a splice event, or an overlapping differential region. Intro and outro cues never count, since they mark the show rather than a break. The rule applies only once the feed's splice calibration says `calibrated`, which takes five episodes of stored history. What matters is whether the ad was joined into the audio, not who reads it. An ad recorded separately and edited in leaves an edit point; one spoken straight through in a single take does not, so a feed whose ads are never joined in has every long cut held. Turn the check off for that feed on its settings page. See [Splice check](configuration.md#splice-check).
+- **No splice evidence** - global rule with a per-feed override. A cut of 60 seconds or more from the detector or a learned pattern is held unless the audio shows an edit point near one of its edges. That can be a DAI transition pair, an ad-break cue template, a volume step of 12 dB or more, a splice event, or an overlapping differential region. Intro and outro cues never count, since they mark the show rather than a break. The rule applies only once the feed's splice calibration says `calibrated`, which takes five episodes of stored history. What matters is whether the ad was joined into the audio. An ad recorded separately and edited in leaves an edit point; one spoken straight through in a single take does not, so a feed whose ads are never joined in has every long cut held. Turn the check off for that feed on its settings page. See [Splice check](configuration.md#splice-check).
 - **Uncorroborated cross-fetch differential region** - global tunable. The two fetches measurably differ, but no other stage, overlap, or matched audio cue backs the region as an ad. See [Cross-Fetch Differential](#cross-fetch-differential).
 - **Uncorroborated transcript differential gap** - global tunable, per-feed override. A block of speech is missing from the publisher's transcript, but no other stage backs the region as an ad. See [Transcript Differential](#transcript-differential).
 - **Reviewer boundary conflict** - a reviewer proposed moving inside protected evidence from a merged candidate. The original span stays in the audio and the proposed boundaries appear for manual review.
@@ -157,6 +157,15 @@ When processing new episodes, the system first checks for known patterns before 
 - **Text Pattern Matching** - TF-IDF similarity and fuzzy matching against learned patterns
 - **LLM Analysis** - Falls back to AI analysis for uncovered segments
 
+**Fingerprint matching limits:**
+A fingerprint match is measured at one alignment. Where the audio stops agreeing for longer than the gap tolerance setting, the match is split, and each piece must pass the coverage and evidence checks on its own. A short dropout inside an ad is bridged. An ad with a damaged stretch longer than the gap tolerance is found as shorter pieces, or not found at all. When two stored ads overlap in an episode, the stronger match takes the overlap (a full match beats a partial one when it covers at least half of it) and the other keeps what is left if that is at least the minimum ad length. These limits were measured in testing:
+- On heavily compressed audio, a match edge can stop a few seconds before the ad's real edge. MinusPod does not stretch it to a nearby LLM edge, because that would bring back cuts that run into show audio. Leaving a little ad in is the safer mistake.
+- When only part of a stored ad is in the episode, a match edge rarely runs into show audio, and then only by a few seconds. This was rare in synthetic tests.
+- When an ad and the show share a music bed or other steady audio, the ad's pattern can also match show audio elsewhere in the episode. A match must agree clearly better than the same stretch shifted a few seconds either way. With that check, a false cut of this kind was still seen in a small share of synthetic test ad breaks.
+- A pattern taken from near-uniform audio can be stored and then missed. In synthetic tests, a few stored patterns were not found in a copy with some bits flipped.
+- A false match on unrelated audio is rare. These limits were observed in synthetic tests. A real library has not been measured yet.
+- The match strictness setting starts at 0.65. Raising it to about 0.70 changes little.
+
 **Defined vs. Auto-Learned Patterns:**
 Patterns come in two trust tiers. A pattern is **defined** when a person created it (manual "create", confirm, or adjust) or it came from a synced community pattern; a pattern the system learned on its own from a detection is **auto-learned**. A defined pattern always cuts its matched segment, overriding whatever action the matched category resolves to under [Segment Categories](#segment-categories) below, including a feed's late keep safety net. An auto-learned pattern still respects segment actions for its own category and can be kept or beeped like any other detection. A remove-category marker with real evidence (a fingerprint match, a sponsor text pattern, a sponsor with an active pattern, a confirmation or a reviewer verdict) owns any audio it shares with a keep-category marker. The keep is trimmed around it, kept audio never carves the cut, and a verification catch for a known sponsor is not dropped for sitting inside a kept span. The distinction also governs merges: when a defined pattern's match overlaps an auto-learned one, the defined pattern owns the merged span (the absorbed pattern keeps credit for its own matches), and the pass-1 sponsor hint sent to the detection LLM includes a category and an opening snippet for defined patterns but only a name for auto-learned ones.
 
@@ -180,6 +189,46 @@ Access the Patterns page from the navigation bar to:
 - View confirmation and false positive counts
 - Split a pattern that already covers multiple sponsors into one pattern per
   sponsor from its detail view
+
+### Audio fingerprints
+
+An audio fingerprint is a Chromaprint signature of a known ad. It lives on a pattern, next to the pattern's text, and finds the same ad in a new episode by sound alone, with no transcript and no LLM call. This is the main detector when the LLM provider is [None](llm-providers.md#running-without-an-llm).
+
+**Where a fingerprint comes from.** One is stored when a person or a trusted detector sets an ad's edges on an episode whose original audio is still retained (the global or per-feed "Keep original audio" setting):
+
+| Source | Result |
+|--------|--------|
+| LLM or SponsorBlock detection that creates a pattern | A fingerprint of the detected span |
+| Add ad in the ad editor | A fingerprint of the marked span, one per sponsor if the text splits |
+| Split of a pattern, by hand or in Pattern Cleanup | Each new pattern gets a fingerprint of its own span of the original's source episode |
+| Trim in Pattern Cleanup | The fingerprint is rebuilt from the trimmed text's span |
+| Confirm | A fingerprint, only if the pattern has none |
+| Adjust | The fingerprint is rebuilt from the new edges |
+| Add audio to pattern, on a text-pattern detection | A fingerprint of the detection's span as shown |
+| Community or imported pattern | None until one of the rows above adds it |
+
+Storing is best effort. The pattern or correction is saved either way, and the response says whether audio was stored and, if not, why (no retained original, span shorter than the minimum ad length, too little distinctive audio to ever match, an existing fingerprint, or a failure). Once you delete a pattern's audio, the automatic rows above do not create it again. Adjust and Add audio to pattern do.
+
+**How a match is measured.** For each active fingerprint in scope, the matcher finds where it lines up with the episode and measures the whole run of agreeing audio. The match reports its measured start and end, similarity (how closely the audio agrees, 0 to 100%) and coverage (the share of the stored ad that was found). It counts only when similarity and coverage reach their settings and enough close agreement backs it. A run with at least 20 seconds of matching evidence also counts below the coverage setting, as a partial match, and only the matched part is cut. Plain or repetitive audio counts for less evidence than its length. Ads air in groups, so a stored fingerprint often holds two or three ads of one break, and another episode may air only one of them. Short shared openings, such as a tagline or a disclaimer, stay under 20 seconds and are still held to the coverage setting. Unrelated real audio can agree for a few seconds, so a very short or low-detail fingerprint that could not pass those checks is refused when it is stored rather than left unable to match. The marker then spans the measured edges, not the stored length.
+
+**Scope.** Audio follows the pattern's scope exactly as text does: a podcast pattern matches only that podcast, a network pattern only podcasts on that network, and a global pattern everywhere. A network pattern uses the feed's network override when one is set. Matches an older version made outside a pattern's scope are flagged in its history, so you can widen the scope on purpose if you want them.
+
+**Controls on a pattern.** Open a pattern on the Patterns page and use its Audio tab:
+
+- **Audio on or off.** Stops or resumes matching for the fingerprint. Text matching and the pattern's active state are not affected, and disabling the whole pattern still silences both.
+- **Play.** Plays the source audio. It needs a retained original of the episode the fingerprint was built from or of a recent match. When none is left, the section says "Source audio expired". The fingerprint keeps matching and becomes playable again after its next match.
+- **Edit edges.** Opens the newest retained, non-rejected match in scope, or the recorded origin if no match qualifies, with that span as the only region. Moving the edges and saving rebuilds the fingerprint. The episode's own markers and cuts are not changed.
+- **Delete audio.** Removes the fingerprint and its match history and keeps the pattern.
+- **Add audio to pattern.** For a pattern with no fingerprint whose marker still has a retained original, builds one from that marker.
+- **Recent matches.** Each match with its episode, position, similarity, how much of the ad it covered, and whether only audio found it. **Not this ad** on a row sends the existing reject correction for that episode and marks the match, so it stops counting toward the pattern's matches and mean similarity. A reject does not turn audio off by itself.
+
+If you raise the minimum coverage setting so far that a stored fingerprint could no longer match, the section says "This audio cannot match under the current settings".
+
+The Patterns table has an Audio column ("91% match", "Audio off", "No source audio", "No matches yet" or "No audio"), the Stats page has an Audio matching section (patterns with audio, audio matches, found by audio only, marked Not this ad), and the settings are under Settings > AI and processing > Audio fingerprinting, described in [Configuration](configuration.md#audio-fingerprinting). Merging keeps the keeper's fingerprint and history and deletes those of the folded patterns. Deduplication can move a duplicate's fingerprint and history to an active keeper that has no fingerprint and has not had its audio deleted. Deleting a pattern removes its fingerprint and history; deleting a feed removes its patterns and its episodes' match rows.
+
+"Found by audio only" means no other detection stage contributed to that marker. Match history is written from an episode's final markers, so an ad the validator rejected is not a match. Reprocessing replaces an episode's rows and keeps those marked Not this ad. A match row is deleted with its episode, so a pattern's match count, mean similarity and last match reflect only episodes that still exist. An episode whose audio merely expired keeps its rows.
+
+The routes behind all of this are listed in [API and Webhooks](api-and-webhooks.md).
 
 ### Real-Time Processing Status
 
@@ -239,7 +288,7 @@ Changing an action map does not retroactively touch already-processed episodes. 
 
 ### Cross-Fetch Differential
 
-Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads, or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, no transcript reading required.
+Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads, or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, without reading the transcript.
 
 Every silence-delimited block in the run file is probed against the refetch and carries its own measured correlation. A region only becomes an ad candidate when that correlation is at or below the **Correlation ceiling** setting (default 0.60): a high correlation means the two fetches matched too closely to be a real ad swap, not proof the region is untouched. Qualifying blocks that touch are merged into one candidate span, and a candidate too stale to score cleanly (e.g. after a different-length ad swap shifted the rest of the file) gets one retry with a widened search window before it is judged.
 

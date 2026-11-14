@@ -53,6 +53,17 @@ def test_trigger_cancel_round_trip_and_events():
     assert fire.call_count == 2
 
 
+def test_trigger_stores_the_reason_redacted():
+    db = Database(); _reset(db); _configure_llm(db)
+    reason = 'detection: HTTPError: 403 for url: https://u:PASS@h.example/v1?key=SECRET'
+    with patch.object(failover.webhook_service, 'fire_failover_event'):
+        assert failover.trigger('llm:primary', reason) is True
+    stored = [failover.state('llm:primary')['reason'], failover.recent_events()[0]['reason']]
+    for value in stored:
+        assert 'SECRET' not in value and 'PASS' not in value
+        assert value.startswith('detection: HTTPError: 403 for url: https://<redacted>@h.example/v1?<redacted>')
+
+
 def test_manual_trigger_sticks_through_auto_cancel():
     db = Database(); _reset(db); _configure_llm(db)
     failover.trigger('llm:primary', 'operator', source='manual')

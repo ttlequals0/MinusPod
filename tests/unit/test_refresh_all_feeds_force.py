@@ -1,9 +1,7 @@
-"""Tests for force propagation in refresh_all_feeds.
+"""force propagation in refresh_all_feeds.
 
-The /feeds/refresh API handler accepts {"force": true} and must thread the
-flag down to refresh_rss_feed so the per-feed 30-second coalesce window is
-bypassed. Without this, clicking "Force Refresh All" in the UI is a silent
-no-op for any feed refreshed in the last 30s.
+The /feeds/refresh handler's {"force": true} must reach refresh_rss_feed to bypass the per-feed 30-second
+coalesce window, or "Force Refresh All" is a silent no-op for recently refreshed feeds.
 """
 import unittest
 from unittest.mock import MagicMock, patch
@@ -30,7 +28,8 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
     @patch('main_app.feeds.get_feed_map')
     def test_default_call_passes_force_false(self, get_feed_map, refresh_rss_feed, db):
         get_feed_map.return_value = {'pod-a': {'in': 'x'}, 'pod-b': {'in': 'x'}}
-        db.get_podcast_row.side_effect = self._subscribed
+        db.get_podcast_feed_urls.return_value = [
+            self._subscribed(s) for s in get_feed_map.return_value]
         refresh_rss_feed.return_value = True
 
         refresh_all_feeds()
@@ -47,7 +46,8 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
     def test_force_true_propagates_to_every_feed(self, get_feed_map, refresh_rss_feed, db):
         get_feed_map.return_value = {'pod-a': {'in': 'x'}, 'pod-b': {'in': 'x'},
                                      'pod-c': {'in': 'x'}}
-        db.get_podcast_row.side_effect = self._subscribed
+        db.get_podcast_feed_urls.return_value = [
+            self._subscribed(s) for s in get_feed_map.return_value]
         refresh_rss_feed.return_value = True
 
         refresh_all_feeds(force=True)
@@ -56,6 +56,21 @@ class TestRefreshAllFeedsForce(unittest.TestCase):
         for call in refresh_rss_feed.call_args_list:
             args, kwargs = call
             self.assertEqual(args[2], True)
+
+    @patch('main_app.feeds.db')
+    @patch('main_app.feeds.refresh_rss_feed')
+    @patch('main_app.feeds.get_feed_map')
+    def test_sweep_reads_feed_rows_in_one_query(self, get_feed_map, refresh_rss_feed, db):
+        get_feed_map.return_value = {s: {'in': 'x'} for s in ('pod-a', 'pod-b', 'pod-c')}
+        db.get_podcast_feed_urls.return_value = [
+            self._subscribed(s) for s in get_feed_map.return_value]
+        refresh_rss_feed.return_value = True
+
+        refresh_all_feeds()
+
+        db.get_podcast_feed_urls.assert_called_once_with()
+        db.get_podcast_row.assert_not_called()
+        self.assertEqual(refresh_rss_feed.call_count, 3)
 
 
 class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
@@ -82,7 +97,6 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         }
         db.get_episodes.return_value = ([], 0)
         rss_parser.fetch_feed_conditional.return_value = (None, '"abc"', None)
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
 
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
 
@@ -142,7 +156,6 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         db.is_only_expose_processed_for_podcast.return_value = False
         db.get_episode_statuses_for_podcast.return_value = ({}, {})
         db.get_feed_render_details.return_value = ({}, {}, {})
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
 
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
 
@@ -240,7 +253,6 @@ class TestFeedDescriptionLength(unittest.TestCase):
             'author': '', 'categories': []}
         rss_parser.extract_podcast_artwork_url.return_value = None
         rss_parser.extract_podping_declaration.return_value = {}
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
 
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
 

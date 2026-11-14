@@ -5,7 +5,7 @@ import logging
 
 from flask import request
 
-from api import api, limiter, log_request, json_response, error_response, get_database
+from api import api, limiter, log_request, json_response, error_response, get_database, retry_after_response
 from api.episodes.common import sponsorblock_block_reason
 from config import known_ad_evidence, normalize_segment_category
 from utils.json_fields import load_json_list
@@ -16,7 +16,7 @@ from youtube import sponsorblock_submit as sbs
 logger = logging.getLogger('podcast.api')
 
 MAX_SUBMIT_SEGMENTS = 20
-_STATUS_CODES = {'rate_limited': 429, 'error': 502}
+_STATUS_CODES = {'error': 502}
 
 
 def _confirmed_markers(db, podcast, episode_id, markers) -> list[dict]:
@@ -94,11 +94,14 @@ def sponsorblock_submit(slug, episode_id):
             return error_response(f'Segment {start}-{end} was already submitted', 400)
         chosen[(match['start'], match['end'])] = match
     markers = list(chosen.values())
-    status, detail, created = sbs.submit(
+    status, detail, created, retry_after = sbs.submit(
         sbs.build_payload(episode['youtube_video_id'], yt_settings.sb_user_id(db), markers))
     results = sbs.build_records(markers, status, detail, created)
     recorded = load_json_list(episode.get('sb_submissions'))
     db.update_episode_sponsorblock(slug, episode_id,
                                    sb_submissions=json.dumps(sbs.merge_records(recorded, results)))
     logger.info(f"[{slug}:{episode_id}] SponsorBlock submit {status} segments={len(results)}")
+    if status == 'rate_limited':
+        return retry_after_response('SponsorBlock rate limited the submission', retry_after, 429,
+                                    in_body=True, extra={'results': results})
     return json_response({'results': results}, _STATUS_CODES.get(status, 200))

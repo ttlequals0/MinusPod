@@ -1,7 +1,5 @@
-"""Unit tests: silence snap settings reach _detect_ads_first_pass (task B3).
-
-Mirrors test_feed_cue_settings_plumbing.py for the cue snap path.
-"""
+"""Silence snap settings reach _detect_ads_first_pass; mirrors test_feed_cue_settings_plumbing.py
+for the cue snap path."""
 import os
 import sys
 import tempfile

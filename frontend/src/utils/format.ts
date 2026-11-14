@@ -1,10 +1,8 @@
 // Shared, output-stable formatting helpers. Each function here had multiple
 // byte-identical copies inlined across pages/components before consolidation.
 
-// Clock-style timestamp: `H:MM:SS` at or above one hour, else `M:SS`. Integer
-// seconds (each field floored). Used for audio positions (cue rows, ad
-// boundaries) and, via settingsUtils.formatDuration, episode-length durations.
-// NaN, Infinity and negatives read 0:00.
+// Clock-style timestamp: `H:MM:SS` from one hour up, else `M:SS`; integer seconds (each field floored). Used
+// for audio positions and, via settingsUtils.formatDuration, episode lengths. NaN, Infinity and negatives read 0:00.
 export function formatTimestamp(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
   const h = Math.floor(seconds / 3600);
@@ -34,6 +32,18 @@ export function formatDateTime(dateStr: string | null): string {
     year: 'numeric', month: 'numeric', day: 'numeric',
     hour: 'numeric', minute: '2-digit',
   });
+}
+
+// Short date and time as separate parts so a narrow tile can break between them; the date
+// drops the year within the current year ("Mar 4," and "3:26 PM").
+export function formatDateTimeParts(dateStr: string, now = new Date()): { date: string; time: string } {
+  const date = new Date(dateStr);
+  return {
+    date: date.toLocaleDateString([], {
+      month: 'short', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+    }),
+    time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+  };
 }
 
 // Past time relative to now ("just now", "5m ago", "3h ago", "2d ago").

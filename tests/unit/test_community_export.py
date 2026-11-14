@@ -194,11 +194,9 @@ def test_build_export_payload_repairs_double_encoded_variants():
 
 
 def test_export_forces_scope_global_even_when_source_is_podcast():
-    """Source instances mostly run patterns at scope='podcast'. The bundle
-    must normalize to 'global' because podcast_id is stripped on export
-    -- a podcast-scoped row without a podcast_id never matches anything.
-    Also confirm podcast_id / network_id never leak into the payload, so
-    a future regression in _strip_metadata can't reintroduce them."""
+    """Source instances mostly run patterns at scope='podcast', but podcast_id is stripped on export,
+    so the bundle must normalize to 'global' (a podcast-scoped row without podcast_id never matches).
+    Also confirm podcast_id / network_id never leak into the payload."""
     pattern = _pattern(scope='podcast', podcast_id='cordkillers-only-audio')
     payload = build_export_payload(pattern, [_sponsor()])
     assert payload['scope'] == 'global'

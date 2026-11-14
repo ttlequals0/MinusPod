@@ -1,8 +1,5 @@
-"""Repeated episode lookups must not refetch the upstream RSS feed.
-
-Podcast clients send a HEAD for every unprocessed episode on every refresh
-cycle, and each one used to pull and parse the whole upstream feed.
-"""
+"""Repeated episode lookups must not refetch the upstream RSS feed (clients send a HEAD per
+unprocessed episode every refresh cycle)."""
 from unittest.mock import MagicMock, patch
 
 import pytest

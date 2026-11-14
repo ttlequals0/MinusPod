@@ -204,11 +204,8 @@ describe('CollapsibleSection bulk expand/collapse', () => {
   });
 });
 
-// Exercises the real component (not the always-open stub LocalFeedPanel.test.tsx
-// mocks CollapsibleSection with) -- that stub is why a validation message
-// nested inside a defaultOpen=false section was never actually caught as
-// invisible: the mock ignores open state entirely and renders children
-// unconditionally. These tests assert the real collapse/forceOpen behavior.
+// Real component, not the always-open stub LocalFeedPanel.test.tsx uses: that stub ignores open state, so
+// it could never catch a validation message hidden inside a collapsed section.
 describe('CollapsibleSection forceOpen', () => {
   it('mounts content when forceOpen is true even though the section defaults closed and was never clicked', () => {
     render(

@@ -3,9 +3,8 @@ import type { CorroborationSource } from '../utils/corroboration';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 import type { FailoverOverview } from './failover';
 
-// Per-feed episode status counts (#466). Keys use the API status aliases
-// (DB 'processed' arrives as 'completed'); 'deferred' is the offline queue.
-// Single frontend source of truth for the status set: the key type and the
+// Per-feed episode status counts (#466). Keys use the API status aliases (DB 'processed' arrives as
+// 'completed'); 'deferred' is the offline queue. Single source of truth for the status set: the key type and
 // display-order array both derive from it.
 export const EPISODE_STATUS_KEYS = [
   'discovered',
@@ -109,6 +108,8 @@ export interface Feed {
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
+  // Per-feed processing order; null follows the global setting.
+  queueOrder?: QueueOrder | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
@@ -270,12 +271,8 @@ export interface Episode {
   durationSkipped?: boolean;
   error?: string | null;
   artworkUrl?: string | null;
-  // Set once, on the first successful processing run, and left untouched
-  // by every reprocess after that (reset_episode_for_reprocess in
-  // reprocess_modes.py never clears it) -- unlike status, which cycles
-  // back through pending/processing on every reprocess, processedAt
-  // presence is the reliable "has this episode ever finished processing"
-  // signal. null/absent means never processed.
+  // Set once on the first successful processing run and never cleared by reprocess (unlike status, which cycles
+  // back through pending/processing). The reliable "ever finished processing" signal; null/absent means never.
   processedAt?: string | null;
   // Per-episode pass-through override (#746): runs download + relay only,
   // no transcription/detection/LLM, even when the feed itself is not in
@@ -327,28 +324,28 @@ export interface SbSubmission {
   detail?: string;
 }
 
-export interface EpisodeNeighbor {
+interface EpisodeNeighbor {
   id: string;
   title: string;
 }
 
 // Cross-fetch differential result (Layer 3), stored per episode as
 // dai_differential. Inner keys are snake_case as produced by fetch_and_diff.
-export interface DaiDifferentialRegion {
+interface DaiDifferentialRegion {
   start_s: number;
   end_s: number;
   kind: 'differential' | 'identical' | 'unknown';
   corr: number | null;
 }
 
-export interface DaiDifferential {
+interface DaiDifferential {
   status: 'ok' | 'no_differential' | 'unreliable_reencode' | 'error';
   regions: DaiDifferentialRegion[];
   refetch_meta?: Record<string, unknown>;
   error?: string | null;
 }
 
-export type UpstreamTranscriptStatus = 'ok' | 'none' | 'unreliable' | 'empty' | 'error';
+type UpstreamTranscriptStatus = 'ok' | 'none' | 'unreliable' | 'empty' | 'error';
 
 // Spans of Whisper audio the publisher's transcript omits.
 export interface UpstreamTranscript {
@@ -361,7 +358,7 @@ export interface UpstreamTranscript {
 // Windows the latest run lost in one pass, and what they were lost to
 // (rate_limit, server_error, connectivity, reasoning_exhausted,
 // output_truncated, empty_completion, context_overflow, other).
-export interface CoverageGap {
+interface CoverageGap {
   failed: number;
   total: number | null;
   failureClasses?: Record<string, number> | null;
@@ -369,10 +366,8 @@ export interface CoverageGap {
 
 export interface EpisodeDetail extends Episode {
   description?: string;
-  // Local feeds only; absent on a subscribed feed's episodes. The
-  // authoritative source for a local episode's season/episode -- an id
-  // like s01e01 is minted once at upload and never renamed, so it can go
-  // stale relative to these once season/episode is edited.
+  // Local feeds only; absent on a subscribed feed's episodes. Authoritative season/episode source: the id (e.g.
+  // s01e01) is minted at upload and never renamed, so it can go stale after an edit.
   seasonNumber?: number;
   episodeNumber?: number;
   originalUrl?: string;
@@ -421,8 +416,8 @@ export interface EpisodeDetail extends Episode {
   rssDuration?: number | null;
   // One entry per processing run, oldest first (#519).
   processingRuns?: EpisodeProcessingRun[];
-  // Set when this episode removed far less ad time than the feed's recent
-  // average -- a lightly-filled DAI copy or a detection miss worth a look.
+  // Set when this episode removed far less ad time than the feed's recent average: a lightly-filled DAI copy
+  // or a detection miss worth a look.
   lowAdYield?: {
     removedSeconds: number;
     feedAverageSeconds: number;
@@ -471,7 +466,7 @@ export interface RunPhaseUsage {
   costSource: 'provider_reported' | 'estimated' | 'explicit_zero' | 'unknown' | 'mixed';
 }
 
-export interface RunSpend {
+interface RunSpend {
   runId: string | null;
   inputTokens: number;
   outputTokens: number;
@@ -482,7 +477,7 @@ export interface RunSpend {
   hasUnknownCost: boolean;
 }
 
-export interface CumulativeSpend {
+interface CumulativeSpend {
   inputTokens: number;
   outputTokens: number;
   costUsd: string;
@@ -494,7 +489,7 @@ export interface CumulativeSpend {
 // Per-run pipeline stats blob (#519). Null-heavy by design: runs recorded
 // before 2.53.0 and recut runs have no blob at all, and a failed run keeps
 // whatever was gathered before the failure.
-export interface ProcessingRunStats {
+interface ProcessingRunStats {
   mode?: string;
   // Skip ad detection (#538): the run made no detection LLM calls and cut
   // nothing; stageHits/detected/verificationAdsCut are absent by design.
@@ -570,7 +565,7 @@ export type ThinkingNoticePass =
   | 'reviewer_pass_2'
   | 'chapter_generation';
 
-export interface ThinkingCompatibilityNotice {
+interface ThinkingCompatibilityNotice {
   pass: ThinkingNoticePass;
   provider: 'anthropic' | 'openrouter' | 'openai-compatible' | 'ollama' | 'unknown';
   model: string;
@@ -620,9 +615,8 @@ export interface RunLogResponse {
   bytes: number;
 }
 
-// Per-cue detection telemetry (#350 follow-up). One row per template cue the
-// matcher surfaced, with how detection used it and the user's review verdict.
-// Advisory only -- a verdict never changes the cut list.
+// Per-cue detection telemetry (#350 follow-up): one row per template cue the matcher surfaced, with how
+// detection used it and the user's review verdict. Advisory only; a verdict never changes the cut list.
 export interface CueDetection {
   id: number;
   template_id?: number | null;
@@ -643,7 +637,7 @@ export interface CueDetection {
   unused_reason?: string | null;
 }
 
-export interface AdValidation {
+interface AdValidation {
   decision: 'ACCEPT' | 'REVIEW' | 'REJECT';
   adjusted_confidence: number;
   original_confidence?: number;
@@ -675,11 +669,15 @@ export interface AdSegment {
   // Present when a silence span snapped this ad's start/end edge (Phase B).
   silence_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   validation?: AdValidation;
-  // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
+  // Ad reviewer (issue #197); populated only when the reviewer ran on this ad.
   reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure' | 'inconclusive';
   reviewer_original_start?: number;
   reviewer_original_end?: number;
   reviewer_reasoning?: string;
+  // Set by pattern stages; reviewer-moved spans keep it.
+  pattern_id?: number | null;
+  // Audio state of the matched pattern; absent when there is no pattern.
+  patternAudioState?: 'active' | 'off' | 'none';
   reviewer_confidence?: number;
   // Why a pass-2 review inside this hold did not release it; the hold stays pending.
   pass2_hold_review?: {
@@ -727,24 +725,33 @@ export interface AdSegment {
   actionApplied?: SegmentAction | null;
 }
 
+export type QueueOrder = 'queued' | 'oldest_first' | 'newest_first';
+
 export interface SettingValue {
   value: string;
   isDefault: boolean;
 }
 
-export interface SettingValueBoolean {
+interface SettingValueBoolean {
   value: boolean;
   isDefault: boolean;
 }
 
-export interface SettingValueNumber {
+interface SettingValueNumber {
   value: number;
   isDefault: boolean;
 }
 
+// A number setting that also reports its accepted range; older servers omit the limits.
+interface SettingValueRange extends SettingValueNumber {
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
 // Int-or-blank settings (failover/per-provider timeout and retry overrides):
 // null means "use the provider type's default", not an unset field.
-export interface SettingValueNumberOrNull {
+interface SettingValueNumberOrNull {
   value: number | null;
   isDefault: boolean;
 }
@@ -757,7 +764,7 @@ export interface ModelPricingOverride {
 
 export type ModelPricingOverrides = Record<string, ModelPricingOverride>;
 
-export interface WhisperHealthInstance {
+interface WhisperHealthInstance {
   instance: string;
   model: string;
   device: string;
@@ -795,7 +802,7 @@ export interface WhisperCapacity {
   health: WhisperHealthProbe;
 }
 
-export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter' | 'typesafe' | 'systemone-compatible';
+export type LlmProvider = 'none' | 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter' | 'typesafe' | 'systemone-compatible';
 // Corner the MinusPod cover-art badge renders in (issue #600).
 export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 // Automatic response to a run that removed far less ad time than the feed
@@ -812,6 +819,7 @@ export interface WhisperApiConfig {
 }
 
 export const LLM_PROVIDERS = {
+  NONE: 'none' as const,
   ANTHROPIC: 'anthropic' as const,
   OPENAI_COMPATIBLE: 'openai-compatible' as const,
   OLLAMA: 'ollama' as const,
@@ -832,6 +840,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProvider[] = [
 ];
 
 export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
+  [LLM_PROVIDERS.NONE]: 'None',
   [LLM_PROVIDERS.ANTHROPIC]: 'Anthropic',
   [LLM_PROVIDERS.OPENROUTER]: 'OpenRouter',
   [LLM_PROVIDERS.OPENAI_COMPATIBLE]: 'OpenAI Compatible',
@@ -865,16 +874,15 @@ export interface SystemOneProfile {
 }
 
 export type SystemOneProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
-export type SystemOneProfileDefaults = Record<SystemOneCredentialSlot, Record<SystemOneProvider, boolean>>;
+type SystemOneProfileDefaults = Record<SystemOneCredentialSlot, Record<SystemOneProvider, boolean>>;
 
 // Sentinel stored in review_provider (and only there): the reviewer inherits
 // both the provider and model of whichever pass it is reviewing.
 export const SAME_AS_PASS = 'same_as_pass';
 
-// Per-stage provider settings store a SLOT, not a provider type: 'primary'
-// routes through llmProvider, 'secondary' through the optional second
-// provider config. Verification/chapters also accept SAME_AS_DETECTION to
-// inherit detection's resolved slot.
+// Per-stage provider settings store a slot, not a provider type: 'primary' routes through llmProvider,
+// 'secondary' through the optional second provider config. Verification/chapters also accept
+// SAME_AS_DETECTION to inherit detection's resolved slot.
 export const SLOT_PRIMARY = 'primary';
 
 export const AUTO_PROCESS_WINDOW = { min: 1, max: 720, default: 48 } as const;
@@ -931,6 +939,7 @@ export interface Settings {
   queueManualBoost: SettingValueNumber;
   queueFreshBoost: SettingValueNumber;
   queueBulkBoost: SettingValueNumber;
+  queueOrder?: { value: QueueOrder; isDefault: boolean; options?: QueueOrder[] };
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   feedItunesBlock: SettingValueBoolean;
@@ -959,6 +968,8 @@ export interface Settings {
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
   jitBlockedUserAgents: { value: string[]; isDefault: boolean };
+  sessionLifetimeHours: SettingValueRange;
+  sessionRememberDays: SettingValueRange;
   opmlModifiedUrl: string | null;
   opmlOriginalUrl: string | null;
   audioBitrate: SettingValue;
@@ -981,6 +992,11 @@ export interface Settings {
   whisperPoolEnabled: SettingValueBoolean;
   whisperPoolMaxRequests: SettingValueNumber;
   whisperPoolMaxEpisodes: SettingValueNumber;
+  fingerprintEnabled: SettingValueBoolean;
+  fingerprintMatchStrictness: SettingValueRange;
+  fingerprintMinCoverage: SettingValueRange;
+  fingerprintGapToleranceS: SettingValueRange;
+  fingerprintMinAdLengthS: SettingValueRange;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;
@@ -1042,6 +1058,8 @@ export interface Settings {
   whisperLanguage: SettingValue;
   whisperComputeType: SettingValue;
   llmProvider: SettingValue;
+  // False when the primary provider is None; the UI reads this, never the provider string.
+  llmEnabled: boolean;
   omitTemperature: SettingValueBoolean;
   llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
@@ -1196,6 +1214,11 @@ export interface Settings {
     failoverWhisperApiModel: string;
     failoverProbeIntervalMinutes: number;
     failoverRecoveryProbes: number;
+    fingerprintEnabled: boolean;
+    fingerprintMatchStrictness: number;
+    fingerprintMinCoverage: number;
+    fingerprintGapToleranceS: number;
+    fingerprintMinAdLengthS: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -1274,6 +1297,7 @@ export interface UpdateSettingsPayload {
   queueManualBoost?: number;
   queueFreshBoost?: number;
   queueBulkBoost?: number;
+  queueOrder?: QueueOrder;
   // Partial map: only the categories being changed need to be present. The
   // backend merges this over the stored global map (unlike the per-feed
   // PATCH, which replaces the stored map outright).
@@ -1303,6 +1327,8 @@ export interface UpdateSettingsPayload {
   downloadGeoLookupEnabled?: boolean;
   downloadHistoryRetentionDays?: number;
   jitBlockedUserAgents?: string[];
+  sessionLifetimeHours?: number;
+  sessionRememberDays?: number;
   audioBitrate?: string;
   audioEncoderCompressionLevel?: string;
   audioReplacementSoundEnabled?: boolean | null;
@@ -1323,6 +1349,11 @@ export interface UpdateSettingsPayload {
   whisperPoolEnabled?: boolean;
   whisperPoolMaxRequests?: number;
   whisperPoolMaxEpisodes?: number;
+  fingerprintEnabled?: boolean;
+  fingerprintMatchStrictness?: number;
+  fingerprintMinCoverage?: number;
+  fingerprintGapToleranceS?: number;
+  fingerprintMinAdLengthS?: number;
   audioCueDetectionEnabled?: boolean;
   audioCueFreqMinHz?: number;
   audioCueFreqMaxHz?: number;
@@ -1683,7 +1714,7 @@ export interface ProcessingHistoryResponse {
   totalPages: number;
 }
 
-export type DownloadGeoStatus = 'ok' | 'private' | 'failed' | 'unresolvable';
+type DownloadGeoStatus = 'ok' | 'private' | 'failed' | 'unresolvable';
 
 export interface DownloadHistoryEntry {
   id: number;
@@ -1833,7 +1864,7 @@ export interface ReviewerStats {
 
 // Per-addressing-mode LLM contract compliance stats, from addressing_log.
 // Always has both keys; a mode with no recorded runs is all zeros.
-export interface AddressingModeStats {
+interface AddressingModeStats {
   runs: number;
   windowsJudged: number;
   windowsCompliant: number;
@@ -2041,7 +2072,7 @@ export interface QueueAdmission {
   resumesAt: string | null;
 }
 
-export interface ReleaseInfo {
+interface ReleaseInfo {
   version: string;
   releaseDate: string | null;
   url: string | null;

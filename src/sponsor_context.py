@@ -141,8 +141,7 @@ def registry_sponsor(sponsor_service, texts: list[str], *, names_sponsor, matche
                      expected: str | None = None) -> tuple[str | None, int, bool]:
     """(brand, mentions, confirmed): the most-named registry brand in commercial context, else the most named.
 
-    expected filters brands. A brand named less often can confirm when a more-named one is only chat.
-    """
+    expected filters brands, so a less-named brand can confirm when a more-named one is only chat."""
     offsets = sponsor_service.brand_mention_offsets(' '.join(texts))
     if expected:
         offsets = {name: found for name, found in offsets.items()

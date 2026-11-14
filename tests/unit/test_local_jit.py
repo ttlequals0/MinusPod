@@ -1,16 +1,6 @@
-"""JIT processing must reuse a retained local original instead of
-re-downloading it, and must never dereference the ``local://<episode_id>``
-sentinel that stands in for a local feed's (nonexistent) upstream URL.
-
-Covers:
-- _download_and_transcribe's fresh-episode branch reuses a retained
-  original when present (no download attempt), for any feed.
-- _download_and_transcribe raises instead of downloading when the feed is
-  local and the retained original is missing.
-- _lookup_episode skips rss_parser.fetch_feed entirely for local feeds.
-- The HEAD path for an unprocessed local episode reports on whatever audio
-  is held locally instead of proxying a (nonexistent) upstream.
-"""
+"""JIT processing reuses a retained local original instead of re-downloading it, and never dereferences the
+``local://<episode_id>`` sentinel standing in for a local feed's nonexistent upstream URL (also covers the
+_lookup_episode and HEAD paths for local feeds)."""
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,20 +16,10 @@ import main_app.routes as routes_mod  # noqa: E402
 from main_app import app, db, storage  # noqa: E402
 
 
-# Every test below creates a podcast (and some also queue a real
-# auto_process_queue row via the queue-busy JIT path) against the shared
-# module-level db/storage singletons -- tests.app_bootstrap's design leaks
-# those singletons across the whole pytest session by intent (see its
-# docstring), so anything left uncleaned here is still sitting in the
-# database when a LATER test module runs in the same session. A leaked
-# pending auto_process_queue row at the head of the queue broke
-# test_offline_queue.py's FIFO-ordering assertions this way in CI.
-# delete_podcast cascades to every FK-linked child table, including
-# auto_process_queue (see its docstring in database/podcasts.py), since
-# this connection runs with foreign_keys on -- so deleting the podcast
-# alone is enough. Deleting every slug this file ever uses, after every
-# single test rather than just the one that ran, keeps this correct even
-# if a test is skipped, parametrized differently later, or fails midway.
+# Tests share module-level db/storage singletons that tests.app_bootstrap deliberately leaks across the session;
+# leftovers broke test_offline_queue.py's FIFO assertions (a leaked pending auto_process_queue row). delete_podcast
+# cascades to all FK children (foreign_keys is on), so removing every slug after every test holds
+# even if one fails midway.
 _ALL_LOCAL_JIT_SLUGS = [
     'archead', 'archead2',
     'locqbusy', 'locproc', 'locfail', 'locperm', 'locmissing',
@@ -173,10 +153,8 @@ def test_skip_transcription_local_missing_original_raises_without_downloading():
 
 
 def test_existing_transcript_local_missing_original_raises_without_downloading():
-    """Reprocess-with-existing-transcript branch: same guard. A local
-    episode being reprocessed should still have its original (keep_original
-    is forced on for local feeds), but if it was ever lost this must not
-    fall through to downloading the local:// sentinel."""
+    """Reprocess-with-existing-transcript branch, same guard: a local episode keeps its original (keep_original is
+    forced on), but if lost it must not fall through to downloading the local:// sentinel."""
     segments = [_seg(0.0, 10.0, 'hi')]
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = 'existing transcript'
@@ -256,10 +234,8 @@ def test_head_local_episode_404s_when_nothing_retained():
     assert resp.status_code == 404
 
 
-# ---------------------------------------------------------------------
-# GET serve_episode: unprocessed local episodes serve the retained
-# original instead of blocking on the single ProcessingQueue slot.
-# ---------------------------------------------------------------------
+# GET serve_episode: unprocessed local episodes serve the retained original instead of blocking on
+# the single ProcessingQueue slot.
 
 def _make_local_podcast_and_episode(slug, episode_id, status, **episode_kwargs):
     db.create_podcast(slug, f'local://{slug}', feed_type='local')
@@ -418,12 +394,10 @@ def test_local_range_request_on_original_returns_206():
 
 
 def test_local_processed_serves_processed_file_fast_path_untouched():
-    """(7) PROCESSED status still serves the processed file, not the
-    original -- the hot-path fast return is untouched."""
+    """(7) PROCESSED status still serves the processed file, not the original: the hot-path fast return is untouched."""
     slug, ep = 'locprocessed', 's01e01'
-    # processed_version is only honored on UPDATE, not on the initial
-    # INSERT (see database/episodes.py upsert_episode) -- create discovered
-    # first, then transition to processed.
+    # processed_version is only honored on UPDATE, not the initial INSERT (database/episodes.py upsert_episode),
+    # so create discovered first, then transition to processed.
     _make_local_podcast_and_episode(slug, ep, status='discovered')
     db.upsert_episode(slug, ep, status='processed', processed_version=1,
                       processed_file=episode_relative_path(ep, 1))
@@ -441,18 +415,12 @@ def test_local_processed_serves_processed_file_fast_path_untouched():
     assert resp.data == b'PROCESSED-BYTES'
 
 
-# ---------------------------------------------------------------------
-# Reprocess window (round-2 review finding 1): a local episode mid-
-# reprocess (status back to pending/processing/failed) must prefer an
-# already-cut processed file still on disk over the raw, ad-laden
-# original.
-# ---------------------------------------------------------------------
+# Reprocess window: a local episode mid-reprocess (pending/processing/failed) must prefer an already-cut
+# processed file still on disk over the raw, ad-laden original.
 
 def test_local_reprocess_window_serves_processed_file_unversioned_url():
-    """(8) status=pending (reprocess just requested, not yet running) with
-    processed_version=1's file still on disk and the original also present
-    -> the unversioned URL serves the ad-free processed file, not the
-    original."""
+    """(8) status=pending (reprocess requested, not yet running) with processed_version=1's file still on disk and
+    the original also present: the unversioned URL serves the ad-free processed file."""
     slug, ep = 'locreprocu', 's01e01'
     _make_local_podcast_and_episode(slug, ep, status='discovered')
     db.upsert_episode(slug, ep, status='pending', processed_version=1,
@@ -501,11 +469,9 @@ def test_local_reprocess_window_serves_processed_file_versioned_url():
 
 
 def test_local_reprocess_window_stale_versioned_url_falls_back_to_current_version():
-    """(10) A client holding a stale -v1 URL from before a second completed
-    reprocess (processed_version now 2, v1's file since pruned) still gets
-    the current v2 processed file during a third reprocess's pending
-    window, not the original -- the "requested version, else current
-    version" fallback order."""
+    """(10) A client holding a stale -v1 URL after a second completed reprocess (processed_version now 2, v1's file
+    pruned) still gets the current v2 file during a third reprocess's pending window, not the original
+    ("requested version, else current version" order)."""
     slug, ep = 'locreprocstale', 's01e01'
     _make_local_podcast_and_episode(slug, ep, status='discovered')
     db.upsert_episode(slug, ep, status='pending', processed_version=2,
@@ -644,13 +610,9 @@ def test_local_historical_published_version_is_served_when_requested():
     assert resp.data == b'PUBLISHED-V1'
 
 
-# ---------------------------------------------------------------------
-# Subscribed-feed regression guards (round-2 review finding 8): the
-# reprocess-window processed-file preference above, and every
-# local-feed branch in serve_episode, is local_feed-gated -- a
-# subscribed feed's PROCESSING/PERMANENTLY_FAILED responses must be
-# byte-for-byte unchanged.
-# ---------------------------------------------------------------------
+# Subscribed-feed regression guards: the reprocess-window processed-file preference above and every local-feed
+# branch in serve_episode are local_feed-gated, so a subscribed feed's PROCESSING/PERMANENTLY_FAILED
+# responses stay byte-for-byte unchanged.
 
 def test_subscribed_feed_processing_still_503():
     """(11) PROCESSING status still 503s for a subscribed feed."""

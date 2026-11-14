@@ -29,7 +29,7 @@ def test_map_correction_cut_overlaps_start():
 
 def test_map_correction_cut_overlaps_end():
     cuts = _build_timestamp_map([{'start': 150.0, 'end': 200.0}])
-    # Visible portion is [100, 150) in original; no cut precedes -- processed
+    # Visible portion is [100, 150) in original; no cut precedes, so processed
     # coordinates equal original coordinates.
     assert _map_correction_to_processed(100.0, 180.0, cuts) == (100.0, 150.0)
 

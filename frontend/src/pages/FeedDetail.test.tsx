@@ -1,16 +1,13 @@
 /**
- * Render test for the podping coverage metadata line on FeedDetail. Heavy
- * feature panels (settings, stats, distribution, cue templates) are stubbed
- * since they are not under test here; only the feed header metadata is
- * exercised.
+ * Podping coverage metadata line on FeedDetail; the heavy feature panels are stubbed.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
-import { refreshFeed, updateFeed } from '../api/feeds';
+import { refreshFeed, reprocessAllEpisodes, updateFeed } from '../api/feeds';
 import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
@@ -24,6 +21,8 @@ vi.mock('react-router', async (importOriginal) => ({
   useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState }),
 }));
 
+const mockGetSettings = vi.hoisted(() => vi.fn());
+vi.mock('../api/settings', () => ({ getSettings: mockGetSettings }));
 vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div data-testid="feed-settings-panel" /> }));
 vi.mock('./feeds/FeedStatsCards', () => ({ default: () => <div data-testid="feed-stats-cards" /> }));
 vi.mock('./feeds/PodcastAdDistributionPanel', () => ({ default: () => <div data-testid="ad-distribution-panel" /> }));
@@ -84,6 +83,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockLocationState = null;
   mockInitialSearch = '';
+  mockGetSettings.mockResolvedValue({ llmEnabled: true });
 });
 
 describe('FeedDetail: podping metadata line', () => {
@@ -95,6 +95,20 @@ describe('FeedDetail: podping metadata line', () => {
     const dialog = screen.getByRole('dialog', { name: 'Reprocess all episodes' });
     expect(dialog.textContent).toContain('Also run pass 1 LLM detection');
     expect(dialog.textContent).not.toContain('re-transcribed');
+  });
+
+  it('describes model-free reprocessing in the menu and confirmation under LLM provider None', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false });
+    renderFeedDetail(makeFeed());
+    await userEvent.click(await screen.findByRole('button', { name: /Reprocess all/ }));
+    await waitFor(() => expect(screen.getByText('Use patterns and the other model-free detectors')).toBeTruthy());
+    expect(screen.queryByText(/AI/)).toBeNull();
+    await userEvent.click(screen.getByRole('menuitem', { name: /Full reprocess/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Reprocess all episodes' });
+    expect(dialog.textContent).toContain('Same as Reprocess while the LLM provider is set to None');
+    vi.mocked(reprocessAllEpisodes).mockResolvedValue({ queued: 2, skipped: 0, mode: 'full' } as never);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reprocess all episodes' }));
+    expect(await screen.findByText(/queued for pattern-assisted reprocessing/)).toBeTruthy();
   });
 
   it('shows the last ping time when one arrived', async () => {

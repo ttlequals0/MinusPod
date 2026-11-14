@@ -1,11 +1,5 @@
-"""Test the 2.0.19 -> 2.0.20 migration of
-podcasts.only_expose_processed_episodes from INTEGER DEFAULT 0 to plain
-nullable INTEGER.
-
-Setup: build a stripped-down podcasts table at the OLD schema, insert
-rows with values 1 and 0, then call _run_schema_migrations and assert
-the column is now nullable with the expected values.
-"""
+"""Migration of podcasts.only_expose_processed_episodes from INTEGER DEFAULT 0 to plain nullable
+INTEGER, keeping values."""
 
 import sqlite3
 

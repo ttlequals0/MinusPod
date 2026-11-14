@@ -42,8 +42,6 @@ class TestFeed304Refresh(unittest.TestCase):
         # Upstream returns 304 (feed_content=None, but etag present)
         rss_parser.fetch_feed_conditional.return_value = (None, '"abc123"', None)
 
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/rss'}
-
         result = refresh_rss_feed('test-podcast', 'https://example.com/rss')
 
         self.assertTrue(result)
@@ -77,8 +75,6 @@ class TestFeed304Refresh(unittest.TestCase):
             (None, '"abc123"', None),      # 304
             ('<rss>full</rss>', '"abc123"', None)  # forced full fetch
         ]
-
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/rss'}
 
         # The full fetch path needs parsed_feed
         parsed_feed = MagicMock()
@@ -114,7 +110,6 @@ class TestFeed304Refresh(unittest.TestCase):
         }
         db.has_episodes.return_value = True
         rss_parser.fetch_feed_conditional.return_value = (None, '"abc123"', None)
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/rss'}
 
         outcome = refresh_rss_feed('test-podcast', 'https://example.com/rss')
 
@@ -140,7 +135,6 @@ class TestFeed304Refresh(unittest.TestCase):
             (None, '"abc123"', None),
             ('<rss>full</rss>', '"abc123"', None),
         ]
-        storage.load_data_json.return_value = {'feed_url': 'https://example.com/rss'}
         parsed_feed = MagicMock()
         parsed_feed.feed.get.side_effect = lambda k, default='': 'Test Podcast' if k == 'title' else default
         parsed_feed.entries = []

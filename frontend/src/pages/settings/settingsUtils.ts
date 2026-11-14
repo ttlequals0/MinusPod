@@ -23,10 +23,6 @@ export function formatTokenRange(inputTokens: number, outputTokens: number): str
   return `${formatTokenCount(inputTokens)} in / ${formatTokenCount(outputTokens)} out`;
 }
 
-export function formatCost(cost: number): string {
-  return `$${cost.toFixed(2)}`;
-}
-
 export function formatStorage(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
   return `${mb.toFixed(1)} MB`;

@@ -9,7 +9,7 @@ from PIL import Image
 
 from scripts.demo.leak_check import check_text
 from scripts.demo.record_live import (
-    KEY_PARAM, QUEUE_KEY, Abort, VALID_LLM_PROVIDERS, encode_uri_component, episode_artwork_targets,
+    KEY_PARAM, QUEUE_KEY, Abort, VALID_LLM_PROVIDERS, encode_uri_component,
     file_for, fixture_key, run, scrub_body, scrub_providers, synthesize_queue, to_jpeg,
 )
 
@@ -41,17 +41,6 @@ def test_scrub_body_masks_feed_keys():
     assert out['url'] == 'https://h/rss?key=demo&a=1'
     assert not check_text(json.dumps(out), 'x', [])
     assert KEY_PARAM.sub(r'\1demo', 'a?key=zz') == 'a?key=demo'
-
-
-def test_episode_artwork_targets_filters_by_date_and_artwork():
-    eps = [
-        {'id': 'new', 'artworkUrl': 'u', 'published': '2026-11-01T00:00:00Z'},
-        {'id': 'old', 'artworkUrl': 'u', 'published': '2026-01-01T00:00:00Z'},
-        {'id': 'noart', 'artworkUrl': None, 'published': '2026-11-01T00:00:00Z'},
-        {'id': 'fallback', 'artworkUrl': 'u', 'published': '', 'createdAt': '2026-10-20T10:00:00'},
-    ]
-    got = [e['id'] for e in episode_artwork_targets(eps, 30, date(2026, 11, 7))]
-    assert got == ['new', 'fallback']
 
 
 def test_to_jpeg_downsizes_to_600():

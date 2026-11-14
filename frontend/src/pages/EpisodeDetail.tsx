@@ -1,3 +1,4 @@
+import { useTransientState } from '../hooks/useTransientState';
 import { pageTitle } from '../components/pageStyles';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { mediaUrl } from '../utils/mediaUrl';
@@ -13,6 +14,8 @@ import {
 import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import { APPROVAL_INVALIDATE_KEYS, getSettings } from '../api/settings';
+import { LLM_DISABLED_REASON, isLlmDisabledError } from './settings/LlmGate';
+import { isLlmEnabled } from '../hooks/useLlmEnabled';
 import { isSystemOneChapterRoute } from './settings/systemoneWarnings';
 import { getErrorMessage, jobStateOf } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
@@ -37,6 +40,7 @@ import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache'
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
+import AddAudioToPatternButton from '../components/AddAudioToPatternButton';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -52,7 +56,7 @@ import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
-import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
+import { iconSizes, iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
@@ -181,13 +185,10 @@ function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: st
   );
 }
 
-// Local episode ids are minted as sNNeNN (2-3 digit season, 2-4 digit
-// episode), from upload_local_episode's `f's{season:02d}e{episode_number:02d}'`
-// (the same scheme local_import.py's _TOKEN_RE parses). The detail endpoint
-// now echoes seasonNumber/episodeNumber directly (they're the authoritative
-// values -- the id is minted once at upload and never renamed, so it can go
-// stale relative to them after an edit); parsing the id is only a fallback
-// for a backend response that omits those fields.
+// Local episode ids are minted as sNNeNN (2-3 digit season, 2-4 digit episode) by upload_local_episode, the
+// scheme local_import.py's _TOKEN_RE parses. The detail endpoint echoes seasonNumber/episodeNumber, which are
+// authoritative (the id is never renamed and can go stale after an edit); parsing the id is only a fallback
+// for a response that omits them.
 const LOCAL_EPISODE_ID_RE = /^s(\d{2,3})e(\d{2,4})$/i;
 
 function parseLocalEpisodeId(id: string): { season: number; episode: number } | null {
@@ -208,12 +209,10 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
   const [episodeNum, setEpisodeNum] = useState(() =>
     String(episode.episodeNumber ?? parseLocalEpisodeId(episode.id)?.episode ?? ''));
   const [publishedAt, setPublishedAt] = useState(toDatetimeLocalInput(episode.published));
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useTransientState(false, 2000);
 
-  // Reseed the form when the episode object identity changes: a successful
-  // save, a background refetch, or navigating to a different episode via
-  // prev/next (the component instance is reused, only props change), same
-  // idiom LocalFeedPanel uses for its feed metadata form.
+  // Reseed the form when the episode object identity changes: a save, a background refetch, or prev/next
+  // navigation (the component instance is reused). Same idiom as LocalFeedPanel's feed metadata form.
   useSyncFromQuery(episode, (ep) => {
     const parsed = parseLocalEpisodeId(ep.id);
     setTitle(ep.title);
@@ -241,7 +240,6 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episode.id] });
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
     },
   });
 
@@ -371,6 +369,16 @@ const downloadChip = btnBase;
 // ?rate=N from a feed description link; stripped once applied.
 const URL_PARAM_DEFAULTS = { rate: '' };
 
+// The span a marker row shows: the pre-trim range for reviewer-adjusted markers.
+function displayedSpan(segment: AdSegment): { start: number; end: number } {
+  const adjusted = segment.reviewer_verdict === 'adjust'
+    && segment.reviewer_original_start !== undefined
+    && segment.reviewer_original_end !== undefined;
+  return adjusted
+    ? { start: segment.reviewer_original_start!, end: segment.reviewer_original_end! }
+    : { start: segment.start, end: segment.end };
+}
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const urlParams = useUrlParams(URL_PARAM_DEFAULTS);
@@ -438,9 +446,11 @@ function EpisodeDetail() {
     enabled: !!episode?.transcriptVttAvailable,
   });
   const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
+  const llmDisabled = !isLlmEnabled(settings);
   const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
   const chapterActionTooltip = chapterSettingsError ? 'Load chapter settings before regenerating chapters.'
     : chapterSettingsPending ? 'Loading chapter settings...'
+      : llmDisabled ? LLM_DISABLED_REASON
       : unsupportedChapterRoute ? chapterRouteWarning : 'Regenerate chapters from existing transcript';
 
   const approveMutation = useMutation({
@@ -514,6 +524,8 @@ function EpisodeDetail() {
     // so refetch for the same reason reprocess does.
     onError: async (error) => {
       console.error('Failed to regenerate chapters:', error);
+      // A stale page learns the provider is None from the refreshed settings.
+      if (isLlmDisabledError(error)) await queryClient.invalidateQueries({ queryKey: ['settings'] });
       await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
@@ -614,11 +626,9 @@ function EpisodeDetail() {
   const handleCorrectionAsync = (correction: AdCorrection): Promise<void> =>
     correctionMutation.mutateAsync(correction).then(() => undefined);
 
-  // Per-row, per-action save status for the Held-for-Review and
-  // Detections-Not-Cut rows. Match on the full row identity plus which
-  // action (confirm / confirm-trimmed / reject) submitted the in-flight
-  // mutation, so a failure on one action doesn't render "Error!" on the
-  // other actions sharing the same row.
+  // Per-row, per-action save status for the Held-for-Review and Detections-Not-Cut rows. Match on the row
+  // identity plus the action (confirm / confirm-trimmed / reject) of the in-flight mutation, so a failure on
+  // one action does not show "Error!" on the others sharing the row.
   const rowSaveStatus = (
     segment: { start: number; end: number; confidence: number; reason?: string },
     kind: 'confirm' | 'confirm-trimmed' | 'reject',
@@ -638,10 +648,8 @@ function EpisodeDetail() {
     return sameAction ? saveStatus : 'idle';
   };
 
-  // Open (or toggle) the editor from a fresh entry point. Reopening must land
-  // on the first ad; a stale index from the last editing session would clamp
-  // to the last ad (#564). handleJumpToAd below is the one entry point that
-  // instead targets a specific ad, so it does not go through this reset.
+  // Open (or toggle) the editor from a fresh entry point. Reopening must land on the first ad; a stale index
+  // would clamp to the last ad (#564). handleJumpToAd below targets a specific ad, so it skips this reset.
   const openEditorFresh = (createMode: boolean) => {
     if (!showEditor) {
       setSavedScrollY(window.scrollY);
@@ -651,10 +659,8 @@ function EpisodeDetail() {
     setShowEditor(createMode ? true : !showEditor);
   };
 
-  // Jump to a specific ad in the editor. Sets the selected index so the modal
-  // renders the right ad (and its own effect seeks audio to the ad start).
-  // Without the index, the modal stays on whichever ad was last selected
-  // (defaulting to 0 on first open).
+  // Jump to a specific ad. Sets the selected index so the modal renders that ad (its own effect seeks audio to
+  // the ad start); otherwise it stays on the last selected ad (0 on first open).
   const handleJumpToAd = (adIndex: number) => {
     setEditorSelectedAdIndex(adIndex);
     if (!showEditor) {
@@ -705,10 +711,8 @@ function EpisodeDetail() {
     return formatStorage(mb);
   };
 
-  // Helper to find correction for an ad marker. 'create' corrections
-  // have original_bounds=null (there is no original -- it's a net-new
-  // marker); guard the dereference so iterating the corrections list
-  // doesn't crash after a create save.
+  // Find the correction for an ad marker. 'create' corrections have original_bounds=null (a net-new marker),
+  // so guard the dereference to avoid crashing after a create save.
   const getAdCorrection = (start: number, end: number) => {
     return episode?.corrections?.find(c =>
       c.original_bounds &&
@@ -717,10 +721,9 @@ function EpisodeDetail() {
     );
   };
 
-  // Batch approve (#509): with several held ads, Confirm ad is decision-only
-  // and one Apply action recuts once for every confirmed hold. A confirm
-  // correction matching a held marker is the durable "approved, not yet
-  // applied" state (the card already shows it as the Confirmed badge).
+  // Batch approve (#509): with several held ads, Confirm ad is decision-only and one Apply action recuts once
+  // for every confirmed hold. A confirm correction matching a held marker is the durable "approved, not yet
+  // applied" state (the card shows it as the Confirmed badge).
   const heldMarkers = episode?.pendingReviewMarkers ?? [];
   const hasHeldSection = heldMarkers.length > 0;
   // The Queue's Episode review tab links here with #held-for-review-section.
@@ -739,11 +742,9 @@ function EpisodeDetail() {
   const oneTapRecut = !!episode?.hasOriginalAudio
     && heldMarkers.length - approvedHeldCount === 1;
 
-  // Windowed playback for Held for Review and Detections Not Cut rows. Both
-  // kinds of markers are never cut, and their times are in the original-audio
-  // timeline, so the retained original is the correct source. No preload when
-  // the original is gone -- the play buttons are hidden then and preload would
-  // fire a wasted request.
+  // Windowed playback for Held for Review and Detections Not Cut rows. These markers are never cut and their
+  // times are in the original-audio timeline, so the retained original is the source. No preload when the
+  // original is gone (the play buttons are hidden, so it would be a wasted request).
   const markerAudioUrl = episodeOriginalUrl(slug!, episodeId!);
   const markerAudition = useAuditionPlayer(
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
@@ -797,23 +798,13 @@ function EpisodeDetail() {
           <AuditionPlayButton {...markerPlayProps}
             playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
             onClick={() => {
-              // Play the displayed span: the pre-trim range for reviewer-adjusted markers.
-              const adjusted = segment.reviewer_verdict === 'adjust'
-                && segment.reviewer_original_start !== undefined
-                && segment.reviewer_original_end !== undefined;
-              markerAudition.toggle(
-                `detected-${segment.start}-${segment.end}`,
-                markerAudioUrl,
-                adjusted ? segment.reviewer_original_start! : segment.start,
-                adjusted ? segment.reviewer_original_end! : segment.end,
-              );
+              const shown = displayedSpan(segment);
+              markerAudition.toggle(`detected-${segment.start}-${segment.end}`, markerAudioUrl, shown.start, shown.end);
             }}
           />
         )}
         <span className="font-mono text-sm">
-          {segment.reviewer_verdict === 'adjust' && segment.reviewer_original_start !== undefined && segment.reviewer_original_end !== undefined
-            ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
-            : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
+          {formatTimestamp(displayedSpan(segment).start)} - {formatTimestamp(displayedSpan(segment).end)}
         </span>
         <SegmentCategoryBadge category={segment.category} />
         {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
@@ -891,6 +882,14 @@ function EpisodeDetail() {
             Jump
           </button>
         )}
+        {segment.detection_stage === 'text_pattern' && segment.pattern_id != null && (
+          <AddAudioToPatternButton
+            patternId={segment.pattern_id}
+            audioState={segment.patternAudioState}
+            hasOriginal={!!episode.hasOriginalAudio}
+            span={{ podcastSlug: slug!, episodeId: episode.id, ...displayedSpan(segment) }}
+          />
+        )}
         {(() => {
           const correction = getAdCorrection(segment.start, segment.end);
           if (correction) {
@@ -965,7 +964,7 @@ function EpisodeDetail() {
   const redetectDisabled = REDETECT_DISABLED_MODES.has(feed?.processingMode);
   const chaptersRegenerating = regenerateChaptersMutation.isPending
     || !!episode.chaptersRegenerating;
-  const menuCopy = reprocessMenuCopy(feed?.feedType);
+  const menuCopy = reprocessMenuCopy(feed?.feedType, !llmDisabled);
   const redetectTooltip = feed?.processingMode && redetectDisabled
     ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
     : menuCopy.redetect.tooltip;
@@ -1013,11 +1012,9 @@ function EpisodeDetail() {
   const showTimeSaved = !!(episode.timeSaved && episode.timeSaved > 0);
   const hasPass2 = !!(episode.adsRemovedVerification && episode.adsRemovedVerification > 0);
 
-  // Verification verdict (#519): the pipeline's second scan of the output
-  // audio. Read from the latest run's stats blob, which records the count
-  // only when the scan completed -- adsRemovedVerification defaults to 0,
-  // so recuts, crashed scans, and pre-feature episodes would otherwise
-  // falsely read as clean.
+  // Verification verdict (#519): the pipeline's second scan of the output audio. Read from the latest run's
+  // stats blob, which records the count only when the scan completed; adsRemovedVerification defaults to 0, so
+  // recuts, crashed scans and pre-feature episodes would otherwise read as clean.
   const audioRuns = (episode.processingRuns ?? []).filter((run) => run.stats?.mode !== 'chapters');
   const latestRun = audioRuns.length ? audioRuns[audioRuns.length - 1] : null;
   const latestCompletedRun = [...audioRuns]
@@ -1248,8 +1245,8 @@ function EpisodeDetail() {
                       tooltip: redetectTooltip,
                       onClick: () => handleReprocess('llm') }] : []),
                     ...(episode.transcriptVttAvailable ? [{
-                      title: 'Regenerate chapters', subtitle: 'Use existing transcript',
-                      disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute,
+                      title: 'Regenerate chapters', subtitle: llmDisabled ? LLM_DISABLED_REASON : 'Use existing transcript',
+                      disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled,
                       tooltip: chapterActionTooltip,
                       onClick: () => regenerateChaptersMutation.mutate() }] : []),
                     { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
@@ -1297,8 +1294,10 @@ function EpisodeDetail() {
           <p className="mt-2 text-sm text-success">Chapters regenerated.</p>
         )}
         {regenerateChaptersMutation.isError && (
-          <p className="mt-2 text-sm text-destructive">
-            {getErrorMessage(regenerateChaptersMutation.error, 'Could not regenerate chapters.')}
+          <p className={`mt-2 text-sm ${isLlmDisabledError(regenerateChaptersMutation.error) ? 'text-muted-foreground' : 'text-destructive'}`}>
+            {isLlmDisabledError(regenerateChaptersMutation.error)
+              ? `Regenerate chapters is unavailable. ${LLM_DISABLED_REASON}`
+              : getErrorMessage(regenerateChaptersMutation.error, 'Could not regenerate chapters.')}
           </p>
         )}
         {!episode.chaptersRegenerating && episode.chaptersRegenError && (
@@ -1391,18 +1390,11 @@ function EpisodeDetail() {
           </div>
         )}
 
-        {/* Local feeds retain the uploaded original even before processing
-            runs (hasOriginalAudio since 2.93.2). Let the operator preview it
-            from the detail page instead of only via the ad editor. Gated to
-            local feeds and non-completed status so the processed-episode
-            player above stays the only player once a run has finished.
-            !processedAt additionally excludes a once-processed episode
-            that's mid-reprocess or failed: status alone cycles back through
-            pending/processing/failed on a reprocess, but processedAt is set
-            once on the first completed run and never cleared afterward (see
-            the neverProcessed comment below), so without this an episode
-            that's already been through the pipeline once would misleadingly
-            show "ad removal hasn't run yet" again. */}
+        {/* Local feeds keep the uploaded original before processing (hasOriginalAudio since 2.93.2), so preview it
+            here. Gated to local feeds and non-completed status so the processed player stays the only one after a
+            run. !processedAt also excludes a once-processed episode that is mid-reprocess or failed: status cycles
+            back through pending/processing, processedAt never clears (see neverProcessed below), and without it
+            that episode would misleadingly show "ad removal hasn't run yet". */}
         {episode.status !== 'completed' && !episode.processedAt
           && feed?.feedType === 'local' && episode.hasOriginalAudio && (
           <div className="mt-4 pt-4 border-t border-border">
@@ -1476,9 +1468,9 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className={iconTarget}
+                    className={iconSizes.base.target}
                   >
-                    <span className={`${iconVisual} ${btnSecondary}`}>
+                    <span className={`${iconSizes.base.visual} ${btnSecondary}`}>
                       <Pencil className="w-4 h-4" aria-hidden="true" />
                     </span>
                   </button>
@@ -1509,10 +1501,8 @@ function EpisodeDetail() {
             )}
           </div>
 
-          {/* AdEditor for reviewing/editing ad detections. The
-              Processed/Original toggle and the "Add ad" button
-              now live INSIDE the modal header, so they remain reachable
-              once the editor is open. */}
+          {/* AdEditor for reviewing/editing ad detections. The Processed/Original toggle and "Add ad" button live
+              inside the modal header so they stay reachable once the editor is open. */}
           {showEditor && episode.status === 'completed' && (
             <div className="mb-4" ref={editorRef}>
               <AdEditor
@@ -1613,13 +1603,10 @@ function EpisodeDetail() {
         (episode.pendingReviewMarkers?.length ?? 0) > 0 ||
         (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
 
-      {/* Standalone waveform editor for one held/rejected marker (issue
-          #563). Deliberately NOT routed through AdEditor: its moved-boundary
-          submits map to type 'adjust', which does not approve a held marker.
-          Here moved boundaries become confirm + adjusted bounds (the 2.60.0
-          trimmed-approve flow), matching what the row buttons file. Bounds
-          are in the original-audio timeline, so the modal is pinned to
-          original audio (no mode toggle, no processed URL). */}
+      {/* Standalone waveform editor for one held/rejected marker (#563). Not routed through AdEditor: its
+          moved-boundary submits map to type 'adjust', which does not approve a held marker. Here moved boundaries
+          become confirm + adjusted bounds (the trimmed-approve flow), as the row buttons file. Bounds are in the
+          original-audio timeline, so the modal is pinned to original audio. */}
       {reviewMarker && (() => {
         const seg = reviewMarker.segment;
         const fromHeld = reviewMarker.fromHeld;
@@ -1696,6 +1683,11 @@ function EpisodeDetail() {
             All held detections are marked not an ad. Re-detect ads to look for
             anything the first run missed, or regenerate the chapters so they
             match the segments you kept.
+            {llmDisabled && (
+              <span id="regenerate-chapters-after-review-reason" className="mt-1 block">
+                Regenerate chapters is unavailable. {LLM_DISABLED_REASON}
+              </span>
+            )}
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <DemoDisabled>
@@ -1713,8 +1705,9 @@ function EpisodeDetail() {
               <DemoDisabled>
                 <button
                   onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
-                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute}
+                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled}
                   title={chapterActionTooltip}
+                  aria-describedby={llmDisabled ? 'regenerate-chapters-after-review-reason' : undefined}
                   data-testid="regenerate-chapters-after-review"
                   className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
                 >

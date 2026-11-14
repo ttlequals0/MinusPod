@@ -1,8 +1,5 @@
-"""Tests for the llm_call_usage ledger begin/finalize API.
-
-Covers single-transaction counter derivation: finalize_llm_attempt must be
-the only writer of token_usage/stats counters for ledgered calls.
-"""
+"""Tests for the llm_call_usage ledger begin/finalize API: finalize_llm_attempt must be the only
+writer of token_usage/stats counters for ledgered calls (single-transaction derivation)."""
 import json
 from decimal import Decimal
 

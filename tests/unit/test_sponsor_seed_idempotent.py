@@ -1,10 +1,8 @@
-"""Tests for SponsorService.seed_initial_data() idempotency.
+"""SponsorService.seed_initial_data() idempotency.
 
-As of 2.4.0 the schema migration is the authoritative seed for sponsors
-(loaded from src/seed_data/validator_known_sponsors.csv). SponsorService.seed_initial_data()
-still runs at startup and is responsible for normalizations; for sponsors it is
-effectively a no-op against the post-migration baseline because every SEED_SPONSORS
-name already exists. These tests pin that idempotency contract.
+The schema migration is the authoritative sponsor seed (src/seed_data/validator_known_sponsors.csv);
+seed_initial_data() still runs at startup for normalizations and is a no-op for sponsors because every
+SEED_SPONSORS name already exists.
 """
 import json
 import sys
@@ -69,8 +67,7 @@ class TestSeedIdempotent:
         assert first_count == second_count
 
     def test_normalizations_still_seeded(self, temp_db):
-        # Normalizations are unaffected by the migration -- SponsorService remains
-        # the only place that seeds them.
+        # Normalizations are unaffected by the migration; SponsorService is the only place that seeds them.
         svc = SponsorService(temp_db)
         svc.seed_initial_data()
         norms = temp_db.get_sponsor_normalizations(active_only=False)

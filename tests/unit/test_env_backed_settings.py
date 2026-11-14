@@ -1,11 +1,8 @@
-"""Tests for the ENV_BACKED_SETTINGS registry + migration in
-src/database/schema/__init__.py and src/config.py.
+"""Tests for the ENV_BACKED_SETTINGS registry + migration in src/database/schema/__init__.py and src/config.py.
 
-The migration's contract: on every boot, rows where is_default=1 re-sync
-to the current env var value. Rows where is_default=0 are NEVER touched.
-A one-shot corrective pass flips is_default for any divergent is_default=1
-row WITHOUT changing the stored value, so no data is lost on any deployer.
-"""
+On every boot, is_default=1 rows re-sync to the current env var value and is_default=0 rows are
+never touched. A one-shot corrective pass flips is_default for divergent is_default=1 rows without
+changing the stored value, so no data is lost."""
 import os
 import sqlite3
 import shutil
@@ -142,7 +139,7 @@ class TestPerBootResync:
         assert row['value'] == 'anthropic'
         assert row['is_default'] == 1
 
-        # User changes env, restart -- value tracks env
+        # User changes env, restart: value tracks env
         with patch.dict(os.environ, {'LLM_PROVIDER': 'openai-compatible'}, clear=False):
             _reload_db(fresh_db_dir)
         row = _row(db_path, 'llm_provider')
@@ -368,10 +365,9 @@ class TestCorrectivePassPerKey:
 
 
 class TestCorrectiveSkipsSeededDefaults:
-    """A row still holding the registry fallback is a seeded default, not a
-    customization: the corrective pass must leave it is_default=1 so an env
-    var set at the upgrade boot applies via the resync (finding: env var
-    permanently deadened on upgraded DBs)."""
+    """A row still holding the registry fallback is a seeded default: the corrective pass leaves it is_default=1.
+
+    That way an env var set at the upgrade boot applies via the resync."""
 
     def test_env_set_at_upgrade_boot_applies_to_seeded_row(self, fresh_db_dir):
         _reload_db(fresh_db_dir)

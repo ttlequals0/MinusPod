@@ -1,10 +1,9 @@
 """Locks the near-miss blindness contract (#350 Phase 6).
 
-A sub-threshold near-miss must be advisory-only: it appears in the cue telemetry
-as a 'below_threshold' row, but it is NOT an audio_cue signal, so prompt / snap /
-pair / detected-cues never see it. This test drives _detect_ads_first_pass with
-one real match and one near-miss and asserts both rows land while only the real
-match is visible to get_signals_by_type('audio_cue').
+A sub-threshold near-miss is advisory-only: it appears in cue telemetry as a
+'below_threshold' row but is not an audio_cue signal, so prompt / snap / pair /
+detected-cues never see it. Drives _detect_ads_first_pass with one real match and
+one near-miss; both rows land but only the real match shows in get_signals_by_type('audio_cue').
 """
 import os
 import sys
@@ -81,7 +80,7 @@ def test_near_miss_is_advisory_only(monkeypatch):
     # The real match snapped the LLM ad start (proves it was a signal).
     assert any('cue_snap' in a for a in ads)
 
-    # Telemetry: exactly two rows -- the real match (snap) and the near-miss
+    # Telemetry: exactly two rows, the real match (snap) and the near-miss
     # (below_threshold). The near-miss never became a signal.
     assert len(processing.db.recorded) == 1
     _, _, records = processing.db.recorded[0]

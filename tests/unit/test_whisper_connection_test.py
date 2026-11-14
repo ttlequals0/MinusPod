@@ -1,6 +1,4 @@
-"""Tests for the whisper remote transcriber connection test (#544).
-
-Covers the probe helpers in transcriber.py and the
+"""Whisper remote transcriber connection test (#544): the probe helpers in transcriber.py and the
 /settings/providers/whisper/test-connection endpoint.
 """
 import json

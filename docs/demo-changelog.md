@@ -2,6 +2,21 @@
 
 This file tracks the hosted demo and its tooling, which are not part of the self-hosted app.
 
+## [Unreleased]
+
+### Added
+
+- The demo answers the new pattern audio routes (`/patterns/{id}/audio` and `/patterns/{id}/audio/matches`) and `/stats/audio-matching`, so the Audio section, Recent matches and the Audio matching stats tiles render in the hosted demo. A route with no recorded fixture gets empty data. Audio playback is disabled in the demo.
+
+### Changed
+
+- The fixture exporter records pattern-audio metadata and paginated match history from the snapshot. Playback remains unavailable because the demo exports no audio files.
+- Match-history notices in the demo explain that its history does not update.
+- The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
+- The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) and the new `queue_order`, `session_lifetime_hours` and `session_remember_days` settings in the demo database.
+- The snapshot export empties the `deferred_upgrade_steps` table, which the app refills on the next start.
+- The snapshot export drops `llm_pre_none_identity`, the setting that remembers a model identity from before the LLM provider was set to None.
+
 ## [2.101.34] - 2026-11-09
 
 ### Added
@@ -11,6 +26,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 ### Changed
 
 - The snapshot export empties `episode_feed_details`, a cache table the app refills on first read.
+- The snapshot export also empties `episode_snap_stats`, the per-episode cache behind the addressing snap distance.
 
 ## [2.101.31] - 2026-11-08
 

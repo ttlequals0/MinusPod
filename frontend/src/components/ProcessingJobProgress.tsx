@@ -4,7 +4,7 @@ import { getStageLabel } from '../utils/processingStage';
 import { focusRing } from './fieldStyles';
 import { formatElapsed } from '../utils/format';
 
-export interface ProcessingJobProgressData {
+interface ProcessingJobProgressData {
   slug: string;
   episodeId: string;
   title: string;

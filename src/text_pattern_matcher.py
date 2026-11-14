@@ -1,9 +1,5 @@
-"""
-Text Pattern Matcher - TF-IDF and fuzzy matching for ad detection.
-
-Uses TF-IDF vectorization with trigrams for content matching and
-RapidFuzz for fuzzy intro/outro phrase detection. This is effective
-for host-read ads that follow similar scripts but aren't identical.
+"""Text Pattern Matcher: TF-IDF (trigrams) content matching plus RapidFuzz intro/outro
+phrase detection, for host-read ads that follow similar but not identical scripts.
 """
 import logging
 import math
@@ -39,7 +35,8 @@ from utils.constants import (
     is_non_brand_name,
     sanitize_sponsor_label,
 )
-from utils.community_tags import UNIVERSAL_TAG
+from utils.community_tags import UNIVERSAL_TAG  # noqa: F401
+from utils.pattern_scope import pattern_passes_scope
 from utils.language import get_pattern_language
 from utils.markers import labels_compatible, member_label
 from utils.pattern_catalog import scoped_catalog
@@ -170,9 +167,9 @@ def trim_piece_to_read(units, segment_bounds, lo, hi, sponsor_re, other_brand_re
                        trim_lead: bool, min_s: float = 0.0) -> tuple[float, float, str] | None:
     """A learned piece narrowed to its sponsor's own copy, or None when it never names the sponsor.
 
-    trim_lead drops the previous read's short tail: the fragment of a segment the piece starts inside,
-    or leading segments set off by a pause; after the last sponsor sentence, a handoff or another
-    read's brand ends the piece. A trim that would leave the read under min_s is not applied.
+    trim_lead drops the previous read's tail (the segment fragment the piece starts
+    inside, or leading segments set off by a pause); a handoff or another brand after
+    the last sponsor sentence ends the piece. A trim leaving under min_s is skipped.
     """
     sentences = untrimmed = _sentences([u for u in units if u['end'] > lo and u['start'] < hi])
     # Only a piece starting inside a segment carries the previous read's tail.
@@ -237,21 +234,17 @@ AD_TRANSITION_PHRASES = [
     "thanks to",
 ]
 
-# Sanity check on ad text / segment length; longer implies contamination with
-# multiple ads. ~230s at 15 chars/sec for the single-ad guard in
-# create_pattern_from_ad. Also used as the per-segment cap for the manual
-# correction paths that call split_template_text.
+# Sanity cap on ad text length (~230s at 15 chars/sec); longer implies several ads.
+# Single-ad guard in create_pattern_from_ad and per-segment cap for split_template_text callers.
 MAX_PATTERN_CHARS = 3500
 
 # Near-duplicate threshold for learning dedupe in create_pattern_from_ad.
 # Applies to canonicalized text (see canonicalize_for_dedupe), not raw text.
 LEARNING_DEDUPE_SIMILARITY_THRESHOLD = 0.9
 
-# Words a sponsor-name guess after a transition phrase should never be (the
-# first word is usually an article or filler, not the brand).
-# Compared case-folded (see _guess_sponsor_from_segment). Credit verbs are
-# here because show credits follow the sponsor read, so the word after a
-# transition phrase is often "produced" rather than a brand.
+# Words a sponsor guess after a transition phrase should never be (usually an
+# article or filler). Compared case-folded (_guess_sponsor_from_segment). Credit
+# verbs are included because show credits follow the read ("produced").
 _SPONSOR_GUESS_SKIP_WORDS = {
     'the', 'our', 'a', 'an', 'and', 'today', 'this',
     'produced', 'hosted', 'edited', 'written', 'presented',
@@ -298,13 +291,14 @@ def required_fuzzy_score(phrase_len: int) -> float:
     base = FUZZY_THRESHOLD * 100
     return min(98.0, base + max(0, FUZZY_DISCRIMINATIVE_LENGTH - phrase_len) * 0.5)
 
-# Emitted matches longer than this (s) are validated against the sponsor brand
-# before being kept. The matcher emits the convex hull of every matched
-# fragment with no length cap, so a false-early anchor or a chained merge can
-# stretch a span minutes past the real ad; a span this long whose audio carries
-# no brand mention there is over-cut. Reuses LONG_AD_WARN (longest reasonable
-# single read); spans at or under it keep the matcher's existing behavior.
+# Matches longer than this (s) are validated against the sponsor brand. The matcher
+# emits the hull of all matched fragments with no cap, so a false-early anchor or
+# chained merge can stretch a span minutes past the ad; one with no brand mention is
+# over-cut. Reuses LONG_AD_WARN (longest reasonable single read).
 MAX_MATCH_DURATION = LONG_AD_WARN
+
+# Seconds around a content match searched for the template's opening and closing phrases
+ALIGN_PAD_S = 20.0
 
 # Proportional TF-IDF window sizing
 WINDOW_SIZES = [500, 1000, 1500, 2500]
@@ -361,10 +355,9 @@ def _guess_sponsor_from_segment(segment: str) -> str | None:
             words = after.strip().split()
             if words:
                 candidate = words[0].strip('.,!?:')
-                # Compare folded: the transcript capitalizes sentence-initial
-                # words, so a raw compare let "The" and "Today" through as
-                # sponsor names. INVALID_SPONSOR_VALUES is the same vocabulary
-                # the detector and pattern creation already reject.
+                # Compare folded: sentence-initial words are capitalized, so a raw
+                # compare let "The"/"Today" through. INVALID_SPONSOR_VALUES matches
+                # what the detector and pattern creation reject.
                 folded = candidate.lower()
                 if (candidate
                         and folded not in _SPONSOR_GUESS_SKIP_WORDS
@@ -376,13 +369,11 @@ def _guess_sponsor_from_segment(segment: str) -> str | None:
 def find_transition_offsets(text: str) -> list[int]:
     """Character offsets of AD_TRANSITION_PHRASES matches in `text`.
 
-    Overlapping and nested matches (e.g. "brought to you by" inside "this
-    episode is brought to you by") collapse to one offset: the earliest, with
-    the cluster extended to the longest phrase found there so a nested hit does
-    not register as a second boundary.
+    Overlapping/nested matches ("brought to you by" inside "this episode is brought
+    to you by") collapse to the earliest offset, extended to the longest phrase there.
 
-    Shared by split_template_text and the split-candidates endpoint, so the ad
-    editor proposes dividers at exactly the points a split would use.
+    Shared with the split-candidates endpoint so the ad editor proposes exactly the
+    dividers a split would use.
     """
     text_lower = text.lower()
 
@@ -412,17 +403,11 @@ def find_transition_offsets(text: str) -> list[int]:
 def split_template_text(text: str) -> list[dict]:
     """Segment ad template text at AD_TRANSITION_PHRASES boundaries.
 
-    Returns a list of {'text': str, 'sponsor': Optional[str]} segments, one
-    per detected sponsor block. Overlapping/nested phrase matches (e.g.
-    "brought to you by" inside "this episode is brought to you by") are
-    deduped to a single split point: the earliest offset, extending the
-    matched span to cover the longest phrase found there so a nested hit
-    doesn't register as a second split point.
+    Returns {'text': str, 'sponsor': Optional[str]} segments, one per sponsor block.
+    Nested phrase matches dedupe to one split point (see find_transition_offsets).
 
-    Fewer than 2 distinct split points means no split is needed: the whole
-    text comes back as a single segment with sponsor=None. Segments below
-    MIN_TEXT_LENGTH are dropped (falling back to a single whole-text segment
-    if that drops everything).
+    Under 2 split points returns the whole text as one segment with sponsor=None.
+    Segments below MIN_TEXT_LENGTH are dropped (whole-text fallback if none remain).
     """
     split_offsets = find_transition_offsets(text)
 
@@ -510,23 +495,11 @@ class AdPattern:
 
 
 class TextPatternMatcher:
-    """
-    Text-based pattern matching for identifying repeated ad reads.
-
-    Uses multiple strategies:
-    1. TF-IDF cosine similarity for overall content matching
-    2. RapidFuzz for fuzzy intro/outro phrase detection
-    3. Keyword spotting for sponsor names
-    """
+    """Text pattern matching for repeated ad reads: TF-IDF cosine similarity, RapidFuzz
+    intro/outro phrases and sponsor keyword spotting."""
 
     def __init__(self, db=None, sponsor_service=None):
-        """
-        Initialize the text pattern matcher.
-
-        Args:
-            db: Database instance for loading patterns
-            sponsor_service: SponsorService for sponsor name lookups
-        """
+        """Args: db (loads patterns), sponsor_service (sponsor name lookups)."""
         self.db = db
         self._match_lock = threading.RLock()
         self._aligned_cache: dict[int, list | None] = {}
@@ -696,10 +669,11 @@ class TextPatternMatcher:
         network_id: str = None,
         podcast_tags: set | None = None,
         language: str | None = None,
+        only_pattern_id: int | None = None,
     ) -> list[TextMatch]:
         with self._match_lock:
             return self._find_matches_locked(
-                segments, podcast_id, network_id, podcast_tags, language)
+                segments, podcast_id, network_id, podcast_tags, language, only_pattern_id)
 
     def _find_matches_locked(
         self,
@@ -708,24 +682,17 @@ class TextPatternMatcher:
         network_id: str = None,
         podcast_tags: set | None = None,
         language: str | None = None,
+        only_pattern_id: int | None = None,
     ) -> list[TextMatch]:
-        """
-        Search transcript segments for known ad patterns.
+        """Search transcript segments ('start', 'end', 'text') for known ad patterns; returns TextMatch list.
 
         Args:
-            segments: List of transcript segments with 'start', 'end', 'text'
-            podcast_id: Optional podcast ID for scope filtering
-            network_id: Optional network ID for scope filtering
-            podcast_tags: Optional set of tag strings for this podcast.
-                Community patterns are filtered out when their sponsor tags
-                share no overlap with the podcast tags (unless the sponsor
-                or podcast has no tags, or the sponsor carries 'universal').
-            language: Optional ISO 639-1 code. Patterns whose source_language
-                is set and differs are excluded (#252). Null on the pattern
-                is treated as language-agnostic (legacy rows).
-
-        Returns:
-            List of TextMatch objects for found ads
+            podcast_id / network_id: Optional scope filters.
+            podcast_tags: Community patterns are dropped when their sponsor tags do
+                not overlap (unless either side has no tags or the sponsor is 'universal').
+            language: Optional ISO 639-1 code. Patterns with a different source_language
+                are excluded (#252); null means language-agnostic.
+            only_pattern_id: Match just this pattern, still scored against the whole catalog.
         """
         if not self.is_available():
             return []
@@ -762,6 +729,9 @@ class TextPatternMatcher:
                 p for p in applicable_patterns
                 if not getattr(p, 'source_language', None) or p.source_language == language
             ]
+
+        if only_pattern_id is not None:
+            applicable_patterns = [p for p in applicable_patterns if p.id == only_pattern_id]
 
         if not applicable_patterns:
             return []
@@ -859,40 +829,14 @@ class TextPatternMatcher:
         - Either side empty -> match (fallback).
         Local and imported patterns bypass the tag check entirely.
         """
-        applicable: list[AdPattern] = []
         podcast_tag_set = set(podcast_tags) if podcast_tags else set()
-
-        for pattern in self._patterns:
-            # Scope gate
-            if pattern.scope == 'global':
-                pass
-            elif pattern.scope == 'network':
-                if not (network_id and pattern.network_id == network_id):
-                    continue
-            elif pattern.scope == 'podcast':
-                if not (podcast_id and pattern.podcast_id == podcast_id):
-                    continue
-            else:
-                continue
-
-            # Tag eligibility (community patterns only)
-            if pattern.source == 'community':
-                sponsor_tags = self._sponsor_tags.get(pattern.sponsor_id, set())
-                if UNIVERSAL_TAG in sponsor_tags:
-                    applicable.append(pattern)
-                    continue
-                if not sponsor_tags or not podcast_tag_set:
-                    applicable.append(pattern)
-                    continue
-                if sponsor_tags & podcast_tag_set:
-                    applicable.append(pattern)
-                    continue
-                # No overlap -> drop this community pattern
-                continue
-
-            applicable.append(pattern)
-
-        return applicable
+        return [
+            pattern for pattern in self._patterns
+            if pattern_passes_scope(
+                pattern.scope, pattern.network_id, pattern.podcast_id, pattern.source,
+                self._sponsor_tags.get(pattern.sponsor_id, set()),
+                podcast_id=podcast_id, network_id=network_id, podcast_tag_set=podcast_tag_set)
+        ]
 
     def _find_content_matches(
         self,
@@ -907,12 +851,9 @@ class TextPatternMatcher:
         if self._pattern_vectors is None or self._pattern_vectors.shape[0] == 0:
             return matches
 
-        # Restrict scoring to the scope/tag/language-filtered subset. The
-        # buckets and self._pattern_vectors are built from ALL patterns at load
-        # time, so scoring against them directly defeats the filter and lets a
-        # wrong-scope / wrong-language pattern match (patterns-service-1), and
-        # in the fallback the filtered `patterns` list and the all-patterns
-        # vector matrix drift out of alignment (patterns-service-2).
+        # Score only the filtered subset: the buckets and self._pattern_vectors cover
+        # ALL patterns, so using them directly lets wrong-scope/language patterns match
+        # and misaligns the filtered `patterns` list with the vector matrix.
         applicable_ids = {p.id for p in patterns}
 
         try:
@@ -977,10 +918,8 @@ class TextPatternMatcher:
                        target_patterns, target_vectors, window_size, step_size):
         """Score sliding windows against a set of pattern vectors.
 
-        All windows are vectorized in a single batched transform (one call
-        instead of one per window). Scores are numerically identical to
-        per-window transforms: TfidfVectorizer.transform treats each
-        document independently.
+        Windows go through one batched transform; scores match per-window ones since
+        TfidfVectorizer.transform treats each document independently.
         """
         from sklearn.metrics.pairwise import cosine_similarity
         import numpy as np
@@ -1249,6 +1188,27 @@ class TextPatternMatcher:
         )
         return start_time
 
+    def align_to_template(self, segments, match, template):
+        """(start, end) of the template's opening and closing phrases near a match, or None when either is missing."""
+        full_text, segment_map = self._concat_segments(segments)
+        bounds = self._char_range(segment_map, segments, match.start - ALIGN_PAD_S, match.end + ALIGN_PAD_S)
+        if bounds is None:
+            return None
+        region_start = bounds[0]
+        region = full_text[region_start:bounds[1]].lower()
+        intro, outro = _extract_intro_phrase(template).lower(), _extract_outro_phrase(template).lower()
+        pos, _, matched = self._fuzzy_find(region, intro, required_fuzzy_score(len(intro)))
+        if not matched:
+            return None
+        start = self._phrase_start_time(region_start, pos, matched, segment_map, segments)
+        # The closing phrase is searched from the opening on, so an earlier repeat of it is not taken
+        tail_start = region_start + pos
+        end_pos, _, end_matched = self._fuzzy_find(region[pos:], outro, required_fuzzy_score(len(outro)))
+        if not end_matched:
+            return None
+        end = self._phrase_end_time(tail_start, end_pos, end_matched, segment_map, segments)
+        return (start, end) if None not in (start, end) and end > start else None
+
     def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
         """Scan forward from intro match for a known outro variant."""
         search_end = min(search_from_pos + MAX_SCAN_CHARS, len(full_text))
@@ -1293,9 +1253,8 @@ class TextPatternMatcher:
     ) -> tuple[float, float]:
         """Convert character positions to timestamps.
 
-        Maps character positions in concatenated text back to word timestamps,
-        falling back to segment edges when words are missing or misaligned.
-        Uses consistent boundary comparison (< for exclusive upper bound).
+        Maps positions in the concatenated text back to word timestamps, falling back
+        to segment edges when words are missing or misaligned. Upper bound is exclusive (<).
         """
         start_time = 0.0
         end_time = 0.0
@@ -1332,12 +1291,9 @@ class TextPatternMatcher:
         current = matches[0]
 
         for match in matches[1:]:
-            # Merge only matches for the same sponsor within 5s (case-folded;
-            # both None counts as same). Merging across sponsors lets one
-            # sponsor's bad anchor drag another's span outward and folds a
-            # co-located ad behind a single label; merging an unattributed
-            # match into a named ad lets brand-free content inherit the sponsor
-            # and ride along as ad. Distinct sponsors stay as separate spans.
+            # Merge only same-sponsor matches within 5s (case-folded; both None counts).
+            # Across sponsors one bad anchor drags another's span outward; merging an
+            # unattributed match into a named ad lets brand-free content ride along.
             same_sponsor = (
                 (current.sponsor or '').lower() == (match.sponsor or '').lower()
             )
@@ -1378,8 +1334,7 @@ class TextPatternMatcher:
     def _get_sponsor_row(self, sponsor):
         """Look up a known-sponsor row (name + aliases) for brand matching.
 
-        Falls back to a name-only row when there is no DB or no stored sponsor
-        so brand matching still works against the bare sponsor string.
+        Falls back to a name-only row when there is no DB or stored sponsor.
         """
         return get_sponsor_row_or_stub(self.db, sponsor)
 
@@ -1388,10 +1343,9 @@ class TextPatternMatcher:
         [start, end] whose text mentions the sponsor brand as a whole word, or
         (None, None) if none do.
 
-        Word-boundary (not substring) matching so a short brand like 'Hims'
-        does not false-match content words like 'whims', which would otherwise
-        anchor the trim on show content and defeat it. Bounds use min/max so
-        the result is correct regardless of segment ordering.
+        Word-boundary matching so a short brand like 'Hims' does not match 'whims'
+        and anchor the trim on show content. Bounds use min/max, so segment order
+        does not matter.
         """
         candidates = brand_match_candidates(sponsor_row)
         if not candidates:
@@ -1411,29 +1365,20 @@ class TextPatternMatcher:
     def _constrain_overlong_spans(self, matches, segments):
         """Bound spans that ran past the real ad into show content.
 
-        The matcher emits the convex hull of every matched fragment with no
-        length cap, so a false-early anchor or a chained merge can stretch a
-        span minutes before/after the actual read. A span longer than a single
-        ad whose audio carries no brand mention there is over-cut. For each
-        match over MAX_MATCH_DURATION:
-        - with a sponsor: trim to the brand-bearing region (shrink only); drop
-          it entirely if the brand never appears in the span.
-        - without a sponsor: drop it. There is no brand to anchor the trim, and
-          clamping to a guessed window could cut show content if the real ad is
-          not where we guess. A later stage can still catch a real ad here.
-        Spans at or under MAX_MATCH_DURATION are returned unchanged.
+        The matcher emits the hull of all matched fragments with no length cap, so a
+        false-early anchor or chained merge can stretch a span minutes past the read.
+        For each match over MAX_MATCH_DURATION:
+        - with a sponsor: shrink to the brand-bearing region; drop if the brand never appears.
+        - without a sponsor: drop it (nothing to anchor a trim; a guessed window could cut
+          show content). A later stage can still catch a real ad here.
+        Shorter spans are returned unchanged.
 
-        Trimming only ever shrinks a span, so it cannot remove more show content
-        than the unbounded matcher already did; the residual failure modes all
-        err toward leaving ad audio in (the safe direction) rather than cutting
-        content:
-        - a genuine >MAX_MATCH_DURATION read whose brand is spoken only mid-span
-          (not at the edges) loses its brand-free intro/outro from the cut;
-        - a real long read whose brand is absent (ASR-garbled, or spoken only
-          as an unlisted form) is dropped and left in the episode;
-        - an over-long span that chains two same-sponsor reads with show content
-          between them keeps that interior content (the trim bounds only the
-          edges, it does not split interior gaps).
+        Trimming only shrinks a span, so residual failures err toward leaving ad audio in:
+        - a real >MAX_MATCH_DURATION read with the brand only mid-span loses its brand-free
+          intro/outro from the cut;
+        - a real long read whose brand is absent (ASR-garbled, unlisted form) is dropped;
+        - a span chaining two same-sponsor reads keeps the interior show content (only
+          the edges are bounded).
         """
         constrained = []
         sponsor_rows = {}
@@ -1607,8 +1552,7 @@ class TextPatternMatcher:
     def _pattern_duration_bounds(self) -> tuple[int, int]:
         """Configured [min, max] source-span duration for a learned pattern.
 
-        isinstance rather than int(): a MagicMock db converts to 1 and would
-        cap every span at one second, which several fixtures would hit.
+        isinstance, not int(): a MagicMock db converts to 1 and would cap spans at one second.
         """
         def read(key: str, fallback: int) -> int:
             value = self.db.get_setting_int(key, fallback) if self.db else None
@@ -1707,13 +1651,11 @@ class TextPatternMatcher:
     ) -> list[dict]:
         """Learn from a detected span, splitting it when it holds several ads.
 
-        A span over the ceiling, with more than one transition phrase, or
-        reading a second advertiser is usually back-to-back reads, and dropping
-        it whole taught nothing. Dividers come from the transcript and, when
-        `ad` is the source marker, from its recorded merge members and measured
-        DAI cuts. Each piece goes through create_pattern_from_ad, so every gate
-        still runs. Returns one {'id', 'start', 'end'} per pattern, so a caller
-        storing an audio fingerprint can key it to the piece it covers.
+        A span over the ceiling, with several transition phrases or a second advertiser
+        is usually back-to-back reads. Dividers come from the transcript and, for a
+        source marker, its merge members and measured DAI cuts. Each piece goes through
+        create_pattern_from_ad (all gates run). Returns one {'id', 'start', 'end'} per
+        pattern so callers can key an audio fingerprint to its piece.
         """
         if not self.db:
             return []
@@ -1866,26 +1808,14 @@ class TextPatternMatcher:
         ad_text: str = None,
         brand_rows: list[dict] = None,
     ) -> int | None:
-        """
-        Create a new ad pattern from a detected ad segment.
+        """Create an ad pattern from a detected ad segment; returns its ID, or None if rejected.
 
         Args:
-            segments: Transcript segments
-            start: Ad start time
-            end: Ad end time
-            sponsor: Sponsor name (optional)
-            scope: Pattern scope ("global", "network", "podcast")
-            podcast_id: Podcast ID for podcast-scoped patterns
-            network_id: Network ID for network-scoped patterns
-            episode_id: Episode ID for tracking pattern origin
-            category: Segment category (#565) the source marker carried.
-                Normalized before storage; None stores NULL, which reads
-                back as 'sponsor'.
-            brand_rows: Registry brand rows the caller already resolved; None
-                looks them up.
-
-        Returns:
-            Pattern ID if created, None otherwise
+            scope: "global", "network" or "podcast"
+            episode_id: Tracks pattern origin
+            category: Segment category (#565) of the source marker; normalized, and
+                None stores NULL (read back as 'sponsor').
+            brand_rows: Registry brand rows already resolved by the caller; None looks them up.
         """
         if not self.db:
             return None
@@ -1912,10 +1842,9 @@ class TextPatternMatcher:
         # ("Sponsored by Acme") would otherwise become the pattern's brand.
         sponsor = clean_sponsor
 
-        # Validate ad duration - reject contaminated multi-ad spans on the
-        # upper end, and short spans on the lower end. Pattern #356 (Patreon,
-        # 8 s) is the canonical floor false-positive: real sponsor reads almost
-        # never fit in under 15 seconds.
+        # Reject contaminated multi-ad spans (upper) and short spans (lower): real
+        # sponsor reads almost never fit in under 15 seconds (an 8 s span was the
+        # canonical false positive).
         MIN_PATTERN_DURATION, MAX_PATTERN_DURATION = self._pattern_duration_bounds()
         duration = end - start
         if duration < MIN_PATTERN_DURATION:
@@ -1973,9 +1902,8 @@ class TextPatternMatcher:
             )
             return None
 
-        # Duration alone missed the contaminated spans that fit under the
-        # ceiling: a second advertiser read inside the span makes the template
-        # match neither brand's ad.
+        # Duration alone misses contaminated spans under the ceiling: a second
+        # advertiser inside makes the template match neither brand's ad.
         foreign = self._contaminating_brands(ad_text, sponsor, brand_rows)
         if foreign:
             logger.warning(
@@ -1984,22 +1912,12 @@ class TextPatternMatcher:
             )
             return None
 
-        # Also covers "never appears at all", which the raw intro substring test
-        # used to catch, less reliably: it missed alternate spellings.
+        # Require the brand at least twice in ad_text (also covers "never appears").
+        # Real ads repeat it (intro + outro); one mention is a host name-drop, which
+        # once became a podcast-scoped pattern via record_verification_misses.
         #
-        # Require the brand to appear at least twice in the ad_text. Real
-        # ads repeat the brand (intro + outro at minimum); a single mention
-        # is a strong signal of a host name-drop rather than a sponsor
-        # read. Pattern #354 (one sponsor) was the canonical
-        # false-positive: host conversation about "the big Globex?" got
-        # passed to record_verification_misses as a missed ad and turned
-        # into a podcast-scoped pattern.
-        #
-        # Counts substring (not word-boundary) so brands that only appear
-        # inside a URL still pass ("DeleteMe" inside joindeleteme.com).
-        # Counts across name + aliases + whitespace-stripped variants so a
-        # sponsor stored as 'statefarm' still scores against a 'State Farm'
-        # transcript and vice versa.
+        # Counts substrings, so URL-only brands pass ("DeleteMe" in joindeleteme.com),
+        # across name, aliases and whitespace-stripped variants ('statefarm' vs 'State Farm').
         if sponsor:
             sponsor_row = self._get_sponsor_row(sponsor)
             occurrences = count_brand_occurrences(ad_text, sponsor_row)
@@ -2082,15 +2000,8 @@ class TextPatternMatcher:
     def split_pattern(self, pattern_id: int) -> list[int]:
         """Split a multi-sponsor pattern into separate patterns.
 
-        Detects ad transition phrases in the pattern text and splits at each
-        transition point to create individual single-sponsor patterns.
-        The original pattern is disabled after successful split.
-
-        Args:
-            pattern_id: ID of the pattern to split
-
-        Returns:
-            List of new pattern IDs created, empty if no split needed/possible
+        Splits at each ad transition phrase into single-sponsor patterns and disables
+        the original on success. Returns the new pattern IDs (empty if no split).
         """
         if not self.db:
             logger.error("Cannot split pattern: no database connection")
@@ -2167,16 +2078,8 @@ class TextPatternMatcher:
     ) -> tuple[bool, float]:
         """Check if text is similar to any false positive.
 
-        Uses TF-IDF cosine similarity to compare candidate text against
-        previously rejected segments.
-
-        Args:
-            text: Candidate text to check
-            false_positive_texts: List of previously rejected segment texts
-            threshold: Minimum similarity score to consider a match
-
-        Returns:
-            Tuple of (is_match, highest_similarity_score)
+        TF-IDF cosine similarity against previously rejected segment texts;
+        threshold is the minimum score for a match. Returns (is_match, highest_score).
         """
         if not text or not false_positive_texts or len(text) < MIN_TEXT_LENGTH:
             return False, 0.0

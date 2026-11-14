@@ -1,9 +1,6 @@
 /**
- * Tests for the queue-hold row in the global status bar.
- *
- * The bar hides itself when nothing is happening. A paused or waiting queue
- * is idle by that measure, so a hold has to count as activity or the one
- * state worth explaining is the one nobody sees.
+ * Queue-hold row in the global status bar. A paused or waiting queue counts as activity, or the bar would
+ * hide the one state worth explaining.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';

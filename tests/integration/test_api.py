@@ -1,8 +1,4 @@
-"""Integration tests for API endpoints.
-
-These tests require the full application with all dependencies.
-Run in Docker container or with complete environment.
-"""
+"""Integration tests for API endpoints; need the full application (Docker container or complete environment)."""
 import pytest
 import json
 import sys

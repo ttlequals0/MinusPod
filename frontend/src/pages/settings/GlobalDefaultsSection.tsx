@@ -6,6 +6,8 @@ import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PodpingServersSection from './PodpingServersSection';
 import { selectBase, labelBase } from '../../components/fieldStyles';
+import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
@@ -68,13 +70,14 @@ function GlobalDefaultsSection({
   differentialFetchMode,
   onDifferentialFetchModeChange,
 }: GlobalDefaultsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection
       title="Global defaults"
       subtitle="Applied to every feed unless overridden on the feed's own settings."
     >
       <div className="space-y-6">
-        <div className="pt-4 border-t border-border">
+        <LlmGate disabled={!llmEnabled} id="global-verification" className="pt-4 border-t border-border">
           <label htmlFor="globalVerificationPass" className={labelBase}>
             Verification pass by default
           </label>
@@ -91,7 +94,7 @@ function GlobalDefaultsSection({
           <p id="globalVerificationPass-help" className="mt-2 text-sm text-muted-foreground">
             Verification scans the processed audio a second time. Feeds can override this setting.
           </p>
-        </div>
+        </LlmGate>
 
         <div className="pt-4 border-t border-border">
           <label htmlFor="differentialFetchMode" className={labelBase}>

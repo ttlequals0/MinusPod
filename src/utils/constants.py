@@ -1,8 +1,4 @@
-"""Shared constants for ad detection and pattern matching.
-
-Centralizes field name sets and classification values that were previously
-duplicated across ad_detector.py and text_pattern_matcher.py.
-"""
+"""Shared constants for ad detection and pattern matching."""
 
 import re
 from enum import Enum
@@ -12,11 +8,9 @@ from enum import Enum
 class EpisodeStatus(str, Enum):
     """Episode lifecycle statuses.
 
-    DISCOVERED..PERMANENTLY_FAILED mirror the schema CHECK constraint on
-    episodes.status (src/database/schema.py:50). COMPLETED is the API-facing
-    alias the frontend sees; src/api/episodes/core.py maps PROCESSED -> COMPLETED
-    in responses. Inherits from str so existing == comparisons against bare
-    literals keep working without a wide-scope refactor.
+    DISCOVERED..PERMANENTLY_FAILED mirror the schema CHECK constraint on episodes.status.
+    COMPLETED is the API-facing alias (src/api/episodes/core.py maps PROCESSED -> COMPLETED).
+    Inherits from str so == comparisons against bare literals keep working.
     """
     DISCOVERED = "discovered"
     PENDING = "pending"
@@ -55,20 +49,16 @@ INVALID_SPONSOR_VALUES = frozenset({
     # offered to pattern learning as a sponsor.
     'continues in next', 'continues from previous', 'continued',
     'continues', 'continuation',
-    # Quantity words that open a reason ("Two consecutive cross-promotion
-    # ads") are the first capitalized run, and became the sponsor. Only a
-    # whole run is rejected, so "Five Guys" still labels. A stored registry
-    # row of one bare count word also stops matching, which is intended.
+    # Quantity words that open a reason ("Two consecutive cross-promotion ads") would
+    # become the sponsor. Only a whole run is rejected, so "Five Guys" still labels.
     'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
     'nine', 'ten', 'several', 'both',
 })
 
-# Claude occasionally returns a reasoning sentence in the `sponsor` slot
-# (e.g. "Inferred from ~26 second gap in transcript with no spoken content").
-# Reject any value that starts with one of these prefixes (case-insensitive)
-# or that contains an unambiguously meta substring. Real sponsor names never
-# do. The text_pattern_matcher rejects these later, but catching them at
-# parse time keeps junk out of the ad dict in the first place.
+# The LLM sometimes returns a reasoning sentence in the `sponsor` slot (e.g. "Inferred
+# from ~26 second gap ..."). Reject values starting with these prefixes (case-insensitive)
+# or containing an unambiguously meta substring; catching them at parse time keeps junk
+# out of the ad dict.
 SPONSOR_REASONING_PREFIXES = (
     'inferred from', 'inferred', 'based on', 'according to',
     'likely ', 'possibly ', 'may be ', 'appears to ', 'seems to ',
@@ -112,13 +102,10 @@ def squash_brand(text) -> str:
 
 
 def is_sponsor_reasoning_rationale(text) -> bool:
-    """True if `text` looks like an LLM reasoning sentence stored in a slot
-    that should hold a brand name or ad description.
+    """True if `text` looks like an LLM reasoning sentence in a slot meant for a brand name or ad description.
 
-    Single source of truth for the 2.5.11 sponsor-field guard
-    (ad_detector/prompts.py:_get_valid_sponsor_value), the 2.5.13 verification-miss
-    `reason` filter (pattern_service.record_verification_misses), and the
-    `_cleanup_low_mention_patterns` migration.
+    Single source of truth for the sponsor-field guard, the verification-miss `reason`
+    filter and the `_cleanup_low_mention_patterns` migration.
     """
     if not text:
         return False
@@ -153,9 +140,9 @@ _POSSESSIVE_LEAD_WORDS = frozenset({
 
 def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
     """The advertiser in an LLM sponsor slot, or None when it names none.
-    A host lead-in ("their friends and sponsors at Acme") and a credit lead-in
-    ("Sponsored by Acme") are stripped; prose, segment/structure labels and the
-    show's own name are rejected."""
+
+    Host and credit lead-ins ("Sponsored by Acme") are stripped; prose, structure labels and the
+    show's name are rejected."""
     if not text:
         return None
     label = str(text).strip()
@@ -193,11 +180,9 @@ def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
 def names_the_show(text, show_name: str | None) -> bool:
     """Whether a sponsor label is just the show's own name.
 
-    A self-promo or listener-support read has no advertiser, so the model
-    puts the show there ("Dailytechnewsshow" for a Patreon thank-you). That
-    is not a sponsor, and it pollutes pattern learning and same-sponsor
-    merging. Compared with separators stripped, so a slug-style rendering
-    still matches.
+    A self-promo or listener-support read has no advertiser, so the model puts the show
+    there, polluting pattern learning and sponsor merging. Compared with separators
+    stripped, so a slug-style rendering still matches.
     """
     if not text or not show_name:
         return False
@@ -259,12 +244,9 @@ KNOWN_SHORT_BRANDS = frozenset({
     'lmnt', 'ag1',
 })
 
-# Sponsor name aliases for common Whisper mishearings / spelling variants.
-# Lookup is lowercase. The value is the canonical sponsor name stored on
-# created patterns. Applied in ad_detector.learn_from_detections and
-# pattern_service.record_verification_misses before sponsor-based gating so
-# the variants merge into one pattern family instead of splitting across
-# parallel misspelled entries.
+# Sponsor aliases for common Whisper mishearings / spelling variants (lowercase key,
+# canonical name stored on patterns). Applied before sponsor-based gating so variants
+# merge into one pattern family.
 SPONSOR_ALIASES = {
     # Xero
     'zero': 'Xero',
@@ -523,11 +505,7 @@ SPONSOR_ALIASES = {
 
 
 def canonical_sponsor(sponsor):
-    """Return ``SPONSOR_ALIASES[sponsor.lower()]`` if present, else ``sponsor`` unchanged.
-
-    Keeps the original casing when there is no alias match so unrelated sponsors
-    are not touched; only known mishearings collapse onto the canonical name.
-    """
+    """Return ``SPONSOR_ALIASES[sponsor.lower()]`` if present, else ``sponsor`` unchanged (casing kept)."""
     if not sponsor or not isinstance(sponsor, str):
         return sponsor
     return SPONSOR_ALIASES.get(sponsor.strip().lower(), sponsor)
@@ -537,12 +515,9 @@ SPONSOR_PATTERN_KEYWORDS = [
     'sponsor', 'brand', 'advertiser', 'company', 'product', 'ad_name', 'note'
 ]
 
-# Invalid capture words - common English words that indicate regex captured garbage
-# e.g., "not an advertisement" -> regex captures "not an" as sponsor.
-# Distinct from NON_BRAND_WORDS below: this set targets English filler/
-# grammatical words that appear at the START of a captured sponsor name
-# (validate_extracted_sponsor in ad_detector). NON_BRAND_WORDS targets
-# ad-domain vocabulary that follows or surrounds a sponsor mention.
+# English filler words that mean a regex captured garbage ("not an advertisement" captures
+# "not an"), checked at the START of a captured name (validate_extracted_sponsor).
+# NON_BRAND_WORDS instead targets ad-domain vocabulary around a sponsor mention.
 INVALID_SPONSOR_CAPTURE_WORDS = frozenset({
     'not', 'no', 'this', 'that', 'the', 'a', 'an', 'another',
     'consistent', 'possible', 'potential', 'likely', 'seems',
@@ -550,12 +525,8 @@ INVALID_SPONSOR_CAPTURE_WORDS = frozenset({
     'clear', 'any', 'some', 'host', 'their', 'its', 'our',
 })
 
-# Ad-domain vocabulary that appears in ad reasons / Claude output but is
-# never a brand name. Used by ad_detector to filter spurious "sponsor"
-# captures pulled from reason strings like "sponsor read" or "ad segment".
-# This set is a strict superset of the inline excluded_words previously
-# defined in extract_sponsor_names (the latter targeted the same domain
-# but was narrower).
+# Ad-domain vocabulary that appears in ad reasons / LLM output but is never a brand name;
+# filters spurious "sponsor" captures from reasons like "sponsor read" or "ad segment".
 NON_BRAND_WORDS = frozenset({
     'ad', 'ads', 'sponsor', 'sponsored', 'advertisement', 'commercial',
     'host', 'read', 'segment', 'content', 'break', 'detected', 'detection',
@@ -602,8 +573,7 @@ _CONTRACTION_SUFFIXES = ("'s", "'re", "'ll", "'ve", "'d", "'m", "n't", "'t")
 def strip_apostrophe_suffixes(name: str, suffixes) -> list[str]:
     """Bases left by stripping one trailing apostrophe suffix from `name`.
 
-    A curly U+2019 matches the ASCII form, so a suffix list only has to spell
-    each ending once. Bases keep the original spelling of what is left.
+    A curly U+2019 matches the ASCII form; bases keep the original spelling.
     """
     text = str(name)
     lowered = text.lower().replace('\u2019', "'")
@@ -622,11 +592,9 @@ AUDIO_SIGNAL_WORDS = frozenset({
     'digital', 'deep', 'pair', 'cue', 'signal',
 })
 
-# Role, credit, and structural labels the model emits when the span has no
-# advertiser to name ("Produced", "Post-signoff", "Non-English"). A name made
-# only of these describes the segment, not a brand. Ad-shape words are listed
-# here rather than read from NON_BRAND_WORDS, which also holds ordinary words
-# real brands are built from ("The Gap", "Content Network", "Full Spot").
+# Role, credit and structural labels the model emits when no advertiser exists
+# ("Produced", "Post-signoff"). A name made only of these is not a brand. Listed here, not
+# read from NON_BRAND_WORDS, which also holds words real brands use ("The Gap").
 STRUCTURAL_LABEL_WORDS = frozenset({
     'produced', 'producer', 'producers', 'production', 'presented',
     'presents', 'hosted', 'edited', 'written', 'narrated',
@@ -636,10 +604,9 @@ STRUCTURAL_LABEL_WORDS = frozenset({
     'mid', 'pre', 'post', 'roll', 'promo',
 })
 
-# Podcast hosting, CDN, and DAI platforms. A domain label naming one of these
-# names the delivery platform, never the advertiser. pattern_service's
-# DAI_PLATFORMS holds the feed-signature domains and is not interchangeable: a
-# platform that also buys ads (Spotify) belongs there and not here.
+# Podcast hosting, CDN and DAI platforms: a domain label naming one is the delivery
+# platform, never the advertiser. Not interchangeable with pattern_service's DAI_PLATFORMS
+# (feed-signature domains): a platform that also buys ads (Spotify) belongs there only.
 PODCAST_HOSTING_NAMES = frozenset({
     'acast', 'megaphone', 'art19', 'omny', 'omnycontent', 'simplecast',
     'spreaker', 'podbean', 'anchor', 'libsyn', 'buzzsprout', 'captivate',
@@ -740,10 +707,9 @@ def is_brand_token(token) -> bool:
         return False
     return not (is_non_brand_name(key) or is_hosting_platform_name(key))
 
-# Vocabulary the model reaches for when describing an ad's shape or evidence,
-# plus the pronouns it quotes ("We'll be right back"). Read only by the
-# sponsor labeler. Kept out of NON_BRAND_WORDS because that set also filters
-# boundary-relocation keywords, where losing "back" or "block" costs hits.
+# Words the model uses to describe an ad's shape or evidence, plus quoted pronouns
+# ("We'll be right back"). Sponsor labeler only; kept out of NON_BRAND_WORDS, which also
+# filters boundary-relocation keywords where losing "back" or "block" costs hits.
 REASON_DESCRIPTION_WORDS = frozenset({
     'orphaned', 'contiguous', 'dai', 'url', 'back', 'block', 'lead',
     'fragment', 'leftover', 'confirmed', 'merged', 'missed', 'spots',
@@ -778,9 +744,9 @@ _ECHO_COUPLED_RE = re.compile(
 
 
 def mentions_advertising(text) -> bool:
-    """True if `text` calls the span an ad, the positive evidence the detection
-    gate needs. Separate from the sponsor labeler, which answers what the
-    advertiser is called and names the first capitalized word of any sentence.
+    """True if `text` calls the span an ad (the detection gate's positive evidence).
+
+    Separate from the sponsor labeler, which names the first capitalized word of any sentence.
     """
     if not text:
         return False

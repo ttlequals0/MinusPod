@@ -1,15 +1,9 @@
 /**
- * apiRequest's retry-on-429 behavior (round-2 review finding 2): a 429
- * must retry (bounded, honoring the schedule in RETRY_DELAYS) rather than
- * immediately reject, and when the response carries a numeric-seconds
- * Retry-After header that value is used for the wait instead of the fixed
- * backoff schedule.
- *
- * fetch is mocked directly (not through an api/*.ts wrapper) since these
- * tests exercise apiRequest itself, the shared retry machinery every
- * wrapper funnels through.
+ * apiRequest retries 429 (bounded, per RETRY_DELAYS) instead of rejecting, and waits for a numeric-seconds
+ * Retry-After header when present. fetch is mocked directly to hit the shared retry path.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getAuthStatus } from './auth';
 import { ApiError, apiFileRequest, apiRequest } from './client';
 
 // Minimal fetch Response stand-in: only the surface apiRequest actually
@@ -75,6 +69,28 @@ describe('apiRequest: retry on 429', () => {
     const promise = apiRequest('/idempotent-action', { method: 'POST', retry: true });
     await vi.advanceTimersByTimeAsync(1000);
 
+    expect(await promise).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws at once when a 429 asks to wait longer than 5 s', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ error: 'rate limited' }, 429, { 'Retry-After': '3600' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const error = await apiRequest('/x').catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('waits a 2 s Retry-After on a 429 then retries', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(fakeResponse({ error: 'rate limited' }, 429, { 'Retry-After': '2' }))
+      .mockResolvedValueOnce(fakeResponse({ ok: true }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x');
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
     expect(await promise).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -176,5 +192,224 @@ describe('413 mapping', () => {
     const error = await apiFileRequest('/x', { method: 'POST' }).catch((e: unknown) => e);
 
     expect((error as Error).message).toBe('The file is too large for the server or a proxy in front of it.');
+  });
+});
+
+describe('apiRequest: 503 with retry off', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('throws once and exposes Retry-After on the error', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ error: 'busy' }, 503, { 'Retry-After': '7' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await apiRequest('/x', { retry: false }).catch((e: unknown) => e);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((error as ApiError).status).toBe(503);
+    expect((error as ApiError).retryAfterMs).toBe(7000);
+  });
+});
+
+describe('apiRequest: 503 with Retry-After', () => {
+  const busy = () => fakeResponse({ error: 'busy' }, 503, { 'Retry-After': '5' });
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('waits the Retry-After delay and retries until the request succeeds, within the budget', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
+      .mockResolvedValue(fakeResponse({ ok: 1 }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await promise).toEqual({ ok: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    ['0', 1000],
+    ['999', 30_000],
+    ['soon', 5000],
+    ['Wed, 21 Oct 2026 07:28:00 GMT', 5000],
+  ])('waits Retry-After %j for %i ms inside the budget', async (header, ms) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(fakeResponse({ error: 'busy' }, 503, { 'Retry-After': header }))
+      .mockResolvedValue(fakeResponse({ ok: 1 }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 });
+    await vi.advanceTimersByTimeAsync(ms - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps waiting without spending the generic retries, then throws the 503 once the budget is spent', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(busy());
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 62_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(66_000);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(13);
+    expect((error as ApiError).status).toBe(503);
+    expect((error as ApiError).retryAfterMs).toBe(5000);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ignores a long Retry-After without a budget: fixed 1 s then 3 s backoff, 4 s total', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ error: 'busy' }, 503, { 'Retry-After': '99999' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x').catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect((error as ApiError).status).toBe(503);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([502, 504, 429, 500])('keeps the normal retry for a %i inside the budget', async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ error: 'x' }, status));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(5000);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect((error as ApiError).status).toBe(status);
+  });
+
+  it('keeps the normal retry for a 503 without Retry-After inside the budget', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ error: 'down' }, 503));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3000);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect((error as ApiError).retryAfterMs).toBeNull();
+  });
+
+  it.each(['POST', 'PUT', 'DELETE'])('never retries a %s on a 503, whatever the budget', async (method) => {
+    const fetchMock = vi.fn().mockResolvedValue(busy());
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { method, busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(60_000);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((error as ApiError).status).toBe(503);
+  });
+
+  it('stops waiting when the caller aborts', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(busy());
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000, signal: controller.signal }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(vi.getTimerCount()).toBe(1);
+    controller.abort(new Error('unmounted'));
+    expect(((await promise) as Error).message).toBe('unmounted');
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets the generic attempts after each busy answer, so spread-out network blips do not end the wait', async () => {
+    const down = new TypeError('Failed to fetch');
+    const fetchMock = vi.fn().mockRejectedValueOnce(down).mockResolvedValueOnce(busy()).mockRejectedValueOnce(down)
+      .mockResolvedValueOnce(busy()).mockRejectedValueOnce(down).mockResolvedValue(fakeResponse({ ok: 1 }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await promise).toEqual({ ok: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('still fails after three network errors in a row with no busy answer between them', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await promise).toBeInstanceOf(TypeError);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not wait on a mutating request even with retry: true and a budget', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(busy());
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { method: 'POST', retry: true, busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(60_000);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((error as ApiError).status).toBe(503);
+  });
+
+  it('retries a network error', async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(fakeResponse({ ok: 1 }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(await promise).toEqual({ ok: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('auth status during a deploy', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('fails within 4 s of fake time when the server answers 503 with a long Retry-After', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ error: 'busy' }, 503, { 'Retry-After': '3600' })));
+    const caught = getAuthStatus().catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(((await caught) as ApiError).status).toBe(503);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('retry wait and abort', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('removes its abort listener when the wait timer fires', async () => {
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(fakeResponse({ error: 'rate limited' }, 429, { 'Retry-After': '1' }))
+      .mockResolvedValueOnce(fakeResponse({ ok: true }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { signal: controller.signal });
+    await vi.advanceTimersByTimeAsync(1000);
+    await promise;
+    expect(add.mock.calls.filter(([type]) => type === 'abort')).toHaveLength(1);
+    expect(remove.mock.calls.filter(([type]) => type === 'abort')).toHaveLength(1);
+  });
+
+  it('rejects with the abort reason when aborted during the wait', async () => {
+    const controller = new AbortController();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ error: 'rate limited' }, 429, { 'Retry-After': '4' })));
+    const done = apiRequest('/x', { signal: controller.signal }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10);
+    controller.abort(new Error('stop'));
+    expect(((await done) as Error).message).toBe('stop');
   });
 });

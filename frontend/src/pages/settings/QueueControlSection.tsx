@@ -28,6 +28,8 @@ import { getErrorMessage } from '../../api/client';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import type { QueueOrder } from '../../api/types';
+import { queueOrderChoices } from '../../utils/queueOrder';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-queue-control';
@@ -42,6 +44,9 @@ interface QueueControlSectionProps {
   onQueueFreshBoostChange: (value: number) => void;
   queueBulkBoost: number;
   onQueueBulkBoostChange: (value: number) => void;
+  queueOrder: QueueOrder;
+  queueOrderOptions?: readonly QueueOrder[];
+  onQueueOrderChange: (value: QueueOrder) => void;
 }
 
 function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
@@ -152,7 +157,7 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
             setDraft({ ...draft, displayCurrency: currency });
             setBudgetDirty(true);
           }}
-          className={`${inputBase} w-full disabled:opacity-50`}
+          className={`${selectBase} w-full disabled:opacity-50`}
         >
           <option value="USD">USD, US Dollar</option>
           {draft.displayCurrency !== 'USD' && !hasSelectedCurrency && <option value={draft.displayCurrency}>{draft.displayCurrency}</option>}
@@ -430,6 +435,9 @@ function QueueControlSection({
   onQueueFreshBoostChange,
   queueBulkBoost,
   onQueueBulkBoostChange,
+  queueOrder,
+  queueOrderOptions,
+  onQueueOrderChange,
 }: QueueControlSectionProps) {
   // Both hold blocks read their own endpoint, each of which counts deferred
   // episodes; skip that until the section is on screen.
@@ -470,11 +478,11 @@ function QueueControlSection({
         </div>
 
         {/* Queue priority: how far each kind of request jumps the queue.
-            Higher number processes sooner; ties process oldest first. */}
+            Higher number processes sooner; equal priorities follow the processing order. */}
         <div className="pt-4 border-t border-border">
-          <p className="text-sm font-medium text-foreground mb-1">Queue priority</p>
+          <h3 className={`${subHeading} mb-1`}>Queue priority</h3>
           <p className="text-sm text-muted-foreground mb-3">
-            How far each request type jumps the queue. Ties process oldest first.
+            How far each request type jumps the queue. Episodes with the same priority follow the Processing order setting.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
@@ -532,6 +540,26 @@ function QueueControlSection({
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Processing order: within-feed order for equal-priority episodes, saves immediately */}
+        <div className="pt-4 border-t border-border">
+          <h3 id="queueOrder-heading" className={`${subHeading} mb-1`}>Processing order</h3>
+          <p id="queueOrder-help" className="text-sm text-muted-foreground mb-3">
+            Applies within each feed. Priorities still come first.
+          </p>
+          <DemoDisabled>
+            <select
+              id="queueOrder"
+              value={queueOrder}
+              onChange={(e) => onQueueOrderChange(e.target.value as QueueOrder)}
+              className={`${selectBase} w-full sm:w-auto`}
+              aria-labelledby="queueOrder-heading"
+              aria-describedby="queueOrder-help"
+            >
+              {queueOrderChoices(queueOrderOptions, queueOrder).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </DemoDisabled>
         </div>
 
         <div className="pt-4 border-t border-border">

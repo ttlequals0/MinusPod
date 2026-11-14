@@ -102,10 +102,9 @@
   }
 }
 
-/* Themed scrollbars: track follows the page background, thumb uses a subtle
-   border-toned grey so it reads on the true-black Obsidian theme and every
-   other theme alike. Kept in @layer base so the .no-scrollbar utility (in
-   @layer utilities) still overrides scrollbar-width where applied. */
+/* Themed scrollbars: track follows the page background, thumb a subtle border-toned grey so it reads on the
+   true-black Obsidian theme and every other. In @layer base so .no-scrollbar (in @layer utilities) still
+   overrides scrollbar-width. */
 @layer base {
   * {
     scrollbar-width: thin;
@@ -145,10 +144,9 @@
 /* Hide default disclosure triangle on <summary> across browsers */
 summary.list-none::-webkit-details-marker { display: none; }
 
-/* One yellow for every search highlight: the <mark> snippets on the global
-   Search page and the live CSS Custom Highlight API matches in the settings
-   search. Pinning <mark> also makes it identical across browsers (the default
-   varies). Dark text stays legible on the fill in both light and dark themes. */
+/* One yellow for every search highlight: the <mark> snippets on the Search page and the CSS Custom Highlight
+   API matches in settings search. Pinning <mark> also makes it identical across browsers; dark text stays
+   legible on the fill in light and dark themes. */
 mark,
 *::highlight(settings-search) {
   background-color: hsl(var(--highlight));
@@ -164,10 +162,37 @@ mark,
   summary:not(.flex) { padding-block: 12px; }
 }
 
-/* Height is a hard floor (above); width is a default in the base layer, so a button's own min-w-* utility wins. */
+/* WebKit sizes a native select and a time input with its own metrics (short select, wide time input), so both follow the
+   field recipe as plain boxes. The chevron is two --muted-foreground strokes; unlayered so it beats the px-3 padding. */
+select {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-image:
+    linear-gradient(to top right, transparent calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% + 0.75px), transparent calc(50% + 0.75px)),
+    linear-gradient(to top left, transparent calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% - 0.75px), hsl(var(--muted-foreground)) calc(50% + 0.75px), transparent calc(50% + 0.75px));
+  background-position: calc(100% - 1.1rem) 50%, calc(100% - 1.1rem + 0.35rem) 50%;
+  background-size: 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+/* Forced colors drop background images, so the native arrow returns */
+@media (forced-colors: active) {
+  select { appearance: auto; background-image: none; padding-right: 0.75rem; }
+}
+input[type="time"] { appearance: none; min-width: 0; }
+input[type="time"]::-webkit-date-and-time-value { text-align: left; }
+/* One explicit height for a select and a single-line input. Base layer so an h-* utility (h-auto) wins; the coarse 44px
+   floor is the unlayered min-height above. */
+@layer base {
+  select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]) { height: 2.5rem; }
+  @media (pointer: coarse) {
+    select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]) { height: 44px; }
+  }
+}
+
+/* Height is a hard floor (above); width is a default in the base layer, so a control's own min-w-* utility wins. */
 @layer base {
   @media (pointer: coarse) {
-    button, summary, [role="switch"] { min-width: 44px; }
+    button, summary, [role="switch"], .touch-target { min-width: 44px; }
   }
 }
 

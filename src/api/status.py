@@ -24,8 +24,7 @@ from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
 from youtube import settings as yt_settings, sponsorblock
 from api.auth_state import (
-    SESSION_GENERATION_KEY, authentication_required, current_generation,
-    session_is_authenticated,
+    SESSION_GENERATION_KEY, authentication_required, current_auth, current_generation,
 )
 
 logger = logging.getLogger('podcast.api')
@@ -79,12 +78,10 @@ def _offline_service_views(db) -> list[dict]:
 def _build_hold_block(db) -> dict:
     """Queue hold state: the rate-limit pause and any offline-queue waits.
 
-    Reports what the maintenance tick last observed. Nothing here probes a
-    service, so an open SSE stream cannot generate outbound traffic.
-
-    holdUntil/holdSince surface whichever active hold, legacy or any
-    provider-scoped one, resets latest, so the dashboard still shows a
-    pause while any provider is held, even one that isn't the default.
+    Reports what the maintenance tick last observed; nothing probes a service, so an open SSE
+    stream cannot generate outbound traffic. holdUntil/holdSince come from whichever active
+    hold (legacy or provider-scoped) resets latest, so the dashboard shows a pause while any
+    provider is held, even a non-default one.
     """
     hold_until, hold_since = get_any_active_hold(db)
     return {
@@ -125,9 +122,8 @@ def hold_block() -> dict:
 def status_payload(status=None) -> dict:
     """Status snapshot plus the queue hold block.
 
-    status_service is file-backed and imports no database on purpose, so the
-    hold state is merged here instead, where both the stream and the one-time
-    GET pick it up from the same place.
+    status_service is file-backed and imports no database on purpose, so the hold state is
+    merged here, where the stream and the one-time GET both pick it up.
     """
     db = get_database()
     payload = get_status_service().to_dict(status)
@@ -165,20 +161,12 @@ def _payload_version(payload: dict) -> str:
 
 # ========== Status Stream Endpoint (SSE) ==========
 
-def _is_authenticated() -> bool:
-    """Mirror the api.before_request auth rule. When no password is set
-    there is no auth to enforce; otherwise the session flag is required.
-    """
-    db = get_database()
-    return session_is_authenticated(db)
-
-
 @api.route('/status/stream', methods=['GET'])
 def status_stream():
     """Compatibility SSE stream with a 30-second lifetime and bounded slots."""
     # The generator cannot use Flask's session proxy after request teardown,
     # so capture the cookie generation and compare it with shared DB state.
-    authenticated_at_connect = _is_authenticated()
+    authenticated_at_connect = current_auth().authenticated
     generation_at_connect = session.get(SESSION_GENERATION_KEY)
 
     if _SSE_SLOTS is None:

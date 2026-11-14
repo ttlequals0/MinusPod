@@ -6,8 +6,9 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, limiter,
 )
+from api import preview_cache
 from config import (
-    OPENROUTER_BASE_URL, DEFAULT_AUDIO_BITRATE,
+    OPENROUTER_BASE_URL, FINGERPRINT_SETTING_RANGES, DEFAULT_AUDIO_BITRATE,
     DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
@@ -36,7 +37,7 @@ from database.settings import (
     registry_default, registry_get_default,
 )
 from llm_client import (
-    get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
+    get_effective_provider, llm_disabled, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
 )
 from utils.opml import modified_feed_url
 from api.settings import common, operations
@@ -84,10 +85,9 @@ def _build_settings_payload():
     verification_model = common._setting_value(settings, 'verification_model')
     chapters_model = common._setting_value(settings, 'chapters_model')
 
-    # Per-phase provider routing overrides: a SLOT (primary/secondary), not
-    # a provider type (see llm_route.py). Unset (None) means "inherit":
-    # verification/chapters fall back to detection's slot, detection falls
-    # back to primary.
+    # Per-phase provider routing overrides: a SLOT (primary/secondary), not a provider type
+    # (see llm_route.py). Unset (None) inherits: verification/chapters use detection's slot,
+    # detection uses primary.
     detection_provider = common._setting_value(settings, 'detection_provider')
     verification_provider = common._setting_value(settings, 'verification_provider')
     chapters_provider = common._setting_value(settings, 'chapters_provider')
@@ -108,6 +108,8 @@ def _build_settings_payload():
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
     chapters_mode = common._setting_value(
         settings, 'chapters_mode', registry_default('chapters_mode'))
+    queue_order = common._setting_value(
+        settings, 'queue_order', registry_default('queue_order'))
     skip_second_pass = coerce_bool_setting(common._setting_value(
         settings, 'skip_second_pass', registry_default('skip_second_pass')))
     transcript_differential_enabled = coerce_bool_setting(common._setting_value(
@@ -417,6 +419,8 @@ def _build_settings_payload():
     max_artwork_bytes = get_env_backed_int(
         'max_artwork_bytes', floor=MAX_ARTWORK_BYTES_MIN,
         ceiling=MAX_ARTWORK_BYTES_MAX, settings=settings)
+    session_lifetime_hours = get_env_backed_int('session_lifetime_hours', settings=settings)
+    session_remember_days = get_env_backed_int('session_remember_days', settings=settings)
     max_rss_bytes = get_env_backed_int(
         'max_rss_bytes', floor=MAX_RSS_BYTES_MIN, settings=settings)
     max_audio_download_mb = get_env_backed_int(
@@ -490,10 +494,9 @@ def _build_settings_payload():
             settings, 'review_max_boundary_shift', registry_default('review_max_boundary_shift')))
     except (ValueError, TypeError):
         review_max_boundary_shift = registry_get_default('review_max_boundary_shift')
-    # `or DEFAULT` (not just the _setting_value fallback) so a stored empty/whitespace
-    # row also yields the default text -- _setting_value only covers a missing row, so a
-    # blank one would render an unrecoverable empty textarea. All four prompts share this
-    # contract, hence the same coalesce on system/verification below.
+    # `or DEFAULT` (not just the _setting_value fallback) so a stored empty/whitespace row also
+    # yields the default text: _setting_value only covers a missing row, and a blank one would
+    # render an unrecoverable empty textarea. All four prompts share this contract.
     review_prompt = common._setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT) or DEFAULT_REVIEW_PROMPT
     resurrect_prompt = common._setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
     chapter_prompt = common._setting_value(settings, 'chapter_prompt', DEFAULT_CHAPTER_PROMPT) or DEFAULT_CHAPTER_PROMPT
@@ -559,6 +562,11 @@ def _build_settings_payload():
     audio_cue_pair_max_break_fraction = _cue_num('audio_cue_pair_max_break_fraction', AUDIO_CUE_PAIR_MAX_BREAK_FRACTION)
     audio_cue_pair_orient_window = _cue_num('audio_cue_pair_orient_window_seconds', AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS)
 
+    fingerprint_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'fingerprint_enabled', registry_default('fingerprint_enabled')))
+    fingerprint_values = {
+        key: _cue_num(key, FINGERPRINT_SETTING_RANGES[key][0]) for key in FINGERPRINT_SETTING_RANGES}
+
     # Silence-snap tunables (Phase B boundary snap)
     silence_snap_noise_db = _cue_num('silence_snap_noise_db', SILENCE_SNAP_NOISE_DB)
     silence_snap_min_duration = _cue_num('silence_snap_min_duration_seconds', SILENCE_SNAP_MIN_DURATION_SECONDS)
@@ -592,6 +600,7 @@ def _build_settings_payload():
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
         'queueManualBoost': _sv('queue_manual_boost', queue_manual_boost),
         'queueFreshBoost': _sv('queue_fresh_boost', queue_fresh_boost),
+        'queueOrder': _sv('queue_order', queue_order),
         'queueBulkBoost': _sv('queue_bulk_boost', queue_bulk_boost),
         'podpingEnabled': _sv('podping_enabled', podping_enabled),
         'segmentCategoryActions': _sv(
@@ -673,6 +682,7 @@ def _build_settings_payload():
         'patternCleanupModel': _sv('pattern_cleanup_model'),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
+        'llmEnabled': not llm_disabled(llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
@@ -732,10 +742,9 @@ def _build_settings_payload():
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         'youtubeEnabled': _sv('youtube_enabled', yt_settings.load_global(db).enabled),
         'youtubeApiKeyConfigured': bool(yt_settings.api_key(db)),
-        # value is resolved, not raw: unset falls back to PodcastIndex when
-        # its credentials exist (pre-option installs keep their behavior),
-        # else iTunes. isDefault marks a derived value; saving from the UI
-        # makes the choice explicit.
+        # Resolved, not raw: unset falls back to PodcastIndex when its credentials exist (older
+        # installs keep that behavior), else iTunes. isDefault marks a derived value; saving
+        # from the UI makes the choice explicit.
         'podcastSearchProvider': _search_provider_setting(settings),
         # Whether the resolved provider can actually run search right now
         # (AddFeed gates its search UI on this, not just a resolved name).
@@ -779,6 +788,14 @@ def _build_settings_payload():
         'audioCuePairMaxBreakSeconds': _sv('audio_cue_pair_max_break_seconds', audio_cue_pair_max_break),
         'audioCuePairMaxBreakFraction': _sv('audio_cue_pair_max_break_fraction', audio_cue_pair_max_break_fraction),
         'audioCuePairOrientWindowSeconds': _sv('audio_cue_pair_orient_window_seconds', audio_cue_pair_orient_window),
+        'fingerprintEnabled': _sv('fingerprint_enabled', fingerprint_enabled),
+        'fingerprintMatchStrictness': _sv(
+            'fingerprint_match_strictness', fingerprint_values['fingerprint_match_strictness']),
+        'fingerprintMinCoverage': _sv('fingerprint_min_coverage', fingerprint_values['fingerprint_min_coverage']),
+        'fingerprintGapToleranceS': _sv(
+            'fingerprint_gap_tolerance_s', fingerprint_values['fingerprint_gap_tolerance_s']),
+        'fingerprintMinAdLengthS': _sv(
+            'fingerprint_min_ad_length_s', fingerprint_values['fingerprint_min_ad_length_s']),
         'silenceSnapNoiseDb': _sv('silence_snap_noise_db', silence_snap_noise_db),
         'silenceSnapMinDurationSeconds': _sv('silence_snap_min_duration_seconds', silence_snap_min_duration),
         'silenceSnapMaxDistanceSeconds': _sv('silence_snap_max_distance_seconds', silence_snap_max_distance),
@@ -807,6 +824,8 @@ def _build_settings_payload():
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
         'maxArtworkBytes': _sv('max_artwork_bytes', max_artwork_bytes),
+        'sessionLifetimeHours': _sv('session_lifetime_hours', session_lifetime_hours),
+        'sessionRememberDays': _sv('session_remember_days', session_remember_days),
         'maxRssBytes': _sv('max_rss_bytes', max_rss_bytes),
         'maxAudioDownloadMb': _sv('max_audio_download_mb', max_audio_download_mb),
         'localUploadMaxMb': _sv('local_upload_max_mb', _int_setting('local_upload_max_mb')),
@@ -840,6 +859,9 @@ def _build_settings_payload():
 
     # Every per-setting default derives from SETTINGS_REGISTRY;
     # openrouterBaseUrl is a fixed constant, not a setting.
+    for spec in SETTINGS_REGISTRY.values():
+        if spec.constraint is not None and spec.payload_key:
+            payload[spec.payload_key].update(spec.constraint.api_fields())
     payload['defaults'] = {
         **{spec.payload_key: registry_get_default(key)
            for key, spec in SETTINGS_REGISTRY.items() if spec.payload_key},
@@ -870,10 +892,9 @@ def _search_provider_setting(settings):
 def list_networks():
     """List known podcast networks plus operator-created custom networks.
 
-    Custom networks are distinct free-text network_id_override values set on any
-    feed; surfacing them lets a network created on one feed be selected from the
-    dropdown on every other feed. For a custom network the id and the display
-    name are the same string. Known networks win id collisions.
+    Custom networks are distinct free-text network_id_override values set on any feed, so a
+    network created on one feed is selectable on every other. For a custom network the id
+    and display name are the same string; known networks win id collisions.
     """
     from pattern_service import KNOWN_NETWORKS
 
@@ -898,11 +919,10 @@ def list_networks():
 def trigger_community_pattern_sync():
     """Force a sync now. Rate-limited to 6 calls per hour.
 
-    A 404 from the upstream manifest URL is expected when the repo hasn't
-    published `patterns/community/index.json` to its default branch yet
-    (e.g. the feature is still on a feature branch). Surface that as a
-    soft 200 with ``status: no_manifest_yet`` rather than a 502, since
-    the local instance is healthy and there's nothing the user can do.
+    A 404 from the upstream manifest URL is expected when the repo has not published
+    `patterns/community/index.json` to its default branch yet. It is surfaced as a soft 200
+    with ``status: no_manifest_yet`` rather than a 502: the instance is healthy and the user
+    cannot act on it.
     """
     import requests
     from community_sync import sync_now
@@ -934,9 +954,8 @@ def community_pattern_sync_status():
 def delete_all_community_patterns():
     """Hard-delete every community pattern on this instance.
 
-    Body must include ``{"confirm": true}`` as a fat-finger guard, matching
-    the ``/patterns/bulk-delete`` convention. The UI provides the confirm
-    step; this endpoint enforces it for any direct API caller too.
+    Body must include ``{"confirm": true}`` (fat-finger guard, as ``/patterns/bulk-delete``);
+    the UI confirms too, and this enforces it for direct API callers.
     """
     payload = request.get_json(silent=True) or {}
     if payload.get('confirm') is not True:
@@ -944,5 +963,7 @@ def delete_all_community_patterns():
             'message': 'confirm: true required to purge all community patterns'
         }, 400)
     db = get_database()
+    community_ids = [p['id'] for p in db.get_ad_patterns(active_only=False, source='community')]
     deleted = db.delete_all_community_patterns()
+    preview_cache.drop_cached_slices(community_ids)
     return json_response({'deleted': deleted})

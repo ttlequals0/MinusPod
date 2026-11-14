@@ -50,7 +50,7 @@ def _brand_run_words(run: str) -> list[str] | None:
     """Words of `run` with leading filler dropped, or None if it names nothing.
 
     Only INVALID_SPONSOR_CAPTURE_WORDS come off the front; trimming ad
-    vocabulary here cost the first word of real names ("Full Circle").
+    vocabulary would drop the first word of real names ("Full Circle").
     """
     words = run.split()
     while words:
@@ -90,19 +90,15 @@ class SponsorService:
         self._freshness = TTLCache(ttl_seconds=300.0)  # 5 minutes
         self._cache_lock = threading.Lock()  # guards the cache rebuild
         self._compiled_patterns = {}  # {canonical_name: compiled_regex}
-        # Pre-compiled transcript display corrections. Convention: a
-        # normalization is treated as a transcript display correction if its
-        # replacement contains at least one uppercase character (e.g.
-        # "Wegovy"). Lowercase-only replacements (e.g. "ag1") are matcher
-        # canonicalizations and are skipped here.
+        # Display corrections are normalizations whose replacement has an uppercase
+        # char ("Wegovy"); lowercase-only ones ("ag1") are matcher canonicalizations.
         self._cache_transcript_corrections = []
 
     def _refresh_cache_if_needed(self):
         """Cache for 5 minutes to avoid constant DB hits.
 
-        The rebuild is guarded by a lock and the freshness flag is flipped LAST
-        so parallel ad-detection threads can't race two concurrent rebuilds or
-        read a half-built cache (concurrency-sweep-1).
+        Rebuild holds a lock and sets the freshness flag last, so parallel threads
+        neither double-rebuild nor read a half-built cache.
         """
         if self._freshness.get('_loaded') is not None:
             return
@@ -171,11 +167,10 @@ class SponsorService:
     # ========== Initialization ==========
 
     def seed_initial_data(self):
-        """Idempotent. Inserts SEED rows whose names aren't already in the DB; never touches existing rows.
+        """Idempotent startup seed: inserts SEED rows whose names are not in the DB.
 
-        Runs at app startup. On a fresh DB it seeds everything; on an existing DB it adds only new
-        entries from updates to SEED_SPONSORS / SEED_NORMALIZATIONS. User-edited aliases on existing
-        rows are preserved because the membership check happens before any insert.
+        Existing rows (and user-edited aliases) are never touched, so only new
+        SEED_SPONSORS / SEED_NORMALIZATIONS entries land on an existing DB.
         """
         existing_names = {s['name'].lower() for s in self.db.get_known_sponsors(active_only=False)}
         added = 0
@@ -216,10 +211,9 @@ class SponsorService:
     def apply_transcript_corrections(self, text: str) -> str:
         """Apply display-preserving corrections to transcript text.
 
-        Returns the input unchanged when no correction rule matches.
-        Casing and whitespace outside the matched span are preserved;
-        only entries whose replacement contains uppercase characters are
-        applied (see _refresh_cache_if_needed for the convention).
+        Returns the input unchanged when no rule matches; text outside the matched
+        span keeps its casing and whitespace. Only uppercase-replacement entries
+        apply (see __init__).
         """
         if not text:
             return text
@@ -238,9 +232,8 @@ class SponsorService:
     def find_sponsor_in_text(self, text: str) -> str | None:
         """Identify sponsor mentioned in text. Returns canonical sponsor name or None.
 
-        Uses precompiled word-boundary patterns to avoid false positives from short
-        names appearing inside longer words. Names/aliases shorter than 3 characters
-        are skipped.
+        Word-boundary patterns avoid matches inside longer words; names/aliases
+        under 3 characters are skipped.
         """
         if not text:
             return None
@@ -286,8 +279,7 @@ class SponsorService:
     def count_sponsor_mentions(self, text: str) -> int:
         """Total registry brand mentions in text, summed over every sponsor.
 
-        Two mentions is the same evidence bar pattern learning uses; one
-        passing mention of one brand is not a sponsor read.
+        Two mentions is the pattern-learning evidence bar; one passing mention is not a read.
         """
         if not text:
             return 0
@@ -306,12 +298,7 @@ class SponsorService:
 
     @staticmethod
     def extract_sponsor_from_text(ad_text: str) -> str | None:
-        """Extract sponsor name from ad text by looking for URLs and common patterns.
-
-        Looks for:
-        - Domain names (e.g., hex.ai, thisisnewjersey.com)
-        - Common sponsor phrases (e.g., "brought to you by X", "sponsored by X")
-        """
+        """Extract a sponsor name from ad text via domain names and phrases like "sponsored by X"."""
         if not ad_text:
             return None
 
@@ -347,9 +334,8 @@ class SponsorService:
     def extract_sponsor_from_reason(text: str) -> str | None:
         """Extract a sponsor name from an LLM ad-reason string, else None.
 
-        A brand is a capitalized run narrowed to the span a domain in the same
-        text agrees with; the model rewords the reason on every run, so a
-        pattern keyed to a phrasing only covers the sample it was written for.
+        A brand is a capitalized run narrowed to the span a domain in the same text
+        agrees with; the LLM rewords reasons each run, so phrase-keyed patterns miss.
         """
         if not text:
             return None
@@ -376,10 +362,9 @@ class SponsorService:
             return None
 
         domains = {squash_brand(m.group(1)) for m in _DOMAIN_RE.finditer(text)}
-        # A domain names where the brand both starts and ends, so search spans
-        # rather than prefixes: that narrows "Full ZipRecruiter" without a
-        # blind leading trim. Leftmost and longest first, so "Jack Archer" is
-        # not cut to "Jack" nor "Belmont Park" to "Park".
+        # A domain fixes both brand ends, so search spans, not prefixes ("Full
+        # ZipRecruiter" narrows without a blind trim). Leftmost-longest first so
+        # "Jack Archer" is not cut to "Jack".
         span_words = words[:MAX_SPAN_WORDS]
         spans = [(squash_brand(' '.join(span_words[i:j])), i, j)
                  for i in range(len(span_words))
@@ -397,8 +382,7 @@ class SponsorService:
     def own_site_tokens(podcast_name: str) -> set:
         """Domain labels formed from the show's own name, not advertisers.
 
-        Runs of two or more words plus the whole name; a single title word
-        can be a real brand."""
+        Runs of two or more words plus the whole name; a single title word can be a real brand."""
         words = re.findall(r'[a-z0-9]+', (podcast_name or '').lower())
         runs = [''.join(words[i:j])
                 for i in range(len(words))
@@ -409,19 +393,11 @@ class SponsorService:
     @staticmethod
     def extract_sponsors_from_transcript(text: str, ad_reason: str = None,
                                          exclude: set = None) -> set:
-        """Extract potential sponsor names from transcript text and optional ad reason.
+        """Return lowercase brand tokens from domains, spoken "dot com" and the ad reason.
 
-        Returns a set of lowercase brand tokens harvested from:
-        - URL/domain mentions (e.g., "vention" from "ventionteams.com")
-        - "dot com" speech transcriptions
-        - The ad_reason field (e.g., "Vention sponsor read")
-
-        ``exclude`` drops known non-advertiser tokens (see own_site_tokens),
-        which also stops the host's own site reading as ad content at a
-        boundary.
-
-        This is the multi-sponsor counterpart used by merge_same_sponsor_ads
-        to test whether adjacent ad regions share a brand.
+        ``exclude`` drops non-advertiser tokens (see own_site_tokens), so the host's
+        own site is not read as ad content. merge_same_sponsor_ads uses this to
+        test whether adjacent ads share a brand.
         """
         sponsors = set()
         if not text:
@@ -442,10 +418,8 @@ class SponsorService:
             if is_brand_token(match.group(1)):
                 sponsors.add(match.group(1))
 
-        # Brand named in the ad reason. Shares the labeler rather than keeping
-        # a second pair of phrase patterns, which only matched the two
-        # phrasings they were written for; merging then missed a brand the
-        # marker was already labeled with.
+        # Brand in the ad reason: reuse the labeler so merging sees the same brand
+        # the marker was labeled with.
         brand = SponsorService.extract_sponsor_from_reason(ad_reason)
         if brand:
             squashed = squash_brand(brand)

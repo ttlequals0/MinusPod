@@ -67,11 +67,7 @@ def test_peaks_route_shape_when_present(app_client, tmp_path):
             f'?start=0&end=10&resolution_ms=50'
         )
 
-    if response.status_code != 200:
-        # Auth or CSRF guard may intercept; the route smoke-test below is the
-        # one that exercises the new code path. Avoid asserting on shape when
-        # the test client can't reach the route.
-        return
+    assert response.status_code == 200
 
     body = response.get_json()
     assert body['episodeId'] == episode_id

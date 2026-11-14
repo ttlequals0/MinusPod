@@ -7,16 +7,17 @@ which the cue template matcher slides across each episode to find recurrences.
 The MFCC is the matcher's hot path; the PCM is kept so a template can be
 re-derived if MFCC params ever change and exported as a lossless WAV.
 
-Scope mirrors the ad_patterns model but with only two tiers: ``podcast`` (the
-default, applies to one feed) and ``network`` (applies to every feed sharing a
-``network_id``). There is no ``global`` tier -- a cue template only matches a
-show that uses the exact same sound, so a global stinger has no meaning.
+Scope has two tiers: ``podcast`` (default, one feed) and ``network`` (every feed
+sharing a ``network_id``). There is no ``global`` tier: a cue only matches a show
+that uses the exact same sound.
 """
 import json
 import logging
 from datetime import timedelta
 
 from config import audio_cue_type_label
+from database.error_text import redact_error
+from database.podcasts import EFFECTIVE_NETWORK_SQL
 from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,8 @@ class CueTemplateMixin:
     ) -> int:
         """Insert a cue template. Returns the new row id.
 
-        The human-readable ``label`` is derived from ``cue_type`` (not stored
-        freeform) so the phrase fed to the LLM prompt is always one of the
-        fixed type names.
+        ``label`` is derived from ``cue_type`` so the phrase fed to the LLM prompt
+        is always one of the fixed type names.
         """
         label = audio_cue_type_label(cue_type)
         conn = self.get_connection()
@@ -84,9 +84,8 @@ class CueTemplateMixin:
     def get_cue_template_meta(self, template_id: int) -> dict | None:
         """Return one template's metadata WITHOUT its mfcc/pcm blobs.
 
-        The optimize-window route polls every 3s; its pre-claim ownership and
-        source-episode checks need only scalar columns, so this avoids dragging
-        the multi-MB blobs on every poll.
+        The optimize-window route polls every 3s and needs only scalar columns,
+        so this avoids loading the multi-MB blobs each time.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -100,30 +99,23 @@ class CueTemplateMixin:
     def list_active_cue_templates_for_feed(self, podcast_id: int) -> list[dict]:
         """Enabled templates that apply to a feed, most-specific-first.
 
-        Resolves both tiers: podcast-scope templates owned by this feed, and
-        network-scope templates whose ``network_id`` matches the feed's
-        network. Podcast-scope rows sort ahead of network-scope ones so the
-        matcher and snap see the feed's own cues first.
-
-        The network match uses the feed's effective network -- a non-empty
-        ``network_id_override`` when set, else the auto-detected ``network_id``.
-        This lets a manually-assigned network (same creator, no auto-detected
-        network) link feeds for promotion. ``NULLIF(..., '')`` guards a blank
-        override stored as an empty string rather than NULL, which COALESCE
-        alone would not fall through.
+        Podcast-scope templates owned by this feed, then network-scope templates
+        matching the feed's effective network (``network_id_override`` when set,
+        else ``network_id``), so manually assigned networks link feeds too. Own
+        cues sort first. Writers store a blank override as NULL, so COALESCE suffices.
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT * FROM audio_cue_templates
+            f"""SELECT * FROM audio_cue_templates
                WHERE enabled = 1 AND (
                    (scope = 'podcast' AND podcast_id = ?)
                    OR (scope = 'network' AND network_id IS NOT NULL
                        AND network_id = (
-                           SELECT COALESCE(NULLIF(network_id_override, ''), network_id)
+                           SELECT {EFFECTIVE_NETWORK_SQL}
                            FROM podcasts WHERE id = ?
                        ))
                )
-               ORDER BY (scope = 'podcast') DESC, created_at DESC""",
+               ORDER BY (scope = 'podcast') DESC, created_at DESC""",  # noqa: S608
             (podcast_id, podcast_id),
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -145,16 +137,14 @@ class CueTemplateMixin:
     def list_cue_templates_for_feed_ui(self, podcast_id: int) -> list[dict]:
         """A feed's own templates plus network templates shared from siblings.
 
-        A template promoted to network scope on one feed applies to every feed
-        on the same network, so it should be visible in each feed's panel. This
-        unions the feed's own rows (any scope) with network-scope rows owned by
-        OTHER feeds whose ``network_id`` matches this feed's effective network
-        (the override when set, else the auto-detected one). Own rows sort
-        first. The caller marks the sibling rows as not-owned (read-only).
+        Unions the feed's own rows (any scope) with network-scope rows owned by
+        other feeds on the same effective network (override, else auto-detected),
+        since a promoted template applies to every feed there. Own rows sort
+        first; the caller marks sibling rows read-only.
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s,
+            f"""SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s,
                       duration_s, sample_rate, n_coeffs, scope, network_id,
                       enabled, score_threshold, remove_with_ad, cut_matches, created_at, created_by,
                       (pcm_blob IS NOT NULL) AS has_audio
@@ -163,9 +153,9 @@ class CueTemplateMixin:
                   OR (scope = 'network' AND network_id IS NOT NULL AND network_id != ''
                       AND podcast_id != :pid
                       AND network_id = (
-                          SELECT COALESCE(NULLIF(network_id_override, ''), network_id)
+                          SELECT {EFFECTIVE_NETWORK_SQL}
                           FROM podcasts WHERE id = :pid))
-               ORDER BY (podcast_id = :pid) DESC, created_at DESC""",
+               ORDER BY (podcast_id = :pid) DESC, created_at DESC""",  # noqa: S608
             {'pid': podcast_id},
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -175,9 +165,9 @@ class CueTemplateMixin:
         auto-detected) equals ``network_id``, excluding one podcast id."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT id, slug FROM podcasts
+            f"""SELECT id, slug FROM podcasts
                WHERE id != :exclude_id
-                 AND COALESCE(NULLIF(network_id_override, ''), network_id) = :network_id""",
+                 AND {EFFECTIVE_NETWORK_SQL} = :network_id""",  # noqa: S608
             {'exclude_id': exclude_podcast_id, 'network_id': network_id},
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -259,9 +249,7 @@ class CueTemplateMixin:
     ) -> bool:
         """Set a template's scope (podcast or network) and network_id.
 
-        Promoting to 'network' makes the cue apply to every feed sharing
-        network_id; demoting to 'podcast' clears network_id. Returns True if a
-        row was updated.
+        Demoting to 'podcast' clears network_id. Returns True if a row was updated.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -272,16 +260,12 @@ class CueTemplateMixin:
         return cursor.rowcount > 0
 
     # ------------------------------------------------------------------
-    # Cached background scans. A slow full-decode scan runs in a background
-    # thread and the API polls a cached row instead of holding the request open
-    # past the proxy timeout. Every scan family uses the same claim/poll/save
-    # state machine over an identically-shaped table, so the machine lives in
-    # one place. Families differ only by table name, payload column, and their
-    # primary key: most are keyed by (podcast_id, episode_id); the window
-    # optimizer is keyed by template_id alone (no podcast_id column). The key
-    # column and the podcast-scoping flag are internal constants (never user
-    # input), so they are safe to interpolate into the SQL alongside the table
-    # and payload column.
+    # Cached background scans: a slow scan runs in a thread and the API polls a
+    # cached row instead of holding the request past the proxy timeout. All
+    # families share one claim/poll/save state machine and differ by table,
+    # payload column and key (most (podcast_id, episode_id); the window optimizer
+    # template_id alone). Key column and has_podcast are internal constants, so
+    # they are safe to interpolate into the SQL.
 
     def _scan_where(self, key_col: str, has_podcast: bool) -> str:
         """WHERE clause for the family's primary key (bound params)."""
@@ -293,9 +277,8 @@ class CueTemplateMixin:
                   has_podcast: bool = True) -> dict | None:
         """Return the cached scan row for a family's key, or None.
 
-        ``podcast_id``/``episode_id`` are the (scope, key) pair for the row;
-        ``episode_id`` binds ``key_col`` (an episode id, set hash, or template
-        id) and ``podcast_id`` is ignored when ``has_podcast`` is False.
+        ``episode_id`` binds ``key_col`` (episode id, set hash or template id);
+        ``podcast_id`` is ignored when ``has_podcast`` is False.
         """
         conn = self.get_connection()
         args = (podcast_id, episode_id) if has_podcast else (episode_id,)
@@ -314,24 +297,20 @@ class CueTemplateMixin:
         """Decide whether the caller should run the scan now.
 
         Returns one of:
-          'ready'    -- a cached result exists; read it with the get wrapper
-          'scanning' -- a fresh scan is already running; poll again shortly
-          'error'    -- the last scan failed and is still fresh; show the error
-          'started'  -- the caller claimed the slot and must run the scan
+          'ready': a cached result exists; read it with the get wrapper
+          'scanning': a fresh scan is already running; poll again shortly
+          'error': the last scan failed and is still fresh; show the error
+          'started': the caller claimed the slot and must run the scan
 
-        A stale 'scanning' (crashed worker) or stale 'error' is reclaimable so
-        the scan recovers. ``force`` reclaims a 'ready'/'error' row for an
-        explicit rescan, but never interrupts a live scan.
+        A stale 'scanning' (crashed worker) or stale 'error' is reclaimable.
+        ``force`` reclaims a 'ready'/'error' row but never interrupts a live scan.
 
-        The claim is a single conditional UPSERT so two concurrent requests for
-        the same key cannot both start a scan: only the statement that actually
-        writes the 'scanning' row (insert, or an update whose WHERE matched)
-        reports 'started'; the other re-reads and reports the live state.
+        The claim is one conditional UPSERT so concurrent requests cannot both
+        start a scan: only the statement that actually writes the 'scanning' row
+        reports 'started'; the other re-reads the live state.
 
-        ``key_col``/``has_podcast`` select the family's primary key: the two
-        (podcast_id, episode_id) families keep the default; single-key families
-        pass their own key_col and, when keyed by template id alone,
-        ``has_podcast=False`` to drop the podcast_id column entirely.
+        ``key_col``/``has_podcast`` select the family's primary key
+        (``has_podcast=False`` drops podcast_id for template-keyed families).
         """
         conn = self.get_connection()
         cutoff = (utc_now() - timedelta(seconds=stale_seconds)).strftime(ISO_FORMAT)
@@ -339,10 +318,8 @@ class CueTemplateMixin:
         vals = (':pid, ' if has_podcast else '') + ':eid'
         conflict = ('podcast_id, ' if has_podcast else '') + key_col
         before = conn.total_changes
-        # claim_epoch is bumped on every successful claim (insert starts at 1,
-        # a reclaim increments the prior value). The worker captures this token
-        # and the save guards on it, so a stale worker cannot clobber a newer
-        # claim.
+        # claim_epoch is bumped on every successful claim; the save guards on the
+        # worker's captured token so a stale worker cannot clobber a newer claim.
         conn.execute(
             f"""INSERT INTO {table}
                    ({cols}, status, {payload_col}, error, updated_at, claim_epoch)
@@ -373,8 +350,8 @@ class CueTemplateMixin:
     ) -> int | None:
         """Current claim_epoch for a family's key, or None when no row exists.
 
-        The route reads this right after a 'started' claim to capture the token
-        it hands the worker; the worker's save then guards on the same value.
+        The route reads it after a 'started' claim and hands it to the worker,
+        whose save guards on the same value.
         """
         conn = self.get_connection()
         args = (podcast_id, episode_id) if has_podcast else (episode_id,)
@@ -392,9 +369,8 @@ class CueTemplateMixin:
     ) -> None:
         """Persist a completed scan's payload and mark it ready.
 
-        When ``claim_epoch`` is given the write is guarded on it, so a stale
-        worker whose claim was superseded by a fresh one no-ops instead of
-        overwriting the newer result.
+        A given ``claim_epoch`` guards the write, so a worker whose claim was
+        superseded no-ops instead of overwriting the newer result.
         """
         conn = self.get_connection()
         guard = '' if claim_epoch is None else ' AND claim_epoch = ?'
@@ -421,7 +397,7 @@ class CueTemplateMixin:
         conn = self.get_connection()
         guard = '' if claim_epoch is None else ' AND claim_epoch = ?'
         key_args = (podcast_id, episode_id) if has_podcast else (episode_id,)
-        args = (str(error)[:500],) + key_args + (
+        args = (redact_error(error, 500),) + key_args + (
             () if claim_epoch is None else (claim_epoch,))
         conn.execute(
             f"""UPDATE {table} SET status='error', error=?,
@@ -466,7 +442,7 @@ class CueTemplateMixin:
             'cue_candidate_scans', podcast_id, episode_id, error,
             claim_epoch=claim_epoch)
 
-    # Cached threshold-suggest scan (#350 follow-up); stores a suggestion dict.
+    # Cached threshold-suggest scan (#350); stores a suggestion dict.
 
     def get_cue_threshold_scan(self, podcast_id: int, episode_id: str) -> dict | None:
         return self._get_scan('cue_threshold_scans', 'result_json', podcast_id, episode_id)
@@ -547,9 +523,10 @@ class CueTemplateMixin:
         return {r['id'] for r in rows}
 
     def list_cue_candidate_dismissals_decoded(self, podcast_id: int) -> list[dict]:
-        """Dismissals with fingerprint decoded to raw ints, for the scan
-        worker. Rows whose fingerprint does not decode to a non-empty list
-        are skipped with a warning -- corrupt feedback must never fail a scan."""
+        """Dismissals with fingerprint decoded to raw ints, for the scan worker.
+
+        Rows whose fingerprint does not decode to a non-empty list are skipped
+        with a warning; corrupt feedback must never fail a scan."""
         out = []
         for d in self.list_cue_candidate_dismissals(podcast_id):
             try:
@@ -562,12 +539,10 @@ class CueTemplateMixin:
                 logger.warning('dismissal %s: unreadable fingerprint; skipped', d['id'])
         return out
 
-    # Cross-episode body scan family (D1b, #350).  Keyed by
-    # (podcast_id, episode_set_hash) -- a sha256 hex of the sorted episode-id
-    # list -- so the cache is shared across any identical episode set regardless
-    # of request order.  Same two-key shape as the pre-existing families, only
-    # the key column is named differently, so it routes through the generics
-    # with key_col='episode_set_hash'.
+    # Cross-episode body scan family (#350). Keyed by (podcast_id, episode_set_hash),
+    # a sha256 hex of the sorted episode-id list, so identical sets share the cache
+    # regardless of request order. Routes through the generics with
+    # key_col='episode_set_hash'.
 
     def get_cue_cross_episode_scan(
         self, podcast_id: int, episode_set_hash: str,
@@ -608,9 +583,8 @@ class CueTemplateMixin:
             'cue_cross_episode_scans', podcast_id, episode_set_hash, error,
             key_col='episode_set_hash', claim_epoch=claim_epoch)
 
-    # Window optimizer scan family (D2a, #350).  Keyed by template_id alone
-    # (the optimizer is per-template, not per-episode-set), so it routes through
-    # the generics with has_podcast=False -- there is no podcast_id column.
+    # Window optimizer scan family (#350). Keyed by template_id alone (no
+    # podcast_id column), so it routes through the generics with has_podcast=False.
 
     def get_cue_window_optimize_scan(self, template_id: int) -> dict | None:
         return self._get_scan(
@@ -659,11 +633,9 @@ class CueTemplateMixin:
     ) -> bool:
         """Update the window geometry and re-derived blobs together.
 
-        Called by the PATCH route when sourceOffsetS or durationS changes so
-        the stored blobs always reflect the current window. Any cached
-        window-optimizer result is invalidated in the same transaction: its
-        proposal and baseline describe the pre-move geometry.
-        Returns True if a row was updated.
+        Called when sourceOffsetS or durationS changes so the blobs match the
+        window. Any cached window-optimizer result is invalidated in the same
+        transaction since it describes the old geometry. Returns True if a row was updated.
         """
         conn = self.get_connection()
         cursor = conn.execute(

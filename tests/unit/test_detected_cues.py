@@ -1,4 +1,4 @@
-"""Unit tests for the detected-cues merge (#350 follow-up)."""
+"""Unit tests for the detected-cues merge (#350)."""
 from audio_analysis.detected_cues import build_detected_cues
 
 

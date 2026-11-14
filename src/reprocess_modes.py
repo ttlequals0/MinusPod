@@ -3,11 +3,9 @@ pipeline's automatic reruns."""
 from utils.constants import EpisodeStatus
 from utils.time import utc_now_iso
 
-# What to wipe before requeueing. 'details' wipes the whole episode_details
-# row; 'ad_data' keeps the saved transcript (clears just the ad-detection
-# outputs) so transcription is skipped; 'none' keeps everything, since a recut
-# re-cuts the retained original from the saved detections and re-times the
-# saved transcript.
+# What to wipe before requeueing: 'details' the whole episode_details row; 'ad_data' only
+# the ad-detection outputs (transcription is skipped); 'none' nothing (a recut reuses
+# the saved detections and transcript).
 REPROCESS_MODE_CLEAR = {
     'reprocess': 'details',
     'full': 'details',
@@ -40,11 +38,9 @@ def batch_clear_episodes_for_mode(db, slug, episode_ids, mode):
 
 
 def clear_episode_for_mode(db, slug, episode_id, mode):
-    """Clear ad-detection outputs for the mode's rule ('llm').
+    """Clear ad-detection outputs for the 'ad_data' rule ('llm').
 
-    'details' modes are not cleared here: their wipe happens in the
-    transcribe stage, just before the fresh transcript is saved (#692);
-    'none' keeps everything.
+    'details' modes are wiped in the transcribe stage just before the new transcript is saved (#692).
     """
     if REPROCESS_MODE_CLEAR[mode] != 'ad_data':
         return
@@ -52,15 +48,10 @@ def clear_episode_for_mode(db, slug, episode_id, mode):
 
 
 def reset_episode_for_reprocess(db, slug, episode_id, mode):
-    """Put an episode back in the queue's hands for a rerun in ``mode``.
+    """Requeue an episode for a rerun in ``mode`` (user-requested: it leaves the served feed until done).
 
-    For user-requested reprocesses: the episode leaves the served feed until
-    the rerun finishes. Automatic reruns keep the episode published and clear
-    when the run starts instead.
-
-    Sets the reprocess mode before anything reads it, marks the row
-    user-requested so the queue gates honor it, then clears the cached
-    detection data the mode does not keep.
+    Automatic reruns keep the episode published and clear when the run starts instead.
+    Sets the mode before anything reads it and marks the row user-requested for the queue gates.
     """
     db.upsert_episode(
         slug, episode_id,

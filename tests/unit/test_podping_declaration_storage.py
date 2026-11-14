@@ -6,8 +6,14 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('podping_decl_store_test_')
 
 from database import Database
+from tests.podping_helpers import set_declaration
 
 SLUG = 'podping-decl-feed'
+
+
+def _get_declaration(db, slug):
+    return db.get_all_podping_declarations().get(
+        slug, {'uses_podping': None, 'hive_accounts': []})
 
 
 @pytest.fixture
@@ -19,46 +25,46 @@ def db():
 
 
 def test_defaults_to_unknown(db):
-    assert db.get_podping_declaration(SLUG) == {
+    assert _get_declaration(db, SLUG) == {
         'uses_podping': None, 'hive_accounts': []}
 
 
 def test_round_trips_accounts_and_opt_in(db):
-    db.set_podping_declaration(SLUG, True, ['podping.aaa', 'podping.bbb'])
-    assert db.get_podping_declaration(SLUG) == {
+    set_declaration(db, SLUG, True, ['podping.aaa', 'podping.bbb'])
+    assert _get_declaration(db, SLUG) == {
         'uses_podping': True, 'hive_accounts': ['podping.aaa', 'podping.bbb']}
 
 
 def test_round_trips_opt_out(db):
-    db.set_podping_declaration(SLUG, False, [])
-    assert db.get_podping_declaration(SLUG) == {
+    set_declaration(db, SLUG, False, [])
+    assert _get_declaration(db, SLUG) == {
         'uses_podping': False, 'hive_accounts': []}
 
 
 def test_clearing_back_to_unknown(db):
-    db.set_podping_declaration(SLUG, True, ['podping.aaa'])
-    db.set_podping_declaration(SLUG, None, [])
-    assert db.get_podping_declaration(SLUG) == {
+    set_declaration(db, SLUG, True, ['podping.aaa'])
+    set_declaration(db, SLUG, None, [])
+    assert _get_declaration(db, SLUG) == {
         'uses_podping': None, 'hive_accounts': []}
 
 
 def test_unknown_slug_is_unknown(db):
-    assert db.get_podping_declaration('no-such-feed') == {
+    assert _get_declaration(db, 'no-such-feed') == {
         'uses_podping': None, 'hive_accounts': []}
 
 
 def test_corrupt_json_degrades_to_no_accounts(db):
-    db.set_podping_declaration(SLUG, True, ['podping.aaa'])
+    set_declaration(db, SLUG, True, ['podping.aaa'])
     conn = db.get_connection()
     conn.execute("UPDATE podcasts SET podping_hive_accounts = ? WHERE slug = ?",
                  ('{not json', SLUG))
     conn.commit()
-    assert db.get_podping_declaration(SLUG) == {
+    assert _get_declaration(db, SLUG) == {
         'uses_podping': True, 'hive_accounts': []}
 
 
 def test_all_declarations_maps_slug_to_rules(db):
-    db.set_podping_declaration(SLUG, True, ['podping.aaa'])
+    set_declaration(db, SLUG, True, ['podping.aaa'])
     rules = db.get_all_podping_declarations()
     assert rules[SLUG] == {'uses_podping': True, 'hive_accounts': ['podping.aaa']}
 
@@ -92,5 +98,5 @@ def test_parsed_feed_round_trips_through_storage(db):
   </channel>
 </rss>"""
     parsed = RSSParser.extract_podping_declaration(feed)
-    db.set_podping_declaration(SLUG, parsed['uses_podping'], parsed['hive_accounts'])
-    assert db.get_podping_declaration(SLUG) == parsed
+    set_declaration(db, SLUG, parsed['uses_podping'], parsed['hive_accounts'])
+    assert _get_declaration(db, SLUG) == parsed

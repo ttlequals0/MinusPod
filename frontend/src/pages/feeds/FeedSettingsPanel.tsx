@@ -4,7 +4,8 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings, getAudioSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
+import { queueOrderChoices, queueOrderLabel } from '../../utils/queueOrder';
+import type { Feed, LowAdYieldAction, EpisodeLogsOverride, QueueOrder } from '../../api/types';
 import { AUTO_PROCESS_WINDOW } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
@@ -41,7 +42,9 @@ const MAX_RETENTION_DAYS = 3650;
 type RetentionMode = 'global' | 'archive' | 'custom';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
-import { PROCESSING_MODE_HINTS, PROCESSING_MODE_LABELS, PROCESSING_MODE_ORDER } from './processingMode';
+import { isLlmEnabled } from '../../hooks/useLlmEnabled';
+import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from '../settings/LlmGate';
+import { KEEP_CONTENT_DISABLED_NOTE, PROCESSING_MODE_LABELS, PROCESSING_MODE_ORDER, processingModeHint } from './processingMode';
 
 const rowLabelTopSm = `${rowLabel} sm:pt-0.5`;
 
@@ -150,6 +153,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const nativeChapterGenerationBlocked = unsupportedChapterRoute
     && (settings?.chaptersEnabled?.value ?? settings?.defaults?.chaptersEnabled ?? true);
   const inheritedChapterMode = settings?.chaptersMode?.value ?? 'auto';
+  const llmDisabled = !isLlmEnabled(settings);
 
   // Cue-only mode needs at least one enabled ad-break-start and ad-break-end
   // template; fetched here to gray out the option before the user picks it.
@@ -245,21 +249,24 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         setSegmentActionError(null);
       }
     },
-    // Rollback lives in each mutate() call's own onError below (react-query
-    // v5 runs per-call callbacks alongside these), so it can restore the
-    // exact pre-edit snapshot rather than the possibly-stale feed prop.
-    // onSettled always refetches so a failed PATCH still reverts every
-    // other field to server truth.
+    // Rollback lives in each mutate() call's own onError (react-query v5 runs per-call callbacks alongside these)
+    // so it restores the exact pre-edit snapshot, not the possibly-stale feed prop. onSettled always refetches so
+    // a failed PATCH still reverts every other field to server truth.
     onSettled: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ['feed', slug] }),
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
     ]),
   });
 
-  // Separate mutation from updateMutation: that one closes the network editor
-  // on success and surfaces no error message, while a rejected source URL
-  // (backend validates by fetching the feed) must stay in edit mode with the
-  // backend's reason shown inline.
+  const failedSave = (field: keyof UpdateFeedPayload) =>
+    updateMutation.isError && updateMutation.variables && field in updateMutation.variables
+      ? getErrorMessage(updateMutation.error, 'Could not save this setting.')
+      : null;
+  const queuePriorityError = failedSave('queuePriority');
+  const queueOrderError = failedSave('queueOrder');
+
+  // Separate from updateMutation, which closes the network editor on success and shows no error: a rejected
+  // source URL (the backend validates by fetching the feed) must stay in edit mode with the reason inline.
   const sourceUrlMutation = useMutation({
     mutationFn: (url: string) => updateFeed(slug, { sourceUrl: url }),
     onSuccess: () => {
@@ -271,10 +278,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     onError: (e: Error) => setSourceUrlError(e.message),
   });
 
-  // Full-map PATCH: each edit must send the whole override map, built from
-  // segmentOverrides (see above), not the feed prop. Clearing the last
-  // override sends null, not {}, so the feed comes back with no overrides
-  // at all. `prev` snapshots the pre-edit state for rollback in onError.
+  // Full-map PATCH: each edit sends the whole override map built from segmentOverrides, not the feed prop.
+  // Clearing the last override sends null, not {}, so the feed comes back with none. `prev` snapshots the
+  // pre-edit state for rollback in onError.
   const setSegmentActionOverride = (category: SegmentCategory, action: SegmentAction) => {
     const prev = segmentOverrides;
     const next = { ...segmentOverrides, [category]: action };
@@ -341,12 +347,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   // markClean re-baselines the field the instant it commits (or reverts),
   // rather than waiting on the refetch this mutation's onSettled triggers.
-  function commitFloat(
+  function commitNumber(
     draftField: DraftField,
     serverValue: number | null | undefined,
     field: keyof UpdateFeedPayload,
-    lo: number,
-    hi: number,
+    parse: (s: string) => number,
+    isValid: (v: number) => boolean,
   ) {
     const trimmed = draftField.value.trim();
     if (trimmed === '') {
@@ -357,8 +363,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       draftField.markClean('');
       return;
     }
-    const v = parseFloat(trimmed);
-    if (!Number.isNaN(v) && v >= lo && v <= hi) {
+    const v = parse(trimmed);
+    if (isValid(v)) {
       // Only send the PATCH when the normalized value differs from the server value.
       if (v !== serverValue) {
         updateMutation.mutate({ [field]: v });
@@ -371,6 +377,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     }
   }
 
+  function commitFloat(
+    draftField: DraftField,
+    serverValue: number | null | undefined,
+    field: keyof UpdateFeedPayload,
+    lo: number,
+    hi: number,
+  ) {
+    commitNumber(draftField, serverValue, field, parseFloat, (v) => !Number.isNaN(v) && v >= lo && v <= hi);
+  }
+
   function commitInt(
     draftField: DraftField,
     serverValue: number | null | undefined,
@@ -378,23 +394,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     lo: number,
     hi: number,
   ) {
-    const trimmed = draftField.value.trim();
-    if (trimmed === '') {
-      if (serverValue != null) {
-        updateMutation.mutate({ [field]: null });
-      }
-      draftField.markClean('');
-      return;
-    }
-    const v = Number(trimmed);
-    if (Number.isInteger(v) && v >= lo && v <= hi) {
-      if (v !== serverValue) {
-        updateMutation.mutate({ [field]: v });
-      }
-      draftField.markClean(String(v));
-    } else {
-      draftField.markClean(serverValue != null ? String(serverValue) : '');
-    }
+    commitNumber(draftField, serverValue, field, Number, (v) => Number.isInteger(v) && v >= lo && v <= hi);
   }
 
   const commitTrimPattern = () => {
@@ -491,11 +491,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   };
 
   const processingMode = feed.processingMode ?? 'standard';
+  const keepContentBlocked = llmDisabled && processingMode !== 'keep_content';
   const cueOnlyActive = processingMode === 'cue_only';
-  // Local feeds have no upstream RSS: source URL, title-blacklist, GUID
-  // scheme (forced own-IDs), and cross-fetch differential rows are all
-  // upstream-only concerns and stay hidden. Processing-related controls
-  // (auto-process, language, cue tuning, etc.) still apply.
+  // Local feeds have no upstream RSS, so source URL, title-blacklist, GUID scheme and cross-fetch differential
+  // rows (upstream-only concerns) stay hidden. Processing controls (auto-process, language, cue tuning, etc.)
+  // still apply.
   const isLocal = feed.feedType === 'local';
 
   return (
@@ -738,7 +738,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           >
             <div className="space-y-4 pt-1">
               {/* Detection notes (#709): free text appended to the LLM prompt context. */}
-              <div className="flex flex-col gap-1 text-sm">
+              <LlmGate disabled={llmDisabled} id="feed-detection-notes" className="flex flex-col gap-1 text-sm">
                 <label htmlFor="detection-notes" className={`${labelBase} mb-0`}>Detection notes</label>
                 <textarea
                   id="detection-notes"
@@ -781,7 +781,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 {detectionNotesError && (
                   <p className="text-xs text-destructive">{detectionNotesError}</p>
                 )}
-              </div>
+              </LlmGate>
 
               {/* Auto-Process Control */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
@@ -830,10 +830,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     })}
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase} pl-2`}
-                    aria-describedby="processing-mode-help"
+                    aria-describedby={keepContentBlocked ? 'processing-mode-help processing-mode-llm-disabled' : 'processing-mode-help'}
                   >
                     {PROCESSING_MODE_ORDER.map((m) => (
-                      <option key={m} value={m} disabled={m === 'cue_only' && !cueOnlyEligible}>
+                      <option key={m} value={m} disabled={(m === 'cue_only' && !cueOnlyEligible) || (m === 'keep_content' && llmDisabled && processingMode !== 'keep_content')}>
                         {PROCESSING_MODE_LABELS[m]}
                       </option>
                     ))}
@@ -844,9 +844,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       ad-break end template. Mark one of each below to turn it on.
                     </p>
                   )}
-                  <p id="processing-mode-help" className={`text-xs ${PROCESSING_MODE_HINTS[processingMode].warning ? 'text-warning' : 'text-muted-foreground'}`}>
-                    {PROCESSING_MODE_HINTS[processingMode].text}
+                  <p id="processing-mode-help" className={`text-xs ${processingModeHint(processingMode, !llmDisabled).warning ? 'text-warning' : 'text-muted-foreground'}`}>
+                    {processingModeHint(processingMode, !llmDisabled).text}
                   </p>
+                  {keepContentBlocked && (
+                    <p id="processing-mode-llm-disabled" className="text-xs text-muted-foreground">{KEEP_CONTENT_DISABLED_NOTE}</p>
+                  )}
                   {processingMode === 'cue_only' && (
                     <div className="flex flex-col gap-3 pt-1">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -904,15 +907,47 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Queue priority"
+                    aria-describedby={queuePriorityError ? 'feed-queue-priority-help feed-queue-priority-error' : 'feed-queue-priority-help'}
+                    aria-invalid={queuePriorityError ? true : undefined}
                   >
                     <option value="high">High</option>
                     <option value="normal">Normal</option>
                     <option value="low">Low</option>
                   </select>
-                  <p className="text-xs text-muted-foreground">
+                  <p id="feed-queue-priority-help" className="text-xs text-muted-foreground">
                     High processes before other queued episodes. Low runs only when nothing else is waiting.
                     New episodes and manual reprocesses get an automatic boost.
                   </p>
+                  {queuePriorityError && <p id="feed-queue-priority-error" role="alert" className="text-xs text-destructive">{queuePriorityError}</p>}
+                </div>
+              </div>
+
+              {/* Per-feed processing order override (#997); null follows the global setting */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className={rowLabelTop}>Processing order</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.queueOrder ?? ''}
+                    onChange={(e) => updateMutation.mutate({
+                      queueOrder: e.target.value === '' ? null : (e.target.value as QueueOrder),
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Processing order"
+                    aria-describedby={queueOrderError ? 'feed-queue-order-help feed-queue-order-error' : 'feed-queue-order-help'}
+                    aria-invalid={queueOrderError ? true : undefined}
+                  >
+                    <option value="">
+                      {settings?.queueOrder
+                        ? `Use default (${queueOrderLabel(settings.queueOrder.value)})`
+                        : 'Use default'}
+                    </option>
+                    {queueOrderChoices(settings?.queueOrder?.options, feed.queueOrder).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <p id="feed-queue-order-help" className="text-xs text-muted-foreground">
+                    Order for this feed's queued episodes. Priorities still come first.
+                  </p>
+                  {queueOrderError && <p id="feed-queue-order-error" role="alert" className="text-xs text-destructive">{queueOrderError}</p>}
                 </div>
               </div>
 
@@ -1130,10 +1165,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Chapters"
+                    aria-describedby={llmDisabled ? 'feed-chapters-llm-disabled' : undefined}
                   >
                     <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>Inherit global ({inheritedChapterMode})</option>
                     <option value="auto" disabled={nativeChapterGenerationBlocked}>Auto</option>
-                    <option value="generate" disabled={nativeChapterGenerationBlocked}>Always generate</option>
+                    <option value="generate" disabled={nativeChapterGenerationBlocked || llmDisabled}>Always generate</option>
                     <option value="off">Off</option>
                   </select>
                   <p className="text-xs text-muted-foreground">
@@ -1141,11 +1177,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     the ad-free audio, and generates chapters when an episode has too
                     few. Always generate replaces them; Off leaves them untouched.
                   </p>
+                  {llmDisabled && <LlmDisabledNote id="feed-chapters-llm-disabled" className="text-xs" text={(feed.chaptersMode ?? inheritedChapterMode) === 'generate' ? GENERATE_AS_AUTO_NOTE : undefined} />}
                   {unsupportedChapterRoute && <p role="status" className="text-xs text-warning">System One cannot generate chapters. Select a chat provider and model.</p>}
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1 text-sm">
+              <LlmGate disabled={llmDisabled} id="feed-chapter-notes" describedBy="feed-chapters-llm-disabled" className="flex flex-col gap-1 text-sm">
                 <label htmlFor="chapter-notes" className={`${labelBase} mb-0`}>Chapter notes</label>
                 <textarea
                   id="chapter-notes"
@@ -1188,7 +1225,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 {chapterNotesError && (
                   <p className="text-xs text-destructive">{chapterNotesError}</p>
                 )}
-              </div>
+              </LlmGate>
 
               {/* Per-feed chapter list in descriptions (#720) */}
               <GlobalOverrideRow
@@ -1870,7 +1907,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Per-feed verification mode (#599). */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className={rowLabelTopSm}>Verification</span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <LlmGate disabled={llmDisabled} id="feed-verification" className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={cueOnlyActive ? 'skip' : feed.skipSecondPass == null ? 'inherit' : feed.skipSecondPass ? 'skip' : 'run'}
                     onChange={(e) => updateMutation.mutate({
@@ -1893,7 +1930,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       Verification scans the processed audio a second time. Skipping it reduces LLM use.
                     </p>
                   )}
-                </div>
+                </LlmGate>
               </div>
 
               {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,

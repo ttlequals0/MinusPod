@@ -74,6 +74,27 @@ def test_trimmed_error_and_needs_update():
     assert ytdlp.needs_update('ERROR: Unable to extract uploader id; please report this issue') is True
 
 
+_SIGNED_STDERR = 'WARNING: x\nERROR: unable to download https://objects.example.com/x?X-Amz-Signature=S\n'
+
+
+def test_trimmed_error_redacts_a_signed_url():
+    assert ytdlp.trimmed_error(_SIGNED_STDERR) == (
+        'ERROR: unable to download https://objects.example.com/x?<redacted>')
+
+
+def test_a_failed_update_stores_the_error_redacted(tmp_path):
+    storage = FakeStorage(tmp_path / 'data')
+    _fake_binary(ytdlp.runtime_path(storage), '2026.10.26')
+    db = MagicMock()
+    failed = subprocess.CompletedProcess(['yt-dlp', '-U'], 1, stdout='', stderr=_SIGNED_STDERR)
+    with patch.object(ytdlp, 'run', return_value=failed), \
+            patch.object(ytdlp, 'binary_version', return_value='2026.10.26'):
+        result = ytdlp.update_binary(storage, db, ytdlp.runtime_path(storage))
+    assert 'X-Amz-Signature' not in result['error']
+    stored = [c.args[1] for c in db.set_setting.call_args_list if c.args[0] == 'youtube_ytdlp_last_error']
+    assert stored and all('X-Amz-Signature' not in value for value in stored)
+
+
 def test_update_tick_respects_gates(tmp_path):
     db = MagicMock()
     db.get_setting_bool.side_effect = lambda k, d=False: {'youtube_enabled': False}.get(k, d)

@@ -195,11 +195,8 @@ def test_ad_detector_reexports_legacy_names():
 
 
 def test_salvage_truncated_single_ad_recovers_start_end():
-    """Models that hit max_tokens mid-`reason` field leave structurally-invalid
-    JSON. The salvage strategy regex-extracts numeric fields and returns a
-    usable single-ad dict when both start and end were captured before
-    truncation.
-    """
+    """Truncation mid-`reason` leaves invalid JSON; salvage regex-extracts start/end and returns a
+    single-ad dict when both were captured."""
     from utils.llm_response import extract_json_ads_array
     text = (
         '{\n'
@@ -227,13 +224,10 @@ def test_salvage_truncated_returns_none_without_start_or_end():
 
 
 def test_salvage_recovers_array_wrapped_truncation():
-    """Reviewer and detector responses come back as `[{...}]`. When the model
-    runs out of token budget mid-first-object the array wrapper is still
-    present at the head. Salvage strips the leading `[` and recovers start
-    and end from the partial body. Without this, the call falls open
-    (reviewer) or returns no ads for the window (detector). Regression for
-    issue #221 (Gemini truncation in the opt-in reviewer pass).
-    """
+    """Salvage recovers start/end from an array-wrapped (`[{...}]`) response truncated mid-first-object.
+
+    Without it the reviewer falls open or the detector returns no ads for the window. Regression for
+    issue #221 (Gemini truncation in the opt-in reviewer pass)."""
     from utils.llm_response import extract_json_ads_array
     text = (
         '[{\n'

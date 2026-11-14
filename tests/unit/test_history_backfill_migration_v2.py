@@ -1,18 +1,10 @@
 """Tests for the v2 backfill of processing_history.ads_detected.
 
-v1 (shipped in 2.5.29) compared history.ads_detected against
-episodes.ads_removed_firstpass. firstpass is pass-1 DETECTION count,
-not post-reviewer cuts. v1 only corrected episodes where the reviewer
-rejected zero ads.
-
-v2 uses (ads_removed - ads_removed_secondpass) which equals post-reviewer
-pass-1 cuts, regardless of how many the reviewer rejected.
-
-The canonical case v2 fixes that v1 missed: example-podcast
-a1b2c3d4e5f6. firstpass detection=10, reviewer kept 6, verification
-cuts=2, total=8. v1 saw 6 != 10 and skipped. v2 sees 6 == 8 - 2 and
-corrects to 8.
-"""
+v1 compared ads_detected to episodes.ads_removed_firstpass (the pass-1 detection count, not
+post-reviewer cuts), so it only fixed episodes where the reviewer rejected zero ads. v2 uses
+(ads_removed - ads_removed_secondpass), the post-reviewer pass-1 cuts. Case v1 missed: detection=10,
+kept 6, verification cuts=2, total=8; v1 saw 6 != 10 and skipped, v2 sees 6 == 8 - 2 and corrects to
+8."""
 import os
 import shutil
 import sqlite3
@@ -140,11 +132,9 @@ class TestV2CorrectsReviewerRejectionCases:
 
 
 class TestV2DoesNotDoubleCorrectV1Rows:
-    """When v1 already corrected a row (ads_detected was bumped to
-    ads_removed), v2's predicate must not re-touch it. With v1-correct
-    rows, ads_detected == ads_removed; v2 requires
-    ads_detected == ads_removed - secondpass. Since secondpass > 0,
-    these are never equal, so v2 naturally skips."""
+    """Rows v1 already corrected (ads_detected == ads_removed) are not re-touched.
+
+    v2 needs ads_detected == ads_removed - secondpass, and secondpass > 0, so the two are never equal."""
 
     def test_v1_corrected_row_left_alone(self, fresh_db_dir):
         _reload_db(fresh_db_dir)
@@ -299,11 +289,9 @@ class TestV2SkipsFailedRows:
 
 
 class TestV1AndV2CoexistInSingleBoot:
-    """For a deployer upgrading from <=2.5.28 directly to 2.5.30, both
-    migrations run in the same boot. v1 fixes the easy-case rows (no
-    reviewer rejection), v2 fixes the harder-case rows. The two
-    predicates are mutually exclusive at any moment, so they don't
-    fight over the same row."""
+    """Upgrading from <=2.5.28 to 2.5.30 runs both migrations in one boot.
+
+    Their predicates are mutually exclusive, so they never fight over the same row."""
 
     def test_single_boot_corrects_both_pattern_types(self, fresh_db_dir):
         _reload_db(fresh_db_dir)

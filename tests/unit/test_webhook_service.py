@@ -414,10 +414,7 @@ class TestLoadWebhooks:
         assert result == webhooks
 
 
-# ---------------------------------------------------------------------------
-# fire_test_event tests: one sample per subscribed event (issue: the test
-# button always sent an Episode Processed sample regardless of subscription)
-# ---------------------------------------------------------------------------
+# fire_test_event tests: one sample per subscribed event, not always an Episode Processed sample
 
 class TestFireTestEvent:
 
@@ -847,9 +844,8 @@ class TestFormatCost:
 
 
 class TestEmailDispatchHooks:
-    """Email is a peer notification channel: it must fire even with zero
-    webhooks configured, must not be blocked by webhook failures (and vice
-    versa), and must inherit the alert dedup window (#491 follow-up)."""
+    """Email is a peer notification channel: it fires even with zero webhooks configured, is not blocked by
+    webhook failures (and vice versa), and inherits the alert dedup window (#491)."""
 
     def setup_method(self):
         webhook_service._last_alert_time.clear()
@@ -1021,3 +1017,38 @@ def test_queue_held_event_carries_hold_until_local(monkeypatch):
     assert captured['hold_until_local'] == '2026-01-01T07:30:00-05:00'
     assert local_iso('not a date', 'UTC') is None
     assert local_iso('2026-07-01T12:00:00Z', 'No/Such_Zone') == '2026-07-01T12:00:00+00:00'
+
+
+class TestWebhookErrorTextIsRedacted:
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        webhook_service._last_alert_time.clear()
+        yield
+        webhook_service._last_alert_time.clear()
+
+    def _alert_context(self, fire):
+        with patch('webhook_service.load_webhooks', return_value=[]), \
+             patch('email_service.send_event_email') as send, \
+             patch.object(threading, 'Thread', SyncThread):
+            fire()
+        return send.call_args.args[1]
+
+    @pytest.mark.parametrize('fire', [
+        lambda: webhook_service.fire_auth_failure_event('p', 'm', 'bad key at https://h/v1?key=SECRET', 401),
+        lambda: webhook_service.fire_limit_exceeded_event('p', 'm', 'https://u:SECRET@h/v1', 403),
+        lambda: webhook_service.fire_structural_rate_limit_event('p', 'm', 1, 2, 3, '/v1?k=SECRET'),
+        lambda: webhook_service.fire_queue_held_event(None, 'https://h/x?k=SECRET', 's', 'e', 'P'),
+        lambda: webhook_service.fire_service_offline_event('llm', 'down https://h/x?k=SECRET', 's', 'e', 'P'),
+        lambda: webhook_service.fire_failover_event('trigger', 'llm', 'primary', 'https://h/x?k=SECRET'),
+        lambda: webhook_service.fire_feed_refresh_failed_event(
+            's', 'P', 'https://u:SECRET@h/feed?key=SECRET', 'fetch https://h/f?k=SECRET', 3),
+    ], ids=['auth', 'limit', 'structural', 'held', 'offline', 'failover', 'feed-refresh'])
+    def test_alert_context_has_no_secret(self, fire):
+        assert 'SECRET' not in json.dumps(self._alert_context(fire))
+
+    def test_episode_payload_error_message_is_redacted(self):
+        with patch.object(threading, 'Thread', SyncThread), \
+             patch('webhook_service._fire_event_sync') as sync:
+            fire_event('Episode Failed', 'e', 's', 't', 1.0, 0.0,
+                       error_message='403 for url: https://h/x.mp3?token=SECRET')
+        assert sync.call_args.args[0].error_message == '403 for url: https://h/x.mp3?<redacted>'

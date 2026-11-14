@@ -5,7 +5,7 @@ import pytest
 from cancel import (
     ProcessingCancelled,
     _check_cancel,
-    cancel_processing,
+    request_cancellation,
     _cancel_events,
     _cancel_events_lock,
 )
@@ -34,19 +34,19 @@ def _register_event(run_id):
     return event
 
 
-class TestCancelProcessing:
+class TestRequestCancellation:
     def test_returns_true_and_sets_event_when_registered(self):
         from processing_queue import ProcessingQueue
         run_id = ProcessingQueue().acquire('pod', 'ep1')
         event = _register_event(run_id)
         assert not event.is_set()
-        result = cancel_processing("pod", "ep1")
-        assert result is True
+        result = request_cancellation("pod", "ep1")
+        assert result == run_id
         assert event.is_set()
 
     def test_returns_false_when_no_event_registered(self):
-        result = cancel_processing("pod", "ep_missing")
-        assert result is False
+        result = request_cancellation("pod", "ep_missing")
+        assert result is None
 
     def test_does_not_affect_other_episodes(self):
         from processing_queue import ProcessingQueue
@@ -54,7 +54,7 @@ class TestCancelProcessing:
         run_b = ProcessingQueue().acquire('pod', 'ep_b', limit=2)
         event_a = _register_event(run_a)
         event_b = _register_event(run_b)
-        cancel_processing("pod", "ep_a")
+        request_cancellation("pod", "ep_a")
         assert event_a.is_set()
         assert not event_b.is_set()
 
@@ -81,4 +81,4 @@ class TestRegistryCleanup:
         _register_event(run_id)
         with _cancel_events_lock:
             _cancel_events.pop(run_id, None)
-        assert cancel_processing("pod", "ep1") is True
+        assert request_cancellation("pod", "ep1") == run_id

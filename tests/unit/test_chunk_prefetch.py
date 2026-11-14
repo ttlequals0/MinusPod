@@ -1,12 +1,5 @@
-"""Chunk extraction prefetcher: extraction overlaps GPU inference.
-
-The chunked GPU loop takes each chunk from a _ChunkPrefetcher instead of
-extracting inline, so the ffmpeg pass for chunk N+1 runs while chunk N
-transcribes. These tests pin the pieces that keep that safe: boundary math
-shared with the loop, stale-queue invalidation when the chunk size changes
-mid-run, temp-file cleanup for extractions nobody consumed, and unchanged
-error semantics at take().
-"""
+"""Chunk extraction prefetcher (extraction overlaps GPU inference): boundary math shared with the loop, stale-queue
+invalidation when the chunk size changes mid-run, temp-file cleanup, and unchanged error semantics at take()."""
 
 import os
 import tempfile

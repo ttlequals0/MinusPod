@@ -187,7 +187,7 @@ describe('AdReviewTab', () => {
       expect(b.className).not.toContain('basis-0');
     }
     // Play keeps the 44px floor; the text buttons carry the shared tap-target classes.
-    expect(buttons[0].className).toContain('min-h-11');
+    expect(buttons[0].className).toContain('h-11 w-11');
     for (const b of buttons.slice(1)) {
       expect(b.className).toContain('max-sm:h-11');
       expect(b.className).toContain('whitespace-nowrap');
@@ -287,8 +287,7 @@ describe('AdReviewTab row actions', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Not ad' })).toBeNull();
-    // Edit (and the audition play button) must survive resolution -- both
-    // the desktop row and the card keep their non-decision controls.
+    // Edit (and the audition play button) must survive resolution in both the desktop row and the card.
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('button', { name: 'Edit' })).toBeTruthy();
     const rows = screen.getByTestId('detections-rows');

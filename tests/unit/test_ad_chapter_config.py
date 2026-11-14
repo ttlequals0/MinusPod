@@ -1,7 +1,4 @@
-"""Ad chapter settings: defaults and title format validation.
-
-ad_chapters_enabled/ad_chapter_categories are retired; see test_mark_action_migration.py.
-"""
+"""Ad chapter settings: defaults and title format validation (retired keys: test_mark_action_migration.py)."""
 import pytest
 
 from tests.app_bootstrap import bootstrap

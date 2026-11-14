@@ -1,18 +1,14 @@
 """Regenerate patterns/community/index.json from the per-pattern JSON files.
 
-Invoked by the `regenerate-manifest` GitHub Action on every push to `main`
-that touches `patterns/community/**.json`, and also runnable by hand for
-local testing or recovery from a workflow failure:
+Run by the `regenerate-manifest` GitHub Action on pushes to `main` that touch
+`patterns/community/**.json`, or by hand:
 
     python -m tools.generate_manifest
 
-Pattern files live at `patterns/community/<sponsor>-<uuid>.json`. The
-manifest is a single document that embeds every pattern inline so the
-client fetches everything in one request. `published_at` is bumped to the
-current UTC time only when the rendered manifest actually changes -- a no-op
-run reuses the prior timestamp so the regenerate-manifest workflow's
-`git diff --quiet` stays quiet and skips a spurious commit. `manifest_version`
-and `vocabulary_version` are constants that bump only when the format changes.
+Pattern files live at `patterns/community/<sponsor>-<uuid>.json`. `published_at` is
+bumped only when the rendered manifest changes, so a no-op run keeps the workflow's
+`git diff --quiet` quiet. `manifest_version` and `vocabulary_version` bump only when
+the format changes.
 """
 from __future__ import annotations
 
@@ -21,9 +17,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Defensive sys.path bootstrap so `python path/to/script.py` works as well as
-# `python -m src.tools.X` (the workflow-style invocation). When run via -m,
-# tools/__init__.py already did this -- the lines below are then a no-op.
+# sys.path bootstrap so `python path/to/script.py` works too; a no-op under -m,
+# where tools/__init__.py already did it.
 _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
@@ -60,14 +55,10 @@ def _flatten_to_patterns(path: Path, data: Any) -> list[dict[str, Any]]:
 
 
 def _load_pattern_files(directory: Path) -> list[dict[str, Any]]:
-    """Read every <sponsor>-<uuid>.json in `directory`, excluding index.json,
-    and return one THIN index entry per pattern: community_id, version,
-    content_hash, and path (the filename).
+    """Return one thin index entry (community_id, version, content_hash, path) per pattern, excluding index.json.
 
-    The content_hash is over the file's raw published bytes (not a reserialized
-    dict), so the sync client can recompute the identical value from the fetched
-    file. Bundle files contribute one entry per contained pattern, all sharing
-    that file's path and hash. Sorted by community_id for a deterministic order.
+    content_hash is over the file's raw bytes so the sync client can recompute it. Bundle
+    files give one entry per pattern, sharing the file's path and hash. Sorted by community_id.
     """
     entries: list[dict[str, Any]] = []
     for path in sorted(directory.glob('*.json')):
@@ -111,13 +102,9 @@ def _render(manifest: dict[str, Any]) -> str:
 def reuse_published_at(manifest: dict[str, Any], existing_text: str | None) -> dict[str, Any]:
     """Reuse the prior `published_at` when nothing but the timestamp changed.
 
-    `existing_text` is the on-disk index.json verbatim. If re-rendering the new
-    manifest with the prior timestamp reproduces that text byte-for-byte, only
-    the timestamp would have changed, so we keep the old value. The comparison
-    is on rendered bytes -- the same thing the regenerate-manifest workflow's
-    `git diff --quiet` checks -- so a true no-op stays quiet and skips the
-    spurious timestamp-only commit. Any real content change re-renders
-    differently and the fresh timestamp stands.
+    `existing_text` is the on-disk index.json. If re-rendering with the prior timestamp
+    reproduces it byte-for-byte (what `git diff --quiet` checks), keep the old value to
+    avoid a timestamp-only commit.
     """
     if not existing_text:
         return manifest

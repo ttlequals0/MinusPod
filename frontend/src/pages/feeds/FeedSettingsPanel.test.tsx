@@ -1,14 +1,9 @@
 /**
- * Component tests for the cross-fetch differential toggle and DAI-likely hint
- * in FeedSettingsPanel.tsx.
- *
- * Covers:
- *   - Toggle renders unchecked when differentialFetchEnabled is unset.
- *   - Enabling fires updateFeed with { differentialFetchEnabled: true }.
- *   - Disabling an enabled feed fires { differentialFetchEnabled: false }.
- *   - DAI-likely badge + hint render only when feed.daiLikely is true.
+ * FeedSettingsPanel.tsx: the cross-fetch differential toggle (unset renders unchecked; enabling and
+ * disabling fire updateFeed) and the DAI-likely badge and hint, shown only when feed.daiLikely is true.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -320,6 +315,113 @@ describe('FeedSettingsPanel queue priority control (#625)', () => {
     renderPanel(makeFeed());
     await userEvent.selectOptions(screen.getByRole('combobox', { name: QUEUE_PRIORITY_SELECT_NAME }), 'high');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { queuePriority: 'high' });
+  });
+});
+
+describe('FeedSettingsPanel processing order control (#997)', () => {
+  const NAME = 'Processing order';
+
+  it('points aria-describedby at the error alert when a save fails', async () => {
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockRejectedValue(new Error('invalid queueOrder'));
+    renderPanel(makeFeed({ queueOrder: null }));
+    const select = screen.getByRole('combobox', { name: NAME });
+    await userEvent.selectOptions(select, 'newest_first');
+    const alert = await screen.findByRole('alert');
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-order-help feed-queue-order-error');
+    expect(document.getElementById('feed-queue-order-error')).toBe(alert);
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows Use default for a null or absent override', () => {
+    renderPanel(makeFeed({ queueOrder: null }));
+    const select = screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(select.selectedOptions[0].textContent).toBe('Use default');
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-order-help');
+  });
+
+  it('lists the orders the settings response reports', async () => {
+    mockGetSettings.mockResolvedValue({
+      queueOrder: { value: 'queued', isDefault: true, options: ['queued', 'newest_first'] },
+    });
+    renderPanel(makeFeed());
+    await screen.findByRole('option', { name: 'Use default (As queued)' });
+    const select = screen.getByRole('combobox', { name: NAME });
+    expect(Array.from((select as HTMLSelectElement).options).map((o) => o.value)).toEqual(['', 'queued', 'newest_first']);
+  });
+
+  it('keeps a stored order the server does not list selected, and a no-op saves nothing', async () => {
+    mockGetSettings.mockResolvedValue({
+      queueOrder: { value: 'queued', isDefault: true, options: ['queued', 'oldest_first'] },
+    });
+    renderPanel(makeFeed({ queueOrder: 'newest_first' }));
+    await screen.findByRole('option', { name: 'Use default (As queued)' });
+    const select = screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('newest_first');
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'queued', 'oldest_first', 'newest_first']);
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('names the global order in the Use default option once settings load', async () => {
+    mockGetSettings.mockResolvedValue({ queueOrder: { value: 'oldest_first', isDefault: false } });
+    renderPanel(makeFeed());
+    expect(await screen.findByRole('option', { name: 'Use default (Oldest first)' })).toBeDefined();
+  });
+
+  it('shows the stored override', () => {
+    renderPanel(makeFeed({ queueOrder: 'oldest_first' }));
+    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('oldest_first');
+  });
+
+  it('sends the chosen order and null for Use default', async () => {
+    renderPanel(makeFeed({ queueOrder: 'oldest_first' }));
+    const select = screen.getByRole('combobox', { name: NAME });
+    await userEvent.selectOptions(select, 'newest_first');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { queueOrder: 'newest_first' });
+    await userEvent.selectOptions(select, '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { queueOrder: null });
+  });
+});
+
+describe('FeedSettingsPanel failed saves for queue controls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockRejectedValue(new Error('invalid queueOrder'));
+  });
+
+  it('shows the error and the saved value when Processing order fails', async () => {
+    renderPanel(makeFeed({ queueOrder: 'oldest_first' }));
+    const select = screen.getByRole('combobox', { name: 'Processing order' }) as HTMLSelectElement;
+    await userEvent.selectOptions(select, 'newest_first');
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('invalid queueOrder');
+    expect(select.value).toBe('oldest_first');
+  });
+
+  it('shows the error and the saved value when Queue priority fails', async () => {
+    mockUpdateFeed.mockRejectedValue(new Error('invalid queuePriority'));
+    renderPanel(makeFeed({ queuePriority: 'low' }));
+    const select = screen.getByRole('combobox', { name: 'Queue priority' }) as HTMLSelectElement;
+    await userEvent.selectOptions(select, 'high');
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('invalid queuePriority');
+    expect(select.value).toBe('low');
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-priority-help feed-queue-priority-error');
+    expect(document.getElementById('feed-queue-priority-error')).toBe(alert);
+    expect(document.getElementById('feed-queue-priority-help')?.textContent).toContain('High processes before');
+  });
+
+  it('describes the select by the help text alone when there is no error', () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: 'Queue priority' });
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-priority-help');
   });
 });
 
@@ -643,10 +745,8 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('two rapid sequential edits compose into the second PATCH payload', async () => {
-    // Building the payload from the `feed` prop instead of a synchronous
-    // local source of truth would let a second edit read a stale prop and
-    // drop the first edit (the backend replaces the override map outright,
-    // it doesn't merge). The prop never changes across these two clicks.
+    // The payload must come from a synchronous local source of truth: the `feed` prop never changes across
+    // these clicks, so reading it would drop the first edit (the backend replaces the override map).
     renderPanel(makeFeed());
 
     const sponsorGroup = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
@@ -663,10 +763,8 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('a failed edit does not leak into the next edit\'s PATCH payload', async () => {
-    // Without onError, a rejected PATCH would leave segmentOverrides holding
-    // the failed edit; a second edit before the refetch lands would resend
-    // it alongside the new one. Only the onError handler's immediate reseed
-    // fixes this, since the `feed` prop never changes here to refetch it.
+    // Without onError's immediate reseed, a rejected PATCH leaves the failed edit in segmentOverrides and
+    // a second edit before the refetch resends it; the `feed` prop never changes here to refetch it.
     mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
     renderPanel(makeFeed());
@@ -693,10 +791,8 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('a later failed edit does not erase an earlier successful edit (Lens B)', async () => {
-    // Reseeding segmentOverrides from the `feed` prop on error is buggy: the
-    // prop lags a just-succeeded edit until its query refetches. Restoring
-    // that stale prop after B fails would erase A; the fix is rolling back
-    // to the per-edit snapshot taken before B's own optimistic update.
+    // Reseeding from the `feed` prop on error would restore a stale prop (it lags a just-succeeded edit
+    // until refetch) and erase A; the fix rolls back to the per-edit snapshot taken before B.
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
     mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
@@ -1789,5 +1885,74 @@ describe('FeedSettingsPanel require manual approval tri-state control', () => {
     expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: null });
     await userEvent.click(within(group).getByRole('radio', { name: 'Off' }));
     expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: false });
+  });
+});
+
+describe('FeedSettingsPanel chapters mode under LLM provider None', () => {
+  it('disables Always generate with the reason and keeps Auto, Off and Inherit', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false });
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: 'Chapters' });
+    await waitFor(() => expect((within(select).getByRole('option', { name: 'Always generate' }) as HTMLOptionElement).disabled).toBe(true));
+    expect((within(select).getByRole('option', { name: 'Auto' }) as HTMLOptionElement).disabled).toBe(false);
+    expect((within(select).getByRole('option', { name: 'Off' }) as HTMLOptionElement).disabled).toBe(false);
+    expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
+    mockGetSettings.mockResolvedValue({});
+  });
+
+  it('points Chapter notes at the Chapters note instead of printing a second line', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false });
+    renderPanel(makeFeed());
+    const notes = await screen.findByLabelText('Chapter notes');
+    await waitFor(() => expect((notes.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true));
+    expect(document.querySelectorAll('#feed-chapters-llm-disabled')).toHaveLength(1);
+    expect(document.getElementById('feed-chapter-notes-llm-disabled')).toBeNull();
+    expect(notes.closest('fieldset')?.getAttribute('aria-describedby')).toBe('feed-chapters-llm-disabled');
+    mockGetSettings.mockResolvedValue({});
+  });
+});
+
+describe('FeedSettingsPanel under LLM provider None', () => {
+  beforeEach(() => { mockGetSettings.mockResolvedValue({ llmEnabled: false, skipSecondPass: { value: false } }); });
+  afterEach(() => { mockGetSettings.mockResolvedValue({}); });
+
+  it('says an inherited generate mode behaves like Auto', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false, chaptersMode: { value: 'generate' } });
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: 'Chapters' });
+    await waitFor(() => expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'LLM provider is set to None. Always generate behaves like Auto.',
+    ));
+  });
+
+  it('disables Keep content only and describes model-free detection once', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByLabelText('Processing mode:') as HTMLSelectElement;
+    await waitFor(() => expect((within(select).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(true));
+    const text = select.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent).join('|');
+    expect(text).toContain('Detects ads with text patterns, audio fingerprints, audio cues and cross-fetch comparison');
+    expect(text.match(/LLM provider is set to None/g)).toHaveLength(1);
+    expect(text).toContain('Keep content only is unavailable. LLM provider is set to None.');
+  });
+
+  it('shows one line for a feed already saved on keep content', async () => {
+    renderPanel(makeFeed({ processingMode: 'keep_content' }));
+    await waitFor(() => expect(screen.getByText('Keep content runs as Standard while the LLM provider is set to None.')).toBeDefined());
+    expect(screen.queryByText(/Keep content only is unavailable/)).toBeNull();
+  });
+
+  it('disables the per-feed verification select, detection notes and chapter notes with the reason', async () => {
+    renderPanel(makeFeed());
+    await waitFor(() => expectGatedByLlm(screen.getByLabelText('Verification pass')));
+    expectGatedByLlm(screen.getByLabelText('Detection notes'));
+    expectGatedByLlm(screen.getByLabelText('Chapter notes'));
+  });
+
+  it('leaves processing mode, verification and notes enabled when a provider is set', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: true });
+    renderPanel(makeFeed());
+    await waitFor(() => expect((within(screen.getByLabelText('Processing mode:')).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(false));
+    expectNotGatedByLlm(screen.getByLabelText('Verification pass'));
+    expectNotGatedByLlm(screen.getByLabelText('Detection notes'));
   });
 });

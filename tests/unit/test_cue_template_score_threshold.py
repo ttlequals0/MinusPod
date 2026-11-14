@@ -1,16 +1,8 @@
-"""Unit tests for per-template score_threshold (Task A1, issue #350).
+"""Unit tests for per-template score_threshold (issue #350).
 
-Resolution precedence: per-template > per-feed > global.
-
-Covers:
-- Per-template threshold gates a match that the instance threshold would pass
-- Per-template threshold allows a match that the instance threshold would block
-- NULL threshold falls back to instance (no behaviour change)
-- Peak-pick floor respects lowered per-template threshold (near-miss surfaces)
-- update_cue_template sets and clears score_threshold
-- _template_to_meta_dict includes scoreThreshold
-- PATCH endpoint accepts valid float, rejects out-of-range / non-numeric
-"""
+Precedence: per-template > per-feed > global. Covers gating in both directions, NULL fallback to the
+instance threshold, the peak-pick floor, update_cue_template set/clear, _template_to_meta_dict
+scoreThreshold, and PATCH validation."""
 import os
 import sys
 import tempfile
@@ -46,24 +38,13 @@ def _make_row(mfcc: np.ndarray, *, template_id: int = 1,
     }
 
 
-def _planted_haystack(rng, template, plant_at: int, noise_level: float = 0.0):
-    """Haystack with the template planted at plant_at; random noise elsewhere."""
-    haystack = rng.standard_normal((200, N_COEFFS)).astype(np.float32) * noise_level
-    haystack[plant_at:plant_at + template.shape[0]] = template
-    return haystack
-
-
 # ---------------------------------------------------------------------------
 # Per-template threshold gates match that instance threshold would pass
 # ---------------------------------------------------------------------------
 
 def test_per_template_threshold_blocks_match_below_its_own_threshold():
-    """Per-template threshold 0.999 blocks a noisy haystack that instance 0.3 would pass.
-
-    Plant nothing; pure noise scores stay well below 0.999. With only the
-    instance threshold of 0.3 the matcher would surface hits, but the strict
-    per-template gate must suppress them -> zero matches from _scan_chunk.
-    """
+    """Per-template threshold 0.999 suppresses a noisy haystack that instance 0.3 would pass (zero
+    _scan_chunk matches)."""
     rng = np.random.default_rng(7)
     template = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     # Pure noise: no planted match; scores will be low but could exceed 0.3
@@ -84,13 +65,9 @@ def test_per_template_threshold_blocks_match_below_its_own_threshold():
 
 
 def test_per_template_threshold_allows_match_that_instance_would_block():
-    """Per-template 0.5 lowers the bar; instance 0.95 alone would block the match.
+    """Per-template 0.5 matches a degraded copy (score in 0.5-0.95) that instance 0.95 alone would block.
 
-    Plant a slightly degraded copy so the score lands in (0.5, 0.95).
-    With instance threshold 0.95 only -> no match (score below instance).
-    With per-template threshold 0.5 overriding -> match surfaces.
-    _scan_chunk is called directly so we can assert on match counts.
-    """
+    _scan_chunk is called directly to assert on match counts."""
     rng = np.random.default_rng(42)
     template = rng.standard_normal((20, N_COEFFS)).astype(np.float32)
     # noise=0.7 produces score ~0.78 (above per-template 0.5, below instance 0.95)
@@ -197,13 +174,9 @@ def test_scan_chunk_null_per_template_threshold_falls_back_to_instance():
 # ---------------------------------------------------------------------------
 
 def test_peak_pick_floor_respects_lowered_per_template_threshold():
-    """Per-template threshold 0.5 lower than instance 0.8 surfaces a mid-range match.
+    """Per-template 0.5 (below instance 0.8) lowers pick_floor so _peak_pick sees a mid-range peak.
 
-    Plant a degraded copy so score lands in (0.5, 0.8). With instance 0.8 only
-    the peak sits below the gate and is invisible. With per-template 0.5, the
-    pick_floor must be lowered to at most 0.5 so _peak_pick can find the peak,
-    and the score >= 0.5 gate promotes it to a real match (not just near-miss).
-    """
+    The score >= 0.5 gate then promotes it to a real match, not just a near-miss."""
     rng = np.random.default_rng(17)
     template_mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     # noise=1.0 produces score ~0.78 (above per-template 0.5, below instance 0.8)
@@ -355,15 +328,11 @@ def test_template_to_meta_dict_score_threshold_null():
 # ---------------------------------------------------------------------------
 
 def test_suggest_sweep_strips_per_template_thresholds():
-    """_run_cue_threshold_scan must clear score_threshold before building matcher.
+    """_run_cue_threshold_scan must clear score_threshold before building the matcher.
 
-    Build two template rows with high score_threshold values (0.99) and a
-    planted haystack whose score lands around 0.7 (above AUDIO_CUE_SUGGEST_FLOOR
-    but below 0.99). Without the strip, the per-template gate hides these
-    occurrences from the gap-finder. With the strip, they surface as matches.
-    Verified by building the sweep matcher directly (mirroring the route logic)
-    and asserting the template has score_threshold=None after the strip.
-    """
+    Templates with threshold 0.99 and a haystack scoring ~0.7 (above AUDIO_CUE_SUGGEST_FLOOR) would
+    be hidden by the per-template gate. Builds the sweep matcher directly (mirroring the route) and
+    asserts score_threshold is None after the strip."""
     rng = np.random.default_rng(88)
     template_mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     # noise=0.8 produces score ~0.72 (above AUDIO_CUE_SUGGEST_FLOOR ~0.35, below 0.99)

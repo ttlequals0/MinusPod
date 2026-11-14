@@ -1,11 +1,7 @@
-"""Tests for the User-Agent header on the initial RSS fetch.
+"""User-Agent header on the initial RSS fetch.
 
-Some feed hosts (notably feeds.podcastindex.org) reject the default
-python-requests UA with 403. ``fetch_feed_conditional`` has always
-passed ``APP_USER_AGENT``; ``fetch_feed`` did not, which made
-``add_feed`` slug derivation silently fail on UA-strict hosts because
-the title-fetch step returned None and the endpoint then refused to
-auto-derive a slug from the URL.
+Some feed hosts reject the default python-requests UA with 403. fetch_feed must pass APP_USER_AGENT like
+fetch_feed_conditional, or add_feed slug derivation fails on UA-strict hosts (the title fetch returns None).
 """
 import logging
 import re

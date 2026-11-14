@@ -1,12 +1,9 @@
 """Divider planning for splitting a merged multi-sponsor ad marker (issue #563).
 
-One marker over back-to-back ads is right for the audio and wrong for pattern
-learning: confirming it mints one oversized multi-sponsor template. These
-helpers propose divider times from four sources, each mapped back to a
-timestamp: AD_TRANSITION_PHRASES in the span's transcript, the member spans a
-merge recorded, a clean handoff from one brand to another in the text, and
-measured cut times the analyzer left on the marker. Free of Flask and DB
-imports so it unit tests directly.
+One marker over back-to-back ads is right for the audio but wrong for pattern learning
+(confirming it mints one oversized multi-sponsor template). These helpers propose divider
+times from AD_TRANSITION_PHRASES in the transcript, recorded merge member spans, brand
+handoffs in the text, and measured cut times on the marker. No Flask or DB imports.
 """
 import re
 
@@ -40,9 +37,7 @@ def _join(spans: list[dict]) -> str:
 def _time_at_offset(spans: list[dict], offset: int) -> float | None:
     """Start time of the span containing `offset` in the joined text.
 
-    The span's own start is used rather than interpolating within it: a
-    transition phrase marks the beginning of a sponsor read, and the read starts
-    where that transcript segment starts.
+    Uses the span's start, not an interpolation: a transition phrase begins a sponsor read at its segment start.
     """
     for span in spans:
         # +1 covers the space ' '.join inserts after this span's text.
@@ -68,10 +63,8 @@ def _brand_row(brand) -> dict | None:
 
 def brand_mention_offsets(text: str, brands, compiled=None) -> dict[str, list[int]]:
     """Word-boundary offsets of each brand's mentions in `text`, by name.
-    Brands absent from the text are left out, so len() is the count of distinct
-    advertisers a span names. ``compiled`` is SponsorService's matcher cache by
-    canonical name; a brand missing from it (a bare label the registry has no
-    row for) is compiled here."""
+    Absent brands are omitted, so len() counts distinct advertisers. ``compiled`` is
+    SponsorService's matcher cache by canonical name; brands missing from it are compiled here."""
     if not text or not brands:
         return {}
     patterns = {}
@@ -150,10 +143,9 @@ def build_split_candidates(spans: list[dict], start: float, end: float,
                            segments: list[dict] = None) -> list[dict]:
     """Proposed divider times inside (start, end), earliest first.
 
-    A candidate is dropped when it would leave a piece shorter than
-    MIN_AD_DURATION on either side, so the editor never opens already invalid.
-    Returns [] when no source proposes a divider. `segments` are the Whisper
-    segments behind word-level `spans`: dividers move onto their boundaries.
+    A candidate is dropped if it leaves a piece shorter than MIN_AD_DURATION, so the editor never opens
+    invalid. [] when no source proposes one. `segments` are the Whisper segments behind word-level
+    `spans`; dividers move onto their boundaries.
     """
     text = _join(spans) if spans else ''
     inside, near, holder = _segment_snapper(segments, start, end)
@@ -226,14 +218,11 @@ def build_split_pieces(spans: list[dict], start: float, end: float,
                        sponsor: str = None) -> list[dict]:
     """The pieces `times` would produce, each with its text and sponsor guess.
 
-    Boundary times outside (start, end) are ignored rather than rejected: this
-    builds a preview, and validation of a submitted split lives in the
-    corrections endpoint.
+    Times outside (start, end) are ignored: this is a preview; the corrections endpoint validates submitted splits.
     """
     inner = sorted(t for t in times if start < t < end)
     bounds = [start] + inner + [end]
-    # Scanned once over the whole span; each piece reads the hits in its own
-    # character range, so a split into N pieces still costs one pass per brand.
+    # One scan over the whole span; each piece reads the hits in its character range.
     mentions = brand_mention_offsets(_join(spans), brands, compiled)
     pieces: list[dict] = []
     for i in range(len(bounds) - 1):

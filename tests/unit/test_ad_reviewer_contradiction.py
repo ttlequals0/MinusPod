@@ -1,13 +1,7 @@
-"""Reviewer verdict/reasoning contradiction (docs/specs/2026-07-08-ad-splice-detection.md#14-reviewer-verdictreasoning-contradiction-bug-3).
-
-ROOT CAUSE: _review_single derives confirmed/adjust purely from boundary
-arithmetic (src/ad_reviewer.py:698-720) and never inspects the model's
-reason text (kept.get("reason") at :648 is stored, not evaluated). A model
-response that returns the ad object with unchanged boundaries but a reason
-of "no advertisement content" therefore ships verdict=confirmed and the ad
-is cut (a 90s false cut of one sponsor; 4 similar contradictions).
-This is a parser/derivation gap, not malformed model output.
-"""
+"""Reviewer verdict/reasoning contradiction
+(docs/specs/2026-07-08-ad-splice-detection.md#14-reviewer-verdictreasoning-contradiction-bug-3):
+_review_single derives confirmed/adjust only from boundary arithmetic and never reads the reason
+text."""
 import os
 import sys
 import tempfile
@@ -256,12 +250,8 @@ def test_apply_reviewer_verdict_confirmed_with_recovered_bounds():
     assert ad['reviewer_proposed_end'] == 150.0
 
 
-# ---------- Trim-bounds recovery on confirmed-verdict contradiction holds ----------
-# Prod incident (another-podcast f6e5d4c3b2a1): reviewer returned
-# 0.0-87.8s unchanged (verdict derived 'confirmed') while its reasoning said
-# the ad ends at ~65.8s and the tail must be trimmed. The hold fired but
-# carried no bounds the UI could one-tap approve. A follow-up LLM call now
-# recovers {"ad_start", "ad_end"} from the reasoning text.
+# Trim-bounds recovery on confirmed-verdict contradiction holds: when bounds are unchanged but the
+# reasoning says to trim, a follow-up LLM call recovers {"ad_start", "ad_end"} for a one-tap approve.
 
 TRIM_REASONING = (
     'The ad content ends at 150.0s; the closing sentence is show content, '
@@ -331,10 +321,8 @@ def test_contradicted_confirmed_out_of_range_recovery_rejected():
 
 
 def test_contradicted_confirmed_tiny_trim_rejected():
-    # Recovered ad portion is 2s inside a 60s span, under the
-    # MIN_AD_DURATION_FOR_REMOVAL floor: a trim that claims almost none of a
-    # span the model confirmed as an ad is more likely a hallucination than a
-    # real trim. Hold without bounds rather than pre-fill a bad one-tap trim.
+    # A 2s recovered portion of a 60s span is under MIN_AD_DURATION_FOR_REMOVAL: likelier a
+    # hallucination than a real trim, so hold without bounds.
     result, _ = _run_confirmed_hold(_resp('{"ad_start": 120.0, "ad_end": 122.0}'))
     held = result.held_by_contradiction[0]
     assert held['held_for_review'] is True
@@ -363,11 +351,8 @@ def test_contradicted_confirmed_recovery_llm_failure_falls_back():
 
 
 def test_legacy_merged_ad_contradiction_skips_trim_recovery():
-    # Regression R3c: _review_single blocks inward shrink on
-    # merged_distinct_ads, but trim recovery could still propose a sub-span
-    # that drops a still-confirmed sub-ad. A legacy merged ad (flag set,
-    # predates member tracking, so no merged_protected_start/end keys) must
-    # hold WITHOUT proposed bounds and never spend the recovery LLM call.
+    # Regression: trim recovery must not propose a sub-span that drops a still-confirmed sub-ad.
+    # A legacy merged ad (no merged_protected_start/end keys) holds without bounds and spends no recovery call.
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
@@ -435,10 +420,8 @@ def test_merged_ad_with_null_protection_recovers_trim():
 
 
 def test_merged_ad_recovery_keeps_raw_proposal_on_contradiction_hold():
-    # Tracked merge with a transcript-anchored member protected at
-    # 120.0-170.0 inside span 100.0-200.0. Recovery proposes a sub-span
-    # (130.0, 150.0) that would sever the protected member. Contradiction
-    # holds retain raw recovery output only as review information.
+    # Tracked merge with a protected member at 120.0-170.0 inside 100.0-200.0: recovery's (130.0, 150.0)
+    # would sever it, so the raw recovery output is kept only as review information.
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
@@ -597,10 +580,8 @@ NEGATED_PHRASE_REASONS = [
     'past sponsors in passing. This span contains no advertising content.',
 ]
 
-# Affirmation phrase present, whole-span negation present, NO trim
-# language: the negation is not a boundary note, so these must still hold.
-# Self-promo dismissals are the production shape (the review prompt tells
-# the model to keep house promos, and its reason text argues both ways).
+# Affirmation phrase plus whole-span negation but no trim language: not a boundary note, so these still hold.
+# Self-promo dismissals are the production shape (the reason text argues both ways).
 SELF_PROMO_DISPUTE_REASONS = [
     "This is an advertisement for the show's own merchandise store, but "
     "per policy self-promotion is not advertising and should not be cut.",
@@ -766,18 +747,13 @@ def test_negated_phrases_are_not_affirmations(reason):
     assert reasoning_contradicts_cut(reason)
 
 
-# ---------- Affirmed confirm + trim language routes to recovery as adjust ----------
-# SPONSOR_BLOCK_REASONING affirms the span IS an ad (reasoning_affirms_ad is True) while
-# also naming a sub-span trim in prose ("trimmed back to 1040.9s"). The
-# affirmation guard keeps this out of the contradiction-hold branch entirely;
-# it must instead reach the new affirmed-confirm branch, spend one recovery
-# call, and ship as an accepted adjust rather than an unchanged confirm.
+# Affirmed confirm + trim language routes to recovery as adjust: SPONSOR_BLOCK_REASONING affirms the
+# span is an ad but names a sub-span trim. It skips the contradiction hold, spends one recovery call
+# and ships as an accepted adjust.
 
 def _run_affirmed_confirm(followup, reasoning=None, ad=None):
-    """Run one review whose main call yields a confirmed verdict with
-    unchanged bounds and affirming/trim reasoning (sponsor-block style by default),
-    and whose follow-up recovery call yields ``followup`` (an _LLMResp or an
-    exception instance). Returns (result, llm mock)."""
+    """Run a review with a confirmed verdict, unchanged bounds and affirming/trim reasoning; the recovery
+    call yields ``followup`` (an _LLMResp or exception). Returns (result, llm mock)."""
     reasoning = reasoning or SPONSOR_BLOCK_REASONING
     if ad is None:
         ad = {
@@ -866,11 +842,8 @@ def test_reviewer_end_adjustment_clears_stale_tail_eligibility():
 
 
 def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
-    # OUTRO_REASONING affirms the span IS an ad while describing the
-    # boundary move in assertion phrasing ("should move to") rather than
-    # "trim"/"ends at". _TRIM_LANGUAGE_RE must recognize this phrasing so the
-    # affirmed-confirm branch fires the recovery call instead of shipping the
-    # unchanged span (which would cut the show's own outro).
+    # OUTRO_REASONING affirms the ad but words the move as "should move to", so _TRIM_LANGUAGE_RE must
+    # match it for the recovery call to fire instead of shipping the unchanged span.
     result, llm = _run_affirmed_confirm(
         _resp('{"ad_start": 2503.6, "ad_end": 2563.8}'),
         reasoning=OUTRO_REASONING,
@@ -886,12 +859,8 @@ def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
 
 
 def test_affirmed_confirm_recovery_failure_accepts_unchanged():
-    # Same setup but the recovery call fails: the ad is accepted with its
-    # original bounds, the verdict stays 'confirmed', nothing held.
-    # A non-retryable message (unlike "timeout") keeps this test from
-    # tripping call_llm's secondary backoff retries, matching the
-    # RuntimeError('boom') convention used by the donor recovery-failure
-    # test above.
+    # Recovery call fails: ad accepted with original bounds, verdict stays 'confirmed', nothing held.
+    # A non-retryable message (not "timeout") avoids call_llm's secondary backoff retries.
     result, llm = _run_affirmed_confirm(RuntimeError('boom'))
     assert llm.messages_create.call_count == 2
     assert result.held_by_contradiction == []

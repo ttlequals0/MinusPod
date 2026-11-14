@@ -17,21 +17,16 @@ interface NumberInputProps {
   className?: string;
   disabled?: boolean;
   /**
-   * 'edit' (default) commits on every parseable keystroke, for drafts a Save
-   * button later persists. 'blur' commits only on blur or Enter, for fields
-   * wired straight to a write.
+   * 'edit' (default) commits on every parseable keystroke, for drafts a Save button persists. 'blur' commits
+   * only on blur or Enter, for fields wired straight to a write.
    */
   commitOn?: 'edit' | 'blur';
 }
 
 /**
- * Numeric settings input that can actually be cleared and retyped.
- *
- * A plain controlled `value={number}` input snaps back to the number on every
- * keystroke (so clearing a 0 is impossible) and `type=number` does not normalize
- * leading zeros, which produces "012" / "120". This keeps a local text buffer so
- * the field can be empty while editing, commits a clamped number as soon as the
- * text parses, and normalizes (empty/invalid -> fallback, else clamp) on blur.
+ * Numeric settings input that can be cleared and retyped. A plain controlled number input snaps back on every
+ * keystroke and `type=number` keeps leading zeros ("012"), so this holds a local text buffer, commits a
+ * clamped number once the text parses, and normalizes (empty/invalid -> fallback) on blur.
  */
 export default function NumberInput({
   value, min, max, fallback, onCommit, id, ariaLabel, ariaDescribedBy, ariaInvalid, step,

@@ -11,7 +11,8 @@ import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
 import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
 import { ghostBtn, primaryBtn } from '../../components/cueScanStyles';
-import { btnBase, btnDestructive, btnDestructiveOutline, btnGhost, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { rowActionBtn, rowActionFieldSize } from '../../components/rowActionStyles';
 import { cardTitle, subHeading } from '../../components/pageStyles';
 import { ConfirmModal } from '../../components/Modal';
 import {
@@ -45,9 +46,13 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
 import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
+const EXPORT_TITLE = 'Download this cue as a portable zip';
+// Below 380 px: tighter button padding and no Play icon, so Play, Threshold and More fit one line (flex-wrap only backs up larger text).
+const narrow = { px: 'max-[379px]:px-2', hideIcon: 'max-[379px]:hidden' };
 
 interface Props {
   slug: string;
@@ -132,10 +137,9 @@ function CueTemplatesPanel({ slug }: Props) {
     enabled: !!slug && panelOpen,
   });
 
-  // Gate for the "Find across episodes" button: needs >= 2 episodes with
-  // retained originals. Shares the picker's page-0 query (cached), and only
-  // disables once loaded data confirms the shortfall, so the button doesn't
-  // flash disabled while the query is in flight.
+  // Gate for "Find across episodes": needs >= 2 episodes with retained originals. Shares the picker's cached
+  // page-0 query and disables only once loaded data confirms the shortfall, so the button does not flash
+  // disabled while loading.
   const eligibleQuery = useQuery({
     queryKey: ['cue-template-picker', slug, 0],
     queryFn: () =>
@@ -155,6 +159,61 @@ function CueTemplatesPanel({ slug }: Props) {
   const crossEpisodeEligible = !eligibleQuery.data || eligibleCount >= 2;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
+
+  const moreItems = (t: CueTemplate): DropdownMenuItem[] => {
+    const items: DropdownMenuItem[] = [{
+      title: 'Export',
+      href: cueTemplateExportUrl(t.id),
+      tooltip: IS_DEMO ? DEMO_DOWNLOAD_TOOLTIP : EXPORT_TITLE,
+      disabled: IS_DEMO,
+    }];
+    if (t.scope === 'network' || networkId) {
+      const mismatched = t.scope === 'network' && !!networkId && t.networkId !== networkId;
+      items.push({
+        title: t.scope === 'network'
+          ? (mismatched ? `Move to network ${networkId}` : 'Make podcast-only')
+          : 'Promote to network',
+        tooltip: t.scope === 'network'
+          ? (mismatched
+              ? `Move this cue to network "${networkId}"`
+              : 'Limit this cue to this feed only')
+          : `Apply this cue to every feed on network "${networkId}"`,
+        onClick: () => handlePromote(t),
+      });
+    }
+    items.push(
+      { title: 'Change type', onClick: () => startEditType(t) },
+      {
+        title: 'Optimize window',
+        tooltip: !t.sourceEpisodeId
+          ? 'This cue has no source episode to rescan'
+          : 'Try small trims of this window and keep the one that matches best',
+        disabled: !t.sourceEpisodeId,
+        onClick: () => {
+          setActionError(null);
+          setOptimizeId(optimizeId === t.id ? null : t.id);
+        },
+      },
+      { title: 'Delete', destructive: true, onClick: () => setConfirmDeleteId(t.id) },
+    );
+    return items;
+  };
+
+  const playButton = (t: CueTemplate) => t.hasAudio !== false && (
+    <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
+      <button
+        type="button"
+        className={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
+        onClick={() => togglePlay(t)}
+        disabled={IS_DEMO}
+        title={playingId === t.id ? 'Stop' : 'Play this cue'}
+        aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
+      >
+        {playingId === t.id ? <Square className={`w-4 h-4 ${narrow.hideIcon}`} aria-hidden="true" /> : <Play className={`w-4 h-4 ${narrow.hideIcon}`} aria-hidden="true" />}
+        {playingId === t.id ? 'Stop' : 'Play'}
+      </button>
+    </DemoDisabled>
+  );
 
   const updateMutation = useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; cutMatches?: boolean | null; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
@@ -239,8 +298,7 @@ function CueTemplatesPanel({ slug }: Props) {
       return;
     }
     if (!networkId) return;
-    // Promotion applies the cue to every feed on the network -- show which ones
-    // before committing.
+    // Promotion applies the cue to every feed on the network; show which ones before committing.
     try {
       const feeds = await getFeeds();
       const onNetwork = feeds.filter((f) => (f.networkIdOverride || f.networkId) === networkId);
@@ -256,8 +314,8 @@ function CueTemplatesPanel({ slug }: Props) {
     setPromoteState(null);
   };
 
-  // After a cue is saved, confirm it actually recurs by previewing it against a
-  // few other recent episodes -- a bad or loose bracket shows up immediately.
+  // After a cue is saved, preview it against a few other recent episodes to confirm it recurs; a bad or loose
+  // bracket shows immediately.
   const runAutoVerify = async (template: CueTemplate) => {
     setVerifyState(null);
     setVerifying(true);
@@ -407,16 +465,19 @@ function CueTemplatesPanel({ slug }: Props) {
             {templates.map((t) => (
               <li key={t.id} className="px-3 py-2 text-sm">
                 <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <Checkbox
-                    className="min-h-11 min-w-11 justify-center"
-                    checked={t.enabled}
-                    onChange={() => handleToggle(t)}
-                    disabled={t.owned === false}
-                    title={t.owned === false ? 'Managed on the feed that created it' : undefined}
-                    ariaLabel={`Enable cue ${t.label}`}
-                  />
-                  <div className="flex-1 min-w-0">
+                {/* The checkbox cell spans the first line only, so it centres on the name or the type select. */}
+                <div className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-3 min-w-0 flex-1">
+                  <div className="relative row-start-1">
+                    <Checkbox
+                      className="absolute! left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 min-h-11 min-w-11 justify-center"
+                      checked={t.enabled}
+                      onChange={() => handleToggle(t)}
+                      disabled={t.owned === false}
+                      title={t.owned === false ? 'Managed on the feed that created it' : undefined}
+                      ariaLabel={`Enable cue ${t.label}`}
+                    />
+                  </div>
+                  <div className="col-start-2 row-start-1 min-w-0">
                   {editingId === t.id ? (
                     <select
                       autoFocus
@@ -438,7 +499,6 @@ function CueTemplatesPanel({ slug }: Props) {
                       ))}
                     </select>
                   ) : (
-                    <>
                       <p className="font-medium truncate">
                         {t.label}
                         {t.scope === 'network' && (
@@ -455,11 +515,20 @@ function CueTemplatesPanel({ slug }: Props) {
                           </span>
                         )}
                       </p>
+                  )}
+                  </div>
+                  {editingId !== t.id && (
+                    <div className="col-start-2 min-w-0">
                       <p className="text-xs text-muted-foreground">
                         {t.durationS.toFixed(2)}s - marked at {formatTime(t.sourceOffsetS)}
                         {t.sourceEpisodeId ? ` of episode ${t.sourceEpisodeId.slice(0, 8)}` : ''}
                         {t.lastMatchAt ? ` - last match ${formatDate(t.lastMatchAt)}` : ''}
                       </p>
+                      {t.scoreThreshold != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Threshold {formatPercent(t.scoreThreshold)}
+                        </p>
+                      )}
                       {t.cueType.startsWith('ad_break_') && (
                         <Checkbox
                           className="min-h-11"
@@ -500,71 +569,49 @@ function CueTemplatesPanel({ slug }: Props) {
                           Shared on network "{t.networkId}", this feed is on "{networkId}"
                         </p>
                       )}
-                    </>
+                    </div>
                   )}
-                  </div>
                 </div>
                 {editingId !== t.id && (
-                  <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
-                    {t.hasAudio !== false && (
-                      <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
+                  <div className="flex flex-wrap items-center gap-1.5 xl:shrink-0">
+                    {t.owned === false ? (
+                      <>
+                        {playButton(t)}
+                        <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
+                          <a
+                            className={`${rowActionBtn} ${btnOutline} touch-target`}
+                            href={cueTemplateExportUrl(t.id)}
+                            title={EXPORT_TITLE}
+                          >
+                            Export
+                          </a>
+                        </DemoDisabled>
+                        <span className="text-xs text-muted-foreground italic">
+                          Shared from this network
+                        </span>
+                      </>
+                    ) : confirmDeleteId === t.id ? (
+                      <>
+                        <DemoDisabled>
+                          <button
+                            type="button"
+                            className={`${rowActionBtn} ${btnDestructive} ${narrow.px}`}
+                            onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
+                          >
+                            Delete cue
+                          </button>
+                        </DemoDisabled>
                         <button
                           type="button"
-                          className={`${btnBase} ${btnGhost}`}
-                          onClick={() => togglePlay(t)}
-                          disabled={IS_DEMO}
-                          title={playingId === t.id ? 'Stop' : 'Play this cue'}
-                          aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
+                          className={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
+                          onClick={() => setConfirmDeleteId(null)}
                         >
-                          {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
-                          {playingId === t.id ? 'Stop' : 'Play'}
+                          Cancel
                         </button>
-                      </DemoDisabled>
-                    )}
-                    <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
-                      <a
-                        className={`${btnBase} ${btnGhost}`}
-                        href={cueTemplateExportUrl(t.id)}
-                        title="Download this cue as a portable zip"
-                      >
-                        Export
-                      </a>
-                    </DemoDisabled>
-                    {t.owned === false ? (
-                      <span className="text-xs text-muted-foreground italic">
-                        Shared from this network
-                      </span>
+                      </>
                     ) : (
                       <>
-                        {(t.scope === 'network' || networkId) && (() => {
-                          const mismatched = t.scope === 'network' && !!networkId
-                            && t.networkId !== networkId;
-                          return (
-                            <button
-                              type="button"
-                              className={`${btnBase} ${btnGhost}`}
-                              onClick={() => handlePromote(t)}
-                              title={
-                                t.scope === 'network'
-                                  ? (mismatched
-                                      ? `Move this cue to network "${networkId}"`
-                                      : 'Limit this cue to this feed only')
-                                  : `Apply this cue to every feed on network "${networkId}"`
-                              }
-                            >
-                              {t.scope === 'network'
-                                ? (mismatched ? `Move to network ${networkId}` : 'Make podcast-only')
-                                : 'Promote to network'}
-                            </button>
-                          );
-                        })()}
-                        <button
-                          type="button"
-                          className={`${btnBase} ${btnGhost}`}
-                          onClick={() => startEditType(t)}
-                        >
-                          Change type
-                        </button>
+                        {playButton(t)}
                         {editingThresholdId === t.id ? (
                           <DraftNumberInput
                             autoFocus
@@ -585,61 +632,27 @@ function CueTemplatesPanel({ slug }: Props) {
                               }
                             }}
                             placeholder="inherit"
-                            className="w-20"
+                            className={`w-20 ${rowActionFieldSize}`}
                             aria-label="Score threshold"
                           />
                         ) : (
                           <button
                             type="button"
-                            className={`${btnBase} ${btnGhost}`}
+                            className={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
-                            Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
+                            Threshold
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className={`${btnBase} ${btnGhost}`}
-                          onClick={() => {
-                            setActionError(null);
-                            setOptimizeId(optimizeId === t.id ? null : t.id);
-                          }}
-                          disabled={!t.sourceEpisodeId}
-                          title={!t.sourceEpisodeId
-                            ? 'This cue has no source episode to rescan'
-                            : 'Try small trims of this window and keep the one that matches best'}
-                        >
-                          Optimize window
-                        </button>
-                        {confirmDeleteId === t.id ? (
-                          <>
-                            <DemoDisabled>
-                              <button
-                                type="button"
-                                className={`${btnBase} ${btnDestructive}`}
-                                onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
-                              >
-                                Delete cue
-                              </button>
-                            </DemoDisabled>
-                            <button
-                              type="button"
-                              className={`${btnBase} ${btnGhost}`}
-                              onClick={() => setConfirmDeleteId(null)}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            className={`${btnBase} ${btnDestructiveOutline}`}
-                            onClick={() => setConfirmDeleteId(t.id)}
-                          >
-                            Delete
-                          </button>
-                        )}
+                        <DropdownMenu
+                          triggerLabel="More"
+                          triggerClassName={`${rowActionBtn} ${btnOutline} ${narrow.px}`}
+                          chevronClassName="w-3 h-3"
+                          ariaLabel={`More actions for ${t.label}`}
+                          align="right"
+                          items={moreItems(t)}
+                        />
                       </>
                     )}
                   </div>

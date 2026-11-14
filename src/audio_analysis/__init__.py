@@ -1,9 +1,4 @@
-"""
-Audio analysis module for podcast ad detection.
-
-Provides volume and transition analysis to enhance ad detection
-with audio-level signals.
-"""
+"""Audio analysis for podcast ad detection: volume and transition signals."""
 
 import logging
 

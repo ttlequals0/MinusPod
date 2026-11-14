@@ -103,9 +103,7 @@ class WhisperPool:
     def refresh(self, force: bool = False) -> None:
         """Re-read settings; a shrink never revokes a held permit.
 
-        force=True bypasses the reader's TTL cache so a setting just written
-        this request is visible immediately; the periodic dispatcher pass
-        omits it and stays throttled by that cache.
+        force=True bypasses the reader's TTL cache so a just-written setting is visible at once.
         """
         if force:
             invalidate = getattr(self._read, 'invalidate', None)

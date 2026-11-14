@@ -1,6 +1,8 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConfirmResetButton from './ConfirmResetButton';
 import PromptField from './PromptField';
+import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 const OVERRIDE_HELP =
   'Optional. Appended to the prompt above at run time. Put {override} in a '
@@ -61,9 +63,10 @@ function PromptsSection({
   onResetChapterPrompt,
   onResetPatternCleanupPrompt,
 }: PromptsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection title="Prompts">
-      <div className="space-y-6">
+      <LlmGate disabled={!llmEnabled} id="prompts" className="space-y-6">
         <PromptField
           id="systemPrompt"
           label="First pass system prompt"
@@ -135,7 +138,7 @@ function PromptsSection({
           isPending={resetIsPending}
           onConfirm={onResetPrompts}
         />
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

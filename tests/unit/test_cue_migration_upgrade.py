@@ -1,9 +1,6 @@
 """Schema upgrade path for audio_cue_templates (#350).
 
-Simulates an existing database whose audio_cue_templates table predates the
-pcm_blob / scope / network_id columns (e.g. created by an earlier build) and
-asserts the guarded ALTERs add them without data loss.
-"""
+A table predating the pcm_blob / scope / network_id columns gets them from the guarded ALTERs without data loss."""
 import sqlite3
 
 from database import Database

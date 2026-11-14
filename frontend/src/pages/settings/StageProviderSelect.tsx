@@ -1,7 +1,7 @@
 import { SAME_AS_DETECTION, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 
-export interface SlotOption {
+interface SlotOption {
   value: string;
   label: string;
 }

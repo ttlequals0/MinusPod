@@ -1,14 +1,17 @@
 /**
- * Tests for the Ad detection settings section: the existing confidence/gap
- * controls plus the detection-tuning tunables added in 2.76.0 (verification
- * pass hold/autocut floors, pattern-learning floors, differential detection
- * thresholds). Follows NotificationsSection.test.tsx conventions.
+ * Ad detection section: confidence/gap controls plus the 2.76.0 detection tunables (verification floors,
+ * pattern-learning floors, differential thresholds). Follows NotificationsSection.test.tsx.
  */
 import { useState } from 'react';
-import { beforeEach, describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdDetectionSection from './AdDetectionSection';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 interface TunablesState {
   minCutConfidence: number;
@@ -55,10 +58,11 @@ function defaultState(): TunablesState {
 // Mirrors how Settings.tsx wires this section: controlled state lifted to
 // the parent, with a single Commit action standing in for the page's
 // batched "Save changes" button (computeChangedFields -> updateSettings).
-function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
+function Harness({ onCommit, llmEnabled = true }: { onCommit: (payload: TunablesState) => void; llmEnabled?: boolean }) {
   const [state, setState] = useState<TunablesState>(defaultState());
   const patch = <K extends keyof TunablesState>(key: K) => (v: TunablesState[K]) =>
     setState((s) => ({ ...s, [key]: v }));
+  setLlmEnabled(llmEnabled);
   return (
     <>
       <AdDetectionSection
@@ -320,5 +324,27 @@ describe('AdDetectionSection: typing a value into the ad-length fields', () => {
 
     await user.click(screen.getByRole('button', { name: 'Commit' }));
     expect(committed!.maxLlmWindowAdSeconds).toBe(900);
+  });
+});
+
+describe('AdDetectionSection: LLM provider None', () => {
+  it('disables the model-only controls with the reason', () => {
+    render(<Harness onCommit={() => {}} llmEnabled={false} />);
+    expectGatedByLlm(screen.getByLabelText('Longest single LLM detection (seconds)'));
+    expectGatedByLlm(screen.getByLabelText('Hold floor'));
+    expectGatedByLlm(screen.getByRole('switch', { name: 'Enable verification autocut' }));
+  });
+
+  it('leaves the pattern-learning floors enabled because corrections still teach patterns', () => {
+    render(<Harness onCommit={() => {}} llmEnabled={false} />);
+    expectNotGatedByLlm(screen.getByLabelText('Pattern-learning floor'));
+    expectNotGatedByLlm(screen.getByLabelText('Learning minimum length (s)'));
+    expectNotGatedByLlm(screen.getByLabelText('Correlation ceiling'));
+  });
+
+  it('enables everything when a provider is set', () => {
+    render(<Harness onCommit={() => {}} />);
+    expectNotGatedByLlm(screen.getByLabelText('Longest single LLM detection (seconds)'));
+    expectNotGatedByLlm(screen.getByLabelText('Hold floor'));
   });
 });

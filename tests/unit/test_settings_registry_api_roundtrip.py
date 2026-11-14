@@ -1,7 +1,6 @@
-"""GET /settings and PATCH /settings are assembled from hand-written lists,
-not from SETTINGS_REGISTRY, so a key can pass every registry test and still
-be invisible to the API and unsettable from the UI. This asserts the two
-stay in step.
+"""GET /settings and PATCH /settings are built from hand-written lists, not SETTINGS_REGISTRY.
+
+A key can pass every registry test yet be invisible to the API and unsettable from the UI; this keeps the two in step.
 """
 import json
 

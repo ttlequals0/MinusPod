@@ -19,11 +19,16 @@ from rapidfuzz import fuzz
 
 from database import Database
 from database.settings import registry_default, registry_get_default
-from llm_client import ProviderRateLimitedError, get_effective_provider_from_snapshot
+from llm_client import (
+    LLMDisabledError, ProviderRateLimitedError, get_effective_provider_from_snapshot, llm_disabled,
+)
 from llm_capabilities import systemone_supported_phases
 from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
     resolved_stage_slot, SLOT_SECONDARY,
+)
+from pattern_audio import (
+    carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio, unresolved_audio_outcomes,
 )
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
@@ -1072,6 +1077,12 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
                 stored, skipped = _process_pattern(
                     db, run_id, pattern, unused_days, live, system_prompt,
                     sponsors=sponsors, segments_cache=segments_cache)
+            except LLMDisabledError:
+                # The provider became none mid-run: stop with what finished, as a normal completed run.
+                db.clear_leaked_transaction(logger, 'pattern cleanup')
+                db.record_cleanup_check(run_id, pattern, model_status='stale')
+                logger.debug("pattern_cleanup: run %s stopped, the LLM provider is none", run_id)
+                break
             except ProviderRateLimitedError:
                 db.clear_leaked_transaction(logger, 'pattern cleanup')
                 db.record_cleanup_check(run_id, pattern, model_status='failed')
@@ -1092,6 +1103,9 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
             counts['reviewed'] += 1
             suggestion_keys.update((pattern['id'], kind) for kind in stored)
             counts['skipped'] += int(skipped)
+    except LLMDisabledError:
+        logger.debug("pattern_cleanup: run %s stopped, the LLM provider is none", run_id)
+        db.clear_leaked_transaction(logger, 'pattern cleanup')
     except Exception as e:
         status, error = 'failed', str(e) or type(e).__name__
         logger.warning("pattern_cleanup: run %s failed: %s", run_id, error)
@@ -1165,7 +1179,7 @@ def _schedule_reference(db):
 
 def pattern_cleanup_tick(db) -> int | None:
     """Start a background run when enabled, due by cron, and no episode is processing."""
-    if not db.get_setting_bool('pattern_cleanup_enabled', default=False):
+    if llm_disabled() or not db.get_setting_bool('pattern_cleanup_enabled', default=False):
         return None
     cron = db.get_setting('pattern_cleanup_cron') or registry_default('pattern_cleanup_cron')
     if not is_valid_expression(cron):
@@ -1228,10 +1242,17 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
     db.stamp_pattern_cleanup_reviewed(
         pattern['id'], review_hash(text, sponsor,
                                   category if category is not None else pattern.get('category')), conn=conn)
-    applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text}
+    applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text,
+               **_audio_fields(db, conn, pattern['id'])}
     if sponsor_name:
         applied['sponsor_id'] = sponsor_id
     return applied
+
+
+def _audio_fields(db, conn, pattern_id: int) -> dict:
+    """The source a trim or split rebuilds audio from; audio_unresolved marks audio that is on but has no source."""
+    source, wanted = rebuild_audio_source(db, conn, pattern_id)
+    return {'audio_source': source, **({'audio_unresolved': True} if wanted and source is None else {})}
 
 
 def _apply_disable(db, conn, pattern: dict, reason: str) -> dict:
@@ -1300,7 +1321,7 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     return {
         'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
         'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
-        'disabled_reason': disabled_reason,
+        'disabled_reason': disabled_reason, **_audio_fields(db, conn, pattern['id']),
     }
 
 
@@ -1359,7 +1380,19 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         db.set_cleanup_suggestion_status(suggestion_id, 'approved', applied=applied, conn=conn)
         db.supersede_pending(pattern['id'], conn=conn)
     invalidate_pattern_catalog_scope()
-    return db.get_cleanup_suggestion(suggestion_id)
+    # Decoding audio stays out of the write transaction.
+    source = applied.get('audio_source')
+    if applied.get('audio_unresolved'):
+        outcomes = unresolved_audio_outcomes(pattern['id'])
+    elif applied.get('new_pattern_ids'):
+        outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
+    elif applied.get('text') is not None:
+        outcomes = rebuild_pattern_audio(db, source, pattern['id'], applied['text'])
+    else:
+        outcomes = []
+    result = db.get_cleanup_suggestion(suggestion_id)
+    result['fingerprint_outcomes'] = outcomes
+    return result
 
 
 def reject_suggestion(db, suggestion_id: int) -> dict:
@@ -1416,6 +1449,16 @@ def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
     for new_id in new_ids:
         db.supersede_pending(new_id, conn=conn)
         db._update_ad_pattern_conn(conn, new_id, is_active=0, disabled_reason='Cleanup undo')
+
+
+def _restore_trimmed_audio(db, pattern_id: int, source: dict | None, restored_text: str | None) -> list:
+    """Rebuild the pre-trim fingerprint only when the trim replaced it with another span."""
+    current = db.get_audio_fingerprint(pattern_id, with_blob=False)
+    # A fingerprint with no recorded source was never replaced by the trim.
+    if (not source or current is None or current['source_start'] is None
+            or (current['source_start'], current['source_end']) == (source['start'], source['end'])):
+        return []
+    return rebuild_pattern_audio(db, source, pattern_id, restored_text, locate=False)
 
 
 def undo_suggestion(db, suggestion_id: int) -> dict:
@@ -1475,4 +1518,10 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
         _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'undone', conn=conn)
     invalidate_pattern_catalog_scope()
-    return db.get_cleanup_suggestion(suggestion_id)
+    outcomes = []
+    if suggestion['kind'] != 'split' and applied.get('text') is not None:
+        outcomes = _restore_trimmed_audio(
+            db, pattern['id'], applied.get('audio_source'), before.get('text_template'))
+    result = db.get_cleanup_suggestion(suggestion_id)
+    result['fingerprint_outcomes'] = outcomes
+    return result

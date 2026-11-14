@@ -48,12 +48,30 @@ _FEED_CONTENT_TYPES = frozenset({
 
 
 def _max_rss_bytes() -> int:
-    """Cap the RSS body size the parser is willing to ingest. Default 200 MB
-    covers the largest legitimate feeds (3k+ episodes); floor at 1 MB so a
-    typo can't starve legitimate feeds. Env-backed: the UI value wins, the
-    env var MINUSPOD_MAX_RSS_BYTES seeds the default at boot.
+    """Cap on the RSS body size ingested. Default 200 MB covers the largest feeds (3k+ episodes);
+    floored at 1 MB so a typo cannot starve feeds. The UI value wins; MINUSPOD_MAX_RSS_BYTES seeds the default.
     """
     return get_env_backed_int('max_rss_bytes', floor=MAX_RSS_BYTES_MIN)
+
+
+def _read_capped_feed_body(response, url, breaker, probe_token) -> bytes | None:
+    """Read a feed body under the size cap and close the response. On an
+    oversize or truncated body, record a breaker failure and return None."""
+    max_bytes = _max_rss_bytes()
+    try:
+        return read_response_capped(response, max_bytes)
+    except ResponseTooLargeError:
+        logger.warning("feed_size_cap_exceeded: url=%s max=%d",
+                       safe_url_for_log(url), max_bytes)
+        breaker.record_failure(token=probe_token)
+        return None
+    except IncompleteResponseError as e:
+        logger.warning("feed_body_truncated: url=%s err=%s",
+                       safe_url_for_log(url), e)
+        breaker.record_failure(token=probe_token)
+        return None
+    finally:
+        response.close()
 
 
 def _feed_trust() -> URLTrust:
@@ -68,10 +86,8 @@ def _feed_trust() -> URLTrust:
 def _content_type_looks_like_feed(header_value: str | None) -> bool:
     """Accept anything that plausibly carries RSS / Atom bytes.
 
-    Missing header is permissive because many legacy RSS hosts send no
-    Content-Type at all; explicit HTML or binary types are rejected so a
-    compromised aggregator cannot feed us arbitrary bytes and hope
-    feedparser does something interesting with them.
+    A missing header is allowed (many legacy hosts send none); explicit HTML or binary types are
+    rejected so a compromised aggregator cannot feed arbitrary bytes to feedparser.
     """
     if not header_value:
         return True
@@ -122,6 +138,29 @@ def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
     return _rss_circuit_breakers[host]
 
 
+# Last logged suppressed-item count per feed; per process, cleared when it outgrows the cap.
+_SUPPRESSED_LAST_COUNT_MAX = 1024
+_suppressed_last_count: dict[str, int] = {}
+_suppressed_lock = threading.Lock()
+
+
+def _log_suppressed_upstream(slug: str, count: int) -> None:
+    """Log the suppressed-duplicates count at INFO only when it changed for this feed."""
+    with _suppressed_lock:
+        if count == _suppressed_last_count.get(slug, 0):
+            return
+        if count:
+            if len(_suppressed_last_count) >= _SUPPRESSED_LAST_COUNT_MAX and slug not in _suppressed_last_count:
+                _suppressed_last_count.clear()
+            _suppressed_last_count[slug] = count
+        else:
+            _suppressed_last_count.pop(slug, None)
+    if count:
+        logger.info(
+            "[%s] Suppressed %d upstream item(s) duplicating an already-included "
+            "processed episode by title and date", slug, count)
+
+
 # Hosts whose gzip stream failed to decode. The plain retry recovers the body,
 # so ask this URL for identity encoding up front until the TTL expires rather
 # than transferring a multi-MB feed twice every cycle.
@@ -154,15 +193,11 @@ def _identity_headers(url: str, headers: dict) -> dict:
     return {**headers, 'Accept-Encoding': 'identity'}
 
 
-# Podcasting 2.0 channel-tag dispositions. See docs/podcasting-2.0.md for the
-# full pass/regenerate/strip rationale. These sets are authoritative.
+# Podcasting 2.0 channel-tag dispositions (rationale: docs/podcasting-2.0.md); these sets are authoritative.
 #
-# The spec recognizes several URI strings as the SAME namespace. We must
-# accept all of them on parse, because real-world feeds use the different
-# forms interchangeably (notably the reference pc20.xml feed declares the
-# GitHub-blob form, not the podcastindex.org form). We always emit the
-# canonical URI on the root xmlns declaration regardless of which the
-# upstream feed used.
+# The spec treats several URI strings as one namespace and real feeds use them interchangeably
+# (the reference pc20.xml declares the GitHub-blob form), so parse accepts all. The root xmlns
+# always emits the canonical URI.
 _PODCAST_NS_CANONICAL = "https://podcastindex.org/namespace/1.0"
 _PODCAST_NS_URIS = (
     _PODCAST_NS_CANONICAL,
@@ -173,16 +208,11 @@ _PODCAST_NS_URIS = (
     "http://github.com/Podcastindex-org/podcast-namespace/blob/master/docs/1.0.md",
 )
 
-# Channel-level podcast:* tags MinusPod copies from the upstream feed unchanged.
-# Excludes: guid (we mint our own), locked (handled with a default), txt
-# (filtered by purpose), and anything in _PC2_CHANNEL_STRIP.
-# Note: ``images`` (plural) was deprecated by the namespace in favor of
-# ``image``. Kept for upstream feeds still emitting the deprecated plural;
-# unescaped passthrough is harmless to readers that ignore unknown tags.
-# ``block`` and ``complete`` are publisher distribution / lifecycle metadata
-# that stays true through ad removal: ``block`` may carry multiple instances
-# with an ``id`` attribute scoping the block to specific directories
-# (apple/spotify/amazon), and ``complete`` is a boolean show-finished flag.
+# Channel-level podcast:* tags copied from upstream unchanged. Excludes guid (we mint our own),
+# locked (defaulted), txt (filtered by purpose) and _PC2_CHANNEL_STRIP.
+# ``images`` (plural) is deprecated for ``image`` but kept for feeds still emitting it.
+# ``block`` (may repeat, with an ``id`` scoping it to directories like apple/spotify/amazon) and
+# ``complete`` (show-finished flag) are publisher metadata that stays true after ad removal.
 _PC2_CHANNEL_PASSTHROUGH = frozenset({
     "funding", "podroll", "license", "medium", "person",
     "updateFrequency", "season", "episode", "trailer",
@@ -191,9 +221,8 @@ _PC2_CHANNEL_PASSTHROUGH = frozenset({
     "block", "complete",
 })
 
-# Channel-level podcast:* tags MinusPod always removes. soundbite/liveItem/
-# alternateEnclosure/source/integrity describe original-audio bytes or
-# timeline and would lie about the re-cut file; podping publishes the feed
+# Channel-level podcast:* tags always removed. soundbite/liveItem/alternateEnclosure/source/integrity
+# describe the original audio and would misdescribe the re-cut file; podping publishes the feed
 # URL to a public blockchain (wrong for private re-feeds).
 _PC2_CHANNEL_STRIP = frozenset({
     "guid",
@@ -201,19 +230,16 @@ _PC2_CHANNEL_STRIP = frozenset({
     "podping",
 })
 
-# podcast:txt purpose values that MinusPod refuses to forward.
-# verify/applepodcastsverify are ownership tokens bound to the original
-# publisher; ai-content is always re-asserted (true) by MinusPod itself.
+# podcast:txt purposes never forwarded: verify/applepodcastsverify are ownership tokens bound to
+# the original publisher; ai-content is always re-asserted (true) by MinusPod.
 _PC2_TXT_STRIP_PURPOSES = frozenset({
     "verify", "applepodcastsverify", "ai-content",
 })
 
-# iTunes channel-level tag dispositions. Apple Podcasts and most podcast
-# apps require several of these to ingest the feed at all (no author/
-# category/explicit -> rejected or hidden). Excluded from the allowlist:
+# iTunes channel-level tag dispositions. Apple Podcasts and most apps need several of these
+# (author/category/explicit) to ingest the feed at all. Excluded from the allowlist:
 #   image: emitted separately with the corrected artwork URL.
-#   new-feed-url: would tell apps to redirect MinusPod subscribers to the
-#     upstream feed. Mandatory strip; never carry through.
+#   new-feed-url: would redirect subscribers to the upstream feed; always stripped.
 def _sanitize_feed_html(html: str) -> str:
     """Strip scripts and event handlers from publisher markup."""
     if not html:
@@ -333,9 +359,8 @@ _COVER_KEY_RE = re.compile(
 def extract_cached_base_url(cached_rss: str) -> str | None:
     """Return the BASE_URL prefix used to render a cached RSS, or None.
 
-    Used by serve_rss to detect a BASE_URL change since the cache was written
-    and force a refresh (issue #193). Owned here so format changes to the
-    enclosure shape stay co-located with the rendering code.
+    serve_rss uses this to detect a BASE_URL change since the cache was written (issue #193).
+    Lives here so enclosure format changes stay next to the rendering code.
     """
     m = _ENCLOSURE_PREFIX_RE.search(cached_rss)
     return m.group(1) if m else None
@@ -350,11 +375,9 @@ def extract_cached_render_version(cached_rss: str) -> int | None:
 def extract_cached_feed_auth_key(cached_rss: str) -> str | None:
     """Return the feed auth key embedded in a cached RSS, or None.
 
-    Sibling of extract_cached_base_url: serve_rss compares this against the
-    active key so an enable, disable, or rotation self-heals the cached feed
-    on the next authenticated fetch instead of serving stale keyed URLs.
-    Checks enclosures first, then the badged cover token, so feeds with no
-    episodes yet still report their key state.
+    serve_rss compares this to the active key so enabling, disabling or rotating it refreshes the
+    cached feed instead of serving stale keyed URLs. Checks enclosures, then the badged cover
+    token, so feeds with no episodes still report their key state.
     """
     m = _ENCLOSURE_KEY_RE.search(cached_rss) or _COVER_KEY_RE.search(cached_rss)
     return m.group(1) if m else None
@@ -376,10 +399,8 @@ class RSSParser:
     def _resolved_base_url(self) -> str:
         """Resolve BASE_URL per call (issue #193).
 
-        Order: explicit constructor arg > env > self.base_url > localhost.
-        Reading per call instead of mutating self.base_url avoids a
-        shared-state write on the singleton parser used across gunicorn
-        threads.
+        Order: explicit constructor arg > env > self.base_url > localhost. Resolving per call avoids
+        mutating self.base_url on the parser singleton shared across gunicorn threads.
         """
         if getattr(self, '_explicit_base_url', None) is not None:
             return self._explicit_base_url
@@ -400,11 +421,7 @@ class RSSParser:
 
         try:
             logger.info(f"Fetching RSS feed from: {safe_url_for_log(url)}")
-            # An explicit feed UA is required: some feed hosts (e.g.
-            # feeds.podcastindex.org) reject the default python-requests UA
-            # with 403. fetch_feed_conditional already sets it; the
-            # initial-fetch path was previously missing it, which made
-            # add_feed slug derivation fail on UA-strict hosts.
+            # Some feed hosts (e.g. feeds.podcastindex.org) 403 the default python-requests UA.
             response = safe_get(
                 url,
                 trust=_feed_trust(),
@@ -418,26 +435,12 @@ class RSSParser:
                 if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
                     logger.warning(
                         "RSS fetch rejected on content-type: url=%s content_type=%r",
-                        url, response.headers.get('Content-Type'),
+                        safe_url_for_log(url), response.headers.get('Content-Type'),
                     )
                     breaker.record_failure(token=probe_token)
                     return None
-                max_bytes = _max_rss_bytes()
-                try:
-                    body = read_response_capped(response, max_bytes)
-                except ResponseTooLargeError:
-                    logger.warning(
-                        "feed_size_cap_exceeded: url=%s max=%d",
-                        safe_url_for_log(url), max_bytes,
-                    )
-                    breaker.record_failure(token=probe_token)
-                    return None
-                except IncompleteResponseError as e:
-                    logger.warning(
-                        "feed_body_truncated: url=%s err=%s",
-                        safe_url_for_log(url), e,
-                    )
-                    breaker.record_failure(token=probe_token)
+                body = _read_capped_feed_body(response, url, breaker, probe_token)
+                if body is None:
                     return None
                 logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
                 breaker.record_success(token=probe_token)
@@ -468,21 +471,9 @@ class RSSParser:
                     },
                 )
                 response.raise_for_status()
-                max_bytes = _max_rss_bytes()
-                try:
-                    body = read_response_capped(response, max_bytes)
-                except ResponseTooLargeError:
-                    logger.warning("feed_size_cap_exceeded: url=%s max=%d",
-                                   safe_url_for_log(url), max_bytes)
-                    breaker.record_failure(token=probe_token)
+                body = _read_capped_feed_body(response, url, breaker, probe_token)
+                if body is None:
                     return None
-                except IncompleteResponseError as e:
-                    logger.warning("feed_body_truncated: url=%s err=%s",
-                                   safe_url_for_log(url), e)
-                    breaker.record_failure(token=probe_token)
-                    return None
-                finally:
-                    response.close()
                 logger.info(
                     "Identity retry after gzip failure: url=%s bytes=%d content_length=%s "
                     "transfer_encoding=%s content_encoding=%s",
@@ -506,20 +497,11 @@ class RSSParser:
                                podcast=None):
         """Fetch RSS feed with conditional GET support.
 
-        Uses If-None-Match and If-Modified-Since headers to avoid downloading
-        unchanged feeds, reducing bandwidth and server load.
+        Sends If-None-Match / If-Modified-Since to skip unchanged feeds. etag and last_modified are
+        the previously received header values; podcast supplies its feed UA override, if any.
 
-        Args:
-            url: RSS feed URL
-            etag: Previously received ETag header value
-            last_modified: Previously received Last-Modified header value
-            timeout: Request timeout in seconds
-            podcast: Podcast row to honor its feed UA override, if any
-
-        Returns:
-            Tuple of (content, new_etag, new_last_modified)
-            If feed not modified (304), returns (None, etag, last_modified)
-            On error, returns (None, None, None)
+        Returns (content, new_etag, new_last_modified); on 304 (None, etag, last_modified);
+        on error (None, None, None).
         """
         headers = _identity_headers(url, {'User-Agent': feed_user_agent(podcast)})
         if etag:
@@ -555,7 +537,7 @@ class RSSParser:
             if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
                 logger.warning(
                     "RSS conditional fetch rejected on content-type: url=%s content_type=%r",
-                    url, response.headers.get('Content-Type'),
+                    safe_url_for_log(url), response.headers.get('Content-Type'),
                 )
                 response.close()
                 breaker.record_failure(token=probe_token)
@@ -564,21 +546,9 @@ class RSSParser:
             new_etag = response.headers.get('ETag')
             new_last_modified = response.headers.get('Last-Modified')
 
-            max_bytes = _max_rss_bytes()
-            try:
-                body = read_response_capped(response, max_bytes)
-            except ResponseTooLargeError:
-                logger.warning("feed_size_cap_exceeded: url=%s max=%d",
-                               safe_url_for_log(url), max_bytes)
-                breaker.record_failure(token=probe_token)
+            body = _read_capped_feed_body(response, url, breaker, probe_token)
+            if body is None:
                 return None, None, None
-            except IncompleteResponseError as e:
-                logger.warning("feed_body_truncated: url=%s err=%s",
-                               safe_url_for_log(url), e)
-                breaker.record_failure(token=probe_token)
-                return None, None, None
-            finally:
-                response.close()
 
             logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
             breaker.record_success(token=probe_token)
@@ -611,21 +581,9 @@ class RSSParser:
                 response.raise_for_status()
                 new_etag = response.headers.get('ETag')
                 new_last_modified = response.headers.get('Last-Modified')
-                max_bytes = _max_rss_bytes()
-                try:
-                    body = read_response_capped(response, max_bytes)
-                except ResponseTooLargeError:
-                    logger.warning("feed_size_cap_exceeded: url=%s max=%d",
-                                   safe_url_for_log(url), max_bytes)
-                    breaker.record_failure(token=probe_token)
+                body = _read_capped_feed_body(response, url, breaker, probe_token)
+                if body is None:
                     return None, None, None
-                except IncompleteResponseError as e:
-                    logger.warning("feed_body_truncated: url=%s err=%s",
-                                   safe_url_for_log(url), e)
-                    breaker.record_failure(token=probe_token)
-                    return None, None, None
-                finally:
-                    response.close()
                 logger.info(
                     "Identity retry after gzip failure: url=%s bytes=%d content_length=%s "
                     "transfer_encoding=%s content_encoding=%s",
@@ -651,13 +609,10 @@ class RSSParser:
     def parse_feed(self, feed_content: str, source: str = None) -> dict:
         """Parse RSS feed content.
 
-        XXE defence: ``defusedxml.defuse_stdlib()`` neutralises expat's
-        DOCTYPE / ENTITY handling at parse time, but feedparser swallows
-        the typed exception and surfaces it as a generic
-        SAXParseException('syntax error'). To surface a useful operator
-        signal, pre-scan the raw bytes for DOCTYPE / ENTITY markers and
-        emit the structured ``xml_forbidden_construct`` event BEFORE
-        handing the payload to feedparser.
+        XXE defence: ``defusedxml.defuse_stdlib()`` blocks DOCTYPE / ENTITY at parse time, but
+        feedparser swallows the typed exception as a generic SAXParseException('syntax error').
+        So the raw bytes are pre-scanned for those markers and the structured
+        ``xml_forbidden_construct`` event is emitted before feedparser runs.
         """
         try:
             # Normalise to bytes for the pre-scan; feedparser accepts either.
@@ -665,12 +620,8 @@ class RSSParser:
                 header_bytes = feed_content.encode('utf-8', errors='ignore')
             else:
                 header_bytes = feed_content
-            # Scan the first 64 KB; legitimate feeds declare their prolog
-            # up front, but some megabyte-scale feeds carry a chunk of XML
-            # comments / BOM-prefixed iTunes blocks before the DOCTYPE
-            # would appear. 64 KB stays cheap (lowercasing ~65k bytes is
-            # microseconds) while catching pathological cases the 4 KB
-            # window missed.
+            # 64 KB is cheap to lowercase and catches feeds with long comment or iTunes blocks
+            # before the DOCTYPE that a 4 KB window missed.
             header = header_bytes[:65536].lower()
             if b'<!doctype' in header or b'<!entity' in header:
                 construct = 'DOCTYPE' if b'<!doctype' in header else 'ENTITY'
@@ -712,10 +663,9 @@ class RSSParser:
     def extract_podping_declaration(feed_content, channel=None) -> dict:
         """Channel-level ``<podcast:podping>`` declaration.
 
-        Per the podping tag spec, ``usesPodping="false"`` opts the feed out and
-        each nested ``<podcast:hiveAccount account="...">`` names an account
-        allowed to podping this feed. Returns uses_podping None when the feed
-        carries no such tag, which is the common case and means "unknown".
+        ``usesPodping="false"`` opts the feed out; each nested ``<podcast:hiveAccount account="...">``
+        names an account allowed to podping it. uses_podping is None when the tag is absent
+        (the common case, meaning "unknown").
         """
         unknown = {'uses_podping': None, 'hive_accounts': []}
         if not feed_content and channel is None:
@@ -872,9 +822,8 @@ class RSSParser:
     def extract_channel_metadata(feed_content, channel=None) -> dict | None:
         """Channel metadata from the direct <channel> children.
 
-        feedparser flattens <podcast:liveItem> into the channel dict and
-        aliases <description> onto <itunes:summary>. None means no <channel>
-        (Atom, RDF) or unparseable XML; callers then fall back per field.
+        feedparser flattens <podcast:liveItem> into the channel dict and aliases <description> onto
+        <itunes:summary>. None means no <channel> (Atom, RDF) or bad XML; callers fall back per field.
         """
         if channel is None:
             channel = RSSParser.find_channel_element(feed_content)
@@ -918,8 +867,7 @@ class RSSParser:
     def resolve_channel_fields(self, feed_content, parsed_feed=None, channel=None) -> dict:
         """Channel metadata with the raw <channel> children preferred.
 
-        Single place that layers the raw children over the feedparser dict,
-        so every consumer resolves them the same way.
+        The one place the raw children are layered over the feedparser dict.
         """
         raw = self.extract_channel_metadata(feed_content, channel=channel) or {}
         fallback = getattr(parsed_feed, 'feed', None) or {}
@@ -942,24 +890,17 @@ class RSSParser:
     def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> list[str]:
         """Ordered channel-level podcast artwork candidate URLs.
 
-        feedparser flattens ``<itunes:image>`` across the whole document, so
-        ``parsed_feed.feed.image.href`` gets clobbered by the LAST itunes:image
-        encountered (typically a per-episode override) instead of the
-        channel-level one. The Podcasting 2.0 reference feed pc20.xml is a
-        live example: channel ``<image><url>`` is a 144x144 PNG, but
-        feedparser surfaces the 40 MB per-episode GIF.
+        feedparser flattens ``<itunes:image>`` across the document, so ``feed.image.href`` is
+        clobbered by the last one (usually a per-episode override); pc20.xml surfaces a 40 MB
+        episode GIF instead of the 144x144 channel PNG. This parses the raw XML for direct
+        children of ``<channel>`` only, deduped, in preference order so callers can fall back
+        on a 404:
 
-        Parse the raw XML directly so we only consider channel-level
-        elements. Returned in preference order, deduped, so a caller can
-        fall back to the next candidate when the preferred one 404s:
+          1. ``<itunes:image href="...">``
+          2. ``<image><url>``
 
-          1. ``<itunes:image href="...">`` as a direct child of ``<channel>``
-          2. ``<image><url>`` as a direct child of ``<channel>``
-
-        Empty list when neither is present. Accepts either raw bytes/str
-        (preferred) or a feedparser parse result (legacy compat, at most one
-        candidate); the legacy path is intentionally narrow because it
-        carries the bug described above.
+        Empty when neither exists. Accepts raw bytes/str (preferred) or a feedparser result
+        (legacy, at most one candidate, narrow because of the bug above).
         """
         if not feed_content_or_parsed:
             return []
@@ -1046,22 +987,13 @@ class RSSParser:
     def generate_episode_id(self, episode_url: str, guid: str = None) -> str:
         """Generate consistent episode ID from GUID or URL.
 
-        Uses RSS GUID if available (stable identifier), falls back to URL
-        hash. This prevents duplicate episode IDs when CDNs include
-        dynamic tracking parameters in audio URLs (e.g., Megaphone's
-        awCollectionId / awEpisodeId).
+        Prefers the RSS GUID, else a URL hash, so CDN tracking parameters in audio URLs
+        (e.g. Megaphone's awCollectionId / awEpisodeId) do not change the id.
 
-        The hash is MD5 truncated to 12 hex characters. This is a
-        deduplication identifier, not a security hash; MD5's
-        cryptographic weaknesses do not apply here. The 48-bit output
-        gives a birthday-collision threshold of ~16M episodes per
-        instance, well above any real deployment scale. We keep the
-        MD5+12 scheme (rather than switching to SHA-256) because
-        changing it would invalidate every existing URL in every
-        podcast-app subscription of every MinusPod user -- a migration
-        cost no attack model justifies. The `is_valid_episode_id`
-        validator in `utils.validation` is the load-bearing contract
-        (`[0-9a-f]{12}`), not the choice of hash function.
+        MD5 truncated to 12 hex chars is a deduplication id, not a security hash (48 bits gives a
+        birthday-collision threshold of ~16M episodes per instance). It is kept rather than moved
+        to SHA-256 because changing it would invalidate every existing URL in every subscription.
+        The contract is `is_valid_episode_id` in `utils.validation` (`[0-9a-f]{12}`), not the hash.
         """
         if guid and guid.strip():
             clean_guid = guid.strip()
@@ -1093,43 +1025,32 @@ class RSSParser:
         Args:
             feed_content: Original RSS feed XML
             slug: Podcast slug
-            title_override: When non-empty, replaces the channel title shown to
-                subscribers (issue #375) so a processed feed can be told apart
-                from the source. Episode titles are unaffected.
+            title_override: When non-empty, replaces the channel title (issue #375); episode titles are unaffected.
             description_override: When non-empty, replaces the channel description.
             storage: Optional Storage instance for checking Podcasting 2.0 assets
             max_episodes: Max episodes to include in feed (1-500, default 300)
             extra_episodes: Processed episodes from DB to append beyond the cap.
                 Each dict must have: episode_id, title, description, published_at,
                 new_duration, episode_number.
-            processed_only: When True, upstream RSS entries whose episode_id is
-                not in processed_episode_ids are dropped from the served feed
-                (issue #181). extra_episodes are unaffected (already processed).
-            processed_episode_ids: Allow-list of episode_ids the caller has
-                determined to be status='processed'. Required when
-                processed_only=True; ignored otherwise.
-            parsed_feed: Optional pre-parsed feedparser object. When supplied,
-                skips the internal parse_feed call - the caller will have
-                already paid that cost. Passing a None here re-parses
-                feed_content for backwards compatibility.
+            processed_only: When True, upstream entries not in processed_episode_ids are dropped
+                (issue #181); extra_episodes are unaffected.
+            processed_episode_ids: Allow-list of status='processed' episode_ids; required with
+                processed_only, ignored otherwise.
+            parsed_feed: Optional pre-parsed feedparser object; None re-parses feed_content.
             chapter_notes: {episode_id: chapters_json} to append to
                 descriptions (#720); empty or None appends nothing.
             applied_cuts: {episode_id: raw applied_cuts_json} used to shift description timestamps.
             review_link_ids: Episode ids whose descriptions get review and rate links.
             itunes_block: Emit itunes:block Yes and drop the upstream value.
             podcasting2_flags: {episode_id: (has_transcript_vtt, has_chapters)}; when given, replaces the per-item storage lookups.
-            feed_auth_key: Global feed auth key (authenticated feeds). When
-                set, enclosure/vtt/chapters URLs carry ``?key=`` and the
-                badged cover embeds it in the path token (image URLs must
-                keep ending in .jpg; podcast apps reject query strings there).
-                Passed explicitly, never stored on self - the module-level
+            feed_auth_key: Global feed auth key. When set, enclosure/vtt/chapters URLs carry ``?key=``
+                and the badged cover embeds it in the path token (image URLs must end in .jpg; apps
+                reject query strings there). Passed explicitly, never stored on self: the module-level
                 singleton is shared across refresh worker threads.
-            own_episode_guids: When True, item GUIDs are the MinusPod episode
-                ids (isPermaLink="false") instead of upstream's entry ids
-                (#598), matching the DB-appended items.
-            hide_title_patterns: JSON array of glob patterns (title_skip_action
-                'hide'). Entries whose title matches are dropped from the
-                served feed, both upstream and DB-appended.
+            own_episode_guids: When True, item GUIDs are the MinusPod episode ids
+                (isPermaLink="false") instead of upstream entry ids (#598), matching DB-appended items.
+            hide_title_patterns: JSON array of glob patterns (title_skip_action 'hide'); matching
+                entries, upstream and DB-appended, are dropped from the served feed.
             hide_description_patterns: Same as hide_title_patterns, matched
                 against the plain-text description instead (#835).
         """
@@ -1166,38 +1087,26 @@ class RSSParser:
         lines.append(f'<description><![CDATA[{self._escape_cdata(effective_description)}]]></description>')
         lines.append(f'<language>{self._escape_xml(fields["language"] or "en")}</language>')
 
-        # Pass through standard RSS + iTunes channel metadata from upstream
-        # (author, category, explicit, owner, etc.). Required by Apple
-        # Podcasts and most apps; without these the feed is silently
-        # dropped from the directory and artwork won't render.
+        # Pass through RSS + iTunes channel metadata (author, category, explicit, owner, ...);
+        # Apple Podcasts and most apps silently drop feeds without it.
         self._emit_channel_metadata_passthrough(lines, feed_content, channel=channel_elem,
                                                 itunes_block=itunes_block)
 
-        # Channel artwork: take the correct channel-level URL from raw XML
-        # (feedparser corrupts feed.image.href with per-episode itunes:image
-        # overrides). Emit BOTH the standard <image> block and the
-        # <itunes:image> tag that Apple Podcasts and most apps prefer.
+        # Channel artwork comes from raw XML (feedparser's feed.image.href is corrupted by
+        # per-episode overrides); emit both the <image> block and the preferred <itunes:image>.
         artwork_candidates = self.extract_podcast_artwork_url(feed_content, channel=channel_elem)
         artwork_url = artwork_candidates[0] if artwork_candidates else None
-        # When the watermark is enabled and we have the cover cached, point the
-        # channel image at our badge-overlaid variant so podcast apps show the
-        # filtered feed is distinct (issue #420). This is podcast-level artwork,
-        # so it uses the podcast-level path; a stable /episodes/ alias still
-        # serves apps that cached the old URL. Falls back to upstream when the
-        # cover isn't cached (the variant endpoint would 404).
+        # With the watermark on and the cover cached, point the channel image at the badged
+        # variant (issue #420) via the podcast-level path; a stable /episodes/ alias still
+        # serves apps that cached the old URL. Falls back to upstream when the cover is not cached.
         if watermark_artwork and storage is not None and storage.has_artwork(slug):
             base = f"{self._resolved_base_url()}/{slug}/cover-minuspod"
-            # Cache-bust via the PATH, not a query string: apps key channel art
-            # on the URL, and Pocket Casts / Apple require it to end in a real
-            # image extension, so a "?v=" token (URL ending in the hash) gets
-            # rejected before the image is ever fetched. The content-addressed
-            # token goes before .jpg and is stable otherwise, so apps re-fetch
-            # only when the cover or badge actually changes. Still ends in .jpg,
-            # so the Cloudflare .jpg allow rule keeps matching.
+            # Cache-bust via the path, not a query string: Pocket Casts / Apple require a real image
+            # extension, so a "?v=" URL is rejected before fetching. The content-addressed token
+            # sits before .jpg (also keeping the Cloudflare .jpg allow rule matching), so apps
+            # re-fetch only when the cover or badge changes.
             version = storage.artwork_version(slug)
-            # The feed auth key rides the path token too (never a query
-            # string on an image URL); both parts are hex so the serving
-            # side splits the token unambiguously on the last hyphen.
+            # The auth key rides the path token too; both parts are hex, so serving splits on the last hyphen.
             token = '-'.join(p for p in (version, feed_auth_key) if p)
             artwork_url = f"{base}-{token}.jpg" if token else f"{base}.jpg"
         if artwork_url:
@@ -1386,12 +1295,7 @@ class RSSParser:
         total_episodes = len(included_episode_ids) + appended_count
         modified_rss = '\n'.join(lines)
         logger.info(f"[{slug}] Modified RSS feed with {total_episodes} episodes ({appended_count} appended from DB)")
-        if suppressed_upstream_duplicates:
-            logger.warning(
-                f"[{slug}] Suppressed {suppressed_upstream_duplicates} upstream "
-                "item(s) duplicating an already-included processed episode by "
-                "title and date"
-            )
+        _log_suppressed_upstream(slug, suppressed_upstream_duplicates)
         return modified_rss
 
     @staticmethod
@@ -1516,13 +1420,9 @@ class RSSParser:
     def _get_channel_description(channel) -> str:
         """Channel description with iTunes fallback chain.
 
-        Mirrors ``_get_episode_description`` at channel scope. Falls back
-        only when the upstream ``<description>`` is empty or whitespace,
-        not when it is "short"; publishers who emit a deliberately concise
-        description should not be second-guessed.
-
-        Returns raw HTML when iTunes fields carry markup; the caller
-        wraps in CDATA.
+        Mirrors ``_get_episode_description`` at channel scope. Falls back only when the upstream
+        ``<description>`` is empty or whitespace, never because it is short. May return raw HTML;
+        the caller wraps it in CDATA.
         """
         desc = channel.get('description', '') or ''
         if desc.strip():
@@ -1567,16 +1467,11 @@ class RSSParser:
     def _get_episode_description(entry) -> str:
         """Extract episode description with fallback to iTunes fields.
 
-        Many feeds (e.g. Relay FM) leave <description> empty and put the
-        actual episode summary in <itunes:subtitle> or <content:encoded>.
-        Feedparser exposes these as 'subtitle' and 'content' respectively.
-
-        Note: the returned value may contain raw HTML (especially from
-        content:encoded). Callers should wrap in CDATA rather than
-        XML-escaping.
+        Many feeds leave <description> empty and put the summary in <itunes:subtitle> or
+        <content:encoded> (feedparser: 'subtitle' and 'content'). The result may contain raw
+        HTML; callers should wrap it in CDATA, not XML-escape it.
         """
-        # feedparser aliases <description> and 'summary' to the same value,
-        # so checking both is redundant -- just check 'description'.
+        # feedparser aliases <description> and 'summary', so checking 'description' suffices.
         desc = entry.get('description', '') or ''
         if desc.strip():
             return desc
@@ -1605,31 +1500,21 @@ class RSSParser:
     def _escape_cdata(text) -> str:
         """Make ``text`` safe to embed inside a ``<![CDATA[...]]>`` block.
 
-        CDATA has no character escaping; the only sequence that can break out
-        is the terminator ``]]>``. Upstream descriptions are attacker-influenced
-        (whatever the source feed publishes), so an unescaped ``]]>`` corrupts
-        the generated XML and breaks the served feed for every subscriber. The
-        canonical fix splits the terminator across two CDATA sections so the
-        literal text is preserved while the parser never sees a real ``]]>``.
+        The only sequence that can break out of CDATA is the terminator ``]]>``. Upstream
+        descriptions are attacker-influenced, and an unescaped one corrupts the served feed for
+        every subscriber. Splitting it across two CDATA sections preserves the literal text.
         """
         if not text:
             return ""
         return str(text).replace(']]>', ']]]]><![CDATA[>')
 
     def _serialize_podcast_element(self, elem, _depth: int = 0) -> str:
-        # Hand-rolled rather than ``ET.tostring`` because tostring re-declares
-        # ``xmlns:podcast`` on every element (the root already declares it)
-        # and renames the prefix to ``ns0:``. Non-podcast children are dropped
-        # defensively so unrelated namespaces can't leak into a passthrough
-        # block.
+        # Hand-rolled because ``ET.tostring`` re-declares ``xmlns:podcast`` on every element and
+        # renames the prefix to ``ns0:``. Non-podcast children are dropped so other namespaces
+        # cannot leak into a passthrough block.
         #
-        # Depth cap: defusedxml does not bound element nesting (only entity
-        # expansion), so an upstream feed could nest ``podcast:value`` /
-        # ``podcast:valueTimeSplit`` arbitrarily and blow Python's recursion
-        # limit. Spec-legal channel-level podcast trees are <= 3 deep
-        # (e.g. ``value > valueTimeSplit > valueRecipient``), so 16 is a
-        # generous cap that still rejects hostile feeds before they crash
-        # the worker.
+        # Depth cap: defusedxml does not bound nesting, so a hostile feed could blow the recursion
+        # limit. Spec-legal trees are <= 3 deep (``value > valueTimeSplit > valueRecipient``).
         if _depth > 16:
             return ""
 
@@ -1715,11 +1600,8 @@ class RSSParser:
         return result
 
     def _serialize_namespaced_element(self, elem, emit_prefix: str, ns_uri: str, _depth: int = 0) -> str:
-        # Generic recursive serializer used for both iTunes (single URI) and
-        # any single-namespace child. Recurses only into children sharing
-        # ``ns_uri`` so unrelated namespaces cannot leak through. Mirrors the
-        # depth cap on ``_serialize_podcast_element``: hostile feeds with
-        # deeply nested elements cannot blow Python's stack.
+        # Generic serializer for iTunes and other single-namespace children; recurses only into
+        # children sharing ``ns_uri``. Same depth cap as ``_serialize_podcast_element``.
         if _depth > 16:
             return ""
 
@@ -1759,13 +1641,9 @@ class RSSParser:
 
     def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str, channel=None,
                                            itunes_block: bool = False) -> None:
-        # Pass through standard RSS and iTunes channel-level metadata from
-        # upstream. Apple Podcasts and most podcast apps require several of
-        # the iTunes tags (author/category/explicit/owner) to ingest a feed
-        # at all -- without them, even valid artwork won't render in apps
-        # because the feed is silently dropped from the directory. Also
-        # emits ``<lastBuildDate>`` (regenerated by us since we just re-cut)
-        # and ``<generator>`` (identifies the proxy).
+        # Pass through RSS and iTunes channel metadata; Apple Podcasts and most apps silently drop
+        # feeds without the iTunes author/category/explicit/owner tags. Also emits a regenerated
+        # ``<lastBuildDate>`` (we re-cut) and ``<generator>`` (identifies the proxy).
         if not feed_content:
             return
         if channel is None:
@@ -1795,16 +1673,12 @@ class RSSParser:
         lines.append('<generator>MinusPod</generator>')
 
     def _emit_channel_pc2_tags(self, lines: list, feed_content: str, slug: str, channel=None) -> None:
-        # Emission order matches docs/podcasting-2.0.md: minted guid first,
-        # then locked (upstream or default "yes"), then the passthrough set,
-        # then the ai-content disclosure last.
+        # Order matches docs/podcasting-2.0.md: minted guid, locked (upstream or default "yes"),
+        # passthrough set, then the ai-content disclosure.
         #
-        # ``rstrip('/')`` keeps the GUID stable across base-URL configurations
-        # that may or may not include a trailing slash; without it, toggling
-        # the slash would silently change every feed's identity.
-        # Deliberately keyless: the guid seed is the feed's stable identity.
-        # Folding the feed auth key in would change every feed's guid on
-        # enable/rotate and make apps treat them as brand-new podcasts.
+        # ``rstrip('/')`` keeps the GUID stable whether or not the base URL has a trailing slash.
+        # Deliberately keyless: folding in the feed auth key would change every guid on
+        # enable/rotate and make apps treat feeds as new podcasts.
         served_feed_url = f"{self._resolved_base_url().rstrip('/')}/{slug}"
         guid = compute_feed_guid(served_feed_url)
         if guid:
@@ -1818,8 +1692,7 @@ class RSSParser:
         if upstream_locked_value in ("yes", "no"):
             lines.append(self._serialize_podcast_element(upstream["locked"]))
         else:
-            # Upstream silent, self-closing, or non-conformant body: spec says
-            # locked text MUST be "yes" or "no", so fall back to default.
+            # Upstream silent, self-closing or non-conformant: the spec requires "yes" or "no", so default.
             lines.append('<podcast:locked>yes</podcast:locked>')
 
         for elem in upstream["passthrough"]:
@@ -1831,18 +1704,8 @@ class RSSParser:
         """
         De-duplicate episodes, keeping only the latest version of each.
 
-        Duplicates are identified by matching title (normalized) and
-        published date (same day). When duplicates exist, keep the one
-        with the most recent published timestamp or latest URL update.
-
-        This matches podcast app behavior which typically shows only
-        the latest version when an episode is updated.
-
-        Args:
-            episodes: List of episode dicts from extract_episodes()
-
-        Returns:
-            De-duplicated list with only the latest version of each episode
+        Duplicates share a normalized title and published day; the one with the latest published
+        timestamp or URL update wins, matching podcast apps. `episodes` come from extract_episodes().
         """
         if not episodes:
             return episodes
@@ -1919,11 +1782,9 @@ class RSSParser:
 
         Args:
             feed_content: Original RSS feed XML.
-            parsed_feed: Optional pre-parsed feedparser object. When supplied,
-                skips the internal parse_feed call so a single refresh cycle
-                does not pay the parse cost three times.
-            source: Feed identifier named in a parse warning from the fallback
-                re-parse below.
+            parsed_feed: Optional pre-parsed feedparser object; skips parse_feed so one refresh
+                does not parse three times.
+            source: Feed identifier named in a parse warning from the fallback re-parse.
             channel: Optional pre-parsed <channel> element from find_channel_element.
         """
         feed = (parsed_feed if parsed_feed is not None
@@ -1971,12 +1832,9 @@ class RSSParser:
                 rss_duration = self._parse_itunes_duration(
                     entry.get('itunes_duration'))
 
-                # Upstream podcast:chapters JSON URL (issue #560 follow-up):
-                # some feeds publish chapters only as a separate file, not
-                # embedded ID3, so Auto mode fetches it at processing time
-                # (upstream_chapters.py) when the embedded probe comes up
-                # short. http(s) only; feedparser exposes the tag directly as
-                # {'url': ..., 'type': ...} when present.
+                # Upstream podcast:chapters JSON URL (#560): some feeds publish chapters only as a
+                # separate file, which Auto mode fetches (upstream_chapters.py) when the embedded
+                # probe comes up short. http(s) only.
                 upstream_chapters_url = None
                 raw_chapters_tag = entry.get('podcast_chapters')
                 if isinstance(raw_chapters_tag, dict):

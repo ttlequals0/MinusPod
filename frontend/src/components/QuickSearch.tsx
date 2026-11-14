@@ -68,7 +68,7 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => onKeyDown(e, go)}
             placeholder="Search shows, episodes and transcripts"
-            className="w-full bg-transparent py-3 pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground outline-hidden"
+            className="h-auto w-full bg-transparent py-3 pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground outline-hidden"
           />
         </div>
         <ul id="quick-search-results" role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto py-1">

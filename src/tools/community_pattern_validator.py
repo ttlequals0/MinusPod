@@ -1,14 +1,11 @@
 """Community pattern submission validator.
 
-Runs schema, tag, sponsor, quality, and dedupe checks against one or more
-JSON pattern files. Same code is used by:
+Runs schema, tag, sponsor, quality, and dedupe checks against JSON pattern files.
+Used by CI (`python -m src.tools.community_pattern_validator --pr-files A.json B.json`)
+and by the `POST /patterns/import` endpoint for community-format imports.
 
-  - CI (`python -m src.tools.community_pattern_validator --pr-files A.json B.json`)
-  - The `POST /patterns/import` endpoint for community-format imports
-
-Outputs a structured ValidationResult per file plus a single combined
-Markdown comment for posting back to the PR. CLI exits non-zero when any
-file fails a hard check (rejected) so the GitHub Action sets a red status.
+Outputs a ValidationResult per file plus one combined Markdown PR comment. The CLI
+exits non-zero when any file is rejected so the GitHub Action goes red.
 """
 from __future__ import annotations
 
@@ -148,12 +145,8 @@ def _quality_errors(doc: dict[str, Any]) -> list[str]:
 def _filename_errors(path: str, doc: dict[str, Any]) -> list[str]:
     """Reject when the on-disk filename does not equal slugify(sponsor)-<short>.json.
 
-    Caught the v2.5.x PR #292 footgun where a contributor hand-edited the
-    `sponsor` field but did not rename the file (or where the local DB had a
-    sponsor classification that disagreed with the ad text).
-
-    Skipped when `community_id` is empty -- the required-field check already
-    rejects that and a duplicate message would be noise.
+    Catches a hand-edited `sponsor` field without a file rename (PR #292).
+    Skipped when `community_id` is empty: the required-field check already rejects that.
     """
     actual = Path(path).name
     community_id = doc.get('community_id') or ''
@@ -172,13 +165,10 @@ def _filename_errors(path: str, doc: dict[str, Any]) -> list[str]:
 def _truncation_warnings(doc: dict[str, Any]) -> list[str]:
     """Warn when an intro/outro variant looks cut mid-clause.
 
-    Heuristic: strip trailing punctuation, split into tokens; flag the variant
-    if the last token is in a stopword set ("the", "at", "and", "com", "slash",
-    ...) or is a single non-"i" letter. Exception: a "dot <tld>" tail
-    (e.g. "shopify dot com") is treated as a completed URL and NOT flagged.
-    Variants are recall boosters, so a stray fragment never matches anything
-    and just clutters the pattern. Warning only -- the variant could still be
-    a legitimate anchor.
+    Flags a variant whose last token (after stripping trailing punctuation) is a stopword
+    ("the", "at", "and", "com", "slash", ...) or a single non-"i" letter. A "dot <tld>" tail
+    (e.g. "shopify dot com") counts as a completed URL. A stray fragment never matches and
+    just clutters the pattern, but it is only a warning since it could be a real anchor.
     """
     warnings: list[str] = []
     for kind in ('intro_variants', 'outro_variants'):
@@ -216,15 +206,12 @@ def _truncation_warnings(doc: dict[str, Any]) -> list[str]:
 def _file_shape_warnings(path: str, raw: dict[str, Any]) -> list[str]:
     """Surface filename / payload-shape mismatches.
 
-    - Bundle payload in a `<slug>-<short>.json`-shaped file: probably a hand
-      split that forgot to flatten; the contained patterns will validate
-      individually but the directory convention is per-pattern files.
-    - Per-pattern payload in a `minuspod-submission-*.json`-shaped file: the
-      contributor dropped a bundle filename on a single pattern; the manifest
-      generator will still pick it up, but the directory convention should
-      hold.
+    - Bundle payload in a `<slug>-<short>.json` file: likely a hand split that forgot to
+      flatten; the directory convention is per-pattern files.
+    - Per-pattern payload in a `minuspod-submission-*.json` file: a bundle filename on a
+      single pattern; the manifest generator still picks it up.
 
-    Warnings, not rejections -- both shapes already parse correctly downstream.
+    Warnings, not rejections: both shapes parse correctly downstream.
     """
     if not isinstance(raw, dict):
         return []
@@ -250,8 +237,7 @@ def _file_shape_warnings(path: str, raw: dict[str, Any]) -> list[str]:
 def _single_pattern_errors(doc: dict[str, Any], seed: list[dict[str, Any]]) -> list[str]:
     """Reject submissions that stitch multiple ads together.
 
-    Delegates to the shared `find_foreign_sponsors` helper so the import
-    side and export side agree on the rule.
+    Delegates to `find_foreign_sponsors` so import and export agree on the rule.
     """
     text = doc.get('text_template') or ''
     declared = (doc.get('sponsor') or '').lower()
@@ -322,9 +308,7 @@ def validate_doc(
         result.status = 'reject'
         return result
 
-    # Strip bundle entry suffix ("file.json#patterns[3]") so the filename
-    # check inspects the actual on-disk path. Bundle entries skip the
-    # check entirely -- bundles are validated as one file, not per-entry.
+    # Bundle entries ("file.json#patterns[3]") skip the filename check: bundles are validated as one file.
     if '#patterns[' not in path:
         fname_errs = _filename_errors(path, doc)
         if fname_errs:
@@ -388,9 +372,8 @@ def validate_doc(
 def _extract_patterns(path: str, raw: Any) -> list[tuple[str, dict[str, Any]]]:
     """Yield (synthetic_path, pattern_doc) for any payload shape.
 
-    A flat per-pattern file returns ``[(path, raw)]``. A bundle file returns
-    one entry per pattern in the ``patterns`` array, with ``path#patterns[i]``
-    so the PR comment can point at the failing index.
+    A flat file returns ``[(path, raw)]``; a bundle returns one ``path#patterns[i]`` entry per
+    pattern so the PR comment can point at the failing index.
     """
     if not isinstance(raw, dict):
         return []
@@ -427,8 +410,7 @@ def _load_existing_patterns(community_dir: Path) -> list[dict[str, Any]]:
 def render_markdown_comment(results: list[ValidationResult]) -> str:
     """Render a single Markdown comment for the PR summarizing all results.
 
-    Each section links back to the relevant part of `patterns/CONTRIBUTING.md`
-    so submitters can self-serve on what failed and why.
+    Sections link to `patterns/CONTRIBUTING.md` so submitters can see why a check failed.
     """
     contributing = '../blob/main/patterns/CONTRIBUTING.md'
     quality_link = f'[Quality checks]({contributing}#quality-checks-before-submission)'
@@ -495,10 +477,8 @@ def run(pr_files: list[str], comment_output: str | None = None,
     repo_root = _REPO_SRC.parent
     existing = _load_existing_patterns(repo_root / 'patterns' / 'community')
 
-    # CI checks out the PR branch, so files added in the PR are already on
-    # disk in patterns/community/. Strip them from the "existing" baseline
-    # by community_id, otherwise dedupe sees every new file as a duplicate
-    # of itself with score=1.00.
+    # CI checks out the PR branch, so PR files are already on disk; strip them from the
+    # "existing" baseline by community_id or dedupe flags each as a duplicate of itself.
     pr_paths = {Path(p).resolve() for p in pr_files}
     pr_community_ids: set = set()
     for p in pr_paths:

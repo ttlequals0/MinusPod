@@ -184,7 +184,7 @@ class TestRemoveAdsRemapsEmbeddedChapters:
         mp3 = self._make_chaptered_mp3(tmp_path)
         beep = self._make_beep(tmp_path)
         probes = []
-        for module in (utils.audio, embedded_chapters):
+        for module in (utils.audio.subprocess_registry, embedded_chapters):
             real = module.tracked_run
             monkeypatch.setattr(module, 'tracked_run', lambda cmd, *a, _real=real, **k: (
                 probes.append(cmd) if cmd[0] == 'ffprobe' and cmd[-1] == str(mp3) else None)

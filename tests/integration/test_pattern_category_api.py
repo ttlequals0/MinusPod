@@ -1,9 +1,8 @@
 """Integration tests for PUT /patterns/<id> category editing.
 
-A pattern's category decides its segment action at detection time (e.g.
-cross_promo resolving to keep), but the update endpoint had no way to fix a
-miscategorized pattern; the only levers were disable or delete.
-"""
+A pattern's category decides its segment action at detection time (e.g. cross_promo resolves to
+keep), and this endpoint is the way to fix a miscategorized pattern short of disabling or deleting
+it."""
 import os
 import sys
 import tempfile

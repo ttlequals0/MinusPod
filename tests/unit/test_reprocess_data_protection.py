@@ -1,7 +1,6 @@
-"""Issue #692: full/reprocess modes must not wipe episode_details before the
-run produces fresh results. A crash (OOM kill, container restart) used to
-leave the episode with no transcript and no markers; now the details clear is
-deferred into the transcribe stage, immediately before the fresh save."""
+"""Issue #692: full/reprocess modes must not wipe episode_details before the run produces fresh results.
+
+The details clear is deferred into the transcribe stage, right before the fresh save, so a crash keeps the old data."""
 from unittest.mock import patch
 
 import pytest

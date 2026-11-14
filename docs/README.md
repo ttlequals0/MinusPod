@@ -6,7 +6,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 
 - [Installation](installation.md) - requirements, Whisper/Parakeet sizing, resource measurement, quick start, CPU-only image, Intel hybrid CPU tuning
 - [Environment Variables](environment-variables.md) - every env var, grouped by how often you touch it
-- [LLM Providers](llm-providers.md) - Claude Code wrapper, Ollama (local/cloud), OpenRouter, recommended models, pricing
+- [LLM Providers](llm-providers.md) - Claude Code wrapper, Ollama (local/cloud), OpenRouter, recommended models, pricing, and [running without an LLM](llm-providers.md#running-without-an-llm)
 - [Transcription](transcription.md) - Parakeet (recommended) and faster-whisper backends, choosing between them, GPU compute types, remote APIs (whisper.cpp, Groq, OpenAI), language, timeouts
 - [Finding Feeds & Usage](feeds-and-usage.md) - podcast search, finding RSS feeds, Audiobookshelf
 - [Web Interface](web-interface.md) - the management UI, ad editor workflow, screenshots

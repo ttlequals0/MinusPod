@@ -1,10 +1,9 @@
 """Integration tests for per-feed refresh failure tracking (#516).
 
-Failures spaced at least FEED_REFRESH_FAILURE_COUNT_INTERVAL apart
-increment a per-feed counter; the Feed Refresh Failed alert fires exactly
-once, when the count reaches the threshold. Success clears the state. The
-feeds API exposes the failure fields only at or past the threshold, plus
-the global all-feeds refresh timestamp.
+Failures at least FEED_REFRESH_FAILURE_COUNT_INTERVAL apart increment a per-feed
+counter; the Feed Refresh Failed alert fires once, when the count reaches the
+threshold; success clears the state. The feeds API exposes the failure fields only
+at or past the threshold, plus the global all-feeds refresh timestamp.
 """
 import os
 import sys
@@ -139,6 +138,17 @@ class TestRecordHelpers:
         err = db.get_podcast_by_slug(slug)['last_refresh_error']
         assert 'SECRET' not in err
         assert 'https://example.com/feed.xml?<redacted>' in err
+
+    def test_error_message_feed_key_and_query_redacted(self, seeded_feed, alert_recorder):
+        from main_app import feeds as feeds_mod
+        slug, db = seeded_feed['slug'], seeded_feed['db']
+
+        feeds_mod._record_refresh_failure(
+            slug, 'fetch of https://feed.example.com/' + 'a' * 64 + '?t=1 failed')
+
+        err = db.get_podcast_by_slug(slug)['last_refresh_error']
+        assert 'a' * 64 not in err
+        assert 'https://feed.example.com/[redacted-feed-key]?<redacted> failed' in err
 
     def test_success_clears_failure_state(self, seeded_feed, alert_recorder):
         from main_app import feeds as feeds_mod

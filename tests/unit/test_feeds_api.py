@@ -1,11 +1,8 @@
 """Integration tests for the chaptersMode per-feed setting (#560 API surface).
 
-Mirrors test_passthrough_settings_api.py's fixture style. Covers:
-- GET echoes the raw chapters_mode column (null when unset).
-- PATCH sets each valid value ('auto', 'generate', 'off').
-- PATCH null resets the override.
-- PATCH an invalid string -> 400, column left unchanged.
-"""
+Mirrors test_passthrough_settings_api.py's fixtures. GET echoes the raw chapters_mode column (null
+when unset); PATCH sets 'auto'/'generate'/'off', null resets, an invalid string is 400 with the
+column unchanged."""
 import os
 import sqlite3
 import sys
@@ -218,7 +215,7 @@ def test_patch_network_id_override_rolls_back_if_retag_fails(app_client, seeded_
     assert db.get_podcast_by_slug(slug)['network_id_override'] == 'old-network'
 
 
-# -- ownEpisodeGuids (#598) --
+# ownEpisodeGuids (#598)
 
 @pytest.fixture
 def no_feed_refresh(monkeypatch):
@@ -269,7 +266,7 @@ def test_own_episode_guids_migration_idempotent(app_client, seeded_feed):
                                      'INTEGER', cols) is False
 
 
-# -- queuePriority (#625) --
+# queuePriority (#625)
 
 def _insert_pending_queue_row(db, podcast_id, episode_id):
     conn = db.get_connection()
@@ -371,7 +368,7 @@ def test_patch_queue_priority_same_value_skips_restamp(app_client, seeded_feed, 
     assert restamp_calls == []
 
 
-# -- titleSkipPatterns / titleSkipAction (episode title blacklist) --
+# titleSkipPatterns / titleSkipAction (episode title blacklist)
 
 def test_get_feed_defaults_title_skip_fields(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -507,7 +504,7 @@ def test_patch_invalid_skip_patterns_rejected(app_client, seeded_feed, patterns,
     assert seeded_feed['db'].get_podcast_by_slug(slug)[column] is None
 
 
-# -- lowAdYieldAction per-feed override --
+# lowAdYieldAction per-feed override
 
 def test_get_feed_echoes_null_low_ad_yield_action(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -559,7 +556,7 @@ def test_patch_invalid_low_ad_yield_action_rejected(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['low_ad_yield_action'] == 'full'
 
 
-# -- episodeLogs per-feed override (#660) --
+# episodeLogs per-feed override (#660)
 
 def test_get_feed_echoes_null_episode_logs(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -611,7 +608,7 @@ def test_patch_invalid_episode_logs_rejected(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['episode_logs'] == 'off'
 
 
-# -- detectionNotes (#709) --
+# detectionNotes (#709)
 
 def test_patch_detection_notes_roundtrip(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -1011,3 +1008,53 @@ def test_chapter_notes_invalid_rejected(app_client, seeded_feed, value):
                             json={'chapterNotes': value})
     assert resp.status_code == 400
     assert seeded_feed['db'].get_podcast_by_slug(slug)['chapter_notes'] is None
+
+
+@pytest.mark.parametrize('sent, stored', [
+    (' Acme Net\u00a0', 'Acme Net'),
+    ('   ', None),
+    ('', None),
+])
+def test_patch_network_id_override_is_normalized(app_client, seeded_feed, sent, stored):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': sent},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == stored
+
+
+@pytest.mark.parametrize('bad', [7, ['a'], 'x' * 101])
+def test_patch_network_id_override_rejects_bad_values(app_client, seeded_feed, bad):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': bad},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] is None
+
+
+def _store_legacy_override(db, slug, value):
+    conn = db.get_connection()
+    conn.execute("UPDATE podcasts SET network_id_override = ? WHERE slug = ?", (value, slug))
+    conn.commit()
+
+
+def test_patch_resending_a_stored_over_long_override_is_allowed(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _store_legacy_override(seeded_feed['db'], slug, 'N' * 120)
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': 'N' * 120},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == 'N' * 120
+
+
+def test_patch_changing_a_stored_over_long_override_to_another_is_rejected(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _store_legacy_override(seeded_feed['db'], slug, 'N' * 120)
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': 'M' * 120},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == 'N' * 120

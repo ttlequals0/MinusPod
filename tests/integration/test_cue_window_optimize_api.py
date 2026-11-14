@@ -1,9 +1,7 @@
 """Integration tests for POST .../optimize-window endpoint (D2a).
 
-Covers: validation, claim/poll semantics, rescan, aged-out audio 409, error
-surface, and the worker payload shape. Mirrors test_cue_cross_episode_scan_api.py
-but keyed by template_id instead of (podcast_id, episode_set_hash).
-"""
+Covers validation, claim/poll semantics, rescan, aged-out audio 409, error surface and worker
+payload shape. Mirrors test_cue_cross_episode_scan_api.py but keyed by template_id."""
 import os
 import sys
 import tempfile

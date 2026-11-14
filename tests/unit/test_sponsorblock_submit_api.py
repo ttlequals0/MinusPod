@@ -148,7 +148,7 @@ def test_submit_validation(seeded):
 
 def test_submit_records_uuid(seeded):
     client, db = seeded
-    with patch('youtube.sponsorblock_submit.submit', return_value=('submitted', '', [{'UUID': 'u2', 'segment': [100.0, 130.0]}, {'UUID': 'u1', 'segment': [10.0, 40.0]}])) as send:
+    with patch('youtube.sponsorblock_submit.submit', return_value=('submitted', '', [{'UUID': 'u2', 'segment': [100.0, 130.0]}, {'UUID': 'u1', 'segment': [10.0, 40.0]}], None)) as send:
         resp = _post(client, [{'start': 10.02, 'end': 40.0}, {'start': 100.0, 'end': 130.0}])
     assert resp.status_code == 200, resp.get_json()
     results = resp.get_json()['results']
@@ -166,20 +166,21 @@ def test_submit_records_uuid(seeded):
 def test_submit_duplicate_and_rejected_are_200(seeded):
     client, _ = seeded
     for label, span in (('duplicate', (10.0, 40.0)), ('rejected', (100.0, 130.0))):
-        with patch('youtube.sponsorblock_submit.submit', return_value=(label, 'why', [])):
+        with patch('youtube.sponsorblock_submit.submit', return_value=(label, 'why', [], None)):
             resp = _post(client, [{'start': span[0], 'end': span[1]}])
         assert resp.status_code == 200 and resp.get_json()['results'][0]['status'] == label
 
 
 def test_submit_rate_limited_is_429_and_error_is_502_and_retryable(seeded):
     client, _ = seeded
-    with patch('youtube.sponsorblock_submit.submit', return_value=('rate_limited', 'slow', [])):
+    with patch('youtube.sponsorblock_submit.submit', return_value=('rate_limited', 'slow', [], 120)):
         resp = _post(client, [{'start': 10.0, 'end': 40.0}])
     assert resp.status_code == 429 and resp.get_json()['results'][0]['status'] == 'rate_limited'
-    with patch('youtube.sponsorblock_submit.submit', return_value=('error', 'HTTP 500: x', [])):
+    assert resp.headers['Retry-After'] == '120' and resp.get_json()['retryAfterSeconds'] == 120
+    with patch('youtube.sponsorblock_submit.submit', return_value=('error', 'HTTP 500: x', [], None)):
         resp = _post(client, [{'start': 10.0, 'end': 40.0}])
     assert resp.status_code == 502 and resp.get_json()['results'][0]['status'] == 'error'
-    with patch('youtube.sponsorblock_submit.submit', return_value=('submitted', '', [{'UUID': 'ok', 'segment': [10.0, 40.0]}])):
+    with patch('youtube.sponsorblock_submit.submit', return_value=('submitted', '', [{'UUID': 'ok', 'segment': [10.0, 40.0]}], None)):
         assert _post(client, [{'start': 10.0, 'end': 40.0}]).status_code == 200
 
 

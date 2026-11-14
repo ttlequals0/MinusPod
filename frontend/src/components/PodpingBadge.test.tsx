@@ -1,7 +1,6 @@
 /**
- * PodpingBadge collapses the API's five coverage states into three lines: the
- * time of the last ping, a publisher opt-in with nothing received yet, or
- * never. It renders nothing at all when the listener is disabled.
+ * PodpingBadge maps five coverage states to three lines (last ping time, publisher opt-in, never) and
+ * renders nothing when the listener is disabled.
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

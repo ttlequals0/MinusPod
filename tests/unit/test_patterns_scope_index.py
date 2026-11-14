@@ -1,10 +1,4 @@
-"""idx_patterns_scope creation (fresh schema + migration).
-
-The index was defined in the retired MIGRATION_INDEXES_SQL constant but never
-executed anywhere, so no database ever had it. It is now part of SCHEMA_SQL
-for fresh databases and created by an idempotent migration step for existing
-ones. These tests cover both paths.
-"""
+"""idx_patterns_scope creation: in SCHEMA_SQL for fresh databases and an idempotent migration step for existing ones."""
 import pytest
 
 from database import Database

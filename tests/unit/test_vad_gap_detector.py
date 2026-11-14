@@ -188,11 +188,9 @@ class TestEmpty:
 
 
 class TestHeadGapRegression:
-    """Reproduce the episode that motivated this feature.
+    """A head-gap marker is emitted for an episode whose Whisper transcript starts at 10.95s.
 
-    Original episode: example-podcast/a1b2c3d4e5f6. Whisper's transcript
-    starts at 10.95s (sped-up DIA legal tail is VAD-dropped). Even if no
-    detected ad anchors the head, we should emit a head-gap marker.
+    The sped-up legal tail is VAD-dropped; the marker must appear even when no detected ad anchors the head.
     """
     def test_head_gap_emitted_without_existing_ads_anchor(self):
         segments = [_seg(10.95, 38.75, 'This is the Daily Tech Show for Tuesday')]
@@ -201,12 +199,11 @@ class TestHeadGapRegression:
 
 
 class TestDAISeamRegression:
-    """another-podcast/f6e5d4c3b2a1: DAI insertion duplicated a few
-    seconds of show audio around the splice. The line appeared once inside
-    the ad span near the seam and verbatim again at 87.8s where the show
-    resumed. The mid-gap merge extended the ad end 76.0s -> 87.8s, swallowing
-    ~12s of show. A verbatim duplicate beyond the proposed boundary must now
-    block the extension.
+    """DAI insertion duplicated a few seconds of show audio around the splice.
+
+    The line appears once inside the ad span near the seam and verbatim again at 87.8s where the show
+    resumed. The mid-gap merge extended the ad end 76.0s -> 87.8s, swallowing ~12s of show, so a verbatim
+    duplicate beyond the proposed boundary must block the extension.
     """
     _DUP_LINE = "I'm experiencing a weird, it's not even weird, I don't feel the FOMO."
 
@@ -252,11 +249,9 @@ class TestDAISeamRegression:
         assert existing[0].get('vad_gap_extended') is True
 
     def test_stock_cta_shared_across_gap_still_extends(self):
-        # Two back-to-back sponsor reads share the stock CTA "this episode is
-        # brought to you by" (~34 normalized chars) across the gap. That is
-        # common ad boilerplate, not duplicated show audio, so the longest
-        # verbatim run stays under the 50-char seam threshold and the
-        # extension proceeds -- otherwise the gap of ad residue stays uncut.
+        # Two back-to-back sponsor reads share the stock CTA "this episode is brought to you by" (~34 normalized
+        # chars). That is ad boilerplate, not duplicated show audio, so the longest verbatim run stays under the
+        # 50-char seam threshold and the extension proceeds; otherwise the gap of ad residue stays uncut.
         segments = [
             _seg(0.0, 66.0, 'Show opening with the hosts catching up on the week.'),
             _seg(66.0, 76.0, 'This episode is brought to you by Acme, use code ONE.'),
@@ -296,10 +291,10 @@ class TestDAISeamRegression:
 
 
 class TestOneSidedMidGapRegression:
-    """One episode (b2c3d4e5f6a1) emitted 8 mid-gap markers where
-    one side had a signoff/resume-like phrase but the other was neutral
-    podcast chatter. Each cut 9-44s of legitimate content. Both sides must
-    now show context to emit a mid-gap marker.
+    """Both sides of a mid-gap must show context to emit a marker.
+
+    One side with a signoff/resume-like phrase and the other neutral chatter used to emit markers
+    that cut 9-44s of content.
     """
     def test_one_sided_signoff_no_resume_skipped(self):
         segments = [

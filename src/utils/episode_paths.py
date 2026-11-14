@@ -1,5 +1,8 @@
 """Shared builders for versioned episode filenames and URLs."""
 import os
+import re
+import time
+from pathlib import Path
 
 
 def episode_ui_url(slug: str, episode_id: str) -> str:
@@ -11,9 +14,7 @@ def episode_ui_url(slug: str, episode_id: str) -> str:
 def episode_version_suffix(version: int | None) -> str:
     """Return '-v{N}' for N>=1, empty string otherwise.
 
-    Kept separate from ``Storage.get_episode_path`` so callers that only need
-    the string suffix (DB `processed_file` column, RSS enclosure URL, API
-    response `processedUrl`) avoid depending on a Storage instance.
+    Separate from ``Storage.get_episode_path`` so suffix-only callers need no Storage.
     """
     return f"-v{int(version)}" if version and int(version) > 0 else ""
 
@@ -53,8 +54,66 @@ def episode_public_url(base_url: str, slug: str, episode_id: str,
                         key: str | None = None) -> str:
     """Return the public-facing enclosure URL.
 
-    ``key`` is the global feed auth key (authenticated feeds); when set it is
-    appended as the ``?key=`` query param the public routes enforce.
+    ``key`` is the global feed auth key; when set it is appended as ``?key=``.
     """
     url = f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension)}"
     return f"{url}?key={key}" if key else url
+
+
+def peaks_file_path(audio_path: Path | str) -> Path:
+    """Return the sibling ``.peaks`` path for an audio file."""
+    return Path(audio_path).with_suffix('.peaks')
+
+
+# A write interrupted this long ago is not still running
+PEAKS_TEMP_STALE_SECONDS = 3600
+# mkstemp names: <peaks name>.<8 random chars>.tmp
+_PEAKS_TEMP_RE = re.compile(r'-original\.peaks\.[A-Za-z0-9_]{8}\.tmp$')
+
+
+def is_peaks_temp_name(name: str) -> bool:
+    """True for a leftover temp file of an interrupted peaks write."""
+    return _PEAKS_TEMP_RE.search(name) is not None
+
+
+def is_peaks_housekeeping_name(name: str) -> bool:
+    """True for a peaks build lock or an interrupted-write temp file."""
+    return is_peaks_temp_name(name) or name.endswith('-original.peaks.lock')
+
+
+def peaks_lock_path(peaks_path: Path | str) -> Path:
+    """Return the cross-process build lock path for a peaks file."""
+    p = Path(peaks_path)
+    return p.with_name(p.name + '.lock')
+
+
+def remove_peaks_artifacts(peaks_path: Path | str) -> bool:
+    """Remove a peaks file and its build lock; True when the file itself was removed."""
+    peaks = Path(peaks_path)
+    peaks_lock_path(peaks).unlink(missing_ok=True)
+    try:
+        peaks.unlink()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def sweep_stale_peaks_temp_files(directory: Path | str, min_age_seconds: float = PEAKS_TEMP_STALE_SECONDS) -> int:
+    """Remove peaks temp files left by interrupted writes in one directory; returns the count."""
+    removed = 0
+    try:
+        entries = list(os.scandir(directory))
+    except OSError:
+        return 0
+    now = time.time()
+    for entry in entries:
+        if not is_peaks_temp_name(entry.name):
+            continue
+        try:
+            if now - entry.stat().st_mtime < min_age_seconds:
+                continue
+            os.unlink(entry.path)
+            removed += 1
+        except OSError:
+            continue
+    return removed

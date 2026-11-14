@@ -57,8 +57,10 @@ def stage():
 
 def test_ok_run_persists_spans_and_stats(stage, caplog):
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
-        payload, run_stats = stage.run(podcast={**FEED, 'download_user_agent_override': 'Feed/2.0'})
-    stage.fetch.assert_called_once_with(URL, 'text/vtt', user_agent='Feed/2.0')
+        payload, run_stats = stage.run(podcast={**FEED, 'download_user_agent_override': 'Feed/2.0',
+                                   'feed_user_agent_override': 'FeedRss/3.0'})
+    stage.fetch.assert_called_once_with(
+        URL, 'text/vtt', user_agent='Feed/2.0', fallback_user_agent='FeedRss/3.0')
     assert payload['status'] == 'ok'
     assert payload['spans'] == [SPAN]
     assert payload['source_url'] == URL
@@ -72,6 +74,14 @@ def test_ok_run_persists_spans_and_stats(stage, caplog):
             in caplog.text)
     stage.publish.assert_called_once_with('update_job_stage', 'feed', 'ep1',
                                           'pass1:transcript_diff', 21)
+
+
+def test_download_outcome_user_agent_is_used_for_fetch(stage):
+    run_stats = {}
+    signals._run_transcript_diff(
+        'feed', 'ep1', EPISODE, SEGMENTS, run_stats, podcast=FEED,
+        download_outcome={'fallback_user_agent': 'X/1'}, segments_reused=False)
+    assert stage.fetch.call_args.kwargs['user_agent'] == 'X/1'
 
 
 def test_fetch_exception_becomes_error_status(stage):

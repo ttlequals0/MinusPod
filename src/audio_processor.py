@@ -13,6 +13,7 @@ from embedded_chapters import (
 )
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
+from utils.http import redact_stored_text
 from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
 from mp3_stream_copy import copy_mp3
@@ -40,19 +41,16 @@ def get_data_dir() -> Path:
 def get_uploaded_replace_audio_path() -> Path:
     """Where an operator-uploaded replacement lands.
 
-    The data volume, not assets/: assets/ is baked into the image by the
-    Dockerfile and is only a bind mount if the operator uncomments it, so an
-    upload written there would vanish on the next redeploy.
+    The data volume, not assets/: assets/ is baked into the image and only a bind mount if the operator
+    uncomments it, so an upload written there would vanish on redeploy.
     """
     return get_data_dir() / REPLACE_AUDIO_FILENAME
 
 
 def get_replace_audio_path() -> str:
-    """Resolve the replacement audio, most specific source first.
+    """Resolve the replacement audio, most specific first: uploaded file, mounted assets/ override, shipped default.
 
-    Uploaded file, then a mounted assets/ override, then the shipped default.
-    Resolved per call rather than frozen at import so an upload takes effect
-    without a restart.
+    Resolved per call, not frozen at import, so an upload takes effect without a restart.
     """
     for candidate in (
         get_uploaded_replace_audio_path(),
@@ -68,26 +66,21 @@ def get_replace_audio_path() -> str:
 def get_replacement_duration() -> float:
     """Length of the replacement (beep) audio in seconds.
 
-    Asset generators need this to map original-timeline timestamps onto the
-    processed audio: each cut is replaced by this much audio, not removed
-    outright. Resolves the same path AudioProcessor renders with, so the two
-    cannot disagree. AudioMetadata re-probes when the file's mtime changes.
+    Asset generators need it to map original-timeline timestamps onto processed audio, since each cut is
+    replaced by this much audio. Resolves the same path AudioProcessor renders with; AudioMetadata
+    re-probes when the file's mtime changes.
     """
     return AudioMetadata.get_duration(get_replace_audio_path()) or 1.0
 
 
-# Loudness leveling presets (optional dynaudnorm second pass). Tuned via the
-# dynaudnorm knobs: smaller frame (f) reacts to shorter loud spikes (more
-# level-bouncing); larger frame is gentler. Higher peak target (p) is
-# louder-but-safe.
+# Loudness leveling presets (optional dynaudnorm second pass). A smaller frame (f) reacts to shorter
+# loud spikes (more level-bouncing); larger is gentler. A higher peak target (p) is louder-but-safe.
 NORMALIZE_PRESETS = {
     'gentle':     'dynaudnorm=f=500:g=11:p=0.97',
     'normal':     'dynaudnorm=f=200:g=15:p=0.95',
     'aggressive': 'dynaudnorm=f=100:g=21:p=0.90',
-    # Stronger tiers add make-up gain (m) to lift quiet passages and a
-    # compression factor (s) on top, so dynamics get flattened harder.
-    # 'maximum' is near-broadcast-flat; on already-consistent audio it can
-    # introduce mild pumping, which is the trade-off for the most even level.
+    # Stronger tiers add make-up gain (m) to lift quiet passages and a compression factor (s).
+    # 'maximum' is near-broadcast-flat; on already-consistent audio it can introduce mild pumping.
     'extreme':    'dynaudnorm=f=75:g=25:p=0.95:m=20:s=15',
     'maximum':    'dynaudnorm=f=50:g=31:p=0.95:m=30:s=25',
 }
@@ -113,10 +106,7 @@ class AudioProcessor:
         return args
 
     def get_audio_duration(self, audio_path: str) -> float | None:
-        """Get duration of audio file in seconds.
-
-        Delegates to utils.audio.get_audio_duration for consistent implementation.
-        """
+        """Get duration of audio file in seconds (via utils.audio.get_audio_duration)."""
         return get_audio_duration(audio_path)
 
     def resolve_replace_audio_path(self) -> str:
@@ -131,17 +121,11 @@ class AudioProcessor:
         the render resolves it so the two cannot read different files."""
         return AudioMetadata.get_duration(self.resolve_replace_audio_path()) or 1.0
 
-    def convert_to_mp3(self, input_path: str) -> str | None:
-        """Transcode an episode to MP3 at this instance's bitrate, with no
-        other changes. Used by pass-through mode (#521) for non-MP3
-        enclosures: the serving stack names files .mp3 and declares
-        audio/mpeg, so other containers must be converted to stay playable.
-        Returns the new file's path, or None on failure."""
-        if not os.path.exists(input_path):
-            logger.error(f"Convert input not found: {input_path}")
-            return None
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.converted.mp3') as tmp:
+    def _ffmpeg_to_mp3(self, input_path: str, suffix: str, extra_args: list[str],
+                       label: str, start_msg: str, done_msg: str | None = None) -> str | None:
+        """Run one ffmpeg MP3 pass into a temp file; return its path, or None
+        on failure (the temp file is removed)."""
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             output_path = tmp.name
 
         success = False
@@ -152,56 +136,69 @@ class AudioProcessor:
             cmd = [
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
-                '-vn',
+                *extra_args,
                 *self._mp3_encode_args(),
             ]
             if source_tag is not None:
                 cmd += ['-id3v2_version', str(source_tag.version)]
             cmd.append(output_path)
             timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
-            logger.info("Running FFMPEG convert-to-mp3")
+            logger.info(start_msg)
             result = tracked_run(cmd, capture_output=True, timeout=timeout)
 
             if result.returncode != 0:
                 try:
                     stderr_text = result.stderr.decode('utf-8', errors='replace')
                 except Exception:
-                    stderr_text = str(result.stderr)[:500]
-                logger.error(f"FFMPEG convert failed: {stderr_text}")
+                    stderr_text = redact_stored_text(str(result.stderr))[:500]
+                logger.error(f"FFMPEG {label} failed: {stderr_text}")
                 return None
 
             output_duration = self.get_audio_duration(output_path)
             if not output_duration:
-                logger.error("Convert output unreadable")
+                logger.error(f"{label.capitalize()} output unreadable")
                 return None
 
+            if done_msg:
+                logger.info(done_msg)
             restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
             success = True
             return output_path
 
         except subprocess.TimeoutExpired:
-            logger.error("FFMPEG convert timed out")
+            logger.error(f"FFMPEG {label} timed out")
             return None
         except Exception as e:
-            logger.error(f"Convert failed: {e}")
+            logger.error(f"{label.capitalize()} failed: {e}")
             return None
         finally:
+            # On any non-success exit, drop the partial/unreadable temp output.
             if not success and os.path.exists(output_path):
                 try:
                     os.unlink(output_path)
                 except OSError:
                     pass
 
+    def convert_to_mp3(self, input_path: str) -> str | None:
+        """Transcode an episode to MP3 at this instance's bitrate, with no other changes.
+
+        Used by pass-through mode (#521) for non-MP3 enclosures: the serving stack names files .mp3 and
+        declares audio/mpeg. Returns the new file's path, or None on failure."""
+        if not os.path.exists(input_path):
+            logger.error(f"Convert input not found: {input_path}")
+            return None
+
+        return self._ffmpeg_to_mp3(
+            input_path, '.converted.mp3', ['-vn'], 'convert',
+            'Running FFMPEG convert-to-mp3')
+
     def normalize_audio(self, input_path: str,
                         intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> str | None:
-        """Run a second ffmpeg pass to even out loudness across an episode
-        (lift quiet passages, tame loud peaks). Returns the path of a new
-        normalized file on success, or None on failure. Caller is responsible
-        for cleanup of the input when swapping in the returned path.
+        """Run a second ffmpeg pass to even out loudness across an episode.
 
-        This is intentionally a SEPARATE invocation from remove_ads - fusing
-        dynaudnorm into the cut filter graph would risk the cut behavior across
-        the variety of podcast feeds. Cost: ~3-5s on a 48-min episode.
+        Returns the path of a new normalized file, or None on failure; the caller cleans up the input when
+        swapping. Deliberately a separate invocation from remove_ads: fusing dynaudnorm into the cut
+        filter graph would risk the cut behavior across varied feeds. Cost: ~3-5s on a 48-min episode.
         """
         filter_str = NORMALIZE_PRESETS.get(intensity)
         if not filter_str:
@@ -212,58 +209,10 @@ class AudioProcessor:
             logger.error(f"Normalize input not found: {input_path}")
             return None
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.normalized.mp3') as tmp:
-            output_path = tmp.name
-
-        success = False
-        try:
-            source_info = probe_render_input(input_path)
-            source_tag = source_chapter_tag(input_path, source_info.chapters if source_info else False)
-            duration = source_info.duration if source_info else 0
-            cmd = [
-                'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
-                '-i', input_path,
-                '-filter:a', filter_str,
-                *self._mp3_encode_args(),
-            ]
-            if source_tag is not None:
-                cmd += ['-id3v2_version', str(source_tag.version)]
-            cmd.append(output_path)
-            timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
-            logger.info(f"Running FFMPEG normalize (intensity={intensity})")
-            result = tracked_run(cmd, capture_output=True, timeout=timeout)
-
-            if result.returncode != 0:
-                try:
-                    stderr_text = result.stderr.decode('utf-8', errors='replace')
-                except Exception:
-                    stderr_text = str(result.stderr)[:500]
-                logger.error(f"FFMPEG normalize failed: {stderr_text}")
-                return None
-
-            output_duration = self.get_audio_duration(output_path)
-            if not output_duration:
-                logger.error("Normalize output unreadable")
-                return None
-
-            logger.info("FFMPEG normalize complete")
-            restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
-            success = True
-            return output_path
-
-        except subprocess.TimeoutExpired:
-            logger.error("FFMPEG normalize timed out")
-            return None
-        except Exception as e:
-            logger.error(f"Normalize failed: {e}")
-            return None
-        finally:
-            # On any non-success exit, drop the partial/unreadable temp output.
-            if not success and os.path.exists(output_path):
-                try:
-                    os.unlink(output_path)
-                except OSError:
-                    pass
+        return self._ffmpeg_to_mp3(
+            input_path, '.normalized.mp3', ['-filter:a', filter_str], 'normalize',
+            f"Running FFMPEG normalize (intensity={intensity})",
+            done_msg="FFMPEG normalize complete")
 
     def compute_applied_cuts(self, ad_segments: list[dict],
                              total_duration: float,
@@ -280,14 +229,11 @@ class AudioProcessor:
                                  ) -> tuple[list[dict], list[tuple[bool, bool]]]:
         """Compute the cuts remove_ads actually applies to the audio.
 
-        Requested segments diverge from applied cuts: near-adjacent segments
-        merge, short ones drop, and an end-of-episode cut extends to the end
-        of the file. ``cut_barriers`` identifies content that must neither be
-        swallowed by a gap merge nor by that trailing extension.
-        ``hard_barriers`` are kept audio: every cut is also clipped at them. Asset
-        generation and verification timestamp mapping need the applied list,
-        not the requested one -- remove_ads returns it. The second value holds,
-        per cut, whether its start and end come from a confirmed or precise edge.
+        Requested segments diverge from applied cuts: near-adjacent segments merge, short ones drop, and an
+        end-of-episode cut extends to the end of the file. ``cut_barriers`` marks content that a gap merge
+        or that trailing extension must not swallow; ``hard_barriers`` are kept audio that clips every cut.
+        Asset generation and timestamp mapping need this list, not the requested one. The second value
+        holds, per cut, whether its start and end come from a confirmed or precise edge.
         """
         if not ad_segments or not total_duration:
             return [], []
@@ -372,10 +318,8 @@ class AudioProcessor:
         if current_segment:
             merged_ads.append(current_segment)
 
-        # Filter out short ad detections (< 10 seconds) - likely LLM
-        # hallucinations. Trusted short cuts stay: a fingerprint match is a
-        # known ad pattern, and a high-confidence detection (e.g. an 8s
-        # bumper) is more likely real than noise.
+        # Drop short ad detections (< 10 seconds), likely LLM hallucinations. Trusted short cuts stay: a
+        # fingerprint match is a known pattern, and a high-confidence detection (e.g. an 8s bumper) is likelier real.
         ads = []
         skipped_count = 0
         for ad in merged_ads:
@@ -456,8 +400,8 @@ class AudioProcessor:
                    ) -> list[dict] | None:
         """Remove ad segments from audio file.
 
-        Returns the applied cut list (see compute_applied_cuts) on success --
-        empty when nothing was cut -- or None on failure.
+        Returns the applied cut list (see compute_applied_cuts) on success, empty when nothing was
+        cut, or None on failure.
         """
         if not ad_segments:
             source_chapter_tag(input_path, False)
@@ -523,10 +467,8 @@ class AudioProcessor:
             fade_in_duration = 0.8 if needs_sound else 0.0
             beep_fade_duration = 0.5  # Beep fades stay short
             beep_duration = self.get_beep_duration() if needs_sound else 0.0
-            # Render model: 'remove' gets the fixed-length beep clip; 'beep'
-            # gets that clip padded to the span's own length, so duration
-            # doesn't shrink there. 'replacement_duration' holds this filler
-            # length, shared by the chapter remap and drift check below.
+            # Render model: 'remove' gets the fixed-length beep clip; 'beep' gets it padded to the span's own
+            # length. 'replacement_duration' holds this filler length, shared by the chapter remap and drift check.
             cut_total = sum(a['end'] - a['start'] for a in ads)
             expected_duration = total_duration - cut_total + sum(a['replacement_duration'] for a in ads)
 
@@ -589,10 +531,9 @@ class AudioProcessor:
 
                 current_time = ad_end
 
-            # Add remaining content after the last ad (with fade-in).
-            # compute_applied_cuts extends an end-of-episode cut to
-            # total_duration, so the episode ends at the beep in that case
-            # and no short post-roll residue can reach here.
+            # Add remaining content after the last ad (with fade-in). compute_applied_cuts extends an
+            # end-of-episode cut to total_duration (the episode then ends at the beep), so no short post-roll
+            # residue can reach here.
             if current_time < total_duration:
                 content_duration = total_duration - current_time
                 chain = f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS"
@@ -613,11 +554,10 @@ class AudioProcessor:
             filter_str += (''.join(concat_parts) + f"concat=n={len(concat_parts)}:v=0:a=1,"
                            "asetnsamples=n=1152:p=1[out]")
 
-            # Remap embedded chapters (ID3v2 CHAP) onto the cut timeline.
-            # ffmpeg copies the input's chapters by default, and their
-            # timestamps point at the wrong content once ads are removed
-            # (issue #500). Remapped chapters are injected as an ffmetadata
-            # input; otherwise chapters are stripped. A failed probe never gets here.
+            # Remap embedded chapters (ID3v2 CHAP) onto the cut timeline (issue #500): ffmpeg copies the input's
+            # chapters by default, with timestamps pointing at the wrong content once ads are removed. Remapped
+            # chapters are injected as an ffmetadata input; otherwise chapters are stripped. A
+            # failed probe never gets here.
             embedded = parse_chapters(render_input.chapters)
             remapped = []
             if embedded:
@@ -667,14 +607,13 @@ class AudioProcessor:
                 try:
                     stderr_text = result.stderr.decode('utf-8', errors='replace')
                 except Exception:
-                    stderr_text = str(result.stderr)[:500]
+                    stderr_text = redact_stored_text(str(result.stderr))[:500]
                 logger.error(f"FFMPEG failed: {stderr_text}")
                 return None
 
-            # Verify output: each applied cut is replaced by its filler
-            # ('replacement_duration'), so expected duration is input - cuts
-            # + sum(filler); drift beyond RENDER_DRIFT_WARN_SECONDS means the
-            # render diverged from marker arithmetic (spec 1.5 overshoot forensics).
+            # Verify output: each applied cut is replaced by its filler ('replacement_duration'), so expected
+            # duration is input - cuts + sum(filler); drift beyond RENDER_DRIFT_WARN_SECONDS means the render
+            # diverged from marker arithmetic (spec 1.5 overshoot forensics).
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
                 restore_chapter_tag(output_path, source_tag, ads, beep_duration, new_duration)
@@ -713,9 +652,8 @@ class AudioProcessor:
                         ) -> tuple[str, list[dict]] | None:
         """Process episode audio to remove ads.
 
-        Returns (output_path, applied_cuts) on success, None on failure.
-        applied_cuts is the merged/filtered/end-trimmed list remove_ads cut,
-        which downstream asset generation and timestamp mapping consume.
+        Returns (output_path, applied_cuts) on success, None on failure; applied_cuts is the merged/filtered/
+        end-trimmed list remove_ads cut, consumed by asset generation and timestamp mapping.
         """
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
             temp_output = tmp.name

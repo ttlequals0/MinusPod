@@ -1,13 +1,7 @@
 /**
- * Component tests for the "Held for review" section in EpisodeDetail.tsx (Phase C T6).
- *
- * Covers:
- *   - Held section renders N rows from pendingReviewMarkers; absent when empty.
- *   - Approve and recut: confirm correction submitted then recut triggered (assert order).
- *   - hasOriginalAudio=false: recut NOT called, confirm still submitted, note shown.
- *   - Dismiss: reject correction submitted, no recut.
- *   - EpisodeList chip renders when pendingReviewCount>0, absent at 0/undefined.
- *   - Description and chapter notes render as separate blocks.
+ * "Held for review" section in EpisodeDetail.tsx: rows from pendingReviewMarkers; approve submits the
+ * correction then recuts (no recut when hasOriginalAudio=false); dismiss rejects without recut; EpisodeList
+ * chip when pendingReviewCount>0; description and chapter notes render separately.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -17,6 +11,7 @@ import EpisodeList from '../components/EpisodeList';
 import type { AdSegment, Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
 import { formatTimestamp } from '../utils/format';
 import { getSettings } from '../api/settings';
+import { ApiError } from '../api/client';
 
 // react-router stubs. Mutable so a test can move the view to another episode.
 const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
@@ -116,8 +111,14 @@ vi.mock('../api/feeds', () => ({
   submitSponsorBlock: (...args: unknown[]) => mockSubmitSb(...args),
 }));
 
+const mockGetPatterns = vi.fn();
+const mockRebuildPatternAudio = vi.fn();
 vi.mock('../api/patterns', () => ({
   submitCorrection: (...args: unknown[]) => mockSubmitCorrection(...args),
+  getPatterns: (...args: unknown[]) => mockGetPatterns(...args),
+  rebuildPatternAudio: (...args: unknown[]) => mockRebuildPatternAudio(...args),
+  describeFingerprintSkip: (reason: string) => `skipped: ${reason}`,
+  invalidatePatternAudio: () => {},
 }));
 
 // Minimal QueryClient wrapper; avoids pulling in the full provider.
@@ -527,6 +528,20 @@ describe('Held for review: re-detect offer once every held marker is rejected', 
     expect((button as HTMLButtonElement).disabled).toBe(true);
     await user.click(button);
     expect(mockRegenerateChapters).not.toHaveBeenCalled();
+  });
+
+  it('explains the disabled post-review action under LLM provider None', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ llmProvider: { value: 'none' }, llmEnabled: false } as Settings);
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
+    expect(document.getElementById(button.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Regenerate chapters is unavailable. LLM provider is set to None.',
+    );
   });
 
   it('omits Regenerate chapters without a VTT transcript', async () => {
@@ -1431,6 +1446,13 @@ describe('Detected ads: inline audition', () => {
 });
 
 describe('AdEditor detected marker metadata', () => {
+  it('sizes the Edit ads pencil like the Add ad button beside it', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcript: 'available', adMarkers: [{ start: 10, end: 40, confidence: 0.9 }] }));
+    const pencil = await screen.findByRole('button', { name: 'Edit ads' });
+    expect(pencil.className).toContain('sm:h-8');
+    expect(screen.getByRole('button', { name: 'Add ad' }).className).toContain('py-1.5');
+  });
+
   it('passes category and resolved action into the edit flow', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({
@@ -2086,7 +2108,7 @@ describe('Regenerate chapters: background run reported by the episode', () => {
 });
 
 // ---- Local feed episode metadata: season/episode seed from the API
-// payload, not from parsing the episode id (#625 Task 13 review finding 1)
+// payload, not from parsing the episode id (#625)
 // ----
 
 // Local-feed episode edit is only rendered when the parent feed is local;
@@ -2182,11 +2204,8 @@ describe('Original audio player for unprocessed local episodes', () => {
   });
 
   it('renders no player for a once-processed local episode that is mid-reprocess (status back to pending, processedAt still set)', async () => {
-    // Regression case: status alone cycles back through pending/processing
-    // on a reprocess, but processedAt is set on the first completed run and
-    // never cleared afterward, so !processedAt is required to keep this
-    // player from misleadingly claiming ad removal "hasn't run yet" on an
-    // episode that already has a real (if stale) processed copy.
+    // Status cycles through pending/processing on reprocess but processedAt is never cleared, so
+    // !processedAt stops this player claiming ad removal "hasn't run yet" for an already-processed copy.
     const ep = makeEpisode({
       status: 'pending', processedAt: '2025-06-01T00:00:00Z', hasOriginalAudio: true, pendingReviewMarkers: [],
     });
@@ -2229,9 +2248,8 @@ describe('Process vs Reprocess label (single episode)', () => {
   });
 
   it('labels the action button "Process" for a never-processed episode deferred to the offline queue', async () => {
-    // Regression case: 'deferred' can happen before an episode's first
-    // run too, so status alone can't distinguish this from a
-    // reprocess-queued episode -- only processedAt can.
+    // 'deferred' can happen before an episode's first run too, so status alone can't tell it from a
+    // reprocess-queued episode; only processedAt can.
     renderDetail(makeEpisode({ status: 'deferred', processedAt: null, pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.getByRole('button', { name: 'Process' })).toBeDefined();
@@ -2251,11 +2269,8 @@ describe('Process vs Reprocess label (single episode)', () => {
   });
 
   it('labels the action button "Reprocess" for a reprocess-queued episode (status back to pending, processedAt still set)', async () => {
-    // Regression case (round-2 review finding): a reprocess request flips
-    // status back to pending/processing but reset_episode_for_reprocess
-    // never clears processedAt, so the episode has been processed before
-    // and must keep reading "Reprocess" throughout that window, not
-    // regress to "Process".
+    // Reprocess flips status to pending/processing but never clears processedAt, so the episode must
+    // keep reading "Reprocess" throughout, not regress to "Process".
     renderDetail(makeEpisode({ status: 'pending', processedAt: '2025-06-01T00:00:00Z', pendingReviewMarkers: [] }));
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.getByRole('button', { name: 'Reprocess' })).toBeDefined();
@@ -2871,5 +2886,106 @@ describe('Awaiting approval', () => {
     renderDetail(makeEpisode());
     const section = await screen.findByTestId('held-for-review-section');
     expect(section.id).toBe('held-for-review-section');
+  });
+});
+
+describe('Regenerate chapters: LLM provider None', () => {
+  beforeEach(() => {
+    mockRegenerateChapters.mockReset();
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'none' }, llmEnabled: false,
+    } as Settings);
+  });
+
+  it('disables the action and says why, without calling the API', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText(/Regenerate chapters is unavailable/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const item = await waitFor(() => {
+      const el = screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement;
+      expect(el.disabled).toBe(true);
+      return el;
+    });
+    expect(item.title).toBe('LLM provider is set to None.');
+    const subtitleId = item.getAttribute('aria-describedby');
+    expect(document.getElementById(subtitleId!)?.textContent).toBe('LLM provider is set to None.');
+    expect(screen.queryByText('Use existing transcript')).toBeNull();
+    await user.click(item);
+    expect(mockRegenerateChapters).not.toHaveBeenCalled();
+  });
+
+  it('shows the reason, not a failure, when a stale page gets 409 llm_disabled', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' }, llmEnabled: true,
+    } as Settings);
+    mockRegenerateChapters.mockRejectedValueOnce(new ApiError('LLM disabled', 409, { code: 'llm_disabled' }));
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(await screen.findByText('Regenerate chapters'));
+    const note = await screen.findByText('Regenerate chapters is unavailable. LLM provider is set to None.');
+    expect(note.className).not.toContain('text-destructive');
+    expect(screen.queryByText('Could not regenerate chapters.')).toBeNull();
+  });
+
+  it('leaves the action enabled when the provider is set', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' }, llmEnabled: true,
+    } as Settings);
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await waitFor(() => expect((screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement).disabled).toBe(false));
+  });
+});
+
+describe('Add audio to pattern on text-pattern detections', () => {
+  const textMarker = {
+    start: 100, end: 160, confidence: 0.95, detection_stage: 'text_pattern' as const,
+    reason: 'Acme (pattern #7, intro)', pattern_id: 7, patternAudioState: 'none' as const,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('adds audio from the span the row shows, then confirms with a status', async () => {
+    mockRebuildPatternAudio.mockResolvedValue({ fingerprintStored: true });
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], adMarkers: [textMarker] }));
+    await user.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
+    expect(mockRebuildPatternAudio).toHaveBeenCalledWith(7, { podcastSlug: 'test-feed', episodeId: 'ep-1', start: 100, end: 160 });
+    expect(await screen.findByText('Audio added to pattern.')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
+  it('is absent for a fingerprint detection and for a pattern that already has audio', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ ...textMarker, detection_stage: 'fingerprint' }, { ...textMarker, start: 300, end: 360, pattern_id: 8, patternAudioState: 'active' as const, reason: 'Beta (pattern #8)' },
+        { ...textMarker, start: 400, end: 460, pattern_id: 9, patternAudioState: undefined, reason: 'Gone (pattern #9)' }],
+    }));
+    await screen.findByText('Detected ads (3)');
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
+  it('shows no action when pattern_id is present but patternAudioState is absent', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ ...textMarker, patternAudioState: undefined }],
+    }));
+    await screen.findByText('Detected ads (1)');
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
+  it('is disabled and says why when the episode has no original', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], hasOriginalAudio: false, adMarkers: [textMarker] }));
+    const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.getByText('Source audio expired')).toBeDefined();
   });
 });

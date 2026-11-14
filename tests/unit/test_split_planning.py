@@ -1,8 +1,7 @@
-"""Divider planning for a merged multi-sponsor marker (issue #563).
+"""Divider planning for a merged multi-sponsor marker (#563).
 
-Candidates come from AD_TRANSITION_PHRASES matches in the span's transcript,
-the member spans a merge recorded, a clean handoff from one brand to another,
-and measured cut times, each mapped back to a transcript segment start.
+Candidates come from AD_TRANSITION_PHRASES matches, recorded merge member spans, brand handoffs and measured
+cut times, each mapped back to a transcript segment start.
 """
 
 import re

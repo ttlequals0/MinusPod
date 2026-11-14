@@ -76,6 +76,12 @@ class FakeDb:
         self.settings[key] = value
         self.setting_writes.append((key, value))
 
+    def replace_setting_if_equal(self, key, expected, value):
+        if self.settings.get(key) == expected:
+            self.set_setting(key, value)
+            return value
+        return self.settings.get(key, '')
+
 
 def _podping_op(auths, payload):
     return {
@@ -514,13 +520,10 @@ class TestCooldown:
 
 
 class _FakeShutdownEvent:
-    """Stand-in for the real, process-wide shutdown_event -- see
-    test_refresh_interval_setting.py's identically-shaped fake for why this
-    is needed rather than monkeypatching the real singleton's methods.
+    """Stand-in for the process-wide shutdown_event (see test_refresh_interval_setting.py's identical fake).
 
-    Only the thread that built it is observed. Background threads started at
-    bootstrap read the same patched attribute, and their waits used to land in
-    wait_calls, which made the assertions here depend on test order.
+    Only waits from the thread that built it are recorded; bootstrap background threads read the same
+    patched attribute and would make wait_calls depend on test order.
     """
 
     def __init__(self):

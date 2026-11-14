@@ -185,7 +185,10 @@ function QueuePage() {
   });
   const tunable = useMutation({
     mutationFn: (payload: UpdateSettingsPayload) => updateSettings(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    onSuccess: (_data, payload) => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      if ('queueOrder' in payload) queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
+    },
   });
   const configured = settings.data;
 
@@ -198,7 +201,7 @@ function QueuePage() {
         </div>
       </div>
 
-      <PageTabs id="queue" label="Queue sections" tabs={QUEUE_TABS} active={activeTab} wrap
+      <PageTabs id="queue" label="Queue sections" tabs={QUEUE_TABS} active={activeTab}
         onChange={(value) => write({ tab: value })} />
 
       {activeTab === 'review' ? <ReviewTab /> : (
@@ -228,6 +231,9 @@ function QueuePage() {
           onQueueFreshBoostChange={(value) => tunable.mutate({ queueFreshBoost: value })}
           queueBulkBoost={configured?.queueBulkBoost?.value ?? 0}
           onQueueBulkBoostChange={(value) => tunable.mutate({ queueBulkBoost: value })}
+          queueOrder={configured?.queueOrder?.value ?? 'queued'}
+          queueOrderOptions={configured?.queueOrder?.options}
+          onQueueOrderChange={(value) => tunable.mutate({ queueOrder: value })}
         />}
         {tunable.isError && <p className="text-sm text-destructive">Could not save queue controls. Try again.</p>}
 

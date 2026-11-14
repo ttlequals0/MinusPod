@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from typing import Any
 from collections.abc import Callable
 
+from database.error_text import redact_setting_value
+
 from config import (
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
@@ -28,6 +30,7 @@ from config import (
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+    SETTING_CONSTRAINTS, SettingConstraint,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX, LOCAL_UPLOAD_MAX_MB_DEFAULT,
@@ -46,6 +49,7 @@ from config import (
     AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
+    FINGERPRINT_SETTING_RANGES,
     resolve_segment_category_actions_map,
     valid_ad_chapter_title_format,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
@@ -149,17 +153,15 @@ DEFAULT_MODEL_PRICING = {
 
 # ========== Global settings registry ==========
 #
-# Single source of truth for global settings defaults. Four consumers derive
-# from it (previously four hand-synchronized catalogs; see Issue #301 and the
-# audio-cue reset gap for the drift bugs that motivated this):
+# Single source of truth for global settings defaults (replaces four hand-synced
+# catalogs that drifted, #301). Four consumers derive from it:
 #   1. schema seeding: iter_seed_defaults() (database/schema/__init__.py)
 #   2. reset_setting() below
 #   3. the bulk reset endpoint key list: AD_RESET_SETTING_KEYS (api/settings/ad_detection.py)
 #   4. GET /settings 'defaults' payload: registry_get_default() (api/settings/core.py)
 #
-# Env-backed keys (ENV_BACKED_SETTINGS) and stage tunables
-# (STAGE_TUNABLE_DEFAULTS) keep their existing resolution mechanisms;
-# their registry entries carry membership flags only.
+# Env-backed keys (ENV_BACKED_SETTINGS) and stage tunables (STAGE_TUNABLE_DEFAULTS)
+# keep their own resolution; their entries carry membership flags only.
 
 
 def _default_system_prompt() -> str:
@@ -202,6 +204,14 @@ def _payload_max_artwork_bytes() -> int:
                               ceiling=MAX_ARTWORK_BYTES_MAX, settings={})
 
 
+def _payload_session_lifetime_hours() -> int:
+    return get_env_backed_int('session_lifetime_hours', settings={})
+
+
+def _payload_session_remember_days() -> int:
+    return get_env_backed_int('session_remember_days', settings={})
+
+
 def _payload_max_rss_bytes() -> int:
     return get_env_backed_int('max_rss_bytes', floor=MAX_RSS_BYTES_MIN,
                               settings={})
@@ -232,39 +242,32 @@ class SettingSpec:
 
     default:        static DB-string default.
     env:            env var consulted by registry_default() before `default`.
-    env_blank_is_unset: `os.environ.get(env) or default` semantics (a blank
-                    env value falls through to `default`).
+    env_blank_is_unset: `os.environ.get(env) or default` semantics (blank env falls
+                    through to `default`).
     factory:        lazy default (prompts, operator env models); wins over
-                    env/default. Returning None skips seeding and clears
-                    the row at reset instead of writing a default.
-    reset_factory:  reset-time override when reset must differ from the
-                    seed-time default (e.g. env-backed transcription timeouts
-                    that re-read the env var at reset).
+                    env/default. None skips seeding and clears the row at reset.
+    reset_factory:  reset-time override when reset must differ from the seed-time
+                    default (e.g. env-backed timeouts that re-read the env var).
     secret:         reset clears via clear_secret (SECRET_SETTING_KEYS).
     stage_tunable:  reset clears the row; DB > env > default at read time.
     env_backed:     ENV_BACKED_SETTINGS owns the default (env var, fallback,
-                    validator); registry_default() delegates to
-                    resolve_env_backed_default(key), so these specs carry no
-                    default/env of their own.
+                    validator) via resolve_env_backed_default(key), so these specs
+                    carry no default/env of their own.
     seeded:         _seed_default_settings inserts this key.
-    resettable:     False = reset_setting() refuses (returns False). Keys
-                    like feed_auth_key and the *_prompt_override keys are
-                    deliberately not resettable; do not flip these to True
-                    without checking the original exclusion rationale.
+    resettable:     False = reset_setting() refuses. feed_auth_key and the
+                    *_prompt_override keys are deliberately not resettable; check
+                    the original exclusion rationale before flipping.
     in_ad_reset:    member of the bulk POST /settings/ad-detection/reset list.
     in_youtube_reset: member of the POST /settings/youtube/reset list.
     payload_key:    camelCase name in the GET /settings 'defaults' block
-                    (None = absent from that block).
+                    (None = absent from it).
     payload_kind:   coercion for the defaults block: str|bool|int|float.
     payload_factory: overrides payload_kind coercion entirely.
-    refresh_default: re-seed this key from the shipped default on startup
-                    while the row is still flagged is_default, so an install
-                    picks up later improvements to shipped prompt text. A
-                    user-edited row (is_default = 0) is never touched.
-    validator:      checked against the resolved `env` value only; a failing
-                    value is ignored (falls back to `default`) with one
-                    WARNING log naming the bad value. No effect on keys that
-                    don't set it.
+    refresh_default: re-seed from the shipped default on startup while the row is
+                    still is_default, so installs pick up improved shipped prompts.
+                    A user-edited row (is_default = 0) is never touched.
+    validator:      checked against the resolved `env` value only; a failing value
+                    is ignored (falls back to `default`) with one warning log.
     """
     default: str | None = None
     env: str | None = None
@@ -283,10 +286,16 @@ class SettingSpec:
     payload_factory: Callable[[], Any] | None = None
     refresh_default: bool = False
     validator: Callable[[str], bool] | None = None
+    # Declared limits; also the validator, the API payload check and GET's min/max/options.
+    constraint: SettingConstraint | None = None
+
+    def __post_init__(self):
+        if self.constraint is not None and self.validator is None:
+            object.__setattr__(self, 'validator', self.constraint.stored_valid)
 
 
 SETTINGS_REGISTRY: dict[str, SettingSpec] = {
-    # -- Prompts --
+    # Prompts
     'system_prompt': SettingSpec(
         factory=_default_system_prompt, seeded=True, in_ad_reset=True,
         refresh_default=True,
@@ -316,7 +325,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'resurrect_prompt_override': SettingSpec(resettable=False),
     'chapter_prompt_override': SettingSpec(resettable=False),
 
-    # -- Models: no shipped default, seed/reset only from operator env --
+    # Models: no shipped default, seed/reset only from operator env
     'claude_model': SettingSpec(
         factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
         payload_key='claudeModel', payload_kind='str', default=None),
@@ -327,19 +336,16 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
         payload_key='chaptersModel', payload_kind='str', default=None),
 
-    # Per-phase LLM provider routing (see llm_route.py): each stage picks
-    # a SLOT (primary/secondary), not a provider type. Unset resolves to
-    # primary (verification/chapters resolve to detection's slot instead
-    # when also unset, via the same_as_detection sentinel).
+    # Per-phase LLM provider routing (see llm_route.py): each stage picks a slot
+    # (primary/secondary), not a provider type. Unset means primary; verification
+    # and chapters follow detection's slot via the same_as_detection sentinel.
     'detection_provider': SettingSpec(default=None, seeded=True),
     'verification_provider': SettingSpec(default=None, seeded=True),
     'chapters_provider': SettingSpec(default=None, seeded=True),
 
-    # Secondary provider: an optional second full provider config.
-    # Disabled by default; a stage referencing the
-    # 'secondary' slot while this is false falls back to primary (see
-    # llm_route.py). secondary_provider_api_key lives in SECRET_SETTING_KEYS
-    # (registered below with the other provider secrets).
+    # Secondary provider: an optional second full provider config, disabled by
+    # default; a stage using the 'secondary' slot while false falls back to primary
+    # (see llm_route.py). Its api key lives in SECRET_SETTING_KEYS.
     'secondary_provider_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='secondaryProviderEnabled', payload_kind='bool'),
@@ -437,7 +443,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         validator=_int_in_range((1, 10)),
         payload_key='whisperMaxAttempts', payload_kind='int'),
 
-    # -- Ad reviewer (seeded; only the prompts are resettable) --
+    # Ad reviewer (seeded; only the prompts are resettable)
     'enable_ad_review': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='enableAdReview', payload_kind='bool'),
@@ -451,7 +457,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=str(REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT), seeded=True, resettable=False,
         payload_key='reviewMaxBoundaryShift', payload_kind='int'),
 
-    # -- General processing --
+    # General processing
     'retention_period_minutes': SettingSpec(
         default='1440', env='RETENTION_PERIOD', seeded=True),
     'keep_original_audio': SettingSpec(
@@ -540,9 +546,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
-    # Queue boost sizes (#625 follow-up). Manual covers single-episode user
-    # actions (reprocess, JIT play); bulk covers Reprocess All and segment
-    # re-renders, defaulting to 0 so backlog work cannot starve them.
+    # Queue boost sizes (#625). Manual covers single-episode user actions
+    # (reprocess, JIT play); bulk covers Reprocess All and segment re-renders and
+    # defaults to 0 so backlog work cannot starve them.
     'queue_manual_boost': SettingSpec(
         default='20', seeded=True, resettable=False,
         payload_key='queueManualBoost', payload_kind='int'),
@@ -552,6 +558,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'queue_bulk_boost': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='queueBulkBoost', payload_kind='int'),
+    # Order of a feed's queued episodes within one priority; a feed's own
+    # queue_order column overrides it. 'queued' keeps today's order.
+    'queue_order': SettingSpec(
+        default='queued', seeded=True, in_ad_reset=True,
+        payload_key='queueOrder', constraint=SETTING_CONSTRAINTS['queue_order']),
     'podping_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='podpingEnabled', payload_kind='bool'),
@@ -589,8 +600,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'seed_sponsors_resurrect': SettingSpec(
         default='true', seeded=True, resettable=False,
         payload_key='seedSponsorsResurrect', payload_kind='bool'),
-    # Cross-episode text recurrence hint (off until benchmarked; see
-    # docs/superpowers/specs/2026-08-25-hushpod-adoption-design.md).
+    # Cross-episode text recurrence hint (off until benchmarked).
     'text_recurrence_hints': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='textRecurrenceHints', payload_kind='bool'),
@@ -663,12 +673,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # feed_auth_key is deliberately not resettable: reset must never wipe a
     # live key (rotation is an explicit action).
     'feed_auth_key': SettingSpec(resettable=False),
+    # Account identities in force before the provider was set to none.
+    'llm_pre_none_identity': SettingSpec(resettable=False),
     # positional_prior_enabled has a GET default but no reset path today.
     'positional_prior_enabled': SettingSpec(
         default='false', resettable=False,
         payload_key='positionalPriorEnabled', payload_kind='bool'),
 
-    # -- Audio output --
+    # Audio output
     'audio_replacement_sound_enabled': SettingSpec(
         default=str(DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED).lower(),
         seeded=True, in_ad_reset=True,
@@ -684,7 +696,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='normal', seeded=True, in_ad_reset=True,
         payload_key='audioNormalizeIntensity'),
 
-    # -- Transcription (seed uses the static default; reset honors env) --
+    # Transcription (seed uses the static default; reset honors env)
     'whisper_api_timeout_seconds': SettingSpec(
         default='600', seeded=True, in_ad_reset=True,
         reset_factory=lambda: os.environ.get('WHISPER_API_TIMEOUT', '600'),
@@ -715,7 +727,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         validator=_int_in_range(WHISPER_POOL_MAX_EPISODES_RANGE),
         payload_key='whisperPoolMaxEpisodes', payload_kind='int'),
 
-    # -- Whisper --
+    # Whisper
     'whisper_model': SettingSpec(
         default='small', env='WHISPER_MODEL', seeded=True, in_ad_reset=True,
         payload_key='whisperModel'),
@@ -737,7 +749,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=WHISPER_COMPUTE_TYPE_DEFAULT, env='WHISPER_COMPUTE_TYPE',
         in_ad_reset=True, payload_key='whisperComputeType'),
 
-    # -- VAD gap detection --
+    # VAD gap detection
     'vad_gap_detection_enabled': SettingSpec(
         default='true', env='VAD_GAP_DETECTION_ENABLED', in_ad_reset=True,
         payload_key='vadGapDetectionEnabled', payload_kind='bool'),
@@ -772,10 +784,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=str(MAX_AD_DURATION_WINDOW),
         payload_key='maxLlmWindowAdSeconds', payload_kind='float'),
 
-    # -- LLM provider (env-backed keys resolve via ENV_BACKED_SETTINGS) --
-    # Operator override: skip temperature on every LLM call, taking precedence
-    # over _ANTHROPIC_NO_SAMPLING_MODELS and the learned-rejection memo in
-    # llm_capabilities.model_omits_temperature(), for models newly rejecting it.
+    # LLM provider (env-backed keys resolve via ENV_BACKED_SETTINGS)
+    # Operator override: skip temperature on every LLM call, overriding
+    # _ANTHROPIC_NO_SAMPLING_MODELS and the learned-rejection memo in
+    # llm_capabilities.model_omits_temperature().
     'omit_temperature': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='omitTemperature', payload_kind='bool'),
@@ -870,6 +882,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         env_backed=True, payload_key='feedUserAgent'),
     'log_download_query': SettingSpec(
         env_backed=True, payload_key='logDownloadQuery', payload_kind='bool'),
+    'session_lifetime_hours': SettingSpec(
+        env_backed=True, payload_key='sessionLifetimeHours',
+        payload_factory=_payload_session_lifetime_hours,
+        constraint=SETTING_CONSTRAINTS['session_lifetime_hours']),
+    'session_remember_days': SettingSpec(
+        env_backed=True, payload_key='sessionRememberDays',
+        payload_factory=_payload_session_remember_days,
+        constraint=SETTING_CONSTRAINTS['session_remember_days']),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),
@@ -919,7 +939,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         env_backed=True, payload_key='secondaryProviderTokensPerMin',
         payload_kind='int'),
 
-    # -- Audio cue detection (#350) --
+    # Audio cue detection (#350)
     'audio_cue_detection_enabled': SettingSpec(
         default='false', in_ad_reset=True,
         payload_key='audioCueDetectionEnabled', payload_kind='bool'),
@@ -984,7 +1004,22 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'audio_cue_pair_orient_window_seconds': SettingSpec(
         default=str(AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS), in_ad_reset=True),
 
-    # -- Silence snap (Phase B boundary snap; not in the bulk reset) --
+    # Audio fingerprinting
+    'fingerprint_enabled': SettingSpec(
+        default='true', in_ad_reset=True,
+        payload_key='fingerprintEnabled', payload_kind='bool',
+        constraint=SETTING_CONSTRAINTS['fingerprint_enabled']),
+    **{key: SettingSpec(
+        default=str(FINGERPRINT_SETTING_RANGES[key][0]), in_ad_reset=True,
+        payload_key=payload_key, payload_kind='float',
+        constraint=SETTING_CONSTRAINTS[key])
+       for key, payload_key in (
+           ('fingerprint_match_strictness', 'fingerprintMatchStrictness'),
+           ('fingerprint_min_coverage', 'fingerprintMinCoverage'),
+           ('fingerprint_gap_tolerance_s', 'fingerprintGapToleranceS'),
+           ('fingerprint_min_ad_length_s', 'fingerprintMinAdLengthS'))},
+
+    # Silence snap (Phase B boundary snap; not in the bulk reset)
     'silence_snap_noise_db': SettingSpec(
         default=str(SILENCE_SNAP_NOISE_DB),
         payload_key='silenceSnapNoiseDb', payload_kind='float'),
@@ -995,7 +1030,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=str(SILENCE_SNAP_MAX_DISTANCE_SECONDS),
         payload_key='silenceSnapMaxDistanceSeconds', payload_kind='float'),
 
-    # -- Detection tuning (verification miss, learning, differential; 2.76.0) --
+    # Detection tuning (verification miss, learning, differential; 2.76.0)
     'verification_miss_hold_min_confidence': SettingSpec(
         default='0.60', seeded=True, in_ad_reset=True,
         payload_key='verificationMissHoldMinConfidence', payload_kind='float'),
@@ -1027,10 +1062,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
 
-    # -- Notifications --
-    # IANA zone for timestamp_local in webhook/email payloads. Resolves from
-    # the container TZ env var when it names a valid zone; an invalid TZ
-    # falls back to UTC with a warning rather than rejecting notifications.
+    # Notifications
+    # IANA zone for timestamp_local in webhook/email payloads: the container TZ
+    # when valid, else UTC with a warning (notifications are never rejected).
     'notification_timezone': SettingSpec(
         default='UTC', env='TZ', validator=_valid_notification_timezone,
         payload_key='notificationTimezone'),
@@ -1043,10 +1077,9 @@ for _key in sorted(SECRET_SETTING_KEYS):
         secret=True,
         in_ad_reset=_key in ('openrouter_api_key', 'whisper_api_key'))
 
-# Stage tunables: reset clears the row (DB > env > default at read time).
-# All of them participate in the bulk reset. Defaults stay owned by
-# config.STAGE_TUNABLE_DEFAULTS; the GET payload exposes them via the
-# separate stageTunableDefaults block.
+# Stage tunables: reset clears the row (DB > env > default at read time) and all
+# join the bulk reset. Defaults stay in config.STAGE_TUNABLE_DEFAULTS, exposed via
+# the GET payload's stageTunableDefaults block.
 for _key in STAGE_TUNABLE_DEFAULTS:
     SETTINGS_REGISTRY[_key] = SettingSpec(stage_tunable=True, in_ad_reset=True)
 
@@ -1166,8 +1199,8 @@ def registry_get_default(key: str) -> Any:
 def iter_seed_defaults():
     """(key, value) pairs for schema seeding, in registry order.
 
-    Skips a None default (unset model keys): the value column is NOT NULL,
-    and an absent row is the correct unconfigured state.
+    Skips a None default (unset model keys): the value column is NOT NULL and an
+    absent row is the correct unconfigured state.
     """
     result = []
     for key, spec in SETTINGS_REGISTRY.items():
@@ -1194,9 +1227,8 @@ class SettingsMixin:
     def settings_transaction(self):
         """Commit every settings write inside the block together, or none.
 
-        The writers below commit per call on the shared thread-local
-        connection; while this is open they join it instead, so a caller
-        applying a multi-field payload can roll the whole set back.
+        The writers below normally commit per call; inside this block they join it,
+        so a multi-field payload can roll back as a whole.
         """
         conn = self.get_connection()
         if getattr(self._local, 'settings_txn', False):
@@ -1345,6 +1377,7 @@ class SettingsMixin:
 
     @staticmethod
     def _upsert_setting(conn, key: str, value: str, is_default: bool):
+        value = redact_setting_value(key, value)
         conn.execute(
             """INSERT INTO settings (key, value, is_default, updated_at)
                VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -1443,9 +1476,8 @@ class SettingsMixin:
     def merge_setting(self, key: str, merge_fn) -> str:
         """Rewrite a setting as merge_fn(stored_value_or_None) -> new value.
 
-        Read and write share one immediate transaction, so two workers
-        merging concurrently serialize instead of the second dropping the
-        first's change. Returns the stored value.
+        Read and write share one immediate transaction, so concurrent workers
+        serialize instead of the second dropping the first's change. Returns the stored value.
         """
         with self._settings_write() as conn:
             row = conn.execute(
@@ -1464,8 +1496,8 @@ class SettingsMixin:
     def clear_setting_if_equal(self, key: str, expected: str) -> bool:
         """Delete a setting row only while it still holds `expected`.
 
-        One statement, so a writer racing the caller between its read and this
-        delete keeps its own value. Returns whether a row was deleted.
+        One statement, so a writer racing the caller's read keeps its value.
+        Returns whether a row was deleted.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -1476,12 +1508,10 @@ class SettingsMixin:
     def reset_setting(self, key: str):
         """Reset a setting to its default value (SETTINGS_REGISTRY-driven).
 
-        Secret keys (provider api keys) get DELETEd so the env-var
-        fallback in ``llm_client`` takes over. Writing an empty-string
-        row would leave a residue that reads as "configured but empty"
-        and also trips the plaintext-secret read warning. Model keys with
-        no operator env value resolve to None and are DELETEd the same way,
-        instead of writing a shipped literal.
+        Secret keys (provider api keys) are deleted so the ``llm_client`` env-var
+        fallback takes over; an empty-string row would read as "configured but
+        empty" and trip the plaintext-secret warning. Model keys with no operator
+        env value resolve to None and are deleted the same way.
         """
         spec = SETTINGS_REGISTRY.get(key)
         if spec is None or not spec.resettable:
@@ -1492,10 +1522,9 @@ class SettingsMixin:
             return True
 
         if spec.stage_tunable:
-            # Stage tunables resolve DB > env > default at read time. Clear the
-            # row (empty value, is_default=True) so that resolution takes over --
-            # mirrors the clear path in api.settings.ad_detection._apply_stage_tunables and
-            # avoids stringifying None for the reasoning budget/level defaults.
+            # Clear the row (empty value, is_default=True) so read-time resolution takes
+            # over; mirrors api.settings.ad_detection._apply_stage_tunables and avoids
+            # stringifying None for the reasoning budget/level defaults.
             self.set_setting(key, "", is_default=True)
             return True
 
@@ -1511,8 +1540,7 @@ class SettingsMixin:
     def get_secret(self, key: str) -> str | None:
         """Return a decrypted secret, or None if unset.
 
-        Transparently handles legacy plaintext rows (no envelope prefix) so
-        pre-v1.2.0 stored keys keep working until re-saved.
+        Legacy plaintext rows (no envelope prefix) still work until re-saved.
         """
         raw = self.get_setting(key)
         if not raw:
@@ -1529,10 +1557,11 @@ class SettingsMixin:
             return None
 
     def set_secret(self, key: str, plaintext: str):
-        """Encrypt and store a secret. An enc:v1: input (UI round-trip of a
-        masked field) is kept verbatim only if it decrypts under the current DEK;
-        otherwise it's treated as plaintext, so a bogus envelope can't be stored
-        as an undecryptable secret (creds-3)."""
+        """Encrypt and store a secret.
+
+        An enc:v1: input (UI round-trip of a masked field) is kept verbatim only if
+        it decrypts under the current DEK, else treated as plaintext, so a bogus
+        envelope cannot become an undecryptable secret (creds-3)."""
         if is_ciphertext(plaintext):
             try:
                 decrypt(self, plaintext)  # verify it round-trips under our DEK
@@ -1550,10 +1579,8 @@ class SettingsMixin:
     def clear_secret(self, key: str):
         """Remove a stored secret so env-var fallback takes over.
 
-        Deletes the row outright rather than writing an empty string. An empty
-        string still occupies a row that happens to be readable; a deleted
-        row leaves no residue for an inquisitive attacker who somehow got
-        read access to the ``settings`` table but not the ciphertext.
+        Deletes the row rather than writing an empty string, which would leave a
+        readable residue row.
         """
         self.clear_setting(key)
 
@@ -1570,6 +1597,7 @@ class SettingsMixin:
 
     def set_system_setting(self, key: str, value: str):
         """Set a system setting value."""
+        value = redact_setting_value(key, value)
         conn = self.get_connection()
         conn.execute(
             """INSERT INTO system_settings (key, value, updated_at)
@@ -1624,11 +1652,10 @@ class SettingsMixin:
     def seed_default_pricing(self):
         """Seed model_pricing from DEFAULT_MODEL_PRICING.
 
-        Used two ways: as the empty-table fallback when a live fetch fails, and
-        as a post-fetch backfill that fills gaps for known models the live source
-        has not published yet (e.g. a just-released Claude model). ON CONFLICT
-        DO NOTHING means existing rows are never touched. Rows are marked
-        source='default' so a later live fetch overwrites them via DO UPDATE.
+        Serves as the empty-table fallback when a live fetch fails and as a
+        post-fetch backfill for known models the live source has not published yet.
+        ON CONFLICT DO NOTHING leaves existing rows alone; rows get source='default'
+        so a later live fetch overwrites them via DO UPDATE.
         """
         conn = self.get_connection()
         inserted = 0
@@ -1651,10 +1678,8 @@ class SettingsMixin:
     def upsert_fetched_pricing(self, models: list[dict], source: str):
         """Bulk upsert pricing fetched from an external source. Rejects negative rows (#237).
 
-        Each row may carry a '_source' key (set by fetch_pricing_chain to record
-        which source in the chain actually contributed it). When present it takes
-        precedence over the fallback 'source' parameter so the stored source
-        reflects true provenance rather than always naming the primary source.
+        A row's '_source' key (set by fetch_pricing_chain) overrides the 'source'
+        parameter so the stored source reflects true provenance.
         """
         conn = self.get_connection()
         # Deduplicate by match_key (last entry wins) to avoid PK/UNIQUE conflict

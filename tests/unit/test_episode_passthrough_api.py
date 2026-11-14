@@ -1,9 +1,8 @@
-"""POST /feeds/<slug>/episodes/passthrough (#746): bulk-capable per-episode
-pass-through override endpoint. Mirrors test_local_episode_api.py's fixture
-style (shared app_client fixture from conftest.py, local _authed/_csrf_headers
-helpers) and test_podping_hosts_api.py's auth-gate pattern (the blueprint
-serves everything unauthenticated while no app password is set).
-"""
+"""POST /feeds/<slug>/episodes/passthrough (#746): bulk-capable per-episode pass-through override.
+
+Mirrors test_local_episode_api.py's fixtures (app_client, _authed/_csrf_headers) and
+test_podping_hosts_api.py's auth-gate pattern (the blueprint serves unauthenticated while no app
+password is set)."""
 import os
 import sys
 import tempfile

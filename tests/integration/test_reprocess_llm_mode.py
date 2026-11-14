@@ -1,12 +1,11 @@
-"""Integration tests for the LLM-only reprocess mode (issue #349) and for the
-authoritative jobState the reprocess/bulk endpoints return alongside status.
+"""Integration tests for the LLM-only reprocess mode (issue #349) and the authoritative jobState the
+reprocess/bulk endpoints return alongside status.
 
-The endpoint reruns ad detection and re-cut using the saved transcript and
-skips re-transcription. It must refuse to run when no transcript exists, since
-there is nothing to reuse. Most tests here exercise the request-validation
-paths (400 responses), which return before any background processing starts;
-the jobState tests below mock start_background_processing to reach the
-queued/processing/409 branches without spinning a real pipeline.
+The endpoint reruns ad detection and re-cut from the saved transcript, skipping
+re-transcription, and must refuse when no transcript exists. Most tests exercise
+request-validation paths (400s) that return before background processing; the
+jobState tests mock start_background_processing to reach the queued/processing/409
+branches without a real pipeline.
 """
 import json
 import os
@@ -50,9 +49,9 @@ def seeded_episode(app_client):
     except Exception:
         pass
     # The queued-jobState tests add a display-queue entry via
-    # get_status_service().queue_episode(); it lives in StatusService's
-    # in-memory queue, not the DB, so deleting the podcast row does not
-    # clear it and it would otherwise leak into other tests' queue reads.
+    # get_status_service().queue_episode(); it lives in StatusService's in-memory
+    # queue, so deleting the podcast row does not clear it and it would leak into
+    # other tests' queue reads.
     try:
         from api import get_status_service
         get_status_service().remove_feed_from_queue(slug)
@@ -238,10 +237,9 @@ def test_reprocess_409_when_already_processing_carries_job_state(app_client, see
 
 
 def test_second_active_run_blocked_by_partial_unique_index(seeded_episode):
-    # Confirms (does not rebuild) the atomic admission the reprocess endpoint
-    # relies on: two concurrent acquires for the same episode cannot both
-    # win, so the endpoint's own duplicate-submission handling never needs
-    # to guard a second active run itself.
+    # Confirms (does not rebuild) the atomic admission the reprocess endpoint relies
+    # on: two concurrent acquires for one episode cannot both win, so the endpoint
+    # never needs to guard a second active run itself.
     from processing_queue import ProcessingQueue
 
     slug = seeded_episode['slug']

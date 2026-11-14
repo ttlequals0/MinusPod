@@ -1,14 +1,10 @@
-"""REST endpoints for cue detection telemetry (#350 follow-up).
+"""REST endpoints for cue detection telemetry (#350).
 
-Routes mounted under the ``/api/v1`` blueprint:
+- ``POST /cue-detections/<id>/verdict``           confirm / reject / reset a detection
+- ``GET  /feeds/<slug>/cue-detections/advisory``  per-feed cue health summary
+- ``GET  /cue-detections/aggregate``              global telemetry for threshold tuning
 
-- ``POST /cue-detections/<id>/verdict``            - confirm / reject / reset a detection
-- ``GET  /feeds/<slug>/cue-detections/advisory``   - per-feed cue health summary
-- ``GET  /cue-detections/aggregate``               - global telemetry for threshold tuning
-
-These are template-quality signals only. A verdict never changes an episode's
-cut list; it records whether a template cue matched a real boundary so the user
-can judge a feed's cues and tune thresholds.
+Template-quality signals only: a verdict never changes an episode's cut list.
 """
 import logging
 
@@ -45,7 +41,7 @@ def set_cue_detection_verdict(detection_id):
 def get_cue_detections_advisory(slug):
     """Per-feed cue health: outcome/verdict counts, score range, confirm rate."""
     db = get_database()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('feed not found', 404)
     payload = db.cue_feed_advisory(podcast['id'])

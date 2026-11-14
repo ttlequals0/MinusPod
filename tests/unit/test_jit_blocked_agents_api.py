@@ -1,10 +1,8 @@
 """API tests for the jit_blocked_user_agents global setting.
 
-Mirrors test_community_sync_categories_api.py: covers the top-level _sv
-entry in GET /settings and the PUT /settings/ad-detection phase. Each test
-patches the settings group modules' get_database to a fresh temp_db to avoid
-order-dependence between tests sharing the same setting key.
-"""
+Mirrors test_community_sync_categories_api.py: GET /settings _sv entry and the PUT
+/settings/ad-detection phase. Each test patches get_database to a fresh temp_db to avoid
+order-dependence."""
 import json
 from unittest.mock import patch
 

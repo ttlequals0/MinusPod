@@ -190,10 +190,8 @@ class TestParseUpstreamReset:
 
     @pytest.mark.parametrize("unparseable_outer", ["", "not-a-number", None])
     def test_unparseable_outer_reset_still_descends_to_nested_metadata_raw(self, unparseable_outer):
-        """An outer resets_at that fails to parse must not block descent into
-        a nested, genuinely parseable metadata.raw body (regression: an empty
-        string, non-numeric string, or explicit null previously counted as
-        'has its own reset' and suppressed the descent)."""
+        """An unparseable outer resets_at (empty, non-numeric or null) must not block descent into a
+        nested metadata.raw body."""
         import json
         body = {
             "error": {

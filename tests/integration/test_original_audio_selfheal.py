@@ -1,9 +1,8 @@
 """Integration tests for the original.mp3 stale-column self-heal (#517).
 
-Original-only retention sweeps before 2.52.0 deleted the retained original
-from disk without clearing episodes.original_file, so Ad Review kept
-rendering play buttons whose URL 404s. The route now clears the stale
-column on that 404 so the button disappears on the next detections fetch.
+Before 2.52.0, original-only retention sweeps deleted the retained original without
+clearing episodes.original_file, leaving Ad Review play buttons that 404. The route
+now clears the stale column on that 404 so the button disappears on the next fetch.
 """
 import os
 import sys

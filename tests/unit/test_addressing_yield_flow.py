@@ -1,9 +1,6 @@
 """Yield counters must flow from window results into AddressingStats.
 
-The compliance metric alone reads 100% for both addressing modes; these
-counters are what makes the A/B comparable. Modeled on
-test_window_failure_threshold's _run_pass harness.
-"""
+The compliance metric alone reads 100% for both modes; these counters make the A/B comparable."""
 from unittest.mock import patch
 
 from ad_detector import AdDetector, WindowResult

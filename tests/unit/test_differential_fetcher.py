@@ -189,7 +189,6 @@ def test_decode_pcm_uses_tracked_run(tmp_path):
 
 
 # --- Dense per-block probing (2.76.0) ---------------------------------------
-#
 # Array-level tests against _align_and_diff_pcm: deterministic numpy PCM
 # fixtures (seeded noisy sine bursts separated by digital silence), no ffmpeg.
 
@@ -201,12 +200,8 @@ def test_rate_matches_module():
 
 
 def _burst(seconds, seed, freq=None):
-    """Deterministic non-periodic burst: sine carrier + seeded noise.
-
-    The noise term breaks the sine's periodicity so NCC peaks only at the
-    true alignment. freq=None means pure seeded noise (used for the DAI
-    replacement fill so it shares no carrier with the original block).
-    """
+    """Deterministic non-periodic burst: sine carrier + seeded noise (breaks periodicity so NCC peaks
+    only at the true alignment). freq=None is pure noise, for the DAI replacement fill."""
     n = int(seconds * RATE)
     rng = np.random.default_rng(seed)
     sig = 0.4 * rng.standard_normal(n)
@@ -217,10 +212,8 @@ def _burst(seconds, seed, freq=None):
 
 
 def _assemble(parts):
-    """Concatenate bursts and ('sil', seconds) gaps; return (pcm, marks).
-
-    marks mirrors _silence_marks: file edges + silence midpoints.
-    """
+    """Concatenate bursts and ('sil', seconds) gaps; return (pcm, marks), where marks mirrors
+    _silence_marks (file edges + silence midpoints)."""
     pcm = []
     marks = [0.0]
     t = 0.0
@@ -243,10 +236,9 @@ def _blocks(seeds_freqs):
 
 
 def test_every_block_probed_and_replaced_block_measured_differential():
-    # Four 8s blocks; refetch replaces C with pure noise of the same length.
-    # EVERY region must carry a numeric measured corr (no hard-coded 0.0);
-    # the replaced block scores below 0.5 and kind 'differential'; the
-    # untouched blocks score identical.
+    # Four 8s blocks; refetch replaces C with pure noise of the same length. Every region must carry
+    # a numeric measured corr (no hard-coded 0.0): the replaced block scores < 0.5 and is
+    # 'differential', the untouched blocks score identical.
     seg = _blocks([('a', 8, 1, 220.0), ('b', 8, 2, 330.0),
                    ('c', 8, 3, 440.0), ('d', 8, 4, 550.0),
                    ('c_repl', 8, 99, None)])
@@ -278,13 +270,9 @@ def test_every_block_probed_and_replaced_block_measured_differential():
 
 
 def test_shifted_identical_block_recovered_by_widened_reprobe(monkeypatch):
-    # The refetch inserts 2.5s of un-marked filler between A and C (its
-    # bracketing silence went undetected on the refetch), so C is unmatched
-    # by the chain and probed with the neighbor offset 0. The true offset
-    # (+2.5s) lies outside the base +-2s search window but inside the
-    # doubled +-4s retry window: the drift re-probe must recover C as
-    # identical instead of scoring it different. A run-only block E keeps C
-    # off the file end, where the end alignment alone would find it.
+    # The refetch inserts 2.5s of un-marked filler between A and C, so C is probed with neighbor offset 0.
+    # The true offset (+2.5s) is outside the base +-2s window but inside the doubled +-4s retry window,
+    # so the drift re-probe must recover C as identical. Run-only block E keeps C off the file end.
     seg = _blocks([('a', 8, 11, 220.0), ('c', 8, 12, 440.0),
                    ('pad', 2.5, 77, None), ('e', 8, 13, None)])
     run_pcm, run_marks = _assemble([seg['a'], ('sil', 0.4), seg['c'], ('sil', 0.4), seg['e']])
@@ -309,10 +297,8 @@ def test_shifted_identical_block_recovered_by_widened_reprobe(monkeypatch):
 
 
 def test_unprobeable_sliver_yields_unknown():
-    # A sub-second block between two silences (0.4s burst; midpoint-to-
-    # midpoint 0.8s) is too short to probe: it must be emitted as kind
-    # 'unknown' with corr None, and it must not merge with the identical
-    # regions on either side.
+    # A sub-second block between two silences (0.4s burst, 0.8s midpoint-to-midpoint) is too short to
+    # probe: it is emitted as kind 'unknown' with corr None and must not merge with neighbors.
     seg = _blocks([('a', 8, 21, 220.0), ('s', 0.4, 22, None),
                    ('b', 8, 23, 330.0)])
     run_pcm, run_marks = _assemble(
@@ -330,12 +316,9 @@ def test_unprobeable_sliver_yields_unknown():
 
 
 def test_reencode_guard_fractions_computed_over_measured_regions(monkeypatch):
-    # Blocks: 1.5s identical / 20s unknown (probe unusable) / 10s
-    # differential. Over MEASURED duration (11.5s) the fractions are
-    # diff 0.87 (> 0.70) and identical 0.13 (< 0.15): both guard conditions
-    # hold and the result is discarded. Over the whole run (31.5s) diff
-    # would be only 0.32 and the guard would (wrongly) keep it -- pins the
-    # measured-duration denominator.
+    # Blocks: 1.5s identical / 20s unknown (probe unusable) / 10s differential. Over measured duration
+    # (11.5s) diff is 0.87 (> 0.70) and identical 0.13 (< 0.15), so the result is discarded; over the
+    # whole run (31.5s) diff would be 0.32 and the guard would wrongly keep it. Pins the denominator.
     marks = [0.0, 1.5, 21.5, 31.5]
     pcm = np.zeros(int(31.5 * RATE), dtype=np.float32)
 
@@ -354,10 +337,9 @@ def test_reencode_guard_fractions_computed_over_measured_regions(monkeypatch):
 
 
 def test_adjacent_differential_blocks_emitted_per_block(monkeypatch):
-    # Differential blocks are NOT merged at diff time: each region carries
-    # its own measured corr so the downstream per-block gate cannot be
-    # vetoed by one borderline member of a multi-block break (candidates
-    # merge after gating in dai_differential_ads).
+    # Differential blocks are not merged at diff time: each keeps its own measured corr so one
+    # borderline member of a multi-block break cannot veto the per-block gate (they merge after
+    # gating in dai_differential_ads).
     marks = [0.0, 8.0, 14.0, 20.0, 28.0]
 
     def scripted(run_pcm, ref_pcm, run_t, offset, **kwargs):
@@ -380,10 +362,9 @@ def test_adjacent_differential_blocks_emitted_per_block(monkeypatch):
 
 
 def test_matched_block_low_corr_is_not_retried(monkeypatch):
-    # Chain-matched blocks carry exact offsets, so the widened drift
-    # re-probe only runs for unmatched blocks probed with an inherited
-    # (possibly stale) offset. A matched block scoring low is simply
-    # differential: no second probe.
+    # Chain-matched blocks carry exact offsets; the widened drift re-probe only runs for unmatched
+    # blocks with an inherited (possibly stale) offset, so a matched low-scoring block is simply
+    # differential with no second probe.
     marks = [0.0, 8.0, 16.0]
     searches = []
 

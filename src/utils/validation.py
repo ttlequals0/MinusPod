@@ -1,10 +1,8 @@
-"""Input validation primitives: tiered slug / episode ID validators and
-public-IP classification for login lockout.
+"""Input validation: tiered slug / episode ID validators and public-IP classification for lockout.
 
-Tiering is deliberate. Strict validators gate write paths (feed creation,
-admin input). Permissive ``is_dangerous_*`` validators gate read paths so
-existing podcast-app subscription URLs keep working; they reject only inputs
-that are actually traversal attempts.
+Strict validators gate write paths (feed creation, admin input). Permissive
+``is_dangerous_*`` validators gate read paths so existing subscription URLs keep
+working; they reject only traversal attempts.
 """
 
 from __future__ import annotations
@@ -19,10 +17,8 @@ from flask import abort
 
 _route_logger = logging.getLogger(__name__)
 
-# Cap is generous -- real-world podcast slugs auto-generated from long
-# titles routinely exceed the prior 64-char limit. The strict regex still
-# refuses path-traversal characters; length is bounded only to stop
-# obvious abuse, not to gate legitimate slugs.
+# Generous cap: slugs auto-generated from long titles often exceed 64 chars.
+# The regex still refuses traversal characters; length only stops abuse.
 SLUG_RE: Final = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
 EPISODE_ID_RE: Final = re.compile(r"^[a-f0-9]{12}$")
 LOCAL_EPISODE_ID_RE: Final = re.compile(r"^s\d{2,3}e\d{2,4}$")
@@ -72,9 +68,9 @@ def is_valid_episode_id(value: str) -> bool:
 def is_dangerous_slug(value: str) -> bool:
     """Returns True only for traversal attempts.
 
-    Preserves legacy podcast-app subscription URLs that may not pass the
-    strict regex (uppercase, underscores, etc.) while still blocking ``..``,
-    slashes, backslashes, null bytes, and common URL-encoded variants.
+    Lets legacy subscription URLs that fail the strict regex (uppercase,
+    underscores) through, blocking ``..``, slashes, backslashes, null bytes and
+    URL-encoded variants.
     """
     if not isinstance(value, str) or not value:
         return True
@@ -90,9 +86,8 @@ def is_public_ip_for_lockout(addr: str) -> bool:
     """True only if ``addr`` is internet-routable for login-lockout purposes.
 
     Excludes RFC1918, loopback, link-local, multicast, reserved, unspecified,
-    IPv4 CGNAT (100.64.0.0/10), the Tailscale IPv6 ULA prefix, and the IPv6
-    discard prefix. Malformed input returns False so lockout never fires on
-    bad headers.
+    IPv4 CGNAT (100.64.0.0/10), the Tailscale IPv6 ULA and IPv6 discard prefixes.
+    Malformed input returns False so bad headers never trigger lockout.
     """
     if not isinstance(addr, str) or not addr:
         return False
@@ -130,9 +125,8 @@ def is_public_ip_for_lockout(addr: str) -> bool:
 def validate_slug_param(f):
     """Route decorator for app-level ``<slug>`` routes.
 
-    Rejects dangerous slugs with 404 so probing looks the same as "not
-    found". Preserves legacy podcast-app subscription URLs (uppercase,
-    underscores, embedded dots) by delegating to :func:`is_dangerous_slug`.
+    Rejects dangerous slugs with 404 (indistinguishable from not found) via
+    :func:`is_dangerous_slug`, which keeps legacy URLs (uppercase, underscores, dots) working.
     """
     @wraps(f)
     def wrapper(slug, *args, **kwargs):
@@ -147,9 +141,8 @@ def validate_slug_and_episode_params(f):
     """Route decorator for app-level routes with both ``<slug>`` and
     ``<episode_id>`` path parameters.
 
-    Rejects Unicode lookalike episode IDs (``.isalnum()`` accepts
-    Cyrillic, Greek, full-width digits, etc. -- real MD5-hex episode IDs
-    are strictly ``[0-9a-f]{12}``).
+    Rejects Unicode lookalike episode IDs (``.isalnum()`` accepts Cyrillic, Greek,
+    full-width digits); real IDs are strictly ``[0-9a-f]{12}``.
     """
     @wraps(f)
     def wrapper(slug, episode_id, *args, **kwargs):

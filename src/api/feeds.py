@@ -22,7 +22,7 @@ from api import (
     _normalize_nullable_finite_float,
 )
 from cancel import request_cancellation, wait_for_cancellation
-from database.queue import compute_queue_priority
+from database.error_text import redact_error
 from processing_queue import ProcessingQueue
 from config import (
     AUTO_PROCESS_MAX_AGE_ERROR,
@@ -32,7 +32,7 @@ from config import (
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     PODPING_HOST_ACTIVE_DAYS,
-    VALID_CHAPTERS_MODES,
+    VALID_CHAPTERS_MODES, SETTING_CONSTRAINTS,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
     apply_ad_chapter_compat, ad_chapter_compat_view,
@@ -67,14 +67,15 @@ from utils.paths import RECENTS_ARTWORK_PATH
 from utils.text import truncate
 from api.episodes.core import _episode_base_json
 from api.episodes.common import _job_state
-from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, has_upstream_audio, is_local_feed,
+from database.podcasts import (EPISODE_STATUSES, MAX_NETWORK_ID_CHARS, RECENTS_SLUG, PodcastMixin, normalize_network_id, has_upstream, has_upstream_audio, is_local_feed,
                                is_recents_feed, is_youtube_feed, recents_cutoff)
+import local_feed_builder
+import recents_feed
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
-from utils.time import utc_now_iso
-from utils.url import validate_url, SSRFError
+from utils.url import reject_url_whitespace, validate_url, SSRFError
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
@@ -86,11 +87,10 @@ MAX_RETENTION_DAYS_OVERRIDE = 3650
 
 
 def _validate_retention_override(value):
-    """Validate the per-feed retention override.
+    """Validate the per-feed retention override; returns (db_value, error).
 
-    Returns (db_value, error). db_value is the integer to persist: None
-    clears the override and falls back to the global setting, 0 archives the
-    feed so nothing is ever deleted, and a positive value is a day count.
+    None clears the override (global setting applies), 0 archives the feed (nothing is
+    ever deleted), and a positive value is a day count.
     """
     if value is None:
         return None, None
@@ -108,21 +108,16 @@ def _validate_retention_override(value):
     return days, None
 
 
-# Local feeds have no upstream RSS and no 500-item clamp; the ceiling here
-# only exists to bound abuse (an absurd column value costing render time /
-# response size), not to protect a subscriber's app the way the subscribed
-# 10-500 clamp does.
+# Local feeds have no upstream RSS and no 500-item clamp; this ceiling only bounds abuse
+# (an absurd value costing render time and response size).
 LOCAL_MAX_EPISODES_CEILING = 10000
 
 
 def _normalize_max_episodes(value, is_local: bool):
-    """Validate a maxEpisodes write. Returns (db_value, error).
+    """Validate a maxEpisodes write; returns (db_value, error).
 
-    Subscribed feeds keep the pre-existing 10-500 clamp verbatim. Local
-    feeds accept 0 (explicitly uncapped, same as leaving it unset) or any
-    positive int up to LOCAL_MAX_EPISODES_CEILING; a local feed's served
-    item count is otherwise unbounded (local_feed_builder.rebuild_local_feed
-    treats NULL/0 as "serve every episode").
+    Subscribed feeds keep the 10-500 clamp. Local feeds accept 0 (uncapped, same as unset)
+    or a positive int up to LOCAL_MAX_EPISODES_CEILING; NULL/0 serves every episode.
     """
     if value is None:
         return None, None
@@ -140,13 +135,10 @@ def _normalize_max_episodes(value, is_local: bool):
 
 
 def _normalize_language_override(value):
-    """Validate the per-feed language override.
+    """Validate the per-feed language override; returns (db_value, error).
 
-    Returns (db_value, error). db_value is the string to persist (None to
-    clear the override) and error is a user-facing message or None.
-    Accepts None / empty string to clear, 'auto' to pin auto-detect for
-    this feed, or an ISO-639-1-ish code that matches the same regex as
-    the global whisperLanguage setting.
+    None or '' clears it, 'auto' pins auto-detect for this feed, otherwise an ISO-639-1-ish
+    code matching the global whisperLanguage regex.
     """
     if value is None:
         return None, None
@@ -240,10 +232,10 @@ def _normalize_detection_notes(value):
 
 
 def _fetch_feed_content(url, timeout=30, podcast=None):
-    """Fetch a feed body with one retry, shared by add_feed and the sourceUrl
-    PATCH. Some hosts (e.g. Buzzsprout) 403 the first fetch from a new client
-    but serve the retry; the circuit breaker inside fetch_feed still gates
-    genuinely broken feeds. Returns (parser, content-or-None).
+    """Fetch a feed body with one retry, shared by add_feed and the sourceUrl PATCH.
+
+    Some hosts 403 the first fetch from a new client but serve the retry; the circuit
+    breaker inside fetch_feed still gates broken feeds. Returns (parser, content-or-None).
     """
     parser = rss_parser.RSSParser()
     content = None
@@ -257,11 +249,10 @@ def _fetch_feed_content(url, timeout=30, podcast=None):
 
 
 def _validate_source_url(value, podcast=None):
-    """Validate a replacement source feed URL (#484).
+    """Validate a replacement source feed URL (#484); returns (url, error).
 
-    Returns (url, error). Fetches and parses the URL before accepting it so a
-    typo cannot silently break the feed. The column is NOT NULL, so there is
-    no clear semantic: null/empty is rejected.
+    Fetches and parses the URL first so a typo cannot silently break the feed. The column
+    is NOT NULL, so null/empty is rejected.
     """
     if not isinstance(value, str):
         return None, 'sourceUrl must be a non-empty string'
@@ -269,9 +260,10 @@ def _validate_source_url(value, podcast=None):
     if not url:
         return None, 'sourceUrl must be a non-empty string'
     try:
+        reject_url_whitespace(url)
         validate_url(url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in update_feed: {e} (url={url})")
+        logger.warning(f"SSRF blocked in update_feed: {e} (url={safe_url_for_log(url)})")
         return None, f'Invalid feed URL: {e}'
     # 15s per attempt so a slow host cannot hang the PATCH toward the worker
     # timeout; the shared retry keeps 403-on-first-fetch hosts working here
@@ -289,11 +281,10 @@ def _validate_source_url(value, podcast=None):
 
 
 def _normalize_detection_mode(value):
-    """Validate the per-feed ad-detection mode (#350 keep-content).
+    """Validate the per-feed ad-detection mode (#350); returns (db_value, error).
 
-    Returns (db_value, error). None / empty / 'blacklist' all clear the override
-    to the default ad-removal behavior (stored NULL). 'keep_content' is stored.
-    Any other value is rejected.
+    None, '' and 'blacklist' clear the override (stored NULL, default ad removal);
+    'keep_content' is stored; anything else is rejected.
     """
     from config import DETECTION_MODES, DETECTION_MODE_BLACKLIST
     if value in (None, '', DETECTION_MODE_BLACKLIST):
@@ -336,10 +327,9 @@ def _cue_only_templates_ok(db, podcast):
 
 
 def _normalize_cue_only_safety(value):
-    """Validate the per-feed cueOnlySafety override.
+    """Validate the per-feed cueOnlySafety override; returns (db_value, error).
 
-    Returns (db_value, error). None or '' clears the override (stored NULL).
-    Any of CUE_ONLY_SAFETY_VALUES is stored as-is. Any other value is rejected.
+    None or '' clears it (stored NULL); any of CUE_ONLY_SAFETY_VALUES is stored; else rejected.
     """
     if value in (None, ''):
         return None, None
@@ -349,12 +339,10 @@ def _normalize_cue_only_safety(value):
 
 
 def _normalize_chapters_mode(value):
-    """Validate the per-feed chapters mode (issue #560).
+    """Validate the per-feed chapters mode (#560); returns (db_value, error).
 
-    Returns (db_value, error). None or '' clears the override to the
-    default 'auto' behavior (stored NULL), mirroring
-    _normalize_detection_mode. Any of VALID_CHAPTERS_MODES is stored
-    as-is. Any other value is rejected.
+    None or '' clears the override to the default 'auto' (stored NULL), like
+    _normalize_detection_mode; any of VALID_CHAPTERS_MODES is stored; else rejected.
     """
     if value in (None, ''):
         return None, None
@@ -370,11 +358,8 @@ _QUEUE_PRIORITY_API_VALUES = {v: k for k, v in QUEUE_PRIORITY_DB_VALUES.items()}
 
 
 def _normalize_low_ad_yield_action(value):
-    """Validate the per-feed lowAdYieldAction override.
-
-    Returns (db_value, error). None clears the override (stored NULL, which
-    means "use the global setting").
-    """
+    """Validate the per-feed lowAdYieldAction override; returns (db_value, error).
+    None clears it (stored NULL = use the global setting)."""
     if value is None:
         return None, None
     if value in LOW_AD_YIELD_ACTIONS:
@@ -392,11 +377,8 @@ def _normalize_override(value, allowed, key):
 
 
 def _normalize_episode_logs(value):
-    """Validate the per-feed episodeLogs override (#660).
-
-    Returns (db_value, error). None clears the override (stored NULL, which
-    means "follow the global setting").
-    """
+    """Validate the per-feed episodeLogs override (#660); returns (db_value, error).
+    None clears it (stored NULL = follow the global setting)."""
     if value is None:
         return None, None
     if value in EPISODE_LOGS_VALUES:
@@ -405,11 +387,8 @@ def _normalize_episode_logs(value):
 
 
 def _normalize_queue_priority(value):
-    """Validate the per-feed queuePriority override (#625).
-
-    Returns (db_value, error). None or 'normal' clears the override (stored
-    NULL). 'high'/'low' map to +-10. Any other value is rejected.
-    """
+    """Validate the per-feed queuePriority override (#625); returns (db_value, error).
+    None or 'normal' clears it (stored NULL); 'high'/'low' map to +-10; else rejected."""
     if value is None or value == 'normal':
         return None, None
     if value in QUEUE_PRIORITY_DB_VALUES:
@@ -492,11 +471,8 @@ def _normalize_description_trim_mode(value):
 
 
 def _normalize_title_skip_action(value):
-    """Validate the per-feed titleSkipAction (served-RSS visibility).
-
-    Returns (db_value, error). None or 'serve_original' clears the override
-    (stored NULL, the default). 'hide' is stored as-is.
-    """
+    """Validate the per-feed titleSkipAction (served-RSS visibility); returns (db_value, error).
+    None or 'serve_original' clears it (stored NULL, the default); 'hide' is stored."""
     if value in (None, 'serve_original'):
         return None, None
     if value == 'hide':
@@ -505,12 +481,10 @@ def _normalize_title_skip_action(value):
 
 
 def _normalize_segment_category_actions(value):
-    """Validate a per-feed segmentCategoryActions override (issue #565).
+    """Validate a per-feed segmentCategoryActions override (#565).
 
-    None clears the override (stored NULL). Every key must be a known
-    category and every value a known action; the partial map is stored
-    as-is, unresolved keys fall through to the global setting at resolve
-    time.
+    None clears it (stored NULL). Keys must be known categories and values known actions;
+    the partial map is stored as-is and unresolved keys fall through to the global setting.
     """
     if value is None:
         return None, None
@@ -567,11 +541,8 @@ def _deserialize_skip_patterns(raw):
 
 
 def _deserialize_categories(raw):
-    """Parse the stored `categories` JSON back for API responses.
-
-    None when unset/unparsable, mirroring _validate_local_categories'
-    write-side contract (null clears categories to NULL, not []).
-    """
+    """Parse the stored `categories` JSON for API responses; None when unset or unparsable.
+    Mirrors _validate_local_categories (null clears to NULL, not [])."""
     if not raw:
         return None
     try:
@@ -607,29 +578,22 @@ _CUE_FLOAT_OVERRIDE_FIELDS = [
 
 
 def _normalize_cue_bool_override(value, field_name):
-    """Validate a tri-state boolean override (null/false/true).
-
-    Returns (db_value, error). None clears the override. True/False are stored
-    as INTEGER 1/0. Non-boolean non-null values are rejected.
-    """
+    """Validate a tri-state boolean override (null/false/true); returns (db_value, error).
+    None clears it; True/False are stored as INTEGER 1/0; other values are rejected."""
     if not isinstance(value, bool) and value is not None:
         return None, f"{field_name} must be true, false, or null"
     return _serialize_nullable_bool(value), None
 
 
 def _normalize_cue_float_override(value, field_name, lo, hi):
-    """Validate a nullable float override within [lo, hi].
-
-    Delegates to the shared validator which also rejects booleans, NaN and inf.
-    """
+    """Validate a nullable float override within [lo, hi] (also rejects bools, NaN and inf)."""
     return _normalize_nullable_finite_float(value, field_name, lo, hi)
 
 
-# (json_key, db_col) for the nullable-bool per-feed toggles: boundary-snap,
-# held-review, differential, pass-through, skip-detection, and serving opt-ins.
-# NULL/0 read as off downstream. Pass-through/skip-detection/keep-content
-# are independent columns (issue #537) for legacy per-field writes; a
-# processingMode preset write canonicalizes all three instead.
+# (json_key, db_col) for the nullable-bool per-feed toggles (boundary-snap, held-review,
+# differential, pass-through, skip-detection, serving opt-ins). NULL/0 read as off.
+# Pass-through/skip-detection/keep-content are independent columns (#537) for legacy
+# per-field writes; a processingMode preset write canonicalizes all three.
 _NULLABLE_BOOL_FIELDS = [
     ('audioReplacementSoundOverride', 'audio_replacement_sound_override'),
     ('audioMp3StreamCopyOverride', 'audio_mp3_stream_copy_override'),
@@ -669,11 +633,9 @@ def _cue_override_fields(podcast) -> dict:
 def _status_counts(podcast) -> dict:
     """Per-status episode counts of a feed response (#466).
 
-    Keys deliberately match the frontend EPISODE_STATUS_COLORS keys: the DB
-    status 'processed' is exposed under its API alias 'completed' (the same
-    mapping api/episodes/core.py applies to episode responses) and comes from the
-    pre-existing processed_count aggregate. LEFT JOIN SUMs are NULL for a
-    feed with no episodes, hence the `or 0`.
+    Keys match the frontend EPISODE_STATUS_COLORS: DB status 'processed' is exposed as
+    'completed' (as in api/episodes/core.py). LEFT JOIN SUMs are NULL for a feed with no
+    episodes, hence the `or 0`.
     """
     counts = {s: podcast.get(f'status_{s}') or 0 for s in EPISODE_STATUSES}
     counts['completed'] = podcast.get('processed_count') or 0
@@ -683,23 +645,20 @@ def _status_counts(podcast) -> dict:
 def _refresh_error_fields(podcast) -> dict:
     """Refresh-failure fields for a feed response (#516).
 
-    Exposed only once the consecutive-failure count reaches the alert
-    threshold, so the UI's "Refresh failing" marker matches the webhook/
-    email alert semantics instead of flagging a single transient blip.
+    Exposed only once consecutive failures reach the alert threshold, so the UI's
+    "Refresh failing" marker matches the webhook/email alert semantics.
     """
     failing = (podcast.get('refresh_failure_count') or 0) \
         >= FEED_REFRESH_FAILURE_ALERT_THRESHOLD
     return {
-        'lastRefreshError': podcast.get('last_refresh_error') if failing else None,
+        'lastRefreshError': redact_error(podcast.get('last_refresh_error')) if failing else None,
         'lastRefreshErrorAt': podcast.get('last_refresh_error_at') if failing else None,
     }
 
 
 def _slug_from_url_path(source_url: str) -> str | None:
-    # Final-resort slug derivation when neither an upstream OPML title nor
-    # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
-    # because they would otherwise become part of the slug. Returns None
-    # if the URL has no usable path or hostname.
+    # Final-resort slug when neither an OPML title nor an RSS <title> exists. Strips
+    # ``.xml``/``.rss`` suffixes; returns None if the URL has no usable path or hostname.
     parsed = urlparse(source_url)
     slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
     slug_base = slug_base.replace('.xml', '').replace('.rss', '')
@@ -712,15 +671,9 @@ def _slug_from_url_path(source_url: str) -> str | None:
     return candidate
 
 
-# Local feed p20_channel_json validation (Task 6). Tag -> allowed attr keys,
-# taken directly from local_feed_builder's own whitelist (module docstring)
-# so this can never invent a shape the builder doesn't already render.
-# Built lazily (not a module-level import) -- local_feed_builder pulls in
-# main_app at its own module level, and api/feeds.py can be imported before
-# main_app exists (e.g. `from api.settings import ...` in isolation), which
-# would otherwise be a circular import.
+# Local feed p20_channel_json validation. Tag -> allowed attr keys, taken from
+# local_feed_builder's own whitelist so this never invents a shape the builder doesn't render.
 def _p20_tag_attrs() -> dict:
-    import local_feed_builder
     return {
         'funding': local_feed_builder._FUNDING_ATTRS,
         'person': local_feed_builder._PERSON_ATTRS,
@@ -741,34 +694,27 @@ _P20_FEED_GUID_RE = re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
     re.IGNORECASE)
 
-# Scalar (non-list-tag) p20 keys, per design spec section 6: medium and
-# locked (with optional owner email) are editable; guid is minted once at
-# creation and is immutable everywhere -- rejected outright rather than
-# silently dropped, so a client relying on a guid write finds out at 400
-# instead of believing it silently took effect.
+# Scalar (non-list-tag) p20 keys: medium and locked (with optional owner email) are
+# editable; guid is minted once at creation and rejected outright with 400 rather than
+# silently dropped, so a client relying on a guid write finds out.
 _P20_MEDIUM_VALUES = ('podcast', 'music', 'video', 'film', 'audiobook',
                       'newsletter', 'blog')
 _P20_LOCKED_VALUES = ('yes', 'no')
 _P20_LOCKED_OWNER_MAX = 200
-# Basic shape check, not full RFC 5322 validation -- good enough to catch
-# fat-finger input; podcast:locked's owner attribute is a contact email.
+# Basic shape check, not full RFC 5322 validation; enough to catch fat-finger input
+# (podcast:locked's owner attribute is a contact email).
 # Dot-free domain labels keep the match linear (CodeQL py/polynomial-redos).
 _P20_EMAIL_RE = re.compile(r'^[^@\s]+@(?:[^@\s.]+\.)+[^@\s.]+$')
 _P20_SCALAR_KEYS = ('medium', 'locked', 'locked_owner')
 
 
 def _validate_p20_scalar(key, value):
-    """Validate one scalar p20 key. Returns (cleaned_value_or_None, error).
+    """Validate one scalar p20 key; returns (cleaned_value_or_None, error).
 
-    A cleaned value of None with no error is a delete sentinel, not "omit
-    this key": medium/locked always require a valid whitelisted string, so
-    they can never legitimately return None here, but an empty/whitespace-
-    only/null locked_owner means "clear the stored owner". Callers
-    (_validate_p20's merge sites) must keep None in the cleaned dict and
-    strip it from the final stored object rather than dropping the key
-    before it ever reaches the merge -- dropping it here would make it
-    indistinguishable from "the client didn't send this key at all", which
-    is exactly the bug this sentinel exists to avoid.
+    A cleaned None with no error is a delete sentinel, not "omit this key": medium/locked
+    always need a valid whitelisted string, but a blank/null locked_owner means "clear the
+    stored owner". Callers must keep None in the cleaned dict and strip it at merge time;
+    dropping it here would look the same as the client not sending the key.
     """
     if key == 'medium':
         if not isinstance(value, str) or value not in _P20_MEDIUM_VALUES:
@@ -794,9 +740,8 @@ def _validate_p20_scalar(key, value):
 
 
 def _validate_p20_items(tag, items, allowed_attrs):
-    """Validate one podcast:{tag} item list against the
-    ``{'text': str, <attr>: str}`` shape build_local_feed_xml expects
-    (local_feed_builder.py module docstring). Returns (cleaned_items, error).
+    """Validate one podcast:{tag} item list against the ``{'text': str, <attr>: str}``
+    shape build_local_feed_xml expects; returns (cleaned_items, error).
     """
     if not isinstance(items, list):
         return None, f'p20.{tag} must be a list'
@@ -828,14 +773,11 @@ def _validate_p20_items(tag, items, allowed_attrs):
 
 
 def _validate_p20_podroll(items):
-    """Validate a podcast:podroll remoteItem list against the shape
-    local_feed_builder._emit_podroll expects: ``{feedGuid, feedUrl?,
-    itemGuid?, medium?}``. Returns (cleaned_items, error).
+    """Validate a podcast:podroll remoteItem list; returns (cleaned_items, error).
 
-    feedGuid is required and must look like a UUID; feedUrl must start
-    http(s):// when present; medium must be one of _P20_MEDIUM_VALUES when
-    present. Unknown keys are silently dropped, the same leniency
-    _validate_p20_items applies to unlisted attrs.
+    Items are ``{feedGuid, feedUrl?, itemGuid?, medium?}``. feedGuid is required and must
+    look like a UUID; feedUrl must start http(s):// when present; medium must be in
+    _P20_MEDIUM_VALUES. Unknown keys are dropped, as in _validate_p20_items.
     """
     if not isinstance(items, list):
         return None, 'p20.podroll must be a list'
@@ -855,10 +797,8 @@ def _validate_p20_podroll(items):
             if not isinstance(feed_url, str):
                 return None, f'p20.podroll[{i}].feedUrl must be a string'
             feed_url = feed_url.strip()
-            # Empty-after-strip is treated as "not sent" (dropped, not
-            # stored) rather than an error -- matches feedGuid/itemGuid's
-            # own whitespace handling and keeps a blank optional field from
-            # leaving an empty string in the served feed's remoteItem.
+            # Blank-after-strip counts as "not sent" (dropped, not an error), like
+            # feedGuid/itemGuid, so a blank optional field never stores an empty string.
             if feed_url:
                 if not _P20_URL_RE.match(feed_url):
                     return None, f'p20.podroll[{i}].feedUrl must start with http:// or https://'
@@ -884,21 +824,14 @@ def _validate_p20_podroll(items):
 
 
 def _validate_p20(value):
-    """Validate a client-supplied p20 channel-extras object.
+    """Validate a client-supplied p20 channel-extras object; returns (cleaned_dict, error).
 
-    Returns (cleaned_dict, error). None/absent clears to {}. Accepts the
-    five list-tag keys the builder renders (funding/person/license/location/
-    txt), the podroll remoteItem list (validated separately -- its shape
-    doesn't fit the {text, <attr>} pattern the other five share), plus the
-    scalar keys medium/locked/locked_owner (design spec section 6). 'guid'
-    is minted once at creation and is never client-settable through this
-    field, at POST or PATCH.
+    None/absent clears to {}. Accepts the list-tag keys (funding/person/license/location/
+    txt), the podroll list (validated separately; its shape differs), and the scalars
+    medium/locked/locked_owner. 'guid' is minted at creation and never client-settable.
 
-    A cleaned value of None under 'locked_owner' is a delete sentinel (blank
-    string or explicit null clears the stored owner) -- callers must merge
-    with `_apply_p20_merge` (or otherwise strip None values before
-    persisting) rather than a bare dict-merge, which would silently store a
-    JSON null instead of removing the key.
+    A None under 'locked_owner' is a delete sentinel (blank or null clears the stored
+    owner): merge with `_apply_p20_merge`, since a bare dict-merge would store a JSON null.
     """
     if value is None:
         return {}, None
@@ -913,9 +846,8 @@ def _validate_p20(value):
             cleaned_val, err = _validate_p20_scalar(key, val)
             if err:
                 return None, err
-            # None is the delete sentinel (see _validate_p20_scalar) -- kept
-            # in `cleaned`, not dropped, so the merge sites below can tell
-            # "clear this key" apart from "the client never sent this key".
+            # None is the delete sentinel (see _validate_p20_scalar): kept in `cleaned` so the
+            # merge sites can tell "clear this key" from "the client never sent this key".
             cleaned[key] = cleaned_val
             continue
         if key == 'podroll':
@@ -934,12 +866,10 @@ def _validate_p20(value):
 
 
 def _apply_p20_merge(base: dict, cleaned: dict) -> dict:
-    """Merge a `_validate_p20` result onto a base p20_channel_json dict,
-    resolving delete sentinels (see _validate_p20_scalar / _validate_p20's
-    docstrings). A plain `{**base, **cleaned}` would store a JSON `null`
-    for a key the client cleared instead of removing it -- this drops any
-    key whose merged value is None so the served feed builder never sees a
-    stray null for locked_owner (or any future nullable scalar).
+    """Merge a `_validate_p20` result onto a base p20_channel_json dict, resolving delete sentinels.
+
+    A plain `{**base, **cleaned}` would store JSON `null` for a cleared key; this drops any
+    key whose merged value is None so the feed builder never sees a stray null.
     """
     merged = {**base, **cleaned}
     return {k: v for k, v in merged.items() if v is not None}
@@ -952,10 +882,8 @@ _YT_EDITABLE = frozenset({'author', 'explicit', 'categories'})
 
 
 def _validate_local_categories(value):
-    """Validate a local feed's categories list.
-
-    Returns (json_str_or_None, error). None clears categories (stored NULL).
-    """
+    """Validate a local feed's categories list; returns (json_str_or_None, error).
+    None clears categories (stored NULL)."""
     if value is None:
         return None, None
     if not isinstance(value, list) or not all(isinstance(c, str) for c in value):
@@ -988,13 +916,9 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'feedUserAgentOverride': podcast.get('feed_user_agent_override'),
         'detectionNotes': podcast.get('detection_notes'),
         'chapterNotes': podcast.get('chapter_notes'),
-        # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local
-        # feeds; reading them back is harmless for a subscribed feed, which
-        # simply never has them set). Was write-only before this fix: PATCH
-        # accepted and persisted these, but no response ever echoed them
-        # back, so a client that reseeds its edit form from a refetched feed
-        # (the normal "reflect the saved value" pattern) would see the form
-        # silently revert to blank/default on every save.
+        # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local feeds; a
+        # subscribed feed just never has them set). Echoed back so a client that reseeds its
+        # edit form from a refetched feed does not see saved values revert to blank.
         'author': podcast.get('author'),
         'explicit': _deserialize_nullable_bool(podcast.get('explicit')),
         'categories': _deserialize_categories(podcast.get('categories')),
@@ -1013,6 +937,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'adChaptersEnabled': ad_chapters_enabled,
         'adChapterCategories': ad_chapter_categories,
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
+        'queueOrder': podcast.get('queue_order'),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_skip_patterns(podcast.get('title_skip_patterns')),
@@ -1072,9 +997,9 @@ def _podping_context_for_feed(db):
 def _podping_coverage(podcast, enabled, host_is_active):
     """Why this feed is or is not covered by podping, most specific first.
 
-    None when the listener is off instance-wide (a global setting, not a fact
-    about this feed) or the feed has no upstream that could ping. The UI only distinguishes received from everything
-    else; the finer states are here for API consumers and diagnostics.
+    None when the listener is off instance-wide (a global setting, not a fact about this
+    feed) or the feed has no upstream that could ping. The UI only distinguishes received
+    from everything else; the finer states serve API consumers and diagnostics.
     """
     if not enabled or not has_upstream_audio(podcast):
         return None
@@ -1106,16 +1031,12 @@ def _podcast_listing_fields(podcast, podping) -> dict:
                      if is_recents_feed(podcast) else None)
     declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
-        # The proxy whenever we hold the file. A cover that was rejected at
-        # cache time has nothing to serve, so fall back to the publisher's
-        # URL, but only over https: an http:// image inside an https page is
-        # blocked by the browser and renders as a placeholder.
+        # The proxy whenever we hold the file. A cover rejected at cache time has nothing
+        # to serve, so fall back to the publisher's URL, but only over https (an http:// image
+        # in an https page is blocked and renders as a placeholder).
         'artworkUrl': _feed_artwork_url(podcast),
-        # Explicit "do we hold a file" signal: artworkUrl above is never
-        # falsy (it falls back to the artwork proxy path even with nothing
-        # uploaded), so a client checking "has this feed got artwork" had no
-        # reliable field to read and resorted to a HEAD probe of the proxy
-        # URL (#625 Task 13 review).
+        # Explicit "do we hold a file" signal: artworkUrl is never falsy (it falls back to
+        # the proxy path), so clients had no reliable field and resorted to a HEAD probe.
         'hasArtwork': get_storage().has_artwork(podcast['slug']),
         'episodeCount': recents_total if recents_total is not None else podcast.get('episode_count', 0),
         'processedCount': recents_total if recents_total is not None else podcast.get('processed_count', 0),
@@ -1171,9 +1092,7 @@ def _feed_sort_title(podcast: dict) -> str:
 
 def _sort_podcasts(podcasts: list[dict], sort_by: str, sort_dir: str) -> list[dict]:
     """Order the whole feed list so a page is a slice of the sorted list.
-
-    Slug breaks every tie, so paging cannot duplicate or skip a feed.
-    """
+    Slug breaks every tie, so paging cannot duplicate or skip a feed."""
     reverse = sort_dir == 'desc'
     if sort_by == 'title':
         return sorted(podcasts, key=lambda p: (_feed_sort_title(p), p['slug']), reverse=reverse)
@@ -1186,10 +1105,8 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
                           duration_filters=None) -> dict:
     """Bounded per-feed episode projection for the /feeds listing.
 
-    Reuses the episode-list serializer so the grouped dashboard view matches
-    /feeds/<slug>/episodes exactly rather than re-deriving the same rules a
-    second way. Trimmed to the fields the dashboard card renders, plus the
-    hold, pass-through and error signals a card must not silently drop.
+    Reuses the episode-list serializer so the dashboard matches /feeds/<slug>/episodes.
+    Trimmed to what the card renders, plus the hold, pass-through and error signals.
     """
     base = _episode_base_json(
         ep, slug=slug, is_local=is_local, storage=storage,
@@ -1223,10 +1140,9 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
 def list_feeds():
     """List all podcast feeds with metadata.
 
-    Bare (no page/limit) stays unbounded for existing all-feeds consumers.
-    includeLatestEpisodes adds a per-feed episode projection via one
-    windowed query, not one request per feed. sortBy orders the whole list
-    before it is sliced, so a page is never re-sorted by the caller.
+    Bare (no page/limit) stays unbounded for all-feeds consumers. includeLatestEpisodes
+    adds a per-feed episode projection via one windowed query. sortBy orders the whole
+    list before slicing.
     """
     db = get_database()
 
@@ -1341,10 +1257,8 @@ def _add_recents_feed(data, db):
 
 
 def _add_local_feed(data, db):
-    """Create a local (imported-archive) feed: no upstream URL, no fetch --
-    metadata comes entirely from the request body. Task 6 branch of add_feed,
-    kept separate to keep the subscribed-feed path readable.
-    """
+    """Create a local (imported-archive) feed: no upstream URL or fetch, metadata comes
+    from the request body."""
     title = data.get('title')
     if not isinstance(title, str) or not title.strip():
         return error_response('title is required', 400)
@@ -1365,7 +1279,7 @@ def _add_local_feed(data, db):
 
     if slug == RECENTS_SLUG:
         return error_response(f'"{RECENTS_SLUG}" is reserved for the recents feed', 400)
-    existing = db.get_podcast_by_slug(slug)
+    existing = db.get_podcast_row(slug)
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
 
@@ -1403,14 +1317,10 @@ def _add_local_feed(data, db):
         db.create_podcast(slug, f'local://{slug}', title, feed_type='local')
 
         feed_url = _public_feed_url(slug, get_feed_auth_key(db))
-        # guid is minted once here and never regenerated -- see
-        # compute_feed_guid's docstring on why the algorithm/normalization
-        # must never change once a feed's guid is in the wild. medium/locked
-        # default here but a client-supplied p20 (already validated -- guid
-        # is rejected there) is layered on top and wins, per design spec
-        # section 6 ("accept these keys at create too, merged over the
-        # minted defaults"). guid itself is applied last so nothing can
-        # ever override it.
+        # guid is minted once here and never regenerated (see compute_feed_guid on why the
+        # algorithm must never change). medium/locked default here, but a validated
+        # client-supplied p20 is layered on top and wins ("accept these keys at create too,
+        # merged over the minted defaults"); guid is applied last so nothing overrides it.
         minted_guid = compute_feed_guid(feed_url)
         channel_json = _apply_p20_merge({'medium': 'podcast', 'locked': 'yes'}, p20_val)
         channel_json['guid'] = minted_guid
@@ -1430,8 +1340,7 @@ def _add_local_feed(data, db):
         from main_app.feeds import invalidate_feed_cache
         invalidate_feed_cache()
 
-        from local_feed_builder import rebuild_local_feed
-        rebuild_local_feed(slug)
+        local_feed_builder.rebuild_local_feed(slug)
 
         logger.info(f"Created new local feed: {slug}")
         return json_response({
@@ -1465,7 +1374,7 @@ def _add_youtube_feed(data, db):
     slug = (data.get('slug') or '').strip() or make_slug(title)
     if not slug or not is_valid_slug(slug) or slug == RECENTS_SLUG:
         return error_response(f'Invalid slug "{slug}"', 400)
-    if db.get_podcast_by_slug(slug):
+    if db.get_podcast_row(slug):
         return error_response(f'Feed with slug "{slug}" already exists', 409)
     canonical = yt_urls.canonical_source_url(kind, source_id)
     if any(p['source_url'] == canonical for p in db.get_podcast_feed_urls()):
@@ -1530,11 +1439,7 @@ def _add_youtube_feed(data, db):
 @limiter.limit("3 per minute")
 @log_request
 def add_feed():
-    """Add a new podcast feed.
-
-    OPML bulk-import lives on its own endpoint with its own limiter, so the
-    feeds POST limit is tuned for interactive use.
-    """
+    """Add a new podcast feed (OPML bulk import has its own endpoint and limiter)."""
     data = request.get_json()
 
     if data and data.get('feedType') in ('recents', 'local') and 'processingMode' in data:
@@ -1562,9 +1467,10 @@ def add_feed():
 
     # SSRF protection: validate URL before any outbound request
     try:
+        reject_url_whitespace(source_url)
         validate_url(source_url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in add_feed: {e} (url={source_url})")
+        logger.warning(f"SSRF blocked in add_feed: {e} (url={safe_url_for_log(source_url)})")
         return error_response(f'Invalid feed URL: {e}', 400)
 
     # Generate slug from podcast name or use provided slug
@@ -1581,10 +1487,8 @@ def add_feed():
                 if title:
                     slug = make_slug(title)
 
-        # URL-path fallback. Without this, a feed whose host blocks the
-        # initial fetch or whose <title> is empty would force the user to
-        # invent a slug by hand. The OPML import path has had this
-        # fallback for a while; the single-add endpoint was missing it.
+        # URL-path fallback so a feed whose host blocks the initial fetch or has an empty
+        # <title> does not force the user to invent a slug (OPML import has the same fallback).
         if not slug:
             slug = _slug_from_url_path(source_url)
 
@@ -1610,7 +1514,7 @@ def add_feed():
     db = get_database()
 
     # Check if slug already exists
-    existing = db.get_podcast_by_slug(slug)
+    existing = db.get_podcast_row(slug)
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
 
@@ -1669,7 +1573,7 @@ def add_feed():
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
-        logger.info(f"Created new feed: {slug} -> {source_url}")
+        logger.info(f"Created new feed: {slug} -> {safe_url_for_log(source_url)}")
         if 'downloadUserAgentOverride' in data:
             db.update_podcast(slug, download_user_agent_override=download_ua_override)
         if 'feedUserAgentOverride' in data:
@@ -1736,10 +1640,7 @@ def add_feed():
 @log_request
 def import_opml():
     """Import podcast feeds from an OPML file.
-
-    Accepts a multipart form upload with an 'opml' file field.
-    Returns counts of successfully imported and failed feeds.
-    """
+    Takes a multipart upload with an 'opml' file field; returns imported and failed counts."""
     if 'opml' not in request.files:
         return error_response('No OPML file provided', 400)
 
@@ -1792,9 +1693,10 @@ def import_opml():
 
         # SSRF protection: validate each feed URL
         try:
+            reject_url_whitespace(source_url)
             validate_url(source_url)
         except SSRFError as e:
-            logger.warning(f"SSRF blocked in OPML import: {e} (url={source_url})")
+            logger.warning(f"SSRF blocked in OPML import: {e} (url={safe_url_for_log(source_url)})")
             failed.append({'url': source_url, 'error': f'Invalid URL: {e}'})
             continue
 
@@ -1828,7 +1730,7 @@ def import_opml():
             continue
 
         # Check if slug already exists
-        existing = db.get_podcast_by_slug(slug)
+        existing = db.get_podcast_row(slug)
         if existing:
             skipped.append({'url': source_url, 'slug': slug, 'reason': 'Already exists'})
             continue
@@ -1840,7 +1742,7 @@ def import_opml():
             logger.info(f"OPML import: Created feed {slug}")
         except Exception as e:
             failed.append({'url': source_url, 'error': 'import failed'})
-            logger.error(f"OPML import failed for {source_url}: {e}")
+            logger.error(f"OPML import failed for {safe_url_for_log(source_url)}: {e}")
 
     # Invalidate feed cache
     if imported:
@@ -1851,7 +1753,7 @@ def import_opml():
         try:
             from main_app.feeds import refresh_rss_feed
             for feed in imported[:5]:  # Limit to first 5 to avoid overload
-                podcast = db.get_podcast_by_slug(feed['slug'])
+                podcast = db.get_podcast_row(feed['slug'])
                 if podcast:
                     refresh_rss_feed(feed['slug'], podcast['source_url'])
         except Exception as e:
@@ -1895,7 +1797,7 @@ def export_opml():
         wanted = {slug.strip() for slug in slugs_param.split(',') if slug.strip()} if slugs_param is not None else None
 
     db = get_database()
-    podcasts = db.get_all_podcasts()
+    podcasts = db.get_all_podcast_rows()
     if wanted is not None:
         podcasts = [p for p in podcasts if p['slug'] in wanted]
         if not podcasts:
@@ -1910,10 +1812,8 @@ def export_opml():
 
     return Response(
         xml_output,
-        # octet-stream, not application/xml: iOS Safari/Files rewrites the
-        # download extension to match a recognized MIME type (.xml) and drops
-        # the .opml in Content-Disposition; octet-stream has no such mapping,
-        # so the .opml filename survives.
+        # octet-stream, not application/xml: iOS Safari/Files rewrites the extension to match
+        # a recognized MIME type (.xml) and drops .opml from Content-Disposition.
         mimetype='application/octet-stream',
         headers={
             'Content-Disposition': f'attachment; filename="{filename}"'
@@ -1931,7 +1831,7 @@ def list_all_feed_subscriber_keys():
 @log_request
 def list_feed_subscriber_keys(slug):
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     return json_response({'keys': db.list_feed_subscriber_keys(slug)})
 
@@ -2085,8 +1985,8 @@ def update_feed(slug):
                 f"The recents feed only accepts title and description, not: {', '.join(sorted(extra))}", 400)
 
     # Map API field names to database field names. Note: the source `title` is
-    # RSS-managed (a refresh overwrites it), so it is intentionally NOT editable
-    # here -- user renames go through `titleOverride` below (#375).
+    # RSS-managed (a refresh overwrites it), so intentionally not editable
+    # here; user renames go through `titleOverride` below (#375).
     field_map = {
         'networkId': 'network_id',
         'daiPlatform': 'dai_platform',
@@ -2099,10 +1999,17 @@ def update_feed(slug):
         if api_field in data:
             updates[db_field] = data[api_field]
 
-    # Local-only metadata fields (Task 6): title/author/explicit/categories/p20
-    # are only meaningful for a local feed (no upstream RSS to derive them
-    # from), so a subscribed feed 400s rather than silently accepting a value
-    # a refresh would immediately overwrite or ignore.
+    if 'network_id_override' in updates:
+        network_override = updates['network_id_override']
+        if network_override is not None and not isinstance(network_override, str):
+            return error_response('networkIdOverride must be a string or null', 400)
+        changed = normalize_network_id(network_override) != normalize_network_id(podcast.get('network_id_override'))
+        if changed and len((network_override or '').strip()) > MAX_NETWORK_ID_CHARS:
+            return error_response(f'networkIdOverride must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
+
+    # Local-only metadata fields: title/author/explicit/categories/p20 only make sense for
+    # a local feed (no upstream RSS), so a subscribed feed 400s rather than silently
+    # accepting a value a refresh would overwrite.
     youtube_editable = _YT_EDITABLE if is_youtube_feed(podcast) else frozenset()
     for field in _LOCAL_ONLY_FIELDS:
         if field in data and has_upstream(podcast) and field not in youtube_editable:
@@ -2146,12 +2053,9 @@ def update_feed(slug):
             existing_channel_json = {}
 
         if data['p20'] is None:
-            # p20: null clears the five list tags, podroll, and any
-            # operator-supplied locked_owner, but preserves the minted guid
-            # and medium/locked -- a per-tag clear ({"p20": {"funding": []}})
-            # already works via the merge below; this is the "clear
-            # everything operator-editable" shortcut. guid/medium/locked are
-            # never touched here since they aren't cleared by this shortcut.
+            # p20: null clears the list tags, podroll and any locked_owner but keeps the
+            # minted guid and medium/locked ("clear everything operator-editable"). A per-tag
+            # clear ({"p20": {"funding": []}}) already works via the merge below.
             for tag in (*_p20_tag_attrs(), 'podroll'):
                 existing_channel_json.pop(tag, None)
             existing_channel_json.pop('locked_owner', None)
@@ -2160,16 +2064,14 @@ def update_feed(slug):
             p20_val, p20_err = _validate_p20(data['p20'])
             if p20_err:
                 return error_response(p20_err, 400)
-            # Merge onto the existing stored object so an unspecified tag
-            # (and the guid, which _validate_p20 never accepts) survives a
-            # partial PATCH. _apply_p20_merge resolves the locked_owner
-            # delete sentinel (blank/null) into an actual key removal
-            # instead of storing a JSON null.
+            # Merge onto the stored object so unspecified tags (and the guid, which
+            # _validate_p20 never accepts) survive a partial PATCH; _apply_p20_merge turns
+            # the locked_owner delete sentinel into a key removal instead of a JSON null.
             updates['p20_channel_json'] = json.dumps(
                 _apply_p20_merge(existing_channel_json, p20_val))
 
     # Handle auto-process override specially (can be null, true, or false).
-    # None passes through to DB as NULL (clears the override) -- unlike add_feed
+    # None passes through to DB as NULL (clears the override), unlike add_feed
     # which guards with `if db_value is not None` since there's nothing to clear yet.
     if 'autoProcessOverride' in data:
         updates['auto_process_override'] = _serialize_auto_process(data['autoProcessOverride'])
@@ -2278,6 +2180,13 @@ def update_feed(slug):
         if qp_err:
             return error_response(qp_err, 400)
         updates['queue_priority'] = qp_val
+
+    if 'queueOrder' in data:
+        qo_val, qo_err = _normalize_override(
+            data['queueOrder'], SETTING_CONSTRAINTS['queue_order'].options, 'queueOrder')
+        if qo_err:
+            return error_response(qo_err, 400)
+        updates['queue_order'] = qo_val
 
     if 'lowAdYieldAction' in data:
         ly_val, ly_err = _normalize_low_ad_yield_action(data['lowAdYieldAction'])
@@ -2440,10 +2349,9 @@ def update_feed(slug):
             return error_response(err, 400)
         updates['keep_original_audio_override'] = v
 
-    # Validated last so every cheap field validation can 400 before the
-    # network fetch inside _validate_source_url runs. An unchanged URL is a
-    # no-op: skipping it avoids the validation fetch, the validator clear,
-    # and the forced refresh for retried or blind-PUT-style requests.
+    # Validated last so cheap field validation can 400 before the network fetch in
+    # _validate_source_url. An unchanged URL is a no-op, skipping the fetch, the validator
+    # clear and the forced refresh for retried or blind-PUT requests.
     if 'sourceUrl' in data and not (
             isinstance(data['sourceUrl'], str)
             and data['sourceUrl'].strip() == podcast['source_url']):
@@ -2464,10 +2372,8 @@ def update_feed(slug):
             # the new network with stranded templates.
             with db.transaction(immediate=True) as conn:
                 db.update_podcast(slug, conn=conn, **updates)
-                fresh = db.get_podcast_by_slug(slug)
-                effective_network = (
-                    (fresh.get('network_id_override') or '').strip()
-                    or fresh.get('network_id') or None)
+                fresh = db.get_podcast_row(slug)
+                effective_network = fresh.get('network_id_override') or fresh.get('network_id') or None
                 db.retag_network_cue_templates(fresh['id'], effective_network, conn=conn)
         else:
             db.update_podcast(slug, **updates)
@@ -2486,22 +2392,11 @@ def update_feed(slug):
         # Return updated feed data
         podcast = db.get_podcast_by_slug(slug)
 
-        # Settings changes that alter the served RSS body must regenerate it.
-        # Clearing etag/last_modified first ensures that if the force-refresh
-        # below throws, the next scheduled refresh cannot 304 and will fully
-        # regenerate the feed with the new settings applied. title_override
-        # rewrites the served channel <title> (#375), so it belongs here too.
-        # source_url repoints the feed entirely (#484): the stored validators
-        # belong to the old host and could false-304 against the new one, and
-        # the immediate refresh pulls from the new URL (podcast was re-read
-        # above, so it carries the new value).
-        # own_episode_guids rewrites every item <guid> (#598). title/author/
-        # explicit/categories/p20_channel_json are the local-feed metadata
-        # fields (Task 6) -- refresh_rss_feed already routes a local feed to
-        # rebuild_local_feed instead of an upstream fetch (main_app/feeds.py).
-        # description rewrites the channel <description> for both feed types
-        # and was previously missing from this list, so a local feed's served
-        # RSS kept the stale description until the next unrelated refresh.
+        # Settings that alter the served RSS body must regenerate it. Clearing etag and
+        # last_modified first means a failed force-refresh cannot be followed by a 304.
+        # Covers title_override and description (channel <title>/<description>, #375),
+        # source_url (#484: old-host validators could false-304), own_episode_guids (#598)
+        # and local-feed metadata (routed to rebuild_local_feed, not an upstream fetch).
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'description_override' in updates
                 or 'source_url' in updates
@@ -2522,8 +2417,7 @@ def update_feed(slug):
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
             if 'chapters_in_notes' in updates or 'review_links_in_notes' in updates:
                 try:
-                    from recents_feed import rebuild_recents_feed
-                    rebuild_recents_feed()
+                    recents_feed.rebuild_recents_feed()
                 except Exception as e:
                     logger.warning(f"Recents rebuild after settings change failed for {slug}: {e}")
 
@@ -2538,15 +2432,11 @@ def update_feed(slug):
 
 
 def _best_effort_rmtree(slug: str, path) -> None:
-    """Remove ``path`` and everything under it, tolerating a stubborn entry
-    instead of leaving the whole directory behind because of one.
+    """Remove ``path`` and everything under it, tolerating a stubborn entry.
 
-    Tries a single ``shutil.rmtree`` first (the common case: an ordinary
-    directory on the data volume). If that fails -- most likely a busy
-    bind-mount point that refuses to remove itself while still letting its
-    contents go -- falls back to removing each child individually and logs
-    a warning naming whatever, if anything, was left. A missing path is not
-    an error: nothing was ever staged/dropped there.
+    Tries one ``shutil.rmtree``; if that fails (typically a busy bind-mount point that
+    refuses to remove itself but lets its contents go), removes each child individually and
+    logs a warning naming anything left. A missing path is not an error.
     """
     if not path.exists():
         return
@@ -2599,7 +2489,7 @@ def delete_feed(slug):
     db = get_database()
     storage = get_storage()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -2690,33 +2580,24 @@ def delete_feed(slug):
         storage.cleanup_podcast_dir(slug)
         run_log.delete_feed_logs(storage.data_dir, slug)
 
-        # A local feed's import staging dir and user-managed import
-        # directory (see local_import.py / storage.import_staging_dir /
-        # storage.import_source_dir) live outside podcasts_dir, so
-        # cleanup_podcast_dir above never touches them -- without this
-        # they'd survive the feed they were staged for. Best-effort: a
-        # busy bind-mount point (the import directory is commonly a host
-        # mount) refusing to remove itself must never fail the delete that
-        # already succeeded in the database; _best_effort_rmtree empties
-        # whatever it can and logs the rest as a warning instead of raising.
+        # A local feed's import staging dir and import directory live outside podcasts_dir,
+        # so cleanup_podcast_dir never touches them. Best-effort: a busy bind-mount point
+        # (the import dir is commonly a host mount) must not fail a delete that already
+        # succeeded in the DB; _best_effort_rmtree empties what it can and logs the rest.
         if is_local_feed(podcast):
             _best_effort_rmtree(slug, storage.import_staging_dir(slug, create=False))
             _best_effort_rmtree(slug, storage.import_source_dir(slug))
             # The per-feed import job state/lock files (local_import.py's
-            # <data>/.import-jobs/<slug>.{json,lock}) also live outside
-            # podcasts_dir -- without this, recreating a feed under the
-            # same slug would read back the deleted feed's stale import
-            # report (or, if a commit happened to be running, its lock)
-            # instead of starting clean. Best-effort, same rationale as
-            # the dirs above.
+            # <data>/.import-jobs/<slug>.{json,lock}) also live outside podcasts_dir; leaving
+            # them would let a feed recreated under the same slug read the stale import
+            # report or lock. Best-effort, same rationale as above.
             try:
                 from local_import import clear_job_files
                 clear_job_files(storage, slug)
             except Exception as e:
                 logger.warning(f"[{slug}] could not clear import job files: {e}")
 
-        from recents_feed import rebuild_recents_feed
-        rebuild_recents_feed()
+        recents_feed.rebuild_recents_feed()
         logger.info(f"Deleted feed: {slug}")
         message = ('Feed deleted; in-progress processing was cancelled'
                    if cancelled_runs else 'Feed deleted')
@@ -2738,7 +2619,7 @@ def _refresh_message(outcome) -> str:
     if outcome.status == 'coalesced':
         return 'Refresh already completed recently'
     if outcome.status == 'parse_backoff':
-        return outcome.error or 'Feed is backing off after an unreadable body'
+        return redact_error(outcome.error) or 'Feed is backing off after an unreadable body'
     return 'Feed refreshed'
 
 
@@ -2746,16 +2627,10 @@ def _refresh_message(outcome) -> str:
 @limiter.limit("10 per minute")
 @log_request
 def refresh_feed(slug):
-    """Refresh a single podcast feed.
-
-    Optional request body:
-    {
-        "force": true  // Force full refresh, bypassing conditional GET (304)
-    }
-    """
+    """Refresh a single podcast feed. Optional body: {"force": true} bypasses conditional GET (304)."""
     db = get_database()
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
 
@@ -2782,7 +2657,7 @@ def refresh_feed(slug):
             return error_response(outcome.error or 'Feed refresh failed', status)
 
         # Get updated info
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         episodes, total = db.get_episodes(slug)
 
         logger.info(f"Refreshed feed: {slug}")
@@ -2804,13 +2679,7 @@ def refresh_feed(slug):
 @limiter.limit("2 per minute")
 @log_request
 def refresh_all_feeds():
-    """Refresh all podcast feeds.
-
-    Optional request body:
-    {
-        "force": true  // Force full refresh for all feeds, bypassing conditional GET (304)
-    }
-    """
+    """Refresh all podcast feeds. Optional body: {"force": true} bypasses conditional GET (304)."""
     try:
         db = get_database()
 
@@ -2820,13 +2689,13 @@ def refresh_all_feeds():
         from main_app.feeds import refresh_all_feeds as do_refresh
         result = do_refresh(force=force)
 
-        podcasts = db.get_all_podcasts()
+        feed_count = db.count_podcasts()
 
         logger.info(f"Refreshed all feeds (force={force})")
         return json_response({
             'message': ('All feeds refreshed' if result['success']
                         else 'Feed refresh completed with failures'),
-            'feedCount': len(podcasts),
+            'feedCount': feed_count,
             **result,
         }, 200 if result['success'] else 207)
 
@@ -2839,9 +2708,9 @@ def refresh_all_feeds():
 @limiter.limit("2 per minute")
 @log_request
 def refresh_artwork():
-    """Re-pull cover art for all feeds and rebuild their served RSS so the
-    cover-art badge setting (issue #420) takes effect. Unlike a feed refresh,
-    this does not re-discover or queue episodes, so it never triggers processing.
+    """Re-pull cover art for all feeds and rebuild their served RSS so the cover-art badge
+    setting (#420) takes effect. Does not re-discover or queue episodes, so never triggers
+    processing.
     """
     try:
         from main_app.feeds import refresh_all_artwork
@@ -2857,11 +2726,9 @@ def refresh_artwork():
 @limiter.limit("2 per minute")
 @log_request
 def regenerate_feeds():
-    """Rebuild every served RSS with the current URL settings (feed auth key,
-    cover badge, BASE_URL). Re-fetches each upstream source feed but does not
-    re-discover or queue episodes, so it never triggers processing and never
-    touches episode rows or stats. Used after enabling feed auth or rotating
-    the key so existing feeds embed it.
+    """Rebuild every served RSS with the current URL settings (feed auth key, cover badge,
+    BASE_URL). Re-fetches each upstream feed but never queues episodes or touches episode
+    rows or stats. Used after enabling feed auth or rotating the key.
     """
     try:
         from main_app.feeds import rebuild_all_served_feeds
@@ -2897,12 +2764,9 @@ def get_artwork(slug):
 
     artwork = storage.artwork_file(slug)
     if not artwork:
-        # Only auto-recover when the DB flag claims artwork IS cached
-        # (the file got deleted out from under us). When cached=0, a prior
-        # download failed (size cap, content-type rejection, fetch error)
-        # and retrying on every request just burns ~200ms per request and
-        # hammers the upstream host. The 15-minute refresh cycle retries
-        # downloads naturally; let it do the work.
+        # Auto-recover only when the DB flag says artwork IS cached (the file was deleted).
+        # When cached=0 a prior download failed (size cap, content-type, fetch error); retrying
+        # per request wastes ~200ms and hammers the upstream, so the 15-minute refresh handles it.
         db = get_database()
         podcast = db.get_podcast_by_slug(slug)
         if podcast and podcast.get('artwork_cached'):
@@ -2929,9 +2793,7 @@ def get_artwork(slug):
 def upload_feed_artwork(slug):
     """Upload cover art for a local, recents or YouTube feed.
 
-    Subscribed feeds get their artwork from the upstream RSS
-    <itunes:image>/<image> on refresh, so a direct upload here would just be
-    silently clobbered by the next refresh.
+    Subscribed feeds get artwork from the upstream RSS on refresh, which would clobber an upload.
     """
     db = get_database()
     podcast = db.get_podcast_by_slug(slug)
@@ -2991,12 +2853,10 @@ def upload_feed_artwork(slug):
 @api.route('/feeds/<slug>/tags', methods=['GET'])
 @log_request
 def get_feed_tags(slug):
-    """Return the source breakdown of a podcast's tags.
-
-    Output: {effective: [...], rss: [...], episode: [...], user: [...]}
-    """
+    """Return the source breakdown of a podcast's tags:
+    {effective: [...], rss: [...], episode: [...], user: [...]}."""
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     return json_response(db.get_podcast_tags(slug))
 
@@ -3005,12 +2865,9 @@ def get_feed_tags(slug):
 @log_request
 def get_ad_distribution(slug):
     """Where this feed's ad cuts historically land across an episode.
-
-    Setting-independent (does not require the positional-prior experiment to
-    be enabled): purely informational for the feed detail panel.
-    """
+    Setting-independent (no positional-prior experiment needed); informational for the feed detail panel."""
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
 
     dist = compute_ad_distribution(db, slug)
@@ -3039,12 +2896,12 @@ def get_ad_distribution(slug):
 def update_feed_tags(slug):
     """Update a podcast's user-added tags. Body: {user_tags: ['tag1', ...]}.
 
-    Validates each tag against VALID_TAGS. The denormalized `tags` field
-    on the row is rewritten as the union of (existing rss + new user + episode tags).
+    Each tag is validated against VALID_TAGS; the denormalized `tags` field is rewritten as
+    the union of existing rss + new user + episode tags.
     """
     from utils.community_tags import valid_tags
     db = get_database()
-    if not db.get_podcast_by_slug(slug):
+    if not db.get_podcast_row(slug):
         return error_response('Feed not found', 404)
     data = request.get_json() or {}
     user_tags = data.get('user_tags')
@@ -3064,15 +2921,11 @@ def update_feed_tags(slug):
 @limiter.limit("5 per minute")
 @log_request
 def rerender_segments(slug):
-    """Re-cut every processed episode of a feed against the current
-    segment-category action maps (issue #565).
+    """Re-cut every processed episode against the current segment-category action maps (#565).
 
-    Reuses the single-episode recut path (_recut_episode re-resolves
-    actions against the current maps), so there is only one recut queue
-    in the codebase. Episodes not in 'processed' status aren't candidates;
-    a processed episode failing the same preconditions as the
-    single-episode recut (no retained original, no saved transcript
-    segments, no ad detections) counts as skipped.
+    Reuses the single-episode recut path (_recut_episode), so there is one recut queue. A
+    processed episode that fails the same preconditions (no retained original, transcript
+    segments or ad detections) counts as skipped.
     """
     db = get_database()
 
@@ -3080,8 +2933,7 @@ def rerender_segments(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    from api.episodes.runs import _check_recut_preconditions
-    from main_app.processing import start_background_processing
+    from api.episodes.runs import _check_recut_preconditions, _queue_recut
 
     # get_episodes defaults to a 50-row page; a feed's processed backlog can
     # exceed that, so ask for effectively "all" (storage.py uses the same
@@ -3108,37 +2960,7 @@ def rerender_segments(slug):
             continue
 
         try:
-            db.upsert_episode(
-                slug, episode_id,
-                status=EpisodeStatus.PENDING.value,
-                reprocess_mode='recut',
-                reprocess_requested_at=utc_now_iso(),
-                retry_count=0,
-                error_message=None,
-            )
-            started, _reason = start_background_processing(
-                slug, episode_id,
-                episode.get('original_url'),
-                episode.get('title', 'Unknown'),
-                podcast.get('title', slug),
-                episode.get('description'),
-                None,
-                episode.get('published_at'),
-            )
-            if not started:
-                # Bulk recut: no manual boost, same policy as Reprocess All.
-                # JIT plays and single reprocesses must outrank backlog work.
-                priority = compute_queue_priority(
-                    podcast.get('queue_priority'), episode.get('published_at'), bulk=True)
-                db.upsert_episode_for_processing(
-                    slug, episode_id, episode.get('original_url'),
-                    episode.get('title', 'Unknown'),
-                    episode.get('published_at'), episode.get('description'),
-                    priority=priority,
-                )
-                get_status_service().queue_episode(
-                    slug, episode_id, episode.get('title', 'Unknown'),
-                    podcast.get('title', slug))
+            _queue_recut(db, slug, episode_id, episode, podcast, bulk=True)
             queued += 1
         except Exception:
             logger.exception(

@@ -1,6 +1,7 @@
 """Tests for the run-scoped JSONL log recorder (issue #660)."""
 import json
 import logging
+import sys
 import threading
 
 import pytest
@@ -491,3 +492,18 @@ class TestCurrentRecorder:
         run_context.end(ctx)
 
         assert seen == [rec]
+
+
+def test_run_log_scrubs_query_strings_in_message_and_traceback(rec, src_logger):
+    url = "https://cdn.example.com/a.mp3?key=secret123"
+    try:
+        raise RuntimeError(f"403 Client Error: Forbidden for url: {url}")
+    except RuntimeError:
+        record = src_logger.makeRecord(
+            src_logger.name, logging.ERROR, __file__, 0, f"[my-feed:ep123] fetch failed {url}",
+            None, sys.exc_info())
+    rec.handle(record)
+    rec.detach()
+    stored = rec.temp_path.read_text()
+    assert 'secret123' not in stored
+    assert '?<redacted>' in stored

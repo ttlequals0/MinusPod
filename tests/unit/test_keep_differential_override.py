@@ -1,9 +1,7 @@
 """A keep-mapped category must not shelter a dynamically inserted ad (#728).
 
-`cross_promo` covers both a guest plugging their own show, which is why an
-operator sets keep, and a paid injected ad for another podcast. The category
-cannot separate them; the cross-fetch differential can.
-"""
+`cross_promo` covers both a guest plugging their own show (why operators set keep) and a paid
+injected ad; the category cannot separate them, the cross-fetch differential can."""
 from tests.app_bootstrap import bootstrap
 
 bootstrap('keep_differential_test_', passphrase='keep-differential-test-pass')

@@ -11,10 +11,12 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('youtube_pipeline_test_')
 
+import llm_client
 from main_app import processing
 from main_app.pipeline import common, detect as detect_stage, finalize as finalize_stage, sponsorblock as sb_stage
 from main_app.pipeline import transcribe, verify, signals, recut, publish
 from youtube.settings import YouTubeSettings
+from tests.unit.pipeline_run_support import _install_recorder
 
 PODCAST = {'id': 7, 'slug': 'yt-feed', 'feed_type': 'youtube', 'youtube_source_kind': 'playlist',
            'youtube_source_id': 'PL1', 'description': None, 'tags': None, 'dai_platform': None,
@@ -54,6 +56,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
             db = p(processing, 'db')
             db.get_podcast_by_slug.return_value = podcast
+            db.get_podcast_row.return_value = podcast
             db.get_episode.return_value = episode_row or {'episode_id': 'ep1', 'status': 'pending',
                                                            'sb_state': 'probing',
                                                            'youtube_video_id': 'vid000000001',
@@ -157,6 +160,20 @@ def test_sponsorblock_only_runs_patterns_with_llm_off_and_skips_verification():
     assert sorted(c['start'] for c in cut) == [10.0, 50.0]
     assert [c.get('sb_uuid') for c in sorted(cut, key=lambda c: c['start'])] == ['u1', None]
     assert after.call_args.args[2].mode == 'sponsorblock'
+
+
+@pytest.mark.parametrize('markers', [MARKERS, []])
+def test_none_provider_youtube_run_uses_sponsorblock_and_never_the_llm(monkeypatch, markers):
+    monkeypatch.setattr(llm_client, 'get_effective_provider', lambda: 'none')
+    calls = _install_recorder(monkeypatch)
+    ok, whisper, detect, verification, ap, fin, after, diff = _run(markers, llm_on_top=True, llm_fallback=True)
+    assert ok is True
+    assert detect.call_args.kwargs['skip_llm'] is True
+    assert verification.call_args.kwargs['skip_verification'] is True
+    _run.extras['reviewer'].assert_not_called()
+    cut = ap.return_value.process_episode.call_args.args[1]
+    assert [c.get('sb_uuid') for c in cut] == (['u1'] if markers else [])
+    assert calls == []
 
 
 def test_sponsorblock_only_without_captions_still_runs_the_pattern_stages():

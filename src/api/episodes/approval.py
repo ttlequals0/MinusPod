@@ -94,7 +94,7 @@ def _parse_targets(payload, db):
 def approve_episode(slug, episode_id):
     """Publish an episode that is waiting for manual approval."""
     db = get_database()
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     if not podcast:
         return error_response('Feed not found', 404)
     if not _approve(db, slug, episode_id, podcast.get('title') or slug):

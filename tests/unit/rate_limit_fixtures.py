@@ -1,9 +1,6 @@
-"""Shared rate-limit 429 body fixture, used by tests across the retry-after,
-upstream-reset, and rate-limit-hold suites.
+"""Shared rate-limit 429 body fixture for the retry-after, upstream-reset and rate-limit-hold suites.
 
-A generic provider's 429 body: a one-hour Retry-After header sits next to a
-body carrying the true, farther-out reset (issue: the header alone caused
-the queue hold to release an hour early, #696).
+A one-hour Retry-After header sits next to a body carrying the true, farther-out reset (#696).
 """
 PRODUCTION_RESET_BODY = {
     "error": {

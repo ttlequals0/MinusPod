@@ -28,29 +28,22 @@ COMMUNITY_PATTERN_BASE_URL = (
 )
 COMMUNITY_MANIFEST_URL = COMMUNITY_PATTERN_BASE_URL + 'index.json'
 
-# Schema versions. MANIFEST_VERSION bumps when the manifest envelope shape
-# changes; VOCABULARY_VERSION bumps when the tag list is added to / removed
-# from. Both ship with the app image; this module is the single owner -- the
-# manifest generator and the sync job both import these constants, not their
-# own copies.
-# v2 (#400): thin index -- entries carry content_hash + path instead of inline
-# `data`; the client fetches only changed per-pattern files. Clients still read
-# v1 inline manifests for backward compatibility during rollout.
+# MANIFEST_VERSION bumps when the manifest envelope changes; VOCABULARY_VERSION when tags are
+# added or removed. The manifest generator and sync job import these rather than keeping copies.
+# v2 (#400): thin index, entries carry content_hash + path instead of inline `data`.
+# Clients still read v1 inline manifests.
 MANIFEST_VERSION = 2
 VOCABULARY_VERSION = 1
 
 
 def content_hash_for_bytes(raw: bytes) -> str:
-    """Content hash of a published per-pattern file, over its raw bytes exactly
-    as published. The manifest generator and the sync client MUST both call this
-    on the same bytes, or every row reads as changed on every sync. Never hash a
-    re-serialized dict (key order / whitespace diverge)."""
+    """Content hash of a published per-pattern file's exact raw bytes.
+    The manifest generator and sync client must both call this on the same bytes, or every
+    row reads as changed each sync. Never hash a re-serialized dict (key order/whitespace diverge)."""
     return hashlib.sha256(raw).hexdigest()
 
-# Community submission bundle: format string + version, used by the export
-# builder (community_export.build_bundle), the PR-side validator, and the
-# manifest generator. Single source of truth so the three modules can't
-# drift on the spelling.
+# Community submission bundle format and version, shared by community_export.build_bundle,
+# the PR validator and the manifest generator.
 BUNDLE_FORMAT = 'minuspod-community-submission'
 BUNDLE_VERSION = 1
 BUNDLE_NAME_PREFIX = 'minuspod-submission-'
@@ -59,9 +52,8 @@ BUNDLE_NAME_PREFIX = 'minuspod-submission-'
 def iter_bundle_patterns(raw):
     """Yield each pattern dict inside a payload, regardless of shape.
 
-    A flat per-pattern file yields ``raw`` itself. A bundle file (``raw['format']
-    == BUNDLE_FORMAT``) yields each entry in ``raw['patterns']``. Non-dict
-    entries are skipped. Callers add their own indexing or filtering.
+    A flat file yields ``raw`` itself; a bundle (``raw['format'] == BUNDLE_FORMAT``) yields each
+    entry in ``raw['patterns']``. Non-dict entries are skipped.
     """
     if not isinstance(raw, dict):
         return
@@ -83,7 +75,7 @@ PATTERN_SOURCES: frozenset[str] = frozenset({
 
 @lru_cache(maxsize=1)
 def _vocabulary_tags() -> frozenset[str]:
-    """Tags from src/seed_data/tag_vocabulary.csv (no 'universal' -- see VALID_TAGS)."""
+    """Tags from src/seed_data/tag_vocabulary.csv (no 'universal'; see VALID_TAGS)."""
     path = os.path.join(_SEED_DIR, 'tag_vocabulary.csv')
     tags = set()
     with open(path, 'r', encoding='utf-8') as fh:
@@ -103,9 +95,8 @@ def valid_tags() -> frozenset[str]:
 
 @lru_cache(maxsize=1)
 def vocabulary_payload() -> dict[str, object]:
-    """Categorized vocabulary view used by patterns/vocabulary.json AND the
-    /api/v1/tags/vocabulary endpoint. Cached because the source CSV ships
-    with the app image and never changes at runtime.
+    """Categorized vocabulary view for patterns/vocabulary.json and /api/v1/tags/vocabulary.
+    Cached: the source CSV ships with the image and never changes at runtime.
     """
     path = os.path.join(_SEED_DIR, 'tag_vocabulary.csv')
     genres: list[dict[str, str]] = []
@@ -134,8 +125,7 @@ def vocabulary_payload() -> dict[str, object]:
 def itunes_category_map() -> dict[str, str]:
     """iTunes category string -> vocabulary tag (case-insensitive lookup via .lower()).
 
-    Keys in the file are the canonical iTunes labels (e.g. 'Health & Fitness').
-    We expose a lowercased view for lookup.
+    The file keys are canonical iTunes labels (e.g. 'Health & Fitness'); this returns a lowercased view.
     """
     path = os.path.join(_SEED_DIR, 'itunes_category_map.json')
     with open(path, 'r', encoding='utf-8') as fh:
@@ -155,16 +145,12 @@ def sponsor_seed() -> list[dict[str, object]]:
     """List of {name, aliases: List[str], tags: List[str]} read from
     `src/seed_data/validator_known_sponsors.csv`.
 
-    Originally the v2.4.0 DB seed (see `_reseed_known_sponsors`). That
-    migration is now gated by `sponsor_seed_revision = '2.4.0'`, so CSV
-    edits no longer reach existing instances; the in-app `known_sponsors`
-    table is the source of truth on the app side. The only ongoing
-    consumer is the PR validator's multi-sponsor-contamination check
-    (`find_foreign_sponsors`). Add a row only when a brand commonly
-    appears as a foreign mention inside other sponsors' ad copy.
+    The v2.4.0 DB seed (see `_reseed_known_sponsors`) is gated by `sponsor_seed_revision = '2.4.0'`,
+    so CSV edits no longer reach existing instances; the `known_sponsors` table is the app's source
+    of truth. Only the PR validator's `find_foreign_sponsors` check still reads this. Add a row only
+    when a brand commonly appears as a foreign mention in other sponsors' ad copy.
 
-    Names and tags are preserved verbatim. Aliases and tags are
-    pipe-delimited in the CSV.
+    Names and tags are verbatim; aliases and tags are pipe-delimited in the CSV.
     """
     path = os.path.join(_SEED_DIR, 'validator_known_sponsors.csv')
     rows: list[dict[str, object]] = []
@@ -182,7 +168,7 @@ def sponsor_seed() -> list[dict[str, object]]:
     return rows
 
 
-# Consumer email domains -- strip on export (best-effort, tunable).
+# Consumer email domains: stripped on export (best-effort, tunable).
 CONSUMER_EMAIL_DOMAINS: frozenset[str] = frozenset({
     'gmail.com', 'yahoo.com', 'aol.com', 'hotmail.com', 'outlook.com',
     'icloud.com', 'me.com', 'mac.com', 'protonmail.com', 'proton.me',
@@ -191,7 +177,7 @@ CONSUMER_EMAIL_DOMAINS: frozenset[str] = frozenset({
     'tutanota.com',
 })
 
-# Toll-free prefixes -- phone numbers using these are KEPT in export text.
+# Toll-free prefixes: phone numbers using these are kept in export text.
 # Everything else matched by the phone regex is stripped.
 TOLLFREE_PREFIXES_NANP: tuple[str, ...] = ('800', '833', '844', '855', '866', '877', '888')
 TOLLFREE_PREFIXES_UK: tuple[str, ...] = ('0800', '0808')
@@ -271,10 +257,8 @@ def is_tollfree(phone_match: str) -> bool:
 def slugify(name: str) -> str:
     """Lowercase, hyphenated, ASCII-safe slug used for community pattern filenames.
 
-    Shared by the exporter (community_export), the PR validator
-    (tools.community_pattern_validator), the scaffold helper, and the
-    bundle-split helper, so the filename a contributor sees on disk is the
-    same one the validator expects.
+    Shared by the exporter, PR validator, scaffold helper and bundle-split helper so on-disk names
+    match what the validator expects.
     """
     if not isinstance(name, str):
         return 'sponsor'
@@ -283,10 +267,9 @@ def slugify(name: str) -> str:
 
 
 def app_version() -> str:
-    """Return the running app version, or 'unknown' if version.py can't be read.
+    """Return the running app version.
 
-    Shared by community_export (bundle metadata) and the manual-contributor
-    scaffold tool so the submitted_app_version field is consistent.
+    Shared by community_export and the scaffold tool so submitted_app_version is consistent.
     """
     return APP_VERSION
 
@@ -294,9 +277,7 @@ def app_version() -> str:
 def expected_filename(sponsor: str, community_id: str) -> str | None:
     """Build the canonical per-pattern filename: `<slug(sponsor)>-<short_uuid>.json`.
 
-    Returns None when `community_id` is empty -- the caller treats that as a
-    missing required field and reports it through the existing required-field
-    check, not this one.
+    Returns None when `community_id` is empty; the required-field check reports that.
     """
     if not community_id:
         return None

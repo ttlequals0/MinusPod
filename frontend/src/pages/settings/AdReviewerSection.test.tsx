@@ -3,12 +3,17 @@
  * resurrect each get their own two-click reset button; the bulk button is
  * unaffected.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdReviewerSection, { type ReviewerState } from './AdReviewerSection';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import type { ClaudeModel } from '../../api/types';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 function catalog(models: ClaudeModel[]): ModelCatalog {
   return { models, isLoading: false, isError: false };
@@ -244,5 +249,20 @@ describe('AdReviewerSection: review provider select', () => {
     await user.selectOptions(screen.getByLabelText('Review provider'), 'Provider B');
 
     expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'secondary' });
+  });
+});
+
+describe('AdReviewerSection: LLM provider None', () => {
+  it('disables the reviewer with the reason and skips the model warnings', () => {
+    llmState.enabled = false;
+    renderSection({ reviewer: { ...baseReviewer(), provider: 'primary', model: '' } });
+    expectGatedByLlm(screen.getByLabelText('Enable ad reviewer'));
+    expectGatedByLlm(screen.getByLabelText('Review provider'));
+    expect(screen.queryByText('Choose a model')).toBeNull();
+  });
+
+  it('is enabled when the provider is set', () => {
+    renderSection();
+    expectNotGatedByLlm(screen.getByLabelText('Review provider'));
   });
 });

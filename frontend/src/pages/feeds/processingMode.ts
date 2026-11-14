@@ -1,4 +1,5 @@
 import type { ProcessingMode } from '../../api/types';
+import { LLM_DISABLED_REASON } from '../settings/LlmGate';
 
 // Hint shown below a processing-mode select; warning marks modes that can cut real audio.
 export const PROCESSING_MODE_HINTS: Record<ProcessingMode, { text: string; warning: boolean }> = {
@@ -46,3 +47,15 @@ export const PROCESSING_MODE_ORDER: ProcessingMode[] = ['standard', 'keep_conten
 
 // cue_only needs cue templates, which a feed only has after creation.
 export const CREATE_PROCESSING_MODES = PROCESSING_MODE_ORDER.filter((m) => m !== 'cue_only');
+
+const KEEP_CONTENT_NONE_NOTE = 'Keep content runs as Standard while the LLM provider is set to None.';
+const STANDARD_NONE_TEXT = 'Detects ads with text patterns, audio fingerprints, audio cues and cross-fetch comparison, and cuts them out. The default for most feeds.';
+export const KEEP_CONTENT_DISABLED_NOTE = `Keep content only is unavailable. ${LLM_DISABLED_REASON}`;
+
+// Hint for the selected mode; under None, keep_content and standard describe model-free detection.
+export function processingModeHint(mode: ProcessingMode, llmEnabled: boolean): { text: string; warning: boolean } {
+  if (llmEnabled) return PROCESSING_MODE_HINTS[mode];
+  if (mode === 'keep_content') return { text: KEEP_CONTENT_NONE_NOTE, warning: false };
+  if (mode === 'standard') return { text: STANDARD_NONE_TEXT, warning: false };
+  return PROCESSING_MODE_HINTS[mode];
+}

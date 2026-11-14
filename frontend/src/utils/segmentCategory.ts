@@ -82,7 +82,7 @@ export function isKeepLike(action?: string | null): boolean {
 // detection_review.UNSET_CATEGORY on the backend.
 export const UNSET_CATEGORY = 'none';
 
-export type CategoryFilter = SegmentCategory | typeof UNSET_CATEGORY | '';
+type CategoryFilter = SegmentCategory | typeof UNSET_CATEGORY | '';
 
 // Options for the category selects on the patterns, ad review, and detected ads
 // views. Derived from the label map so a new category needs one edit, not four.

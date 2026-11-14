@@ -1,10 +1,5 @@
-"""Unit tests for the audio-cue (ding/stinger) detector (issue #350).
-
-The ffmpeg/ebur128 measurement is exercised end-to-end only in the container;
-here we drive the pure burst-detection logic with synthetic per-frame
-band-loudness measurements so the thresholding, duration gating, and confidence
-gating are covered without audio.
-"""
+"""Audio-cue (ding/stinger) detector (issue #350): pure burst-detection logic on synthetic
+band-loudness frames (ffmpeg/ebur128 measurement is only exercised in the container)."""
 from audio_analysis.cue_detector import AudioCueDetector
 from audio_analysis.base import SignalType
 

@@ -1,29 +1,7 @@
 /**
- * Component tests for the CueCrossEpisodeScanModal flow in CueTemplatesPanel.tsx
- * (Phase D, Task D1c).
- *
- * Covers:
- *   - "Find across episodes" button is disabled when <2 eligible episodes exist.
- *   - Picker filters out episodes where hasOriginalAudio === false.
- *   - Picker enforces 2-5 selection: Scan button disabled below 2, 5th episode
- *     cannot be added once max is reached.
- *   - First selected episode is marked "target".
- *   - Scan trigger fires crossEpisodeScan with the selected IDs.
- *   - Polling stops when status transitions from 'scanning' to 'ready'.
- *   - Candidates render with timespan and episodeMatches badge.
- *   - Make-template action opens CueMarkModal with correct bounds and target episode.
- *   - Zero candidates -> "No recurring segments found." message.
- *   - Error status -> error message shown.
- *
- * Also covers the "Optimize window" row action + inline result panel (Task D2b):
- *   - Trigger fires optimizeCueWindow; scanning spinner shows; poll stops on
- *     ready/error; error shows the saved message.
- *   - Result panel renders baseline/proposed times, scores, per-episode list.
- *   - Already-optimal state hides Apply; nullable baseline renders a dash.
- *   - Apply PATCHes sourceOffsetS/durationS and invalidates the templates query;
- *     Apply failure (409) shows an inline error and keeps the panel open.
- *   - Discard collapses without a PATCH; Rescan refires with rescan=true.
- *   - Row action disabled when the template has no source episode.
+ * CueCrossEpisodeScanModal flow and the "Optimize window" row action in CueTemplatesPanel.tsx: picker
+ * eligibility and 2-5 selection, scan trigger and polling, candidates and Make-template, optimize
+ * trigger/result panel/Apply/Discard/Rescan, and the error and empty states.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -493,9 +471,8 @@ describe('Candidate results', () => {
   });
 
   it('seeds CueMarkModal with the response target id, not selected[0], when a cached scan returns a different order', async () => {
-    // User selects ep-1 first (selected[0]), but the server cache -- keyed on the
-    // SORTED id set -- returns candidates in ep-3's timeline. The Make-template
-    // seed must follow the response's targetEpisodeId (ep-3), not selected[0].
+    // The server cache is keyed on the sorted id set, so selecting ep-1 first can return ep-3's timeline.
+    // The Make-template seed must follow the response's targetEpisodeId (ep-3), not selected[0].
     const candidate = { start: 12.0, end: 15.0, kind: 'recurring' as const, episodeMatches: 1 };
     mockCrossEpisodeScan.mockResolvedValue({
       status: 'ready',
@@ -561,9 +538,13 @@ function readyPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function openOptimizePanel() {
-  await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
-  await userEvent.click(screen.getByRole('button', { name: /Optimize window/i }));
+async function openMore() {
+  await userEvent.click(await screen.findByRole('button', { name: /More actions for Ding/i }));
+}
+
+async function chooseMenuItem(name: string | RegExp) {
+  await openMore();
+  await userEvent.click(screen.getByRole('menuitem', { name }));
 }
 
 describe('Optimize window row action', () => {
@@ -574,7 +555,7 @@ describe('Optimize window row action', () => {
   it('fires optimizeCueWindow on click and shows the scanning state', async () => {
     mockOptimizeCueWindow.mockResolvedValue({ status: 'scanning', templateId: 7 });
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
     await waitFor(() => {
       expect(mockOptimizeCueWindow).toHaveBeenCalledWith('test-feed', 7);
       expect(screen.getByTestId('spinner-inline')).toBeDefined();
@@ -584,8 +565,8 @@ describe('Optimize window row action', () => {
   it('is disabled when the template has no source episode', async () => {
     mockListCueTemplates.mockResolvedValue([makeTemplate({ sourceEpisodeId: null })]);
     renderPanel();
-    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
-    const btn = screen.getByRole('button', { name: /Optimize window/i }) as HTMLButtonElement;
+    await openMore();
+    const btn = screen.getByRole('menuitem', { name: /Optimize window/i }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(mockOptimizeCueWindow).not.toHaveBeenCalled();
   });
@@ -595,7 +576,7 @@ describe('Optimize window row action', () => {
       .mockResolvedValueOnce({ status: 'scanning', templateId: 7 })
       .mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => {
       expect(screen.getByText('Proposed')).toBeDefined();
@@ -614,7 +595,7 @@ describe('Optimize window row action', () => {
       error: 'decode failed on ep-2',
     });
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('decode failed on ep-2')).toBeDefined());
     const calls = mockOptimizeCueWindow.mock.calls.length;
@@ -631,7 +612,7 @@ describe('Optimize window result panel', () => {
   it('renders baseline vs proposed times, scores, and per-episode list', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     expect(screen.getByText('Current')).toBeDefined();
@@ -652,7 +633,7 @@ describe('Optimize window result panel', () => {
       meanPeakScore: 0.871,
     }));
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText(/Already optimal/i)).toBeDefined());
     expect(screen.queryByRole('button', { name: /^Apply$/ })).toBeNull();
@@ -661,7 +642,7 @@ describe('Optimize window result panel', () => {
   it('renders a dash when the baseline score is null', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload({ baselineMeanPeakScore: null }));
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     expect(screen.getByText('--')).toBeDefined();
@@ -671,7 +652,7 @@ describe('Optimize window result panel', () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     mockUpdateCueTemplate.mockResolvedValue(makeTemplate());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     const listCallsBefore = mockListCueTemplates.mock.calls.length;
@@ -696,7 +677,7 @@ describe('Optimize window result panel', () => {
       new Error('Source episode original audio is no longer available'),
     );
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /^Apply$/ }));
@@ -710,7 +691,7 @@ describe('Optimize window result panel', () => {
   it('Discard collapses the panel without a PATCH', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /^Discard$/ }));
@@ -722,7 +703,7 @@ describe('Optimize window result panel', () => {
   it('Rescan refires with rescan=true', async () => {
     mockOptimizeCueWindow.mockResolvedValue(readyPayload());
     renderPanel();
-    await openOptimizePanel();
+    await chooseMenuItem(/Optimize window/i);
 
     await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /^Rescan$/ }));
@@ -753,9 +734,7 @@ describe('Network-scope template whose network no longer matches the feed', () =
   it('relabels the action to move the template, and moving sends the feed\'s current network', async () => {
     mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ scope: 'network', networkId: 'net-new' }));
     renderPanel();
-    const btn = await screen.findByRole('button', { name: /Move to network net-new/i });
-
-    await userEvent.click(btn);
+    await chooseMenuItem(/Move to network net-new/i);
 
     await waitFor(() => {
       expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { scope: 'network', networkId: 'net-new' });
@@ -767,7 +746,68 @@ describe('Network-scope template whose network no longer matches the feed', () =
     renderPanel();
     await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
     expect(screen.queryByText(/Shared on network/)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Make podcast-only' })).toBeDefined();
+    await openMore();
+    expect(screen.getByRole('menuitem', { name: 'Make podcast-only' })).toBeDefined();
+  });
+});
+
+describe('More menu on a cue row', () => {
+  const names = () => screen.getAllByRole('menuitem').map((e) => e.textContent);
+
+  it('lists the actions for a podcast-scope row without a network', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: null });
+    renderPanel();
+    await openMore();
+    expect(names()).toEqual(['Export', 'Change type', 'Optimize window', 'Delete']);
+    expect(screen.getByRole('menuitem', { name: 'Export' }).getAttribute('href')).toBe('/export/7');
+  });
+
+  it('adds Promote to network for a podcast row on a network', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-a' });
+    renderPanel();
+    await openMore();
+    await waitFor(() => expect(names()).toContain('Promote to network'));
+    expect(names()).toEqual(['Export', 'Promote to network', 'Change type', 'Optimize window', 'Delete']);
+  });
+
+  it('shows Make podcast-only for a network row', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ scope: 'network', networkId: 'net-a' })]);
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-a' });
+    renderPanel();
+    await openMore();
+    await waitFor(() => expect(names()).toContain('Make podcast-only'));
+  });
+
+  it('omits Play for a row with no audio and keeps Threshold and More', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ hasAudio: false })]);
+    renderPanel();
+    await screen.findByRole('button', { name: 'Threshold' });
+    expect(screen.queryByRole('button', { name: /Play cue/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /More actions for Ding/i })).toBeDefined();
+  });
+
+  it('shows Delete cue and Cancel after choosing Delete', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    renderPanel();
+    await chooseMenuItem('Delete');
+    expect(screen.getByRole('button', { name: 'Delete cue' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /More actions/i })).toBeNull();
+  });
+
+  it('keeps the Threshold button label fixed and shows the value as a text line only when set', async () => {
+    mockListCueTemplates.mockResolvedValue([
+      makeTemplate({ id: 7, label: 'Ding', scoreThreshold: 0.8 }),
+      makeTemplate({ id: 8, label: 'Dong', scoreThreshold: null }),
+    ]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('Dong')).toBeDefined());
+    const buttons = screen.getAllByRole('button', { name: 'Threshold' });
+    expect(buttons).toHaveLength(2);
+    buttons.forEach((b) => expect(b.textContent).toBe('Threshold'));
+    expect(screen.getAllByText(/^Threshold 80%$/)).toHaveLength(1);
   });
 });
 

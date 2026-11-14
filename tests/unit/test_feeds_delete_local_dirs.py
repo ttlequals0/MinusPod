@@ -1,13 +1,7 @@
-"""DELETE /feeds/<slug> also removes a local feed's import staging and
-import source directories (round-2 field-test fix): they live outside
-podcasts_dir (see storage.import_staging_dir/import_source_dir), so
-cleanup_podcast_dir alone never touches them, and they used to survive the
-feed they were staged for.
+"""DELETE /feeds/<slug> also removes a local feed's import staging and source dirs.
 
-Mirrors test_local_import_api.py's fixture style (shared app_client
-fixture from conftest.py, local _authed/_csrf_headers helpers, main_app
-singleton alignment).
-"""
+They live outside podcasts_dir (storage.import_staging_dir/import_source_dir), so
+cleanup_podcast_dir alone misses them. Fixture style mirrors test_local_import_api.py."""
 import os
 import sys
 import tempfile
@@ -35,11 +29,8 @@ def _csrf_headers(client):
 
 @pytest.fixture(autouse=True)
 def _align_main_app_singletons(app_client):
-    """See test_local_feed_api.py's identical fixture for the full
-    explanation: main_app.feeds / local_feed_builder freeze module-level
-    db/storage references at import time that can go stale relative to
-    api.get_database()/get_storage() by the time this module's tests run.
-    """
+    """See test_local_feed_api.py's identical fixture: main_app.feeds / local_feed_builder freeze
+    db/storage references at import time that can go stale."""
     import main_app.feeds as mf
     import local_feed_builder as lfb
     from api import get_database, get_storage
@@ -74,11 +65,8 @@ def test_delete_local_feed_removes_staging_and_import_dirs(app_client):
 
 
 def test_delete_local_feed_survives_a_failing_rmtree(app_client):
-    """A busy bind-mount point refusing to remove itself (simulated here by
-    making shutil.rmtree always raise) must not fail the API call -- the
-    feed row and podcast dir deletion already succeeded by the time the
-    import-dir cleanup runs, and a stubborn mount point is exactly the
-    scenario _best_effort_rmtree exists to tolerate."""
+    """A refusing bind-mount (shutil.rmtree always raising) must not fail the API call:
+    _best_effort_rmtree tolerates it after the feed row and podcast dir are already deleted."""
     from api import get_database, get_storage
     db, storage = get_database(), get_storage()
     slug = 'feeds-delete-local-busy-mount'
@@ -97,10 +85,8 @@ def test_delete_local_feed_survives_a_failing_rmtree(app_client):
 
 
 def test_delete_local_feed_clears_import_job_files(app_client):
-    """A recreated slug must never resurrect the deleted feed's stale
-    import report (or an unremovable phantom lock): delete also clears
-    <data>/.import-jobs/<slug>.{json,lock}, best-effort like the staging/
-    import dirs. Status for the (recreated) slug reads idle afterward."""
+    """A recreated slug must not inherit the deleted feed's import report or lock: delete also
+    clears <data>/.import-jobs/<slug>.{json,lock}."""
     from api import get_database, get_storage
     from local_import import get_import_status
 
@@ -134,9 +120,7 @@ def test_delete_local_feed_clears_import_job_files(app_client):
 
 
 def test_delete_subscribed_feed_does_not_touch_local_import_dirs(app_client):
-    """A subscribed feed has no import directories of its own, and must
-    never be probed for a local feed's staging/import dirs it happens to
-    share a slug-derived path shape with -- is_local_feed(podcast) gates
+    """A subscribed feed must never be probed for local import dirs: is_local_feed(podcast) gates
     the whole cleanup block."""
     from api import get_database, get_storage
     db, storage = get_database(), get_storage()

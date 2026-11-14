@@ -55,6 +55,21 @@ describe('Layout header hit targets', () => {
     }
   });
 
+  it('gets the coarse-pointer width for the Search link from the shared recipe, not a local patch', () => {
+    renderLayout();
+    const classes = screen.getByRole('link', { name: 'Search' }).className.split(/\s+/);
+    expect(classes).toContain('touch-target');
+    expect(classes.filter((c) => c.includes('pointer-coarse'))).toEqual([]);
+  });
+
+  it('gives the desktop navigation links the coarse-pointer floor, so a tablet at xl keeps a 44px target', () => {
+    renderLayout();
+    const links = screen.getAllByRole('link', { name: /^(Feeds|Patterns|Queue|Settings)/ });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(link.className.split(/\s+/)).toContain('touch-target');
+    expect(screen.getByRole('link', { name: 'MinusPod' }).className.split(/\s+/)).toContain('touch-target');
+  });
+
   it('announces when the compact navigation is expanded', async () => {
     renderLayout();
     const menu = screen.getByRole('button', { name: 'Toggle menu' });

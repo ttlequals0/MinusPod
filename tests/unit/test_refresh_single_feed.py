@@ -17,7 +17,7 @@ class TestRefreshSingleFeed(unittest.TestCase):
         """Test that refresh_single_feed looks up a podcast and calls refresh_rss_feed."""
         mock_refresh.return_value = True
         slug = 'demo'
-        mock_db.get_podcast_by_slug.return_value = {
+        mock_db.get_podcast_row.return_value = {
             'slug': slug,
             'source_url': 'https://example.com/feed.xml',
             'title': 'Demo Podcast'
@@ -26,14 +26,14 @@ class TestRefreshSingleFeed(unittest.TestCase):
         result = refresh_single_feed(slug)
 
         assert result is True
-        mock_db.get_podcast_by_slug.assert_called_once_with(slug)
+        mock_db.get_podcast_row.assert_called_once_with(slug)
         mock_refresh.assert_called_once_with(slug, 'https://example.com/feed.xml')
 
     @patch('main_app.feeds.db')
     @patch('main_app.feeds.refresh_rss_feed')
     def test_refresh_single_feed_unknown_slug_returns_false(self, mock_refresh, mock_db):
         """Test that refresh_single_feed returns False for unknown slug."""
-        mock_db.get_podcast_by_slug.return_value = None
+        mock_db.get_podcast_row.return_value = None
 
         result = refresh_single_feed('nope-does-not-exist')
 
@@ -45,7 +45,7 @@ class TestRefreshSingleFeed(unittest.TestCase):
     def test_refresh_single_feed_missing_source_url_returns_false(self, mock_refresh, mock_db):
         """Test that refresh_single_feed returns False when source_url is missing."""
         slug = 'bad-feed'
-        mock_db.get_podcast_by_slug.return_value = {'slug': slug, 'source_url': None}
+        mock_db.get_podcast_row.return_value = {'slug': slug, 'source_url': None}
 
         result = refresh_single_feed(slug)
 
@@ -58,7 +58,7 @@ class TestRefreshSingleFeed(unittest.TestCase):
     def test_refresh_single_feed_logs_exception(self, mock_refresh, mock_db, mock_logger):
         """Test that refresh_single_feed logs exceptions."""
         slug = 'demo'
-        mock_db.get_podcast_by_slug.return_value = {
+        mock_db.get_podcast_row.return_value = {
             'slug': slug,
             'source_url': 'https://example.com/feed.xml'
         }

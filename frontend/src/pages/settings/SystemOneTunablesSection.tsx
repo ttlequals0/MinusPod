@@ -13,6 +13,8 @@ import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonSty
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 type ProfilePatch = Partial<SystemOneProfile>;
 type DraftProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
@@ -35,6 +37,7 @@ function equalProfiles(a: DraftProfiles, b: SystemOneProfiles) {
 }
 
 function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, onSave, pending, error }: Props) {
+  const llmEnabled = useLlmEnabled();
   const [selectedSlot, setSelectedSlot] = useState<SystemOneCredentialSlot>('primary');
   const [draft, setDraft] = useState<DraftProfiles>(profiles);
   const [baseline, setBaseline] = useState(profiles);
@@ -43,7 +46,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
     setBaseline(profiles);
   }
   const dirty = !equalProfiles(draft, profiles);
-  useUnsavedChanges(dirty);
+  useUnsavedChanges(dirty && llmEnabled);
 
   const change = <K extends keyof SystemOneProfile>(
     slot: SystemOneCredentialSlot,
@@ -96,13 +99,15 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
 
   return (
     <CollapsibleSection title="System One tuneables" storageKey="settings-section-system-one">
-      <div className="space-y-5">
+      <LlmGate disabled={!llmEnabled} id="system-one-tunables" className="space-y-5">
         {!selectedProfileSlot ? (
           <p className="text-sm text-muted-foreground">Choose a System One provider in LLM provider.</p>
         ) : <>
-        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-          Chapters and pattern cleanup are unavailable for System One models.
-        </div>
+        {llmEnabled && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            Chapters and pattern cleanup are unavailable for System One models.
+          </div>
+        )}
         {editableSlots.length > 1 && (
           <div>
             <label htmlFor="system-one-provider" className={labelBase}>Provider</label>
@@ -213,7 +218,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
           {!dirty && !pending && <SavedBadge />}
         </div>
         </>}
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

@@ -19,12 +19,10 @@ def base_url_is_https(base_url: str) -> bool:
 def _default_session_cookie_secure() -> bool:
     """Return the value to use for SESSION_COOKIE_SECURE.
 
-    Secure by default. Downgrades to False only when BASE_URL is explicitly
-    plain HTTP (starts with 'http://'). Operators serving over plain HTTP must
-    set BASE_URL=http://... or set SESSION_COOKIE_SECURE=false explicitly.
-    Operators terminating TLS at a proxy must set BASE_URL=https://... (already
-    required for correct feed URLs) or set SESSION_COOKIE_SECURE=true explicitly.
-    Unset or empty BASE_URL defaults to True (safe).
+    Secure by default; False only when BASE_URL starts with 'http://'. Plain
+    HTTP operators set BASE_URL=http://... or SESSION_COOKIE_SECURE=false; TLS
+    terminated at a proxy needs BASE_URL=https://... or SESSION_COOKIE_SECURE=true.
+    Unset or empty BASE_URL is True.
     """
     explicit = os.environ.get('SESSION_COOKIE_SECURE')
     if explicit is not None and explicit.strip().lower() != 'auto':

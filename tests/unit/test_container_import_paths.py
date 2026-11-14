@@ -1,14 +1,7 @@
-"""Regression gate for the module-level `from version import ...` incident.
+"""Regression gate for module-level `from version import ...` in gunicorn boot modules.
 
-gunicorn's boot path only puts /app/src on sys.path (gunicorn.conf.py's
-on_starting/post_fork hooks); the repo root (where version.py lives) is not
-importable there, so a module-level `from version import __version__` in
-anything gunicorn imports at boot raises ModuleNotFoundError and
-crash-loops every worker. The pytest suite runs with PYTHONPATH=src from
-the repo root, so the root is on sys.path there and this bug class was
-invisible to it. This test reproduces the container's narrower boot
-sys.path in a subprocess so the same bug class fails locally.
-"""
+gunicorn only puts /app/src on sys.path, so the repo root (version.py) is not importable at boot;
+pytest's wider path hides this, so a subprocess reproduces the narrower one."""
 import os
 import re
 import subprocess
@@ -26,11 +19,7 @@ _BOOT_MODULES = ("database", "main_app")
 
 
 def _run_in_container_like_sandbox(code: str) -> subprocess.CompletedProcess:
-    """Run `code` with sys.path mimicking the container boot: only src/ is
-    on PYTHONPATH, the repo root is explicitly absent, and cwd is a neutral
-    temp dir (not the repo root) so `python -c`'s implicit sys.path[0] entry
-    (the cwd) can't silently reintroduce it.
-    """
+    """Run `code` with only src/ on PYTHONPATH and a neutral cwd so sys.path[0] cannot reintroduce the repo root."""
     data_dir = tempfile.mkdtemp(prefix="container_import_gate_data_")
     neutral_cwd = tempfile.mkdtemp(prefix="container_import_gate_cwd_")
     env = {
@@ -59,11 +48,8 @@ def _run_in_container_like_sandbox(code: str) -> subprocess.CompletedProcess:
 
 
 def test_boot_modules_import_with_only_src_on_syspath():
-    """`database` and `main_app` must import cleanly when only the src dir
-    is on sys.path: gunicorn's actual boot-time sys.path, not the wider
-    one pytest runs under (PYTHONPATH=src from the repo root also puts the
-    root itself on sys.path via cwd).
-    """
+    """`database` and `main_app` must import with only src on sys.path (gunicorn's boot path,
+    narrower than pytest's)."""
     repo_root_str = str(_REPO_ROOT)
     code = (
         "import sys\n"

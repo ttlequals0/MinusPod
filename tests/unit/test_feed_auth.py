@@ -1,9 +1,5 @@
-"""Authenticated feeds: key generation, cover-token parsing, and the
-require_feed_key route decorator (2.33.0).
-
-The decorator reads the real main_app.db singleton (lazy import), so this file
-uses the standard test-data-dir bootstrap and drives the setting rows directly.
-"""
+"""Authenticated feeds: key generation, cover-token parsing, and the require_feed_key decorator (2.33.0).
+It reads the real main_app.db singleton (lazy import), so this file uses the standard test-data-dir bootstrap."""
 
 import pytest
 
@@ -161,7 +157,7 @@ def test_decorator_logs_exact_line(flask_client, caplog):
     matching = [r for r in caplog.records
                 if 'no auth key provided or is invalid' in r.message]
     assert matching
-    # INFO, not WARNING: an unauthenticated fetch is expected traffic once feed
+    # Log at info, not warning: an unauthenticated fetch is expected traffic once feed
     # auth is on, and warning on every one buried the real warnings.
     assert all(r.levelname == 'INFO' for r in matching)
     # the key value itself never appears in logs

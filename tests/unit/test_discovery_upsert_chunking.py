@@ -1,7 +1,5 @@
-"""One transaction spanning a whole archive feed held the single SQLite write
-lock long enough for every other writer to exceed its 30s busy_timeout and
-fail with "database is locked". Discovery writes are chunked instead.
-"""
+"""One transaction over a whole archive feed held the SQLite write lock long enough for other
+writers to exceed the 30s busy_timeout ("database is locked"), so discovery writes are chunked."""
 from database import episodes as episodes_mod
 
 

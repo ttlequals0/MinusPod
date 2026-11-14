@@ -1,5 +1,5 @@
-// Canonical list of CSS variable keys -- drives both the TypeScript interface and runtime iteration.
-// Adding a key here automatically updates ThemeVariables and CSS_VAR_KEYS.
+// Canonical list of CSS variable keys; drives both the TypeScript interface and runtime iteration.
+// Adding a key here updates ThemeVariables and CSS_VAR_KEYS.
 export const THEME_VAR_KEYS = [
   'background',
   'foreground',
@@ -32,12 +32,12 @@ export const THEME_VAR_KEYS = [
   'ring',
 ] as const;
 
-export type ThemeVarKey = (typeof THEME_VAR_KEYS)[number];
+type ThemeVarKey = (typeof THEME_VAR_KEYS)[number];
 export type ThemeVariables = Record<ThemeVarKey, string>;
 
-export type ThemeGroup = 'Default' | 'Catppuccin' | 'Dracula' | 'Nord' | 'Gruvbox' | 'Solarized' | 'Rose Pine' | 'Kanagawa' | 'Ayu' | 'Other';
+type ThemeGroup = 'Default' | 'Catppuccin' | 'Dracula' | 'Nord' | 'Gruvbox' | 'Solarized' | 'Rose Pine' | 'Kanagawa' | 'Ayu' | 'Other';
 
-export interface ThemePair {
+interface ThemePair {
   id: string;
   label: string;
   group: ThemeGroup;

@@ -1,12 +1,8 @@
-"""Tests for the 2.5.13 filter parity in PatternService.record_verification_misses.
+"""Filter parity in PatternService.record_verification_misses.
 
-Pre-2.5.13 the verification-miss path called TextPatternMatcher.create_pattern_from_ad
-with zero filtering. The first-pass learner at
-ad_detector._ad_passes_learning_filters enforced confidence >= 0.85 (0.92 if
-duration > 90s), was_cut == True, and a clean sponsor name. The asymmetry let
-Pattern #354 (example-podcast, Globex, host conversation about meeting Jay) ship.
-
-These tests pin the new filters at the same thresholds so the two auto-pattern
+The verification-miss path once called TextPatternMatcher.create_pattern_from_ad with no filtering, unlike
+the first-pass learner (ad_detector._ad_passes_learning_filters: confidence >= 0.85, or 0.92 if duration
+> 90s; was_cut == True; a clean sponsor name). These tests pin the same thresholds so both auto-pattern
 paths share one trust model.
 """
 import os
@@ -19,8 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from database import Database
 from pattern_service import (
     PatternService,
-    VERIFICATION_MIN_CONFIDENCE,
-    VERIFICATION_MIN_CONFIDENCE_LONG,
+    LEARNING_MIN_CONFIDENCE,
+    LEARNING_MIN_CONFIDENCE_LONG,
 )
 
 
@@ -65,7 +61,7 @@ def test_low_confidence_verification_miss_is_dropped(db):
         'example-podcast', 'a1b2c3d4e5f6',
         [{
             'sponsor': 'Globex', 'start': 0.0, 'end': 37.0,
-            'confidence': VERIFICATION_MIN_CONFIDENCE - 0.01,
+            'confidence': LEARNING_MIN_CONFIDENCE - 0.01,
             'reason': 'Globex sponsor mention',
         }],
         segments=_segments(_globex_window()),
@@ -83,7 +79,7 @@ def test_long_verification_miss_needs_higher_confidence(db):
         'some-show', 'abc',
         [{
             'sponsor': 'BetterHelp', 'start': 0.0, 'end': 100.0,
-            'confidence': VERIFICATION_MIN_CONFIDENCE_LONG - 0.01,
+            'confidence': LEARNING_MIN_CONFIDENCE_LONG - 0.01,
             'reason': 'BetterHelp ad',
         }],
         segments=_segments(long_text, end=100.0),
@@ -108,10 +104,9 @@ def test_reasoning_sentence_in_reason_is_dropped(db):
 
 
 def test_sponsor_mentioned_once_in_window_is_dropped(db):
-    """The Globex shape exactly: high confidence, no reasoning prefix, sponsor
-    appears once in the transcript window. Real sponsor reads repeat the brand,
-    so the second-line gate at this layer prevents the pattern from being
-    created even if confidence passes."""
+    """High confidence, no reasoning prefix, sponsor appears once in the transcript window.
+
+    Real sponsor reads repeat the brand, so the second-line gate prevents pattern creation even if confidence passes."""
     svc = PatternService(db=db)
     svc.record_verification_misses(
         'example-podcast', 'a1b2c3d4e5f6',

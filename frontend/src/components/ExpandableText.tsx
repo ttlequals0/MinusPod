@@ -23,10 +23,8 @@ interface ExpandableTextProps {
 }
 
 /**
- * Clamps long prose to a few lines and offers a control to see the rest.
- *
- * The control only appears when the text actually overflows, so short entries
- * stay a plain paragraph with nothing extra to read past.
+ * Clamps long prose to a few lines and offers a control to see the rest. The control only appears when the
+ * text actually overflows.
  */
 function ExpandableText({ children, clampLines = 4, className, label = 'text', toggleText }: ExpandableTextProps) {
   const [expanded, setExpanded] = useState(false);

@@ -45,7 +45,7 @@ from database.settings import (
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
-    get_effective_provider,
+    get_effective_provider, llm_disabled,
 )
 from llm_route import (
     VALID_SLOTS, SAME_AS_PASS,
@@ -53,6 +53,7 @@ from llm_route import (
 )
 from tools.reviewer_calibration import calibration_revision, trigger_reviewer_calibration
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
+from api.auth_state import recheck_auth
 from api.settings import common, systemone_phases, provider_phases
 
 logger = logging.getLogger('podcast.api')
@@ -72,11 +73,10 @@ def _rebuild_served_feeds():
 def update_ad_detection_settings():
     """Update ad detection settings.
 
-    Each phase helper applies a related slice of fields (prompts, model
-    selection, numeric clamps, provider gating, whisper config) and returns
-    None or a Flask error response. All phases run in one transaction, so a
-    rejection persists nothing; cache invalidation, hold clearing, and
-    reviewer calibration follow the commit.
+    Each phase helper applies a related slice of fields (prompts, models, numeric clamps,
+    provider gating, whisper config) and returns None or an error response. All phases run
+    in one transaction, so a rejection persists nothing; cache invalidation, hold clearing
+    and reviewer calibration follow the commit.
     """
     data = request.get_json()
 
@@ -150,6 +150,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
+        _apply_constrained_settings,
         # Secondary first so this save's stage routing resolves against the
         # slot state it is setting.
         provider_phases._apply_secondary_provider_fields,
@@ -219,6 +220,10 @@ _STAGE_MODEL_KEYS = {
 }
 
 
+_PRE_NONE_KEY = 'llm_pre_none_identity'
+_MODEL_STAGES = (*_STAGE_MODEL_KEYS, 'pattern_cleanup')
+
+
 def _model_identity_snapshot(db):
     identities = {
         stage: provider_phases._provider_account_identity(db, resolved_stage_slot(db, stage))
@@ -227,23 +232,58 @@ def _model_identity_snapshot(db):
     identities['pattern_cleanup'] = provider_phases._provider_account_identity(
         db, resolved_stage_slot(db, 'pattern_cleanup'))
     identities['failover_llm'] = provider_phases._failover_llm_identity(db)
+    identities['primary_none'] = llm_disabled(
+        db.get_setting('llm_provider') or get_effective_provider())
     return identities
+
+
+def _stored_pre_none_identities(db):
+    try:
+        raw = json.loads(db.get_setting(_PRE_NONE_KEY) or '{}')
+    except ValueError:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {stage: tuple(ident) for stage, ident in raw.items()
+            if stage in _MODEL_STAGES and isinstance(ident, list)}
+
+
+def _clear_stage_models(db, stages, data, changed_stages):
+    for stage in stages:
+        if stage in _STAGE_MODEL_KEYS:
+            setting_key, payload_key = _STAGE_MODEL_KEYS[stage]
+            if payload_key in data:
+                continue
+            if stage == 'review' and db.get_setting(setting_key) == SAME_AS_PASS:
+                continue
+            if db.get_setting(setting_key):
+                db.set_setting(setting_key, '', is_default=False)
+                changed_stages.append(stage)
+        elif ('patternCleanupModel' not in data
+              and db.get_setting('pattern_cleanup_model') is not None):
+            db.set_setting('pattern_cleanup_model', '', is_default=False)
 
 
 def _clear_models_for_identity_changes(db, previous, data):
     current = _model_identity_snapshot(db)
     changed_stages = []
-    for stage, (setting_key, payload_key) in _STAGE_MODEL_KEYS.items():
-        if previous[stage] == current[stage] or payload_key in data:
-            continue
-        if stage == 'review' and db.get_setting(setting_key) == SAME_AS_PASS:
-            continue
-        db.set_setting(setting_key, '', is_default=False)
-        changed_stages.append(stage)
-    if (previous['pattern_cleanup'] != current['pattern_cleanup']
-            and 'patternCleanupModel' not in data
-            and db.get_setting('pattern_cleanup_model') is not None):
-        db.set_setting('pattern_cleanup_model', '', is_default=False)
+    if current['primary_none'] and not previous['primary_none']:
+        # Keep the models; remember the accounts they belong to.
+        db.set_setting(_PRE_NONE_KEY, json.dumps(
+            {stage: list(previous[stage]) for stage in _MODEL_STAGES}), is_default=False)
+        stages = ()
+    elif previous['primary_none'] and not current['primary_none']:
+        stored = _stored_pre_none_identities(db)
+        db.set_setting(_PRE_NONE_KEY, '', is_default=False)
+        # No stored identity: only a primary-slot model is known to be stale.
+        stages = [stage for stage in _MODEL_STAGES
+                  if (stored[stage] != current[stage] if stage in stored
+                      else resolved_stage_slot(db, stage) == 'primary')]
+    elif previous['primary_none']:
+        stages = ()
+    else:
+        stages = [stage for stage in _MODEL_STAGES if previous[stage] != current[stage]]
+    _clear_stage_models(db, stages, data, changed_stages)
     if previous['failover_llm'] != current['failover_llm']:
         for stage in ('detection', 'review', 'verification', 'chapters'):
             setting_key = f'failover_llm_{stage}_model'
@@ -351,9 +391,9 @@ def _stage_hold_target(db, stage: str) -> tuple[str | None, str]:
 def _apply_prompt_fields(db, data):
     """Persist the prompt strings.
 
-    An empty/whitespace prompt is never valid (the runtime falls back to the
-    default), so clearing a field and saving resets it to default rather than
-    storing a blank row that would render as an unrecoverable empty textarea.
+    An empty/whitespace prompt is never valid (the runtime falls back to the default), so
+    clearing a field resets it rather than storing a blank row that renders as an
+    unrecoverable empty textarea.
     """
     for payload_key, db_key, log_label in (
         ('systemPrompt', 'system_prompt', 'system prompt'),
@@ -513,11 +553,8 @@ def _validate_model_pricing_payload(data):
 
 
 def _apply_size_caps(db, data):
-    """Persist the download/artwork/RSS size caps (env-backed, issue #491).
-
-    Validates every field before writing any, so a 400 never leaves part of
-    the payload persisted.
-    """
+    """Persist the download/artwork/RSS size caps (env-backed, #491).
+    Validates every field before writing any, so a 400 never leaves part persisted."""
     writes, issue = _size_cap_writes(data)
     if issue is not None:
         return error_response(*issue)
@@ -526,20 +563,15 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {value}")
 
 
-def _size_cap_writes(data):
-    caps = (
-        ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
-        ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
-        ('maxAudioDownloadMb', 'max_audio_download_mb', MAX_AUDIO_DOWNLOAD_MB_MIN, None),
-        ('localUploadMaxMb', 'local_upload_max_mb',
-         LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX),
-    )
+def _int_range_writes(data, fields):
+    """Validated (db key, int) writes for integer range fields, or an issue; floats are truncated."""
     writes = []
-    for payload_key, db_key, floor, ceiling in caps:
+    for payload_key, db_key, floor, ceiling in fields:
         if payload_key not in data:
             continue
+        raw = data[payload_key]
         try:
-            n = int(data[payload_key])
+            n = int(raw)
         except (TypeError, ValueError):
             return None, (f'{payload_key} must be an integer', 400)
         if n < floor or (ceiling is not None and n > ceiling):
@@ -549,17 +581,67 @@ def _size_cap_writes(data):
     return writes, None
 
 
+_SIZE_CAP_FIELDS = (
+    ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
+    ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
+    ('maxAudioDownloadMb', 'max_audio_download_mb', MAX_AUDIO_DOWNLOAD_MB_MIN, None),
+    ('localUploadMaxMb', 'local_upload_max_mb',
+     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX),
+)
+
+def _size_cap_writes(data):
+    return _int_range_writes(data, _SIZE_CAP_FIELDS)
+
+
+_CONSTRAINED = tuple(
+    (spec.payload_key, key, spec.constraint)
+    for key, spec in SETTINGS_REGISTRY.items() if spec.constraint is not None and spec.payload_key)
+
+
+def _constrained_writes(data):
+    """Validated (setting key, stored string or None to reset) writes for constrained settings, or an issue."""
+    writes = []
+    for payload_key, db_key, constraint in _CONSTRAINED:
+        if payload_key not in data:
+            continue
+        raw = data[payload_key]
+        if raw is None and constraint.null_resets:
+            writes.append((db_key, None))
+            continue
+        value, issue = constraint.payload_issue(payload_key, raw)
+        if issue is not None:
+            return None, (issue, 400)
+        writes.append((db_key, str(value).lower() if isinstance(value, bool) else str(value)))
+    return writes, None
+
+
+def _apply_constrained_settings(db, data):
+    """Persist the constrained settings; validates all before writing any."""
+    writes, issue = _constrained_writes(data)
+    if issue is not None:
+        return error_response(*issue)
+    for db_key, value in writes:
+        if value is None:
+            db.reset_setting(db_key)
+        else:
+            db.set_setting(db_key, value, is_default=False)
+        logger.info(f"Updated {db_key} to: {value if value is not None else 'default'}")
+    if writes:
+        # The response's cookie expiry must use the new length, not the one read at request start.
+        recheck_auth(db)
+
+
+def _validate_constrained_payload(data):
+    return _constrained_writes(data)[1]
+
+
 def _validate_size_caps_payload(data):
-    _writes, issue = _size_cap_writes(data)
-    return issue
+    return _size_cap_writes(data)[1]
 
 
 def _apply_user_agent_fields(db, data):
     """Persist the outbound User-Agent strings.
-
-    Validates both before writing either, so a 400 never leaves half the
-    payload persisted. An empty string resets the field to its default.
-    """
+    Validates both before writing either, so a 400 never leaves half persisted; an empty string resets to default."""
     writes, log_download_query, issue = _user_agent_values(data)
     if issue is not None:
         return error_response(*issue)
@@ -906,9 +988,8 @@ def _validate_rss_refresh_payload(data):
 def _apply_segment_category_actions(db, data):
     """Merge a partial segmentCategoryActions map over the stored global map.
 
-    Every key must be a known segment category and every value a known
-    action; the merged full map (not just the partial payload) is persisted
-    so later reads never need to fall back through a partial global row.
+    Keys must be known segment categories and values known actions; the merged full map is
+    persisted so later reads never fall back through a partial global row.
     """
     value, issue = _segment_category_actions_value(db, data)
     if issue is not None:
@@ -1264,6 +1345,7 @@ def validate_settings_payload(
         provider_phases._validate_provider_routing_payload,
         _validate_model_pricing_payload,
         _validate_size_caps_payload,
+        _validate_constrained_payload,
         provider_phases._validate_provider_rate_limit_payload,
         _validate_queue_boost_payload,
         _validate_rss_refresh_payload,
@@ -1478,6 +1560,28 @@ def _apply_max_ad_duration_fields(db, data):
     return None
 
 
+def _float_in_range(field, raw, low, high):
+    """(value, None) when raw is a finite float within [low, high], else (None, issue)."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None, (f'{field} must be a number', 400)
+    if not math.isfinite(value) or value < low or value > high:
+        return None, (f'{field} must be between {low} and {high}', 400)
+    return value, None
+
+
+def _apply_writes(db, result):
+    """Persist (key, value) writes from a *_writes result, or return its error response."""
+    writes, issue = result
+    if issue is not None:
+        return error_response(*issue)
+    for db_key, value in writes:
+        db.set_setting(db_key, value, is_default=False)
+        logger.info(f"Updated {db_key} to: {value}")
+    return None
+
+
 def _audio_cue_writes(db, data):
     from config import AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ
 
@@ -1517,12 +1621,9 @@ def _audio_cue_writes(db, data):
     ):
         if field_name not in data:
             continue
-        try:
-            value = float(data[field_name])
-        except (TypeError, ValueError):
-            return None, (f'{field_name} must be a number', 400)
-        if not math.isfinite(value) or value < low or value > high:
-            return None, (f'{field_name} must be between {low} and {high}', 400)
+        value, issue = _float_in_range(field_name, data[field_name], low, high)
+        if issue is not None:
+            return None, issue
         if field_name in ('audioCueFreqMinHz', 'audioCueFreqMaxHz'):
             if not value.is_integer():
                 return None, (f'{field_name} must be an integer', 400)
@@ -1544,18 +1645,11 @@ def _audio_cue_writes(db, data):
 
 
 def _validate_audio_cue_payload(db, data):
-    _writes, issue = _audio_cue_writes(db, data)
-    return issue
+    return _audio_cue_writes(db, data)[1]
 
 
 def _apply_audio_cue_fields(db, data):
-    writes, issue = _audio_cue_writes(db, data)
-    if issue is not None:
-        return error_response(*issue)
-    for db_key, value in writes:
-        db.set_setting(db_key, value, is_default=False)
-        logger.info(f"Updated {db_key} to: {value}")
-    return None
+    return _apply_writes(db, _audio_cue_writes(db, data))
 
 
 def _detection_tuning_writes(db, data):
@@ -1579,12 +1673,9 @@ def _detection_tuning_writes(db, data):
     ):
         if field_name not in data:
             continue
-        try:
-            value = float(data[field_name])
-        except (TypeError, ValueError):
-            return None, (f'{field_name} must be a number', 400)
-        if not math.isfinite(value) or value < low or value > high:
-            return None, (f'{field_name} must be between {low} and {high}', 400)
+        value, issue = _float_in_range(field_name, data[field_name], low, high)
+        if issue is not None:
+            return None, issue
         writes.append((db_key, str(value)))
 
     bounds = {}
@@ -1619,18 +1710,11 @@ def _detection_tuning_writes(db, data):
 
 
 def _validate_detection_tuning_payload(db, data):
-    _writes, issue = _detection_tuning_writes(db, data)
-    return issue
+    return _detection_tuning_writes(db, data)[1]
 
 
 def _apply_detection_tuning_fields(db, data):
-    writes, issue = _detection_tuning_writes(db, data)
-    if issue is not None:
-        return error_response(*issue)
-    for db_key, value in writes:
-        db.set_setting(db_key, value, is_default=False)
-        logger.info(f"Updated {db_key} to: {value}")
-    return None
+    return _apply_writes(db, _detection_tuning_writes(db, data))
 
 
 def _apply_positional_prior_fields(db, data):
@@ -1808,14 +1892,15 @@ def _apply_stage_tunables(db, data, *, allow_inactive_tunables=False):
 def reset_ad_detection_settings():
     """Reset ad detection settings to defaults.
 
-    The key list derives from SETTINGS_REGISTRY (entries flagged
-    ``in_ad_reset``): prompts, models, whisper/VAD, the audio-cue family,
-    env-backed keys, the two provider secrets, and all stage tunables.
+    The key list derives from SETTINGS_REGISTRY (entries flagged ``in_ad_reset``): prompts,
+    models, whisper/VAD, audio-cue family, env-backed keys, the two provider secrets and all
+    stage tunables.
     """
     db = get_database()
 
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
+    db.clear_setting(_PRE_NONE_KEY)
 
     provider_phases._forget_endpoint_state(db)
 

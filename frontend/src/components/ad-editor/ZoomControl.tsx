@@ -47,7 +47,7 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
       >
         <ZoomIn className="w-3.5 h-3.5" />
       </button>
-      <span className="tabular-nums w-12 shrink-0 text-right">
+      <span className="tabular-nums min-w-12 shrink-0 text-right">
         {value < 10 ? value.toFixed(1) : Math.round(value)}&times;
       </span>
     </div>

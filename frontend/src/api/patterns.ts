@@ -1,29 +1,32 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 import type { SegmentCategory } from '../utils/segmentCategory';
+import { apiUrl } from '../urlPrefix';
+import { mediaUrl } from '../utils/mediaUrl';
 
-// Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
-// and backend can't drift on the source-discriminator string spellings.
-export const PATTERN_SOURCE_LOCAL = 'local';
+// PatternSource mirrors the backend source values in src/utils/community_tags.py.
 export const PATTERN_SOURCE_COMMUNITY = 'community';
-export const PATTERN_SOURCE_IMPORTED = 'imported';
-export const PATTERN_SOURCES = [
-  PATTERN_SOURCE_LOCAL,
-  PATTERN_SOURCE_COMMUNITY,
-  PATTERN_SOURCE_IMPORTED,
-] as const;
-export type PatternSource = typeof PATTERN_SOURCES[number];
+type PatternSource = 'local' | typeof PATTERN_SOURCE_COMMUNITY | 'imported';
 
-// Mirrors the scope discriminator stored on ad_patterns rows. UI filters
-// (PatternsPage) and backend get_ad_patterns accept the same three values.
-// The 'network' scope is omitted from PatternCorrection.scope below because
-// user-driven pattern creation only exposes podcast vs global; network-scoped
-// patterns are only produced server-side.
+// Mirrors the scope discriminator on ad_patterns rows; PatternsPage filters and backend get_ad_patterns accept
+// the same values. 'network' is omitted from PatternCorrection.scope because user-driven creation only offers
+// podcast vs global; network patterns are made server-side.
 export type PatternScope = 'podcast' | 'network' | 'global';
 
 // Mirrors pattern_service.compute_pattern_trust's return values. Computed
 // server-side, not stored; local (non-community) patterns are never 'stale'.
 export type PatternTrust = 'active' | 'unproven' | 'stale';
+
+// Older demo snapshots may omit the audio summary.
+export type PatternAudioState = 'active' | 'off' | 'none';
+
+export interface PatternAudioSummary {
+  state: PatternAudioState;
+  available: boolean;
+  matchCount: number;
+  meanSimilarity: number | null;
+}
 
 export interface AdPattern {
   id: number;
@@ -57,6 +60,7 @@ export interface AdPattern {
   category?: SegmentCategory;
   // Computed staleness-based trust tier; always present in list responses.
   trust?: PatternTrust;
+  audio?: PatternAudioSummary;
 }
 
 export interface PatternCorrection {
@@ -86,7 +90,7 @@ export interface PatternCorrection {
   pieces?: Array<{ sponsor?: string }>;
 }
 
-export interface SplitCandidate {
+interface SplitCandidate {
   time: number;
   phrase: string;
 }
@@ -98,7 +102,7 @@ export interface SplitPiece {
   sponsor: string | null;
 }
 
-export interface SplitCandidatesResponse {
+interface SplitCandidatesResponse {
   episodeId: string;
   start: number;
   end: number;
@@ -106,7 +110,7 @@ export interface SplitCandidatesResponse {
   pieces: SplitPiece[];
 }
 
-export interface SplitCorrectionResult {
+interface SplitCorrectionResult {
   message: string;
   markerCount: number;
   patternIds: number[];
@@ -114,7 +118,7 @@ export interface SplitCorrectionResult {
 
 // Pattern Stats
 
-export interface PatternStats {
+interface PatternStats {
   total: number;
   active: number;
   inactive: number;
@@ -212,7 +216,7 @@ export async function submitCorrection(
   });
 }
 
-export interface UnresolvedCorrectionCandidate {
+interface UnresolvedCorrectionCandidate {
   slug: string;
   podcast_title: string | null;
   episode_title: string | null;
@@ -234,7 +238,7 @@ export interface UnresolvedCorrection {
   candidates: UnresolvedCorrectionCandidate[];
 }
 
-export interface UnresolvedCorrectionsResponse {
+interface UnresolvedCorrectionsResponse {
   count: number;
   corrections: UnresolvedCorrection[];
 }
@@ -297,7 +301,7 @@ export async function submitSplit(
 
 // Bulk + community-pattern API
 
-export interface MergeSuggestionMember {
+interface MergeSuggestionMember {
   id: number;
   text_template: string;
   confirmation_count: number;
@@ -321,7 +325,7 @@ export async function getMergeSuggestions(): Promise<MergeSuggestion[]> {
   return res.suggestions;
 }
 
-export interface MergePatternsResult {
+interface MergePatternsResult {
   message: string;
   kept_pattern_id: number;
   merged_count: number;
@@ -350,7 +354,7 @@ export interface PatternOverride {
 
 export type PatternOverrides = Record<number, PatternOverride>;
 
-export interface BundlePreviewRejection {
+interface BundlePreviewRejection {
   id: number;
   sponsor: string | null;
   reasons: string[];
@@ -374,10 +378,8 @@ export async function previewExportBundle(
   });
 }
 
-// apiRequest assumes JSON responses; the bundle endpoint streams a file,
-// so we use apiFileRequest which preserves CSRF + error-stringification.
-// The actual browser download happens here so callers only deal with the
-// resulting filename.
+// apiRequest assumes JSON; the bundle endpoint streams a file, so use apiFileRequest (keeps CSRF and error
+// stringification). The browser download happens here; callers only get the filename.
 export async function downloadCommunityBundle(
   ids: number[],
   overrides?: PatternOverrides,
@@ -399,7 +401,7 @@ export async function unprotectPattern(id: number): Promise<void> {
   await apiRequest(`/patterns/${id}/protect`, { method: 'DELETE' });
 }
 
-export interface SplitPatternResult {
+interface SplitPatternResult extends FingerprintOutcome {
   success: boolean;
   original_pattern_id: number;
   new_pattern_ids: number[];
@@ -408,4 +410,169 @@ export interface SplitPatternResult {
 
 export async function splitPattern(id: number): Promise<SplitPatternResult> {
   return apiRequest<SplitPatternResult>(`/patterns/${id}/split`, { method: 'POST' });
+}
+
+// Pattern audio fingerprint
+
+export interface AudioSpan {
+  podcastSlug: string;
+  episodeId: string;
+  start: number;
+  end: number;
+}
+
+export interface AudioDetail {
+  state: PatternAudioState;
+  available: boolean;
+  length?: number | null;
+  createdAt?: string | null;
+  builtFrom?: (AudioSpan & { available: boolean }) | null;
+  source?: AudioSpan | null;
+  editSource?: AudioSpan | null;
+  counts: { matches: number; rejected: number; outOfScope: number };
+  meanSimilarity?: number | null;
+  lastMatchedAt?: string | null;
+  // True while the one-time fill of match history from older episodes is still running.
+  historyBackfillPending?: boolean;
+  // False when the stored audio cannot match under the current settings.
+  matchable?: boolean;
+  // The span a fingerprint could be built from when the pattern has none; null when unknown.
+  addSource?: (AudioSpan & { available: boolean }) | null;
+}
+
+export interface AudioMatch {
+  id: number;
+  episodeId: string;
+  podcastSlug: string;
+  episodeTitle: string | null;
+  start: number;
+  end: number;
+  similarity: number | null;
+  coverage: number | null;
+  storedLength: number | null;
+  inScope: boolean;
+  audioOnly: boolean | null;
+  rejected: boolean;
+  available: boolean;
+  createdAt: string;
+}
+
+export interface AudioMatchesPage {
+  matches: AudioMatch[];
+  page: number;
+  perPage: number;
+  total: number;
+}
+
+export type FingerprintSkippedReason =
+  | 'audio_removed'
+  | 'fingerprint_exists'
+  | 'span_covers_multiple_patterns'
+  | 'span_not_found'
+  | 'original_not_retained'
+  | 'segment_too_short'
+  | 'fingerprint_failed'
+  | 'not_distinctive';
+
+export type AudioRebuildResult = {
+  fingerprintStored: boolean;
+  fingerprintSkippedReason?: FingerprintSkippedReason;
+} & AudioDetail;
+
+const FINGERPRINT_SKIP_TEXT: Record<FingerprintSkippedReason, string> = {
+  audio_removed: 'Audio was deleted for this pattern, so it was not added back.',
+  fingerprint_exists: 'This pattern already has an audio fingerprint.',
+  span_covers_multiple_patterns: 'That selection covers more than one pattern, so no audio fingerprint was stored.',
+  span_not_found: 'The pattern text could not be found in the source transcript, so no audio fingerprint was stored.',
+  original_not_retained: "This episode's original audio is no longer kept.",
+  segment_too_short: 'That selection is too short for an audio fingerprint.',
+  fingerprint_failed: 'Could not make an audio fingerprint from that selection.',
+  not_distinctive: 'That audio is not distinctive enough to match reliably.',
+};
+
+export function describeFingerprintSkip(reason: FingerprintSkippedReason): string {
+  return FINGERPRINT_SKIP_TEXT[reason];
+}
+
+export type FingerprintOutcome = {
+  fingerprintStored?: boolean;
+  fingerprintSkippedReason?: FingerprintSkippedReason;
+};
+
+const PATTERN_AUDIO_NOT_UPDATED = "The pattern's audio was not updated";
+const PATTERN_SKIP_TEXT: Partial<Record<FingerprintSkippedReason, string>> = {
+  original_not_retained: `${PATTERN_AUDIO_NOT_UPDATED} because no retained episode has it.`,
+  span_not_found: FINGERPRINT_SKIP_TEXT.span_not_found,
+};
+
+/** Notice for a pattern-level action (Cleanup, split) whose audio could not be updated; null when nothing is wrong. */
+export function describePatternAudioOutcome(outcome: FingerprintOutcome): string | null {
+  if (outcome.fingerprintStored !== false) return null;
+  return PATTERN_SKIP_TEXT[outcome.fingerprintSkippedReason ?? 'fingerprint_failed'] ?? `${PATTERN_AUDIO_NOT_UPDATED}.`;
+}
+
+export const patternAudioKey = (patternId: number) => ['pattern-audio', patternId] as const;
+
+export function invalidatePatternAudio(queryClient: QueryClient, patternId: number) {
+  queryClient.invalidateQueries({ queryKey: ['patterns'] });
+  queryClient.invalidateQueries({ queryKey: patternAudioKey(patternId) });
+  queryClient.invalidateQueries({ queryKey: ['pattern-audio-matches', patternId] });
+}
+
+export async function getPatternAudio(id: number): Promise<AudioDetail> {
+  return apiRequest<AudioDetail>(`/patterns/${id}/audio`);
+}
+
+export async function setPatternAudioEnabled(id: number, enabled: boolean): Promise<AudioDetail> {
+  return apiRequest<AudioDetail>(`/patterns/${id}/audio`, { method: 'PUT', body: { enabled } });
+}
+
+export async function deletePatternAudio(id: number): Promise<void> {
+  await apiRequest(`/patterns/${id}/audio`, { method: 'DELETE' });
+}
+
+export async function rebuildPatternAudio(
+  id: number,
+  span: AudioSpan,
+): Promise<AudioRebuildResult> {
+  return apiRequest<AudioRebuildResult>(`/patterns/${id}/audio/rebuild`, { method: 'POST', body: span });
+}
+
+export async function getPatternAudioMatches(
+  id: number,
+  params: { page?: number; perPage?: number } = {},
+): Promise<AudioMatchesPage> {
+  const qs = buildQueryString({ page: params.page, perPage: params.perPage });
+  return apiRequest<AudioMatchesPage>(`/patterns/${id}/audio/matches${qs}`);
+}
+
+// Direct URL for an <audio src>; null in the demo build, which has no audio.
+export function patternAudioPreviewUrl(id: number, matchId?: number): string | null {
+  const qs = buildQueryString({ matchId });
+  return mediaUrl({ kind: 'audio', url: apiUrl(`/patterns/${id}/audio/preview${qs}`) });
+}
+
+export function describePreviewStatus(status: number, code: string | undefined, hasRetryAfter: boolean): string {
+  if (status === 503 && hasRetryAfter) return 'Audio is being prepared. Try again.';
+  if (status === 404 && code === 'original_not_retained') return describeFingerprintSkip('original_not_retained');
+  if (status === 404 && code === 'no_audio') return 'This pattern has no audio fingerprint.';
+  return 'Could not play this audio. Try again.';
+}
+
+// One request after a playback error: an <audio> element hides the status, so read it, then abort.
+export async function explainPreviewFailure(url: string, signal: AbortSignal): Promise<string> {
+  const inner = new AbortController();
+  signal.addEventListener('abort', () => inner.abort(), { once: true });
+  try {
+    const res = await fetch(url, { signal: inner.signal });
+    let code: string | undefined;
+    if (!res.ok) {
+      try { code = ((await res.json()) as { code?: string } | null)?.code; } catch { /* no JSON body */ }
+    }
+    return describePreviewStatus(res.status, code, res.headers.get('Retry-After') !== null);
+  } catch {
+    return describePreviewStatus(0, undefined, false);
+  } finally {
+    inner.abort();
+  }
 }

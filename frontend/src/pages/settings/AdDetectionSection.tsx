@@ -4,6 +4,8 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
 import { focusRing, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface AdDetectionSectionProps {
   minCutConfidence: number;
@@ -105,6 +107,7 @@ function AdDetectionSection({
   transcriptDifferentialEnabled,
   onTranscriptDifferentialEnabledChange,
 }: AdDetectionSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection title="Ad detection">
       <div className="space-y-6">
@@ -200,25 +203,27 @@ function AdDetectionSection({
             The hard ceiling. Even an ad with a confirmed sponsor is held rather than cut past this length.
           </p>
         </div>
-        <div>
-          <label htmlFor="maxLlmWindowAdSeconds" className={labelBase}>
-            Longest single LLM detection (seconds)
-          </label>
-          <NumberInput
-            id="maxLlmWindowAdSeconds"
-            value={maxLlmWindowAdSeconds}
-            min={60}
-            max={900}
-            step={10}
-            fallback={420}
-            onCommit={onMaxLlmWindowAdSecondsChange}
-            className="w-32"
-            ariaDescribedBy="maxLlmWindowAdSeconds-help"
-          />
-          <p id="maxLlmWindowAdSeconds-help" className="mt-2 text-sm text-muted-foreground">
-            A single ad the model reports longer than this is discarded within its detection window. A feed's max ad duration caps raise it for that feed.
-          </p>
-        </div>
+        <LlmGate disabled={!llmEnabled} id="max-llm-window">
+          <div>
+            <label htmlFor="maxLlmWindowAdSeconds" className={labelBase}>
+              Longest single LLM detection (seconds)
+            </label>
+            <NumberInput
+              id="maxLlmWindowAdSeconds"
+              value={maxLlmWindowAdSeconds}
+              min={60}
+              max={900}
+              step={10}
+              fallback={420}
+              onCommit={onMaxLlmWindowAdSecondsChange}
+              className="w-32"
+              ariaDescribedBy="maxLlmWindowAdSeconds-help"
+            />
+            <p id="maxLlmWindowAdSeconds-help" className="mt-2 text-sm text-muted-foreground">
+              A single ad the model reports longer than this is discarded within its detection window. A feed's max ad duration caps raise it for that feed.
+            </p>
+          </div>
+        </LlmGate>
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
@@ -254,34 +259,36 @@ function AdDetectionSection({
             </p>
           </div>
           <div className="space-y-5">
-            {numRow(
-              verificationMissHoldMinConfidence, onVerificationMissHoldMinConfidenceChange,
-              'verificationMissHoldMinConfidence', 'Hold floor', 0, 1, 0.05, 0.6,
-              'A verification catch holds for review once it reaches this confidence. Below it, the catch is dropped.',
-            )}
-
-            <div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <ToggleSwitch
-                  checked={verificationMissAutocutMinConfidence > 0}
-                  onChange={(checked) => onVerificationMissAutocutMinConfidenceChange(checked ? 0.5 : 0)}
-                  ariaLabel="Enable verification autocut"
-                />
-                <span className="text-sm font-medium text-foreground">Autocut</span>
-              </label>
-              <p className="mt-2 text-sm text-muted-foreground ml-14">
-                Cut a verification catch automatically once it reaches a set confidence, instead of holding it for review. Off by default; catches then only ever hold or drop.
-              </p>
-              {verificationMissAutocutMinConfidence > 0 && (
-                <div className="mt-3 ml-14">
-                  {numRow(
-                    verificationMissAutocutMinConfidence, onVerificationMissAutocutMinConfidenceChange,
-                    'verificationMissAutocutMinConfidence', 'Autocut floor', 0.5, 1, 0.05, 0.5,
-                    'Confidence a verification catch must reach to cut automatically.',
-                  )}
-                </div>
+            <LlmGate disabled={!llmEnabled} id="verification-miss" className="space-y-5">
+              {numRow(
+                verificationMissHoldMinConfidence, onVerificationMissHoldMinConfidenceChange,
+                'verificationMissHoldMinConfidence', 'Hold floor', 0, 1, 0.05, 0.6,
+                'A verification catch holds for review once it reaches this confidence. Below it, the catch is dropped.',
               )}
-            </div>
+
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <ToggleSwitch
+                    checked={verificationMissAutocutMinConfidence > 0}
+                    onChange={(checked) => onVerificationMissAutocutMinConfidenceChange(checked ? 0.5 : 0)}
+                    ariaLabel="Enable verification autocut"
+                  />
+                  <span className="text-sm font-medium text-foreground">Autocut</span>
+                </label>
+                <p className="mt-2 text-sm text-muted-foreground ml-14">
+                  Cut a verification catch automatically once it reaches a set confidence, instead of holding it for review. Off by default. Catches then only ever hold or drop.
+                </p>
+                {verificationMissAutocutMinConfidence > 0 && (
+                  <div className="mt-3 ml-14">
+                    {numRow(
+                      verificationMissAutocutMinConfidence, onVerificationMissAutocutMinConfidenceChange,
+                      'verificationMissAutocutMinConfidence', 'Autocut floor', 0.5, 1, 0.05, 0.5,
+                      'Confidence a verification catch must reach to cut automatically.',
+                    )}
+                  </div>
+                )}
+              </div>
+            </LlmGate>
 
             {numRow(
               learningMinConfidence, onLearningMinConfidenceChange,

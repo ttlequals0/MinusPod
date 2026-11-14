@@ -1,10 +1,8 @@
 """Per-feed adChaptersEnabled/adChapterCategories compatibility fields.
 
-Retired in favor of the 'mark' segment action (2.98.0,
-mark_action_from_ad_chapters_v1): GET derives them from the feed's resolved
-segment actions, PATCH translates them into the feed's segmentCategoryActions
-override. See docs/specs/2026-09-08-ad-chapters-design.md#settings.
-"""
+Retired for the 'mark' segment action (2.98.0, mark_action_from_ad_chapters_v1): GET derives them
+from the resolved segment actions, PATCH translates them into segmentCategoryActions. See
+docs/specs/2026-09-08-ad-chapters-design.md#settings."""
 import pytest
 
 from tests.app_bootstrap import bootstrap

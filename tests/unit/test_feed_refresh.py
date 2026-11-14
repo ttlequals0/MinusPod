@@ -1,4 +1,4 @@
-"""Tests for feed refresh logic -- N+1 query fix and bulk episode lookup."""
+"""Tests for feed refresh logic: N+1 query fix and bulk episode lookup."""
 from unittest.mock import MagicMock
 
 from database.episodes import EpisodeMixin
@@ -22,7 +22,7 @@ class MockDB(EpisodeMixin):
         mock_conn.execute.return_value.fetchall.return_value = rows
         return mock_conn
 
-    def get_podcast_by_slug(self, slug):
+    def get_podcast_row(self, slug):
         return self._podcast
 
 
@@ -31,7 +31,7 @@ class TestGetEpisodeStatusesForPodcast:
 
     def test_returns_empty_for_unknown_podcast(self):
         db = MockDB([])
-        db.get_podcast_by_slug = MagicMock(return_value=None)
+        db.get_podcast_row = MagicMock(return_value=None)
         id_map, title_map = db.get_episode_statuses_for_podcast('unknown')
         assert id_map == {}
         assert title_map == {}

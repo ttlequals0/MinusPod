@@ -1,12 +1,7 @@
-"""Tests for the 2.5.14 split retention: original audio retention can be
-shorter than processed retention.
+"""Split retention: original audio retention can be shorter than processed retention.
 
-Covers:
-- `cleanup_old_episodes` two-pass behaviour (original-only pre-pass then the
-  existing full-cleanup pass).
-- No-op when `keep_original_audio` is off.
-- No-op when `original_retention_days` is unset or >= `retention_days`.
-- API endpoint clamps `originalRetentionDays > retentionDays`.
+Covers the two-pass cleanup_old_episodes, the no-op cases (keep_original_audio off, original_retention_days
+unset or >= retention_days) and the API clamp of originalRetentionDays above retentionDays.
 """
 import os
 import sys
@@ -294,10 +289,7 @@ def _seed_null_processed_at(db, slug, ep_id, updated_at):
 
 
 def test_cleanup_resets_null_processed_at_via_updated_at(db):
-    """Regression: episodes processed before processed_at was stamped have
-    processed_at NULL, and `processed_at < cutoff` (a NULL comparison) silently
-    skipped them, so nothing was ever cleaned. With COALESCE(processed_at,
-    updated_at) the old episode is reset using updated_at as the fallback date."""
+    """Episodes with NULL processed_at are still cleaned, using COALESCE(processed_at, updated_at)."""
     db.set_setting('retention_days', '30', is_default=False)
     db.set_setting('keep_original_audio', 'false', is_default=False)
     _seed_null_processed_at(

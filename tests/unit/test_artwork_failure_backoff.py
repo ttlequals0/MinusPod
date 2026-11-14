@@ -1,4 +1,5 @@
 """A broken artwork URL is not refetched on every feed refresh."""
+import logging
 import os
 import sys
 from unittest.mock import patch
@@ -177,3 +178,55 @@ def test_global_ua_change_retries_feed_and_episode_failures(storage, monkeypatch
         storage.download_episode_artwork('example-feed', 'a1b2c3d4e5f6', URL)
     assert feed_fetch.call_count == 2
     assert episode_fetch.call_count == 2
+
+
+def _skip_lines(caplog):
+    return [r for r in caplog.records if 'Skipping artwork retry' in r.getMessage()]
+
+
+def test_skip_is_logged_once_per_backoff_window(storage, caplog):
+    with patch.object(storage, '_download_artwork_uncached', return_value=(False, 'error')):
+        storage.download_artwork('example-feed', URL)
+    with caplog.at_level(logging.DEBUG, logger='storage'):
+        storage.download_artwork('example-feed', URL)
+        storage.download_artwork('example-feed', URL)
+    assert len(_skip_lines(caplog)) == 1
+
+
+def test_skip_names_the_url_without_its_query(storage, caplog):
+    url = URL + '?token=secret123'
+    with patch.object(storage, '_download_artwork_uncached', return_value=(False, 'error')):
+        storage.download_artwork('example-feed', url)
+    with caplog.at_level(logging.DEBUG, logger='storage'):
+        storage.download_artwork('example-feed', url)
+    line = _skip_lines(caplog)[0].getMessage()
+    assert line == '[example-feed] Skipping artwork retry for http://example.com, it failed recently'
+    assert 'secret123' not in line
+
+
+def test_skip_is_logged_again_after_a_new_failure_opens_a_window(storage, caplog):
+    with patch.object(storage, '_download_artwork_uncached', return_value=(False, 'error')):
+        storage.download_artwork('example-feed', URL)
+        with caplog.at_level(logging.DEBUG, logger='storage'):
+            storage.download_artwork('example-feed', URL)
+            storage.download_artwork('example-feed', URL)
+            storage.download_artwork('example-feed', URL, force=True)
+            storage.download_artwork('example-feed', URL)
+            storage.download_artwork('example-feed', URL)
+    assert len(_skip_lines(caplog)) == 2
+
+
+def test_each_url_logs_its_own_skip(storage, caplog):
+    other = 'http://example.com/other.jpg'
+    with patch.object(storage, '_download_artwork_uncached', return_value=(False, 'error')):
+        storage.download_artwork('example-feed', URL)
+        storage.download_artwork('example-feed', other)
+    with caplog.at_level(logging.DEBUG, logger='storage'):
+        storage.download_artwork('example-feed', URL)
+        storage.download_artwork('example-feed', other)
+        storage.download_artwork('example-feed', URL)
+    assert len(_skip_lines(caplog)) == 2
+
+
+def test_skip_state_is_bounded(storage):
+    assert storage._artwork_skip_logged._max_size <= 1024

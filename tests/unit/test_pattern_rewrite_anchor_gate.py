@@ -1,10 +1,7 @@
-"""Pattern-rewrite anchor gate (regression R3b).
+"""Pattern-rewrite anchor gate.
 
-_maybe_rewrite_pattern_from_adjustment rewrites a pattern's text_template
-from trimmed bounds when the trim clears min_trim_threshold (20s). An
-unanchored (mid-segment) trim must NOT propagate cross-episode: the rewrite
-only fires when every trimmed boundary lands within BOUNDARY_SNAP_TOLERANCE_S
-of a transcript segment edge.
+_maybe_rewrite_pattern_from_adjustment rewrites text_template from trimmed bounds only when every trimmed
+boundary lands within BOUNDARY_SNAP_TOLERANCE_S of a transcript segment edge; unanchored trims must not propagate.
 """
 import os
 import tempfile

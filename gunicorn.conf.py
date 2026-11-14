@@ -14,6 +14,8 @@ import sys
 from gunicorn.glogging import Logger
 
 from utils.http import redact_feed_credentials
+from utils.log_format import (
+    QueryStringRedactingFilter, guard_handler_errors, install_exception_hooks, make_formatter)
 
 _app_port = os.environ.get("MINUSPOD_PORT", "8000")
 _env_bind = os.environ.get("GUNICORN_BIND", "")
@@ -32,6 +34,20 @@ access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(
 
 
 class RedactingLogger(Logger):
+    def setup(self, cfg):
+        super().setup(cfg)
+        guard_handler_errors()
+        for log in (self.error_log, self.access_log):
+            for handler in log.handlers:
+                if not any(isinstance(f, QueryStringRedactingFilter) for f in handler.filters):
+                    handler.addFilter(QueryStringRedactingFilter())
+        # Text mode keeps gunicorn's own formatters; only json needs a level field.
+        if os.environ.get("LOG_FORMAT", "text").lower() == "json":
+            fmt = make_formatter("json")
+            for log in (self.error_log, self.access_log):
+                for handler in log.handlers:
+                    handler.setFormatter(fmt)
+
     def atoms(self, resp, req, environ, request_time):
         values = super().atoms(resp, req, environ, request_time)
         values['U'] = redact_feed_credentials(values.get('U', ''))
@@ -112,6 +128,7 @@ def post_fork(server, worker):
     src_dir = "/app/src"
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
+    install_exception_hooks()
     from database import Database
     Database._instance = None
 
@@ -123,7 +140,7 @@ def when_ready(server):
     # declared rate limits (login lockout is DB-backed and unaffected).
     storage = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory-threadsafe://")
     if workers > 1 and storage.startswith("memory"):
-        server.log.warning(
+        server.log.info(
             "Rate limits are per-worker: %d workers with %s storage give ~%dx "
             "the configured limits. Set RATE_LIMIT_STORAGE_URI=redis://... to "
             "share counters.", workers, storage, workers)

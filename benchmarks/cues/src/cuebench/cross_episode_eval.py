@@ -33,11 +33,8 @@ def run(
 ) -> Dict[str, Any]:
     """Run cross-episode intro/outro discovery on *audio_paths*.
 
-    Returns a dict:
-      available: bool
-      skip_reason: str | None
-      episodes: list[dict]  -- per-episode candidates
-      summary: dict         -- aggregated stats across the run
+    Returns a dict with keys available, skip_reason, episodes (per-episode
+    candidates) and summary (aggregated stats).
     """
     if AudioFingerprinter is None:
         return {

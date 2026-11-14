@@ -1,9 +1,7 @@
 """End-to-end path-traversal tests through the HTTP surface.
 
-Unit tests in test_path_containment cover Storage directly; these
-exercise the HTTP routes to confirm a traversal payload cannot leak
-through to the filesystem via a request.
-"""
+test_path_containment covers Storage directly; these confirm a traversal payload cannot reach the
+filesystem via a request."""
 import io
 
 import pytest
@@ -28,10 +26,9 @@ def client():
 
 
 def test_no_password_allows_feed_mutation(client):
-    """v2.26.0: with no app password set, the API is fully open -- a mutating
-    request is not blocked by an auth gate. DELETE on an unknown feed reaches the
-    handler and 404s; the old pre-bootstrap guard returned 403 here. Reads still
-    work."""
+    """v2.26.0: with no app password set the API is fully open, so a mutating request
+    is not blocked by an auth gate. DELETE on an unknown feed reaches the handler and
+    404s (the old pre-bootstrap guard returned 403). Reads still work."""
     resp = client.delete('/api/v1/feeds/no-such-feed')
     assert resp.status_code == 404
     assert client.get('/api/v1/feeds').status_code == 200
@@ -97,12 +94,10 @@ def test_episode_id_unicode_rejected(client, bad_id):
         assert response.status_code == 404, f"{path} returned {response.status_code}"
 
 
-# The api blueprint's url_value_preprocessor validates every episode_id
-# path param centrally, so routes that previously fell through to a DB 404
-# now 400 before the handler runs.
-# Dot-segment payloads ("../x") are excluded here: URL normalization
-# rewrites the path before routing, so they never reach the preprocessor
-# (covered by the non-2xx traversal tests above).
+# The api blueprint's url_value_preprocessor validates every episode_id path param
+# centrally, so routes that used to fall through to a DB 404 now 400 before the
+# handler. Dot-segment payloads ("../x") are excluded: URL normalization rewrites
+# the path before routing (covered by the non-2xx traversal tests above).
 @pytest.mark.parametrize("bad_id", [
     "short",
     "ZZZZZZZZZZZZ",           # correct length, wrong alphabet
@@ -155,10 +150,9 @@ def _png_bytes():
 
 
 def test_minuspod_cover_serves_badged_jpeg(client):
-    """The public /episodes/<slug>/cover-minuspod.jpg route (issue #420) serves
-    the badged cover when artwork_watermark_enabled is on, so podcast apps can
-    fetch it from the feed host. Seed via the exact storage the handler reads
-    (routes_mod.storage) so the test is immune to per-test singleton swaps."""
+    """The public /episodes/<slug>/cover-minuspod.jpg route (issue #420) serves the badged cover
+    when artwork_watermark_enabled is on, so podcast apps can fetch it from the feed host. Seeds via
+    the storage the handler reads (routes_mod.storage), immune to per-test singleton swaps."""
     slug = 'cover-ok'
     st = routes_mod.storage
     st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
@@ -211,11 +205,10 @@ def test_minuspod_cover_versioned_path_serves_badged_jpeg(client):
 
 
 def test_minuspod_cover_serves_plain_cover_when_watermark_off(client):
-    """task-5 review fix #2: with the setting off (the default), the route
-    must fall back to the plain source cover instead of 404ing or badging
-    it -- this is the only public podcast-level artwork route, so a local
-    feed's channel <image> depends on it resolving regardless of the
-    watermark toggle."""
+    """With the setting off (the default) the route falls back to the plain source cover, not a 404 or badge.
+
+    It is the only public podcast-level artwork route, so a local feed's channel
+    <image> depends on it resolving regardless of the watermark toggle."""
     slug = 'cover-unbadged'
     st = routes_mod.storage
     st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)

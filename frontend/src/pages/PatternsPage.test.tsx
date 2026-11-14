@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -168,26 +168,9 @@ describe('PatternsPage tabs', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('scrolls the selected tab into view inside the tab list on a cleanup deep link', async () => {
-    const rect = (left: number, right: number) => ({
-      left, right, top: 0, bottom: 44, width: right - left, height: 44,
-      x: left, y: 0, toJSON: () => ({}),
-    } as DOMRect);
-    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this.getAttribute('role') === 'tablist') return rect(0, 320);
-      if (this.getAttribute('role') === 'tab' && this.getAttribute('aria-selected') === 'true') {
-        return rect(330, 400);
-      }
-      return rect(0, 100);
-    });
-    try {
-      renderPage('/patterns?tab=cleanup');
-      const tablist = screen.getByRole('tablist');
-      await screen.findByRole('tab', { name: 'Cleanup', selected: true });
-      expect(tablist.scrollLeft).toBe(80);
-    } finally {
-      bounds.mockRestore();
-    }
+  it('selects Cleanup from its deep link', async () => {
+    renderPage('/patterns?tab=cleanup');
+    expect(await screen.findByRole('tab', { name: 'Cleanup', selected: true })).toBeDefined();
   });
 });
 
@@ -285,6 +268,179 @@ describe('PatternsPage category filter', () => {
     await screen.findAllByText('Acme');
     expect(screen.queryAllByText('Beta Co')).not.toHaveLength(0);
     expect(screen.queryAllByText('Gamma Co')).not.toHaveLength(0);
+  });
+});
+
+describe('PatternsPage audio column', () => {
+  function audioPattern(id: number, audio?: Record<string, unknown>) {
+    return {
+      id, scope: 'global', network_id: null, podcast_id: null,
+      dai_platform: null, text_template: 'x'.repeat(60),
+      intro_variants: '[]', outro_variants: '[]', sponsor: `Sponsor ${id}`,
+      confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+      created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+      is_active: true, disabled_at: null, disabled_reason: null,
+      ...(audio ? { audio } : {}),
+    };
+  }
+
+  it('shows the four audio states in the table', async () => {
+    mockGetPatterns.mockResolvedValue([
+      audioPattern(1, { state: 'active', available: true, matchCount: 4, meanSimilarity: 0.912 }),
+      audioPattern(2, { state: 'off', available: true, matchCount: 4, meanSimilarity: 0.9 }),
+      audioPattern(3, { state: 'active', available: false, matchCount: 4, meanSimilarity: 0.9 }),
+      audioPattern(4, { state: 'none', available: false, matchCount: 0, meanSimilarity: null }),
+    ]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findByText('91% match');
+    const rows = within(table).getAllByRole('row').slice(1);
+    const cell = (row: number) => within(rows[row]).getAllByRole('cell')[4].textContent;
+    expect(cell(0)).toBe('91% match');
+    expect(cell(1)).toBe('Audio off');
+    expect(cell(2)).toBe('No source audio');
+    expect(cell(3)).toBe('No audio');
+    expect(within(table).getByRole('columnheader', { name: 'Audio' })).toBeDefined();
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('renders every column, Created included, in the table', async () => {
+    mockGetPatterns.mockResolvedValue([audioPattern(1)]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(11);
+    expect(within(table).getByRole('columnheader', { name: 'Created' })).toBeDefined();
+    expect(within(table).getAllByRole('row')[1].querySelectorAll('td')).toHaveLength(11);
+    expect(table.querySelectorAll('col')).toHaveLength(11);
+  });
+
+  it('leaves the Sponsor column unsized so it takes the spare width', async () => {
+    mockGetPatterns.mockResolvedValue([audioPattern(1)]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    const cols = [...table.querySelectorAll('col')];
+    expect(cols[2].className).toBe('');
+    expect(cols.filter((c) => c.className === '')).toHaveLength(1);
+  });
+
+  it('spans the empty-state cell over every column', async () => {
+    mockGetPatterns.mockResolvedValue([]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    expect((await within(table).findByText('No patterns yet.')).getAttribute('colspan')).toBe('11');
+  });
+
+  it('sorts the card layout by Created through the Sort by control', async () => {
+    mockGetPatterns.mockResolvedValue([
+      { ...audioPattern(1), created_at: '2026-01-01T00:00:00Z' },
+      { ...audioPattern(2), created_at: '2026-03-01T00:00:00Z' },
+    ]);
+    renderPage('/patterns?sort=created_at&dir=asc');
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    expect(screen.getByLabelText('Sort by')).toHaveProperty('value', 'created_at');
+    expect(screen.getByRole('button', { name: 'Ascending' })).toBeDefined();
+    const ids = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0].textContent);
+    expect(ids).toEqual(['#1', '#2']);
+  });
+
+  it('labels active audio with no matches and a pattern without the field', async () => {
+    mockGetPatterns.mockResolvedValue([
+      audioPattern(1, { state: 'active', available: true, matchCount: 0, meanSimilarity: null }),
+      audioPattern(2),
+    ]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(within(rows[0]).getAllByRole('cell')[4].textContent).toBe('No matches yet');
+    expect(within(rows[1]).getAllByRole('cell')[4].textContent).toBe('No audio');
+  });
+
+  it('shows the audio state on the phone card', async () => {
+    mockGetPatterns.mockResolvedValue([
+      audioPattern(1, { state: 'active', available: true, matchCount: 4, meanSimilarity: 0.912 }),
+    ]);
+    renderPage();
+    expect(await screen.findByTestId('pattern-card-audio-1')).toHaveProperty('textContent', 'Audio: 91% match');
+  });
+
+  it('puts the category select and the created date on the phone card without opening the dialog', async () => {
+    mockGetPatterns.mockResolvedValue([audioPattern(1, { state: 'none', available: false, matchCount: 0, meanSimilarity: null })]);
+    renderPage();
+    const card = (await screen.findByTestId('pattern-card-audio-1')).parentElement as HTMLElement;
+    const select = within(card).getByLabelText('Category for pattern 1');
+    expect(within(card).getByText(/^Created:/)).toBeDefined();
+    fireEvent.click(select);
+    expect(screen.queryByRole('dialog', { name: 'Pattern details' })).toBeNull();
+  });
+});
+
+describe('PatternsPage audio filter', () => {
+  function row(id: number, state?: string) {
+    return {
+      id, scope: 'global', network_id: null, podcast_id: null,
+      dai_platform: null, text_template: 'x'.repeat(60),
+      intro_variants: '[]', outro_variants: '[]', sponsor: `Sponsor ${String(id).padStart(2, '0')}`,
+      confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+      created_at: `2026-01-${String(id).padStart(2, '0')}T00:00:00Z`, created_from_episode_id: null,
+      is_active: true, disabled_at: null, disabled_reason: null, category: null,
+      ...(state ? { audio: { state, available: true, matchCount: 0, meanSimilarity: null } } : {}),
+    };
+  }
+  const seed = () => mockGetPatterns.mockResolvedValue([
+    row(1, 'active'), row(2, 'off'), row(3, 'none'), row(4),
+  ]);
+  const shown = () => [1, 2, 3, 4].filter((n) => screen.queryAllByText(`Sponsor 0${n}`).length > 0);
+
+  it.each([
+    ['all', [1, 2, 3, 4]],
+    ['has', [1, 2]],
+    ['on', [1]],
+    ['off', [2]],
+    ['none', [3, 4]],
+  ])('filters by %s', async (value, expected) => {
+    seed();
+    renderPage();
+    await screen.findAllByText('Sponsor 01');
+    await userEvent.selectOptions(screen.getByLabelText('Audio'), value);
+    await waitFor(() => expect(shown()).toEqual(expected));
+  });
+
+  it('restores the filter from the URL and writes it back', async () => {
+    seed();
+    renderPage('/patterns?audio=off');
+    await screen.findAllByText('Sponsor 02');
+    expect(shown()).toEqual([2]);
+    expect((screen.getByLabelText('Audio') as HTMLSelectElement).value).toBe('off');
+    await userEvent.selectOptions(screen.getByLabelText('Audio'), 'none');
+    expect(screen.getByTestId('loc').textContent).toContain('audio=none');
+  });
+
+  it('falls back to All for an unknown value', async () => {
+    seed();
+    renderPage('/patterns?audio=bogus');
+    await screen.findAllByText('Sponsor 01');
+    expect((screen.getByLabelText('Audio') as HTMLSelectElement).value).toBe('all');
+    expect(shown()).toEqual([1, 2, 3, 4]);
+  });
+
+  it('shows the empty state when nothing matches', async () => {
+    mockGetPatterns.mockResolvedValue([row(1, 'active')]);
+    renderPage('/patterns?audio=off');
+    expect((await screen.findAllByText('No patterns match these filters.')).length).toBeGreaterThan(0);
+  });
+
+  it('returns to the first page when the filter changes', async () => {
+    mockGetPatterns.mockResolvedValue(Array.from({ length: 25 }, (_, i) => row(i + 1, 'active')));
+    renderPage('/patterns?page=2&sort=id&dir=asc');
+    await screen.findAllByText('Sponsor 25');
+    await userEvent.selectOptions(screen.getByLabelText('Audio'), 'on');
+    expect((await screen.findAllByText('Sponsor 01')).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('loc').textContent).not.toContain('page=2');
   });
 });
 

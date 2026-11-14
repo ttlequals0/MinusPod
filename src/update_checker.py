@@ -1,9 +1,8 @@
 """Check GitHub Releases for newer MinusPod versions.
 
-Channels: 'stable' (newest non-prerelease) and 'edge' (newest release of
-any kind). Drafts are ignored. This module owns the release fetch, an
-in-process cache, version comparison, the /system/updates payload, and
-the daily background tick that notifies once per newly seen version.
+Channels: 'stable' (newest non-prerelease) and 'edge' (newest release of any
+kind); drafts are ignored. Owns the release fetch, cache, version comparison,
+the /system/updates payload, and the daily tick that notifies once per new version.
 """
 import json
 import logging

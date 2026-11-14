@@ -82,7 +82,7 @@ class TestEnvOverride:
         monkeypatch.setenv("DETECTION_MAX_TOKENS", "999999")
         with patch("database.Database", side_effect=Exception("no db")):
             assert config.get_stage_tunable("detection_max_tokens") == 4096
-        # WARNING should be logged.
+        # A warning should be logged.
         assert any("out of range" in r.message for r in caplog.records)
 
     def test_env_var_non_numeric_falls_back_to_default(self, monkeypatch, caplog):
@@ -140,10 +140,8 @@ class TestDbFallback:
         assert config.get_stage_tunable("detection_max_tokens", settings=settings) == 8192
 
     def test_caller_supplied_setting_entry_shape(self, monkeypatch):
-        # api.settings.common._settings_view wraps the raw dict into a SettingEntry
-        # dataclass. The resolver must read .value off it; before this
-        # regression test, the resolver only handled the dict shape and
-        # silently fell back to the default for the SettingEntry path.
+        # api.settings.common._settings_view wraps the raw dict into a SettingEntry dataclass; the resolver
+        # must read .value off it rather than fall back to the default.
         from dataclasses import dataclass
 
         @dataclass(frozen=True)
@@ -172,11 +170,10 @@ class TestWindowSizeRange:
 
 
 class TestStageTunableReset:
-    """reset_setting must clear stage-tunable rows (not silently no-op).
+    """reset_setting clears stage-tunable rows instead of silently no-oping (the "Reset All" bug, #351).
 
-    Before the fix, reset_setting's hardcoded defaults dict omitted every stage
-    tunable, so reset_setting('reviewer_max_tokens') fell through to return False
-    and left the user's value in place -- the "Reset All" no-op behind issue #351.
+    The hardcoded defaults dict once omitted every stage tunable, so
+    reset_setting('reviewer_max_tokens') returned False.
     """
 
     def test_reset_clears_numeric_tunable(self, temp_db):

@@ -32,7 +32,7 @@ def _needs_confirm(marker, existing) -> bool:
 def _confirm_cut_markers(db, slug, episode_id) -> int:
     """Record a confirm correction for each cut ad marker not yet confirmed; returns how many."""
     episode = db.get_episode(slug, episode_id) or {}
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     existing = db.get_confirmed_corrections(podcast['id'], episode_id)
     transcript = db.get_transcript_for_timestamps(slug, episode_id)
     service = PatternService(db)

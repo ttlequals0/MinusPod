@@ -264,10 +264,9 @@ def test_pause_committed_before_admission_blocks_cross_process_acquire(
 
 
 def test_orphan_run_for_missing_podcast_self_terminates(queue):
-    """A run whose podcast row is gone self-terminates without needing its
-    owner pid proven dead (#745): a normal podcast delete cascades the run
-    row away entirely, but this is the safety net for any run left behind
-    by a delete that outran the cascade."""
+    """A run whose podcast row is gone self-terminates without proving its owner pid dead (#745).
+
+    Safety net for a delete that outran the run-row cascade."""
     run_id = queue.acquire('a', '1')
     assert run_id
     conn = queue._database().get_connection()

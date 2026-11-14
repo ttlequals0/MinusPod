@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SplitMarkerModal from './SplitMarkerModal';
+import { iconSizes } from './rowActionStyles';
 
 const mockGetCandidates = vi.fn();
 const mockSubmitSplit = vi.fn();
@@ -15,8 +16,14 @@ vi.mock('../api/patterns', async (importOriginal) => ({
 vi.mock('../api/sponsors', () => ({
   getSponsors: vi.fn().mockResolvedValue([]),
 }));
+const peaksState = vi.hoisted(() => ({
+  value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
+  retry: vi.fn(),
+}));
 vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: () => ({ peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null }),
+  usePeaks: () => {
+    return { ...peaksState.value, loading: !peaksState.value.peaks && !peaksState.value.peaksError, retry: peaksState.retry };
+  },
 }));
 
 const TARGET = {
@@ -38,6 +45,8 @@ function renderModal(onSplit = vi.fn(), onClose = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
+  peaksState.retry.mockClear();
   mockSubmitSplit.mockResolvedValue({
     message: 'Split into 2 ads', markerCount: 2, patternIds: [1, 2],
   });
@@ -81,7 +90,7 @@ describe('SplitMarkerModal', () => {
     const user = userEvent.setup();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
     const button = screen.getByRole('button', { name: /Add divider at playhead/ });
-    expect(button.className).toContain('min-h-[44px]');
+    expect(button.className).toContain('px-3');
     await user.click(button);
     expect(await screen.findByRole('button', { name: 'Split into 3 ads' })).toBeTruthy();
   });
@@ -151,6 +160,15 @@ describe('SplitMarkerModal', () => {
     renderModal();
     const rows = await screen.findByTestId('piece-rows');
     expect(within(rows).getAllByRole('button', { name: /play/i })).toHaveLength(2);
+  });
+
+  it('sizes each play control like the 40 px time fields beside it', async () => {
+    renderModal();
+    const rows = await screen.findByTestId('piece-rows');
+    for (const play of within(rows).getAllByRole('button', { name: /play/i })) {
+      for (const token of iconSizes.field.target.split(' ')) expect(play.className).toContain(token);
+    }
+    expect(within(rows).getAllByRole('textbox')[0].className).toContain('min-h-10');
   });
 
   it('removing a divider drops back to one piece', async () => {
@@ -249,5 +267,72 @@ describe('SplitMarkerModal loading placeholder', () => {
     renderModal();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});
+
+describe('SplitMarkerModal waveform states', () => {
+  it('puts the four footer actions in two columns below sm with the recipe padding', async () => {
+    renderModal();
+    const split = await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const footer = split.parentElement as HTMLElement;
+    expect(footer.className).toContain('max-sm:grid-cols-2');
+    expect(footer.className.split(/\s+/)).toContain('max-sm:w-full');
+    expect(footer.className).not.toContain('border-t');
+    expect(screen.getByText('At playhead').className).toContain('md:hidden');
+    for (const name of [/Add divider$/, /Add divider at playhead/, 'Split into 2 ads', 'Cancel']) {
+      expect(screen.getByRole('button', { name }).className).toContain('px-3');
+    }
+  });
+
+  it('shows the loading text inside the strip box, out of flow, while peaks are pending', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const loading = screen.getByText('Loading waveform...');
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    expect(screen.queryByText(/Could not load waveform/)).toBeNull();
+    const overlay = pin.closest('.relative');
+    expect(overlay?.querySelector('.h-20')).toBeTruthy();
+    expect(overlay?.contains(loading)).toBe(true);
+    expect(loading.className).toContain('absolute');
+  });
+
+  it('leaves no status row once the waveform has loaded', async () => {
+    peaksState.value = { peaks: [0.2, 0.5], peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    expect(screen.queryByRole('status')).toBeNull();
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    const strip = screen.getByTestId('piece-strip');
+    expect(pin.closest('.relative')?.nextElementSibling).toBe(strip);
+  });
+
+  it('keeps the strip height while loading', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    expect(pin.closest('.relative')?.querySelector('.h-20')).toBeTruthy();
+  });
+
+  it('shows the error with a Retry outside the divider overlay and no server text', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const message = await screen.findByText('Could not load waveform. Try again.');
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    const overlay = pin.closest('.relative');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.contains(message)).toBe(false);
+    expect(screen.queryByText(/boom/)).toBeNull();
+    expect(screen.queryByText('Loading waveform...')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('refetches when Retry is pressed', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(peaksState.retry).toHaveBeenCalledTimes(1);
   });
 });

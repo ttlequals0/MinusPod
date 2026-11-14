@@ -1,9 +1,7 @@
 """Auth-class LLM failures must not consume the episode retry budget.
 
-A claude-wrapper auth outage (401 body containing claude_cli_not_authenticated)
-is operator-fixable and can outlast any retry ladder, so it must not increment
-retry_count or trigger the permanently_failed transition.
-"""
+An operator-fixable claude-wrapper 401 (claude_cli_not_authenticated) must not bump retry_count or
+trigger permanently_failed."""
 from unittest.mock import patch
 
 import pytest
@@ -83,11 +81,8 @@ class TestBreakerMaskedAuthError:
 
 
 class TestBreakerMaskedAuthErrorSurvivesTruncation:
-    """The ~200-char truncated `cause` embedded in the CircuitBreakerOpen
-    message can drop the auth marker from a verbose 401 body. Wiring
-    is_auth_error in as the breaker's cause_classifier (as production does
-    for _llm_circuit_breaker) classifies from the full trigger text instead,
-    so truncation cannot hide the outage."""
+    """The ~200-char truncated `cause` can drop the auth marker; is_auth_error as cause_classifier
+    classifies from the full trigger text instead."""
 
     def _breaker(self, name):
         return CircuitBreaker(name, failure_threshold=1, recovery_timeout=60,

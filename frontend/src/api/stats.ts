@@ -101,7 +101,7 @@ export async function getEpisodeCostRuns(
   return apiRequest<{ runs: EpisodeProcessingRun[] }>(`/stats/episode-costs/runs${qs}`);
 }
 
-export interface LedgerFilterScope {
+interface LedgerFilterScope {
   from?: string;
   to?: string;
   podcastSlug?: string;
@@ -117,7 +117,7 @@ export async function getLedgerFilterOptions(
 }
 
 // Scope: one run, or one episode across all its runs.
-export interface SpendAttemptsScope {
+interface SpendAttemptsScope {
   runId?: string;
   slug?: string;
   episodeId?: string;
@@ -131,4 +131,21 @@ export async function getSpendAttempts(
 ): Promise<SpendAttemptsResponse> {
   const qs = buildQueryString({ ...scope });
   return apiRequest<SpendAttemptsResponse>(`/stats/spend/attempts${qs}`);
+}
+
+interface AudioMatchingStats {
+  patternsWithAudio: number;
+  patternsTotal: number;
+  audioMatches: number;
+  foundByAudioOnly: number;
+  notThisAd: number;
+  // True while the one-time fill of match history from older episodes is still running.
+  historyBackfillPending?: boolean;
+}
+
+export async function getAudioMatchingStats(
+  params: { from?: string; to?: string; podcastSlug?: string } = {},
+): Promise<AudioMatchingStats> {
+  const qs = buildQueryString({ from: params.from, to: params.to, podcastSlug: params.podcastSlug });
+  return apiRequest<AudioMatchingStats>(`/stats/audio-matching${qs}`);
 }

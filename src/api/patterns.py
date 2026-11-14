@@ -11,6 +11,10 @@ from config import (
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
+from api import preview_cache
+from database.fingerprint_cleanup import delete_pattern_dependents
+from database.fingerprint_matches import fingerprint_member_pattern_ids
+from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -18,10 +22,14 @@ from pattern_service import PatternService, compute_pattern_trust
 from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
 from split_planning import build_split_pieces
+from utils.pattern_scope import network_for_network_scope
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
     parse_transcript_segments,
+)
+from pattern_audio import (
+    carry_audio_to_children, rebuild_audio_source, store_patterns_audio, unresolved_audio_outcomes,
 )
 from text_pattern_matcher import (
     split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
@@ -37,18 +45,18 @@ from api import (
 
 logger = logging.getLogger('podcast.api')
 
+NO_AUDIO_SUMMARY = {'state': 'none', 'available': False, 'matchCount': 0, 'meanSimilarity': None}
+# 64-bit bound keeps an oversized id a 404 instead of an SQLite overflow.
+PATTERN_ROUTE = '/patterns/<int(max=9223372036854775807):pattern_id>'
+
 
 # ========== Pattern & Correction Endpoints ==========
 
 @api.route('/patterns', methods=['GET'])
 @log_request
 def list_patterns():
-    """List all ad patterns with optional filtering.
-
-    Query params:
-      scope (all|global|network|podcast, default all), podcast_id, network_id,
-      active_only (bool, default false; 'active' accepted as a legacy alias),
-      source (one of 'local', 'community', 'imported')
+    """List ad patterns. Query: scope (all|global|network|podcast, default all), podcast_id,
+    network_id, active_only (bool; 'active' is a legacy alias), source (local|community|imported).
     """
     from utils.community_tags import PATTERN_SOURCES
     db = get_database()
@@ -70,7 +78,9 @@ def list_patterns():
         source=source,
     )
     now = utc_now()
+    audio = db.get_audio_summaries([p['id'] for p in patterns])
     for pattern in patterns:
+        pattern['audio'] = audio.get(pattern['id'], NO_AUDIO_SUMMARY)
         # Matcher-only join columns; the list response does not carry them.
         pattern.pop('sponsor_tags', None)
         pattern.pop('sponsor_active', None)
@@ -234,11 +244,8 @@ def bulk_unresolved_corrections():
 @api.route('/patterns/health', methods=['GET'])
 @log_request
 def get_pattern_health():
-    """Check pattern health - identify contaminated/oversized patterns.
-
-    Returns patterns with text templates that exceed reasonable lengths,
-    indicating they likely contain multiple merged ads and will never match.
-    """
+    """Check pattern health: templates over reasonable lengths likely contain merged ads and
+    will never match."""
     db = get_database()
     patterns = db.get_ad_patterns(active_only=True)
 
@@ -282,11 +289,7 @@ def get_pattern_health():
 @api.route('/patterns/contaminated', methods=['GET'])
 @log_request
 def get_contaminated_patterns():
-    """Find all patterns that have multiple ad transitions and could be split.
-
-    Returns patterns containing multiple ad transition phrases, indicating
-    they may contain merged multi-sponsor ads that should be split.
-    """
+    """Find patterns with multiple ad transition phrases (likely merged multi-sponsor ads) that could be split."""
     from text_pattern_matcher import find_transition_offsets
 
     db = get_database()
@@ -316,18 +319,18 @@ def get_contaminated_patterns():
     })
 
 
-@api.route('/patterns/<int:pattern_id>/split', methods=['POST'])
+@api.route(PATTERN_ROUTE + '/split', methods=['POST'])
 @log_request
 def split_pattern(pattern_id):
-    """Split a contaminated multi-sponsor pattern into separate patterns.
+    """Split a contaminated multi-sponsor pattern into single-sponsor patterns.
 
-    Uses the TextPatternMatcher.split_pattern() method to detect ad transition
-    phrases and create individual single-sponsor patterns. The original pattern
-    is disabled after successful split.
+    Uses TextPatternMatcher.split_pattern() to detect transition phrases; the original is
+    disabled after a successful split.
     """
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
+    source, audio_wanted = rebuild_audio_source(db, db.get_connection(), pattern_id)
     new_ids = matcher.split_pattern(pattern_id)
 
     if not new_ids:
@@ -336,15 +339,18 @@ def split_pattern(pattern_id):
             400
         )
 
+    outcomes = (unresolved_audio_outcomes(pattern_id) if audio_wanted and source is None
+                else carry_audio_to_children(db, source, new_ids))
     return json_response({
         'success': True,
         'original_pattern_id': pattern_id,
         'new_pattern_ids': new_ids,
-        'message': f'Split into {len(new_ids)} patterns'
+        'message': f'Split into {len(new_ids)} patterns',
+        **fingerprint_response_fields(outcomes),
     })
 
 
-@api.route('/patterns/<int:pattern_id>', methods=['GET'])
+@api.route(PATTERN_ROUTE, methods=['GET'])
 @log_request
 def get_pattern(pattern_id):
     """Get a single pattern by ID."""
@@ -356,10 +362,11 @@ def get_pattern(pattern_id):
         return error_response('Pattern not found', 404)
 
     pattern['is_active'] = bool(pattern.get('is_active'))
+    pattern['audio'] = db.get_audio_summaries([pattern_id]).get(pattern_id, NO_AUDIO_SUMMARY)
     return json_response(pattern)
 
 
-@api.route('/patterns/<int:pattern_id>', methods=['PUT'])
+@api.route(PATTERN_ROUTE, methods=['PUT'])
 @log_request
 def update_pattern(pattern_id):
     """Update a pattern."""
@@ -379,6 +386,21 @@ def update_pattern(pattern_id):
                'is_active', 'disabled_reason', 'scope', 'category'}
 
     updates = {k: v for k, v in data.items() if k in allowed}
+
+    if updates.get('scope') == 'network':
+        given = data.get('networkId')
+        if given is None:
+            network_id = network_for_network_scope(db, pattern)
+            if network_id is None:
+                return error_response(
+                    'Network scope needs a network: the pattern has no feed with a network, so send networkId', 400)
+        else:
+            network_id = given.strip() if isinstance(given, str) else ''
+            if not network_id:
+                return error_response('networkId must be a non-empty string', 400)
+            if len(network_id) > MAX_NETWORK_ID_CHARS:
+                return error_response(f'networkId must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
+        updates['network_id'] = network_id
 
     # Category decides the pattern's segment action at detection time
     # (e.g. cross_promo resolving to keep); null clears it back to the
@@ -410,7 +432,7 @@ def update_pattern(pattern_id):
     return error_response('No valid fields provided', 400)
 
 
-@api.route('/patterns/<int:pattern_id>', methods=['DELETE'])
+@api.route(PATTERN_ROUTE, methods=['DELETE'])
 @log_request
 def delete_pattern(pattern_id):
     """Delete a pattern."""
@@ -421,6 +443,7 @@ def delete_pattern(pattern_id):
         return error_response('Pattern not found', 404)
 
     db.delete_ad_pattern(pattern_id)
+    preview_cache.drop_cached_slices(pattern_id)
     return json_response({'message': 'Pattern deleted'})
 
 
@@ -445,11 +468,8 @@ def deduplicate_patterns():
 @log_request
 def get_merge_suggestions():
     """Same-sponsor pattern clusters that could fold into one row (#399).
-
-    Clusters are precomputed and cached server-side (keyed on each sponsor
-    group's text signature); the frontend only renders them and never computes
-    similarity itself.
-    """
+    Clusters are computed and cached server-side (keyed on each sponsor group's text
+    signature); the frontend only renders them."""
     db = get_database()
     patterns = db.get_ad_patterns(active_only=True)
     by_id = {p['id']: p for p in patterns}
@@ -481,14 +501,7 @@ def get_merge_suggestions():
 @api.route('/patterns/merge', methods=['POST'])
 @log_request
 def merge_patterns():
-    """Merge multiple patterns into one.
-
-    Request body:
-    {
-        "keep_id": 123,  // Pattern to keep
-        "merge_ids": [124, 125, ...]  // Patterns to merge into keep_id
-    }
-    """
+    """Merge multiple patterns into one. Body: {"keep_id": int, "merge_ids": [int, ...]}."""
     db = get_database()
 
     data = request.get_json()
@@ -541,10 +554,9 @@ def merge_patterns():
         total_confirmations += pattern.get('confirmation_count', 0)
         total_false_positives += pattern.get('false_positive_count', 0)
 
-    # Fold every read's intro/outro into the kept row. Its own text_template
-    # stays canonical, so its audio fingerprint (keyed to that text) stays valid;
-    # the folded templates survive as variants. Computed before the transaction
-    # (pure, no DB writes).
+    # Fold every read's intro/outro into the kept row. Its text_template stays canonical, so
+    # its audio fingerprint (keyed to that text) stays valid; folded templates become variants.
+    # Computed before the transaction (pure, no DB writes).
     intro_variants, outro_variants = merge_variants(all_patterns)
 
     try:
@@ -570,15 +582,13 @@ def merge_patterns():
             # A folded row's fingerprint is the audio hash of ITS read, not the
             # kept row's, so drop it rather than attach audio the kept row does
             # not describe. Explicit: the FK cascade is per-connection.
-            conn.execute(
-                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608  # identifiers allowlisted, values bound
-                merge_id_list
-            )
+            delete_pattern_dependents(conn, merge_id_list)
             # Delete merged patterns
             conn.execute(
                 f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',  # noqa: S608  # identifiers allowlisted, values bound
                 merge_id_list
             )
+        preview_cache.drop_cached_slices(merge_id_list)
 
         resp = {
             'message': f'Merged {len(merge_id_list)} patterns into pattern {keep_id}',
@@ -600,13 +610,52 @@ def merge_patterns():
         return error_response('Merge failed', 500)
 
 
-def _validate_create_correction_input(data):
-    """Parse + validate the `create` correction payload.
+# First reason present across a request's patterns wins.
+FINGERPRINT_SKIP_PRECEDENCE = (
+    'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns', 'span_not_found',
+    'original_not_retained', 'segment_too_short', 'not_distinctive', 'fingerprint_failed',
+)
 
-    Returns (parsed_dict, error_response). On success, error_response is
-    None and parsed_dict has keys: start, end, sponsor_text, text_template,
-    reason, scope.
-    """
+
+def fingerprint_response_fields(outcomes):
+    """fingerprintStored and, when false, the first skipped reason by precedence; empty when no pattern was involved."""
+    if not outcomes:
+        return {}
+    if any(result.stored for _, result in outcomes):
+        return {'fingerprintStored': True}
+    reasons = {result.skipped_reason for _, result in outcomes}
+    return {'fingerprintStored': False,
+            'fingerprintSkippedReason': next(
+                (r for r in FINGERPRINT_SKIP_PRECEDENCE if r in reasons), 'fingerprint_failed')}
+
+
+def _reviewed_pattern_ids(marker, marker_pattern_id):
+    """The marker's own pattern id and the pattern of every fingerprint member it merged."""
+    ids = fingerprint_member_pattern_ids(marker) if marker else []
+    return list(dict.fromkeys([*([marker_pattern_id] if marker_pattern_id else []), *ids]))
+
+
+def _reject_fingerprint_matches(db, pattern_ids, slug, episode_id, start, end):
+    """Reject the audio match each pattern recorded for the span; never raises."""
+    for pattern_id in pattern_ids:
+        try:
+            db.mark_fingerprint_match_rejected(pattern_id, slug, episode_id, start, end)
+        except Exception as e:
+            logger.warning(f"Could not reject the fingerprint match of pattern {pattern_id}: {e}")
+
+
+def _restore_rejected_matches(db, slug, episode_id, start, end):
+    """Un-reject every audio match of the episode that the span covers, whatever its pattern; never raises."""
+    try:
+        db.unreject_fingerprint_matches_in_span(slug, episode_id, start, end)
+    except Exception as e:
+        logger.warning(f"Could not restore the rejected fingerprint matches of {slug}/{episode_id}: {e}")
+
+
+def _validate_create_correction_input(data):
+    """Parse and validate the `create` correction payload.
+    Returns (parsed_dict, error_response); parsed_dict has start, end, sponsor_text,
+    text_template, reason, scope."""
     start = data.get('start')
     end = data.get('end')
     sponsor_text, sponsor_error = _modal_sponsor(data)
@@ -648,15 +697,11 @@ def _validate_create_correction_input(data):
 
 def _insert_manual_marker(episode, start, end, sponsor_name, reason,
                           category=None):
-    """Build the marker list with a new manual marker spliced in, sorted by
-    start. Returns the full marker list; the new marker's pattern_id is
-    None and must be backfilled by the caller after pattern creation.
-    """
+    """Build the marker list with a new manual marker spliced in, sorted by start.
+    The new marker's pattern_id is None; the caller backfills it after pattern creation."""
     markers = parse_ad_markers(episode.get('ad_markers_json')) or []
-    # If the user left "Reason" blank, synthesize one so the EpisodeDetail
-    # page row has something to render (it shows segment.reason for the
-    # description line). Without this, manual markers appear as just a
-    # time range + Manual badge with no sponsor or context visible.
+    # Synthesize a reason when the user left it blank so the EpisodeDetail row has
+    # description text (otherwise a manual marker shows only a time range and badge).
     synthesized_reason = (
         reason.strip()
         if reason and reason.strip()
@@ -684,21 +729,16 @@ def _create_patterns_from_segments(
     primary_sponsor, primary_sponsor_id=None, created_by=None,
     category=None, pattern_service=None, log_context,
 ):
-    """Create (or dedupe-reuse) one ad_pattern per segment from
-    split_template_text. Shared by the two manual-correction paths that
-    guard against multi-sponsor text (issue #563): _submit_correction_create
-    and _resolve_or_create_pattern_from_text.
+    """Create (or dedupe-reuse) one ad_pattern per split_template_text segment.
 
-    The segment whose text contains `primary_sponsor` (case-insensitive)
-    becomes primary; `primary_sponsor_id` is reused for it if already
-    resolved by the caller (skips a redundant sponsor lookup), otherwise it's
-    resolved here. Other segments use their own heuristic-guessed sponsor.
-    Segments over MAX_PATTERN_CHARS are skipped with a warning. Segments
-    already matching an existing pattern (find_pattern_by_text) are reused
-    instead of duplicated; `pattern_service`, if given, records the match.
+    Shared by the manual-correction paths that guard against multi-sponsor text (#563):
+    _submit_correction_create and _resolve_or_create_pattern_from_text. The segment whose
+    text contains `primary_sponsor` (case-insensitive) is primary, reusing
+    `primary_sponsor_id` if the caller resolved it; others use their own guessed sponsor.
+    Segments over MAX_PATTERN_CHARS are skipped with a warning; segments matching an
+    existing pattern (find_pattern_by_text) are reused, and `pattern_service` records the match.
 
-    Returns (primary_id, all_ids), in segment order; (None, []) if every
-    segment was skipped (oversized).
+    Returns (primary_id, all_ids) in segment order; (None, []) if every segment was skipped.
     """
     primary_sponsor_lower = primary_sponsor.lower()
     all_ids = []
@@ -770,10 +810,8 @@ def _create_patterns_from_segments(
 
 
 def _submit_correction_create(db, slug, episode_id, data):
-    """Handle a `create` correction: user marked a brand-new ad on an
-    episode the detector missed. Writes a marker to episode_details and
-    creates a new ad_pattern with created_by='user'.
-    """
+    """Handle a `create` correction: the user marked a brand-new ad the detector missed.
+    Writes a marker to episode_details and a new ad_pattern with created_by='user'."""
     parsed, err = _validate_create_correction_input(data)
     if err is not None:
         return err
@@ -812,10 +850,9 @@ def _submit_correction_create(db, slug, episode_id, data):
     segments = split_template_text(text_template)
 
     if len(segments) == 1:
-        # Single-segment path is byte-identical to pre-#563 behavior: manual
-        # patterns were born with empty variant arrays, giving them worse
-        # boundary placement than auto-created ones; derive intro/outro up
-        # front, and never dedupe (this function never has).
+        # Single-segment path matches pre-#563 behavior: manual patterns were born with empty
+        # variant arrays (worse boundary placement than auto-created ones), so derive
+        # intro/outro up front and never dedupe.
         intro_variants, outro_variants = derive_intro_outro(text_template)
         new_pattern_id = db.create_ad_pattern(
             scope=scope,
@@ -859,7 +896,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         corrected_bounds={'start': start, 'end': end},
         text_snippet=text_template[:500],
         sponsor_id=sponsor_id,
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=db.get_podcast_row(slug)['id'],
     )
 
     logger.info(
@@ -867,11 +904,14 @@ def _submit_correction_create(db, slug, episode_id, data):
         f"pattern_id={new_pattern_id}, sponsor='{canonical_sponsor_name}', "
         f"start={start}, end={end}, scope={scope}"
     )
+    outcomes = store_patterns_audio(
+        db, slug, episode_id, pattern_ids, start, end, text=text_template)
     return json_response({
         'message': 'New ad marker created',
         'pattern_id': new_pattern_id,
         'sponsor': canonical_sponsor_name,
         'patternIds': pattern_ids,
+        **fingerprint_response_fields(outcomes),
     })
 
 
@@ -901,12 +941,11 @@ def _validate_split_points(raw, start, end):
 
 def _submit_correction_split(db, pattern_service, slug, episode_id,
                              original_ad, data):
-    """Replace one marker with N single-sponsor ads (issue #563, option 1).
+    """Replace one marker with N single-sponsor ads (#563, option 1).
 
-    Correction rows reuse boundary_adjustment and create because
-    correction_type carries a CHECK constraint SQLite cannot alter in place.
-    The first row is recorded against its own piece so trim protection does
-    not read the remainder as kept audio (#967).
+    Correction rows reuse boundary_adjustment and create because correction_type has a CHECK
+    constraint SQLite cannot alter in place. The first row is recorded against its own piece
+    so trim protection does not read the remainder as kept audio (#967).
     """
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -935,7 +974,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
         transcript or '', original_start, original_end)
     pieces = build_split_pieces(spans, original_start, original_end, points)
 
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     podcast_id_str = slug if podcast else None
 
     new_markers = []
@@ -981,7 +1020,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             original_bounds=bounds if i == 0 else None,
             corrected_bounds=bounds,
             text_snippet=piece['text'][:500],
-            podcast_id=db.get_podcast_by_slug(slug)['id'],
+            podcast_id=podcast['id'],
             addressing_mode=marker.get('addressing_mode'),
         )
 
@@ -1018,25 +1057,21 @@ def _resolve_or_create_pattern_from_text(
     db, pattern_service, slug, episode_id, ad_text, original_ad, *, label,
     sponsor_override=None, category=None,
 ):
-    """Shared dedup + create-or-link path used by confirm and adjust when
-    no pattern_id is provided. Returns (primary_id, all_ids): primary_id is
-    None if no sponsor was identifiable and creation was skipped, else the
-    pattern to link the correction row to; all_ids is every pattern touched
-    (created or reused via dedup), in segment order.
+    """Shared dedup + create-or-link path for confirm and adjust when no pattern_id is given.
 
-    ad_text is run through split_template_text first: multiple segments each
-    get their own pattern (deduped and capped like the auto path), and only
-    the sponsor-matched segment (or the first created, if none match) becomes
-    primary. A single segment goes through create_pattern_from_ad's guards
-    (duration, char cap, transition count, brand placement); this path used
-    to skip them, which is how a confirmed 176s span whose first 87s were
-    show content became a pattern keyed on that content.
+    Returns (primary_id, all_ids): primary_id is None if no sponsor was identifiable (creation
+    skipped), else the pattern to link the correction to; all_ids is every pattern touched.
+    ad_text goes through split_template_text: multiple segments each get a pattern (deduped
+    and capped like the auto path) and the sponsor-matched segment (else the first created)
+    is primary. A single segment goes through create_pattern_from_ad's guards (duration, char
+    cap, transition count, brand placement); skipping them let a confirmed span that opened
+    with show content become a pattern keyed on that content.
 
-    `label` is 'confirmed' or 'adjusted', for log messages. `category` is the
-    reviewed marker's segment category (#565), so a confirmed interaction or
-    self-promo span is not learned as a sponsor pattern.
+    `label` ('confirmed' or 'adjusted') is for log messages. `category` is the reviewed
+    marker's segment category (#565), so a confirmed interaction or self-promo is not learned
+    as a sponsor pattern.
     """
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     podcast_id_str = slug if podcast else None
 
     existing_pattern = db.find_pattern_by_text(ad_text, podcast_id_str)
@@ -1065,11 +1100,9 @@ def _resolve_or_create_pattern_from_text(
     segments = split_template_text(ad_text)
 
     if len(segments) == 1:
-        # Gated exactly like the auto-learning path. Confirming a span that
-        # runs past the ad still records the correction for this episode;
-        # what it must not do is mint a pattern whose template opens on show
-        # content, which then drags the same overshoot onto every future
-        # episode. ad_text is passed so no transcript refetch is needed.
+        # Gated like the auto-learning path. Confirming a span that runs past the ad still
+        # records the correction, but must not mint a pattern whose template opens on show
+        # content and drags the overshoot onto future episodes. ad_text avoids a transcript refetch.
         new_pattern_id = TextPatternMatcher(db=db).create_pattern_from_ad(
             segments=[],
             start=float(original_ad.get('start') or 0),
@@ -1124,14 +1157,12 @@ def _handle_confirm_correction(
     db, pattern_service, slug, episode_id, original_ad, data, addressing_mode=None,
     podcast=None, transcript=None,
 ):
-    """Handle correction_type='confirm'.
+    """Handle correction_type='confirm'. podcast and transcript may be passed by a caller
+    confirming many spans.
 
-    podcast and transcript may be passed in by a caller confirming many spans.
-
-    Optional adjusted_start/adjusted_end approve a trimmed span instead of the
-    full detected one (e.g. the reviewer's proposed trim on a
-    contradiction-held marker): the held marker's boundaries move to the
-    trimmed values before approval, so the recut cuts only the ad portion.
+    Optional adjusted_start/adjusted_end approve a trimmed span (e.g. the reviewer's proposed
+    trim on a contradiction-held marker): the held marker's boundaries move first so the
+    recut cuts only the ad portion.
     """
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -1195,6 +1226,8 @@ def _handle_confirm_correction(
         + (f", trimmed to {eff_start}-{eff_end}" if has_trim else "")
     )
 
+    pattern_ids = [pattern_id] if pattern_id else []
+    resolved_text = None
     if pattern_id:
         pattern_service.record_pattern_match(pattern_id, episode_id)
         if has_trim:
@@ -1210,7 +1243,8 @@ def _handle_confirm_correction(
         if transcript:
             ad_text = extract_transcript_segment(transcript, eff_start, eff_end)
             if ad_text and len(ad_text) >= 50:
-                pattern_id, _ = _resolve_or_create_pattern_from_text(
+                resolved_text = ad_text
+                pattern_id, pattern_ids = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
                     original_ad, label='confirmed',
                     sponsor_override=sponsor_override,
@@ -1218,10 +1252,14 @@ def _handle_confirm_correction(
                         db, slug, episode_id, original_start, original_end),
                 )
 
-    podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
+    outcomes = store_patterns_audio(
+        db, slug, episode_id, pattern_ids, eff_start, eff_end, text=resolved_text)
+
+    podcast_id = (podcast or db.get_podcast_row(slug))['id']
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
+        _restore_rejected_matches(db, slug, episode_id, original_start, original_end)
 
     db.create_pattern_correction(
         correction_type='confirm',
@@ -1241,7 +1279,8 @@ def _handle_confirm_correction(
         new_start=adjusted_start, new_end=adjusted_end,
     )
 
-    return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
+    return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id,
+                          **fingerprint_response_fields(outcomes)})
 
 
 def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode=None):
@@ -1260,12 +1299,12 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
             logger.debug(f"Extracted {len(rejected_text)} chars of rejected text for cross-episode matching")
 
     # Resolve the matched held marker's hold_reason server-side, before
-    # _clear_held_marker_on_reject pops it below -- the client payload
-    # carries no hold_reason of its own. A cross-fetch or transcript-gap hold
-    # (by hold_reason or detection_stage) was only ever a hold candidate,
-    # never a confirmed false positive of a real detector, so its text must
-    # not seed cross-episode FP matching on other episodes.
+    # _clear_held_marker_on_reject pops it (the client payload has no hold_reason). A
+    # cross-fetch or transcript-gap hold was only a hold candidate, never a confirmed false
+    # positive of a real detector, so its text must not seed cross-episode FP matching.
     markers = _load_markers(db, slug, episode_id)
+    reviewed_pattern_ids = _reviewed_pattern_ids(
+        find_marker_in_list(markers, original_start, original_end) if markers else None, pattern_id)
     matched_marker = None
     if markers:
         for m in markers:
@@ -1290,7 +1329,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
             db.update_ad_pattern(pattern_id, false_positive_count=new_count)
             logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
 
-    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'false_positive', original_start, original_end)
+    deleted = db.delete_conflicting_corrections(db.get_podcast_row(slug)['id'], episode_id, 'false_positive', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting confirm correction(s) for {slug}/{episode_id}")
 
@@ -1301,12 +1340,15 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
         original_bounds={'start': original_start, 'end': original_end},
         text_snippet=text_snippet,
         source_hold_reason=source_hold_reason,
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=db.get_podcast_row(slug)['id'],
         addressing_mode=addressing_mode,
     )
 
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
                                  markers=markers)
+
+    _reject_fingerprint_matches(
+        db, reviewed_pattern_ids, slug, episode_id, original_start, original_end)
 
     return json_response({'message': 'False positive recorded'})
 
@@ -1344,9 +1386,8 @@ def _reviewed_marker_category(db, slug, episode_id, start, end):
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
     """Handle correction_type='recategorize': set one marker's category.
 
-    Scoped to this episode's marker. A linked pattern keeps its own category,
-    edited in the pattern detail modal, so one episode cannot silently
-    recategorize every future match.
+    Scoped to this episode's marker; a linked pattern keeps its own category (edited in the
+    pattern detail modal) so one episode cannot recategorize every future match.
     """
     category = data.get('category')
     if category is not None and category not in SEGMENT_CATEGORIES:
@@ -1397,28 +1438,22 @@ def _dismiss_held_markers(db, slug, episode_id, predicate, markers=None) -> int:
 
 def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
                                  markers=None):
-    """When the rejected range matches a held marker, demote it to a plain
-    rejected marker and recompute pending_review_count. Without this the amber
-    review chip never clears by reviewing (the held state persists).
+    """When the rejected range matches a held marker, demote it to a plain rejected marker
+    and recompute pending_review_count; otherwise the review chip never clears.
 
-    markers, when given, is reused instead of re-fetching episode_details --
-    the reject path already loads it to resolve source_hold_reason before
-    calling here."""
+    markers, when given, is reused instead of re-fetching episode_details."""
     _dismiss_held_markers(db, slug, episode_id,
                           lambda m: _matches_held_marker(m, start, end, tol), markers)
 
 
 def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                                new_start=None, new_end=None):
-    """Confirm-side mirror of the reject path (issue #509): annotate the
-    matching held marker approved=True so the UI can count approvals awaiting
-    a recut across reloads. The marker stays pending (held_for_review, not
-    was_cut) until a recut applies the stored correction.
+    """Confirm-side mirror of the reject path (#509): mark the matching held marker
+    approved=True so the UI can count approvals awaiting a recut across reloads. The marker
+    stays pending (held_for_review, not was_cut) until a recut applies the correction.
 
-    When new_start/new_end are given (approve-trimmed), the marker's
-    boundaries move to the trimmed span before approval -- mirroring the
-    reviewer adjust path's bookkeeping -- so the recut cuts only the ad
-    portion instead of the full pass-1 span."""
+    With new_start/new_end (approve-trimmed) the marker's boundaries move to the trimmed
+    span first, as the reviewer adjust path does, so the recut cuts only the ad portion."""
     markers = _load_markers(db, slug, episode_id)
     if markers is None:
         return
@@ -1446,10 +1481,9 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
 
 def _unanchored_trim_bounds(transcript, original_start, original_end,
                             adjusted_start, adjusted_end, moved_epsilon=0.1):
-    """Return the trimmed boundaries that do NOT land within snap tolerance
-    of a transcript segment edge. Only boundaries the trim actually moved
-    are checked; an unchanged edge needs no anchor. An empty transcript
-    anchors nothing (every moved boundary reports unanchored)."""
+    """Return the trimmed boundaries that do not land within snap tolerance of a transcript
+    segment edge. Only boundaries the trim moved are checked; an empty transcript anchors
+    nothing (every moved boundary is unanchored)."""
     segments = parse_transcript_segments(transcript or '')
     edges = [
         float(e) for seg in segments
@@ -1469,17 +1503,14 @@ def _maybe_rewrite_pattern_from_adjustment(
     db, pattern_service, pattern_id, transcript,
     original_start, original_end, adjusted_start, adjusted_end,
 ):
-    """Reviewer-trim auto-update: when the reviewer narrows the bounds
-    by at least `min_trim_threshold` seconds AND settings allow it,
-    rewrite the pattern's text_template/variants from the new bounds.
-    Community patterns are never auto-rewritten (handled in
-    pattern_service.rewrite_pattern_from_bounds).
+    """Reviewer-trim auto-update: when the reviewer narrows the bounds by at least
+    `min_trim_threshold` seconds and settings allow it, rewrite the pattern's
+    text_template/variants from the new bounds. Community patterns are never auto-rewritten
+    (pattern_service.rewrite_pattern_from_bounds).
 
-    Anchor gate: the rewrite propagates cross-episode, so it only fires when
-    every trimmed boundary lands within BOUNDARY_SNAP_TOLERANCE_S of a
-    transcript segment edge. A mid-segment 20s+ trim is exactly the
-    unanchored class that must not rewrite the pattern; it is logged and
-    skipped (the episode-local correction still applies).
+    Anchor gate: the rewrite propagates cross-episode, so it fires only when every trimmed
+    boundary lands within BOUNDARY_SNAP_TOLERANCE_S of a transcript segment edge. A
+    mid-segment trim is logged and skipped (the episode-local correction still applies).
     """
     try:
         narrowed = (
@@ -1545,6 +1576,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     if transcript:
         adjusted_text = extract_transcript_segment(transcript, adjusted_start, adjusted_end)
 
+    pattern_ids = [pattern_id] if pattern_id else []
+    resolved_text = None
     if pattern_id:
         pattern_service.record_pattern_match(pattern_id, episode_id)
         logger.info(f"Recorded adjustment as confirmation for pattern {pattern_id}")
@@ -1554,7 +1587,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
             original_start, original_end, adjusted_start, adjusted_end,
         )
     elif adjusted_text and len(adjusted_text) >= 50:
-        pattern_id, _ = _resolve_or_create_pattern_from_text(
+        resolved_text = adjusted_text
+        pattern_id, pattern_ids = _resolve_or_create_pattern_from_text(
             db, pattern_service, slug, episode_id, adjusted_text,
             original_ad, label='adjusted',
             sponsor_override=sponsor_override,
@@ -1562,15 +1596,23 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
                 db, slug, episode_id, original_start, original_end),
         )
 
+    outcomes = store_patterns_audio(
+        db, slug, episode_id, pattern_ids, adjusted_start, adjusted_end,
+        force_id=pattern_id, text=resolved_text)
+    for stored_id, result in outcomes:
+        if result.stored:
+            db.set_pattern_audio_removed(stored_id, False)
+
     # Judge conflicts against the adjusted bounds: they are the span the
     # user is asserting is ad. The pre-adjustment bounds can cover an
     # unrelated overlapping span whose rejection must survive.
     deleted = db.delete_conflicting_corrections(
-        db.get_podcast_by_slug(slug)['id'], episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
+        db.get_podcast_row(slug)['id'], episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
     if deleted:
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
             f"for {slug}/{episode_id}")
+        _restore_rejected_matches(db, slug, episode_id, adjusted_start, adjusted_end)
 
     db.create_pattern_correction(
         correction_type='boundary_adjustment',
@@ -1579,11 +1621,12 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
         text_snippet=adjusted_text,
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=db.get_podcast_row(slug)['id'],
         addressing_mode=addressing_mode,
     )
 
-    return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
+    return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id,
+                          **fingerprint_response_fields(outcomes)})
 
 
 @api.route('/episodes/<slug>/<episode_id>/corrections', methods=['POST'])
@@ -1591,11 +1634,9 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
 def submit_correction(slug, episode_id):
     """Submit a correction for a detected ad.
 
-    Correction types:
-    - confirm: Ad detection is correct (increases confirmation_count)
-    - reject: Not actually an ad (increases false_positive_count)
-    - adjust: Correct ad but with adjusted boundaries
-    - create: User marks a brand-new ad on an episode the detector missed
+    Types: confirm (detection correct, bumps confirmation_count), reject (not an ad, bumps
+    false_positive_count), adjust (ad with corrected boundaries), create (user marks an
+    ad the detector missed).
     """
     db = get_database()
 
@@ -1688,11 +1729,8 @@ def submit_correction(slug, episode_id):
 def export_patterns():
     """Export patterns as JSON for backup or sharing.
 
-    Query params:
-    - include_disabled: Include disabled patterns (default: false)
-    - include_corrections: Include correction history (default: false)
-    - ids: Optional comma-separated pattern ids. If set, only those rows
-      are exported (intersected with the include_disabled filter).
+    Query: include_disabled and include_corrections (default false); ids (optional
+    comma-separated; only those rows, intersected with the include_disabled filter).
     """
     db = get_database()
 
@@ -1765,13 +1803,10 @@ def _is_empty_replace_request(patterns, mode) -> bool:
 
 
 def _validate_import_items(patterns):
-    """Upfront validation so a malformed payload is rejected before any
-    write. Replace-mode import in particular must not half-apply:
-    deleting every existing pattern and then erroring out on the
-    first bad item would leave the operator with an empty pattern
-    table. All-or-nothing via explicit validation + a single
-    transaction closes that window.
+    """Validate up front so a malformed payload is rejected before any write.
 
+    Replace-mode must not half-apply: deleting every pattern then failing on a bad item would
+    leave an empty table. Validation plus a single transaction makes it all-or-nothing.
     Returns (valid_patterns, error_response_or_None).
     """
     valid_patterns = []
@@ -1800,12 +1835,9 @@ def _validate_import_items(patterns):
 
 
 def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
-    """Apply one validated import item against an existing match (if any),
-    writing on the caller's open transaction (no inner commit) so the whole
-    import is atomic. Sponsor ids are pre-resolved into '_sponsor_id' before
-    the transaction opens.
-
-    Returns 'imported', 'updated', or 'skipped'.
+    """Apply one validated import item against an existing match (if any) on the caller's open
+    transaction (no inner commit) so the whole import is atomic. Sponsor ids are
+    pre-resolved into '_sponsor_id'. Returns 'imported', 'updated', or 'skipped'.
     """
     if existing:
         if mode == 'supplement':
@@ -1830,7 +1862,7 @@ def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
         text_template=pattern_data.get('text_template'),
         sponsor_id=pattern_data.get('_sponsor_id'),
         podcast_id=pattern_data.get('podcast_id'),
-        network_id=pattern_data.get('network_id'),
+        network_id=(pattern_data.get('network_id') or '').strip() or None,
         dai_platform=pattern_data.get('dai_platform'),
         intro_variants=pattern_data.get('intro_variants'),
         outro_variants=pattern_data.get('outro_variants'),
@@ -1840,11 +1872,9 @@ def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
 
 
 def _apply_pattern_imports(db, conn, valid_patterns, mode, skipped_count=0):
-    """Apply the import on the caller's open transaction. Every write goes
-    through the non-committing pattern primitives, so replace-mode deletes and
-    the subsequent creates are all-or-nothing: a failure mid-loop rolls back
-    via the caller and no existing pattern is lost. Returns
-    (imported, updated, skipped) on success or raises on failure.
+    """Apply the import on the caller's open transaction using the non-committing pattern
+    primitives, so replace-mode deletes and creates are all-or-nothing: a mid-loop failure
+    rolls back via the caller. Returns (imported, updated, skipped) or raises.
     """
     imported_count = 0
     updated_count = 0
@@ -1874,12 +1904,8 @@ def _apply_pattern_imports(db, conn, valid_patterns, mode, skipped_count=0):
 def import_patterns():
     """Import patterns from JSON.
 
-    Body:
-    - patterns: Array of pattern objects
-    - mode: "merge" (default), "replace", or "supplement"
-      - merge: Update existing patterns, add new ones
-      - replace: Delete all existing patterns, import all
-      - supplement: Only add patterns that don't exist
+    Body: patterns (array) and mode: "merge" (default; update existing, add new), "replace"
+    (delete all existing, import all) or "supplement" (only add patterns that don't exist).
     """
     db = get_database()
     data = request.get_json() or {}
@@ -1926,10 +1952,9 @@ def import_patterns():
     if err is not None:
         return err
 
-    # Resolve sponsor ids up front (this may create known_sponsors rows that
-    # commit independently; an orphaned sponsor row is harmless if the import
-    # later rolls back) so the atomic pattern transaction below contains no
-    # inner commits and replace-mode is truly all-or-nothing.
+    # Resolve sponsor ids up front (this may create known_sponsors rows that commit
+    # independently; an orphan is harmless if the import rolls back) so the atomic pattern
+    # transaction has no inner commits and replace-mode is truly all-or-nothing.
     for pattern_data in valid_patterns:
         sponsor = pattern_data.get('sponsor')
         pattern_data['_sponsor_id'] = (
@@ -1960,11 +1985,8 @@ def import_patterns():
 @api.route('/patterns/backfill-false-positives', methods=['POST'])
 @log_request
 def backfill_false_positive_texts():
-    """Backfill transcript text for existing false positive corrections.
-
-    Populates text_snippet field for corrections that don't have it.
-    This enables cross-episode false positive matching.
-    """
+    """Backfill text_snippet on false positive corrections that lack it, enabling
+    cross-episode false positive matching."""
     db = get_database()
     conn = db.get_connection()
 
@@ -2030,12 +2052,9 @@ def backfill_false_positive_texts():
 # ========== Bulk operations + community ==========
 
 def _resolve_bulk_target(db, data: dict, active_only_for_source: bool):
-    """Shared validation for bulk-delete + bulk-disable.
-
-    Returns (ids, error_response). ids is None when error_response is set.
-    All user-supplied fields are coerced to their expected types before
-    being reflected in any response or used in a SQL query.
-    """
+    """Shared validation for bulk-delete + bulk-disable; returns (ids, error_response).
+    ids is None when error_response is set. User-supplied fields are coerced to their
+    expected types before reaching a response or SQL query."""
     from utils.community_tags import PATTERN_SOURCES
     if not data.get('confirm'):
         return None, error_response('confirm: true is required', 400)
@@ -2073,15 +2092,15 @@ def _resolve_bulk_target(db, data: dict, active_only_for_source: bool):
 def bulk_delete_patterns():
     """Hard-delete patterns. Body: {ids?, source?, confirm: true, expected_count: N}.
 
-    Either `ids` or `source` must be provided. `expected_count` MUST match
-    the actual number of matched rows or the call is rejected with 400 -- 
-    this is the fat-finger guard from the plan.
+    Either `ids` or `source` is required. `expected_count` must match the number of matched
+    rows or the call is rejected with 400 (fat-finger guard).
     """
     db = get_database()
     ids, err = _resolve_bulk_target(db, request.get_json() or {}, active_only_for_source=False)
     if err is not None:
         return err
     deleted = db.bulk_delete_patterns(ids)
+    preview_cache.drop_cached_slices(ids)
     return json_response({'deleted': deleted, 'ids': ids})
 
 
@@ -2116,16 +2135,12 @@ _ALLOWED_OVERRIDE_FIELDS = ('sponsor', 'sponsor_aliases', 'sponsor_tags')
 def _coerce_overrides(raw):
     """Validate and coerce the optional `overrides` body field.
 
-    Expects ``{ "<pattern_id>": { sponsor?, sponsor_aliases?, sponsor_tags? } }``
-    with string keys (JSON object) and int-coercible values. Drops keys whose
-    pattern id is not int-coercible and fields that are not in the allowed set
-    so route handlers do not need to defend themselves. Field VALUES are also
-    type-checked at this boundary: `sponsor` must be a string, `sponsor_aliases`
-    and `sponsor_tags` must be lists of strings. Bad values are dropped silently
-    so a malformed body cannot reach the export pipeline and trigger an
-    AttributeError on `.strip()` or a char-list explosion via `list(str)`.
-    Returns None when `raw` is None; raises ValueError when `raw` is present
-    but not a dict.
+    Expects ``{ "<pattern_id>": { sponsor?, sponsor_aliases?, sponsor_tags? } }`` with
+    int-coercible keys. Drops keys whose pattern id is not int-coercible and fields outside
+    the allowed set. Values are type-checked here (`sponsor` a string, `sponsor_aliases` and
+    `sponsor_tags` lists of strings) and bad ones dropped, so a malformed body cannot reach
+    the export pipeline and hit `.strip()` on a non-string or a `list(str)` char explosion.
+    Returns None when `raw` is None; raises ValueError when present but not a dict.
     """
     if raw is None:
         return None
@@ -2155,11 +2170,9 @@ def _coerce_overrides(raw):
 @api.route('/patterns/preview-export', methods=['POST'])
 @log_request
 def preview_export_to_community():
-    """Dry-run: report which of these pattern ids would pass quality gates.
-
-    Body: ``{"ids": [int, ...], "overrides"?: {<id>: {sponsor?, sponsor_aliases?, sponsor_tags?}}}``.
-    Returns ``{ready, rejected, ready_count, rejected_count, pattern_count}``.
-    """
+    """Dry-run: which pattern ids would pass quality gates. Body as for the bundle route
+    (``ids``, optional ``overrides``); returns ``{ready, rejected, ready_count, rejected_count,
+    pattern_count}``."""
     from community_export import build_bundle
     body = request.get_json(silent=True) or {}
     ids = _coerce_int_ids(body.get('ids'))
@@ -2188,8 +2201,7 @@ def submit_bundle_to_community():
     """Build a single-file community submission bundle for download.
 
     Body: ``{"ids": [int, ...], "overrides"?: {<id>: {sponsor?, sponsor_aliases?, sponsor_tags?}}}``.
-    Returns ``application/json`` with a ``Content-Disposition: attachment`` header so the browser
-    downloads the file. The bundle is the artifact the user commits into
+    Returns ``application/json`` as an attachment; the user commits it into
     ``patterns/community/`` to open one PR for all selected patterns.
     """
     from community_export import build_bundle
@@ -2223,14 +2235,13 @@ def submit_bundle_to_community():
     )
 
 
-@api.route('/patterns/<int:pattern_id>/submit-to-community', methods=['POST'])
+@api.route(PATTERN_ROUTE + '/submit-to-community', methods=['POST'])
 @log_request
 def submit_pattern_to_community(pattern_id: int):
     """Run the community export pipeline for a single local pattern.
 
-    Returns the JSON payload + a prefilled GitHub PR URL. When the encoded
-    URL would exceed the GitHub limit (`too_large=True`), the frontend
-    falls back to offering the payload as a downloadable file.
+    Returns the JSON payload and a prefilled GitHub PR URL; when the encoded URL exceeds the
+    GitHub limit (`too_large=True`) the frontend offers the payload as a file download.
     """
     from community_export import run_export_pipeline, ExportError
     db = get_database()
@@ -2241,7 +2252,7 @@ def submit_pattern_to_community(pattern_id: int):
     return json_response(result)
 
 
-@api.route('/patterns/<int:pattern_id>/protect', methods=['POST'])
+@api.route(PATTERN_ROUTE + '/protect', methods=['POST'])
 @log_request
 def protect_pattern(pattern_id: int):
     """Set protected_from_sync=1 on a community pattern."""
@@ -2256,7 +2267,7 @@ def protect_pattern(pattern_id: int):
     return json_response({'pattern_id': pattern_id, 'protected_from_sync': 1})
 
 
-@api.route('/patterns/<int:pattern_id>/protect', methods=['DELETE'])
+@api.route(PATTERN_ROUTE + '/protect', methods=['DELETE'])
 @log_request
 def unprotect_pattern(pattern_id: int):
     """Set protected_from_sync=0 on a community pattern."""

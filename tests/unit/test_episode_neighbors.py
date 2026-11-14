@@ -1,10 +1,6 @@
-"""Adjacent-episode navigation (issue #417).
-
-EpisodeMixin.get_episode_neighbors returns the previous (newer) and next (older)
-episode within a feed, by the same newest-first order the feed list uses
-(COALESCE(published_at, created_at), id). The episode page renders these as
-prev/next controls.
-"""
+"""Adjacent-episode navigation (issue #417): EpisodeMixin.get_episode_neighbors returns the previous
+(newer) and next (older) episode in a feed, in the feed list's newest-first order
+(COALESCE(published_at, created_at), id)."""
 
 from tests.app_bootstrap import bootstrap
 

@@ -1,8 +1,8 @@
-"""Terminal boundary snap to splice evidence (item b of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
+"""Terminal boundary snap to splice evidence
+(docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
 
-Observed-shape fixture: the reviewer moved a terminal marker's start 11.1s
-inside the DAI block. The snap recovers the extension via the deep-silence
-event at the true onset, while a content sentence 3s further back blocks
+Fixture: the reviewer moved a terminal marker's start 11.1s inside the DAI block. The snap recovers the
+extension via the deep-silence event at the true onset, while a content sentence 3s further back blocks
 the deeper-but-wrong candidate.
 """
 import os
@@ -90,11 +90,9 @@ def test_marker_coverage_allows_span_without_promo_text():
 
 
 def test_reason_derived_sponsor_allows_brand_only_span():
-    # The extension span is a bare brand-name read (no promo phrase / URL) and
-    # is NOT covered by any other marker. The marker range itself is
-    # untranscribed, so the sponsor set is harvested solely from the marker's
-    # reason ("Vention sponsor read" -> {"vention"}). extract_sponsor_names
-    # reads that reason arg, so the brand match allows the snap.
+    # The extension span is a bare brand-name read (no promo phrase / URL) covered by no other marker, and
+    # the marker range is untranscribed, so the sponsor set comes only from the marker's reason arg
+    # (extract_sponsor_names reads it), which lets the brand match allow the snap.
     segments = [{'start': 4161.0, 'end': 4171.5,
                  'text': 'Vention is the platform we love for your team'}]
     marker = {'start': 4172.0, 'end': _EOF, 'confidence': 0.9,

@@ -1,8 +1,8 @@
 import { apiRequest, buildQueryString } from './client';
 import type { AdSegment } from './types';
 
-export type DetectionStatus = 'accepted' | 'rejected' | 'pending';
-export type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
+type DetectionStatus = 'accepted' | 'rejected' | 'pending';
+type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
 export type DetectionStatusFilter =
   | 'needs_review' | 'pending' | 'rejected' | 'accepted' | 'all';
 export type DetectionSort = 'date' | 'confidence' | 'podcast';
@@ -23,18 +23,18 @@ export interface ReviewDetection {
   sponsor: string | null;
   reason: string | null;
   patternId: number | null;
+  // Audio state of the matched pattern; absent when there is no pattern.
+  patternAudioState?: 'active' | 'off' | 'none';
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;
-  // Set by the ad reviewer stage. The original span is present only when the
-  // reviewer moved the span; held contradictions and split pieces keep the
-  // 'adjust' verdict without it.
+  // Set by the ad reviewer stage. The original span is present only when the reviewer moved the span; held
+  // contradictions and split pieces keep the 'adjust' verdict without it.
   reviewerVerdict: string | null;
   reviewerOriginalStart: number | null;
   reviewerOriginalEnd: number | null;
-  // Whether the span was actually moved (by the reviewer or a human
-  // approving a trimmed boundary); use this instead of inferring a move
-  // from reviewerVerdict/reviewerOriginalStart/End.
+  // Whether the span was actually moved (by the reviewer or a human approving a trimmed boundary); use this
+  // rather than inferring from reviewerVerdict/reviewerOriginalStart/End.
   reviewerMoved: boolean;
   // Null unless the detection is pending review.
   holdReason: HoldReason | null;
@@ -74,7 +74,7 @@ export interface DetectionListResponse {
 
 // Type alias (not interface) so it satisfies buildQueryString's Record
 // param via TypeScript's implicit index signature.
-export type DetectionListParams = {
+type DetectionListParams = {
   page?: number;
   limit?: number;
   status?: DetectionStatusFilter;

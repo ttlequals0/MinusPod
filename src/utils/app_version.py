@@ -1,10 +1,8 @@
 """Path-independent accessor for the running application version.
 
-``version.py`` lives at the project root, which isn't always on ``sys.path``
-(gunicorn's boot path only inserts ``/app/src``), so a bare
-``from version import __version__`` can crash-loop workers with
-``ModuleNotFoundError``. This module reads it by explicit file path instead.
-Import ``APP_VERSION`` or call ``get_app_version()``.
+``version.py`` sits at the project root, which gunicorn's boot path does not put on
+``sys.path``, so a bare import can crash-loop workers with ``ModuleNotFoundError``.
+This module reads it by file path. Use ``APP_VERSION`` or ``get_app_version()``.
 """
 import importlib.util
 import logging
@@ -32,11 +30,7 @@ def _read_version_file() -> str | None:
 
 
 def get_app_version() -> str:
-    """Return the running app version.
-
-    Resolution order: MINUSPOD_VERSION env var (if an operator set one),
-    then version.py read by explicit path, then 'unknown'.
-    """
+    """Running app version: MINUSPOD_VERSION env var, else version.py by path, else 'unknown'."""
     env_version = os.environ.get("MINUSPOD_VERSION")
     if env_version:
         return env_version

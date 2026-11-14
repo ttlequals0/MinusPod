@@ -1,9 +1,7 @@
 """Tests for native email notifications (src/email_service.py).
 
-Covers config loading, per-event formatting, MIME structure (HTML with CID
-logo + plain fallback), SMTP branch selection, and the two safety
-properties: event filtering and never-raises dispatch.
-"""
+Covers config loading, per-event formatting, MIME structure, SMTP branch selection, event filtering,
+and never-raises dispatch."""
 from unittest.mock import MagicMock, patch
 
 import pytest

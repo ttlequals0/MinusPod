@@ -60,11 +60,6 @@ def test_due_sponsorblock_episodes_orders_by_next_check(db):
     assert due[0]['slug'] == 'yt-show'
 
 
-def test_count_youtube_feeds(db):
-    db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
-    assert db.count_youtube_feeds() == 1
-
-
 def test_disarm_sponsorblock_watch_clears_only_an_armed_check(db):
     db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
     db.upsert_episode('yt-show', 'a1b2c3d4e5f6', original_url='https://www.youtube.com/watch?v=vid1')

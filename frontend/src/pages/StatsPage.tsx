@@ -10,14 +10,14 @@ import {
 import {
   getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats, getCleanupStats,
   getModelUsageStats, getEpisodeCostStats, getEpisodeCostRuns, getLedgerFilterOptions,
-  getSpendAttempts, getSystemOneStats, getLlmStats, ModelUsageQueryParams, EpisodeCostQueryParams,
+  getSpendAttempts, getSystemOneStats, getLlmStats, getAudioMatchingStats, ModelUsageQueryParams, EpisodeCostQueryParams,
 } from '../api/stats';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { cacheHit, formatCost, formatDateTime, formatElapsed, formatTokenCount } from '../utils/format';
-import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
+import { Skeleton, SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
@@ -33,6 +33,9 @@ import StatTile from '../components/StatTile';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
+import { useLlmEnabled } from '../hooks/useLlmEnabled';
+import { LLM_DISABLED_REASON } from './settings/LlmGate';
+import { IS_DEMO } from '../demo/flag';
 import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 
 const CLEANUP_ACTION_LABELS: Record<string, string> = {
@@ -41,6 +44,20 @@ const CLEANUP_ACTION_LABELS: Record<string, string> = {
 };
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
+
+function SortDirButton({ sortDir, onClick, noun }: { sortDir: 'asc' | 'desc'; onClick: () => void; noun?: string }) {
+  const target = sortDir === 'asc' ? 'descending' : 'ascending';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={noun ? `Sort ${noun} ${target}` : `Sort ${target}`}
+      className={`${btnBase} ${btnSecondary} min-w-11`}
+    >
+      {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
+    </button>
+  );
+}
 
 // Label + value only, no background used inside an already-shaded parent
 // (e.g. the addressing-mode card), where a second background would nest a
@@ -220,14 +237,7 @@ function ModelUsageTable({
             <option value="knownCostUsd">Known spend</option>
             <option value="unknownCostCount">Unpriced calls</option>
           </select>
-          <button
-            type="button"
-            onClick={() => onSort(sortField)}
-            aria-label={sortDir === 'asc' ? 'Sort model usage descending' : 'Sort model usage ascending'}
-            className={`${btnBase} ${btnSecondary} min-w-11`}
-          >
-            {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
-          </button>
+          <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} noun="model usage" />
         </div>
         {items.length === 0 ? (
           <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
@@ -512,14 +522,7 @@ function EpisodeCostTable({
               <option key={option.field} value={option.field}>{option.label}</option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={() => onSort(sortField)}
-            aria-label={sortDir === 'asc' ? 'Sort descending' : 'Sort ascending'}
-            className={`${btnBase} ${btnSecondary} min-w-11`}
-          >
-            {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
-          </button>
+          <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} />
         </div>
         {items.length === 0 ? (
           <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
@@ -585,6 +588,7 @@ function useExpandedKeys(): [Set<string>, (key: string) => void] {
 }
 
 export default function StatsPage() {
+  const llmEnabled = useLlmEnabled();
   const theme = useThemeColors();
   const [podcastFilter, setPodcastFilter] = useState('');
 
@@ -615,9 +619,8 @@ export default function StatsPage() {
     queryFn: () => getStatsByDay(podcastFilter || undefined),
   });
 
-  // Defer until the dashboard query confirms there are reviews to summarize.
-  // Avoids a wasted round-trip on every Stats page mount when the reviewer
-  // (off by default) has never run.
+  // Defer until the dashboard query confirms there are reviews to summarize; avoids a wasted round-trip on
+  // every mount when the reviewer (off by default) has never run.
   const { data: reviewer } = useQuery({
     queryKey: ['stats', 'reviewer', podcastFilter],
     queryFn: () => getReviewerStats(podcastFilter || undefined),
@@ -749,6 +752,13 @@ export default function StatsPage() {
     model: ledgerModel || undefined,
   };
   const {
+    data: audioMatching, isLoading: audioMatchingLoading,
+    error: audioMatchingError, refetch: refetchAudioMatching,
+  } = useQuery({
+    queryKey: ['stats-audio-matching', ledgerScope],
+    queryFn: () => getAudioMatchingStats(ledgerScope),
+  });
+  const {
     data: systemOneStats, isLoading: systemOneLoading,
     error: systemOneError, refetch: refetchSystemOne,
   } = useQuery({
@@ -848,6 +858,7 @@ export default function StatsPage() {
     { id: 'stats-llm', label: 'LLM', show: true },
     { id: 'stats-systemone', label: 'System One', show: true },
     { id: 'stats-cleanup', label: 'Cleanup', show: true },
+    { id: 'stats-audio-matching', label: 'Audio matching', show: true },
     { id: 'stats-podcasts', label: 'Podcasts', show: sortedPodcasts.length > 0 },
   ].filter((entry) => entry.show);
 
@@ -1010,7 +1021,9 @@ export default function StatsPage() {
           <h2 className={`${cardTitle} mb-4`}>Ad reviewer stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
-              No reviews yet. Enable ad reviewer in Settings, AI and processing section, then reprocess an episode.
+              {llmEnabled
+                ? 'No reviews yet. Enable ad reviewer in Settings, AI and processing section, then reprocess an episode.'
+                : `No reviews. ${LLM_DISABLED_REASON}`}
             </p>
           )}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1463,6 +1476,38 @@ export default function StatsPage() {
           </div>
         )}
 
+      </div>
+
+      <div id="stats-audio-matching" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+        <h2 className={`${cardTitle} mb-1`}>Audio matching</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Uses the date range and podcast filter above. Counts audio fingerprint matches in that period.
+        </p>
+        {audioMatchingLoading && (
+          <div role="status" aria-label="Loading audio matching stats" aria-busy="true" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
+          </div>
+        )}
+        {audioMatchingError && (
+          <QueryErrorPanel
+            message={`Could not load audio matching stats: ${getErrorMessage(audioMatchingError)}.`}
+            onRetry={() => { void refetchAudioMatching(); }}
+            retryLabel="Retry audio matching stats"
+          />
+        )}
+        {audioMatching && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatTile label="Patterns with audio" value={audioMatching.patternsWithAudio} hint={`of ${audioMatching.patternsTotal}`} />
+            <StatTile label="Audio matches" value={audioMatching.audioMatches} />
+            <StatTile label="Found by audio only" value={audioMatching.foundByAudioOnly} />
+            <StatTile label="Not this ad" value={audioMatching.notThisAd} />
+          </div>
+        )}
+        {audioMatching?.historyBackfillPending && (
+          <p className="text-sm text-muted-foreground mt-3">
+            {IS_DEMO ? 'Match history does not update in this demo.' : 'Match history is still being filled in.'}
+          </p>
+        )}
       </div>
 
       {/* Podcast Stats Table */}

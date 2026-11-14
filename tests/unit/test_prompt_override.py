@@ -1,8 +1,7 @@
-"""Tests for per-pass prompt overrides (issue #429).
+"""Per-pass prompt overrides (#429).
 
-An empty override leaves a prompt byte-identical (the working defaults are
-untouched); a set override is appended under a header, or inserted verbatim at an
-{override} placeholder when a customized prompt provides one.
+An empty override leaves the prompt byte-identical; a set one is appended under a header, or inserted
+verbatim at an {override} placeholder when the prompt has one.
 """
 from utils.prompt import apply_override, OVERRIDE_HEADER
 
@@ -20,8 +19,8 @@ class TestApplyOverride:
             prompt + OVERRIDE_HEADER + "Be stricter on intros."
 
     def test_inserts_verbatim_at_placeholder(self):
-        # At an explicit placeholder the user's text goes in raw -- no header that
-        # could countermand the wording they put around {override}.
+        # At an explicit placeholder the text goes in raw, with no header that could countermand the
+        # surrounding wording.
         prompt = "Rules.\n{override}\nOutput: []"
         out = apply_override(prompt, "Keep cooking-segment sponsors.")
         assert out == "Rules.\nKeep cooking-segment sponsors.\nOutput: []"

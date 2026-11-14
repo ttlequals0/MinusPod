@@ -174,11 +174,8 @@ def test_trial_stdev_multiple():
 
 
 class TestCategoryCompliance:
-    """The prompt marks category REQUIRED, but only some providers enforce a
-    schema. The audit used to be blind to it: a model that omitted it was not
-    counted as missing anything, and a model that emitted it was penalized for
-    an extra key. Tracked now so the report says which models answer it.
-    """
+    """The prompt marks category REQUIRED but only some providers enforce it; omitted or extra
+    category is tracked per model."""
 
     def test_a_named_category_counts_as_present(self):
         v = schema_audit([{"start": 1.0, "end": 2.0, "category": "sponsor"}])

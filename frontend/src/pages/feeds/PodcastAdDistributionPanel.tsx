@@ -33,8 +33,8 @@ function PanelBody({ data }: { data: AdDistribution }) {
 
   const chartData = useMemo(() => {
     return buckets.map((count, i) => {
-      // A bin spans [i/N, (i+1)/N]; highlight it when its span overlaps a zone
-      // (not just when its center does -- robust to narrow zones / fewer bins).
+      // A bin spans [i/N, (i+1)/N]; highlight it when its span overlaps a zone, not only its center (robust to
+      // narrow zones / fewer bins).
       const low = i / bucketCount;
       const high = (i + 1) / bucketCount;
       const inZone = zones.some((z) => low <= z.high && high >= z.low);

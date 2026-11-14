@@ -1,16 +1,7 @@
-"""Tests for T5: held-for-review API bucket split and pending_review_count.
+"""Held-for-review API bucket split and pending_review_count.
 
-Covers:
-- get_episode four-way marker split (held first, then kept, then reject,
-  then accepted)
-- Regression: held marker must NOT appear in rejectedAdMarkers
-- Kept-action markers (action_applied='keep') land in keptMarkers, not
-  rejectedAdMarkers (2.78.3)
-- save_combined_ads writes pending_review_count at the choke point
-- clear_episode_details zeros pending_review_count
-- clear_episode_ad_data zeros pending_review_count
-- Migration idempotency (fresh DB has column; adding again is a no-op)
-- list_episodes surfaces pendingReviewCount
+Covers the get_episode marker split (held, kept, reject, accepted), pending_review_count maintenance in
+save_combined_ads and the clear_* helpers, migration idempotency and list_episodes pendingReviewCount.
 """
 import atexit
 import json
@@ -405,10 +396,7 @@ def test_list_episodes_pending_review_count_zero_when_no_held():
 # ---------------------------------------------------------------------------
 
 def test_save_combined_ads_choke_point_arithmetic():
-    """save_combined_ads counts only held-and-not-cut markers.
-
-    2 held(not cut) + 1 cut + 1 rejected -> persisted count == 2.
-    """
+    """save_combined_ads counts only held-and-not-cut markers (2 held + 1 cut + 1 rejected gives 2)."""
     import storage as storage_mod
     slug = 'choke-arith'
     eid = _seed(slug)

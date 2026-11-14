@@ -1,11 +1,5 @@
-"""DELETE /feeds/<slug> cancellation handshake.
-
-Deleting a podcast flags its in-flight run, waits a bounded time for the
-owner to acknowledge, and then deletes regardless: an owner that never
-checks in must not leave a feed undeletable. A cancellation that cannot be
-recorded is a 503 instead, so the status bar never advertises a feed that
-is about to disappear.
-"""
+"""DELETE /feeds/<slug> cancellation handshake: flag the in-flight run, wait a bounded time for the owner, then delete
+regardless. A cancellation that cannot be recorded returns 503 so the status bar never advertises a vanishing feed."""
 import os
 import sys
 import tempfile

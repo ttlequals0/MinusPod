@@ -1,6 +1,5 @@
-"""Local feed RSS builder (Task 5): renders a served feed for a local
-(imported-archive) podcast entirely from DB rows -- no upstream source.
-"""
+"""Local feed RSS builder: renders a served feed for a local (imported-archive) podcast
+entirely from DB rows, with no upstream source."""
 import json
 from pathlib import Path
 
@@ -45,10 +44,8 @@ def _seed(slug):
         published_at='2026-01-02T00:00:00Z',
     )
 
-    # Newer, processed episode: has vtt/chapters, versioned enclosure.
-    # upsert_episode's INSERT column list omits processed_version (it is
-    # only ever set on an UPDATE), so the row is inserted first and then
-    # updated, mirroring how the processing pipeline actually populates it.
+    # Newer, processed episode: has vtt/chapters, versioned enclosure. upsert_episode's INSERT omits
+    # processed_version (only set on UPDATE), so the row is inserted first, then updated, as the pipeline does.
     mf.db.upsert_episode(
         slug, 's01e02', original_url='local://s01e02', title='Ep Two',
         description='Second episode', status='processed',
@@ -205,10 +202,8 @@ def test_podroll_absent_when_key_missing():
 
 
 def test_podroll_filters_non_dict_and_feed_guid_less_entries():
-    """A stored podroll list can carry garbage (a non-dict entry, a dict
-    missing feedGuid) if it was written by something other than the
-    validated PATCH path; the builder's filter must skip those and still
-    render the one valid entry rather than erroring or dropping everything."""
+    """A stored podroll list can carry garbage (a non-dict entry, a dict missing feedGuid) if written
+    outside the validated PATCH path; the builder must skip those and still render the one valid entry."""
     slug = 'podroll-filter'
     _seed(slug)
     mf.db.update_podcast(slug, p20_channel_json=json.dumps({
@@ -289,8 +284,8 @@ def test_rebuild_local_feed_applies_max_episodes_cap():
 # --- uncapped local feeds serve every episode, no 500-item ceiling --------
 
 def _seed_bulk(slug, count):
-    """`count` bare episodes on a fresh local feed, cheaply -- no p20/vtt/
-    chapters, just enough for build_local_feed_xml to render each one."""
+    """`count` bare episodes on a fresh local feed, cheaply (no p20/vtt/chapters), enough for
+    build_local_feed_xml to render each one."""
     mf.db.create_podcast(slug, f'local://{slug}', 'Bulk Show', feed_type='local')
     for i in range(count):
         mf.db.upsert_episode(
@@ -302,8 +297,8 @@ def _seed_bulk(slug, count):
 
 
 def test_rebuild_local_feed_serves_every_episode_when_uncapped():
-    """max_episodes NULL (never set) is the local-feed default: no LIMIT,
-    no 500-item ceiling -- the whole archive is served."""
+    """max_episodes NULL (never set) is the local-feed default: no LIMIT and no 500-item ceiling,
+    so the whole archive is served."""
     slug = 'uncapped-default'
     podcast = _seed_bulk(slug, 600)
 
@@ -329,8 +324,8 @@ def test_rebuild_local_feed_max_episodes_zero_is_also_uncapped():
 
 
 def test_rebuild_local_feed_positive_cap_above_500_is_not_clamped():
-    """A local feed's positive cap has no 500-item ceiling -- an operator
-    who sets 600 gets 600, unlike a subscribed feed's clamp."""
+    """A local feed's positive cap has no 500-item ceiling: an operator who sets 600 gets 600,
+    unlike a subscribed feed's clamp."""
     slug = 'above-500-cap'
     _seed_bulk(slug, 700)
     mf.db.update_podcast(slug, max_episodes=600)

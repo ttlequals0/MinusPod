@@ -13,6 +13,8 @@ _OUTCOMES = {200: 'submitted', 409: 'duplicate', 403: 'rejected', 429: 'rate_lim
 # A segment with one of these records is not offered again; other outcomes may be retried.
 FINAL_STATUSES = frozenset({'submitted', 'duplicate'})
 _TIMEOUT_S = 15
+RETRY_AFTER_DEFAULT_S = 60
+RETRY_AFTER_MAX_S = 3600
 
 
 def eligible_markers(markers: list[dict]) -> list[dict]:
@@ -50,22 +52,31 @@ def build_payload(video_id: str, user_id: str, markers: list[dict]) -> dict:
     }
 
 
-def submit(payload: dict, *, timeout: float = _TIMEOUT_S) -> tuple[str, str, list[dict]]:
-    """POST the payload; returns (status, detail, created segments) and never raises on HTTP or network errors."""
+def _retry_after_seconds(resp) -> int:
+    """The upstream's whole-second Retry-After, capped; the default when absent or not a positive integer."""
+    raw = str(resp.headers.get('Retry-After', '')).strip()
+    if raw.isascii() and raw.isdigit() and int(raw) > 0:
+        return min(int(raw), RETRY_AFTER_MAX_S)
+    return RETRY_AFTER_DEFAULT_S
+
+
+def submit(payload: dict, *, timeout: float = _TIMEOUT_S) -> tuple[str, str, list[dict], int | None]:
+    """POST the payload; returns (status, detail, created segments, retry seconds on a 429), never raising on HTTP or network errors."""
     try:
         resp = safe_post(API, URLTrust.OPERATOR_CONFIGURED, timeout=timeout, json=payload,
                          headers={'X-CLIENT-NAME': payload['userAgent'], 'User-Agent': payload['userAgent']})
     except (requests.RequestException, OSError) as exc:
-        return 'error', f'request failed: {type(exc).__name__}', []
+        return 'error', f'request failed: {type(exc).__name__}', [], None
     status = _OUTCOMES.get(resp.status_code)
     if status == 'submitted':
         try:
             body = resp.json()
         except ValueError:
             body = []
-        return status, '', [s for s in body if isinstance(s, dict)] if isinstance(body, list) else []
+        return status, '', [s for s in body if isinstance(s, dict)] if isinstance(body, list) else [], None
     detail = (resp.text or '')[:200]
-    return status or 'error', detail if status else f'HTTP {resp.status_code}: {detail}', []
+    retry = _retry_after_seconds(resp) if status == 'rate_limited' else None
+    return status or 'error', detail if status else f'HTTP {resp.status_code}: {detail}', [], retry
 
 
 def build_records(markers: list[dict], status: str, detail: str, segments: list[dict]) -> list[dict]:

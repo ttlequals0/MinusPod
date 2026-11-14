@@ -3,10 +3,9 @@ import { Link } from 'react-router';
 import { focusRing } from './fieldStyles';
 import { touchTarget } from './buttonStyles';
 
-// One prev/next pill, shared by the episode and feed detail headers. `side`
-// fixes the chevron position (prev = left, next = right); `label` is the visible
-// text. A null `to` (list boundary) renders disabled. `title` is the hover/aria
-// text. Kept presentational on purpose -- each page computes its own neighbors.
+// One prev/next pill shared by the episode and feed detail headers. `side` sets the chevron position, `label`
+// is the visible text, a null `to` (list boundary) renders disabled, `title` is the hover/aria text.
+// Presentational: each page computes its own neighbors.
 export default function PrevNextLink({ to, side, label, title }: {
   to: string | null;
   side: 'prev' | 'next';

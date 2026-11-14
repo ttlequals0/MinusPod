@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react';
 
 /**
- * State hook backed by localStorage. Values are JSON-serialized.
- *
- * Legacy sites that previously stored raw, non-JSON strings (e.g. "list",
- * "true") are read transparently: on JSON.parse failure the raw string is
- * returned as-is, then the next write upgrades the entry to JSON.
+ * State hook backed by localStorage; values are JSON-serialized. Legacy raw non-JSON strings (e.g. "list",
+ * "true") are read as-is on JSON.parse failure, and the next write upgrades the entry to JSON.
  */
-// One-shot read of a stored value without subscribing to it. Same parse rules
-// as the hook (JSON with legacy raw-string fallback). Used by components that
-// need another component's persisted state (e.g. a CollapsibleSection's open
-// flag) only to seed their own initial state.
+ // One-shot read of a stored value without subscribing, with the hook's parse rules (JSON, legacy raw-string
+ // fallback). For components that need another component's persisted state (e.g. a CollapsibleSection's open
+ // flag) only to seed their own initial state.
 export function readStoredValue<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);

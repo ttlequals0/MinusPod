@@ -472,7 +472,7 @@ def test_rotation_keeps_last_n_and_prunes(db, tmp_path, monkeypatch):
 
 def test_rotation_same_second_keeps_distinct_files(db, tmp_path, monkeypatch):
     # Freeze the clock so two runs land in the same UTC second; the second must
-    # not overwrite the first -- both distinct backups survive.
+    # not overwrite the first; both distinct backups survive.
     dest = tmp_path / 'backups'
     dest.mkdir()
     db.set_setting('db_backup_dest', str(dest))
@@ -673,7 +673,7 @@ def test_passphrase_set_reports_encrypted_not_exposed(db, tmp_path, monkeypatch,
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelno == logging.WARNING]
     assert any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
 
 
@@ -685,7 +685,7 @@ def test_no_secrets_stored_does_not_warn(db, tmp_path, monkeypatch, caplog):
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelno == logging.WARNING]
 
 
 def test_no_secrets_stored_reports_none_not_encrypted(db, tmp_path, caplog):
@@ -727,23 +727,21 @@ def test_dest_writable_existing_non_dir(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Snapshot secret-state logging. The old condition warned when a passphrase was
-# set, which is exactly when the keys are already ciphertext, and stayed silent
-# when they were readable.
+# Snapshot secret-state logging: warn only when keys are readable (a passphrase means ciphertext).
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
 def _reset_secret_latch():
-    db_backup_service.reset_secret_state_log()
+    db_backup_service._secret_state_logged = False
     yield
-    db_backup_service.reset_secret_state_log()
+    db_backup_service._secret_state_logged = False
 
 
 def test_warns_when_plaintext_secrets_are_present(db, caplog, monkeypatch):
     monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 2)
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
-    warnings = [r for r in caplog.records if r.levelname == 'WARNING']
+    warnings = [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
     assert len(warnings) == 1
     assert 'plaintext' in warnings[0].getMessage()
 
@@ -752,7 +750,7 @@ def test_no_warning_when_secrets_are_encrypted(db, caplog):
     db.set_setting('anthropic_api_key', 'enc:v1:bm9uY2U=:Y3Q=')
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
     assert any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
 
 
@@ -762,7 +760,7 @@ def test_passphrase_alone_does_not_warn(db, caplog, monkeypatch):
     monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 0)
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
 
 
 def test_warning_emitted_at_most_once_per_process(db, caplog, monkeypatch):
@@ -770,7 +768,7 @@ def test_warning_emitted_at_most_once_per_process(db, caplog, monkeypatch):
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
         backup_now(db)
-    assert len([r for r in caplog.records if r.levelname == 'WARNING']) == 1
+    assert len([r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']) == 1
 
 
 def test_secret_count_failure_does_not_break_the_backup(db, caplog, monkeypatch):
@@ -781,4 +779,46 @@ def test_secret_count_failure_does_not_break_the_backup(db, caplog, monkeypatch)
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         summary = backup_now(db)
     assert summary['mode'] == 'overwrite'
-    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
+
+
+# ---------------------------------------------------------------------------
+# lock probe versus a starting backup
+# ---------------------------------------------------------------------------
+
+def test_backup_starts_when_a_shared_probe_is_released_during_the_retry(db, tmp_path, monkeypatch):
+    import db_backup_service
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    probe = open(db.data_dir / LOCK_FILENAME, 'a')
+    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+    def release(_seconds):
+        fcntl.flock(probe, fcntl.LOCK_UN)
+
+    monkeypatch.setattr(db_backup_service, '_lock_retry_sleep', release)
+    try:
+        backup_now(db)
+    finally:
+        probe.close()
+    assert db.get_setting('db_backup_last_run') is not None
+
+
+def test_exclusive_holder_still_refuses_after_the_retries(db, tmp_path, monkeypatch):
+    import db_backup_service
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    slept = []
+    monkeypatch.setattr(db_backup_service, '_lock_retry_sleep', slept.append)
+    with open(db.data_dir / LOCK_FILENAME, 'w') as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BackupInProgressError):
+            backup_now(db)
+    assert slept and sum(slept) <= 0.3
+
+
+def test_probe_sees_only_an_exclusive_holder(db):
+    from db_backup_service import backup_in_progress
+    assert backup_in_progress(db) is False
+    with open(db.data_dir / LOCK_FILENAME, 'w') as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert backup_in_progress(db) is True
+    assert backup_in_progress(db) is False

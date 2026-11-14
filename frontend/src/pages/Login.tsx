@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { takeLoginRedirect } from '../utils/loginRedirect';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { btnLg, btnPrimary } from '../components/buttonStyles';
+import Checkbox from '../components/Checkbox';
 import { inputBase } from '../components/fieldStyles';
 import { uiUrl } from '../urlPrefix';
 
@@ -13,6 +14,7 @@ function Login() {
   const { login, isAuthenticated, isPasswordSet, isLoading, refreshStatus } = useAuth();
   const { theme } = useTheme();
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,10 +28,8 @@ function Login() {
     );
   }
 
-  // Guard: wait for auth status (!isLoading) and suppress during submit
-  // (!isSubmitting -- handleSubmit owns navigation once it starts, and
-  // refreshStatus() inside it will have set isAuthenticated by the time
-  // navigate() is called; firing the guard first double-consumes takeLoginRedirect).
+  // Guard: wait for auth status (!isLoading) and skip during submit (!isSubmitting): handleSubmit owns
+  // navigation once it starts, and firing the guard first would double-consume takeLoginRedirect.
   if (!isLoading && !isSubmitting && (isAuthenticated || !isPasswordSet)) {
     return <Navigate to={takeLoginRedirect()} replace />;
   }
@@ -39,13 +39,12 @@ function Login() {
     setError(null);
     setIsSubmitting(true);
 
-    try {
-      const success = await login(password);
-      if (success) {
-        // Verify the cookie actually persisted: a Secure cookie over plain HTTP
-        // is silently discarded by the browser, so the POST appears successful
-        // but the next request is unauthenticated. refreshStatus() re-fetches
-        // the real state and returns it without relying on stale closure values.
+    const result = await login(password, rememberMe);
+    if (result.ok) {
+      // Verify the cookie persisted: a Secure cookie over plain HTTP is silently discarded, so the POST looks
+      // successful but the next request is unauthenticated. refreshStatus() re-fetches the real state without
+      // stale closure values.
+      try {
         const realStatus = await refreshStatus();
         if (!realStatus.authenticated) {
           setError(
@@ -59,10 +58,16 @@ function Login() {
         // and consume takeLoginRedirect() a second time before unmount.
         navigate(takeLoginRedirect(), { replace: true });
         return;
+      } catch {
+        setError('Login failed. Please try again.');
       }
+    } else if (result.kind === 'rateLimited') {
+      const mins = Math.max(1, Math.ceil(result.retryAfterSeconds / 60));
+      setError(`Too many sign-in attempts. Try again in ${mins} ${mins === 1 ? 'minute' : 'minutes'}.`);
+    } else if (result.kind === 'invalid') {
       setError('Invalid password');
       setPassword('');
-    } catch {
+    } else {
       setError('Login failed. Please try again.');
     }
     setIsSubmitting(false);
@@ -98,8 +103,15 @@ function Login() {
               />
             </div>
 
+            <Checkbox
+              checked={rememberMe}
+              onChange={setRememberMe}
+              label="Remember me on this device"
+              className="pointer-coarse:min-h-11"
+            />
+
             {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center">
+              <div role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center [text-wrap:balance]">
                 {error}
               </div>
             )}

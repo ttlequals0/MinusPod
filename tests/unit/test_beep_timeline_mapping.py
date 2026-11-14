@@ -1,12 +1,6 @@
-"""Per-span replacement duration in timeline mapping.
-
-A 'remove' cut span is replaced by the fixed beep clip. A 'beep' cut span
-is instead padded to its own length (no timeline shift), unless the span
-is shorter than the clip, in which case the clip plays. Every
-original<->processed mapper reads 'replacement_duration' per span instead
-of assuming one constant for every cut; a span without that key falls back
-to the mapper's scalar `replacement_duration` argument.
-"""
+"""Per-span replacement duration in timeline mapping: 'remove' spans get the fixed beep clip, 'beep' spans are padded
+to their own length (no shift) unless shorter than the clip; mappers fall back to the scalar
+argument without the key."""
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -214,10 +208,7 @@ class TestPersistedReplacementDurationRoundTrips:
 
 
 class TestAllRemoveRegression:
-    """With no beep-action spans, mapper output is bit-identical to a
-    hand-built legacy (no replacement_duration) cut list: stamping the
-    fixed clip length on every remove span must not change any mapper's
-    output."""
+    """With no beep-action spans, mapper output is identical to a legacy cut list without replacement_duration."""
 
     def test_compute_applied_cuts_output_maps_identically_to_legacy_shape(self):
         processor = AudioProcessor()

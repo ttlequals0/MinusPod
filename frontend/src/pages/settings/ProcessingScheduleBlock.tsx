@@ -100,7 +100,7 @@ function ProcessingScheduleBlock({ active }: { active: boolean }) {
         Everything else, including Play and Reprocess, waits in the queue for the next window.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 max-w-sm">
+      <div className="grid grid-cols-[repeat(2,minmax(0,8rem))] gap-3">
         {([
           { key: 'start', id: 'schedule-start', label: 'From', value: start },
           { key: 'end', id: 'schedule-end', label: 'Until', value: end },

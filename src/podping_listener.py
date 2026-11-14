@@ -1,15 +1,11 @@
 """Podping event parsing, feed matching, and the listener loop.
 
-Note: this module deliberately has no import-time dependency on main_app
-(so tests/unit/test_podping_parsing.py can import it standalone). The
-listener loop resolves the shared db/shutdown_event from main_app.background
-lazily, inside podping_listener_loop() itself, the same way main_app.background
-resolves its own singletons -- see that module's docstring.
+No import-time dependency on main_app, so tests can import it standalone; the
+loop resolves db/shutdown_event from main_app.background lazily.
 """
 import json
 import logging
 import random
-import re
 import time
 import unicodedata
 import uuid
@@ -19,7 +15,9 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from database.error_text import redact_error
 from database.podcasts import has_upstream_audio
+from utils.http import redact_exc
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
@@ -71,9 +69,6 @@ ACTIVE_CONNECTION_STALE_SECONDS = 90
 MONITOR_HEARTBEAT_SECONDS = 15
 NODE_CHECK_LEASE_SECONDS = 60
 
-_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
-
-
 def normalize_podping_nodes(nodes) -> list[str]:
     if not isinstance(nodes, list) or not 1 <= len(nodes) <= MAX_PODPING_NODES:
         raise ValueError(f'Provide between 1 and {MAX_PODPING_NODES} node URLs.')
@@ -123,10 +118,8 @@ def get_podping_nodes(db=None) -> list[str]:
 
 
 def _sanitize_failure_reason(message: str) -> str:
-    """Short, credential-free reason for durable storage and logs: strips any
-    URL query string (where a token would live) and caps the length."""
-    text = _QUERY_STRING_RE.sub(r'\1?<redacted>', str(message))
-    return text[:200]
+    """Short, credential-free reason for durable storage and logs."""
+    return redact_exc(message, 200)
 
 
 def _new_node_health_entry() -> dict:
@@ -176,7 +169,7 @@ def get_node_health_summary(db) -> list[dict]:
             'consecutiveFailures': int(entry.get('consecutive_failures') or 0),
             'lastSuccessAt': entry.get('last_success_at'),
             'nextRetryAt': entry.get('next_retry_at'),
-            'lastFailureReason': entry.get('last_failure_reason'),
+            'lastFailureReason': redact_error(entry.get('last_failure_reason')),
             'httpStatus': entry.get('last_http_status'),
             'outcome': entry.get('last_outcome'),
             'selected': node == selected_node,
@@ -207,24 +200,13 @@ def get_node_check_status(db) -> dict:
 
 
 def _default_sleep_shutdown_aware(seconds):
-    """Default sleep that is interruptible by shutdown_event.
-
-    Used for node failure backoff in PodpingListener; imported lazily
-    so this module remains dependency-free at load time.
-    """
+    """Node-failure backoff sleep, interruptible by shutdown_event."""
     import main_app.background as background_module
     background_module.shutdown_event.wait(timeout=seconds)
 
 
 def normalize_feed_url(url: str) -> str:
-    """Normalize a feed URL: lowercase scheme+host, strip one trailing slash, preserve path case/query.
-
-    Args:
-        url: The URL to normalize.
-
-    Returns:
-        Normalized URL string.
-    """
+    """Lowercase scheme+host, strip one trailing slash, preserve path case and query."""
     parsed = urlparse(url)
     normalized_scheme = parsed.scheme.lower()
     normalized_netloc = parsed.netloc.lower()
@@ -256,18 +238,11 @@ def feed_url_domain(url: str) -> str:
 
 
 def extract_podping_events(block: dict) -> list[dict]:
-    """Extract podping events from a block.
+    """Extract podping events ('iris', 'reason', 'auths') from a condenser_api.get_block dict.
 
-    Filters on the operation id alone, which is what the reference watcher
-    does. Authorization is per feed via <podcast:hiveAccount>, so the sending
-    accounts ride along in 'auths' for the caller to check.
-
-    Args:
-        block: Block dict from condenser_api.get_block with shape
-               {'transactions': [{'operations': [['custom_json', {...}]]}]}.
-
-    Returns:
-        List of dicts with 'iris', 'reason', and 'auths' keys.
+    Filters on the operation id alone, like the reference watcher. Authorization
+    is per feed via <podcast:hiveAccount>, so the sending accounts ride along
+    in 'auths' for the caller to check.
     """
     events = []
     transactions = block.get('transactions')
@@ -342,15 +317,7 @@ def extract_podping_events(block: dict) -> list[dict]:
 
 
 def match_iris(iris: list[str], feed_map: dict[str, str]) -> list[str]:
-    """Match IRIs to feeds and return deduplicated slugs.
-
-    Args:
-        iris: List of feed URLs (IRIs).
-        feed_map: Dict mapping normalized source_url to slug.
-
-    Returns:
-        List of matched slugs, deduplicated.
-    """
+    """Return deduplicated slugs for IRIs found in feed_map (normalized source_url -> slug)."""
     matched_slugs = set()
 
     for iri in iris:
@@ -362,10 +329,7 @@ def match_iris(iris: list[str], feed_map: dict[str, str]) -> list[str]:
 
 
 class PodpingListener:
-    """Polls Hive nodes for podping custom_json ops and refreshes matching
-    feeds. All external effects (RPC, db, feed refresh, backoff sleep) are
-    injectable so tests never touch the network or a real clock sleep.
-    """
+    """Polls Hive nodes for podping ops and refreshes matching feeds; all external effects are injectable."""
 
     def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None,
                  now=None, node_probe=None, monotonic=None):
@@ -518,7 +482,7 @@ class PodpingListener:
                     try:
                         result = future.result()
                     except Exception as exc:
-                        result = (None, 'unreachable', str(exc))
+                        result = (None, 'unreachable', redact_exc(exc))
                     if node not in self.nodes:
                         continue
                     if result[1] == 'healthy':
@@ -881,11 +845,9 @@ class PodpingListener:
             node, f"{duration_s:.0f}" if duration_s is not None else 'unknown')
 
     def _node_failure(self, message, outcome='unreachable'):
-        """Log, rotate to the next node, back off (exponential + jitter), and
-        record durable per-node health.
+        """Log, rotate to the next node, back off (exponential + jitter), record per-node health.
 
-        A node warns on its first failure, repeats go to DEBUG, and only the
-        transition into losing every node (when pings are missed) is an ERROR;
+        First failure warns, repeats go to DEBUG, and only losing every node is an ERROR;
         a success clears the state so the next total outage escalates again.
         """
         node = self.nodes[self.node_index]
@@ -918,10 +880,9 @@ class PodpingListener:
         return parse_iso_utc(entry.get('next_retry_at'))
 
     def _select_node(self) -> int:
-        """Index of the node to call next: the first from the current position
-        whose persisted backoff deadline has passed, else the one due soonest.
-        Reading the stored deadline is what keeps backoff across a restart,
-        where the in-memory rotation starts over at node 0."""
+        """Index of the next node: first past its persisted backoff deadline, else the soonest due.
+
+        The stored deadline keeps backoff across a restart, where rotation resets to node 0."""
         now = self.now()
         soonest_index = self.node_index
         soonest_at = None
@@ -1019,8 +980,7 @@ class PodpingListener:
     def _flush_host_buffer(self) -> bool:
         """Write buffered domain counts; keep the buffer on failure to retry.
 
-        Stamped before the write so a failing db backs off to the flush
-        interval instead of retrying, and logging, on every tick."""
+        Stamped before the write so a failing db retries once per flush interval, not every tick."""
         self.host_flushed_at = time.time()
         if not self.host_buffer:
             return True
@@ -1033,9 +993,9 @@ class PodpingListener:
         return True
 
     def _feed_accepts(self, slug, auths):
-        """Whether this feed's own <podcast:podping> declaration allows a ping
-        from these accounts. Undeclared feeds accept any sender: the spec gives
-        nothing to check against, and polling stays the fallback either way.
+        """Whether the feed's <podcast:podping> declaration allows these accounts.
+
+        Undeclared feeds accept any sender (nothing to check against; polling is the fallback).
         """
         rules = self.feed_rules.get(slug)
         if not rules:
@@ -1132,10 +1092,9 @@ class PodpingListener:
 
 
 def podping_listener_loop():
-    """Thread target. Checks the podping_enabled setting every iteration;
-    waits 30s while disabled, otherwise runs one PodpingListener.tick().
-    A top-level exception guard logs and backs off 60s -- this thread must
-    never die, whatever the RPC nodes or the db throw at it.
+    """Thread target: waits 30s while podping_enabled is off, else runs one tick().
+
+    A top-level guard logs and backs off 60s; this thread must never die.
     """
     import main_app.background as background_module
     from main_app.feeds import refresh_single_feed

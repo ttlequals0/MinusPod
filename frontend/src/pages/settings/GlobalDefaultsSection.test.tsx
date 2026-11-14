@@ -1,18 +1,19 @@
 /**
- * Tests for the Global defaults settings section, including the feed
- * refresh interval field and the Podping notifications toggle added
- * alongside the podping-listener feature.
- *
- * Segment actions (per-category matrix + show-segments default) moved to
- * their own card, SegmentActionsSection; see SegmentActionsSection.test.tsx.
+ * Global defaults section: feed refresh interval and the Podping notifications toggle. Segment actions
+ * are in SegmentActionsSection.test.tsx.
  */
 import { useState, type ComponentProps } from 'react';
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi, afterEach } from 'vitest';
 import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const { mockGetPodpingNodes } = vi.hoisted(() => ({
   mockGetPodpingNodes: vi.fn(),
@@ -445,5 +446,14 @@ describe('GlobalDefaultsSection: Mark served feeds private toggle', () => {
     await userEvent.setup().click(toggle);
     expect(onChange).toHaveBeenCalledWith(false);
     expect(screen.getByText(/need to be added again/)).toBeTruthy();
+  });
+});
+
+describe('GlobalDefaultsSection: LLM provider None', () => {
+  it('disables the global verification pass select with the reason', () => {
+    llmState.enabled = false;
+    render(<Harness onCommit={() => {}} />);
+    expectGatedByLlm(screen.getByLabelText('Verification pass by default'));
+    expectNotGatedByLlm(screen.getByLabelText('Cross-fetch differential default'));
   });
 });

@@ -97,6 +97,31 @@ test('slugs and ids are percent-encoded in paths and queries', async () => {
   assert.ok(index['/stats/episode-costs/runs?episodeId=x+1%25&slug=a+b']);
 });
 
+test('pattern audio and every match page use the UI request keys', async () => {
+  const hits = [];
+  const inner = fakeFetch(hits, []);
+  const { index, read, d } = await run(async (url) => {
+    const u = new URL(url);
+    if (u.pathname === '/api/v1/patterns') return json(200, { patterns: [{ id: 7 }, { id: 8 }] });
+    if (u.pathname === '/api/v1/patterns/7/audio') return json(200, { state: 'off' });
+    if (u.pathname === '/api/v1/patterns/8/audio') return json(200, { state: 'none' });
+    if (u.pathname.endsWith('/audio/matches')) {
+      const page = Number(u.searchParams.get('page'));
+      const count = u.pathname.includes('/7/') ? (page === 1 ? 10 : 1) : 0;
+      assert.equal(u.searchParams.get('perPage'), '10');
+      return json(200, { matches: Array.from({ length: count }, (_, id) => ({ id })), page, perPage: 10 });
+    }
+    return inner(url);
+  });
+  assert.equal(read('/patterns/7/audio').body.state, 'off');
+  assert.equal(read('/patterns/8/audio').body.state, 'none');
+  assert.equal(read('/patterns/7/audio/matches?page=1&perPage=10').body.matches.length, 10);
+  assert.equal(read('/patterns/7/audio/matches?page=2&perPage=10').body.matches.length, 1);
+  assert.equal(index['/patterns/7/audio/matches?page=3&perPage=10'], undefined);
+  assert.deepEqual(read('/patterns/8/audio/matches?page=1&perPage=10').body.matches, []);
+  assert.deepEqual(d.stats.errors, []);
+});
+
 test('a 429 that exhausts retries is an error, not a fixture', async () => {
   const f = async (url) => (new URL(url).pathname.endsWith('/feeds')
     ? json(200, { feeds: [] })

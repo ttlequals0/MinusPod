@@ -1,8 +1,6 @@
-"""An episode row orphaned in 'processing' must heal without a restart.
+"""An episode row orphaned in 'processing' by a killed worker heals without a restart.
 
-The drainer's waiter polled only the row's status, so a row left behind by a
-killed worker kept it there for the whole hard timeout (2h by default) before
-requeuing, and the status itself was only reset at startup.
+The drainer's waiter used to poll only the row status and waited out the whole hard timeout (2h by default).
 """
 import os
 import sys

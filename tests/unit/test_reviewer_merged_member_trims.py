@@ -1,8 +1,7 @@
-"""Reviewer trims on merged ads (issue #750).
+"""Reviewer trims on merged ads (#750).
 
-A merged ad's recorded members decide what a proposal may drop: coarse
-LLM/heuristic members carry padding the reviewer exists to trim, measured
-members must stay covered but for a few seconds of boundary disagreement.
+A merged ad's members decide what a proposal may drop: coarse LLM/heuristic members carry padding the
+reviewer may trim; measured members stay covered but for a few seconds of boundary disagreement.
 """
 from types import SimpleNamespace
 
@@ -539,9 +538,10 @@ def _envelope_ad():
     return _merged(1711.02, 1872.74, [
         {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
          'precise_start': True, 'precise_end': True},
-        {'start': 1770.0, 'end': 1872.74, 'stage': 'fingerprint',
-         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1872.74}],
-        fingerprint_match_start=1770.0, fingerprint_match_end=1872.74)
+        {'start': 1770.0, 'end': 1830.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1830.0},
+        {'start': 1800.0, 'end': 1872.74, 'stage': 'text_pattern'}],
+        fingerprint_match_start=1770.0, fingerprint_match_end=1830.0)
 
 
 def test_trim_to_the_precise_transcript_end_is_applied():
@@ -553,7 +553,7 @@ def test_trim_to_the_precise_transcript_end_is_applied():
     accepted = result.accepted_after_review[0]
     assert (accepted['start'], accepted['end']) == (1711.02, 1836.66)
     assert all(m['end'] <= 1836.66 for m in recorded_member_spans(accepted))
-    assert accepted['fingerprint_match_end'] == 1836.66
+    assert accepted['fingerprint_match_end'] == 1830.0
 
 
 def test_trim_into_the_measured_extent_is_still_held():
@@ -637,3 +637,29 @@ def test_trim_dropping_a_fingerprint_wholly_past_the_precise_end_is_held():
 
     assert result.accepted_after_review == []
     assert result.held_by_boundary_conflict[0]['reviewer_proposed_end'] == 116.2
+
+
+def _run_past_precise_end_ad():
+    return _merged(1711.02, 1845.0, [
+        {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
+         'precise_start': True, 'precise_end': True},
+        {'start': 1770.0, 'end': 1845.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1845.0}],
+        fingerprint_match_start=1770.0, fingerprint_match_end=1845.0)
+
+
+def test_small_trim_of_a_fingerprint_run_past_a_precise_end_is_widened_back():
+    result = _review(_build_reviewer(_SETTINGS), _run_past_precise_end_ad(), (1711.02, 1842.5))
+
+    assert result.held_by_boundary_conflict == []
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (1711.02, 1845.0)
+
+
+def test_trim_of_a_fingerprint_run_back_to_the_precise_end_is_held():
+    result = _review(_build_reviewer(_SETTINGS), _run_past_precise_end_ad(), (1711.02, 1836.66))
+
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert held['hold_reason'] == HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    assert (held['end'], held['reviewer_proposed_end']) == (1845.0, 1836.66)

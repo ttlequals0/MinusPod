@@ -344,6 +344,17 @@ class TestNodeHealthSummary:
         assert 'SECRET123' not in reason
         assert '<redacted>' in reason
 
+    def test_failure_reason_has_no_userinfo(self):
+        db = FakeDb()
+        listener = PodpingListener(
+            rpc=lambda *a, **k: (_ for _ in ()).throw(
+                requests.RequestException('refused https://user:pw@api.hive.blog/')),
+            db=db, sleep=lambda s: None, rand=lambda lo, hi: 0)
+        listener._call_rpc('some_method', [])
+
+        reason = get_node_health_summary(db)[0]['lastFailureReason']
+        assert 'pw@' not in reason
+
 
 class TestPersistedBackoffIsEnforced:
     def test_restart_skips_a_node_inside_its_persisted_backoff(self):

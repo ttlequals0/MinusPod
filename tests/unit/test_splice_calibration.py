@@ -1,8 +1,7 @@
-"""Per-feed splice calibration tests (docs/specs/2026-07-08-ad-splice-detection.md#22-per-feed-calibration).
+"""Per-feed splice calibration (docs/specs/2026-07-08-ad-splice-detection.md#22-per-feed-calibration).
 
-Mirrors positional_prior's shape: base rates from the feed's last 5 stored
-splice_evidence payloads; cold_start below the episode gate; thresholds
-raised so expected content FP rate <= 1 event/hour.
+Mirrors positional_prior: base rates from the feed's last 5 splice_evidence payloads; cold_start below the
+episode gate; thresholds raised so the expected content FP rate is <= 1 event/hour.
 """
 import json
 import os

@@ -1,19 +1,16 @@
 """Cut-renderer duration invariant on synthetic audio (docs/specs/2026-07-08-ad-splice-detection.md#15-cut-renderer-overshoot-bug-4).
 
-remove_ads REPLACES each applied cut with the beep asset (1.08s), so the
-exact invariant is:
+remove_ads replaces each applied cut with the beep asset (1.08s), so the invariant is:
 
     output_duration == input_duration - sum(applied cuts) + n_cuts * beep
 
-within 1.0s. The naive `input - sum(cuts)` form is short one beep per cut
-by design; that beep term is also why per-episode "timeSaved" reads ~1.1s
-less than marker arithmetic per cut.
+within 1.0s. The naive `input - sum(cuts)` is short one beep per cut by design,
+which is why per-episode "timeSaved" reads ~1.1s less than marker arithmetic per cut.
 
-The synthetic 'ad' regions are digital silence baked into a sine tone, so:
-  - any leftover ad audio in the output shows up as a >=2s silence
-    (silencedetect probe), and
-  - the beep slice at the cut point must be loud (volumedetect mean above
-    -60 dB; the raw silent region measures ~-91 dB).
+The synthetic 'ad' regions are silence baked into a sine tone, so:
+  - leftover ad audio shows up as a >=2s silence (silencedetect probe), and
+  - the beep slice at the cut point must be loud (volumedetect mean above -60 dB;
+    the raw silent region measures ~-91 dB).
 
 Requires ffmpeg/ffprobe on PATH. Skipped if unavailable.
 """
@@ -148,16 +145,13 @@ def test_end_of_episode_cut_extends_and_holds_invariant(processor, tmp_path):
 
 
 def test_time_saved_reflects_beep_replacement(processor, tmp_path):
-    """Pins the RENDERER precondition that keeps production timeSaved
-    beep-aware: the rendered file's real decoded duration reflects the
-    beep-replaced cut, so (original - new_duration) == marker_sum - n*beep.
+    """Pins the renderer precondition that keeps production timeSaved beep-aware: the decoded
+    duration reflects the beep-replaced cut, so (original - new_duration) == marker_sum - n*beep.
 
-    Production timeSaved is original_duration - new_duration (processing.py:1709,
-    webhook_service.py:98, api/episodes.py:98/177). This test does NOT exercise
-    those sites -- it recomputes original - new from real ffprobe decodes to
-    confirm the decoded output carries the beep, which is the precondition that
-    makes original-minus-new beep-aware. It cannot catch a regression of the
-    metric formula itself to marker-summing."""
+    Production timeSaved is original_duration - new_duration (processing.py,
+    webhook_service.py, api/episodes.py). This test does not exercise those sites; it
+    recomputes original - new from real ffprobe decodes. It cannot catch the metric
+    formula regressing to marker-summing."""
     input_path = tmp_path / 'input.wav'
     output_path = tmp_path / 'out.mp3'
     _make_input(input_path, 60.0, [(10.0, 30.0)])

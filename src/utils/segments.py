@@ -31,8 +31,8 @@ def word_spans(word_segments: Sequence[WordSegmentLike],
                ) -> tuple[str, list[tuple[int, int]]]:
     """Join words into one utterance and return each word's (start, stop) span in it.
 
-    If any word is space-prefixed, words without a leading space continue the
-    previous word (e.g. "&T" after " AT"); otherwise every word is space-separated.
+    If any word is space-prefixed, unprefixed words continue the previous one
+    ("&T" after " AT"); otherwise all words are space-separated.
     """
     prefixed = any(w['word'].startswith(' ') for w in word_segments)
     text = ''
@@ -141,8 +141,8 @@ def validate_word_segments(words: Sequence[WordSegmentLike],
 def normalize_segments(segments: Sequence[TextSegmentLike]) -> list[TextSegmentLike]:
     """Normalize segments in place and sort them by start and end.
 
-    Segments that fail `validate_text_segment(strict=False)` are dropped with one warning.
-    Text and segment timings are never rewritten; only the word lists are normalized.
+    Segments failing `validate_text_segment(strict=False)` are dropped with one
+    warning. Only word lists are normalized; text and timings are never rewritten.
     """
     if not isinstance(segments, Sequence):
         raise TypeError(f"Invalid sequence of text segments: {segments}")

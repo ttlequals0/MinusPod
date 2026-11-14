@@ -5,7 +5,6 @@ from api import get_database
 from rss_parser import RSSParser
 
 SLUG = 'review-links-slug'
-PROCESSED_ID = 'abcdef012345'
 UPSTREAM = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel><title>Show</title><link>https://u.example.com</link>
 <description>d</description>

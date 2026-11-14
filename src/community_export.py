@@ -1,13 +1,10 @@
 """Community pattern export pipeline.
 
-Given a local pattern's id, runs quality gates, PII stripping, metadata
-stripping, sponsor classification, and produces a JSON document suitable
-for submission to the MinusPod patterns/community/ directory in the
-upstream GitHub repository.
+Given a local pattern's id, runs quality gates, PII stripping, metadata stripping and sponsor
+classification, and produces a JSON document for submission to the upstream patterns/community/
+directory. Returns a structured dict the API layer hands to the frontend.
 
-Returns a structured dict the API layer can hand to the frontend.
-
-Pipeline (mirrors the plan, section 7):
+Pipeline:
 
 1. Quality gates
 2. Tag validation
@@ -66,10 +63,7 @@ class ExportError(Exception):
 
 
 def _strip_emails(text: str) -> str:
-    """Strip consumer-domain emails from a text body. Returns the cleaned text.
-
-    Business addresses (anything not in CONSUMER_EMAIL_DOMAINS) are kept.
-    """
+    """Strip consumer-domain emails from a text body; business addresses (not in CONSUMER_EMAIL_DOMAINS) are kept."""
     def _sub(m: re.Match) -> str:
         domain = m.group(2).lower()
         if domain in CONSUMER_EMAIL_DOMAINS:
@@ -111,9 +105,9 @@ def normalize_aliases(value) -> list[str]:
 
 
 def brand_match_candidates(sponsor_row: dict | None) -> set:
-    """Lowercased sponsor name and aliases plus their whitespace-stripped
-    variants, for brand matching. Includes the stripped forms so a sponsor
-    stored as 'statefarm' still matches a 'State Farm' mention and vice versa.
+    """Lowercased sponsor name and aliases plus whitespace-stripped variants, for brand matching.
+
+    The stripped forms let a sponsor stored as 'statefarm' match 'State Farm' and vice versa.
     Empty set when sponsor_row is missing or has no name.
     """
     if not sponsor_row:
@@ -136,14 +130,11 @@ def brand_match_candidates(sponsor_row: dict | None) -> set:
 
 
 def count_brand_occurrences(text: str, sponsor_row: dict | None) -> int:
-    """Maximum case-insensitive substring count of the sponsor's name and any
-    of its aliases against `text`. Also counts whitespace-stripped variants
-    so a sponsor stored as 'statefarm' still scores against a 'State Farm'
-    mention, and vice versa.
+    """Maximum case-insensitive substring count of the sponsor's name or any alias against `text`.
 
-    Returns 0 when sponsor_row is missing, has no name/aliases, or no
-    variant appears in text. The 2.5.13 pattern-correctness guard rejects
-    patterns where the returned count is <2.
+    Whitespace-stripped variants count too ('statefarm' vs 'State Farm'). Returns 0 when sponsor_row is
+    missing, has no name/aliases, or no variant appears. The 2.5.13 pattern-correctness guard rejects
+    patterns where the count is <2.
     """
     if not text:
         return 0
@@ -165,9 +156,8 @@ def first_brand_occurrence(text: str, sponsor_row: dict | None) -> int | None:
 
 
 def get_sponsor_row_or_stub(db, sponsor):
-    """Return the known-sponsor row for `sponsor`, or a name-only stub
-    ({'name': sponsor, 'aliases': '[]'}) when there is no DB or no stored
-    sponsor, so brand matching still works against the bare sponsor string.
+    """Return the known-sponsor row for `sponsor`, or a name-only stub ({'name': sponsor, 'aliases': '[]'})
+    when there is no DB or stored sponsor, so brand matching still works against the bare string.
     """
     if db:
         row = db.get_known_sponsor_by_name(sponsor)
@@ -177,10 +167,9 @@ def get_sponsor_row_or_stub(db, sponsor):
 
 
 def declared_sponsor_names_lower(sponsor_row: dict | None) -> set:
-    """Return the lowercased name + aliases set for a known_sponsors row.
+    """Return the lowercased name + aliases set for a known_sponsors row (empty when missing or nameless).
 
-    Empty set when the row is missing or has no name; callers can pass this
-    straight to find_foreign_sponsors as `declared_names_lower`.
+    Callers can pass this straight to find_foreign_sponsors as `declared_names_lower`.
     """
     if not sponsor_row:
         return set()
@@ -199,15 +188,12 @@ def find_foreign_sponsors(
     *,
     require_active: bool = False,
 ) -> list[str]:
-    """Return canonical names of sponsors whose name or any alias appears
-    in `text` on a word boundary, excluding any row whose own name/alias
-    matches `declared_names_lower`. Lookups are case-insensitive.
+    """Return canonical names of sponsors whose name or any alias appears in `text` on a word boundary.
 
-    `declared_names_lower` should already contain every lowercased name
-    you consider "us" -- the doc's declared sponsor plus its declared
-    aliases. The helper also skips any seed row that shares an
-    alias with the declared sponsor, so passing the canonical name alone
-    is enough when the seed list is authoritative.
+    Rows whose own name/alias matches `declared_names_lower` are excluded; lookups are case-insensitive.
+    `declared_names_lower` should hold every lowercased name you consider "us" (the declared sponsor plus
+    aliases). Seed rows sharing an alias with the declared sponsor are skipped too, so the canonical name
+    alone suffices when the seed list is authoritative.
     """
     if not text:
         return []
@@ -263,10 +249,9 @@ def _quality_gates(pattern: dict, sponsors: list[dict], override: dict | None = 
         reasons.append('sponsor not found')
         return reasons
 
-    # Per-export override: contributor refined the sponsor in the Export
-    # dialog. Re-run the sponsor-in-text check against the overridden
-    # values so an edit that strips the brand name out of the text fails
-    # the gate the same way the original would.
+    # Per-export override: the contributor refined the sponsor in the Export dialog. Re-run the
+    # sponsor-in-text check on the overridden values so an edit that strips the brand name from the
+    # text fails the gate like the original would.
     if override:
         override_name = (override.get('sponsor') or '').strip() or None
         override_aliases = override.get('sponsor_aliases')
@@ -302,10 +287,8 @@ def _validate_tags(pattern: dict, sponsor_row: dict, override: dict | None = Non
     bad: list[str] = []
     vt = valid_tags()
     if override and override.get('sponsor_tags') is not None:
-        # Refuse to coerce a non-list (`list("universal")` would explode
-        # into single chars and produce a wall of nonsense "unknown tag"
-        # rejections). The route layer already filters allowed fields;
-        # this is defense in depth against a malformed body.
+        # Refuse to coerce a non-list (`list("universal")` would explode into single chars and yield
+        # nonsense "unknown tag" rejections). The route layer filters allowed fields; this is defense in depth.
         raw_tags = override['sponsor_tags']
         tags = list(raw_tags) if isinstance(raw_tags, list) else []
     else:
@@ -345,13 +328,10 @@ def _classify_sponsor(sponsor_name: str, sponsors: list[dict]) -> str:
 def _safe_parse_variants(value) -> list[str]:
     """Decode the JSON-encoded intro/outro_variants column into a list[str].
 
-    Older code paths in `text_pattern_matcher.py` pre-encoded the list with
-    `json.dumps` before passing it to `Database.create_ad_pattern`, which
-    `json.dumps`'d it again -- so existing rows in production hold a
-    double-encoded value. `json.loads` once on that returns a string,
-    which the prior comprehension then exploded character by character.
-    Detect that case by trying a second decode when the first returned
-    a string. Idempotent on correctly-encoded rows.
+    Older `text_pattern_matcher.py` paths pre-encoded the list with `json.dumps` before
+    `Database.create_ad_pattern` encoded it again, so existing rows hold a double-encoded value that one
+    `json.loads` turns into a string. Detect that by decoding a second time when the first returned a
+    string. Idempotent on correctly-encoded rows.
     """
     if not value:
         return []
@@ -386,12 +366,9 @@ def _strip_metadata(pattern: dict, sponsor_row: dict) -> dict:
     intro_variants = [strip_pii(v) for v in intro_variants]
     outro_variants = [strip_pii(v) for v in outro_variants]
 
-    # Community patterns travel without a podcast_id / network_id, so a
-    # 'podcast' or 'network' scope on the source instance no longer makes
-    # sense on the receiver -- the row would never match anything.
-    # Eligibility on the receiver is governed by sponsor tags vs the
-    # podcast's tag set (text_pattern_matcher._filter_patterns_by_scope),
-    # not by the legacy scope column. Force global at the boundary.
+    # Community patterns travel without a podcast_id / network_id, so a 'podcast' or 'network' scope
+    # would never match on the receiver. Receiver eligibility is sponsor tags vs the podcast's tag set
+    # (text_pattern_matcher._filter_patterns_by_scope), not the legacy scope column. Force global here.
 
     payload = {
         'scope': 'global',
@@ -430,11 +407,9 @@ def build_export_payload(
     payload = _strip_metadata(pattern, sponsor_row)
 
     if override:
-        # `or '').strip()` matches the _quality_gates resolution: an
-        # empty or whitespace-only sponsor override is treated as "no
-        # override" so the payload mirrors the gate's view of the
-        # sponsor name. Aliases / tags only apply when the override is
-        # a list (strings would silently coerce to chars).
+        # `or '').strip()` matches _quality_gates: an empty or whitespace-only sponsor override means
+        # "no override", so the payload mirrors the gate's view. Aliases / tags only apply when the
+        # override is a list (strings would silently coerce to chars).
         sponsor_override = (override.get('sponsor') or '').strip()
         if sponsor_override:
             payload['sponsor'] = sponsor_override
@@ -460,9 +435,8 @@ def build_export_payload(
 def build_pr_url(payload: dict) -> tuple[str, str, bool]:
     """Build the prefilled GitHub PR URL for this payload.
 
-    Returns (url, filename, too_large). When `too_large` is True the URL is
-    still returned but it should NOT be opened -- the caller should offer the
-    JSON file as a download instead.
+    Returns (url, filename, too_large). When `too_large` is True the URL is still returned but must
+    not be opened; the caller should offer the JSON file as a download instead.
     """
     filename = expected_filename(payload.get('sponsor') or 'sponsor',
                                 payload['community_id'])
@@ -492,13 +466,10 @@ def build_bundle(
 ) -> tuple[dict, list[dict]]:
     """Run the export pipeline on each id and produce one bundle JSON.
 
-    `overrides` maps pattern id -> partial field dict forwarded to
-    build_export_payload for that pattern (e.g. corrected sponsor name).
-
-    Returns (bundle_payload, rejected). `rejected` is a list of
-    `{id, sponsor, reasons:[str]}` for patterns that failed pre-flight.
-    The bundle is the artifact that gets committed under
-    `patterns/community/` and consumed by the PR validator.
+    `overrides` maps pattern id -> partial field dict forwarded to build_export_payload (e.g. a corrected
+    sponsor name). Returns (bundle_payload, rejected); `rejected` is a list of `{id, sponsor, reasons:[str]}`
+    for patterns that failed pre-flight. The bundle is committed under `patterns/community/` and consumed
+    by the PR validator.
     """
     sponsors = db.get_known_sponsors(active_only=False)
     patterns_by_id = db.get_ad_patterns_by_ids(pattern_ids)
@@ -541,14 +512,8 @@ def build_bundle(
 def run_export_pipeline(pattern_id: int, db) -> dict:
     """End-to-end: load pattern + sponsors, run pipeline, return result dict.
 
-    Result dict shape:
-      {
-        'payload': <dict>,
-        'filename': '<slug>-<short>.json',
-        'pr_url': '<github url>',
-        'too_large': bool,
-        'sponsor_match': 'exact'|'alias'|'fuzzy'|'unknown',
-      }
+    Result keys: payload (dict), filename ('<slug>-<short>.json'), pr_url, too_large (bool),
+    sponsor_match ('exact'|'alias'|'fuzzy'|'unknown').
 
     Raises ExportError on quality / tag failures (callers convert to 400).
     """

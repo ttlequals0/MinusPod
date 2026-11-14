@@ -1,9 +1,5 @@
-"""Tests for cue-candidate merging (within-episode recurrence + cross-episode).
-
-merge_cue_candidates combines recurring sounds (ad-break stings that repeat within
-the episode) with cross-episode intro/outro segments (head/tail audio shared across
-sibling episodes), tagging each with a kind and a capture-type hint.
-"""
+"""merge_cue_candidates combines within-episode recurring sounds with cross-episode intro/outro
+segments, tagging each with a kind and capture-type hint."""
 from audio_analysis.cue_candidates import merge_cue_candidates
 from config import AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO
 

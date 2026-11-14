@@ -63,7 +63,7 @@ def _validate_systemone_phase_enables(db, data, prospective_feed_modes=None):
     has_active_feed_mode = global_mode != 'off'
     if chapters_enabled and global_mode == 'off':
         current_modes = {row.get('slug'): row.get('chapters_mode')
-                         for row in db.get_all_podcasts()}
+                         for row in db.get_all_podcast_rows()}
         current_modes.update(prospective_feed_modes or {})
         has_active_feed_mode = any(mode in ('auto', 'generate') for mode in current_modes.values())
     if chapters_enabled and has_active_feed_mode:

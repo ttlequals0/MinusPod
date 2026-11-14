@@ -16,8 +16,14 @@ vi.mock('wavesurfer.js/dist/plugins/regions.esm.js', () => ({
     })),
   },
 }));
+const peaksState = vi.hoisted(() => ({
+  value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
+  retry: vi.fn(),
+}));
 vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: () => ({ peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null }),
+  usePeaks: () => {
+    return { ...peaksState.value, loading: !peaksState.value.peaks && !peaksState.value.peaksError, retry: peaksState.retry };
+  },
 }));
 vi.mock('../api/sponsors', () => ({
   getSponsors: vi.fn().mockResolvedValue([]),
@@ -138,6 +144,8 @@ function renderModal(over: Partial<React.ComponentProps<typeof AdReviewModal>> =
 
 beforeEach(() => {
   vi.clearAllMocks();
+  peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
+  peaksState.retry.mockClear();
   mockReprocess.mockResolvedValue({});
 });
 
@@ -490,5 +498,109 @@ describe('AdReviewModal multi-span create', () => {
     expect(screen.getByText(/0:30\.0 - 0:40\.0: Could not save/)).toBeTruthy();
     expect(onCreateDone).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdReviewModal waveform states', () => {
+  it('shows the loading line while peaks are pending', () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    expect(screen.getByText('Loading waveform...')).toBeTruthy();
+    expect(screen.queryByText(/Could not load waveform/)).toBeNull();
+  });
+
+  it('shows the error with a Retry and no server text', () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    expect(screen.getByText('Could not load waveform. Try again.')).toBeTruthy();
+    expect(screen.queryByText(/boom/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('Retry refetches the waveform', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(peaksState.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('Retry leaves the window and the pins where the user put them', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Set END/ }));
+    const read = () => [
+      (screen.getByLabelText('Selection start time') as HTMLInputElement).value,
+      (screen.getByLabelText('Selection end time') as HTMLInputElement).value,
+      (screen.getByLabelText('Waveform window position') as HTMLInputElement).value,
+    ];
+    const moved = read();
+    expect(moved[1]).toBe('0:01.0');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(read()).toEqual(moved);
+  });
+});
+
+describe('AdReviewModal single-span mode', () => {
+  const spanItem: AdReviewItem = { ...ITEM, start: 100, end: 160, sponsor: null, reason: null, confidence: null, detectionStage: null };
+
+  function renderSpan(onSaveSpan = vi.fn().mockResolvedValue(undefined)) {
+    const view = renderModal({ item: spanItem, mode: 'span', onSaveSpan });
+    return { onSaveSpan, ...view };
+  }
+
+  it('offers one region, no ad metadata controls and a Save audio action', () => {
+    renderSpan();
+    expect(screen.getByRole('dialog', { name: 'Edit edges' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Edit edges' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Edit edges' }).className).not.toContain('hidden');
+    expect(screen.getByRole('button', { name: 'Save audio' })).toBeDefined();
+    expect(screen.getByText("Save audio rebuilds this pattern's audio from the selection.")).toBeDefined();
+    for (const name of [/Split/, /Skip/, /Confirm/, /Not an ad/, /Add new ad/, 'Processed', 'Original']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    expect(screen.queryByLabelText('Segment category')).toBeNull();
+    expect(screen.queryByText(/Sponsor/)).toBeNull();
+  });
+
+  it('saves the adjusted span and nothing else', async () => {
+    const { onSaveSpan, onSubmit } = renderSpan();
+    const user = userEvent.setup();
+    const start = screen.getByLabelText('Selection start time');
+    await user.clear(start);
+    await user.type(start, '1:45');
+    await user.tab();
+    await user.click(screen.getByRole('button', { name: 'Save audio' }));
+    expect(onSaveSpan).toHaveBeenCalledWith({ start: 105, end: 160 });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('shows the failure beside the action and stays open', async () => {
+    const { onClose } = renderSpan(vi.fn().mockRejectedValue(new Error('That audio is not distinctive enough to match reliably.')));
+    await userEvent.click(screen.getByRole('button', { name: 'Save audio' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('not distinctive enough');
+    expect(screen.getByRole('button', { name: 'Save audio' })).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('blocks a span over ten minutes', async () => {
+    const { onSaveSpan } = renderSpan();
+    const user = userEvent.setup();
+    const end = screen.getByLabelText('Selection end time');
+    await user.clear(end);
+    await user.type(end, '15:00');
+    await user.tab();
+    expect(screen.getByText('Selection must be at most 600s long')).toBeDefined();
+    expect((screen.getByRole('button', { name: 'Save audio' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onSaveSpan).not.toHaveBeenCalled();
+  });
+
+  it('ignores the review hotkeys', async () => {
+    const { onSubmit, onSkip } = renderSpan();
+    screen.getByRole('dialog').focus();
+    await userEvent.keyboard('crs');
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSkip).not.toHaveBeenCalled();
   });
 });

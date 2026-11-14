@@ -45,6 +45,9 @@ TEMP_BACKUP_NAME = '.minuspod-backup.db.tmp'
 ROTATED_NAME_RE = re.compile(r'^minuspod-backup-auto-\d{8}-\d{6}\.db$')
 KEEP_COUNT_MIN, KEEP_COUNT_MAX = 1, 365
 LOCK_FILENAME = '.db_backup.lock'
+_LOCK_RETRY_ATTEMPTS = 5
+_LOCK_RETRY_DELAY_SECONDS = 0.05
+_lock_retry_sleep = time.sleep
 
 
 class BackupInProgressError(Exception):
@@ -54,9 +57,8 @@ class BackupInProgressError(Exception):
 def validate_backup_dest(raw: Any, data_dir: str | Path) -> Path:
     """Resolve and validate a backup destination directory.
 
-    Raises ValueError with a user-facing message on any rejection. Normalizes
-    with os.path.realpath before any filesystem check so the resolved path is
-    what collision checks and the CodeQL path-injection sink both see.
+    Raises ValueError with a user-facing message on rejection. Normalizes with os.path.realpath before
+    any filesystem check so collision checks and the CodeQL path-injection sink see the resolved path.
     """
     if not isinstance(raw, str):
         raise ValueError('destination must be a string')
@@ -101,10 +103,8 @@ def _rotated_name(stamp: str) -> str:
 def _next_rotated_path(dest: Path, now: datetime) -> Path:
     """Return a non-colliding rotated backup path for `now`.
 
-    Two backups in the same UTC second would otherwise share a filename and the
-    second os.replace would overwrite the first, destroying a good snapshot. If
-    the second-resolution name is taken, step forward a second until one is free
-    so keepCount > 1 always retains distinct files.
+    Two backups in the same UTC second would share a filename and the second os.replace would destroy
+    the first snapshot, so step forward a second until the name is free (keepCount > 1 keeps distinct files).
     """
     for offset in range(60):
         stamp = (now + timedelta(seconds=offset)).strftime('%Y%m%d-%H%M%S')
@@ -117,10 +117,8 @@ def _next_rotated_path(dest: Path, now: datetime) -> Path:
 
 
 def _prune_rotated(dest: Path, keep: int, keep_path: Path | None = None) -> int:
-    """Prune rotated backups down to `keep`, and drop the fixed file in rotate
-    mode / all rotated files in overwrite mode. `keep_path` (the file just
-    written) is never pruned. Errors are logged, never raised.
-    """
+    """Prune rotated backups down to `keep`; drop the fixed file in rotate mode / all rotated files in
+    overwrite mode. `keep_path` (the file just written) is never pruned. Errors are logged, never raised."""
     pruned = 0
     if keep == 1:
         # Overwrite mode: no timestamped files should survive.
@@ -152,10 +150,8 @@ def _prune_rotated(dest: Path, keep: int, keep_path: Path | None = None) -> int:
 def dest_writable(path: Path) -> bool:
     """Report whether a backup could be written under `path`.
 
-    Matches mkdir(parents=True) semantics: if `path` exists it must be a
-    writable directory; if it does not, walk up to the nearest existing
-    ancestor and require it to be a writable directory (mkdir would create the
-    missing levels under it).
+    Matches mkdir(parents=True): an existing `path` must be a writable directory; otherwise the nearest
+    existing ancestor must be one (mkdir would create the missing levels under it).
     """
     if path.exists():
         return path.is_dir() and os.access(path, os.W_OK)
@@ -228,19 +224,11 @@ def _ensure_dest_dir(dest: Path) -> int:
 _secret_state_logged = False
 
 
-def reset_secret_state_log() -> None:
-    """Clear the once-per-process latch. For tests."""
-    global _secret_state_logged
-    _secret_state_logged = False
-
-
 def _log_snapshot_secret_state(db, final, summary) -> None:
     """Log once per process what a snapshot exposes.
 
-    Provider secrets are ciphertext whenever MINUSPOD_MASTER_PASSPHRASE is set,
-    because Database.set_secret encrypts on write, so a configured passphrase is
-    the safe case. The exposed case is a snapshot taken with none, where the keys
-    are readable. The previous condition warned on exactly the wrong one.
+    Provider secrets are ciphertext whenever MINUSPOD_MASTER_PASSPHRASE is set (Database.set_secret
+    encrypts on write), so a passphrase is the safe case; the exposed case is a snapshot with none.
     """
     global _secret_state_logged
     if _secret_state_logged:
@@ -277,23 +265,46 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
         )
 
 
+def _acquire_exclusive_lock(lock_fd) -> bool:
+    """Take the lock without blocking, retrying briefly so a momentary shared probe does not refuse a backup."""
+    for attempt in range(_LOCK_RETRY_ATTEMPTS + 1):
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            if attempt < _LOCK_RETRY_ATTEMPTS:
+                _lock_retry_sleep(_LOCK_RETRY_DELAY_SECONDS)
+    return False
+
+
+def backup_in_progress(db) -> bool:
+    """True when a backup holds the exclusive lock; probes share it so they never see each other."""
+    try:
+        with open(Path(db.data_dir) / LOCK_FILENAME, 'a') as lock_fd:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    except OSError:
+        return False
+    return False
+
+
 def backup_now(db) -> dict[str, Any]:
     """Run a backup now regardless of schedule. Returns a summary dict.
 
-    Stamps last_run immediately after acquiring the lock (community-sync
-    convention: a persistently failing backup retries at the next cron fire, not
-    every tick). On failure the settings table records the error and the
-    exception re-raises so the caller can surface it.
+    Stamps last_run right after acquiring the lock (community-sync convention: a persistently failing
+    backup retries at the next cron fire, not every tick). On failure the error is recorded in the
+    settings table and the exception re-raises for the caller.
     """
     lock_path = Path(db.data_dir) / LOCK_FILENAME
     lock_fd = open(lock_path, 'w')
     try:
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        if not _acquire_exclusive_lock(lock_fd):
             # Expected control-flow signal for callers; the low-level lock
             # errno adds nothing they act on.
-            raise BackupInProgressError('a backup is already in progress') from None
+            raise BackupInProgressError('a backup is already in progress')
 
         # Stamp last_run only once we hold the lock and a backup genuinely runs;
         # a contending caller must not consume the retry slot.

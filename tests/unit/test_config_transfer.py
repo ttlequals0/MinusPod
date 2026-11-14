@@ -4,13 +4,18 @@ from decimal import Decimal
 
 import pytest
 
-import config_transfer
-import secrets_crypto
-from utils.feed_guid import compute_feed_guid
-from config_transfer import ConfigTransferError
-from fx_rates import FxRate, FxRateError
-from rate_limit_hold import active_held_pairs, record_hold_until
-from utils.secret_writes import set_or_clear_secret
+from tests.app_bootstrap import bootstrap
+
+bootstrap('config_transfer_test_')
+
+import config_transfer  # noqa: E402
+import secrets_crypto  # noqa: E402
+from main_app import feeds as main_feeds  # noqa: E402
+from utils.feed_guid import compute_feed_guid  # noqa: E402
+from config_transfer import ConfigTransferError  # noqa: E402
+from fx_rates import FxRate, FxRateError  # noqa: E402
+from rate_limit_hold import active_held_pairs, record_hold_until  # noqa: E402
+from utils.secret_writes import set_or_clear_secret  # noqa: E402
 
 
 def _document(settings=None, feeds=None):
@@ -515,6 +520,7 @@ def test_apply_rejects_feed_url_ssrf_before_writes(temp_db, monkeypatch):
 def test_runtime_config_download_route_sets_attachment_and_cache_headers(temp_db, monkeypatch):
     from flask import Flask
     from api import api, init_limiter
+    from api.auth_state import refresh_auth
 
     document = _document({'retention_days': 45})
     monkeypatch.setattr('api.config_transfer.get_database', lambda: temp_db)
@@ -522,6 +528,7 @@ def test_runtime_config_download_route_sets_attachment_and_cache_headers(temp_db
     monkeypatch.setattr('api.config_transfer.export_config', lambda *_args: document)
     app = Flask(__name__)
     app.secret_key = 'test-session-key'
+    app.before_request(lambda: refresh_auth(temp_db) and None)
     app.register_blueprint(api)
     init_limiter(app)
 
@@ -534,11 +541,13 @@ def test_runtime_config_download_route_sets_attachment_and_cache_headers(temp_db
     assert 'attachment' in response.headers['Content-Disposition']
     assert json.loads(response.get_data()) == document
 
-    from api.auth_state import SESSION_GENERATION_KEY, current_generation
+    from api.auth_state import (
+        SESSION_GENERATION_KEY, SESSION_LAST_USED_KEY, _now, current_generation)
     temp_db.set_setting('app_password', 'configured-password')
     with client.session_transaction() as session:
         session['authenticated'] = True
         session[SESSION_GENERATION_KEY] = current_generation(temp_db)
+        session[SESSION_LAST_USED_KEY] = _now()
     rejected = client.post('/api/v1/system/config-import/preview', json={})
     assert rejected.status_code == 403
 
@@ -702,9 +711,6 @@ def test_preview_rejects_nonfinite_feed_numbers(temp_db):
 
 
 def test_post_commit_reports_failed_refresh_outcome(temp_db, monkeypatch):
-    monkeypatch.setenv('DATA_DIR', str(temp_db.data_dir))
-    from main_app import feeds as main_feeds
-
     temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
     monkeypatch.setattr(main_feeds, 'invalidate_feed_cache', lambda: None)
     monkeypatch.setattr(
@@ -1053,3 +1059,43 @@ def test_youtube_import_accepts_a_video_source(temp_db):
     preview = config_transfer.build_preview(temp_db, document, 'feeds', ['yt-new'])
     config_transfer.apply_config(temp_db, document, 'feeds', ['yt-new'], preview['previewToken'])
     assert temp_db.get_podcast_by_slug('yt-new')['youtube_source_kind'] == 'video'
+
+
+LONG_OVERRIDE = 'N' * 120
+
+
+def _legacy_long_override_feed(db):
+    db.create_podcast('local-archive', 'local://local-archive', 'Archive', feed_type='local')
+    conn = db.get_connection()
+    conn.execute("UPDATE podcasts SET network_id_override = ? WHERE slug = 'local-archive'", (LONG_OVERRIDE,))
+    conn.commit()
+
+
+def _local_entry(exported):
+    return next(feed for feed in exported['feeds'] if feed['slug'] == 'local-archive')
+
+
+def test_a_stored_over_long_network_override_exports_and_imports(temp_db, monkeypatch):
+    _legacy_long_override_feed(temp_db)
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    assert _local_entry(exported)['settings']['network_id_override'] == LONG_OVERRIDE
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    preview = config_transfer.build_preview(temp_db, exported, 'everything')
+    config_transfer.apply_config(temp_db, exported, 'everything', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('local-archive')['network_id_override'] == LONG_OVERRIDE
+
+
+def test_a_new_over_long_network_override_is_rejected_on_import(temp_db):
+    temp_db.create_podcast('local-archive', 'local://local-archive', 'Archive', feed_type='local')
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    _local_entry(exported)['settings']['network_id_override'] = LONG_OVERRIDE
+    with pytest.raises(ConfigTransferError):
+        config_transfer.build_preview(temp_db, exported, 'everything')
+
+
+def test_changing_a_stored_over_long_override_to_another_is_rejected_on_import(temp_db):
+    _legacy_long_override_feed(temp_db)
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    _local_entry(exported)['settings']['network_id_override'] = 'M' * 120
+    with pytest.raises(ConfigTransferError):
+        config_transfer.build_preview(temp_db, exported, 'everything')

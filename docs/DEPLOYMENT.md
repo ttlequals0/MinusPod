@@ -27,7 +27,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
 - 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` faster-whisper models or long episodes
 - CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. Whisper (CTranslate2) runs on Maxwell (GTX 9xx) through Blackwell (RTX 50xx). Parakeet (ONNX Runtime) runs on Maxwell through Ada and Hopper; the GPU image pins cuDNN 9.10.2, the last release that supports cards older than Turing, so pre-Turing cards keep GPU Parakeet only while the image stays on that cuDNN line. Parakeet on Blackwell is unconfirmed, see #990.
-- An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
+- An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance), or `LLM_PROVIDER=none` to run without an LLM ([details](llm-providers.md#running-without-an-llm))
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
 
@@ -43,7 +43,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 
 | Variable | Why |
 |----------|-----|
-| `ANTHROPIC_API_KEY` (or other provider key) | Required for ad detection |
+| `ANTHROPIC_API_KEY` (or other provider key) | Required for LLM ad detection. Not needed with `LLM_PROVIDER=none`, which uses only the detectors that need no model. See [Running without an LLM](llm-providers.md#running-without-an-llm) |
 | `BASE_URL` | Public URL embedded in generated RSS feeds |
 | `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys and downloadable backups at rest. Store it separately from the backup. |
 
@@ -92,7 +92,7 @@ curl http://localhost:8000/api/v1/health
 }
 ```
 
-A non-200 response or `"status": "degraded"` means one of the checks failed; inspect the container logs to find which.
+A non-200 response or `"status": "degraded"` means one of the checks failed; inspect the container logs to find which. With `LLM_PROVIDER=none`, health does not report a missing model as a problem.
 
 ## Common issues
 
@@ -201,6 +201,8 @@ docker-compose -f docker-compose.cpu.yml up -d
 ```
 
 Database migrations run automatically on startup. Take a backup (see above) before pulling a major version.
+
+Rolling back to 2.101.34 is not supported, but it does not corrupt data. If the LLM provider was set to None, set a real provider before rolling back, because the older version does not know `none` and falls back to the Anthropic client. Match history and waveform peaks files written by the newer version are ignored by the older one.
 
 The shipped Compose files allow 360 seconds for container shutdown. Keep `MINUSPOD_STOP_GRACE_PERIOD` longer than `GUNICORN_GRACEFUL_TIMEOUT` (330 seconds), which in turn must outlast `MINUSPOD_SHUTDOWN_DRAIN_SECONDS` (300 seconds). Shutdown stops new admission and gives active processing that drain window before workers exit; interrupted work remains pending for recovery.
 

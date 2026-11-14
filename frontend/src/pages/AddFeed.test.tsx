@@ -3,7 +3,7 @@
  * local form fields, and the addLocalFeed submit path.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -232,9 +232,8 @@ describe('AddFeed: local feed form', () => {
       slug: 'my-archive-show', feedType: 'local', feedUrl: 'https://x/my-archive-show.xml', message: 'created',
     });
     const user = await openLocalMode();
-    // Typing only in Title auto-fills the Slug preview, but the field was
-    // never edited directly -- the submitted payload must omit slug so the
-    // server's own slugify rules produce the canonical value.
+    // Typing only in Title auto-fills the Slug preview, but the field was never edited directly, so the
+    // payload must omit slug and let the server's slugify rules produce it.
     await user.type(screen.getByLabelText('Title'), 'My Archive Show');
     await user.click(screen.getByRole('button', { name: 'Create feed' }));
 
@@ -579,5 +578,25 @@ describe('YouTube name search', () => {
     expect(await screen.findByText('The Daily Tech Show')).toBeDefined();
     expect(mockSearchYouTube).not.toHaveBeenCalled();
     expect(screen.queryByRole('heading', { name: 'YouTube' })).toBeNull();
+  });
+});
+
+describe('AddFeed: processing mode under LLM provider None', () => {
+  it('disables Keep content only with the reason', async () => {
+    renderAddFeed({ ...defaultSettings, llmEnabled: false });
+    await userEvent.click(await screen.findByText('Advanced options'));
+    const select = screen.getByLabelText('Processing mode');
+    await waitFor(() => expect((within(select).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(true));
+    expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Keep content only is unavailable. LLM provider is set to None.',
+    );
+  });
+
+  it('leaves Keep content only available when a provider is set', async () => {
+    renderAddFeed();
+    await userEvent.click(await screen.findByText('Advanced options'));
+    const select = screen.getByLabelText('Processing mode');
+    expect((within(select).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(false);
+    expect(select.getAttribute('aria-describedby')).toBeNull();
   });
 });

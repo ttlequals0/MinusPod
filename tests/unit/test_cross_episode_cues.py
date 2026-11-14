@@ -1,9 +1,7 @@
 """Tests for cross-episode intro/outro segment detection (pure fingerprint math).
 
-_find_shared_segments finds every contiguous run of the target's fingerprint that
-also appears in at least min_matches sibling fingerprints. Real intros/outros play
-once per episode but recur across episodes, which is exactly this.
-"""
+_find_shared_segments finds each contiguous run of the target fingerprint present in at least
+min_matches sibling fingerprints."""
 import numpy as np
 
 from audio_fingerprinter import _find_shared_segments
@@ -116,11 +114,9 @@ def test_backward_walk_recovers_onset():
 
 
 def test_fine_edge_recovery_sub_step():
-    # After coarse grow, a 1-subfp refinement step must recover the true edge
-    # when the segment boundary falls mid-coarse-step.
-    # The seg is planted at offset 35 (not a multiple of step=8), so the true
-    # lo boundary (35) and hi boundary (35+40=75) both fall off the coarse grid,
-    # forcing the fine refinement path to exercise both edges.
+    # After coarse grow, a 1-subfp refinement step must recover the true edge when the boundary
+    # falls mid-coarse-step. The seg is planted at offset 35 (not a multiple of step=8), so both
+    # edges (35 and 75) fall off the coarse grid and force the fine path.
     rng = np.random.default_rng(7)
     step = 8
     win = 16
@@ -133,11 +129,8 @@ def test_fine_edge_recovery_sub_step():
                                  step=step, similarity=0.73,
                                  min_matches=2, min_len=win, max_len=400)
     assert len(segs) == 1
-    # Both edges must be recovered within 4 subfps (half a step) of true boundaries.
-    # The lo edge here is already recovered by the COARSE backward walk (step=8
-    # lands lo at 32, within 4 of the true 35); the hi edge is where fine extension
-    # earns its keep. See the dedicated sensitivity tests below for edge cases the
-    # fine pass alone must handle.
+    # Both edges within 4 subfps (half a step) of truth. lo is already found by the coarse
+    # backward walk (step=8 lands at 32); hi needs the fine extension.
     assert abs(segs[0][0] - 35) <= 4       # lo-edge (coarse backward walk)
     assert abs(segs[0][1] - (35 + 40)) <= 4  # hi-edge (fine extension)
 
@@ -173,12 +166,9 @@ def test_claimed_run_does_not_cross_into_prior():
 
 
 def test_fine_hi_extends_past_coarse_residual():
-    # SENSITIVITY: the true shared end sits 6 subfps past where the coarse forward
-    # walk can reach. The siblings END exactly at the segment's end, so any coarse
-    # step=8 slice whose sibling-aligned tail runs off the array is bounds-rejected;
-    # coarse stalls at hi=64 (residual 6 to the true end 70). Only the fine R=4
-    # extension, which fits inside the sibling, can carry hi to the true boundary.
-    # Coarse-only guards: with fine disabled hi stays 64, |64-70|=6 > 1 -> fails.
+    # Sensitivity: siblings end exactly at the segment end, so coarse step=8 slices running off
+    # the array are bounds-rejected and coarse stalls at hi=64 (true end 70). Only the fine R=4
+    # extension reaches the boundary; with fine disabled |64-70|=6 > 1 fails.
     rng = np.random.default_rng(42)
     step = 8
     win = 16
@@ -194,12 +184,9 @@ def test_fine_hi_extends_past_coarse_residual():
 
 
 def test_fine_hi_retracts_coarse_overshoot():
-    # SENSITIVITY: the shared run truly ends at target index 68, but the trailing
-    # coarse 8-subfp slice [64,72) still clears 0.73 for both siblings on its
-    # leading (shared) bits, so coarse OVERSHOOTS to hi=72 into per-episode noise.
-    # Only the bidirectional fine pass retracts hi back to the boundary, and it must
-    # do so WITHOUT dropping either survivor. Coarse-only guards: hi stays 72,
-    # |72-68|=4 > 1 -> fails; the old extend-only fine pass could not retract either.
+    # Sensitivity: the shared run ends at 68 but coarse slice [64,72) still clears 0.73 on its
+    # shared leading bits and overshoots to hi=72. Only the bidirectional fine pass retracts hi,
+    # without dropping a survivor; |72-68|=4 > 1 fails otherwise.
     rng = np.random.default_rng(0)
     step = 8
     win = 16
@@ -219,10 +206,8 @@ def test_fine_hi_retracts_coarse_overshoot():
 
 
 def test_emitted_run_never_below_min_len_with_min_len_gt_win():
-    # INVARIANT (finding 3): with min_len (24) > win (16), every emitted run must
-    # satisfy (end - start) >= min_len. The retraction floor is max(win, min_len)
-    # so fine retraction can never shrink a coarse-valid run below min_len and
-    # drop it. Exercises the min_len > win path across seeds.
+    # Invariant: with min_len (24) > win (16) every emitted run has (end - start) >= min_len;
+    # the retraction floor max(win, min_len) keeps fine retraction from dropping a coarse-valid run.
     step, win, min_len = 8, 16, 24
     for seed in range(20):
         rng = np.random.default_rng(seed)
@@ -256,13 +241,9 @@ def test_capped_run_still_one_candidate_after_refinement():
 
 
 def test_fine_pass_preserves_survivor_count():
-    # SENSITIVITY (reviewer repro): 3 siblings share seg; right after the true
-    # boundary sib3 diverges into noise while sib1/sib2 share a short 3-subfp
-    # continuation. Coarse stops at the boundary keeping all 3 survivors. The OLD
-    # extend-only fine pass absorbed sib1/sib2's continuation and dropped sib3
-    # (count 3 -> 2) for ~1 subfp of span. The redesigned fine pass only accepts a
-    # step when the FULL survivor set matches, so the count stays 3.
-    # Coarse-only/old-fine guards: count == 3 fails (old fine yields 2).
+    # Sensitivity: sib3 diverges into noise right after the boundary while sib1/sib2 share a short
+    # 3-subfp continuation. The fine pass must accept a step only when the full survivor set
+    # matches, so all 3 survivors stay (an extend-only pass would drop sib3: count 2).
     rng = np.random.default_rng(2)
     step = 8
     win = 16

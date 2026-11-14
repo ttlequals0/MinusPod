@@ -1,14 +1,9 @@
 """Integration tests for boundary-snap settings plumbing (Phase B, task B1).
 
-Feeds API:
-- PATCH silenceSnapEnabled / transitionSnapEnabled with true/false/null.
-- Non-bool non-null values are rejected with 400.
-- GET detail and GET list surface both flags.
-
-Settings API:
-- The three silence-snap tunables round-trip through PUT + GET.
-- Out-of-range values (incl. positive noise dB) are rejected with 400.
-- Defaults are present in GET (values and defaults block).
+Feeds API: PATCH silenceSnapEnabled / transitionSnapEnabled with true/false/null,
+non-bool non-null rejected with 400, GET detail and list surface both flags.
+Settings API: the three silence-snap tunables round-trip through PUT + GET,
+out-of-range values (incl. positive noise dB) get 400, defaults appear in GET.
 """
 import os
 import sys
@@ -47,7 +42,7 @@ def _csrf(app_client):
     return authenticate_test_client(app_client)
 
 
-# -- Feed flags: PATCH --
+# Feed flags: PATCH
 
 @pytest.mark.parametrize('field', ['silenceSnapEnabled', 'transitionSnapEnabled'])
 def test_patch_flag_true(app_client, seeded_feed, _auth, field):
@@ -86,7 +81,7 @@ def test_patch_flag_rejects_non_bool(app_client, seeded_feed, _auth, field, bad)
     assert r.status_code == 400
 
 
-# -- Feed flags: GET --
+# Feed flags: GET
 
 def test_fresh_feed_flags_are_null(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']
@@ -119,7 +114,7 @@ def test_list_feeds_surfaces_flags(app_client, seeded_feed, _auth):
     assert match['transitionSnapEnabled'] is None
 
 
-# -- Silence-snap global tunables --
+# Silence-snap global tunables
 
 def _reset_snap_tunables(app_client):
     from api import get_database

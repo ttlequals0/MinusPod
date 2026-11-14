@@ -1,10 +1,8 @@
 """Per-sponsor near-duplicate clustering for merge suggestions (#399).
 
-Groups same-sponsor patterns whose canonicalized templates are at least the
-variant threshold similar into clusters the UI can offer to fold into one row.
-Pairwise SequenceMatcher is O(n*m) per pair, so cluster results are cached per
-sponsor group and recomputed only when the group's membership/text signature
-changes (covering create, edit, delete, and sponsor reassignment).
+Groups same-sponsor patterns with near-identical canonicalized templates so the UI can offer to fold them.
+Pairwise SequenceMatcher is O(n*m), so results are cached per sponsor group and
+recomputed only when the group's membership or text signature changes.
 """
 import hashlib
 import json

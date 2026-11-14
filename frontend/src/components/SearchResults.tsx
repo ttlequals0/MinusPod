@@ -4,7 +4,7 @@ import { formatDate, formatTimestamp } from '../utils/format';
 import { renderSnippet } from '../utils/searchSnippet';
 import StatusBadge from './StatusBadge';
 
-export type SearchResultGroup = 'shows' | 'episodes' | 'transcripts';
+type SearchResultGroup = 'shows' | 'episodes' | 'transcripts';
 
 // The unified endpoint also returns patterns/sponsors; those stay Advanced-only
 // and are deliberately not part of this shape.

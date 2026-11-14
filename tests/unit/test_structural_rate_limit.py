@@ -1,10 +1,7 @@
-"""Tests for the structural rate-limit classifier and retry-loop fast-fail.
+"""Structural rate-limit classifier and retry-loop fast-fail.
 
-A structural 429 is one where a single request's token count exceeds the
-provider's per-minute cap. Retrying it cannot succeed; the user must shrink
-the window or change provider/tier. These tests verify the classifier
-identifies the structural case only, and that ambiguous inputs fall back
-to the existing transient retry path.
+A structural 429 is one where a single request's token count exceeds the provider's per-minute cap, so
+retrying cannot succeed. The classifier must flag only that case; ambiguous inputs keep the transient retry path.
 """
 
 from tests.app_bootstrap import bootstrap
@@ -131,7 +128,7 @@ class TestRetryLoopFastFail:
 
         call_count = {"n": 0}
 
-        # Transient: requested < limit, so NOT structural -- normal retry path.
+        # Transient: requested < limit, so not structural; normal retry path.
         body = {
             "error": {
                 "message": "tokens per minute: Limit 6000, Used 5500, Requested ~600",

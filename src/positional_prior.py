@@ -1,9 +1,8 @@
 """Learned per-podcast ad-break positional prior (issue #360).
 
-Learns where ad breaks historically start in a feed from stored cut history
-and user corrections. The resulting prior feeds two consumers:
-- a scrutiny hint appended to the first-pass LLM prompt, and
-- per-feed position boosts in AdValidator (replacing the global zones).
+Learns where ad breaks start in a feed from stored cut history and user corrections.
+It feeds a scrutiny hint in the first-pass LLM prompt and per-feed position boosts
+in AdValidator (replacing the global zones).
 """
 import logging
 import statistics
@@ -24,11 +23,9 @@ from utils.time import format_duration, overlap_ratio, ranges_overlap
 
 logger = logging.getLogger(__name__)
 
-# Stages whose evidence is independent of position and the LLM. Everything
-# else (claude, verification, the legacy 'first_pass' stamp, missing stages,
-# heuristic rolls) is subject to the confidence floor: a cut that only
-# cleared the threshold because of a position boost must never reinforce
-# the prior, and unknown future stages default to the safe side.
+# Stages whose evidence is independent of position and the LLM. All others (including
+# unknown future stages) face the confidence floor so a position-boosted cut never
+# reinforces the prior.
 TRUSTED_STAGES = ('fingerprint', 'text_pattern', 'language', 'manual', 'vad_gap')
 
 
@@ -45,8 +42,7 @@ class LearnedZone:
 class AdDistribution:
     """Where a feed's ad cuts land across episodes, for the UI panel.
 
-    Setting-independent and always returned (never None) so the panel can
-    render an empty state.
+    Always returned (never None) so the panel can render an empty state.
     """
     episodes_considered: int
     median_duration: float
@@ -65,8 +61,7 @@ class PositionalPrior:
     def applies_to(self, episode_duration: float) -> bool:
         """Whether this prior is usable for an episode of the given length.
 
-        Zones are normalized fractions; an episode much shorter or longer
-        than the feed median would map them onto unrelated content.
+        Zones are normalized fractions, so a much shorter or longer episode would map them onto unrelated content.
         """
         if episode_duration <= 0:
             return False
@@ -126,8 +121,7 @@ def _collect_events(episodes: list[dict],
                     corrections: list[dict] | None) -> tuple:
     """Reduce episode history to (durations, events).
 
-    events is a list of (episode_id, normalized_position) for every learnable
-    ad-break start; durations is one entry per considered episode.
+    events: (episode_id, normalized_position) per learnable ad-break start; durations: one per considered episode.
     """
     corrections_by_episode: dict[str, list[dict]] = {}
     for correction in corrections or []:
@@ -141,9 +135,8 @@ def _collect_events(episodes: list[dict],
             continue
         markers = episode.get('ad_markers') or []
         if markers and not any('was_cut' in m for m in markers):
-            # Marker set predates confidence gating (e.g. the retry-ad-detection
-            # endpoint overwrites ad_markers_json with raw detection output);
-            # neither evidence nor a zero-ad episode -- leave it out entirely.
+            # Marker set predates confidence gating (e.g. retry-ad-detection stores raw output):
+            # neither evidence nor a zero-ad episode, so skip it.
             continue
         durations.append(duration)
         episode_corrections = corrections_by_episode.get(episode['episode_id'], [])
@@ -156,15 +149,12 @@ def _collect_events(episodes: list[dict],
 def _build_zones(considered: int, events: list[tuple]) -> list[LearnedZone]:
     """Cluster pooled normalized positions into supported zones (empty if none).
 
-    The episode-count gate lives here so every consumer (the prior and the
-    distribution panel) agrees on when zones are eligible: a feed with few
-    episodes never produces zones even if their cuts happen to align.
+    The episode-count gate lives here so the prior and the distribution panel agree on eligibility.
     """
     if considered < POSITIONAL_PRIOR_MIN_EPISODES:
         return []
 
-    # 1D gap-merge clustering over pooled normalized positions. The span cap
-    # keeps slowly drifting break positions from chaining into one giant zone.
+    # 1D gap-merge clustering; the span cap stops drifting breaks chaining into one giant zone.
     events = sorted(events, key=lambda e: e[1])
     clusters: list[list[tuple]] = []
     for event in events:
@@ -201,16 +191,11 @@ def _build_zones(considered: int, events: list[tuple]) -> list[LearnedZone]:
 
 def build_prior(slug: str, episodes: list[dict],
                 corrections: list[dict] | None = None) -> PositionalPrior | None:
-    """Build a positional prior from episode cut history.
+    """Build a positional prior from episode cut history, or None when history is insufficient.
 
-    Args:
-        episodes: dicts with episode_id, original_duration, ad_markers (parsed list)
-        corrections: dicts with episode_id, correction_type, start, end
-            (boundary_adjustment also carries orig_start/orig_end)
-
-    Returns:
-        PositionalPrior, or None when history is insufficient (caller falls
-        back to the global position zones).
+    episodes: dicts with episode_id, original_duration, ad_markers (parsed list).
+    corrections: dicts with episode_id, correction_type, start, end (boundary_adjustment also has orig_start/orig_end).
+    On None the caller falls back to the global position zones.
     """
     durations, events = _collect_events(episodes, corrections)
     considered = len(durations)
@@ -240,9 +225,8 @@ def build_distribution(slug: str, episodes: list[dict],
                        corrections: list[dict] | None = None) -> AdDistribution:
     """Build the always-available ad-position distribution from cut history.
 
-    Unlike build_prior this never returns None: the histogram is shown even
-    for feeds with little history; zones are filled only once the prior gate
-    is met (5+ episodes, 60% support).
+    Unlike build_prior this never returns None: the histogram shows even with little
+    history; zones fill only once the prior gate is met (5+ episodes, 60% support).
     """
     durations, events = _collect_events(episodes, corrections)
     considered = len(durations)
@@ -301,8 +285,7 @@ def compute_positional_prior(db, slug: str,
 def compute_ad_distribution(db, slug: str) -> AdDistribution:
     """Load a feed's cut history and build its ad-position distribution.
 
-    Setting-independent (no experiment-toggle gate): purely informational for
-    the UI panel.
+    Not gated by the experiment toggle; informational for the UI panel.
     """
     episodes, corrections = _load_history(db, slug)
     return build_distribution(slug, episodes, corrections)
@@ -312,8 +295,7 @@ def load_positional_prior(db, slug: str, episode_id: str,
                           episode_duration: float) -> PositionalPrior | None:
     """Resolve the prior for one episode run: setting gate, compute, length gate.
 
-    Shared by the processing pipeline and the retry-ad-detection endpoint.
-    Never raises: prior failure must not fail detection.
+    Shared by the pipeline and retry-ad-detection. Never raises: a prior failure must not fail detection.
     """
     try:
         if not db.get_setting_bool('positional_prior_enabled', default=False):
@@ -336,8 +318,7 @@ def format_prior_hint(prior: PositionalPrior | None,
                       total_duration_seconds: float) -> str:
     """Render the LLM prompt hint for this episode's duration.
 
-    Returns an empty string when there is nothing to say; phrased as
-    attention guidance so the hint can never assert an ad into existence.
+    Empty when there is nothing to say; phrased as attention guidance so it cannot assert an ad.
     """
     if prior is None or not prior.zones or total_duration_seconds <= 0:
         return ""

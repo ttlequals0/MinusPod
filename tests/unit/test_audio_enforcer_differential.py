@@ -20,9 +20,8 @@ def _result_with_diff():
 
 
 def test_overlapping_window_gets_middle_ground_hint_line():
-    # #541: the differential line is a middle-ground hint -- "LIKELY an ad,
-    # flag it when consistent" -- not the old absolute "CONFIRMED ... not part
-    # of the show" and not so neutral the model ignores real DAI ads.
+    # #541: the differential line is a middle-ground hint ("LIKELY an ad, flag it when consistent"),
+    # not the old absolute "CONFIRMED ... not part of the show" nor so neutral the model ignores real DAI ads.
     out = AudioEnforcer().format_for_window(_result_with_diff(), 90.0, 150.0)
     assert 'Audio differs across fetches at 100.0s-160.0s' in out
     assert 'LIKELY an ad' in out

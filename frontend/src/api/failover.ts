@@ -80,7 +80,7 @@ export function failoverTargetLabel(name: string): string {
 }
 
 // How a target entered failover, phrased to follow "via".
-export const FAILOVER_SOURCE_LABELS: Record<string, string> = {
+const FAILOVER_SOURCE_LABELS: Record<string, string> = {
   auto: 'a failed request',
   probe: 'a failed probe',
   manual: 'manual trigger',

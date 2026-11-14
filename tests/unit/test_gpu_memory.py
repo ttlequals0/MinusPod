@@ -43,10 +43,17 @@ class FakeNVML:
     def nvmlDeviceGetName(self, handle):
         return self.name
 
+    def nvmlDeviceGetIndex(self, handle):
+        return 0
+
+    def nvmlDeviceGetPciInfo(self, handle):
+        return types.SimpleNamespace(busId=b'00000000:01:00.0')
+
 
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
     monkeypatch.setattr(gpu, '_nvml_ready', None)
+    monkeypatch.setattr(gpu, '_gpu_logged', False)
     gpu._bus_id.cache_clear()
     monkeypatch.setattr(gpu, '_cuda_device0_bus_id', lambda: '0000:01:00.0')
     monkeypatch.delenv('CUDA_VISIBLE_DEVICES', raising=False)
@@ -175,3 +182,85 @@ def test_bus_id_read_from_driver(monkeypatch):
     assert _real_bus_id() == '0000:65:00.0'
     assert lib.init_args == 0
     assert lib.get_args == 0
+
+
+def _gpu_lines(caplog):
+    return [r for r in caplog.records if r.getMessage().startswith('GPU:')]
+
+
+def test_selected_gpu_is_logged_once_with_runtime_values(fake, caplog):
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+        gpu.log_selected_gpu()
+    lines = _gpu_lines(caplog)
+    assert [r.getMessage() for r in lines] == ['GPU: Fake GPU (NVML index 0, bus 00000000:01:00.0, 15.0 GiB)']
+    assert lines[0].levelno == logging.INFO
+
+
+def test_selected_gpu_decodes_bytes_name(monkeypatch, caplog):
+    monkeypatch.setattr(gpu, 'pynvml', FakeNVML(name=b'Fake GPU B'))
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+    assert 'Fake GPU B' in _gpu_lines(caplog)[0].getMessage()
+
+
+def test_selected_gpu_silent_and_final_without_nvml(monkeypatch, caplog):
+    monkeypatch.setattr(gpu, 'pynvml', None)
+    with caplog.at_level(logging.DEBUG, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+    assert _gpu_lines(caplog) == []
+    assert gpu._gpu_logged is True
+
+
+def test_selected_gpu_silent_and_final_when_nvml_init_fails(monkeypatch, caplog):
+    nvml = FakeNVML(init_error=FakeNVMLError('no driver'))
+    monkeypatch.setattr(gpu, 'pynvml', nvml)
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+        gpu.log_selected_gpu()
+    assert _gpu_lines(caplog) == []
+    assert nvml.init_calls == 1
+    assert gpu._gpu_logged is True
+
+
+def test_selected_gpu_retries_after_a_transient_nvml_failure(monkeypatch, caplog):
+    class FlakyNVML(FakeNVML):
+        failures = 1
+
+        def nvmlDeviceGetName(self, handle):
+            if self.failures:
+                self.failures -= 1
+                raise FakeNVMLError('transient')
+            return self.name
+    monkeypatch.setattr(gpu, 'pynvml', FlakyNVML())
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+        assert _gpu_lines(caplog) == [] and gpu._gpu_logged is False
+        gpu.log_selected_gpu()
+        gpu.log_selected_gpu()
+    assert len(_gpu_lines(caplog)) == 1
+
+
+def test_selected_gpu_survives_mig_index_failure(monkeypatch, caplog):
+    class MigNVML(FakeNVML):
+        def nvmlDeviceGetIndex(self, handle):
+            raise FakeNVMLError('not supported')
+    monkeypatch.setattr(gpu, 'pynvml', MigNVML())
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+    assert _gpu_lines(caplog)[0].getMessage() == 'GPU: Fake GPU (bus 00000000:01:00.0, 15.0 GiB)'
+
+
+def test_available_memory_logs_the_gpu_once(fake, monkeypatch, caplog):
+    monkeypatch.setattr(gpu, 'get_available_system_memory_gb', lambda: 8.0)
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.get_available_memory_gb('cuda')
+        gpu.get_available_memory_gb('cuda')
+    assert len(_gpu_lines(caplog)) == 1
+
+
+def test_cpu_device_never_logs_a_gpu(fake, monkeypatch, caplog):
+    monkeypatch.setattr(gpu, 'get_available_system_memory_gb', lambda: 8.0)
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.get_available_memory_gb('cpu')
+    assert _gpu_lines(caplog) == []

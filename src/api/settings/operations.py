@@ -13,6 +13,7 @@ from config import (
     SEGMENT_CATEGORIES, resolve_community_sync_categories,
 )
 from api.pattern_cleanup import cleanup_settings_view
+from database.error_text import redact_error
 from database.settings import SETTINGS_REGISTRY
 from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
@@ -48,11 +49,10 @@ logger = logging.getLogger('podcast.api')
 def regenerate_feed_auth_key():
     """Rotate the global feed auth key (authenticated feeds).
 
-    409 while the feature is disabled - rotation of a dormant key would be
-    invisible and surprising on re-enable. The old key is rejected on the
-    very next request (enforcement reads the DB per request; no caching).
-    Subscribed apps must be re-added with the new key (OPML export carries
-    it). Returns the new key - it is a bearer credential the operator needs.
+    409 while the feature is disabled (rotating a dormant key would be invisible on re-enable).
+    The old key is rejected on the next request (enforcement reads the DB per request).
+    Subscribed apps must be re-added with the new key (OPML export carries it). Returns the
+    new key, a bearer credential the operator needs.
     """
     from main_app.feed_auth import generate_feed_key
 
@@ -71,10 +71,8 @@ def regenerate_feed_auth_key():
 def get_retention_settings():
     """Get retention configuration.
 
-    `originalRetentionDays` defaults to whatever `retentionDays` is when the
-    operator has never set it explicitly; that keeps the two values matched
-    by default and lets `retention_days` changes propagate without forcing
-    the operator to touch both fields.
+    `originalRetentionDays` defaults to `retentionDays` when never set, keeping the two
+    matched and letting `retention_days` changes propagate.
     """
     db = get_database()
     retention_days = int(db.get_setting('retention_days') or '30')
@@ -91,11 +89,8 @@ def get_retention_settings():
 
 def _clamp_original_retention(retention_days: int, original: int) -> int:
     """Clamp `original` so an original cannot outlive its processed peer.
-
-    When retention is disabled (`retention_days == 0`), there is nothing
-    to clamp to; the operator's stored original value is kept as-is.
-    Otherwise the original is capped at `retention_days`.
-    """
+    With retention disabled (`retention_days == 0`) there is nothing to clamp to and the
+    stored value is kept; otherwise it is capped at `retention_days`."""
     if retention_days <= 0:
         return original
     return min(original, retention_days)
@@ -106,9 +101,8 @@ def _clamp_original_retention(retention_days: int, original: int) -> int:
 def update_retention_settings():
     """Update retention configuration.
 
-    Server-side clamp: `originalRetentionDays` is capped to `retentionDays`
-    because an original outliving its processed file would be orphaned the
-    moment the next cleanup pass resets the episode.
+    `originalRetentionDays` is clamped to `retentionDays` server-side: an original outliving
+    its processed file would be orphaned when the next cleanup resets the episode.
     """
     data = request.get_json()
     if not data or 'retentionDays' not in data:
@@ -175,10 +169,9 @@ def get_offline_queue_settings():
 def update_offline_queue_settings():
     """Update offline queue configuration (#482).
 
-    When enabled, episodes that fail because the LLM provider or Whisper
-    endpoint is unreachable wait in a queue and process automatically once
-    the service is back. ttlHours bounds how long they wait before being
-    marked permanently failed.
+    When enabled, episodes that fail because the LLM provider or Whisper endpoint is
+    unreachable wait in a queue and process once it is back; ttlHours bounds the wait
+    before they are marked permanently failed.
     """
     data = request.get_json()
     db = get_database()
@@ -192,10 +185,8 @@ def update_offline_queue_settings():
 
 def _apply_enabled_update(db, data, prefix: str):
     """Validate and store {enabled} for a queue-wait feature.
-
-    `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold').
-    Returns an error response on invalid input, else None.
-    """
+    `prefix` is the settings key stem ('offline_queue', 'rate_limit_hold'). Returns an
+    error response on invalid input, else None."""
     if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
 
@@ -245,10 +236,9 @@ def get_rate_limit_hold_settings():
 def update_rate_limit_hold_settings():
     """Update rate-limit hold configuration (#696).
 
-    When enabled, a provider 429 carrying a reset time sends the episode
-    back to the queue and pauses new claims until the reset instead of
-    failing the job. llmUsageUrl and rateLimitProbeMinutes configure the
-    probe that periodically re-checks an active hold.
+    When enabled, a provider 429 carrying a reset time requeues the episode and pauses new
+    claims until the reset instead of failing the job. llmUsageUrl and rateLimitProbeMinutes
+    configure the probe that re-checks an active hold.
     """
     data = request.get_json()
     db = get_database()
@@ -261,7 +251,7 @@ def update_rate_limit_hold_settings():
             try:
                 validate_base_url(usage_url)
             except SSRFError as e:
-                return json_response({'error': f'Invalid LLM usage URL: {e}'}, 400)
+                return error_response(f'Invalid LLM usage URL: {e}', 400)
         db.set_setting('llm_usage_url', usage_url, is_default=False)
     if 'rateLimitProbeMinutes' in data:
         minutes = data['rateLimitProbeMinutes']
@@ -476,10 +466,7 @@ def get_reviewer_settings():
 @log_request
 def update_reviewer_settings():
     """Update the ad-reviewer auto-update settings.
-
-    Body: {updatePatternsFromReviewerAdjustments: bool, minTrimThreshold: float,
-           parallelAds: int}
-    """
+    Body: {updatePatternsFromReviewerAdjustments: bool, minTrimThreshold: float, parallelAds: int}"""
     from config import (
         AD_REVIEWER_PARALLEL_ADS_MIN,
         AD_REVIEWER_PARALLEL_ADS_MAX,
@@ -520,10 +507,9 @@ def _community_category_breakdown(db) -> dict[str, int]:
     breakdown = {cat: 0 for cat in SEGMENT_CATEGORIES}
     for pattern in db.get_patterns_by_source('community', active_only=True):
         category = pattern.get('category')
-        # Folded rather than passed to normalize_segment_category, whose
-        # docstring rules it out for a displayed count. The fold is still right
-        # here: community_sync's filter treats unset as sponsor, so this is the
-        # number of patterns the sponsor toggle actually syncs.
+        # Folded, not passed to normalize_segment_category (its docstring rules that out for a
+        # displayed count). The fold is right here: community_sync's filter treats unset as
+        # sponsor, so this is the number of patterns the sponsor toggle actually syncs.
         breakdown[category if category in SEGMENT_CATEGORIES else 'sponsor'] += 1
     return breakdown
 
@@ -538,7 +524,7 @@ def get_community_sync_settings():
         'enabled': db.get_setting_bool('community_sync_enabled', default=False),
         'cron': db.get_setting('community_sync_cron') or DEFAULT_CRON,
         'lastRun': db.get_setting('community_sync_last_run') or None,
-        'lastError': db.get_setting('community_sync_last_error') or None,
+        'lastError': redact_error(db.get_setting('community_sync_last_error')) or None,
         'manifestVersion': db.get_setting('community_sync_manifest_version') or None,
         'lastSummary': db.get_setting('community_sync_last_summary') or None,
         'categories': resolve_community_sync_categories(
@@ -551,11 +537,8 @@ def get_community_sync_settings():
 @log_request
 def update_community_sync_settings():
     """Update community-pattern sync settings.
-
-    Body: {enabled?: bool, cron?: str, categories?: string[]}. Cron
-    expression is validated; categories must be a subset of the known
-    segment categories.
-    """
+    Body: {enabled?: bool, cron?: str, categories?: string[]}. The cron expression is
+    validated; categories must be a subset of the known segment categories."""
     from utils.cron import is_valid_expression
     db = get_database()
     data = request.get_json() or {}
@@ -584,9 +567,8 @@ def update_community_sync_settings():
 def get_db_backup_settings():
     """Return scheduled DB backup settings plus derived dest state.
 
-    effectiveDest resolves the configured dest ('' -> <data_dir>/backups);
-    destWritable is a live probe of that resolved directory so the UI can
-    warn before a scheduled run fails.
+    effectiveDest resolves the configured dest ('' -> <data_dir>/backups); destWritable is a
+    live probe of it so the UI can warn before a scheduled run fails.
     """
     db = get_database()
     settings = db.get_all_settings()
@@ -619,7 +601,7 @@ def get_db_backup_settings():
         'destWritable': writable,
         'keepCount': int(_val('db_backup_keep_count') or '1'),
         'lastRun': _val('db_backup_last_run') or None,
-        'lastError': _val('db_backup_last_error') or None,
+        'lastError': redact_error(_val('db_backup_last_error')) or None,
         'lastSummary': _val('db_backup_last_summary') or None,
     })
 
@@ -628,10 +610,8 @@ def get_db_backup_settings():
 @log_request
 def update_db_backup_settings():
     """Update scheduled DB backup settings.
-
-    Body: {enabled?, cron?, dest?, keepCount?}. dest '' resets to default;
-    validation errors from validate_backup_dest are surfaced verbatim.
-    """
+    Body: {enabled?, cron?, dest?, keepCount?}. dest '' resets to default; validate_backup_dest
+    errors are surfaced verbatim."""
     db = get_database()
     data = request.get_json() or {}
 

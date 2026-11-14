@@ -40,7 +40,7 @@ Measured on a Tesla T4 across three episodes:
 
 - Speed: Parakeet transcribed 1.8x to 2.5x faster than Whisper large-v3.
 - Ad detection: results matched. Every ad found with both transcripts started and ended within 3 seconds of each other.
-- Names: Parakeet is weaker on sponsor names and promo codes, so transcript normalization rules (Settings > AI & Processing > Transcript Normalization) matter more with it.
+- Names: Parakeet is weaker on sponsor names and promo codes, so transcript normalization rules (Settings > AI and processing > Transcript Normalization) matter more with it.
 - Fillers: Parakeet keeps "uh" and "um" in the transcript.
 
 Parakeet is the recommended local backend. It is a smaller model (0.6B parameters against 1.55B for Whisper large-v3), it transcribes faster, and detection results matched. `WHISPER_BACKEND` still defaults to `local`, so an existing install keeps its transcriber until you set `WHISPER_BACKEND=parakeet` or pick it in Settings > Transcription > Backend. Stay on faster-whisper for shows where sponsor names and promo codes drive detection and normalization rules do not cover them. Use the remote API backend when the host has no usable GPU.
@@ -84,6 +84,16 @@ WHISPER_BACKEND=parakeet
 Use `WHISPER_DEVICE=cpu` with the CPU image or `WHISPER_DEVICE=cuda` with the NVIDIA image. The shipped Compose files pass these values from `.env`; existing saved settings take precedence over environment defaults.
 
 The first use downloads weights into `$HF_HOME/parakeet/nemo-parakeet-tdt-0.6b-v3`, normally `/app/data/.cache/parakeet/nemo-parakeet-tdt-0.6b-v3`. CPU uses int8 weights; CUDA uses the unquantized export. Download sizes, RAM guidance, and the resource-measurement procedure are in [Installation > Parakeet sizing](installation.md#parakeet-sizing).
+
+After the first download, normal loads read the local copy and skip the network. At most once every 7 days, a load starts a background check that asks Hugging Face for the current model revision, with a 10 second timeout. The job that triggered the check keeps using the local copy and never waits for it.
+
+- **Unchanged revision.** Nothing is downloaded.
+- **Changed revision.** The new files go into a staging directory next to the model directory and replace the local copy only once every file is present. A failed or partial download leaves the local copy untouched, and the new revision is used from the next model load. An update keeps only the variant this install uses (int8 for CPU, full precision for CUDA), so switching between the CPU and CUDA images after an update downloads the other variant's files again.
+- **Failure.** MinusPod logs one warning and keeps the local copy. That worker process waits an hour before it tries again. An interrupted update can leave a `.staging` or `.old` directory beside the model directory, and the next update check removes it.
+- **Skipped.** The update does not run when the volume lacks free space for a second copy. With `HF_HUB_OFFLINE` set, no checks run.
+- **Off.** Weekly updates are off when the model directory is a mount point or a symlink, because the update replaces the directory by renaming it. To update in that case, delete the directory's contents and the next load runs the first download again. They are also off when the model volume does not support file locks. Move the model directory to a volume that supports locks, or delete the directory's contents to fetch the current version.
+
+To force a full re-download, delete the model directory. Deleting only the `.minuspod-complete-*.json` file makes the next load compare the files on disk with Hugging Face and fetch the ones that differ.
 
 The decoder uses 30-second windows with 2-second overlap. Each model call is bounded, but the input WAV and transcript data still consume system RAM. Longer inputs and concurrent processing can increase total memory use.
 
@@ -219,7 +229,7 @@ protect, chunks upload and transcribe concurrently.
 
 ## Failover transcriber
 
-An optional standby transcriber (Settings > AI & Processing > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets how many attempts a chunk gets before it counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
+An optional standby transcriber (Settings > AI and processing > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets how many attempts a chunk gets before it counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
 
 ## Transcription language
 

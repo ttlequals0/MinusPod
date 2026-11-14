@@ -11,6 +11,7 @@
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
 - [Using System One](#using-system-one)
+- [Running without an LLM](#running-without-an-llm)
 - [Per-Stage Providers](#per-stage-providers)
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
@@ -22,7 +23,7 @@ https://github.com/user-attachments/assets/87741bcb-35b4-4712-9f91-36207a697cd5
 
 ## Using Anthropic directly
 
-Select Anthropic and save an API key under Settings > AI & Processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
+Select Anthropic and save an API key under Settings > AI and processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
 
 Temperature is not sent to Anthropic. API version 2026-10-21 removed the parameter on every model, so Anthropic stages run at the model default.
 
@@ -68,7 +69,7 @@ The [Claude Code OpenAI Wrapper](https://github.com/ttlequals0/claude-code-opena
 
 **Other OpenAI-Compatible Endpoints:**
 
-The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI & Processing > AI Models, or use `OPENAI_MODEL` to seed unset model settings.
+The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI and processing > AI Models, or use `OPENAI_MODEL` to seed unset model settings.
 
 **Example `.env` for OpenAI-compatible mode:**
 
@@ -261,7 +262,7 @@ All of these can be changed at runtime from the Settings UI. No container restar
 
 ## Using System One
 
-Select TypeSafe or System One compatible under Settings > AI & Processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
+Select TypeSafe or System One compatible under Settings > AI and processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
 
 Detection, verification, and the ad category pass are supported. Review is experimental, including both passes when the reviewer inherits the pass route. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
 
@@ -275,9 +276,42 @@ The maximum concurrent operations setting defaults to 4 operations per process. 
 
 System One preserves caller prompts, policy, and context in its structured questions. It ignores saved temperature, thinking budgets, token caps, JSON-schema settings, and Ollama context settings. Those values are retained for later chat routes. Use the dedicated System One controls for supported adapter tuning.
 
+## Running without an LLM
+
+An LLM is optional. Set the provider to **None** under Settings > AI and processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
+
+Without saved patterns or fingerprints, text and audio matching cannot find ads. Other model-free detectors still run. To teach pattern matching an ad, use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each of these saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
+
+Ads are then found by the detectors that need no model:
+
+- Text patterns and audio fingerprints, the main detectors on a regular feed (see [Audio fingerprints](how-it-works.md#audio-fingerprints)), and audio cues
+- The cross-fetch differential. A region is cut when another detector agrees and held for review otherwise.
+- SponsorBlock marks, on YouTube feeds only. There is no LLM fallback when a video has no marks.
+
+Transcription still runs, because text patterns need the transcript. Hold rules, cuts and publishing run unchanged. The ad reviewer is skipped, so holds that depend on a reviewer verdict, such as the reviewer boundary conflict, do not occur. An episode with no detections publishes uncut, or waits for review when manual approval is on for the feed or globally.
+
+These parts do not run:
+
+| Feature | Without an LLM |
+|---------|----------------|
+| LLM ad detection, the verification pass, the ad reviewer and the pre-roll and post-roll heuristics | Off, including phases assigned to the secondary provider |
+| Chapter generation | Off. Publisher chapters and ad chapters are kept. A chapters mode of `generate` behaves like `auto`. |
+| Pattern Cleanup and reviewer calibration | Do not run. A run in progress when you switch to None stops without recording an error. |
+| Model lists in Settings | Empty |
+| Failover status | LLM probes show as unknown with "LLM disabled" |
+| Requests to a model provider or the price catalog | None are sent |
+
+Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>/episodes/<id>/regenerate-chapters`, `POST /api/v1/patterns/cleanup/run` and `POST /api/v1/system/model-pricing/refresh`. Listing models for another provider (`GET /api/v1/settings/models?provider=...`, and the models refresh for the secondary or failover slot) and the provider test routes stay available under None, so you can choose a model and check credentials before switching back. Nothing else contacts a provider.
+
+Retry ad detection and Reprocess still work. They rerun the model-free detectors, so a newly added pattern is applied to an episode already processed. Retry ad detection reruns audio fingerprints and text patterns. Reprocess reruns the whole standard pipeline without the model calls.
+
+SponsorBlock covers YouTube feeds only. On regular feeds, text and audio matching recognize saved patterns; they do not learn recurring ads automatically. Audio cues and cross-fetch comparison can still detect ads without a saved pattern.
+
+Saved API keys and model choices are kept when you switch to None. When you switch to another provider, a stage keeps its model if its provider account is the one it used before None. Otherwise its model field is cleared. If the install started on None, only the stages that use the primary provider are cleared. None cannot be the secondary provider or the failover provider.
+
 ## Per-Stage Providers
 
-MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
+MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI and processing > AI Models shows a slot selector next to each model selector:
 
 - **Ad Detection Provider** - `Default (Provider A)` or `Provider B`. Provider B only appears in the list once it is enabled and configured.
 - **Verification Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
@@ -318,7 +352,7 @@ MinusPod tracks token usage and cost for every LLM call. The Settings page and `
 
 ### Custom model pricing
 
-Settings > AI & Processing > AI Models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. A third optional field sets the cached input rate; leave it blank to bill cached input at the input rate. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
+Settings > AI and processing > AI Models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. A third optional field sets the cached input rate; leave it blank to bill cached input at the input rate. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
 
 Inactive prices stay saved and reappear when those models are selected again. Recorded call costs stay unchanged.
 

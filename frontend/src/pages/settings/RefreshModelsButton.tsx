@@ -8,16 +8,17 @@ interface RefreshModelsButtonProps {
   isPending: boolean;
   // 'chip' is the section-header control; 'link' sits above a single select.
   variant?: 'chip' | 'link';
+  disabled?: boolean;
 }
 
-function RefreshModelsButton({ onClick, isPending, variant = 'chip' }: RefreshModelsButtonProps) {
+function RefreshModelsButton({ onClick, isPending, variant = 'chip', disabled = false }: RefreshModelsButtonProps) {
   if (variant === 'link') {
     return (
       <DemoDisabled>
         <button
           type="button"
           onClick={onClick}
-          disabled={isPending}
+          disabled={isPending || disabled}
           className={`${btnBase} ${btnGhost} text-primary`}
         >
           {isPending ? 'Refreshing...' : 'Refresh models'}
@@ -30,7 +31,7 @@ function RefreshModelsButton({ onClick, isPending, variant = 'chip' }: RefreshMo
       <button
         type="button"
         onClick={onClick}
-        disabled={isPending}
+        disabled={isPending || disabled}
         className={`${btnBase} ${btnSecondary}`}
         title="Refresh model list from provider"
       >

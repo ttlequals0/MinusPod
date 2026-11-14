@@ -1,8 +1,4 @@
-"""Pure-logic tests for cross_episode_eval aggregation and skip paths.
-
-No audio, no network, no file I/O.
-"""
-from pathlib import Path
+"""Pure-logic tests for cross_episode_eval aggregation and skip paths (no audio, network or file I/O)."""
 
 import pytest
 

@@ -1,7 +1,6 @@
 """Log when this process stops scheduling Python threads for several seconds.
 
-A sleeping thread that wakes late means every thread was starved: a C call
-holding the GIL, or the container out of CPU.
+A sleeping thread that wakes late means all threads were starved (a C call holding the GIL, or no CPU).
 """
 import logging
 import os

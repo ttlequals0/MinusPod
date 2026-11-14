@@ -1,8 +1,7 @@
 """Tail no-VAD re-transcription merge (docs/specs/2026-07-08-ad-splice-detection.md#12-tail-re-transcription-without-vad).
 
-Whisper's VAD drops quiet DAI post-rolls, so no LLM window covered the tail.
-The tail gate re-runs it through Transcriber.transcribe_span_no_vad and the
-segments, flagged novad_tail=True, are appended before the transcript is persisted.
+Whisper's VAD drops quiet DAI post-rolls, so the tail gate re-runs it via Transcriber.transcribe_span_no_vad
+and appends the segments (novad_tail=True) before the transcript is persisted.
 """
 import os
 import sys

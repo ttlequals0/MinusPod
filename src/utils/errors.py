@@ -1,18 +1,15 @@
 """Shared exception types.
 
-Dependency-free so transcriber, llm_client, ad_detector, and the processing
-pipeline can all import them without cycles.
+Dependency-free so any module can import them without cycles.
 """
 
 
 class ServiceUnavailableError(Exception):
-    """A required external service (LLM provider or Whisper endpoint) is
-    unreachable: connection refused, DNS failure, timeout, or persistent 5xx.
+    """A required external service (LLM provider or Whisper endpoint) is unreachable.
 
-    Raised only at the terminal point where an episode would otherwise be
-    marked failed, so the offline queue (#482) can defer it instead. Never
-    raised for auth, rate-limit, or response-content errors -- those are real
-    failures that deferral would only hide.
+    Covers connection refused, DNS failure, timeout and persistent 5xx. Raised only where an
+    episode would otherwise be marked failed, so the offline queue (#482) can defer it. Never
+    raised for auth, rate-limit or response-content errors: deferral would hide those.
     """
 
     def __init__(self, service: str, message: str):
@@ -39,37 +36,30 @@ class ModelLoadError(RuntimeError):
 class AudioExtractionError(Exception):
     """ffmpeg could not extract or decode audio chunks from the source file.
 
-    Distinct from transcription-API failures so the user-facing error points
-    at the file, not the provider: #556 was a malformed embedded cover image
-    aborting every chunk extract, reported as "Failed to transcribe audio",
-    and the reporter spent the debugging time on a healthy Whisper endpoint.
-    Pass 2 treats it like an outage (skip verification, keep the episode);
-    pass 1 lets it propagate as the episode error.
+    Distinct from transcription-API failures so the error points at the file, not the
+    provider (#556: a malformed cover image aborted every chunk extract). Pass 2 treats it
+    like an outage (skip verification, keep the episode); pass 1 lets it propagate.
     """
 
 
 class AudioExtractionTimeout(AudioExtractionError):
     """ffmpeg ran out of clock on a chunk rather than failing to decode it.
 
-    Separate from the decode case (#644) so the stored error stops asserting a
-    corrupt source file when the file is fine and the budget was simply short.
+    Separate from the decode case (#644) so the stored error does not blame a source file that is fine.
     """
 
 
 class AudioTooLargeError(Exception):
     """An episode enclosure exceeds the configured download size cap.
 
-    Permanent for the episode: the file will not shrink on retry. The
-    operator can raise MAX_AUDIO_DOWNLOAD_MB and reprocess (#493); the
-    appended hint keeps that remedy in every stored error message.
+    Permanent for the episode. The operator can raise MAX_AUDIO_DOWNLOAD_MB and reprocess (#493);
+    the appended hint keeps that remedy in every stored error message.
     """
 
     _HINT = "; raise the Max episode download cap in Settings (or the MAX_AUDIO_DOWNLOAD_MB env default) to process it"
 
     def __init__(self, message: str):
-        # Idempotent so re-wrapping or copy/pickle reconstruction (which
-        # calls cls(*args) with the already-hinted message) cannot double
-        # the hint.
+        # Idempotent: copy/pickle reconstruction re-calls cls(*args) with the hinted message.
         if not message.endswith(self._HINT):
             message += self._HINT
         super().__init__(message)

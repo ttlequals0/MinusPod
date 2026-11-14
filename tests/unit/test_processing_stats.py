@@ -1,8 +1,5 @@
-"""Tests for per-run processing stats capture (#519).
-
-Covers the history-row stats blob, the per-episode run accessor, the
-low-ad-yield baseline query, and RSS itunes:duration capture.
-"""
+"""Per-run processing stats capture (#519): history-row stats blob, run accessor, low-ad-yield
+baseline, RSS itunes:duration."""
 import json
 
 import pytest

@@ -1,8 +1,6 @@
-"""Tests for the 2.5.7 multi-sponsor guard on PatternService.merge_similar_patterns.
+"""Multi-sponsor guard on PatternService.merge_similar_patterns.
 
-If the combined template would name >=1 sponsor outside the patterns'
-consolidated sponsor row, the merge is aborted to prevent kitchen-sink
-templates from over-matching downstream.
+The merge aborts if the combined template would name a sponsor outside the patterns' consolidated sponsor row.
 """
 import os
 import sys

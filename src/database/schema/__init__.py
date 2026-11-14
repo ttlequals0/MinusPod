@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from database.episodes import normalize_published_at
 from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -17,6 +18,12 @@ logger = logging.getLogger(__name__)
 # Rows read per page by the duplicate-marker collapse, so a large library does
 # not land in memory at once inside the startup schema lock.
 _COLLAPSE_BATCH_ROWS = 500
+
+_OLD_FINGERPRINT_SENTENCE = (
+    "fingerprint spans are projected lengths, so prefer the transcript's precise edges.")
+_NEW_FINGERPRINT_SENTENCE = (
+    "fingerprint spans are measured audio matches, but the transcript's precise "
+    "edges are still preferred where they extend the span.")
 
 _SEARCH_CHANGE_TRIGGER_NAMES = (
     'search_change_podcasts_insert', 'search_change_podcasts_delete',
@@ -30,16 +37,24 @@ _SEARCH_CHANGE_TRIGGER_NAMES = (
 )
 _SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
 
+def _migration_done(conn, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone() is not None
+
+
 # The hold reason inside the snippet _file_corroborated_hold_approvals writes.
 _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import (
-    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
-    TABLE_DDL,
+    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
+    FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
+from database.fingerprint_cleanup import delete_matches_for_missing_episodes
+from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
+from database.schema.deferred import DeferredUpgradeMixin
 from database.patterns import _parse_bounds
+from database.podcasts import normalize_network_id
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -63,11 +78,10 @@ _LEGACY_SNIPPET_REASONS = {'differential': HOLD_REASON_DIFFERENTIAL_UNCORROBORAT
 def _migration_file_lock(data_dir):
     """Cross-process serializing lock for schema migrations.
 
-    Gunicorn runs 2 workers; both fork into Database.__init__ and race the
-    schema init path. The work is idempotent, but each worker emits its own
-    "Migration: Created X" log line and doubles the SQLite write contention.
-    Worker B blocks here until Worker A releases, then walks the
-    already-stamped revision flags and short-circuits each gate.
+    Both gunicorn workers race the schema init path. The work is idempotent, but
+    each would log its own "Migration: Created X" line and double write contention.
+    The second worker blocks until the first releases, then short-circuits each
+    already-stamped gate.
     """
     lock_path = os.path.join(str(data_dir), '.migration.lock')
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
@@ -84,7 +98,7 @@ def _migration_file_lock(data_dir):
 _SPLIT_CHAIN_WINDOW_S = 60
 
 
-class SchemaMixin:
+class SchemaMixin(DeferredUpgradeMixin):
     """Schema initialization and migration methods."""
 
     @staticmethod
@@ -118,10 +132,8 @@ class SchemaMixin:
     def _init_schema(self):
         """Initialize database schema with cross-worker serialization + retry.
 
-        The fcntl lock serializes the second gunicorn worker behind the first;
-        the retry loop survives any remaining SQLite contention from other
-        processes (manual sqlite3 sessions, ad-hoc scripts) that bypass the
-        file lock.
+        The fcntl lock serializes the second gunicorn worker; the retry loop covers
+        contention from processes (manual sqlite3 sessions, scripts) that bypass it.
         """
         with _migration_file_lock(self.data_dir):
             max_retries = 5
@@ -151,6 +163,7 @@ class SchemaMixin:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='podcasts'"
         )
         is_existing_db = cursor.fetchone() is not None
+        self._fresh_schema = not is_existing_db
 
         if is_existing_db:
             # For existing databases, only create new tables and run migrations
@@ -168,23 +181,23 @@ class SchemaMixin:
         # After migrations (they may drop triggers); legacy databases can lack episode_details.
         installed = {row['name'] for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'episode_details'")}
-        missing = [ddl for name, ddl in EPISODE_FEED_DETAILS_TRIGGERS.items()
+        missing = [ddl for name, ddl in {**EPISODE_FEED_DETAILS_TRIGGERS,
+                                         **EPISODE_SNAP_STATS_TRIGGERS}.items()
                    if name not in installed and self._table_exists(conn, 'episode_details')]
         for statement in missing:
             conn.execute(statement)
         if missing:
             conn.commit()
 
-    # Tables created on existing databases that pre-date them. Each name
-    # executes the shared current-shape DDL from tables.py (TABLE_DDL); the
-    # ALTER-based migrations in _run_schema_migrations bring tables created
-    # by older builds up to the same shape, so the later column ALTERs are
-    # no-ops for tables created here. addressing_log is the sentinel for the
-    # boot log below; newer tables are appended after it.
+    # Tables created on existing databases that pre-date them, using the current-shape
+    # DDL from tables.py (TABLE_DDL), so later column ALTERs are no-ops for them. The
+    # ALTER migrations in _run_schema_migrations bring older-build tables to the same
+    # shape. addressing_log is the sentinel for the boot log; newer tables go after it.
     _MIGRATION_CREATED_TABLES = (
         'ad_patterns',
         'audio_cue_templates',
         'audio_fingerprints',
+        'audio_fingerprint_matches',
         'pattern_corrections',
         'known_sponsors',
         'sponsor_normalizations',
@@ -208,6 +221,8 @@ class SchemaMixin:
         'pattern_cleanup_checks',
         'pattern_cleanup_deleted_actions',
         'episode_feed_details',
+        'episode_snap_stats',
+        'deferred_upgrade_steps',
     )
 
     def _create_new_tables_only(self, conn):
@@ -265,7 +280,7 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_failover_events_created "
             "ON failover_events(created_at DESC)"
         )
-        for statement in PATTERN_CLEANUP_INDEXES + DOWNLOAD_INDEX_SQL:
+        for statement in PATTERN_CLEANUP_INDEXES + DOWNLOAD_INDEX_SQL + FINGERPRINT_MATCH_INDEXES:
             conn.execute(statement)
         conn.execute("DROP INDEX IF EXISTS idx_upload_reservations_active_target")
         conn.execute(
@@ -346,7 +361,7 @@ class SchemaMixin:
             ('deferred_service', 'TEXT'),
             # RSS-declared duration for DAI fill comparison (#519)
             ('rss_duration', 'REAL'),
-            # Upstream podcast:chapters JSON URL (issue #560 follow-up)
+            # Upstream podcast:chapters JSON URL (#560)
             ('upstream_chapters_url', 'TEXT'),
             # Upstream podcast:transcript URL + MIME type (2.98.0)
             ('upstream_transcript_url', 'TEXT'),
@@ -523,10 +538,10 @@ class SchemaMixin:
         self._add_column_if_missing(
             conn, 'model_pricing', 'cache_read_cost_per_mtok', 'REAL', pricing_cols)
 
-        # -- Episodes table columns --
+        # Episodes table columns
         self._add_episode_columns(conn)
 
-        # -- Episode details table columns --
+        # Episode details table columns
         det_cols = self._get_table_columns(conn, 'episode_details')
 
         # Renames (legacy column names)
@@ -559,7 +574,7 @@ class SchemaMixin:
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)
 
-        # -- Podcasts table columns --
+        # Podcasts table columns
         pod_cols = self._get_table_columns(conn, 'podcasts')
         podcasts_migrations = [
             ('network_id', 'TEXT'),
@@ -602,10 +617,9 @@ class SchemaMixin:
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
             ('last_modified_header', 'TEXT'),
-            # Plain INTEGER (nullable, no DEFAULT) so NULL means "use the
-            # only_expose_processed_default global setting" (2.0.20+). On
-            # databases created at 2.0.19 the column was INTEGER DEFAULT 0;
-            # the conversion step below rewrites that to match.
+            # Nullable INTEGER, no DEFAULT: NULL means "use the global
+            # only_expose_processed_default" (2.0.20+). 2.0.19 databases had DEFAULT 0;
+            # the conversion step below rewrites that.
             ('only_expose_processed_episodes', 'INTEGER'),
             ('require_manual_approval', 'INTEGER'),
             # Last refresh attempt (success or failure), so the staggered
@@ -663,6 +677,8 @@ class SchemaMixin:
             ('cue_only_safety', 'TEXT'),
             # Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
             ('queue_priority', 'INTEGER'),
+            # Processing order of the feed's queued episodes; NULL = global queue_order
+            ('queue_order', 'TEXT'),
             # Episode title blacklist: JSON array of glob patterns matched
             # case-insensitively; title_skip_action controls served-RSS
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
@@ -700,10 +716,8 @@ class SchemaMixin:
             # Operator hints appended to the LLM prompt for this feed (#709).
             ('detection_notes', 'TEXT'),
             ('chapter_notes', 'TEXT'),
-            # Durable, status-aware artwork negative cache: JSON map of
-            # attempted candidate URL -> {status, at}, so a broken preferred
-            # cover is not retried until its backoff window elapses even
-            # after a process restart.
+            # Durable artwork negative cache: JSON map of candidate URL -> {status, at},
+            # so a broken cover is not retried before its backoff elapses, even after a restart.
             ('artwork_failure_state', 'TEXT'),
             # YouTube feeds: source identity plus per-feed SponsorBlock
             # overrides (NULL inherits the global setting).
@@ -731,6 +745,8 @@ class SchemaMixin:
                     ('quality_notes', 'TEXT'),
                     ('quality_rated_at', 'TEXT')):
                 self._add_column_if_missing(conn, 'episodes', col, definition, episode_cols)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_activity_at "
+                         "ON episodes(COALESCE(processed_at, updated_at))")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_quality_rated_at "
                          "ON episodes(quality_rated_at) WHERE quality_rating IS NOT NULL")
             for col, definition in (
@@ -752,7 +768,7 @@ class SchemaMixin:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending "
                              "ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL")
 
-        # -- audio_cue_templates table columns --
+        # audio_cue_templates table columns
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
         act_migrations = [
             ('score_threshold', 'REAL'),
@@ -762,13 +778,11 @@ class SchemaMixin:
         for col, definition in act_migrations:
             self._add_column_if_missing(conn, 'audio_cue_templates', col, definition, act_cols)
 
-        # -- pattern_corrections table columns --
-        # Provenance + suppression for false-positive text used in
-        # cross-episode text-pattern matching (2.76.0). source_hold_reason
-        # records which hold gate produced a false_positive correction;
-        # fp_suppressed excludes a correction's text_snippet from
-        # get_podcast_false_positive_texts (see suppress_differential_fp_texts
-        # backfill).
+        # pattern_corrections table columns
+        # Provenance + suppression for false-positive text in cross-episode matching
+        # (2.76.0). source_hold_reason records the hold gate behind a false_positive;
+        # fp_suppressed excludes its text_snippet from get_podcast_false_positive_texts
+        # (see the suppress_differential_fp_texts backfill).
         pcorr_cols = self._get_table_columns(conn, 'pattern_corrections')
         pcorr_migrations = [
             ('podcast_id', 'INTEGER REFERENCES podcasts(id) ON DELETE SET NULL'),
@@ -854,11 +868,9 @@ class SchemaMixin:
             conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
             conn.commit()
 
-        # 2.0.19 -> 2.0.20: convert only_expose_processed_episodes from
-        # INTEGER DEFAULT 0 to plain nullable INTEGER, treating the previous
-        # 0 default as "use global default" (NULL). Explicit per-feed 1
-        # values (override-ON) are preserved verbatim. Idempotent: the
-        # PRAGMA check below short-circuits once the column has no default.
+        # 2.0.19 -> 2.0.20: convert only_expose_processed_episodes from INTEGER DEFAULT 0
+        # to nullable INTEGER, treating the old 0 default as NULL ("use global default").
+        # Explicit per-feed 1 values are preserved. Idempotent via the PRAGMA check below.
         col_info = conn.execute("PRAGMA table_info(podcasts)").fetchall()
         oepe_col = next((row for row in col_info
                          if row['name'] == 'only_expose_processed_episodes'), None)
@@ -887,7 +899,6 @@ class SchemaMixin:
         # Backfill: pre-v1.0.41 rows may store RFC 2822 dates which break
         # SQLite lexicographic sorting.  After first run this is a no-op.
         try:
-            from database.episodes import normalize_published_at
             cursor = conn.execute(
                 "SELECT id, published_at FROM episodes "
                 "WHERE published_at IS NOT NULL "
@@ -910,7 +921,7 @@ class SchemaMixin:
 
         self._dedup_orphan_discovered_episodes(conn)
 
-        # -- Addressing log columns (per-mode yield and waste) --
+        # Addressing log columns (per-mode yield and waste)
         # Nullable on purpose: NULL marks rows from before yield recording
         # existed, so aggregates can exclude them from yield denominators.
         if self._table_exists(conn, 'addressing_log'):
@@ -925,14 +936,14 @@ class SchemaMixin:
         self._add_column_if_missing(
             conn, 'ad_reviewer_log', 'addressing_mode', 'TEXT', rl_cols)
 
-        # -- Ad patterns table columns --
+        # Ad patterns table columns
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'avg_duration', 'REAL', ap_cols)
         self._add_column_if_missing(conn, 'ad_patterns', 'duration_samples', 'INTEGER DEFAULT 0', ap_cols)
 
         # Community-pattern columns (2.4.0). source is a CHECK column but
-        # SQLite allows ADD COLUMN with DEFAULT -- the CHECK is enforced via
-        # the SCHEMA_SQL CREATE TABLE; existing rows default to 'local'.
+        # SQLite allows ADD COLUMN with DEFAULT; the CHECK is enforced via the
+        # SCHEMA_SQL CREATE TABLE, and existing rows default to 'local'.
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'source', "TEXT NOT NULL DEFAULT 'local'", ap_cols)
         self._add_column_if_missing(conn, 'ad_patterns', 'community_id', 'TEXT', ap_cols)
@@ -948,10 +959,9 @@ class SchemaMixin:
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'source_language', 'TEXT', ap_cols)
 
-        # content_hash (#400): hash of the published per-pattern file the
-        # community row synced from. The thin-index sync diffs this to skip
-        # unchanged rows. Existing community rows have none after deploy, so the
-        # first sync re-fetches each once to populate it (one-time, expected).
+        # content_hash (#400): hash of the published per-pattern file a community row
+        # synced from; the thin-index sync skips unchanged rows by it. Existing rows
+        # have none, so the first sync re-fetches each once.
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'content_hash', 'TEXT', ap_cols)
 
@@ -981,10 +991,8 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Community pattern index creation: {e}")
 
-        # idx_patterns_scope: defined in the retired MIGRATION_INDEXES_SQL
-        # constant but never executed anywhere, so no existing database has
-        # it. Same idempotent pattern as the sibling ad_patterns indexes
-        # above; fresh databases get it from SCHEMA_SQL.
+        # idx_patterns_scope was only in the retired, never-executed MIGRATION_INDEXES_SQL,
+        # so no existing database has it. Fresh databases get it from SCHEMA_SQL.
         try:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_patterns_scope "
@@ -1026,9 +1034,8 @@ class SchemaMixin:
                 old_columns = [row['name'] for row in cursor.fetchall()]
 
                 # 1. Create new table with correct constraint (matches current SCHEMA_SQL).
-                # Drop any orphan _new table left by an interrupted prior run so a
-                # re-entry after a crash is idempotent rather than a fatal
-                # "table episodes_new already exists" boot crash-loop (db-schema-1).
+                # Drop any orphan _new table from an interrupted run so re-entry is
+                # idempotent, not a "table episodes_new already exists" crash-loop (db-schema-1).
                 conn.execute("DROP TABLE IF EXISTS episodes_new")
                 conn.execute("""
                     CREATE TABLE episodes_new (
@@ -1193,11 +1200,9 @@ class SchemaMixin:
             logger.error(f"Migration failed for episodes discovered CHECK constraint: {e}")
             raise
 
-        # Migration: Update episodes status CHECK constraint to include
-        # 'deferred' (offline queue, #482). Same table-rebuild pattern as the
-        # 'discovered' block above; the guard matches the quoted CHECK literal
-        # so the deferred_at/deferred_service COLUMNS (added by
-        # _add_episode_columns earlier) don't satisfy it.
+        # Add 'deferred' to the episodes status CHECK (offline queue, #482), via the
+        # same table rebuild as the 'discovered' block above. The guard matches the
+        # quoted CHECK literal so the deferred_at/deferred_service columns don't satisfy it.
         try:
             cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'")
             create_sql = cursor.fetchone()
@@ -1358,6 +1363,23 @@ class SchemaMixin:
         except Exception as e:
             logger.debug(f"auto_process_queue priority migration: {e}")
 
+        queue_columns = {row['name'] for row in conn.execute("PRAGMA table_info(auto_process_queue)")}
+        self._add_column_if_missing(conn, 'auto_process_queue', 'slot_created_at', 'TEXT', queue_columns)
+        self._add_column_if_missing(conn, 'auto_process_queue', 'slot_id', 'INTEGER', queue_columns)
+        conn.commit()
+
+        # Queued rows can carry the raw feed date; the processing order needs ISO 8601.
+        try:
+            marker = 'normalize_queue_published_at_once'
+            if not _migration_done(conn, marker):
+                queue_fixed = self._normalize_queue_published_at(conn)
+                if queue_fixed:
+                    logger.info(f"Migration: Normalized {queue_fixed} queued published_at dates to ISO 8601")
+                conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (marker,))
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"queue published_at normalization migration: {e}")
+
         # Create new indexes for podcasts table (will fail silently if already exist)
         try:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_podcasts_network_id ON podcasts(network_id)")
@@ -1372,6 +1394,8 @@ class SchemaMixin:
             'CREATE INDEX IF NOT EXISTS idx_episodes_podcast_status ON episodes(podcast_id, status)',
             # Published date for sorting recent episodes
             'CREATE INDEX IF NOT EXISTS idx_episodes_published ON episodes(published_at DESC)',
+            # Recents feed: status filter plus publish-date order
+            'CREATE INDEX IF NOT EXISTS idx_episodes_status_published ON episodes(status, published_at DESC, id DESC)',
             # Pattern corrections queries
             'CREATE INDEX IF NOT EXISTS idx_corrections_episode ON pattern_corrections(episode_id)',
             'CREATE INDEX IF NOT EXISTS idx_corrections_type ON pattern_corrections(correction_type)',
@@ -1575,9 +1599,9 @@ class SchemaMixin:
                     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
                 )
             """)
-            # Seed default pricing (ON CONFLICT DO NOTHING preserves manual edits)
-            # Use old column format -- new columns (match_key, raw_model_id, source)
-            # are added by the ALTER TABLE migration block that follows, then backfilled.
+            # Seed default pricing (ON CONFLICT DO NOTHING preserves manual edits).
+            # Uses the old column format: match_key, raw_model_id and source are added
+            # by the ALTER TABLE block that follows, then backfilled.
             for model_id, info in DEFAULT_MODEL_PRICING.items():
                 conn.execute(
                     """INSERT INTO model_pricing
@@ -1601,11 +1625,10 @@ class SchemaMixin:
             self._add_column_if_missing(conn, 'model_pricing', 'raw_model_id', 'TEXT', mp_cols)
             self._add_column_if_missing(conn, 'model_pricing', 'source', "TEXT DEFAULT 'legacy'", mp_cols)
 
-            # Backfill match_key for existing rows. Skip any row whose normalized
-            # key is already owned by another row: that NULL-match_key row is a
-            # redundant duplicate (cost lookups go by match_key, so it is never
-            # used). Forcing the UPDATE would hit the UNIQUE index and abort the
-            # whole migration, leaving the row NULL to re-fail on every restart.
+            # Backfill match_key. Skip rows whose normalized key another row owns: that
+            # NULL-match_key row is an unused duplicate (lookups go by match_key), and
+            # forcing the UPDATE would hit the UNIQUE index and fail the migration on
+            # every restart.
             rows = conn.execute(
                 "SELECT model_id FROM model_pricing WHERE match_key IS NULL"
             ).fetchall()
@@ -1625,9 +1648,8 @@ class SchemaMixin:
                     )
                     backfilled += 1
 
-                # Deduplicate real (non-NULL) collisions, keeping the highest
-                # rowid per match_key. NULL match_keys are left alone -- they are
-                # un-keyable duplicates, not rows to delete.
+                # Deduplicate non-NULL collisions, keeping the highest rowid per match_key.
+                # NULL match_keys are left alone: un-keyable duplicates, not rows to delete.
                 dupes = conn.execute("""
                     SELECT model_id, match_key FROM model_pricing
                     WHERE match_key IS NOT NULL AND rowid NOT IN (
@@ -1743,10 +1765,9 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Migration failed for ad reviewer settings: {e}")
 
-        # v2.2.0: Migrate ad_patterns.sponsor TEXT to sponsor_id FK against
-        # known_sponsors; add ad_patterns.created_by; add
-        # pattern_corrections.sponsor_id; extend pattern_corrections CHECK
-        # constraint to include 'auto_promotion' and 'create'.
+        # v2.2.0: migrate ad_patterns.sponsor TEXT to a sponsor_id FK on known_sponsors;
+        # add ad_patterns.created_by and pattern_corrections.sponsor_id; extend the
+        # pattern_corrections CHECK with 'auto_promotion' and 'create'.
         try:
             self._migrate_sponsor_fk(conn)
         except Exception as e:
@@ -1767,11 +1788,10 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"ad_detection_max_tokens migration failed: {e}")
 
-        # 2.2.11: clear sponsor='Zyn' on ad markers (stored as JSON in
-        # episode_details.ad_markers_json) whose detected transcript window
-        # does not contain the canonical brand. The per-marker sponsor was
-        # frozen at detection time, so the 2.2.10 pattern cleanup alone
-        # doesn't update what the editor displays for already-detected ads.
+        # 2.2.11: clear a mis-attributed brand sponsor on ad markers (JSON in
+        # episode_details.ad_markers_json) whose transcript window lacks the canonical
+        # brand. The marker sponsor was frozen at detection time, so the 2.2.10 pattern
+        # cleanup alone does not fix what the editor shows for existing ads.
         self._cleanup_zyn_ad_markers(conn)
 
         # 2.95.2: one-shot fold of duplicate pass-1/pass-2 markers for the same span
@@ -1792,32 +1812,27 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Multi-sponsor pattern cleanup failed: {e}")
 
-        # 2.5.13: retire patterns whose sponsor name appears <2 times in the
-        # text_template. Real ads repeat the brand; a single mention is a
-        # host name-drop the verification pass mis-classified. The
-        # create_pattern_from_ad guard prevents new ones going forward.
+        # 2.5.13: retire patterns whose sponsor name appears <2 times in the text_template.
+        # Real ads repeat the brand; a single mention is a host name-drop the verification
+        # pass mis-classified. create_pattern_from_ad now guards against new ones.
         try:
             self._cleanup_low_mention_patterns(conn)
         except Exception as e:
             logger.warning(f"Low-mention pattern cleanup failed: {e}")
 
-        # Sponsor seed reseed (2.4.0): CSV is authoritative. Runs LAST so
-        # `_migrate_sponsor_fk` has already deduped case-variants from
-        # legacy v2.1.x rows; the reseed then operates on the canonical
-        # post-FK-migration state. UPDATE on name match preserves `id` for
-        # any existing `ad_patterns.sponsor_id` foreign keys; orphans are
-        # soft-deleted (is_active=0) rather than dropped.
+        # Sponsor seed reseed (2.4.0): the CSV is authoritative. Runs last so
+        # `_migrate_sponsor_fk` has already deduped case-variants from v2.1.x rows.
+        # UPDATE on name match preserves `id` for existing `ad_patterns.sponsor_id`
+        # FKs; orphans are soft-deleted (is_active=0), not dropped.
         try:
             self._reseed_known_sponsors(conn)
         except Exception as e:
             logger.error(f"Sponsor reseed failed: {e}")
 
-        # One-shot repair: patterns created before 2.4.6 by
-        # text_pattern_matcher have `intro_variants` / `outro_variants`
-        # double-JSON-encoded (caller json.dumps'd, then create_ad_pattern
-        # json.dumps'd again). The community export pipeline exploded the
-        # result into a list of single characters. Idempotent: rows that
-        # parse to a list on the first decode are skipped.
+        # One-shot repair: patterns created before 2.4.6 by text_pattern_matcher have
+        # `intro_variants` / `outro_variants` double-JSON-encoded, which the community
+        # export exploded into single characters. Rows that parse to a list on the
+        # first decode are skipped.
         try:
             self._repair_double_encoded_variants(conn)
         except Exception as e:
@@ -1831,10 +1846,9 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"Community scope normalize failed: {e}")
 
-        # ENV_BACKED_SETTINGS registry sync (2.5.23+). Runs on every boot,
-        # idempotent. See src/config.py ENV_BACKED_SETTINGS for the full
-        # contract. Never overwrites a row's value during the corrective
-        # pass -- only flips is_default in the protective direction.
+        # ENV_BACKED_SETTINGS registry sync (2.5.23+), idempotent, every boot. See
+        # src/config.py for the contract. The corrective pass never overwrites a value;
+        # it only flips is_default in the protective direction.
         try:
             self._run_env_backed_settings_migration(conn)
         except Exception as e:
@@ -1848,25 +1862,21 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"shipped prompt refresh failed: {e}")
 
-        # One-shot backfill of processing_history.ads_detected (2.5.29).
-        # See _run_backfill_history_ads_detected for the bug + predicate.
-        # rollback() here is safe to scope to this migration's writes only
-        # because the CREATE TABLE schema_migrations + commit() at the top
-        # of this method finalized any prior sub-migration's transaction.
+        # One-shot backfill of processing_history.ads_detected (2.5.29); see
+        # _run_backfill_history_ads_detected. Its rollback() only touches this
+        # migration's writes because the schema_migrations commit() at the top of this
+        # method finalized any earlier sub-migration.
         try:
             self._run_backfill_history_ads_detected(conn)
         except Exception as e:
             conn.rollback()
             logger.error(f"history ads_detected backfill failed: {e}")
 
-        # v2 backfill (2.5.30) with corrected predicate. The v1 pass
-        # compared history.ads_detected against episodes.ads_removed_firstpass,
-        # which is pass-1 DETECTION count (pre-reviewer), not pass-1 CUTS
-        # (post-reviewer). The buggy 2.5.27 writer captured cuts, so v1
-        # only matched episodes where the reviewer rejected zero ads. v2
-        # uses (ads_removed - ads_removed_secondpass) which equals pass-1
-        # cuts post-reviewer regardless of how many the reviewer rejected
-        # or resurrected.
+        # v2 backfill (2.5.30), corrected predicate. v1 compared history.ads_detected to
+        # ads_removed_firstpass, the pass-1 detection count (pre-reviewer), but the buggy
+        # 2.5.27 writer captured post-reviewer cuts, so v1 only matched episodes where the
+        # reviewer rejected zero ads. v2 uses ads_removed - ads_removed_secondpass, which
+        # equals pass-1 cuts however many ads the reviewer rejected or resurrected.
         try:
             self._run_backfill_history_ads_detected_v2(conn)
         except Exception as e:
@@ -1881,10 +1891,9 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"opus 4.8 token cost correction failed: {e}")
 
-        # One-shot recompute of Sonnet 5 / Fable 5 token cost (2.32.2). These
-        # models had no default pricing and (on unknown openai-compatible
-        # domains) no live fetch, so calls booked at $0. Recompute from
-        # DEFAULT_MODEL_PRICING where the recorded cost is 0 but tokens exist.
+        # One-shot recompute of Sonnet 5 / Fable 5 token cost (2.32.2): they had no default
+        # pricing and no live fetch on unknown openai-compatible domains, so calls booked
+        # $0. Recompute from DEFAULT_MODEL_PRICING where cost is 0 but tokens exist.
         try:
             self._run_recompute_sonnet5_fable5_token_cost(conn)
         except Exception as e:
@@ -1994,10 +2003,9 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"model settings env seed failed: {e}")
 
-        # Refresh default prompts to mention audio cue evidence (#350).
-        # Marker phrase per prompt is unique to this revision and idempotent:
-        # only overwrite a prompt that is still the stored default and lacks
-        # the marker, so user-customized prompts (is_default=0) are untouched.
+        # Refresh default prompts to mention audio cue evidence (#350). Idempotent via a
+        # per-prompt marker phrase: only a still-default prompt lacking it is overwritten,
+        # so user-customized prompts (is_default=0) are untouched.
         try:
             from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
             for key, value, marker in (
@@ -2046,14 +2054,11 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"Migration failed for review prompt example refresh: {e}")
 
-        # Per-feed audio cue templates (#350). User-marked ding/stinger samples
-        # used by the template-based cue matcher. The CREATE here keeps the
-        # table shape this migration originally shipped with (no
-        # score_threshold); on current boots the table already exists (from
-        # SCHEMA_SQL or _create_new_tables_only via TABLE_DDL), so it is a
-        # no-op safety net. The ALTERs cover an existing table created by an
-        # earlier build that lacked the pcm/scope columns (additive, no data
-        # loss); score_threshold is added by the act_migrations block above.
+        # Per-feed audio cue templates (#350): user-marked ding/stinger samples for the
+        # cue matcher. The CREATE keeps the originally shipped shape (no score_threshold)
+        # and is a no-op safety net on current boots, where SCHEMA_SQL or TABLE_DDL already
+        # made the table. The ALTERs add pcm/scope columns to older tables (additive, no
+        # data loss); score_threshold comes from the act_migrations block above.
         try:
             fresh = not self._table_exists(conn, 'audio_cue_templates')
             conn.execute("""
@@ -2087,21 +2092,18 @@ class SchemaMixin:
                     "TEXT NOT NULL DEFAULT 'podcast'", cols,
                 )
                 self._add_column_if_missing(conn, 'audio_cue_templates', 'network_id', 'TEXT', cols)
-                # Cue type added after the initial 2.9.0 columns. ALTER omits the
-                # CHECK (SQLite keeps it only on fresh-table DDL) -- the app layer
-                # validates the value; the default keeps every existing row at the
-                # back-compat 'boundary' role with no data loss.
+                # Cue type added after the initial 2.9.0 columns. ALTER omits the CHECK
+                # (SQLite keeps it only on fresh-table DDL); the app layer validates, and
+                # the default keeps existing rows at the back-compat 'boundary' role.
                 self._add_column_if_missing(
                     conn, 'audio_cue_templates', 'cue_type',
                     "TEXT NOT NULL DEFAULT 'ad_break_boundary'", cols,
                 )
-            # One-time rebuild for DBs created fresh while cue_type still carried a
-            # CHECK constraint. SQLite can't ALTER a CHECK, so those DBs would
-            # reject any cue_type added later (#350 content_transition). Drop the
-            # CHECK by rebuilding; config.AUDIO_CUE_TYPES + the API validate the
-            # value, matching the ALTER-path DBs that never had it. Nothing
-            # FK-references this table, so the drop/rename is safe. Idempotent:
-            # runs only while the CHECK is still present.
+            # One-time rebuild for DBs created while cue_type still had a CHECK, which
+            # SQLite can't ALTER and which would reject later cue types (#350
+            # content_transition). config.AUDIO_CUE_TYPES + the API validate instead,
+            # matching ALTER-path DBs. Nothing FK-references the table, so drop/rename is
+            # safe. Runs only while the CHECK is present.
             cue_sql_row = conn.execute(
                 "SELECT sql FROM sqlite_master "
                 "WHERE type='table' AND name='audio_cue_templates'"
@@ -2173,11 +2175,9 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"audio_cue_templates table creation: {e}")
 
-        # Per-cue detection telemetry (#350 follow-up). Advisory-only table; no
-        # data loss risk (additive, never touched by other migrations). The
-        # CREATE here keeps the shape this migration originally shipped with;
-        # the edge_distance_s / unused_reason ALTERs below bring it to the
-        # current SCHEMA_SQL shape.
+        # Per-cue detection telemetry (#350): advisory-only, additive, no data loss risk.
+        # The CREATE keeps the originally shipped shape; the edge_distance_s /
+        # unused_reason ALTERs below bring it to the current SCHEMA_SQL shape.
         try:
             fresh_cd = not self._table_exists(conn, 'cue_detections')
             conn.execute("""
@@ -2258,11 +2258,10 @@ class SchemaMixin:
                 logger.info(
                     "Migration: dropped legacy outcome CHECK on "
                     "cue_detections (%d rows preserved)", before_cd)
-            # Near-miss / diagnostics columns (#350 Phase 6). Additive nullable
-            # columns; no CHECK so the ALTER path is safe on both fresh and
-            # rebuilt tables. edge_distance_s: signed distance from an
-            # above-threshold cue to the nearest pre-snap LLM ad edge on its
-            # eligible side. unused_reason: taxonomy explaining an outcome='none'.
+            # Near-miss / diagnostics columns (#350): additive, nullable, no CHECK, so ALTER
+            # is safe on fresh and rebuilt tables. edge_distance_s: signed distance from an
+            # above-threshold cue to the nearest pre-snap LLM ad edge on its eligible side.
+            # unused_reason: why an outcome='none' cue went unused.
             cd_cols_now = self._get_table_columns(conn, 'cue_detections')
             self._add_column_if_missing(
                 conn, 'cue_detections', 'edge_distance_s', 'REAL', cd_cols_now)
@@ -2470,6 +2469,17 @@ class SchemaMixin:
                     (cleanup_category_gate,))
                 conn.commit()
 
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'audio_removed',
+                                    'INTEGER NOT NULL DEFAULT 0', ap_cols)
+        fp_cols = self._get_table_columns(conn, 'audio_fingerprints')
+        for name, definition in (('enabled', 'INTEGER NOT NULL DEFAULT 1'),
+                                 ('source_podcast_slug', 'TEXT'),
+                                 ('source_episode_id', 'TEXT'),
+                                 ('source_start', 'REAL'),
+                                 ('source_end', 'REAL')):
+            self._add_column_if_missing(conn, 'audio_fingerprints', name, definition, fp_cols)
+
         cleanup_ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
         for name in ('cleanup_run_id', 'cleanup_pattern_id'):
             self._add_column_if_missing(conn, 'llm_call_usage', name, 'INTEGER', cleanup_ledger_cols)
@@ -2507,13 +2517,10 @@ class SchemaMixin:
         conn.execute('CREATE INDEX IF NOT EXISTS idx_llm_usage_cleanup_run '
                      'ON llm_call_usage(cleanup_run_id, cleanup_pattern_id)')
 
-        # Refresh the default review prompt with the PARTIAL SPAN contract:
-        # when the reviewer concludes part of the span is not ad content, it
-        # must return adjusted boundaries, never the original boundaries with
-        # a prose-only trim in the reason text. Marker phrase is unique to
-        # this revision and idempotent: only overwrites a prompt that is
-        # still the stored default (is_default=1); user-customized prompts
-        # are untouched.
+        # Refresh the default review prompt with the partial-span contract: a reviewer
+        # that finds part of a span is not ad content must return adjusted boundaries,
+        # not the originals with a prose-only trim. Idempotent via a marker phrase; only
+        # a still-default prompt (is_default=1) is overwritten.
         try:
             from database import DEFAULT_REVIEW_PROMPT
             row = conn.execute(
@@ -2554,15 +2561,88 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"sponsorblock terminal next-check clear failed: {e}")
 
+        try:
+            self._run_review_prompt_fingerprint_wording(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"review prompt fingerprint wording update failed: {e}")
+
+        self._run_trim_pattern_network_ids(conn)
+
+        self._register_deferred_upgrade_steps(conn, fresh=getattr(self, '_fresh_schema', False))
+
+        self._run_fingerprint_matches_drop_vanished_episodes(conn)
+
+        self._run_trim_podcast_network_id_overrides(conn)
+
+    def _run_trim_podcast_network_id_overrides(self, conn, gate='trim_podcast_network_id_overrides'):
+        """One-shot: trim padded podcasts.network_id_override values and null blank ones; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            # Same rule as the write path (normalize_network_id): str.strip, not SQL TRIM
+            changes = [(normalize_network_id(row['network_id_override']), row['id']) for row in conn.execute(
+                "SELECT id, network_id_override FROM podcasts WHERE network_id_override IS NOT NULL").fetchall()
+                if normalize_network_id(row['network_id_override']) != row['network_id_override']]
+            conn.executemany("UPDATE podcasts SET network_id_override = ? WHERE id = ?", changes)
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Feed network override trim failed, retrying on the next start: {e}")
+
+    def _run_fingerprint_matches_drop_vanished_episodes(
+            self, conn, gate='fingerprint_matches_drop_vanished_episodes'):
+        """One-shot: delete match rows whose episode no longer exists; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            removed = delete_matches_for_missing_episodes(conn)
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+            logger.info(f"Migration: removed {removed} fingerprint match row(s) of deleted episodes")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Dropping match history of deleted episodes failed, retrying on the next start: {e}")
+
+    def _run_trim_pattern_network_ids(self, conn, gate='trim_pattern_network_ids'):
+        """One-shot: trim padded ad_patterns.network_id values and null blank ones; never raises."""
+        try:
+            if _migration_done(conn, gate):
+                return
+            # str.strip, not SQL TRIM, so it matches the API's trim (no-break and other Unicode spaces)
+            changes = [(stripped or None, row['id']) for row in conn.execute(
+                "SELECT id, network_id FROM ad_patterns WHERE network_id IS NOT NULL").fetchall()
+                if (stripped := row['network_id'].strip()) != row['network_id']]
+            conn.executemany("UPDATE ad_patterns SET network_id = ? WHERE id = ?", changes)
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Pattern network id trim failed, retrying on the next start: {e}")
+
     def _run_sponsorblock_terminal_clear_next_check(self, conn):
         """One-shot: terminal SponsorBlock rows left armed by older builds stop being polled."""
         gate = 'sponsorblock_terminal_clear_next_check'
-        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+        if _migration_done(conn, gate):
             return
         if not self._table_exists(conn, 'episodes'):
             return
         conn.execute("UPDATE episodes SET sb_next_check_at = NULL "
                      "WHERE sb_state IN ('done', 'llm', 'exhausted') AND sb_next_check_at IS NOT NULL")
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
+
+    def _run_review_prompt_fingerprint_wording(self, conn):
+        """One-shot: swap the stale "projected lengths" sentence in a stored review prompt."""
+        gate = 'review_prompt_fingerprint_measured'
+        if _migration_done(conn, gate):
+            return
+        row = conn.execute("SELECT value FROM settings WHERE key = 'review_prompt'").fetchone()
+        if row and _OLD_FINGERPRINT_SENTENCE in (row['value'] or ''):
+            conn.execute(
+                "UPDATE settings SET value = ? WHERE key = 'review_prompt'",
+                (row['value'].replace(_OLD_FINGERPRINT_SENTENCE, _NEW_FINGERPRINT_SENTENCE),))
         conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
         conn.commit()
 
@@ -2728,19 +2808,15 @@ class SchemaMixin:
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
 
-        Before the missing-default fix, Opus 4.8 calls fell through the exact
-        pricing lookup and prefix-matched `claudeopus4` (Opus 4.0) at 15/75 USD
-        per Mtok instead of the correct 5/25, so `token_usage.total_cost` and the
-        global `stats.total_llm_cost` were over-booked ~3x.
+        Before the missing-default fix, Opus 4.8 calls prefix-matched `claudeopus4`
+        (Opus 4.0) at 15/75 USD per Mtok instead of 5/25, over-booking
+        `token_usage.total_cost` and the global `stats.total_llm_cost` ~3x.
 
-        Gated by `schema_migrations` so it runs once per database. Writes are
-        absolute (not delta adjustments): the per-model row is set to the
-        recomputed cost and, when a row was corrected, the global counter is reset
-        to the sum of all per-model rows -- so the result is identical on re-run
-        (e.g. concurrent workers). A database that never used Opus 4.8 is left
-        untouched. No rows are deleted. (The counter writes increment both
-        counters by the same per-call cost, so the global equals the sum of
-        per-model rows by construction.)
+        Gated by `schema_migrations`, once per database. Writes are absolute: the
+        per-model row is set to the recomputed cost and, if a row was corrected, the
+        global counter is reset to the sum of per-model rows (equal by construction),
+        so a re-run (e.g. concurrent workers) gives the same result. A database that
+        never used Opus 4.8 is untouched. No rows are deleted.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'correct_opus48_token_cost'"
@@ -2779,10 +2855,8 @@ class SchemaMixin:
                 "UPDATE token_usage SET total_cost = ? WHERE match_key = 'claudeopus48'",
                 (new_cost,),
             )
-            # Reset the global counter to the sum of per-model rows (absolute, so
-            # the result is identical on re-run). Scoped to the case where an Opus
-            # 4.8 row was actually corrected -- a database that never used Opus 4.8
-            # is left untouched rather than having its global silently rewritten.
+            # Reset the global counter to the sum of per-model rows (absolute, so re-runs
+            # match). Only when an Opus 4.8 row was corrected; other databases keep their global.
             conn.execute(
                 """UPDATE stats
                    SET value = (SELECT COALESCE(SUM(total_cost), 0) FROM token_usage)
@@ -2825,9 +2899,8 @@ class SchemaMixin:
     def _run_redownload_stale_artwork(self, conn):
         """One-time artwork_cached clear so every cover re-downloads once (#596).
 
-        While the changed-URL download was being skipped, the row stored the
-        new URL against the old image on disk, so change detection alone
-        cannot repair those feeds: the stored URL already matches.
+        The skipped changed-URL download left the new URL stored against the old
+        image, so change detection cannot repair those feeds (the URL already matches).
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'redownload_stale_artwork'"
@@ -3002,9 +3075,8 @@ class SchemaMixin:
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.4).
 
-        Runs every boot, not just once: a row can go absent again via reset
-        or the provider prune. A present row, either is_default value, is
-        never touched.
+        Runs every boot since a row can go absent again via reset or provider prune.
+        A present row, whatever is_default is, is never touched.
         """
         env_model = os.environ.get('OPENAI_MODEL')
         if not env_model:
@@ -3029,11 +3101,9 @@ class SchemaMixin:
     def _run_reset_legacy_skip_second_pass(self, conn):
         """One-time reset of `podcasts.skip_second_pass` values from the old column.
 
-        The column shipped in 0.1.165 with the same name and meaning and was
-        orphaned in 0.1.242; issue #599 reuses it. An install from that window
-        where an operator turned it on would otherwise upgrade straight into a
-        silently disabled verification pass. Gated by `schema_migrations`, and
-        the write is absolute so a re-run is a no-op.
+        The column shipped in 0.1.165, was orphaned in 0.1.242 and is reused by #599. An
+        install from that window with it switched on would otherwise silently lose its
+        verification pass on upgrade. Gated by `schema_migrations`; the write is absolute.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'reset_legacy_skip_second_pass'"
@@ -3079,9 +3149,9 @@ class SchemaMixin:
     def _run_backfill_credited_time_saved(self, conn):
         """One-time backfill of `episodes.credited_time_saved` (#727).
 
-        The column landed as NULL, so a later run for an already-credited
-        episode computed `delta = saving - 0` and credited it twice. Resets
-        `total_time_saved` to the row sum, correcting any prior inflation.
+        The column landed as NULL, so a later run for an already-credited episode
+        computed `delta = saving - 0` and credited it twice. Resets `total_time_saved`
+        to the row sum to correct the inflation.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'backfill_credited_time_saved'"
@@ -3121,13 +3191,29 @@ class SchemaMixin:
         )
         conn.commit()
 
+    @staticmethod
+    def _normalize_queue_published_at(conn) -> int:
+        """Rewrite queue published_at values that are not canonical ISO; unreadable ones stay as they are."""
+        fixed = 0
+        for row in conn.execute(
+            "SELECT id, published_at FROM auto_process_queue "
+            "WHERE published_at IS NOT NULL AND published_at != '' "
+            "AND published_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T"
+            "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'"
+        ).fetchall():
+            normalized = normalize_published_at(row['published_at'])
+            if normalized != row['published_at']:
+                conn.execute("UPDATE auto_process_queue SET published_at = ? WHERE id = ?",
+                             (normalized, row['id']))
+                fixed += 1
+        return fixed
+
     def _run_requeue_rate_limit_held_episodes(self, conn):
         """One-time requeue of episodes a pre-2.96.2 rate-limit hold parked.
 
-        Those holds set status 'deferred' with deferred_service
-        'llm_rate_limit' and closed the queue row. The hold now leaves
-        episodes pending in place, so reopen each row (keeping its priority
-        and created_at) and put the episode back to pending. Gated by
+        Those holds set status 'deferred' (deferred_service 'llm_rate_limit') and closed
+        the queue row; the hold now leaves episodes pending in place. Reopen each row
+        (keeping priority and created_at) and set the episode back to pending. Gated by
         `schema_migrations`.
         """
         gate = conn.execute(
@@ -3163,6 +3249,7 @@ class SchemaMixin:
                 cur.rowcount,
             )
 
+        self._normalize_queue_published_at(conn)
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('requeue_rate_limit_held_episodes')"
@@ -3172,17 +3259,15 @@ class SchemaMixin:
     def _run_recompute_sonnet5_fable5_token_cost(self, conn):
         """One-time recompute of Sonnet 5 / Fable 5 token cost recorded as $0.
 
-        Before the pricing-source fallback fix, these models had no default
-        pricing row and, on unknown openai-compatible domains, no live fetch, so
-        the cost lookup fell through to the no-pricing $0 path. This is
-        the third incident of the pricing-frozen class (see opus48-cost-fix and
-        1.0.79). Recompute `token_usage.total_cost` from DEFAULT_MODEL_PRICING
-        for `claudesonnet5`/`claudefable5` rows where the recorded cost is 0 and
-        token counts are positive, then reset the global counter to the sum of
-        per-model rows.
+        These models had no default pricing row and no live fetch on unknown
+        openai-compatible domains, so the lookup fell to the $0 path (third
+        incident of the pricing-frozen class; see opus48-cost-fix and 1.0.79).
+        Recompute `token_usage.total_cost` from DEFAULT_MODEL_PRICING for
+        `claudesonnet5`/`claudefable5` rows with cost 0 and positive tokens, then reset
+        the global counter to the sum of per-model rows.
 
-        Gated by `schema_migrations` so it runs once per database. Writes are
-        absolute (not deltas) and re-run identical. No rows are deleted.
+        Gated by `schema_migrations`, once per database. Writes are absolute, so
+        re-runs match. No rows are deleted.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
@@ -3258,41 +3343,28 @@ class SchemaMixin:
         logger.info("sonnet5/fable5-cost-fix: complete")
 
     def _run_backfill_history_ads_detected(self, conn):
-        """One-shot correction of ``processing_history.ads_detected``
-        rows undercounted by the verification re-cut.
+        """One-shot correction of ``processing_history.ads_detected`` rows undercounted by the verification re-cut.
 
-        Pre-2.5.28 bug: ``_record_history_and_event`` recorded
-        ``len(ads_to_remove)`` (pass-1-after-reviewer only) and ignored
-        the ``verification_count`` parameter. The ``episodes`` table
-        had the correct total stored via ``_persist_episode_state``.
+        Pre-2.5.28, ``_record_history_and_event`` recorded ``len(ads_to_remove)``
+        (pass-1-after-reviewer only) and ignored ``verification_count``; the
+        ``episodes`` table held the correct total via ``_persist_episode_state``.
 
-        Safe-update predicate: for each (podcast_id, episode_id) pair,
-        find the latest completed history row and update it only when
-        all of:
+        For each (podcast_id, episode_id), the latest history row is updated only when:
         - status='completed' (failed rows have ads_detected=0 by design)
-        - matching episode row exists
-        - episode.ads_removed_secondpass > 0 (the bug only undercounted
-          episodes that had a verification re-cut)
-        - history.ads_detected == episode.ads_removed_firstpass (the
-          exact bug signature: history captured pass-1, the true total
-          is firstpass + secondpass)
-        - history.ads_detected != episode.ads_removed (skip rows that
-          already happen to be correct)
+        - a matching episode row exists
+        - episode.ads_removed_secondpass > 0 (only verification re-cuts were undercounted)
+        - history.ads_detected == episode.ads_removed_firstpass (the bug signature:
+          history captured pass-1, the true total is firstpass + secondpass)
+        - history.ads_detected != episode.ads_removed (skip rows already correct)
 
-        Non-latest history rows (earlier reprocesses) are left alone
-        because the episodes row only retains the latest state.
+        Earlier history rows (prior reprocesses) are left alone since the episodes row
+        keeps only the latest state. Gated by ``schema_migrations``; logs each update
+        at INFO with before/after values.
 
-        Gated by ``schema_migrations`` so the migration runs once per
-        database. Logs each update at INFO with before/after values.
-
-        Multi-worker race: two gunicorn workers can both pass the gate
-        SELECT, both run the UPDATE loop (idempotent: same value writes
-        on already-corrected rows), and both attempt the gate INSERT.
-        ``INSERT OR IGNORE`` makes the second INSERT a silent no-op, so
-        the only operator-visible effect is that both workers log their
-        per-row update lines. Acceptable; cleaner serialization would
-        require ``BEGIN IMMEDIATE`` which conflicts with Python's
-        sqlite3 auto-begin under deferred isolation.
+        Race: two gunicorn workers can both pass the gate and run the idempotent UPDATE
+        loop; ``INSERT OR IGNORE`` makes the second gate INSERT a no-op, so the only
+        visible effect is duplicate log lines. Serializing with ``BEGIN IMMEDIATE``
+        would conflict with Python's sqlite3 auto-begin under deferred isolation.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations "
@@ -3301,11 +3373,9 @@ class SchemaMixin:
         if gate is not None:
             return
 
-        # Predicates intentionally use raw columns (no COALESCE): SQL's
-        # three-valued logic evaluates NULL comparisons to NULL (falsy
-        # in WHERE), so legacy rows with NULL ads_removed/firstpass/
-        # secondpass are excluded automatically. COALESCE-to-0 would
-        # match those rows and overwrite ads_detected with 0.
+        # Raw columns, no COALESCE: NULL comparisons are falsy in WHERE, so legacy rows
+        # with NULL ads_removed/firstpass/secondpass are excluded, whereas COALESCE-to-0
+        # would match them and overwrite ads_detected with 0.
         rows = conn.execute("""
             WITH ranked AS (
                 SELECT h.id AS history_id,
@@ -3360,34 +3430,25 @@ class SchemaMixin:
     def _run_backfill_history_ads_detected_v2(self, conn):
         """v2 correction of ``processing_history.ads_detected``.
 
-        v1 predicate compared ``history.ads_detected`` against
-        ``episodes.ads_removed_firstpass``, but ``firstpass`` stores the
-        pass-1 DETECTION count (pre-reviewer) at
-        ``processing.py:_detect_ads_first_pass:340``, not the
-        post-reviewer CUTS that the buggy 2.5.27 writer captured. v1
-        only matched episodes where the reviewer rejected zero ads, so
-        episodes like example-podcast:a1b2c3d4e5f6 (firstpass
-        detection=10, reviewer kept 6, verification=2, total cuts=8)
-        stayed at the wrong history value of 6.
+        v1 compared ``history.ads_detected`` to ``episodes.ads_removed_firstpass``, which
+        is the pass-1 DETECTION count (pre-reviewer), not the post-reviewer CUTS the buggy
+        2.5.27 writer captured. v1 therefore only matched episodes where the reviewer
+        rejected zero ads; e.g. firstpass detection=10, reviewer kept 6, verification=2
+        (total cuts=8) stayed at the wrong history value of 6.
 
-        v2 predicate derives pass-1 cuts as ``ads_removed -
-        ads_removed_secondpass``, which equals the buggy writer's value
-        regardless of how many ads the reviewer rejected or resurrected.
+        v2 derives pass-1 cuts as ``ads_removed - ads_removed_secondpass``, which equals
+        the buggy writer's value however many ads the reviewer rejected or resurrected.
 
-        Safe-update predicate (only the LATEST history row per episode):
+        Only the LATEST history row per episode is updated, and only when:
         - status='completed'
-        - matching episode row exists
-        - ads_removed_secondpass > 0 (bug only undercounted episodes
-          where verification re-cut ran)
+        - a matching episode row exists
+        - ads_removed_secondpass > 0 (only verification re-cuts were undercounted)
         - history.ads_detected == ads_removed - ads_removed_secondpass
-          (the buggy writer's value, derived correctly)
-        - history.ads_detected != ads_removed (skip already correct or
-          already-v1-corrected; v1-corrected rows have ads_detected ==
-          ads_removed, so this clause naturally excludes them)
+        - history.ads_detected != ads_removed (skips rows already correct or
+          v1-corrected, which have ads_detected == ads_removed)
 
-        Gated by ``schema_migrations`` row
-        ``backfill_history_ads_detected_v2_postreviewer_cuts``. v1's
-        gate stays set, so v1 never re-runs.
+        Gated by the ``backfill_history_ads_detected_v2_postreviewer_cuts``
+        ``schema_migrations`` row; v1's gate stays set, so v1 never re-runs.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations "
@@ -3396,10 +3457,9 @@ class SchemaMixin:
         if gate is not None:
             return
 
-        # Predicates intentionally use raw columns (no COALESCE): NULL
-        # comparisons evaluate to NULL (falsy in WHERE), so legacy rows
-        # with NULL ads_removed/firstpass/secondpass are excluded.
-        # COALESCE-to-0 would match and overwrite ads_detected with 0.
+        # Raw columns, no COALESCE: NULL comparisons are falsy in WHERE, so legacy rows
+        # with NULL ads_removed/firstpass/secondpass are excluded, whereas COALESCE-to-0
+        # would match them and overwrite ads_detected with 0.
         rows = conn.execute("""
             WITH ranked AS (
                 SELECT h.id AS history_id,
@@ -3458,18 +3518,14 @@ class SchemaMixin:
 
         Three steps, in order:
 
-        1. Audit log every registered key's current state at INFO so any
-           deployer has a recoverable trail without per-key custom queries.
-        2. If the ``env_backed_settings_correct_flags`` migration row is
-           absent, run the corrective pass once: for each registered key
-           where the row exists, ``is_default=1`` and the stored value
-           differs from the validated env value, flip ``is_default`` to 0
-           and KEEP the stored value. The migration never writes value
-           during this pass, so no data is lost on any deployer's DB.
-        3. Per-boot resync: for each registered key, if the row is missing
-           insert it from env with ``is_default=1``; if the row exists and
-           ``is_default=1`` and value differs from env, update the value
-           (env changed since last boot, treat as canonical default).
+        1. Log every registered key's current state at INFO as a recoverable trail.
+        2. If the ``env_backed_settings_correct_flags`` migration row is absent, run the
+           corrective pass once: where a row exists with ``is_default=1`` and a stored
+           value differing from the validated env value, flip ``is_default`` to 0 and
+           keep the value. This pass never writes a value, so no data is lost.
+        3. Per-boot resync: insert a missing row from env with ``is_default=1``; if a
+           row has ``is_default=1`` and differs from env, update the value (env changed
+           since last boot, so it is the canonical default).
 
         ``schema_migrations`` is created at the top of
         ``_run_schema_migrations`` before this helper runs.
@@ -3500,13 +3556,13 @@ class SchemaMixin:
         fallback_by_key = {k: fb for k, _e, fb, _v in ENV_BACKED_SETTINGS}
 
         def _corrective_pass(keys, marker):
-            """One-shot: an is_default=1 row that diverges from BOTH the env
-            value and the registry fallback is evidence of a past
-            customization made before the flag discipline existed; flip the
-            flag, KEEP the value. A row still holding the fallback is a
-            schema-seeded default -- leaving it is_default=1 lets an env var
-            set at the upgrade boot apply via the resync. Never writes
-            value -- no data loss."""
+            """One-shot: an is_default=1 row diverging from both the env value and the registry
+            fallback is a past customization from before flag discipline; flip the flag, keep the
+            value.
+
+            A row still holding the fallback is a schema-seeded default; leaving
+            it is_default=1 lets an env var set at the upgrade boot apply via the
+            resync. Never writes a value, so no data is lost."""
             gate = conn.execute(
                 "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)
             ).fetchone()
@@ -3535,11 +3591,9 @@ class SchemaMixin:
                 "INSERT INTO schema_migrations (name) VALUES (?)", (marker,)
             )
 
-        # Step 2: one-shot corrective flag passes, tracked PER KEY so a key
-        # registered in any future release automatically gets exactly-once
-        # protection -- no new group gate to remember. The legacy group
-        # markers (2.5.23 v1 and the #491-consolidation v2) mark their
-        # frozen key snapshots as already covered on upgraded DBs.
+        # Step 2: one-shot corrective flag passes, tracked per key so a key added in any
+        # future release gets exactly-once protection with no new group gate. The legacy
+        # group markers (2.5.23 v1, #491-consolidation v2) cover their frozen key snapshots.
         _V1_KEYS = ('llm_provider', 'audio_bitrate', 'skip_flac_compression',
                     'ad_detection_parallel_windows', 'ad_reviewer_parallel_ads')
         _V2_KEYS = ('max_artwork_bytes', 'max_rss_bytes', 'max_audio_download_mb',
@@ -3613,11 +3667,10 @@ class SchemaMixin:
                     db_key, value, env_value,
                 )
 
-        # One-shot for the stage-tunable precedence flip (env-wins ->
-        # DB-wins, issue #491): a row an env var was masking would otherwise
-        # silently take effect at upgrade. Adopt the env value that was
-        # winning so the effective tunable does not change; the operator can
-        # edit or reset it in Settings afterwards.
+        # One-shot for the stage-tunable precedence flip (env-wins to DB-wins, #491): a row
+        # an env var was masking would otherwise silently take effect at upgrade. Adopt
+        # the winning env value so the effective tunable is unchanged; operators can edit
+        # or reset it in Settings.
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'stage_tunables_adopt_env'"
         ).fetchone()
@@ -3676,10 +3729,9 @@ class SchemaMixin:
             logger.info(f"Normalized scope=global on {repaired} community pattern rows")
 
     def _repair_double_encoded_variants(self, conn):
-        """Re-encode any ad_patterns.intro_variants / outro_variants column
-        whose stored value parses (via json.loads) to a string rather than
-        a list. Stamps `variant_reencode_revision` so this only runs once
-        per database."""
+        """Re-encode ad_patterns.intro_variants / outro_variants values that json.loads to a string, not a list.
+
+        Stamps `variant_reencode_revision` so it runs once per database."""
         import json
         cursor = conn.execute(
             "SELECT value FROM settings WHERE key = 'variant_reencode_revision'"
@@ -3728,23 +3780,17 @@ class SchemaMixin:
             logger.info(f"Re-encoded intro/outro_variants on {repaired} ad_patterns rows")
 
     def _reseed_known_sponsors(self, conn):
-        """One-shot v2.4.0 seed of the known_sponsors table from
-        `src/seed_data/validator_known_sponsors.csv`.
+        """One-shot v2.4.0 seed of known_sponsors from `src/seed_data/validator_known_sponsors.csv`.
 
-        Runs on first boot at this revision: UPDATE on name match
-        (case-insensitive) to preserve `id` for any existing
-        ad_patterns.sponsor_id foreign keys, INSERT new rows,
-        soft-delete (is_active=0) any sponsor not in the CSV. The
-        `sponsor_seed_revision` setting is stamped on success so the
-        migration is a no-op on every subsequent boot at the same
-        revision.
+        Updates on case-insensitive name match (preserving `id` for existing
+        ad_patterns.sponsor_id FKs), inserts new rows and soft-deletes
+        (is_active=0) sponsors absent from the CSV. Stamps `sponsor_seed_revision`
+        so later boots at the same revision are a no-op.
 
-        The CSV is no longer the source of truth for the in-app
-        classifier -- after this migration runs, the live
-        known_sponsors table is. Edits to the CSV reach only the PR
-        validator's multi-sponsor check; see `sponsor_seed()`. Bump
-        SEED_REVISION below only if you intentionally want the
-        seed-from-CSV step to replay against existing installs.
+        After this runs the live known_sponsors table, not the CSV, is the
+        classifier's source of truth; CSV edits reach only the PR validator's
+        multi-sponsor check (see `sponsor_seed()`). Bump SEED_REVISION below only to
+        deliberately replay the seed against existing installs.
         """
         from utils.community_tags import sponsor_seed
 
@@ -3850,32 +3896,26 @@ class SchemaMixin:
     def _cleanup_low_mention_patterns(self, conn):
         """Retire ad_patterns that are structurally false-positive-shaped.
 
-        Two retirement criteria, both conservative:
+        Two conservative retirement criteria:
 
-        1. **Low-mention auto-created, never-matched**:
-           sponsor in any variant appears <2 times in text_template
-           AND created_by == 'auto'
-           AND confirmation_count == 0
-           AND false_positive_count == 0
-           This is the Pattern #354 shape - a verification miss the LLM
-           shouldn't have flagged. Patterns that have matched real ads
-           (`confirmation_count > 0`) are left alone even if they also
-           sit in the low-mention bucket, because we cannot tell the
-           difference between a legitimate brand-once-mentioned ad and a
-           bad pattern that boosted its own conf via the
-           record_verification_misses "boost" path.
+        1. **Low-mention auto-created, never-matched**: sponsor in any variant appears
+           <2 times in text_template AND created_by == 'auto' AND
+           confirmation_count == 0 AND false_positive_count == 0. This is the Pattern
+           #354 shape, a verification miss the LLM shouldn't have flagged. Patterns
+           that matched real ads (`confirmation_count > 0`) are kept: a legitimate
+           brand-once-mentioned ad is indistinguishable from a bad pattern that
+           boosted its own confidence via the record_verification_misses path.
 
         2. **Structurally broken sponsor field**:
-           - sponsor starts with a SPONSOR_REASONING_PREFIXES entry
-             (e.g. "Inferred from ..." stored as the sponsor name); OR
-           - sponsor ends with a known LLM-suffix tell (" brand",
-             " pre-roll", " sponsor ad", " sponsor ad with URL", etc.); OR
-           - sponsor stripped of whitespace differs from any
-             known_sponsors row AND no variant appears in template
-             (the "statefarm"-without-spaces shape).
+           - sponsor starts with a SPONSOR_REASONING_PREFIXES entry (e.g.
+             "Inferred from ..." stored as the name); OR
+           - sponsor ends with a known LLM-suffix tell (" brand", " pre-roll",
+             " sponsor ad", " sponsor ad with URL", etc.); OR
+           - sponsor stripped of whitespace differs from any known_sponsors row AND no
+             variant appears in the template (the spaces-removed "acmebrand" shape).
 
-        Reversible per row (`is_active=1` re-enables). Idempotent via
-        the `low_mention_cleanup_revision` settings flag.
+        Reversible per row (`is_active=1`). Idempotent via the
+        `low_mention_cleanup_revision` settings flag.
         """
         CLEANUP_REVISION = '2.5.13'
         try:
@@ -4001,12 +4041,10 @@ class SchemaMixin:
         """Disable active ad_patterns whose text_template names two or more
         sponsors outside the pattern's declared sponsor row.
 
-        A "kitchen-sink" template (e.g. naming a half-dozen unrelated brands
-        in one comma-separated list) generates high-weight TF-IDF tokens for
-        every brand and over-matches any episode that mentions a handful of
-        them. The 2.5.7 merge guard prevents new ones; this one-shot pass
-        retires the existing rows. Stamped via settings flag so a second
-        boot doesn't re-scan all patterns x all sponsors.
+        A "kitchen-sink" template naming a half-dozen unrelated brands yields
+        high-weight TF-IDF tokens for each and over-matches episodes mentioning a few.
+        The 2.5.7 merge guard prevents new ones; this pass retires existing rows and is
+        stamped via a settings flag so later boots skip the patterns x sponsors scan.
         """
         CLEANUP_REVISION = '2.5.7'
         try:
@@ -4072,9 +4110,8 @@ class SchemaMixin:
     def _migrate_ad_detection_max_tokens(self, conn):
         """Rename ad_detection_max_tokens -> detection_max_tokens.
 
-        Idempotent: if the new key already exists, the old value is dropped
-        rather than overwriting the new one. If only the old exists, its value
-        is copied first. Either way, the old key is cleaned up.
+        Idempotent: if the new key exists the old value is dropped, not overwritten
+        onto it; if only the old exists its value is copied first. The old key is removed either way.
         """
         cursor = conn.execute(
             "SELECT value, is_default FROM settings WHERE key = ?",
@@ -4304,11 +4341,10 @@ class SchemaMixin:
     def _migrate_fingerprint_cascade(self, conn):
         """2.88.2: give audio_fingerprints.pattern_id an FK with ON DELETE CASCADE.
 
-        Every caller had to remember to delete the fingerprint by hand and two
-        did not, so orphans accumulated and kept matching audio with no pattern
-        row left to disable. Orphans would also fail the new constraint, so they
-        are archived to `_orphaned_audio_fingerprints` rather than dropped. The
-        rebuild aborts and retries next startup if the copy loses a row.
+        Two callers forgot to delete fingerprints by hand, so orphans kept matching
+        audio with no pattern row left to disable. Orphans would fail the new
+        constraint, so they are archived to `_orphaned_audio_fingerprints`, not
+        dropped. The rebuild aborts and retries next startup if the copy loses a row.
         """
         # Databases from v0.1.107 already carry this constraint; v0.1.108 dropped
         # it from the DDL, which never rebuilds a table that already exists.
@@ -4316,11 +4352,16 @@ class SchemaMixin:
                conn.execute("PRAGMA foreign_key_list(audio_fingerprints)").fetchall()):
             return
 
+        have = {r['name'] for r in conn.execute("PRAGMA table_info(audio_fingerprints)")}
+        extra = [c for c in ('enabled', 'source_podcast_slug', 'source_episode_id',
+                             'source_start', 'source_end') if c in have]
+        select_cols = ', '.join(f"af.{c}" for c in
+                                ['id', 'pattern_id', 'fingerprint', 'duration', 'created_at', *extra])
         orphans = conn.execute(
-            """SELECT af.id, af.pattern_id, af.fingerprint, af.duration, af.created_at
+            f"""SELECT {select_cols}
                FROM audio_fingerprints af
                LEFT JOIN ad_patterns ap ON af.pattern_id = ap.id
-               WHERE af.pattern_id IS NOT NULL AND ap.id IS NULL"""
+               WHERE af.pattern_id IS NOT NULL AND ap.id IS NULL"""  # noqa: S608
         ).fetchall()
         if orphans:
             conn.execute(
@@ -4329,11 +4370,18 @@ class SchemaMixin:
                        created_at TEXT,
                        archived_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))"""
             )
+            archived = {r['name'] for r in
+                        conn.execute("PRAGMA table_info(_orphaned_audio_fingerprints)")}
+            types = {'enabled': 'INTEGER', 'source_podcast_slug': 'TEXT',
+                     'source_episode_id': 'TEXT', 'source_start': 'REAL', 'source_end': 'REAL'}
+            for col in extra:
+                self._add_column_if_missing(conn, '_orphaned_audio_fingerprints', col,
+                                            types[col], archived)
+            cols = ['id', 'pattern_id', 'fingerprint', 'duration', 'created_at', *extra]
             conn.executemany(
-                "INSERT INTO _orphaned_audio_fingerprints "
-                "(id, pattern_id, fingerprint, duration, created_at) VALUES (?, ?, ?, ?, ?)",
-                [(r['id'], r['pattern_id'], r['fingerprint'], r['duration'],
-                  r['created_at']) for r in orphans]
+                f"INSERT INTO _orphaned_audio_fingerprints ({', '.join(cols)}) "  # noqa: S608
+                f"VALUES ({', '.join('?' * len(cols))})",
+                [tuple(r[c] for c in cols) for r in orphans]
             )
             conn.execute(
                 "DELETE FROM audio_fingerprints WHERE id IN "  # noqa: S608
@@ -4354,7 +4402,12 @@ class SchemaMixin:
                     pattern_id INTEGER UNIQUE REFERENCES ad_patterns(id) ON DELETE CASCADE,
                     fingerprint BLOB,
                     duration REAL,
-                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    source_podcast_slug TEXT,
+                    source_episode_id TEXT,
+                    source_start REAL,
+                    source_end REAL
                 )
             """)
             new_cols = [r['name'] for r in
@@ -4401,21 +4454,17 @@ class SchemaMixin:
         Steps, each idempotent:
           1. Add `ad_patterns.sponsor_id`, `ad_patterns.created_by`,
              `pattern_corrections.sponsor_id`.
-          2. Dedup `known_sponsors` rows whose names differ only by case
-             (keep lowest id).
+          2. Dedup `known_sponsors` names differing only by case (keep lowest id).
           3. Snapshot `ad_patterns.sponsor` to a backup table.
           4. Backfill `ad_patterns.sponsor_id` via sponsor_normalize.
-          5. Backfill `pattern_corrections.sponsor_id` from the joined
-             ad_pattern row.
-          6. Verify: `PRAGMA foreign_key_check` empty, and backfill row
-             count matches the snapshot.
+          5. Backfill `pattern_corrections.sponsor_id` from the joined ad_pattern.
+          6. Verify: `PRAGMA foreign_key_check` empty and backfill count matches the snapshot.
           7. Drop `ad_patterns.sponsor` via table-recreation.
-          8. Recreate `pattern_corrections` with extended CHECK constraint.
+          8. Recreate `pattern_corrections` with the extended CHECK.
           9. Drop the backup table.
 
-        If step 6 fails, destructive steps 7-9 are skipped. The new columns
-        and the backup table remain in place so the migration can be retried
-        on next startup with no data loss.
+        If step 6 fails, destructive steps 7-9 are skipped; the new columns and backup
+        table remain so the migration retries next startup with no data loss.
         """
         from sponsor_normalize import get_or_create_known_sponsor
 
@@ -4669,9 +4718,8 @@ class SchemaMixin:
     def _cleanup_contaminated_patterns(self):
         """Delete patterns with text_template > 3500 chars (contaminated).
 
-        These patterns were created from merged multi-ad spans where adjacent ads
-        within 3 seconds were combined. The resulting patterns are too long to
-        ever match the TF-IDF window and pollute the pattern database.
+        These came from merged multi-ad spans (adjacent ads within 3 seconds); they are
+        too long to ever match the TF-IDF window and pollute the pattern database.
         """
         conn = self.get_connection()
         MAX_PATTERN_CHARS = 3500
@@ -4702,8 +4750,7 @@ class SchemaMixin:
     def _migrate_pattern_podcast_ids(self):
         """Convert numeric podcast_ids to slugs in ad_patterns table for consistency.
 
-        This fixes a bug where auto-created patterns stored numeric podcast IDs,
-        but the pattern matching code compares against slug strings.
+        Auto-created patterns stored numeric podcast IDs, but matching compares slug strings.
         """
         conn = self.get_connection()
 
@@ -4854,9 +4901,8 @@ class SchemaMixin:
     def _refresh_shipped_prompt_defaults(self, conn: 'sqlite3.Connection'):
         """Re-point untouched prompt rows at the text this version ships.
 
-        Seeding only ever inserted, so an install kept whatever prompt existed
-        when its database was created and no later improvement reached it. A
-        row the user edited carries is_default = 0 and is left alone.
+        Seeding only inserted, so installs kept their original prompt and missed
+        later improvements. A user-edited row (is_default = 0) is left alone.
         """
         from database.settings import iter_refreshable_defaults
 
@@ -4873,10 +4919,8 @@ class SchemaMixin:
     def _seed_default_settings(self, conn: 'sqlite3.Connection'):
         """Seed default settings from SETTINGS_REGISTRY.
 
-        Every seeded key/value comes from database.settings.SETTINGS_REGISTRY
-        (entries flagged ``seeded=True``); this function no longer hand-lists
-        defaults. Env-var overrides (RETENTION_PERIOD, WHISPER_MODEL, ...)
-        are encoded in the registry entries themselves.
+        Every seeded key/value comes from SETTINGS_REGISTRY entries flagged
+        ``seeded=True``, including env-var overrides (RETENTION_PERIOD, WHISPER_MODEL, ...).
         """
         from database.settings import iter_seed_defaults
 
@@ -4920,16 +4964,13 @@ class SchemaMixin:
         """One-time backfill: append ``{sponsor_database}`` to user-customized
         system / verification prompts.
 
-        Before this change, ad_detector.py unconditionally appended a sponsor
-        block to every prompt at runtime. After the placeholder switch, prompts
-        without a ``{sponsor_database}`` placeholder get no sponsor content -
-        which would silently strip the dynamic sponsor list from any
-        user-customized prompt that pre-dates this release. This migration
-        adds the placeholder so behavior is preserved.
+        ad_detector.py used to append a sponsor block to every prompt at runtime; since
+        the placeholder switch, prompts without ``{sponsor_database}`` get no sponsor
+        content, which would silently strip the sponsor list from older customized
+        prompts. This adds the placeholder to preserve behavior.
 
-        Idempotent via _review_prompt_migrated flag. Touches only is_default=0
-        prompts (user-customized), since defaults are reseeded fresh on every
-        startup.
+        Idempotent via _review_prompt_migrated. Touches only is_default=0 prompts, since
+        defaults are reseeded on every startup.
         """
         try:
             row = conn.execute(

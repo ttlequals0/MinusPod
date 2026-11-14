@@ -1,8 +1,6 @@
-"""Offline queue (#482): connectivity classification, deferral, TTL expiry,
-and re-drive.
+"""Offline queue (#482): connectivity classification, deferral, TTL expiry and re-drive.
 
-Uses the main_app boot pattern from test_history_ad_count: bind a temp
-DATA_DIR before importing main_app so singletons initialize against it.
+Binds a temp DATA_DIR before importing main_app, as in test_history_ad_count.
 """
 import json
 import socket
@@ -14,6 +12,7 @@ import requests
 import httpx
 import openai
 
+from tests.queue_helpers import peek_next_queued
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('offline_queue_test_')
@@ -235,7 +234,7 @@ class TestTtlAndRequeue:
         # deferred_at survives the re-drive so the TTL keeps ticking.
         assert episode['deferred_at'] == '2999-01-01T00:00:00Z'
         assert db.get_episode(SLUG, 'ep-whisper')['status'] == 'deferred'
-        queued = db.get_next_queued_episode()
+        queued = peek_next_queued(db)
         assert queued and queued['episode_id'] == 'ep-llm'
 
     def test_requeue_skips_auto_process_disabled_feed(self, seeded_episode):

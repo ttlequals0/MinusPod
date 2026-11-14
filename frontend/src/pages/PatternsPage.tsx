@@ -14,15 +14,18 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, thBase, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
+import SortControls from '../components/SortControls';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternTrustBadge } from '../components/PatternTrustBadge';
+import { Badge } from '../components/Badge';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
+import { audioSummaryLabel } from '../utils/patternAudio';
 import {
   SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
 } from '../utils/segmentCategory';
@@ -41,7 +44,7 @@ import {
 import { ActiveBadge } from '../components/ActiveBadge';
 import { btnBase, btnOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { badgeBase, countPill, tint } from '../components/badgeStyles';
+import { countPill, tint } from '../components/badgeStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 import { tableActionBtn } from '../components/rowActionStyles';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -56,12 +59,17 @@ const SORT_FIELDS: readonly (keyof AdPattern)[] = [
 ];
 const SCOPE_FILTERS: readonly ScopeFilter[] = ['all', 'global', 'network', 'podcast'];
 const ORIGIN_FILTERS: readonly OriginFilter[] = ['all', 'auto', 'user'];
+type AudioFilter = 'all' | 'has' | 'on' | 'off' | 'none';
+const AUDIO_FILTERS: readonly AudioFilter[] = ['all', 'has', 'on', 'off', 'none'];
 const SOURCE_FILTERS: readonly SourceFilter[] = ['all', 'local', 'community', 'imported'];
 
 // Page, filters, search and sort live in the URL so Back and reload return to the same place.
 const PATTERN_PARAM_DEFAULTS = {
-  page: '1', scope: 'all', origin: 'all', source: 'all', category: '', inactive: '',
+  page: '1', scope: 'all', origin: 'all', source: 'all', audio: 'all', category: '', inactive: '',
 };
+
+// Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
+const COLUMN_WIDTHS = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[136px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -72,6 +80,7 @@ function PatternsPage() {
   const scopeFilter = readOneOf('scope', SCOPE_FILTERS, 'all');
   const originFilter = readOneOf('origin', ORIGIN_FILTERS, 'all');
   const sourceFilter = readOneOf('source', SOURCE_FILTERS, 'all');
+  const audioFilter = readOneOf('audio', AUDIO_FILTERS, 'all');
   const categoryFilter = read('category');
   const showInactive = read('inactive') === '1';
   // ?q= belongs to the visible tab; the sponsors tab reads it itself.
@@ -151,10 +160,9 @@ function PatternsPage() {
   // Handle ?id= query param to open pattern detail. setSearchParams writes
   // router state, so this lives in an effect rather than running during render.
   useEffect(() => {
-    // Only consume ?id= while the Patterns tab is visible; the detail modal
-    // renders inside the patterns conditional, so consuming it on the
-    // ad-review tab would silently eat the deep link. Switching tabs re-runs
-    // this effect, so a pending ?id= opens the modal then.
+    // Consume ?id= only while the Patterns tab is visible: the detail modal renders inside the patterns
+    // conditional, so consuming it on the ad-review tab would eat the deep link. Switching tabs re-runs this
+    // effect and opens the modal then.
     if (activeTab !== 'patterns') return;
     const idParam = searchParams.get('id');
     if (idParam && patterns) {
@@ -181,6 +189,11 @@ function PatternsPage() {
       if (categoryFilter === UNSET_CATEGORY && pattern.category) return false;
       if (categoryFilter && categoryFilter !== UNSET_CATEGORY
           && pattern.category !== categoryFilter) return false;
+      // A missing summary (older data) counts as no audio.
+      const audioState = pattern.audio?.state ?? 'none';
+      if (audioFilter === 'has' && audioState === 'none') return false;
+      if ((audioFilter === 'on' || audioFilter === 'off' || audioFilter === 'none')
+          && audioState !== (audioFilter === 'on' ? 'active' : audioFilter)) return false;
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
@@ -211,13 +224,31 @@ function PatternsPage() {
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [patterns, originFilter, categoryFilter, searchQuery, sortField, sortDirection]);
+  }, [patterns, originFilter, categoryFilter, audioFilter, searchQuery, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil((sortedPatterns?.length || 0) / limit);
   const page = readPage('page', totalPages);
   const setPage = (next: number) => write({ page: String(next) });
   const paginatedPatterns = sortedPatterns?.slice((page - 1) * limit, page * limit);
+
+  const categorySelect = (pattern: AdPattern, className: string) => (
+    <select
+      aria-label={`Category for pattern ${pattern.id}`}
+      value={pattern.category ?? ''}
+      disabled={categoryMutation.isPending}
+      onChange={(e) => categoryMutation.mutate({
+        id: pattern.id,
+        category: e.target.value === '' ? null : (e.target.value as SegmentCategory),
+      })}
+      className={`${selectBase} ${className} disabled:opacity-50`}
+    >
+      <option value="">Uncategorized</option>
+      {SEGMENT_CATEGORIES.map((c) => (
+        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
+      ))}
+    </select>
+  );
 
   return (
     <div>
@@ -318,7 +349,7 @@ function PatternsPage() {
 
       {/* Filters */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
-        <div className={`${filterGrid} lg:grid-cols-4`}>
+        <div className={`${filterGrid} lg:grid-cols-5`}>
           {/* Scope filter */}
           <div className="min-w-0">
             <label htmlFor="patterns-scope" className={filterLabel}>Scope</label>
@@ -381,8 +412,25 @@ function PatternsPage() {
             </select>
           </div>
 
+          {/* Audio filter */}
+          <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-1">
+            <label htmlFor="patterns-audio" className={filterLabel}>Audio</label>
+            <select
+              id="patterns-audio"
+              value={audioFilter}
+              onChange={(e) => write({ audio: e.target.value })}
+              className={`${filterControl} ${selectBase}`}
+            >
+              <option value="all">All</option>
+              <option value="has">Has audio</option>
+              <option value="on">Audio on</option>
+              <option value="off">Audio off</option>
+              <option value="none">No audio</option>
+            </select>
+          </div>
+
           {/* Search */}
-          <div className="min-w-0 min-[375px]:col-span-2">
+          <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-4">
             <label htmlFor="patterns-search" className={filterLabel}>Search</label>
             <input
               id="patterns-search"
@@ -406,8 +454,13 @@ function PatternsPage() {
         </div>
       </div>
 
-      {/* Mobile Card Layout */}
-      <div className="sm:hidden space-y-3 mb-4">
+      <SortControls className="xl:hidden" field={sortField} direction={sortDirection} onSort={handleSort} options={[
+        { value: 'created_at', label: 'Created' }, { value: 'last_matched_at', label: 'Last matched' },
+        { value: 'id', label: 'ID' }, { value: 'scope', label: 'Scope' }, { value: 'sponsor', label: 'Sponsor' },
+        { value: 'confirmation_count', label: 'Confirmed' }, { value: 'false_positive_count', label: 'False positives' },
+      ]} />
+      {/* Card layout: the 11-column table needs about 1140 CSS px with touch-sized controls */}
+      <div className="xl:hidden space-y-3 mb-4">
         {paginatedPatterns?.map((pattern) => (
           <div
             key={pattern.id}
@@ -417,12 +470,10 @@ function PatternsPage() {
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <span className="text-xs font-mono text-muted-foreground">#{pattern.id}</span>
               <div className="flex items-center gap-2 flex-wrap">
-                <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
+                <ScopeBadge pattern={pattern} truncate />
                 <SegmentCategoryBadge category={pattern.category} />
                 {pattern.created_by === 'user' && (
-                  <span className={`${badgeBase} ${tint.warning}`}>
-                    Manual
-                  </span>
+                  <Badge tone="warning" title="Manual">Manual</Badge>
                 )}
                 {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
                   <CommunityBadge
@@ -450,24 +501,35 @@ function PatternsPage() {
                 </DemoDisabled>
               </div>
             )}
-            <div className="text-sm font-medium text-foreground mb-1">
+            <button
+              type="button"
+              aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+              className={`${tableLink} text-left text-sm font-medium mb-1`}
+              onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
+            >
               {pattern.sponsor || '(Unknown)'}
-            </div>
+            </button>
             {pattern.text_template && (
               <div className="text-xs text-muted-foreground truncate mb-3">
                 {pattern.text_template.substring(0, 80)}...
               </div>
             )}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            {/* Stops the card click: the select is its own control */}
+            <div className="mb-3" onClick={(e) => e.stopPropagation()}>
+              {categorySelect(pattern, 'w-full')}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="text-success">
                 Confirmed: {pattern.confirmation_count}
               </span>
               <span className={pattern.false_positive_count > 0 ? 'text-destructive' : ''}>
                 False positives: {pattern.false_positive_count}
               </span>
-              <span className="ml-auto">
-                {formatDate(pattern.last_matched_at)}
-              </span>
+              <span>Created: {formatDate(pattern.created_at)}</span>
+              <span>Last matched: {formatDate(pattern.last_matched_at)}</span>
+            </div>
+            <div data-testid={`pattern-card-audio-${pattern.id}`} className="mt-2 text-xs text-muted-foreground">
+              Audio: {audioSummaryLabel(pattern.audio)}
             </div>
           </div>
         ))}
@@ -479,33 +541,29 @@ function PatternsPage() {
       </div>
 
       {/* Desktop Table Layout */}
-      <div className={`hidden sm:block ${tableCard}`}>
+      <div className={`hidden xl:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full min-w-[960px] table-fixed">
+          <table className="w-full table-fixed min-w-[1140px]">
             <colgroup>
-              <col className="w-[5%]" />
-              <col className="w-[12%]" />
-              <col className="w-[13%]" />
-              <col className="w-[15%]" />
-              <col className="w-[9%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[7%]" />
-              <col className="w-[9%]" />
+              {COLUMN_WIDTHS.map((w, i) => (
+                <col key={i} className={w} />
+              ))}
             </colgroup>
             <thead className={tableHead}>
               <tr>
                 <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="scope" label="Scope" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="sponsor" label="Sponsor" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="scope" label="Scope" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="sponsor" label="Sponsor" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Category
                 </th>
+                <th className={`${thBase} px-2 text-left`}>
+                  Audio
+                </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="false_positive_count" label="False pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="last_matched_at" label="Last matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last matched" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Status
                 </th>
@@ -524,14 +582,12 @@ function PatternsPage() {
                   <td className="px-2 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
                     #{pattern.id}
                   </td>
-                  <td className={`${td} overflow-hidden`}>
+                  <td className="px-2 py-3 text-sm overflow-hidden">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
+                      <ScopeBadge pattern={pattern} truncate />
                       <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
-                        <span className={`${badgeBase} ${tint.warning}`}>
-                          Manual
-                        </span>
+                        <Badge tone="warning" title="Manual">Manual</Badge>
                       )}
                       {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
                         <CommunityBadge
@@ -545,10 +601,15 @@ function PatternsPage() {
                       )}
                     </div>
                   </td>
-                  <td className={`${td} overflow-hidden`}>
-                    <div className="text-sm font-medium text-foreground truncate">
+                  <td className="px-2 py-3 text-sm overflow-hidden">
+                    <button
+                      type="button"
+                      aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+                      className={`${tableLink} max-w-full text-left text-sm font-medium truncate`}
+                      onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
+                    >
                       {pattern.sponsor || '(Unknown)'}
-                    </div>
+                    </button>
                     {pattern.text_template && (
                       <div className="text-xs text-muted-foreground truncate">
                         {pattern.text_template.substring(0, 60)}...
@@ -558,22 +619,10 @@ function PatternsPage() {
                   {/* Stops the row click: the select is its own control, not
                       a way into the detail modal. */}
                   <td className="px-2 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <select
-                      aria-label={`Category for pattern ${pattern.id}`}
-                      value={pattern.category ?? ''}
-                      disabled={categoryMutation.isPending}
-                      onChange={(e) => categoryMutation.mutate({
-                        id: pattern.id,
-                        category: e.target.value === ''
-                          ? null : (e.target.value as SegmentCategory),
-                      })}
-                      className={`${selectBase} w-full min-w-0 disabled:opacity-50`}
-                    >
-                      <option value="">Uncategorized</option>
-                      {SEGMENT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
-                      ))}
-                    </select>
+                    {categorySelect(pattern, 'w-full min-w-0')}
+                  </td>
+                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                    {audioSummaryLabel(pattern.audio)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">
                     <span className="text-sm text-success font-medium">
@@ -589,10 +638,10 @@ function PatternsPage() {
                       {pattern.false_positive_count}
                     </span>
                   </td>
-                  <td className={`${tdMuted} whitespace-nowrap`}>
+                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {formatDate(pattern.created_at)}
                   </td>
-                  <td className={`${tdMuted} whitespace-nowrap`}>
+                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {formatDate(pattern.last_matched_at)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">
@@ -615,7 +664,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={10} className={tdEmpty}>
+                  <td colSpan={11} className={tdEmpty}>
                     {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
                   </td>
                 </tr>

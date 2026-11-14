@@ -1,16 +1,8 @@
-"""End-to-end plumbing test for verification-pass false-positive handling
-(issue #183).
+"""Verification-pass false-positive handling plumbing (#183).
 
-Walks the same data flow `_run_verification_pass` walks: take the user's
-per-episode rejections in original time, translate them through pass-1
-cuts into processed-audio time, hand them to `AdValidator` as
-`false_positive_corrections`, and confirm a verification ad overlapping
-the mapped region is auto-rejected.
-
-Avoids mocking `_run_verification_pass` itself (it stitches together a
-transcriber, an LLM client, the audio_analyzer, and storage) and instead
-proves the contract on the seam where the new wiring lives: between the
-mapping helper and the validator.
+Takes the user's per-episode rejections in original time, maps them through pass-1 cuts into processed-audio
+time, passes them to `AdValidator` as `false_positive_corrections`, and checks an overlapping verification ad
+is auto-rejected. Tests the seam between the mapping helper and the validator, not `_run_verification_pass`.
 """
 
 from ad_validator import AdValidator, Decision

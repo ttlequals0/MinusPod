@@ -11,6 +11,8 @@ export const inputBase = `min-h-10 ${fieldChrome}`;
 export const selectBase = inputBase;
 // Textareas size by rows, so no min-height.
 export const textareaBase = fieldChrome;
+// Attribute variants outrank the field chrome's border and ring, so an invalid field reads red with or without focus.
+export const invalidField = 'aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive aria-invalid:focus-visible:ring-destructive';
 export const labelBase = 'block text-sm font-medium text-foreground mb-1.5';
 export const filterGrid = 'grid grid-cols-1 min-[375px]:grid-cols-2 gap-4';
 export const filterLabel = 'mb-1 block text-sm text-muted-foreground';

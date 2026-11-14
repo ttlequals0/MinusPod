@@ -1,9 +1,6 @@
-"""Migration test for the 'deferred' episodes status CHECK rebuild (#482).
-
-Builds a DB whose episodes table has the pre-deferred CHECK, inserts episodes
-in every legacy status, points the real Database class at it, and asserts the
-rebuild preserved every row while allowing 'deferred' inserts afterward.
-"""
+"""Migration test for the 'deferred' episodes status CHECK rebuild (#482): the real Database class
+is pointed at a DB with the pre-deferred CHECK and every legacy status; the rebuild must preserve
+every row and allow 'deferred' inserts."""
 import sqlite3
 
 import pytest

@@ -1,10 +1,11 @@
 """SSRF protection: URL validation for outbound requests.
 
-Validates URLs before they are fetched to prevent Server-Side Request Forgery.
-Blocks private/reserved IPs, restricted schemes, and cloud metadata endpoints.
+Validates URLs before fetch to prevent SSRF: blocks private/reserved IPs,
+restricted schemes and cloud metadata endpoints.
 """
 import ipaddress
 import logging
+import re
 import socket
 from urllib.parse import urlparse, urlsplit
 
@@ -74,9 +75,8 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
 def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tuple]:
     """Resolve ``host``:``port`` and run check_resolved_ip on every address.
 
-    Returns the addrinfo list. socket.gaierror propagates so each caller can
-    translate an unresolvable host its own way; an empty result is raised as
-    gaierror too, since it means the same thing.
+    Returns the addrinfo list. socket.gaierror propagates (an empty result is
+    raised as gaierror too) so callers handle unresolvable hosts their own way.
     """
     infos = socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)
     if not infos:
@@ -87,20 +87,22 @@ def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tupl
     return infos
 
 
+# Same set as str.isspace() or category Cc, checked over every code point
+URL_SPACE_OR_CONTROL_RE = re.compile(r'[\s\x00-\x1f\x7f-\x9f]')
+
+
+def reject_url_whitespace(url: str) -> None:
+    """Refuse a URL holding whitespace or a control character; requests would repair and use it."""
+    if URL_SPACE_OR_CONTROL_RE.search(url):
+        raise SSRFError("URL contains whitespace or control characters")
+
+
 def validate_url(url: str) -> str:
     """Validate a URL for safe outbound requests.
 
-    Checks scheme, hostname, port, and resolved IP addresses against
-    blocklists to prevent SSRF attacks.
+    Checks scheme, hostname, port and resolved IPs against blocklists.
 
-    Args:
-        url: The URL to validate.
-
-    Returns:
-        The validated URL string (stripped).
-
-    Raises:
-        SSRFError: If the URL fails any validation check.
+    Returns the stripped URL; raises SSRFError on any failed check.
     """
     if not url or not url.strip():
         raise SSRFError("Empty URL")
@@ -139,22 +141,12 @@ def validate_url(url: str) -> str:
 def validate_base_url(url: str) -> str:
     """Validate an operator-configured outbound URL (scheme + hostname + metadata check).
 
-    Unlike validate_url(), this does NOT block private/loopback IPs because
-    operator-typed targets (LLM providers, Whisper API, webhook destinations
-    like a self-hosted Home Assistant) commonly point to localhost,
-    Docker-internal hosts, or LAN IPs on non-default ports. Cloud-provider
-    metadata IPs are still blocked so an operator cannot accidentally pivot
-    a write into an EC2 IMDS fetch.
+    Unlike validate_url(), private/loopback IPs are allowed because operator
+    targets (LLM providers, Whisper API, webhooks) commonly sit on localhost,
+    Docker or LAN hosts. Cloud metadata IPs stay blocked.
 
-    Args:
-        url: The URL to validate.
-
-    Returns:
-        The validated URL string (stripped).
-
-    Raises:
-        SSRFError: If the URL has an invalid scheme, missing hostname, or
-            hostname is a literal cloud metadata IP.
+    Returns the stripped URL; raises SSRFError on a bad scheme, missing hostname
+    or a literal metadata IP.
     """
     if not url or not url.strip():
         raise SSRFError("Empty URL")
@@ -182,11 +174,9 @@ def validate_outbound_host(host: str, port: int = 0) -> str:
     """Validate a bare operator-configured hostname (no URL scheme).
 
     Same policy as validate_base_url: resolve and reject cloud-metadata and
-    link-local targets even when reached via a hostname, a DNS rebind, or a
-    decimal/IPv6-encoded address. Private and loopback IPs stay allowed
-    because operators legitimately point SMTP relays and similar services at
-    localhost / Docker / LAN hosts. Unresolvable hosts are allowed: the
-    connection fails at connect time and reaches no internal IP.
+    link-local targets even via hostname, DNS rebind or decimal/IPv6 encoding.
+    Private and loopback IPs stay allowed (SMTP relays on LAN hosts).
+    Unresolvable hosts are allowed: the connect fails and reaches no internal IP.
 
     Returns the stripped host. Raises SSRFError on a blocked target.
     """

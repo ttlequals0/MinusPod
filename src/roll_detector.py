@@ -1,12 +1,8 @@
 """Heuristic pre-roll and post-roll ad detection.
 
-Runs after Claude detection, before validation. Uses regex patterns to find
-ad content before the show intro (pre-roll) or after the show sign-off
-(post-roll). Only creates markers for regions not already covered by
-Claude-detected ads.
-
-Addresses LLM nondeterminism: Claude sometimes misses pre/post-roll ads
-at window boundaries, especially on repeated runs.
+Runs after LLM detection, before validation. Regex patterns find ad content before the
+show intro (pre-roll) or after the sign-off (post-roll), only in regions not already
+covered by detected ads. Compensates for the LLM missing roll ads at window boundaries.
 """
 import re
 import logging
@@ -41,7 +37,7 @@ SHOW_START_PATTERNS = [
     ]
 ]
 
-# Ad indicator patterns -- need MIN_AD_PATTERN_MATCHES to flag
+# Ad indicator patterns: need MIN_AD_PATTERN_MATCHES to flag
 AD_INDICATOR_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in [
         r'\w+\.(com|org|edu|net|io)\b',
@@ -114,19 +110,13 @@ def detect_preroll(
 ) -> dict | None:
     """Detect pre-roll ad before the show intro.
 
-    Searches forward from the start for the first show-start pattern.
-    If transcript content before it matches >= threshold ad patterns,
-    creates an ad marker.
+    Searches forward for the first show-start pattern; if the content before it matches
+    >= threshold ad patterns, returns an ad marker dict (else None).
 
-    Args:
-        segments: Transcript segments with 'start', 'end', 'text' keys
-        existing_ads: Already-detected ads; one inside the zone counts as an indicator
-        podcast_name: A line naming the show marks the intro, like the show-start patterns
-        skip_patterns: When True (Full reprocess mode), lower match threshold
-            from MIN_AD_PATTERN_MATCHES to 1 since Stages 1 & 2 are skipped
-
-    Returns:
-        Ad marker dict if pre-roll detected, None otherwise
+    segments: transcript segments with 'start', 'end', 'text'.
+    existing_ads: already-detected ads; one inside the zone counts as an indicator.
+    podcast_name: a line naming the show marks the intro, like the show-start patterns.
+    skip_patterns: Full reprocess mode; lowers the threshold to 1 since stages 1 and 2 are skipped.
     """
     if not segments:
         return None
@@ -188,19 +178,13 @@ def detect_postroll(
 ) -> dict | None:
     """Detect post-roll ad after the show sign-off.
 
-    Searches backward from the end for the last sign-off pattern.
-    If transcript content after it matches >= threshold ad
-    patterns, creates an ad marker.
+    Searches backward for the last sign-off pattern; if the content after it matches
+    >= threshold ad patterns, returns an ad marker dict (else None).
 
-    Args:
-        segments: Transcript segments with 'start', 'end', 'text' keys
-        existing_ads: Already-detected ads to avoid duplicates
-        episode_duration: Total episode duration (from audio file)
-        skip_patterns: When True (Full reprocess mode), lower match threshold
-            from MIN_AD_PATTERN_MATCHES to 1 since Stages 1 & 2 are skipped
-
-    Returns:
-        Ad marker dict if post-roll detected, None otherwise
+    segments: transcript segments with 'start', 'end', 'text'.
+    existing_ads: already-detected ads, to avoid duplicates.
+    episode_duration: total duration from the audio file.
+    skip_patterns: Full reprocess mode; lowers the threshold to 1 since stages 1 and 2 are skipped.
     """
     if not segments:
         return None

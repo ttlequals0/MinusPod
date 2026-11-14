@@ -1,7 +1,6 @@
 """Per-episode cost breakdown over the llm_call_usage ledger.
 
-Pins the row shape and ordering the /stats/episode-costs page renders, and
-that one page costs one pass over the ledger table.
+Pins the row shape and ordering the /stats/episode-costs page renders, and that one page costs one ledger pass.
 """
 from config import normalize_model_key
 

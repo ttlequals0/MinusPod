@@ -28,18 +28,11 @@ _SCHEMA_VERSION = 2
 def load_template(source: Path) -> Dict[str, Any]:
     """Load a single template from *source* (zip file or directory).
 
-    The export format is:
-      - cue.flac   16 kHz mono s16 FLAC
-      - template.json  manifest (schemaVersion, label, cueType, durationS, ...)
-
-    Validation mirrors the import route in api/cue_templates.py lines 601-621:
-    - mono, 16-bit, 16 kHz
-    - at least 3 MFCC frames
-
-    Returns a dict compatible with AudioCueTemplateMatcher's *templates* list:
-    keys id, label, cue_type, duration_s, n_coeffs, mfcc_blob, pcm_blob.
-
-    Raises ValueError on validation failures.
+    Export format: cue.flac (16 kHz mono s16 FLAC) plus template.json manifest
+    (schemaVersion, label, cueType, durationS, ...). Validation mirrors the
+    import route in api/cue_templates.py: mono, 16-bit, 16 kHz, at least 3 MFCC
+    frames. Returns a dict with keys id, label, cue_type, duration_s, n_coeffs,
+    mfcc_blob, pcm_blob. Raises ValueError on validation failures.
     """
     source = Path(source)
     if source.suffix.lower() == ".zip":
@@ -88,7 +81,7 @@ def load_templates(sources: List[Path]) -> List[Dict[str, Any]]:
     return rows
 
 
-# -- internal helpers --
+# Internal helpers
 
 def _read_zip(path: Path):
     with zipfile.ZipFile(path, "r") as z:
@@ -137,9 +130,8 @@ def _validate_manifest(manifest: dict, source: Path) -> None:
 def _decode_wav(wav_bytes: bytes, source: Path):
     """Validate WAV header and return (pcm_blob bytes, duration_s float).
 
-    ffmpeg writes nframes=INT_MAX when encoding to a pipe (unknown size).
-    Derive duration from the actual PCM bytes read rather than from the
-    WAV header nframes field to avoid that sentinel value.
+    ffmpeg writes nframes=INT_MAX when piping, so duration comes from the PCM
+    bytes, not the header.
     """
     with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
         if wf.getnchannels() != 1:

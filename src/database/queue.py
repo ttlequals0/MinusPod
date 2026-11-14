@@ -5,17 +5,16 @@ from datetime import datetime, timedelta, timezone
 
 from config import (
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
-    DEFER_SERVICE_LLM,
+    DEFER_SERVICE_LLM, QUEUE_ORDERS,
 )
-from database.episodes import HAS_TRANSCRIPT_SQL
+from database.episodes import HAS_TRANSCRIPT_SQL, normalize_published_at
+from database.error_text import redact_error
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
-# Priority boosts (#625): applied on top of the feed's base queue_priority
-# (10 high / 0 normal / -10 low) at enqueue time. These are the fallback
-# defaults; operators can change the stored queue_*_boost settings, and
-# compute_queue_priority reads through to them on every enqueue.
+# Priority boosts (#625) on top of the feed's queue_priority (10 high / 0 normal /
+# -10 low) at enqueue. Fallback defaults: stored queue_*_boost settings override them.
 FRESH_EPISODE_BOOST = 5
 MANUAL_REQUEST_BOOST = 20
 BULK_REQUEST_BOOST = 0
@@ -45,10 +44,66 @@ def _resolve_boost(key: str, fallback: int) -> int:
 def resolve_queue_boosts() -> dict[str, int]:
     """Stored boost settings with per-key fallback to the constants.
 
-    Inline import: database.queue is part of the Database mixin family, so a
-    module-level Database import would be circular.
+    Inline import: a module-level Database import would be circular.
     """
     return {key: _resolve_boost(key, fallback) for key, fallback in _BOOST_SETTINGS}
+
+DEFAULT_QUEUE_ORDER = 'queued'
+
+
+def resolve_queue_order(feed_value: str | None, global_value: str | None) -> str:
+    """The feed's order when valid, else the global one, else the default."""
+    for value in (feed_value, global_value):
+        if value in QUEUE_ORDERS:
+            return value
+    return DEFAULT_QUEUE_ORDER
+
+
+# A feed's order picks which pending row takes each of its places; julianday() is NULL for undated rows, which sort last.
+_ORDERED_PENDING_CTE = """
+WITH claimable AS (
+    SELECT q.id, q.podcast_id, q.priority, q.created_at,
+           COALESCE(q.slot_created_at, q.created_at) AS slot_created_at,
+           COALESCE(q.slot_id, q.id) AS slot_id,
+           julianday(q.published_at) AS published_jd,
+           CASE WHEN p.queue_order IN ({orders}) THEN p.queue_order ELSE ? END AS feed_order
+    FROM auto_process_queue q
+    JOIN podcasts p ON q.podcast_id = p.id
+    WHERE q.status = 'pending'{exclude_sql}
+),
+ranked AS MATERIALIZED (
+    SELECT id, podcast_id, priority, slot_created_at, slot_id,
+           ROW_NUMBER() OVER (PARTITION BY podcast_id, priority
+                              ORDER BY slot_created_at, slot_id) AS place,
+           ROW_NUMBER() OVER (PARTITION BY podcast_id, priority
+                              ORDER BY CASE WHEN feed_order = 'queued' THEN 0
+                                            ELSE published_jd IS NULL END,
+                                       CASE WHEN feed_order = 'oldest_first' THEN published_jd END ASC,
+                                       CASE WHEN feed_order = 'newest_first' THEN published_jd END DESC,
+                                       created_at, id) AS turn
+    FROM claimable
+),
+ordered AS (
+    SELECT r.id, r.priority, s.slot_created_at AS sort_created_at,
+           s.slot_id AS sort_id, s.id AS slot_owner_id
+    FROM ranked r
+    JOIN ranked s ON s.podcast_id = r.podcast_id AND s.priority = r.priority AND s.place = r.turn
+)
+"""
+_QUEUE_ORDERS_SQL = ",".join(f"'{o}'" for o in QUEUE_ORDERS)
+
+# Same shape as `ordered` for the common case where no feed changes the order.
+_QUEUED_ONLY_CTE = """
+WITH ordered AS (
+    SELECT q.id, q.priority, q.created_at AS sort_created_at, q.id AS sort_id,
+           q.id AS slot_owner_id
+    FROM auto_process_queue q
+    JOIN podcasts p ON q.podcast_id = p.id
+    WHERE q.status = 'pending'{exclude_sql}
+)
+"""
+
+_ORDERED_BY = "o.priority DESC, o.sort_created_at ASC, o.sort_id ASC"
 
 # Bound on the row-level detail returned by get_queue_status.
 _QUEUE_STATUS_ITEMS_LIMIT = 100
@@ -60,13 +115,11 @@ QUEUE_INSERT_CHUNK = 50
 
 def compute_queue_priority(feed_priority, published_at_iso, manual=False,
                             bulk=False, now=None, apply_fresh_boost=True):
-    """Base feed priority plus boosts for fresh episodes, manual requests,
-    and bulk operations.
+    """Base feed priority plus boosts for fresh episodes, manual requests and bulk operations.
 
-    ``manual`` is a single-episode user action (reprocess, JIT play);
-    ``bulk`` is backlog work (Reprocess All, segment re-renders), which
-    defaults to no boost so it cannot starve manual requests or fresh
-    releases. Boost sizes are operator-configurable settings.
+    ``manual`` is a single-episode user action (reprocess, JIT play); ``bulk`` is
+    backlog work (Reprocess All, segment re-renders) that gets no boost by default,
+    so it cannot starve manual requests or fresh releases.
     """
     boosts = resolve_queue_boosts()
     p = int(feed_priority or 0)
@@ -97,16 +150,15 @@ class QueueMixin:
                                             podcast: dict | None = None) -> bool:
         """Check if auto-process is enabled for a specific podcast.
 
-        podcast: an already-fetched row, so a caller that needs other columns
-        too does not pay for a second get_podcast_by_slug query.
-        Returns: True if enabled (considering both global and podcast-level settings)
+        podcast: an already-fetched row, avoiding a second get_podcast_row query.
+        Returns True if enabled under both global and podcast-level settings.
         """
         # Check global setting first
         global_enabled = self.is_auto_process_enabled()
 
         # Get podcast-level override
         if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
+            podcast = self.get_podcast_row(slug)
         if not podcast:
             return global_enabled
 
@@ -146,7 +198,8 @@ class QueueMixin:
                    (podcast_id, episode_id, original_url, title, published_at, description, priority)
                    VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
-                (podcast['id'], episode_id, original_url, title, published_at, description, priority)
+                (podcast['id'], episode_id, original_url, title,
+                 normalize_published_at(published_at), description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.rowcount > 0 else None
@@ -178,7 +231,7 @@ class QueueMixin:
                            ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
                         (
                             podcast['id'], episode['episode_id'], episode['original_url'],
-                            episode.get('title'), episode.get('published_at'),
+                            episode.get('title'), normalize_published_at(episode.get('published_at')),
                             episode.get('description'), episode.get('priority', 0),
                         ),
                     )
@@ -193,17 +246,16 @@ class QueueMixin:
                                       priority: int = 0) -> int | None:
         """Add or reset an episode in the auto-process queue to 'pending'.
 
-        Unlike queue_episode_for_processing (which skips already-queued rows),
-        this method reopens a completed or failed row. Its attempt counter is
-        reset with it; a row already pending keeps its count, so a client
-        polling a busy play request cannot restart the retry ladder.  Used by bulk process/reprocess actions
-        so re-queuing is reliable regardless of prior queue history.
+        Unlike queue_episode_for_processing (which skips already-queued rows), this
+        reopens a completed or failed row and resets its attempts. A row already
+        pending keeps its count, so a client polling a busy play request cannot
+        restart the retry ladder. Used by bulk process/reprocess actions.
 
         Returns queue row ID or None on failure.
         """
         conn = self.get_connection()
 
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             logger.error(f"Cannot upsert episode for processing: podcast not found: {slug}")
             return None
@@ -234,7 +286,8 @@ class QueueMixin:
                      published_at = COALESCE(excluded.published_at, auto_process_queue.published_at),
                      description = COALESCE(excluded.description, auto_process_queue.description),
                      updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
-                (podcast_id, episode_id, original_url, title, published_at, description, priority)
+                (podcast_id, episode_id, original_url, title, normalize_published_at(published_at),
+                 description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.lastrowid else None
@@ -316,70 +369,78 @@ class QueueMixin:
                          description = COALESCE(excluded.description, auto_process_queue.description),
                          updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
                     (podcast['id'], episode_id, episode['original_url'], episode['title'],
-                     episode['published_at'], episode['description'], candidate['priority']),
+                     normalize_published_at(episode['published_at']), episode['description'],
+                     candidate['priority']),
                 )
                 result['queued'].append(episode_id)
         return result
 
 
-    def get_next_queued_episode(self) -> dict | None:
-        """Get the next pending episode from the queue (FIFO order, read-only)."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
-               FROM auto_process_queue q
-               JOIN podcasts p ON q.podcast_id = p.id
-               WHERE q.status = 'pending'
-               ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT 1"""
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+    def _window_order_needed(self, global_order: str | None = None) -> bool:
+        """Whether pending rows need sorting by publish date or reassigned queue slots."""
+        if global_order is None:
+            global_order = resolve_queue_order(None, self.get_setting('queue_order'))
+        if global_order != 'queued':
+            return True
+        return self.get_connection().execute(
+            """SELECT EXISTS (
+                   SELECT 1 FROM auto_process_queue WHERE status = 'pending' AND slot_id IS NOT NULL)
+               OR EXISTS (
+                   SELECT 1 FROM podcasts p
+                   WHERE p.queue_order IN ('oldest_first', 'newest_first')
+                     AND EXISTS (SELECT 1 FROM auto_process_queue q
+                                 WHERE q.podcast_id = p.id AND q.status = 'pending'))"""
+        ).fetchone()[0] == 1
+
+    def _ordered_pending(self, exclude_pairs=()) -> tuple[str, list]:
+        """CTE text and params giving each claimable pending row its place in `ordered`."""
+        global_order = resolve_queue_order(None, self.get_setting('queue_order'))
+        exclude_sql = ""
+        exclude_params = [value for pair in exclude_pairs for value in pair]
+        if exclude_pairs:
+            rows_sql = ",".join("(?,?)" for _ in exclude_pairs)
+            exclude_sql = f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})"
+        if not self._window_order_needed(global_order):
+            # Every feed is 'queued': the legacy order, served by idx_queue_status_priority.
+            return _QUEUED_ONLY_CTE.format(exclude_sql=exclude_sql), exclude_params  # noqa: S608
+        cte = _ORDERED_PENDING_CTE.format(orders=_QUEUE_ORDERS_SQL, exclude_sql=exclude_sql)  # noqa: S608
+        return cte, [global_order, *exclude_params]
 
     def get_pending_queued_episodes(self, limit: int = PENDING_QUEUE_LIMIT,
                                     offset: int = 0) -> list[dict]:
-        """Pending queue rows in dequeue order (same ORDER BY as the claim).
+        """Pending queue rows in dequeue order, capped at `limit` from `offset`.
 
-        Feeds the Processing Queue panel, which showed only the active job plus
-        the display queue and so hid the auto-process backlog entirely. Capped
-        at `limit` rows with an optional `offset` for pagination; each row
-        carries total_pending (the uncapped count, via a window function
-        evaluated before the LIMIT) so a caller can say how much of the
-        backlog it is showing.
-
-        The feed and episode processing-mode columns ride along so the hold
-        gating scan can score a row without a per-row lookup.
+        Rows carry total_pending (the uncapped count) and the feed and episode
+        processing-mode columns, so hold gating needs no per-row lookup.
         """
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT q.episode_id, q.title, q.priority, q.created_at,
+        cte, params = self._ordered_pending()
+        cursor = self.get_connection().execute(
+            f"""{cte}
+               SELECT q.episode_id, q.title, q.priority, q.created_at,
                       p.slug as podcast_slug, p.title as podcast_title,
                       p.passthrough_enabled as feed_passthrough_enabled,
                       p.skip_ad_detection, p.skip_second_pass, p.detection_mode, p.chapters_mode,
                       e.passthrough_enabled as episode_passthrough_enabled,
                       COUNT(*) OVER () as total_pending
-               FROM auto_process_queue q
+               FROM ordered o
+               JOIN auto_process_queue q ON q.id = o.id
                JOIN podcasts p ON q.podcast_id = p.id
                LEFT JOIN episodes e
                       ON e.podcast_id = q.podcast_id AND e.episode_id = q.episode_id
-               WHERE q.status = 'pending'
-               ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT ? OFFSET ?""",
-            (limit, offset)
+               ORDER BY {_ORDERED_BY}
+               LIMIT ? OFFSET ?""",  # noqa: S608
+            [*params, limit, offset],
         )
         return [dict(row) for row in cursor.fetchall()]
 
     def set_queue_row_priority(self, slug: str, episode_id: str,
                                priority: int | None = None,
                                delta: int | None = None) -> int | None:
-        """Set or nudge one pending row's priority; returns the stored value,
-        or None when the episode has no pending row.
+        """Set or nudge one pending row's priority; returns the stored value, or None without a pending row.
 
-        Direct write: unlike the MAX() monotonic rule in
-        upsert_episode_for_processing, this can raise or lower. A delta is
-        applied in SQL so two nudges racing on a stale read cannot cancel
-        each other out. Re-enqueueing (MAX rule) and a feed-level
-        queuePriority change (restamp_pending_priorities) still override it.
+        Unlike the monotonic MAX() rule in upsert_episode_for_processing this can
+        lower. A delta is applied in SQL so racing nudges on a stale read cannot
+        cancel out. Re-enqueueing and restamp_pending_priorities still override it.
         """
         expr, value = ('?', priority) if delta is None else ('priority + ?', delta)
         where = ("""WHERE episode_id = ? AND status = 'pending'
@@ -419,66 +480,53 @@ class QueueMixin:
         return row['n'] if row else 0
 
     def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
-        """Atomically claim the next pending episode, marking it 'processing'.
-
-        Closes the SELECT-then-mark gap in get_next_queued_episode: the
-        conditional ``UPDATE ... WHERE status='pending'`` plus the rowcount
-        guard means only one consumer can win a given row (SQLite serializes
-        the writes), so the dequeue is safe even if a second queue consumer is
-        ever added. Returns the claimed row (status='processing'), or None if
-        the queue is empty. On the rare lost race it tries the next pending row.
-
-        ``exclude_episodes`` skips individual (slug, episode_id) pairs whose
-        required LLM account is rate-limit held. It is per episode rather than
-        per feed because a pass-through override is: one feed can hold blocked
-        and eligible rows at once, and skipping the feed starves the eligible
-        ones.
-        """
-        conn = self.get_connection()
-        params: list = []
-        exclude_sql = ""
-        pairs = list(exclude_episodes or [])
-        if pairs:
-            rows_sql = ",".join("(?,?)" for _ in pairs)
-            exclude_sql = (
-                f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})")  # noqa: S608
-            for slug, episode_id in pairs:
-                params.extend((slug, episode_id))
-        for _ in range(5):
+        """Claim the next eligible episode and consume its feed's first queue slot atomically."""
+        with self.transaction(immediate=True) as conn:
+            cte, params = self._ordered_pending(list(exclude_episodes or []))
             row = conn.execute(
-                f"""SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
-                   FROM auto_process_queue q
+                f"""{cte}
+                   SELECT q.*, p.slug as podcast_slug, p.title as podcast_title,
+                          o.slot_owner_id, o.sort_created_at, o.sort_id
+                   FROM ordered o
+                   JOIN auto_process_queue q ON q.id = o.id
                    JOIN podcasts p ON q.podcast_id = p.id
-                   WHERE q.status = 'pending'{exclude_sql}
-                   ORDER BY q.priority DESC, q.created_at ASC
+                   ORDER BY {_ORDERED_BY}
                    LIMIT 1""",  # noqa: S608
                 params,
             ).fetchone()
             if row is None:
                 return None
-            cursor = conn.execute(
+            if row['slot_owner_id'] != row['id']:
+                # Move the unused slot to its former owner so other feeds keep their turns.
+                conn.execute(
+                    "UPDATE auto_process_queue SET slot_created_at = ?, slot_id = ? WHERE id = ?",
+                    (row['slot_created_at'] or row['created_at'],
+                     row['slot_id'] if row['slot_id'] is not None else row['id'], row['slot_owner_id']),
+                )
+                conn.execute(
+                    "UPDATE auto_process_queue SET slot_created_at = ?, slot_id = ? WHERE id = ?",
+                    (row['sort_created_at'], row['sort_id'], row['id']),
+                )
+            conn.execute(
                 """UPDATE auto_process_queue
                    SET status = 'processing',
                        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                    WHERE id = ? AND status = 'pending'""",
                 (row['id'],),
             )
-            conn.commit()
-            if cursor.rowcount == 1:
-                claimed = dict(row)
-                claimed['status'] = 'processing'
-                return claimed
-            # Lost the race to another consumer; try the next pending row.
-        return None
+            claimed = dict(row)
+            for key in ('slot_owner_id', 'sort_created_at', 'sort_id'):
+                claimed.pop(key)
+            claimed['status'] = 'processing'
+            return claimed
 
     def _update_queue_status(self, queue_id: int, status: str,
                              error_message: str = None,
                              expect_status: str = None) -> bool:
         """Write a queue row's status. Returns whether a row changed.
 
-        Private: callers reporting on a claim they hold go through
-        close_claimed_queue_row, whose guard keeps a mid-run requeue alive.
-        ``expect_status`` is that guard.
+        Private: callers holding a claim use close_claimed_queue_row, whose
+        ``expect_status`` guard keeps a mid-run requeue alive.
         """
         conn = self.get_connection()
         where = 'WHERE id = ?'
@@ -494,7 +542,7 @@ class QueueMixin:
                    attempts = attempts + 1,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                    {where}""",  # noqa: S608
-                (status, error_message, *tail)
+                (status, redact_error(error_message), *tail)
             )
         else:
             cursor = conn.execute(
@@ -511,9 +559,8 @@ class QueueMixin:
                                 error_message: str = None) -> bool:
         """Report a drainer verdict on a row this claim still holds.
 
-        The write is skipped when something re-queued the episode mid-run
-        (degraded re-detect, low-ad-yield rerun), so that rerun survives.
-        Returns whether a row changed.
+        Skipped when something re-queued the episode mid-run (degraded re-detect,
+        low-ad-yield rerun), so that rerun survives. Returns whether a row changed.
         """
         return self._update_queue_status(queue_id, status, error_message,
                                          expect_status='processing')
@@ -521,9 +568,8 @@ class QueueMixin:
     def reopen_claimed_queue_row(self, slug: str, episode_id: str) -> bool:
         """Put an episode's claimed ('processing') queue row back to pending.
 
-        Keeps priority, created_at and attempts, so the episode returns to
-        the position it was claimed from. Returns False when no claimed row
-        exists (a run started outside the queue processor).
+        Keeps priority, created_at and attempts, so it returns to its old position.
+        Returns False when no claimed row exists (run started outside the queue processor).
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -547,15 +593,12 @@ class QueueMixin:
     def close_queue_rows_for_episode(self, slug: str, episode_id: str) -> int:
         """Mark any non-terminal queue rows for this episode as completed.
 
-        Guards the double-trigger bug where a manual
-        POST /episodes/<id>/reprocess finishes the job but leaves the
-        background-enqueued row in auto_process_queue still pending,
-        which then caused the queue processor to re-run the same episode.
-        Safe to call on every successful finalize -- the UPDATE is a
-        no-op when there is no matching pending/processing/failed row.
-        Returns the number of rows touched.
+        Prevents a double trigger: a manual reprocess finishing while the
+        background-enqueued row stays pending would make the queue processor re-run
+        the episode. Safe on every successful finalize (no-op without a matching
+        pending/processing/failed row). Returns rows touched.
         """
-        podcast = self.get_podcast_by_slug(slug)
+        podcast = self.get_podcast_row(slug)
         if not podcast:
             return 0
         conn = self.get_connection()
@@ -591,15 +634,19 @@ class QueueMixin:
         row = cursor.fetchone()
         result = dict(row) if row else {'pending': 0, 'processing': 0, 'completed': 0, 'failed': 0, 'total': 0}
 
+        cte, params = self._ordered_pending()
         items = conn.execute(
-            """SELECT q.id, q.episode_id, q.status, q.priority, q.created_at,
+            f"""{cte}
+               SELECT q.id, q.episode_id, q.status, q.priority, q.created_at,
                       p.slug as podcast_slug
                FROM auto_process_queue q
                JOIN podcasts p ON q.podcast_id = p.id
+               LEFT JOIN ordered o ON o.id = q.id
                WHERE q.status IN ('pending', 'processing')
-               ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT ?""",
-            (_QUEUE_STATUS_ITEMS_LIMIT,)
+               ORDER BY q.priority DESC, COALESCE(o.sort_created_at, q.slot_created_at, q.created_at) ASC,
+                        COALESCE(o.sort_id, q.slot_id, q.id) ASC
+               LIMIT ?""",  # noqa: S608
+            [*params, _QUEUE_STATUS_ITEMS_LIMIT],
         ).fetchall()
         result['items'] = [dict(r) for r in items]
         return result
@@ -656,22 +703,18 @@ class QueueMixin:
                                    exclude_running=None) -> tuple[int, int]:
         """Reset queue items stuck in 'processing' for too long.
 
-        This catches orphaned queue items where the worker crashed or was killed
-        without properly updating the status. Items exceeding max_attempts are
-        marked as 'failed' permanently. Items under max_attempts are reset to
-        'pending' WITHOUT incrementing attempts -- orphan resets are not failures.
-        Only actual processing failures (in _handle_processing_failure) increment
-        the attempts counter.
+        Catches orphans left by a worker crash or kill. Items at max_attempts are
+        marked 'failed'; others reset to 'pending' without incrementing attempts,
+        since an orphan reset is not a failure (only _handle_processing_failure
+        increments).
 
         Args:
-            stuck_minutes: Minutes after which a 'processing' item is considered orphaned
-            max_attempts: Maximum retry attempts before marking as permanently failed
-            exclude_running: (slug, episode_id) pairs holding a live processing
-                slot. Age alone cannot tell a slow run from a crash, so these
-                rows are left claimed however stale updated_at looks.
+            stuck_minutes: Minutes after which a 'processing' item counts as orphaned
+            max_attempts: Retry limit before marking permanently failed
+            exclude_running: (slug, episode_id) pairs holding a live processing slot.
+                Age cannot tell a slow run from a crash, so these stay claimed.
 
-        Returns:
-            Tuple of (reset_count, failed_count)
+        Returns (reset_count, failed_count).
         """
         conn = self.get_connection()
 
@@ -724,9 +767,9 @@ class QueueMixin:
     def reset_failed_queue_items(self, max_retries: int = 4, max_age_hours: int = 48) -> int:
         """Reset failed queue items eligible for automatic retry with backoff.
 
-        Backoff ladder at the default max_retries=4: initial + 3 retries, 5m/15m/30m apart.
-        Only resets where episode status is 'failed' (not 'permanently_failed'),
-        retry_count < max_retries, and the item failed within max_age_hours.
+        Default max_retries=4 gives initial + 3 retries, 5m/15m/30m apart. Resets only
+        episodes with status 'failed' (not 'permanently_failed'), retry_count <
+        max_retries and a failure within max_age_hours.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -765,11 +808,9 @@ class QueueMixin:
     def mark_episode_pending_recut(self, slug: str, episode_id: str) -> None:
         """Stamp an episode as having unapplied review decisions.
 
-        Idempotent and first-write-wins: the stamp marks when the episode
-        first went stale, so several edits over an afternoon still recut once.
-        On an episode mid-run the stamp is bumped to now instead, so the
-        run's completion (which clears only stamps older than its own start)
-        cannot swallow a decision its cut list never saw.
+        Idempotent, first-write-wins, so several edits still recut once. Mid-run the
+        stamp is bumped to now instead, so the run's completion (which clears only
+        stamps older than its start) cannot swallow a decision its cuts never saw.
         """
         now = utc_now_iso()
         conn = self.get_connection()
@@ -788,8 +829,8 @@ class QueueMixin:
                                     before: str | None = None) -> None:
         """Drop the stamp once a recut has applied the decisions.
 
-        `before` clears only a stamp at or before that time, so a completed
-        run cannot swallow a decision recorded after it started.
+        `before` clears only a stamp at or before that time, so a decision recorded
+        after a run started survives.
         """
         conn = self.get_connection()
         conn.execute(
@@ -805,16 +846,14 @@ class QueueMixin:
                                    slug: str | None = None) -> list[dict]:
         """Episodes with unapplied review decisions, oldest stamp first.
 
-        `slug` scopes the result to one feed, so a feed page can apply its own
-        pending recuts without touching the rest of the queue.
+        `slug` scopes the result to one feed.
         """
         conn = self.get_connection()
-        # has_segments/has_transcript/has_markers mirror the recut preconditions cheaply
-        # (string tests, not JSON parses: this backs a polled endpoint and
-        # segments run to hundreds of KB): segments must be a non-empty list,
-        # markers only present ('[]' recuts fine, restoring the original).
-        # has_queue_row separates an episode whose own run is coming from one
-        # left 'pending' by a cleared queue, which nothing will run.
+        # has_segments/has_transcript/has_markers cheaply mirror the recut preconditions
+        # with string tests (polled endpoint, segments run to hundreds of KB): segments
+        # must be a non-empty list, markers only present ('[]' recuts fine).
+        # has_queue_row separates an episode with a run coming from one left 'pending'
+        # by a cleared queue.
         cursor = conn.execute(
             f"""SELECT e.episode_id, e.title, e.status, e.original_url,
                       e.pending_recut_at, p.slug AS podcast_slug,
@@ -838,28 +877,6 @@ class QueueMixin:
             (slug, slug, limit)
         )
         return [dict(row) for row in cursor.fetchall()]
-
-    def count_episodes_pending_recut(self, slug: str | None = None) -> int:
-        """How many episodes are waiting for an apply, optionally one feed's.
-
-        The unscoped count stays single-table: joining podcasts would drop an
-        episode whose feed row is missing, changing a number nothing asked to
-        change.
-        """
-        if slug is None:
-            row = self.get_connection().execute(
-                "SELECT COUNT(*) AS n FROM episodes "
-                "WHERE pending_recut_at IS NOT NULL"
-            ).fetchone()
-        else:
-            row = self.get_connection().execute(
-                """SELECT COUNT(*) AS n
-                   FROM episodes e
-                   JOIN podcasts p ON e.podcast_id = p.id
-                   WHERE e.pending_recut_at IS NOT NULL AND p.slug = ?""",
-                (slug,)
-            ).fetchone()
-        return row['n'] if row else 0
 
     # Deferred-episode lifecycle: offline queue (#482), rate-limit hold (#696)
 
@@ -901,10 +918,9 @@ class QueueMixin:
     def expire_deferred_episodes(self, ttl_hours: int) -> list[dict]:
         """Fail deferred episodes whose TTL has run out.
 
-        Rows are marked permanently_failed (a plain 'failed' would be
-        resurrected by the reset_failed_queue_items retry ladder) and the
-        matching auto_process_queue row is closed the same way. Returns the
-        expired rows so the caller can fire failure webhooks.
+        Marked permanently_failed (a plain 'failed' would be resurrected by the
+        reset_failed_queue_items retry ladder), and the matching queue row is closed
+        too. Returns the expired rows for failure webhooks.
         """
         conn = self.get_connection()
         rows = conn.execute(
@@ -919,8 +935,8 @@ class QueueMixin:
         expired = []
         for row in rows:
             row = dict(row)
-            message = (f"Offline queue TTL expired after {ttl_hours} hours: "
-                       f"{row['error_message'] or 'service unreachable'}")
+            message = redact_error(f"Offline queue TTL expired after {ttl_hours} hours: "
+                                   f"{row['error_message'] or 'service unreachable'}")
             row['error_message'] = message
             cursor = conn.execute(
                 """UPDATE episodes

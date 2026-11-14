@@ -1,5 +1,4 @@
 import { useDraftField } from '../../hooks/useDraftField';
-import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
@@ -15,6 +14,8 @@ import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface AIModelsSectionProps {
   // Each stage carries its own catalog and its own fetch state. No fallback
@@ -77,6 +78,7 @@ function AIModelsSection({
   onPricingOverrideUpdate,
   pricingOverrideSavingModel = null,
 }: AIModelsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   // Merge every fetched catalog for pricing lookups: verification/chapters
   // can now be on a different provider than detection, each with its own
   // catalog entry (and price) for the same model id.
@@ -97,10 +99,10 @@ function AIModelsSection({
       title="AI models"
       defaultOpen
       headerRight={(
-        <RefreshModelsButton onClick={modelsRefresh.refresh} isPending={modelsRefresh.isPending} />
+        <RefreshModelsButton onClick={modelsRefresh.refresh} isPending={modelsRefresh.isPending} disabled={!llmEnabled} />
       )}
     >
-      {(!selectedModel || !verificationModel || !chaptersModel) && (
+      {llmEnabled && (!selectedModel || !verificationModel || !chaptersModel) && (
         <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/20">
           <p className="text-sm text-warning">
             No model selected from the provider.
@@ -108,7 +110,11 @@ function AIModelsSection({
         </div>
       )}
 
-      <div className="space-y-4 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
+      <LlmGate
+        disabled={!llmEnabled}
+        id="ai-models"
+        className="space-y-4 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11"
+      >
         <CatalogStatus refreshError={modelsRefresh.error} />
 
         {isSystemOneRoute(effectiveChaptersProvider, chaptersModel) && (
@@ -198,12 +204,13 @@ function AIModelsSection({
                 override={override}
                 catalogModel={allCatalogModels.find((model) => model.id === modelId)}
                 saving={pricingOverrideSavingModel === overrideKey}
+                active={llmEnabled}
                 onUpdate={(_modelId, value) => onPricingOverrideUpdate(overrideKey, value)}
               />;
             })}
           </div>
         )}
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }
@@ -249,6 +256,7 @@ function ModelPricingFields({
   override,
   catalogModel,
   saving,
+  active,
   onUpdate,
 }: {
   fieldId: string;
@@ -256,21 +264,21 @@ function ModelPricingFields({
   override?: ModelPricingOverride;
   catalogModel?: ClaudeModel;
   saving: boolean;
+  active: boolean;
   onUpdate: (modelId: string, override: ModelPricingOverride | null) => Promise<unknown>;
 }) {
   const savedInput = override === undefined ? '' : String(override.inputCostPerMtok);
   const savedOutput = override === undefined ? '' : String(override.outputCostPerMtok);
   const savedCache = override?.cacheReadCostPerMtok == null ? '' : String(override.cacheReadCostPerMtok);
-  const inputDraft = useDraftField(savedInput, (value) => value);
-  const outputDraft = useDraftField(savedOutput, (value) => value);
-  const cacheDraft = useDraftField(savedCache, (value) => value);
+  const inputDraft = useDraftField(savedInput, (value) => value, undefined, active);
+  const outputDraft = useDraftField(savedOutput, (value) => value, undefined, active);
+  const cacheDraft = useDraftField(savedCache, (value) => value, undefined, active);
   const { value: inputRate, setValue: setInputRate } = inputDraft;
   const { value: outputRate, setValue: setOutputRate } = outputDraft;
   const { value: cacheRate, setValue: setCacheRate } = cacheDraft;
   const [message, setMessage] = useState<string | null>(null);
 
   const isDirty = inputRate !== savedInput || outputRate !== savedOutput || cacheRate !== savedCache;
-  useUnsavedChanges(isDirty);
   const commit = async () => {
     setMessage(null);
     const blank = { input: inputRate.trim() === '', output: outputRate.trim() === '', cache: cacheRate.trim() === '' };
@@ -351,7 +359,7 @@ function ModelPricingFields({
           </span>
         )}
       </div>
-      {!override && !catalogAvailable && (
+      {active && !override && !catalogAvailable && (
         <p className="text-xs text-warning">
           Set both prices to estimate cost when the provider does not report it.
         </p>

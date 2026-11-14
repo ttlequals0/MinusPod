@@ -37,7 +37,7 @@ from llm_capabilities import (
 )
 
 from llm_client import (
-    ProviderAccountChangedError, ProviderRateLimitedError,
+    ProviderAccountChangedError, ProviderRateLimitedError, llm_disabled,
 )
 
 from rate_limit_hold import (
@@ -45,7 +45,7 @@ from rate_limit_hold import (
     hold_queue_for_provider_limit,
 )
 
-from user_agent import download_user_agent
+from user_agent import feed_user_agent, settled_download_user_agent
 from utils.constants import EpisodeStatus
 
 from main_app.pipeline import common
@@ -55,15 +55,13 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 def _unadjust_timestamp(processed_time, cuts, replacement_duration=0.0):
-    """Inverse of utils.time.adjust_timestamp: project a processed-timeline
-    timestamp back onto the original (pre-cut) timeline. All values are
-    seconds; cuts are in original-episode coordinates. A timestamp that falls
-    inside a replacement beep has no original content behind it and maps to
-    the cut's start (the point the beep replaced).
+    """Inverse of utils.time.adjust_timestamp: map a processed-timeline time to the original.
 
-    Each span's own 'replacement_duration' (see utils.time.merge_cut_spans)
-    wins over the `replacement_duration` argument, which is only the
-    fallback for spans that omit it (legacy persisted cuts)."""
+    Values are seconds; cuts are in original-episode coordinates. A timestamp
+    inside a replacement beep has no original content and maps to the cut's
+    start. A span's own 'replacement_duration' (utils.time.merge_cut_spans) wins
+    over the `replacement_duration` argument, the fallback for legacy persisted
+    cuts without it."""
     removed = 0.0
     replaced = 0.0
     for start, end, _n_spans, total_replacement in merge_cut_spans(
@@ -83,19 +81,15 @@ def _remap_chapters_for_recut(chapters, previous_cuts, new_cuts,
                                new_duration):
     """Project stored chapters-JSON chapters onto the recut timeline.
 
-    chapters carry startTime in SECONDS (Podcasting 2.0; the ms conversion
-    happens only inside embedded_chapters.render_ffmetadata) on the PREVIOUS
-    processed timeline. previous_cuts and new_cuts are both in
-    original-episode coordinates, so each start goes previous-processed ->
-    original (inverse of the previous cut adjustment) -> recut timeline
-    (adjust_timestamp with the new applied cuts).
+    chapters carry startTime in seconds (Podcasting 2.0; ms conversion happens
+    only in embedded_chapters.render_ffmetadata) on the previous processed
+    timeline. previous_cuts and new_cuts are in original-episode coordinates, so
+    each start goes previous-processed -> original -> recut timeline.
 
-    Mirrors embedded_chapters.remap_chapters' policy: a chapter whose whole
-    span (start to next chapter's start, in original coordinates) sits inside
-    a new cut is dropped -- its span folds into its predecessor -- and a
-    remapped chapter left closer than MIN_CHAPTER_SECONDS to its successor is
-    dropped as a degenerate sliver. Titles, urls, and any other keys are
-    carried through untouched."""
+    Mirrors embedded_chapters.remap_chapters: a chapter whose whole span sits
+    inside a new cut is dropped (its span folds into its predecessor), and one
+    left closer than MIN_CHAPTER_SECONDS to its successor is dropped as a
+    sliver. Titles, urls and other keys carry through untouched."""
     ordered = sorted(chapters, key=lambda ch: float(ch.get('startTime', 0)))
     orig_starts = [
         _unadjust_timestamp(float(ch.get('startTime', 0)), previous_cuts,
@@ -143,8 +137,7 @@ def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
     """Add the trim marker for the first chapter matching the feed rule; True when added.
 
     chapters are on the processed timeline unless original_timeline is set, so
-    the span maps back to the original through this run's cut list. The caller's
-    recut applies it.
+    the span maps back through this run's cut list. The caller's recut applies it.
     """
     pattern = (podcast_row or {}).get('description_trim_pattern')
     mode = (podcast_row or {}).get('description_trim_mode') or TO_END
@@ -252,10 +245,9 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
             db, podcast_row or db.get_podcast_by_slug(slug))
         if nothing_stored and ad_config is None:
             return
-        # One resolved duration for BOTH the JSON sliver filter and the ID3
-        # embed, so the served and embedded chapter sets trim against the same
-        # tail bound. Prefer the caller's known value, then a probe of the
-        # rendered file, then the arithmetic projection.
+        # One resolved duration for both the JSON sliver filter and the ID3
+        # embed, so served and embedded chapters trim against the same tail
+        # bound: caller's value, then a probe of the file, then arithmetic.
         resolved_duration = audio_duration
         if resolved_duration is None and audio_path:
             resolved_duration = get_audio_duration(audio_path)
@@ -307,12 +299,11 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                 f"[{slug}:{episode_id}] Chapter remap swallowed every "
                 f"chapter; keeping previous chapters JSON")
             return
-        # Embed FIRST, save JSON only after it succeeds: if the embed fails,
-        # the served JSON and the embedded ID3 must stay the OLD, matching set
-        # (issue #523 was the reverse order -- new JSON, stale ID3). This is a
-        # set replacement of the ffmpeg cut step's remapped source chapters,
-        # not a second remap: embed_chapters writes the timestamps as-is and
-        # returns False for ffmpeg/OS errors; unsafe source metadata raises.
+        # Embed first, save JSON only after it succeeds: if the embed fails, the
+        # served JSON and embedded ID3 must both stay the old matching set (#523 was
+        # the reverse order). This replaces the cut step's remapped chapters, not a
+        # second remap: embed_chapters writes timestamps as-is, returns False for
+        # ffmpeg/OS errors, and raises on unsafe metadata.
         if audio_path:
             if not embed_chapters(str(audio_path), public_chapters(merged, for_embedding=True),
                                   duration=resolved_duration):
@@ -322,10 +313,9 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                     f"[{slug}:{episode_id}] Chapter embed failed after recut; "
                     f"keeping previous chapters JSON and embedded ID3")
                 return
-        # The remapped JSON lives on the recut timeline defined by all_cuts;
-        # both persist in ONE DB write so a failure can never pair fresh
-        # chapters with a stale authoritative cut list (that pairing makes
-        # the NEXT remap unproject through the wrong previous cuts).
+        # The remapped JSON lives on the recut timeline defined by all_cuts; both
+        # persist in one DB write so a failure cannot pair fresh chapters with a
+        # stale cut list (which would make the next remap use the wrong cuts).
         updated_chapters = {**(chapters_json or {'version': '1.2.0'}), 'chapters': merged}
         pending_assets.update(chapters=updated_chapters, applied_cuts=all_cuts or [])
         audio_logger.info(
@@ -367,8 +357,8 @@ def _episode_embed_lock(key):
 def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
     """Rebuild ad chapters from `markers` without touching the audio cut.
 
-    episode, when given, is the already-loaded episodes row. Returns True when
-    the stored chapter set changed. Never raises.
+    episode is the already-loaded episodes row, if any. Returns True when the
+    stored chapter set changed. Never raises.
     """
     try:
         if episode is None:
@@ -439,39 +429,33 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
                       previous_cuts=None, original_duration=None,
-                      podcast_row=None, run_stats=None, markers=None):
-    """Pipeline stage: Generate VTT transcript and chapters.
+                      podcast_row=None, run_stats=None, markers=None,
+                      download_outcome=None):
+    """Pipeline stage: generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
-    detection is the one LLM call here. Recut uses it to stay AI-free; the
-    existing chapters are kept but remapped onto the new cut list (pure
-    arithmetic via _remap_stored_chapters, using previous_cuts and
-    original_duration) and can still be refreshed with the manual Regenerate
-    Chapters action.
+    detection is the one LLM call here. Recut uses it to stay AI-free: existing
+    chapters are remapped onto the new cut list (arithmetic via
+    _remap_stored_chapters, using previous_cuts and original_duration) and can
+    be refreshed with the manual Regenerate Chapters action.
 
-    audio_path, when given, is the final processed MP3; generated chapters
-    are also embedded into it as ID3v2 frames for players that ignore the
-    podcast:chapters JSON (issue #523). audio_duration is its duration in
-    seconds, saving the embed a re-probe when the caller already knows it.
+    audio_path, when given, is the final processed MP3; generated chapters are
+    also embedded as ID3v2 frames for players that ignore podcast:chapters JSON
+    (#523). audio_duration (seconds) saves the embed a re-probe.
 
-    podcast_row, when given, is the already-fetched podcasts row (the main
-    pipeline fetches it once for resolve_feed_processing_mode); passing it
-    avoids a second get_podcast_by_slug aggregate query just to resolve the
-    chapters mode and the ad-chapter config. None (e.g. the recut call site)
-    falls back to fetching it here.
+    podcast_row, when given, is the already-fetched podcasts row, avoiding a
+    second get_podcast_by_slug just to resolve the chapters mode and ad-chapter
+    config. None (e.g. recut) falls back to fetching it.
 
-    original_duration, when given, also gates and feeds the 'auto'-mode
-    upstream podcast:chapters JSON fetch (issue #560 follow-up): with it
-    unset, that fetch is skipped and an embedded-chapter shortfall falls
-    straight through to generation, same as before this source existed.
+    original_duration, when given, also gates and feeds the 'auto'-mode upstream
+    podcast:chapters JSON fetch (#560); unset skips that fetch and an
+    embedded-chapter shortfall falls straight through to generation.
 
-    run_stats, when given, is the caller's run_stats dict; if chapter
-    generation degrades to a fallback set, chapters_degraded and
-    chapters_degraded_reason are recorded there.
+    run_stats, when given, records chapters_degraded and
+    chapters_degraded_reason if generation degrades to a fallback set.
 
-    markers, when given, is the ad/segment marker list used to build
-    topic-boundary hints for the generator's prompt (see chapters_generator.
-    build_segment_hints, AI-generation branch only) and to rebuild the ad
+    markers, when given, builds topic-boundary hints for the generator prompt
+    (chapters_generator.build_segment_hints, AI branch only) and rebuilds the ad
     chapters on every chapter-producing path.
     """
     from transcript_generator import TranscriptGenerator
@@ -523,21 +507,17 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     ad_config = resolve_ad_chapter_config(db, podcast_row)
                     # 'auto' probes the PROCESSED file: the ffmpeg cut step already
                     # remapped publisher ID3 CHAP frames onto the cut timeline
-                    # (audio_processor.py), so a probe here gives the remapped list
-                    # for free with no extra work. 'generate' never probes, so it
-                    # always falls through to the generator below regardless of what
-                    # publisher chapters exist.
+                    # (audio_processor.py), so the probe returns the remapped list.
+                    # 'generate' never probes and always falls through to the generator.
                     publisher = []
                     if chapters_mode == CHAPTERS_MODE_AUTO and audio_path:
                         publisher = probe_chapters(str(audio_path))
                         if publisher is None:
-                            # Probe failed (e.g. transient ffprobe error), not "the
-                            # file definitively has no chapters" (embedded_chapters.
-                            # probe_chapters). Falling through to the generate+embed
-                            # path below would overwrite the ID3 frames the cut step
-                            # already wrote correctly, the exact failure mode issue
-                            # #500 prevents at the ffmpeg layer. Skip the chapter
-                            # step this run instead of guessing.
+                            # Probe failed (e.g. transient ffprobe error), not "no
+                            # chapters" (embedded_chapters.probe_chapters). Falling
+                            # through to generate+embed would overwrite the ID3 frames
+                            # the cut step wrote correctly (the failure mode #500
+                            # prevents). Skip the chapter step this run instead.
                             audio_logger.warning(
                                 f"[{slug}:{episode_id}] Chapter probe failed after "
                                 f"cut; skipping chapter step this run")
@@ -562,22 +542,20 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                             audio_path, audio_duration, merged != base,
                             f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
                         return
-                    # Embedded chapters came up short. Some feeds publish chapters
-                    # only as a separate podcast:chapters JSON file (issue #560
-                    # follow-up), captured at RSS refresh as
-                    # episodes.upstream_chapters_url; try fetching that next, before
-                    # falling back to generation. The probe above must not risk
-                    # overwriting correctly-embedded ID3 frames on a failed read, so
-                    # it skips the run instead. A fetch failure here (None) has no
-                    # such risk, so it is deliberately let through to the generator: a
-                    # bad or unreachable remote file must not block chapters
-                    # outright, only lose the chance to preserve the publisher's own
-                    # set.
+                    # Embedded chapters came up short. Some feeds publish chapters only
+                    # as a separate podcast:chapters JSON file (#560), captured at RSS
+                    # refresh as episodes.upstream_chapters_url; try it before
+                    # generating. A failed probe above skips the run to protect embedded
+                    # ID3 frames, but a failed fetch (None) has no such risk, so it falls
+                    # through to the generator: an unreachable file must not block chapters.
                     if chapters_mode == CHAPTERS_MODE_AUTO and original_duration:
                         episode_row = db.get_episode(slug, episode_id)
                         upstream_url = (episode_row or {}).get('upstream_chapters_url')
                         if upstream_url:
-                            fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
+                            fetched = fetch_upstream_chapters(
+                                upstream_url,
+                                user_agent=settled_download_user_agent(download_outcome, podcast_row),
+                                fallback_user_agent=feed_user_agent(podcast_row))
                             if fetched is not None:
                                 remapped = _remap_chapters_for_recut(
                                     fetched, [], all_cuts or [], replacement_duration,
@@ -602,6 +580,21 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                         f"Preserved {len(remapped)} upstream JSON "
                                         f"chapter(s) (no AI call)", pending_assets=pending_assets)
                                     return
+                    if llm_disabled():
+                        # Nothing is attempted, so nothing is degraded.
+                        merged = merge_ad_chapters([], markers, all_cuts or [],
+                                                   audio_duration, replacement_duration,
+                                                   ad_config)
+                        if merged:
+                            _publish_chapters(
+                                slug, episode_id, {'version': '1.2.0'}, merged, all_cuts,
+                                audio_path, audio_duration, True,
+                                "LLM disabled; kept ad chapters (no AI call)",
+                                pending_assets=pending_assets)
+                        else:
+                            audio_logger.info(
+                                f"[{slug}:{episode_id}] LLM disabled; no chapters generated")
+                        return
                     chapters_gen = None
                     chapter_setup_failed = False
                     try:

@@ -1,16 +1,12 @@
 """SQL DDL constants for MinusPod database schema.
 
-TABLE_DDL: per-table CREATE TABLE IF NOT EXISTS statements, keyed by table
-name. Single source of truth for current table shapes: SCHEMA_SQL is composed
-from these, and SchemaMixin._create_new_tables_only executes a subset of them
-on existing databases. Historical migration blocks that intentionally embed an
-older table shape (pre-ALTER) keep their own inline DDL.
+TABLE_DDL: per-table CREATE TABLE IF NOT EXISTS statements keyed by table name,
+the single source of current table shapes. SCHEMA_SQL is composed from them and
+SchemaMixin._create_new_tables_only runs a subset on existing databases. Historical
+migration blocks that embed an older (pre-ALTER) shape keep their own inline DDL.
 
-SCHEMA_SQL: Full initial schema (CREATE TABLE / CREATE INDEX) executed on
-fresh databases via conn.executescript(SCHEMA_SQL).
-
-This module is import-only (no behavior). SCHEMA_SQL is re-exported by
-database.schema for backward compatibility with all existing call sites.
+SCHEMA_SQL: full initial schema run on fresh databases via conn.executescript.
+Import-only (no behavior); re-exported by database.schema.
 """
 
 TABLE_DDL = {}
@@ -109,6 +105,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     cue_only_safety TEXT,
     -- Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
     queue_priority INTEGER,
+    -- Processing order of this feed's queued episodes; NULL = use the global queue_order setting
+    queue_order TEXT,
     -- Episode title blacklist: JSON array of case-insensitive glob patterns.
     -- A matching episode is never queued or JIT-processed.
     title_skip_patterns TEXT,
@@ -288,6 +286,28 @@ TABLE_DDL['episode_feed_details'] = """CREATE TABLE IF NOT EXISTS episode_feed_d
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""
 
+# Per-episode snap-distance sums read by the addressing stats, so that request skips the
+# large TEXT columns. Filled lazily; the triggers below invalidate it.
+TABLE_DDL['episode_snap_stats'] = """CREATE TABLE IF NOT EXISTS episode_snap_stats (
+    episode_id INTEGER PRIMARY KEY,
+    has_llm INTEGER NOT NULL,
+    ts_total REAL NOT NULL DEFAULT 0,
+    ts_n INTEGER NOT NULL DEFAULT 0,
+    seg_total REAL NOT NULL DEFAULT 0,
+    seg_n INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+)"""
+
+# Claim state of the upgrade steps that run in the background after startup.
+TABLE_DDL['deferred_upgrade_steps'] = """CREATE TABLE IF NOT EXISTS deferred_upgrade_steps (
+    name TEXT PRIMARY KEY,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'running', 'done')),
+    owner TEXT,
+    heartbeat_at REAL,
+    cursor TEXT,
+    rows_done INTEGER NOT NULL DEFAULT 0
+)"""
+
 # UPDATE OF (no WHEN clause) so SQLite never loads the old column values.
 EPISODE_FEED_DETAILS_TRIGGERS = {
     'episode_feed_details_insert': """CREATE TRIGGER episode_feed_details_insert
@@ -301,6 +321,21 @@ END""",
     'episode_feed_details_delete': """CREATE TRIGGER episode_feed_details_delete
 AFTER DELETE ON episode_details BEGIN
     DELETE FROM episode_feed_details WHERE episode_id = OLD.episode_id;
+END""",
+}
+
+EPISODE_SNAP_STATS_TRIGGERS = {
+    'episode_snap_stats_insert': """CREATE TRIGGER episode_snap_stats_insert
+AFTER INSERT ON episode_details BEGIN
+    DELETE FROM episode_snap_stats WHERE episode_id = NEW.episode_id;
+END""",
+    'episode_snap_stats_update': """CREATE TRIGGER episode_snap_stats_update
+AFTER UPDATE OF episode_id, ad_markers_json ON episode_details BEGIN
+    DELETE FROM episode_snap_stats WHERE episode_id IN (OLD.episode_id, NEW.episode_id);
+END""",
+    'episode_snap_stats_delete': """CREATE TRIGGER episode_snap_stats_delete
+AFTER DELETE ON episode_details BEGIN
+    DELETE FROM episode_snap_stats WHERE episode_id = OLD.episode_id;
 END""",
 }
 
@@ -356,7 +391,8 @@ TABLE_DDL['ad_patterns'] = """CREATE TABLE IF NOT EXISTS ad_patterns (
     community_last_confirmed_at TEXT,
     cleanup_reviewed_at TEXT,
     cleanup_reviewed_hash TEXT,
-    cleanup_stats_reviewed TEXT
+    cleanup_stats_reviewed TEXT,
+    audio_removed INTEGER NOT NULL DEFAULT 0
 )"""
 
 TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_corrections (
@@ -554,8 +590,40 @@ TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprin
     pattern_id INTEGER UNIQUE REFERENCES ad_patterns(id) ON DELETE CASCADE,
     fingerprint BLOB,
     duration REAL,
-    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    enabled INTEGER NOT NULL DEFAULT 1,
+    source_podcast_slug TEXT,
+    source_episode_id TEXT,
+    source_start REAL,
+    source_end REAL
 )"""
+
+TABLE_DDL['audio_fingerprint_matches'] = """CREATE TABLE IF NOT EXISTS audio_fingerprint_matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL,
+    podcast_slug TEXT NOT NULL,
+    match_start REAL NOT NULL,
+    match_end REAL NOT NULL,
+    similarity REAL,
+    coverage REAL,
+    in_scope INTEGER NOT NULL DEFAULT 1,
+    audio_only INTEGER,
+    rejected INTEGER NOT NULL DEFAULT 0,
+    rejected_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+)"""
+
+FINGERPRINT_MATCH_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_pattern "
+    "ON audio_fingerprint_matches(pattern_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_episode "
+    "ON audio_fingerprint_matches(podcast_slug, episode_id)",
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_created "
+    "ON audio_fingerprint_matches(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_rejected_at "
+    "ON audio_fingerprint_matches(rejected_at) WHERE rejected = 1",
+)
 
 TABLE_DDL['known_sponsors'] = """CREATE TABLE IF NOT EXISTS known_sponsors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -621,9 +689,11 @@ TABLE_DDL['auto_process_queue'] = """CREATE TABLE IF NOT EXISTS auto_process_que
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','completed','failed')),
     attempts INTEGER DEFAULT 0,
     error_message TEXT,
-    -- Dequeue priority (#625): higher runs first, ties broken by created_at ASC
+    -- Dequeue priority (#625): higher runs first, ties by the feed's queue_order (created_at when queued)
     priority INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    slot_created_at TEXT,
+    slot_id INTEGER,
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
     UNIQUE(podcast_id, episode_id)
@@ -788,12 +858,11 @@ TABLE_DDL['podping_hosts'] = """CREATE TABLE IF NOT EXISTS podping_hosts (
     ping_count INTEGER NOT NULL DEFAULT 0
 )"""
 
-# addressing_log: one row per detection/verification pass that judged at
-# least one window, recording whether the effective addressing mode's
-# contract was honored (random addressing mode A/B tracking). No FK on
-# podcast_slug -- same reasoning as ad_reviewer_log (see delete_podcast):
-# it's an analytics trail, not something that should vanish or get
-# reassigned to a different show when a slug is reused.
+# addressing_log: one row per detection/verification pass that judged a window,
+# recording whether the effective addressing mode's contract was honored (random
+# addressing mode A/B tracking). No FK on podcast_slug, as with ad_reviewer_log
+# (see delete_podcast): it is an analytics trail that must not vanish or move to
+# a different show when a slug is reused.
 TABLE_DDL['addressing_log'] = """CREATE TABLE IF NOT EXISTS addressing_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -889,6 +958,10 @@ PRAGMA journal_mode = WAL;
 
 """ + TABLE_DDL['episode_feed_details'] + """;
 
+""" + TABLE_DDL['episode_snap_stats'] + """;
+
+""" + TABLE_DDL['deferred_upgrade_steps'] + """;
+
 -- settings table (ad detection config, retention)
 """ + TABLE_DDL['settings'] + """;
 
@@ -957,6 +1030,8 @@ CREATE INDEX IF NOT EXISTS idx_failover_events_created
 
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
 """ + TABLE_DDL['audio_fingerprints'] + """;
+""" + TABLE_DDL['audio_fingerprint_matches'] + """;
+""" + ';\n'.join(FINGERPRINT_MATCH_INDEXES) + """;
 
 -- known_sponsors table (master sponsor list - single source of truth)
 """ + TABLE_DDL['known_sponsors'] + """;
@@ -990,6 +1065,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting ON episodes(sb_state) WHERE sb_state IN ('waiting','probing');
 CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodes_activity_at ON episodes(COALESCE(processed_at, updated_at));
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;

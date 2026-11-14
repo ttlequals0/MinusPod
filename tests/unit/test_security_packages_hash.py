@@ -82,3 +82,12 @@ def test_resolve_reports_label_mismatch(label, shown):
 def test_resolve_reports_digest_not_found():
     with patch.object(sph.subprocess, "run", return_value=fake_run(returncode=1)):
         assert "not found" in sph.resolve_errors("abc", DIGEST)[0]
+
+
+@pytest.mark.parametrize("other", [None, "old"])
+def test_resolve_checks_every_platform(other):
+    payload = {"linux/amd64": config("abc"), "linux/arm64": config(other)}
+    with patch.object(sph.subprocess, "run", return_value=fake_run(json.dumps(payload))):
+        assert sph.resolve_errors("abc", DIGEST) == [
+            f"Pinned digest {DIGEST} carries inputs hash {other or 'none'}, expected abc."
+        ]

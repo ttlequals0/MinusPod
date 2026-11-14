@@ -212,6 +212,7 @@ class TestCompletionPathWiring:
             db.get_episode.return_value = dict(
                 episode_row or {'reprocess_requested_at': None})
             db.get_podcast_by_slug.return_value = podcast_row
+            db.get_podcast_row.return_value = podcast_row
             db.get_setting.return_value = 'false'
             db.get_all_settings.return_value = {}
             audio_processor.get_audio_duration.return_value = 100.0
@@ -347,6 +348,8 @@ class TestFireLowAdYieldAction:
             db = p(processing, 'db')
             status_service = p(processing, 'status_service')
             db.get_podcast_by_slug.return_value = {'id': 1, 'slug': 'a-feed',
+                                                   'queue_priority': None}
+            db.get_podcast_row.return_value = {'id': 1, 'slug': 'a-feed',
                                                    'queue_priority': None}
             db.get_episode.return_value = dict(episode or self.EPISODE)
             db.get_recent_ad_yields.return_value = list(yields)
@@ -488,10 +491,8 @@ class TestFireLowAdYieldAction:
 
 
 class TestPublishStatusRunIdForwarding:
-    """_publish_status forwards run_id only to a target method whose
-    signature accepts it, so queue_episode (which never took it) is called
-    plainly instead of the hook raising (this is what queue_episode's own
-    run_id parameter used to work around)."""
+    """_publish_status forwards run_id only to a target method whose signature accepts it, so
+    queue_episode (which never took it) is called plainly."""
 
     def test_queue_episode_is_called_without_run_id_and_still_writes(
             self, tmp_path, monkeypatch):

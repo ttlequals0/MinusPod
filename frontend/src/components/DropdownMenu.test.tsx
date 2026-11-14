@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DropdownMenu from './DropdownMenu';
 import { DESKTOP, PHONE, rect, restoreViewport, setupPlacement } from '../test/placement';
@@ -28,6 +28,29 @@ afterEach(() => {
 });
 
 describe('DropdownMenu', () => {
+  it('renders an href item as a link and a destructive item in the destructive colour', async () => {
+    renderMenu({ items: [
+      { title: 'Export', href: '/export/1', onClick: vi.fn() },
+      { title: 'Delete', destructive: true, onClick: vi.fn() },
+    ] });
+    await openMenu();
+    expect(item('Export').tagName).toBe('A');
+    expect(item('Export').getAttribute('href')).toBe('/export/1');
+    expect(item('Delete').innerHTML).toContain('text-destructive');
+  });
+
+  it('closes the menu on a link item click without cancelling the default action', async () => {
+    const onClick = vi.fn();
+    renderMenu({ items: [{ title: 'Export', href: '/export/1', onClick }] });
+    await openMenu();
+    const link = item('Export');
+    const notPrevented = fireEvent.click(link);
+    expect(notPrevented).toBe(true);
+    expect(link.getAttribute('href')).toBe('/export/1');
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('closes an open menu when the trigger becomes disabled', async () => {
     const { rerender } = render(
       <DropdownMenu triggerLabel="Act" triggerClassName="" items={items} />);
@@ -150,5 +173,15 @@ describe('DropdownMenu', () => {
     await userEvent.click(item('One'));
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('names a disabled item by its title and describes it by its subtitle', async () => {
+    renderMenu({ items: [{ title: 'Regenerate', subtitle: 'LLM provider is set to None.', disabled: true, onClick: vi.fn() }] });
+    await openMenu();
+    const el = item('Regenerate');
+    expect(el.textContent).toContain('LLM provider is set to None.');
+    const desc = document.getElementById(el.getAttribute('aria-describedby') ?? '');
+    expect(desc?.textContent).toBe('LLM provider is set to None.');
+    expect(screen.queryByRole('menuitem', { name: /LLM provider/ })).toBeNull();
   });
 });

@@ -1,10 +1,6 @@
-"""Test that the /community-patterns/sync endpoint returns a soft 200
-when upstream has not yet published the manifest (404), rather than 502.
-
-We avoid spinning up the full main_app (which probes /app/data, queues,
-sentry, etc.) by invoking the route handler directly inside a Flask
-test_request_context.
-"""
+"""The /community-patterns/sync endpoint returns a soft 200 (not 502) when upstream has not
+published the manifest (404). The handler is called directly in a Flask test_request_context to
+avoid spinning up main_app."""
 import os
 import sys
 from unittest.mock import patch

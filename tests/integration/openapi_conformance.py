@@ -20,6 +20,9 @@ def response_schema(method, path_template, status=200):
     responses = paths[path_template][method.lower()]['responses']
     # YAML parses bare 200: keys as ints.
     content = responses.get(status) or responses.get(str(status)) or {}
+    ref = content.get('$ref', '')
+    if ref.startswith('#/components/responses/'):
+        content = _spec()['components']['responses'][ref.rsplit('/', 1)[1]]
     schema = content.get('content', {}).get('application/json', {}).get('schema')
     if schema is None:
         raise KeyError(f'{method.upper()} {path_template} has no {status} application/json schema')

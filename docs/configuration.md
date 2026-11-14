@@ -61,7 +61,21 @@ Customize ad detection in Settings:
 - **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)
 - **LLM Tunables** - See below
 
-Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI & Processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI and processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+
+### Audio fingerprinting
+
+Settings > AI and processing > Audio fingerprinting controls how stored ad fingerprints are matched against new episodes. It needs no model and stays enabled when the LLM provider is None. How fingerprints are made and matched is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints).
+
+| Setting | Meaning | Default | Allowed | Why this default |
+|---------|---------|---------|---------|------------------|
+| Enable audio fingerprinting | Turns fingerprint matching on or off for the install | On | On or off | Matching is cheap and needs no model |
+| Match strictness | Minimum similarity for a match | 65% | 65% to 95% | The value used before the setting existed. In synthetic tests a value below 65% had no measured effect on the matcher. Raising it gives fewer false matches and more missed repeats |
+| Minimum coverage | Share of the stored ad that must be found | 50% | 10% to 100% | Starting value. Applies to matches with under 20 s of matching evidence. A match with 20 s or more counts below it as a partial match, and only the matched part is cut. Plain or repetitive audio counts for less evidence than its length. At 100%, a match with under 20 s of evidence must find the whole stored ad, and matches with 20 s or more still count as partial |
+| Gap tolerance | Longest dropout bridged inside one match | 3.5 s | 0 to 15 s | Starting value. Raising it bridges longer dropouts such as a swapped-in sound, and a longer damaged stretch than this splits the match |
+| Minimum ad length | Shortest span that gets a fingerprint | 5 s | 3 to 30 s | The shortest span fingerprinted before the setting existed |
+
+A value outside the allowed range is rejected with a 400. Changes apply to later runs and to Re-detect ads. They never re-fingerprint ads that are already stored, and each setting has a reset to its default. The settings are included in configuration export and import. API: `fingerprintEnabled`, `fingerprintMatchStrictness`, `fingerprintMinCoverage`, `fingerprintGapToleranceS` and `fingerprintMinAdLengthS` on `PUT /api/v1/settings/ad-detection`.
 
 ### Seed sponsors
 
@@ -75,14 +89,14 @@ The ad reviewer is an opt-in third LLM stage that sits between detection and aud
 
 When to enable it:
 
-- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
+- Comedy and fiction podcasts that include in-bit fake sponsor reads (the torture test for this feature)
 - News shows that read sponsor-adjacent copy editorially without it actually being an ad break
 - Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
 - Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
 
 Cost is one extra LLM call per detected ad, and one extra call per rejected detection in the resurrection band.
 
-Settings live under AI & Processing -> Ad Reviewer:
+Settings live under AI and processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
 - **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Provider A` or `Provider B` to run the reviewer on that slot instead, such as detection on Provider A with review on a cheaper Provider B account
@@ -98,7 +112,7 @@ Reviewer activity surfaces in two places:
 
 ### Text recurrence hints
 
-Settings > AI & Processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
+Settings > AI and processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
 
 Off by default. API: `PUT /api/v1/settings/ad-detection` with `textRecurrenceHints` (boolean).
 
@@ -251,7 +265,7 @@ Each of Provider A, Provider B, and the LLM failover provider has its own reques
 
 Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. A max-retries value of 0 sends exactly one request and also skips the two per-window retries, so a failing call reaches the failover provider without delay. Each slot reads its own override, whichever slot a stage uses. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
-Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > Failover, including when the active transcriber runs locally.
+Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > AI and processing > Failover, including when the active transcriber runs locally.
 
 ### Rotating or clearing a provider key
 
@@ -277,7 +291,7 @@ Provider admission reserves budget before a run starts and reconciles it afterwa
 
 Admission is cautious the same way. A run whose cost cannot be estimated is denied admission by default; the behavior is configurable to allow it outright, or to allow it against a fixed fallback reservation. A run abandoned by a dead worker is also settled as uncertain rather than released whenever it had already attempted a provider call.
 
-If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI & Processing > AI Models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
+If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI and processing > AI Models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
 
 ### Which run a cost figure describes
 
@@ -361,6 +375,8 @@ Automatic changes only ever raise a queued episode's priority: pressing play on 
 You can override that by hand. Each row on the **Queue** page has -/+ buttons that can raise or lower its priority. The endpoint is `POST /api/v1/feeds/{slug}/episodes/{episodeId}/queue-priority`. Re-enqueueing the episode with a higher computed priority still overwrites a hand-set value, and so does a change to the feed's own Queue priority.
 
 Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the boost sizes are `queueManualBoost`, `queueFreshBoost`, and `queueBulkBoost` (0-100) and the toggle is `processNewEpisodesFirst`, all on `PUT /api/v1/settings`.
+
+Within one feed and one priority you can choose the order episodes run in. `As queued` keeps the order they were queued in, `Oldest first` and `Newest first` follow the publish date, and episodes without a publish date go last. The feed's episodes keep the same places in the queue; the order only decides which of them takes each place, so other feeds are not moved and priorities still come first. Set the default under Queue control on the Queue page and override it per feed. A change applies to episodes already waiting. While some episodes are held (a rate limit or the processing schedule), the first row of the Processing Queue list may not be the next one processed. API: `queueOrder` (`queued`, `oldest_first`, or `newest_first`) on `PUT /api/v1/settings/ad-detection`, and `queueOrder` (the same values, or `null` to follow the default) on `PATCH /api/v1/feeds/{slug}`.
 
 ### Title blacklist
 
@@ -652,7 +668,7 @@ The rate-limit hold above reacts to a 429 after it happens. Manual request-rate 
 
 Limits are scoped to one provider account, meaning one credential slot on one provider type: Provider A and Provider B count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
 
-All are off by default (0 means unlimited). Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+All are off by default (0 means unlimited). Configure them under **Settings > AI and processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
 
 - `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
 - `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.

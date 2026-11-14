@@ -1,9 +1,6 @@
 /**
  * TypeScript port of src/utils/community_tags.py:slugify and expected_filename.
- *
- * Must stay byte-for-byte equivalent. Regression check lives at
- * frontend/scripts/check-slug.mjs; the backend test suite also asserts
- * the canonical outputs the JS side relies on.
+ * Must stay byte-for-byte equivalent; checked by frontend/scripts/check-slug.mjs.
  */
 
 export function slugify(name: string): string {

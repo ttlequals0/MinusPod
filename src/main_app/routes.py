@@ -80,11 +80,9 @@ refresh_logger = logging.getLogger('podcast.refresh')
 # Import shared warn-dedup set so routes and processing share one instance
 from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
 from main_app.shared_state import episode_lookup_cache, episode_lookup_key
-# Singletons created in main_app/__init__.py before this submodule is
-# loaded by the explicit `from main_app.routes import register_routes`
-# in that file, so importing them here at module level is safe. Replaces
-# the positional 4-tuple from _get_components() that the audit flagged
-# as silently break-on-reorder.
+# Singletons are created in main_app/__init__.py before it imports this module
+# (`from main_app.routes import register_routes`), so a module-level import is
+# safe. Replaces the positional tuple from _get_components().
 from main_app import db, storage, rss_parser, status_service
 from main_app.feed_auth import (
     KEY_RE, SUBSCRIBER_KEY_RE, active_feed_key, feed_auth_enabled,
@@ -139,11 +137,11 @@ def _personalize_rss_for_subscriber(cached_rss: str) -> str:
         abort(503, description='cannot safely personalize scoped RSS')
     return rss
 
-# Endpoints served to podcast apps and other unauthenticated clients. None of
-# them can use a CSRF token, and minting one writes the session, which adds a
-# session cookie and `Vary: Cookie` that stops any CDN from caching the
-# response. The after_request hook in main_app/__init__.py skips them.
-# serve_ui is deliberately absent: the SPA reads the CSRF cookie from JS.
+# Endpoints served to podcast apps and other unauthenticated clients. None can
+# use a CSRF token, and minting one writes the session, adding a cookie and
+# `Vary: Cookie` that stops CDN caching. The after_request hook in
+# main_app/__init__.py skips them. serve_ui is absent on purpose: the SPA reads
+# the CSRF cookie from JS.
 PUBLIC_FEED_ENDPOINTS = frozenset({
     'serve_rss',
     'serve_episode',
@@ -230,20 +228,19 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     episode_dict keys: url, title, description, artwork_url, published.
     Falls back to database if episode is not in the upstream RSS feed.
 
-    Hits are cached for EPISODE_LOOKUP_TTL_SECONDS. A podcast client HEADs
-    every unprocessed episode on each of its refreshes, and without this
-    each one refetches and reparses the whole upstream feed. Misses are not
-    cached: a feed caught mid-publish would otherwise 404 for the full TTL.
+    Hits are cached for EPISODE_LOOKUP_TTL_SECONDS: a podcast client HEADs every
+    unprocessed episode on each refresh, and each would otherwise refetch and
+    reparse the whole upstream feed. Misses are not cached, or a feed caught
+    mid-publish would 404 for the full TTL.
     """
     cache_key = episode_lookup_key(slug, episode_id)
     cached = episode_lookup_cache.get(cache_key)
     if cached is not None:
         return cached
 
-    # Local feeds have no upstream to fetch (source_url is the
-    # local://<slug> sentinel, not a real address); go straight to the DB
-    # fallback below. Also avoids an SSRF-blocked fetch_feed call on every
-    # lookup.
+    # Local feeds have no upstream (source_url is the local://<slug> sentinel),
+    # so go straight to the DB fallback below; this also avoids an SSRF-blocked
+    # fetch_feed call on every lookup.
     podcast = db.get_podcast_by_slug(slug)
     # An unknown row keeps the historical fetch; local, recents and YouTube rows have no RSS to fetch.
     original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'], podcast=podcast)
@@ -277,10 +274,9 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
             'artwork_url': episode.get('artwork_url'),
             'published': episode.get('published_at'),
         }, episode.get('podcast_title', 'Unknown'))
-        # Cache only when upstream really answered and lacks the episode.
-        # A transient fetch failure (timeout, 5xx, open breaker) also lands
-        # here, and caching then would pin the discovery-time URL for the
-        # full TTL when upstream may recover in seconds.
+        # Cache only when upstream really answered and lacks the episode. A
+        # transient fetch failure (timeout, 5xx, open breaker) also lands here,
+        # and caching it would pin the discovery-time URL for the full TTL.
         if original_feed:
             episode_lookup_cache.set(cache_key, result)
         return result
@@ -291,8 +287,8 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
 def _head_upstream(slug, episode_id, original_url):
     """Proxy a HEAD request to the upstream audio URL.
 
-    Audio enclosures are FEED_CONTENT: private addresses are refused
-    both on the initial URL and on every redirect hop.
+    Audio enclosures are FEED_CONTENT: private addresses are refused on the
+    initial URL and on every redirect hop.
     """
     try:
         resp = safe_head(
@@ -395,22 +391,19 @@ def _record_download(slug, episode_id):
 
 
 def _local_original_response(slug, episode_id, requested_version=None):
-    """200 with the best available audio for a local-feed episode that
-    isn't PROCESSED right now, instead of the 503/410 that would otherwise
-    be returned.
+    """200 with the best available audio for a local-feed episode that isn't PROCESSED right now.
 
-    Reprocess window: status can read pending/processing/failed while an
-    earlier version's cut is still sitting on disk (e.g. a second reprocess
-    was just requested; the first reprocess's output is untouched until
-    this run finishes). That already-cut file must be preferred over the
-    raw, ad-laden original -- serving the original here would hand
-    listeners an ad-laden episode for as long as every reprocess takes,
-    which is strictly worse than the 503 this function exists to avoid.
-    Tries the exact version the URL requested first (a client with a
-    stale versioned RSS URL), then whatever processed_version the DB
-    currently has, and only falls back to the retained original when
-    neither processed file exists. Returns None (caller falls back to its
-    normal response) when nothing at all is retained.
+    Replaces the 503/410 that would otherwise be returned.
+
+    Reprocess window: status can read pending/processing/failed while an earlier
+    version's cut is still on disk (e.g. a second reprocess was requested; the
+    first one's output is untouched until this run finishes). That cut file is
+    preferred over the raw ad-laden original, which would hand listeners ads for
+    as long as the reprocess takes, strictly worse than the 503 this avoids.
+    Tries the exact version the URL requested (a client with a stale versioned
+    RSS URL), then the DB's current processed_version, and falls back to the
+    retained original only when neither exists. Returns None (caller falls back
+    to its normal response) when nothing is retained.
     """
     episode = db.get_episode(slug, episode_id)
     # A gated episode must not fall back to its original while it reprocesses.
@@ -485,10 +478,9 @@ def register_routes(app):
     def serve_ui(path=''):
         """Serve React UI static files.
 
-        Cache headers are tuned per file class: Vite-fingerprinted
-        ``assets/*`` are treated as immutable (1 year); ``index.html``
-        must revalidate on every load so the next deploy is picked up;
-        everything else gets a modest 1 hour cap.
+        Cache headers vary per file class: Vite-fingerprinted ``assets/*`` are
+        immutable (1 year); ``index.html`` must revalidate on every load so a
+        deploy is picked up; everything else gets a 1 hour cap.
         """
         if not STATIC_DIR.exists():
             return "UI not built. Run 'npm run build' in frontend directory.", 404
@@ -553,11 +545,10 @@ def register_routes(app):
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            # Do NOT trigger a full refresh on every unknown slug. External
-            # bots probe random slugs (`/foo`, `/.hidden`, `/etc`, ...) and
-            # each probe would otherwise fire an outbound request per
-            # subscribed feed. The scheduled refresher keeps feed_map
-            # current on its own interval; a bogus slug just 404s.
+            # Do not trigger a full refresh on every unknown slug: bots probe
+            # random slugs and each probe would fire an outbound request per
+            # subscribed feed. The scheduled refresher keeps feed_map current; a
+            # bogus slug just 404s.
             feed_logger.info(f"[{slug}] Feed not found (no refresh-on-miss)")
             abort(404)
 
@@ -588,12 +579,11 @@ def register_routes(app):
                     f"({cached_base} != {current_base}), forcing refresh"
                 )
             else:
-                # Same self-heal for the feed auth key: an enable, disable,
-                # or rotation re-renders on the first fetch that passes the
-                # key gate. The extractor also reads the badged cover token,
-                # so episode-less feeds heal too; the keyable-URL guard
-                # (enclosures or cover present) keeps a feed with nothing to
-                # re-key from force-refreshing forever, and the cheap
+                # Same self-heal for the feed auth key: an enable, disable or rotation
+                # re-renders on the first fetch that passes the key gate. The
+                # extractor also reads the badged cover token, so episode-less feeds
+                # heal too; the keyable-URL guard (enclosures or cover present) stops
+                # a feed with nothing to re-key force-refreshing forever, and cheap
                 # substring checks keep the regex off the common path.
                 active_key = active_feed_key(db)
                 if ((active_key or '?key=' in cached_rss)
@@ -623,10 +613,9 @@ def register_routes(app):
                 refresh_rss_feed(slug, feed_map[slug]['in'], force=force_refresh)
                 cached_rss = storage.get_rss(slug)
             else:
-                # Stale-while-revalidate: valid cached RSS exists, only the
-                # 15-min freshness window lapsed. Serve the cached bytes now
-                # and refresh in the background instead of blocking the
-                # subscriber on the upstream fetch + rebuild.
+                # Stale-while-revalidate: valid cached RSS exists and only the
+                # 15-min freshness window lapsed. Serve the cache now and refresh
+                # in the background instead of blocking on the upstream fetch.
                 feed_logger.info(
                     f"[{slug}] Serving cached RSS, refresh kicked to background")
                 _kick_background_refresh(slug, feed_map[slug]['in'])
@@ -652,9 +641,8 @@ def register_routes(app):
         """Serve processed episode audio (JIT processing).
 
         Two URL shapes are accepted:
-        - ``/episodes/<slug>/<episode_id>.mp3`` (legacy, unversioned) serves
-          whatever ``processed_version`` the DB currently has. Kept working so
-          clients with stale RSS URLs still receive the latest cut.
+        - ``/episodes/<slug>/<episode_id>.mp3`` (legacy, unversioned) serves the
+          DB's current ``processed_version``, so stale RSS URLs get the latest cut.
         - ``/episodes/<slug>/<episode_id>-v<N>.mp3`` serves that exact version
           if the file exists, or the current version as a fallback.
         """
@@ -688,10 +676,8 @@ def register_routes(app):
                 status = None
 
         # Fetched once and reused below (status branches, HEAD branch,
-        # title-blacklist guard) rather than re-querying per branch.
-        # Deliberately placed after the PROCESSED fast-return above: that
-        # branch is the hottest path in the app and must not pay for a
-        # podcast row it never uses.
+        # title-blacklist guard). Placed after the PROCESSED fast-return above,
+        # the hottest path in the app, which must not pay for a row it never uses.
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
 
@@ -843,12 +829,11 @@ def register_routes(app):
                 headers={'Retry-After': '30'}
             )
         else:
-            # Queue is busy: this has to reach the real work queue the drainer
-            # reads, not only the status file the UI shows. The user-intent
-            # mark is what gets it past the drainer's auto-process gate on a
-            # feed with auto-process off.
-            # Never over an existing stamp: relabelling a person's reprocess
-            # as a play request would let automatic policies act on their run.
+            # Queue is busy: this must reach the real work queue the drainer reads,
+            # not only the status file the UI shows. The user-intent mark gets it
+            # past the drainer's auto-process gate on a feed with auto-process off.
+            # Never over an existing stamp: relabelling a person's reprocess as a
+            # play request would let automatic policies act on their run.
             if not serves_own_audio:
                 _stamp_jit_play(slug, episode_id, episode)
             feed_priority = db.get_podcast_queue_priority(slug)
@@ -888,9 +873,8 @@ def register_routes(app):
             abort(404)
 
         feed_logger.info(f"[{slug}:{episode_id}] Serving VTT transcript")
-        # Podcasting 2.0 clients fetch transcripts cross-origin from a
-        # different podcast-player host; Access-Control-Allow-Origin: *
-        # is intentional here and matches the spec-standard behavior.
+        # Podcasting 2.0 clients fetch transcripts cross-origin from the player
+        # host; Access-Control-Allow-Origin: * is intentional and spec-standard.
         # No credentials are involved; the endpoint carries no session.
         response = Response(vtt_content, mimetype='text/vtt')
         response.headers['Access-Control-Allow-Origin'] = '*'
@@ -951,8 +935,8 @@ def register_routes(app):
     def serve_episode_artwork(slug, episode_id):
         """Serve a cached per-episode cover art (local feeds; issue #617).
 
-        Never fetches on demand -- the cache is populated out of band. 404
-        when nothing is cached, same as the transcript/chapters routes.
+        Never fetches on demand: the cache is populated out of band. 404 when
+        nothing is cached, same as the transcript/chapters routes.
         """
         result = storage.episode_artwork_file(slug, episode_id)
         if not result:
@@ -967,11 +951,11 @@ def register_routes(app):
     def serve_opml(mode):
         """Serve the feed list as OPML for podcast apps' import-from-URL.
 
-        App-level (public feed domain). The auth is inlined (not the shared
-        @require_feed_key) on purpose: this route must 404 when feed auth is
-        off, not serve keyless like the RSS routes. active_feed_key is read
-        ONCE and drives everything, so an enable/disable toggle mid-request
-        can never let a keyless caller reach the keyed feed list.
+        App-level (public feed domain). Auth is inlined, not the shared
+        @require_feed_key, because this route must 404 when feed auth is off
+        instead of serving keyless like the RSS routes. active_feed_key is read
+        once and drives everything, so a mid-request toggle cannot let a keyless
+        caller reach the keyed feed list.
         """
         if mode not in ('modified', 'original'):
             abort(404)
@@ -990,7 +974,7 @@ def register_routes(app):
                 f"[{client_ip()}]")
             abort(401)
         base_url = os.getenv('BASE_URL', 'http://localhost:8000')
-        xml = build_opml_xml(db.get_all_podcasts(), mode, base_url, key)
+        xml = build_opml_xml(db.get_all_podcast_rows(), mode, base_url, key)
         feed_logger.info(f"Served OPML via URL (mode={mode})")
         # mimetype (not content_type): Werkzeug appends charset=utf-8 for
         # text/*; passing the charset here too would double it.
@@ -1004,22 +988,20 @@ def register_routes(app):
     @require_feed_key
     @log_request_detailed
     def serve_minuspod_cover(slug, token=None):
-        """Serve the MinusPod-badged cover art (issue #420). This is podcast-level
-        artwork, so the served feed points its channel image at the podcast-level
-        path /<slug>/cover-minuspod-<token>.jpg when the watermark setting is on.
-        The <token> is a content hash that cache-busts a changed cover/badge while
-        keeping the URL ending in .jpg (podcast apps reject a query-string token);
-        it is ignored for serving, since the current variant always matches the
-        current token. The token-less and /episodes/ paths stay as back-compat
-        aliases for apps that cached a previous URL.
+        """Serve the MinusPod-badged podcast-level cover art (issue #420).
 
-        Falls back to the plain (unbadged) source cover -- via
-        storage.get_artwork -- when the watermark setting is off or when
-        compositing the badge failed, so a local feed with the setting off
-        serves its real cover here (its channel <image> always points at
-        this route, unlike a subscribed feed which can fall back to the
-        upstream URL instead), and a compositing failure never 404s a feed
-        that does have artwork cached.
+        The served feed points its channel image at /<slug>/cover-minuspod-<token>.jpg
+        when the watermark setting is on. The <token> is a content hash that
+        cache-busts a changed cover/badge while the URL still ends in .jpg (podcast
+        apps reject query-string tokens); it is ignored for serving, since the
+        current variant always matches. The token-less and /episodes/ paths stay
+        as back-compat aliases for apps that cached an earlier URL.
+
+        Falls back to the plain source cover via storage.get_artwork when the
+        watermark setting is off or compositing failed: a local feed's channel
+        <image> always points at this route (unlike a subscribed feed, which can
+        use the upstream URL), and a compositing failure must not 404 a feed with
+        cached artwork.
         """
         result = None
         if db.get_setting_bool('artwork_watermark_enabled', False):

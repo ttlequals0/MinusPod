@@ -1,19 +1,17 @@
 """Allowlist for the scrubbed demo snapshot: tables, columns and settings.
 
 A column list is the set of columns kept; an empty list means the table is
-emptied (DELETE FROM) and kept. Columns that need value rewriting
-(source_url, client_ip, last_request_*, secret_hash, label) are kept here and
-rewritten by the snapshot script.
+emptied (DELETE FROM) and kept. Columns needing value rewriting (source_url,
+client_ip, last_request_*, secret_hash, label) are kept here and rewritten by the
+snapshot script.
 
-Where snapshot.py deviates from the plain "rewrite" described above:
-secret_hash becomes 64 zeros (CHECK length = 64); episode_downloads
-last_request_line and last_request_headers are set NULL (the request line
-carries feed keys; the frontend renders null); settings upserts set
-is_default = 0; tables in the source that are not listed here are emptied and
-listed by --report-unclassified.
+snapshot.py deviates from plain "rewrite": secret_hash becomes 64 zeros (CHECK
+length = 64); episode_downloads last_request_line and last_request_headers are set
+NULL (the request line carries feed keys); settings upserts set is_default = 0;
+tables not listed here are emptied and listed by --report-unclassified.
 
-The settings table is row-filtered by DEMO_SETTINGS_ALLOW in snapshot.py
-(Task 3); system_settings keeps every row (production holds only
+The settings table is row-filtered by DEMO_SETTINGS_ALLOW in snapshot.py;
+system_settings keeps every row (production holds only
 processing_admission_paused and startup_backfills_version).
 """
 import sqlite3
@@ -28,7 +26,8 @@ _EMPTIED = (
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
     'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
     'search_index_changes', 'search_index', 'text_patterns',
-    '_orphaned_audio_fingerprints', 'episode_feed_details',
+    '_orphaned_audio_fingerprints', 'episode_feed_details', 'episode_snap_stats',
+    'audio_fingerprint_matches', 'deferred_upgrade_steps',
 )
 
 # Dropped before export; startup recreates them.
@@ -46,6 +45,9 @@ _DROP = {
     'llm_call_usage': ('rate_snapshot',),
     'systemone_call_diagnostics': ('diagnostics_json',),
     'pattern_cleanup_runs': ('error',),
+    'audio_fingerprints': (
+        'source_podcast_slug', 'source_episode_id', 'source_start', 'source_end',
+    ),
 }
 
 # Kept columns for tables that keep only a subset.
@@ -132,6 +134,7 @@ PODCAST_REF: dict[str, tuple[str, str]] = {
     'pattern_cleanup_checks': ('podcast_slug', 'slug'),
     'pattern_cleanup_deleted_actions': ('podcast_slug', 'slug'),
     'addressing_log': ('podcast_slug', 'slug'),
+    'audio_fingerprint_matches': ('podcast_slug', 'slug'),
 }
 
 # Table -> (podcast column, episode column, podcast key kind) for rows keyed by
@@ -153,9 +156,9 @@ EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'addressing_log': ('podcast_slug', 'episode_id', 'slug'),
 }
 
-# -- Settings classification: manual pass over SETTINGS_REGISTRY, grouped by
-# the registry's own headings. Keys in no list below are denied by the regex
-# in the tests (credentials, URLs, auth) or listed in DEMO_SETTINGS_EXCLUDE.
+# Settings classification: manual pass over SETTINGS_REGISTRY, grouped by the
+# registry's own headings. Keys in no list below are denied by the regex in the
+# tests (credentials, URLs, auth) or listed in DEMO_SETTINGS_EXCLUDE.
 
 _ALLOW_PROMPTS = (
     'system_prompt', 'verification_prompt', 'review_prompt', 'resurrect_prompt',
@@ -176,7 +179,8 @@ _ALLOW_GENERAL = (
     'retention_period_minutes', 'keep_original_audio', 'max_feed_episodes',
     'segment_category_actions', 'community_sync_categories',
     'rss_refresh_interval_minutes', 'queue_manual_boost', 'queue_fresh_boost',
-    'queue_bulk_boost', 'podping_enabled', 'only_expose_processed_default',
+    'queue_bulk_boost', 'queue_order', 'session_lifetime_hours', 'session_remember_days',
+    'podping_enabled', 'only_expose_processed_default',
     'feed_itunes_block', 'require_manual_approval_default',
     'whats_new_on_upgrade', 'detect_show_segments', 'seed_sponsors_detection',
     'seed_sponsors_verification', 'seed_sponsors_reviewer',
@@ -237,6 +241,11 @@ _ALLOW_AUDIO_CUE = (
     'audio_cue_pair_max_break_fraction', 'audio_cue_pair_orient_window_seconds',
 )
 
+_ALLOW_FINGERPRINT = (
+    'fingerprint_enabled', 'fingerprint_match_strictness', 'fingerprint_min_coverage',
+    'fingerprint_gap_tolerance_s', 'fingerprint_min_ad_length_s',
+)
+
 _ALLOW_SILENCE_SNAP = (
     'silence_snap_noise_db', 'silence_snap_min_duration_seconds',
     'silence_snap_max_distance_seconds',
@@ -260,14 +269,13 @@ _ALLOW_STAGE_TUNABLES = (
 DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(
     _ALLOW_PROMPTS + _ALLOW_PATTERN_CLEANUP + _ALLOW_AD_REVIEWER + _ALLOW_GENERAL
     + _ALLOW_AUDIO_OUTPUT + _ALLOW_TRANSCRIPTION + _ALLOW_WHISPER + _ALLOW_VAD
-    + _ALLOW_LLM_PROVIDER + _ALLOW_AUDIO_CUE + _ALLOW_SILENCE_SNAP
+    + _ALLOW_LLM_PROVIDER + _ALLOW_AUDIO_CUE + _ALLOW_FINGERPRINT + _ALLOW_SILENCE_SNAP
     + _ALLOW_DETECTION_TUNING + _ALLOW_STAGE_TUNABLES
 )
 
-# Registry keys neither allowed nor matched by the credential/URL deny regex.
-# Dropped on purpose: provider, model and failover wiring, spend and rate
-# limits, per-operator identifiers and runtime state. The demo falls back to
-# registry defaults for these.
+# Registry keys neither allowed nor matched by the credential/URL deny regex,
+# dropped on purpose (provider/model/failover wiring, spend and rate limits,
+# per-operator identifiers, runtime state). The demo uses registry defaults.
 DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     # Models and failover wiring
     'claude_model', 'verification_model', 'chapters_model', 'detection_provider',
@@ -309,7 +317,7 @@ DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     'whisper_pool_max_episodes', 'whisper_backend', 'whisper_api_model',
     'whisper_compute_type',
     # LLM provider wiring, user agents, limits, yt-dlp state
-    'omit_temperature', 'llm_json_schema_enabled', 'llm_provider',
+    'omit_temperature', 'llm_json_schema_enabled', 'llm_provider', 'llm_pre_none_identity',
     'ad_detection_parallel_windows', 'ad_reviewer_parallel_ads',
     'reviewer_calibration_on_change', 'download_user_agent', 'feed_user_agent',
     'log_download_query', 'max_artwork_bytes', 'max_rss_bytes',

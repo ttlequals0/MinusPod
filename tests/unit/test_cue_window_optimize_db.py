@@ -1,8 +1,5 @@
-"""Unit tests for the cue_window_optimize_scans DB state machine (D2a).
-
-Mirrors test_cue_cross_episode_scan_db.py but for the new family keyed by
-template_id alone (single integer PK), not (podcast_id, episode_set_hash).
-"""
+"""cue_window_optimize_scans DB state machine (D2a); mirrors test_cue_cross_episode_scan_db.py but keyed by
+template_id alone (single integer PK), not (podcast_id, episode_set_hash)."""
 import json
 
 

@@ -10,17 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 def snapshot_database(db, backup_path: str | Path, tighten_dir_perms: bool = True) -> str:
-    """Write a consistent snapshot of ``db`` to ``backup_path`` via the
-    SQLite online backup API.
+    """Write a consistent snapshot of ``db`` to ``backup_path`` via the SQLite online backup API.
 
-    Creates parent directories and writes the file with mode ``0o600`` so a
-    dump that contains provider secrets can't be read by other UIDs on the
-    host. Removes partially-written backup files on failure so callers don't
-    have to reason about half-written snapshots.
+    Creates parent directories and writes mode ``0o600`` (the dump holds provider secrets).
+    Partially-written files are removed on failure.
 
-    ``tighten_dir_perms`` (default True) chmods the parent directory to
-    ``0o700``. Callers that write into a user-chosen destination pass False so a
-    pre-existing shared directory (e.g. a NAS mount) keeps its own permissions.
+    ``tighten_dir_perms`` chmods the parent to ``0o700``; pass False for a user-chosen
+    destination (e.g. a NAS mount) so its permissions stay.
     """
     path = Path(backup_path)
     path.parent.mkdir(parents=True, exist_ok=True)

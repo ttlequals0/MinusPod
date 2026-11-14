@@ -5,6 +5,5 @@ export const subHeading = 'text-sm font-semibold text-foreground';
 export const cardPad = 'p-4';
 export const sectionPad = 'p-6';
 export const pageDescription = 'mt-1 text-sm text-muted-foreground';
-export const summaryCard = 'flex min-w-0 flex-col items-start justify-start rounded-lg border p-4 text-left';
+export const summaryCard = 'row-span-3 grid min-w-0 grid-rows-subgrid justify-items-start gap-y-0 rounded-lg border p-4 text-left';
 export const summaryValue = 'text-xl font-bold tabular-nums';
-export const summaryLabel = 'text-xs text-muted-foreground';

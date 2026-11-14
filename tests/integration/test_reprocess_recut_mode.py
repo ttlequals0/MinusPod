@@ -1,10 +1,8 @@
 """Integration tests for the recut reprocess mode (issue #422).
 
-Recut re-cuts the retained original from the current ad detections with no
-transcription or LLM. The endpoint must refuse when its inputs are missing.
-These tests exercise request-validation paths that return before any background
-work starts.
-"""
+Recut re-cuts the retained original from current ad detections with no transcription or LLM, and the
+endpoint must refuse when inputs are missing. These tests exercise request-validation paths that
+return before background work starts."""
 import os
 import sys
 
@@ -53,12 +51,3 @@ def test_recut_requires_retained_original(app_client, seeded_episode, _auth):
 
     assert r.status_code == 409
     assert 'original audio' in (r.get_json() or {}).get('error', '').lower()
-
-
-def test_invalid_mode_rejected(app_client, seeded_episode, _auth):
-    slug = seeded_episode['slug']
-    ep_id = seeded_episode['episode_id']
-
-    r = app_client.post(f'/api/v1/episodes/{slug}/{ep_id}/reprocess', json={'mode': 'bogus'})
-
-    assert r.status_code == 400

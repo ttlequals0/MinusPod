@@ -1,12 +1,10 @@
 """HTTPAdapter that pins the DNS resolution used for the actual connect.
 
-Closes the SSRF DNS-rebinding TOCTOU: validate_url vetted the addresses a
-hostname resolved to, but requests resolved it again at connect time, so a
-flipping record could pass validation with a public IP and connect to a
-private one. Each request and redirect hop now resolves once, validates every
-returned address, and connects to the validated addresses in order (falling
-back to the next one only when a connect fails), while request.url keeps the
-hostname and SNI plus certificate verification stay on it too.
+Closes the SSRF DNS-rebinding TOCTOU: requests re-resolved a hostname at connect time,
+so a flipping record could pass validate_url with a public IP and connect to a private
+one. Each request and redirect hop resolves once, validates every address, and connects
+to them in order (next one only on connect failure); request.url keeps the hostname,
+and SNI and certificate verification stay on it.
 """
 from __future__ import annotations
 
@@ -67,10 +65,8 @@ class PinnedHTTPAdapter(HTTPAdapter):
             request.headers["Host"] = f"{host}{suffix}"
             self._injected_host = True
 
-        # Connect fallback: every address here already passed SSRF validation,
-        # so a dead first address may fail over to the next instead of failing
-        # the whole request. ConnectTimeout subclasses ConnectionError, and
-        # neither is raised once a response has been received.
+        # Every address here passed SSRF validation, so a dead first one may fail over.
+        # ConnectTimeout subclasses ConnectionError; neither is raised after a response.
         first_error = None
         for ip in addresses:
             self._pin = (host, ip)

@@ -1,7 +1,5 @@
 /**
- * Render tests for the "Version" column on the Processing History table
- * (2.78.4): the app_version stamped per processing run, shown as "-" for
- * rows recorded before the column existed.
+ * "Version" column on the Processing History table (2.78.4): the per-run app_version, "-" for older rows.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -164,6 +162,21 @@ describe('HistoryPage: failure reason', () => {
     const badges = await screen.findAllByText('Failed');
     const titles = badges.map((el) => el.closest('[title]')?.getAttribute('title'));
     expect(titles).toContain('Processing failed');
+  });
+});
+
+describe('HistoryPage summary tiles', () => {
+  it('makes Completed and Failed buttons that are direct tiles and toggle the filter', async () => {
+    const user = userEvent.setup();
+    renderPage([makeEntry()]);
+    const completed = await screen.findByRole('button', { name: /Completed/ });
+    expect(completed.classList.contains('row-span-3')).toBe(true);
+    expect(completed.getAttribute('aria-pressed')).toBe('false');
+    await user.click(completed);
+    expect(screen.getByRole('button', { name: /Completed/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Failed/ }).getAttribute('aria-pressed')).toBe('false');
+    await user.click(screen.getByRole('button', { name: /Completed/ }));
+    expect(screen.getByRole('button', { name: /Completed/ }).getAttribute('aria-pressed')).toBe('false');
   });
 });
 

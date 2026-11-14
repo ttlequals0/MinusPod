@@ -1,9 +1,6 @@
-"""Content-based ad boundary extension (extend_ad_boundaries_by_content).
-
-Covers the tail-completion behaviors: the sandwich rule (connector segments
-between sponsor mentions don't stop the end walk), phone-number CTA patterns,
-and the end-only mode used by the post-reviewer pass.
-"""
+"""Content-based ad boundary extension (extend_ad_boundaries_by_content): the sandwich rule
+(connector segments between sponsor mentions don't stop the end walk), phone-number CTA patterns,
+and the end-only mode used by the post-reviewer pass."""
 
 import pytest
 
@@ -341,7 +338,7 @@ def test_end_walk_stops_after_consecutive_non_ad_segments():
 
 
 def test_end_walk_ignores_segments_beyond_max_window():
-    # Qualifying segment starts past BOUNDARY_EXTENSION_MAX (30s) -- not swept.
+    # Qualifying segment starts past BOUNDARY_EXTENSION_MAX (30s), so it is not swept.
     segments = [
         _seg(95.0, 120.0, 'sponsor copy ends here'),
         _seg(120.0, 126.0, 'go to example dot com'),

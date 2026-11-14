@@ -1,9 +1,6 @@
 """Configurable pattern duration bounds and the split-instead-of-drop path.
 
-A feed whose ad blocks run past the ceiling used to teach the matcher nothing:
-26 spans between 120s and 442s were dropped in 8 hours on one instance. The
-bounds are now settings, and a span over the ceiling is split at its ad
-transitions so each read is learned on its own.
+A span over the ceiling is split at its ad transitions so each read is learned on its own.
 """
 import os
 import sys
@@ -32,10 +29,8 @@ ONE_AD = (
     "BetterHelp matches you in 24 hours."
 )
 
-# Two reads joined by a transition phrase, the shape the ceiling is meant to
-# catch and the shape build_split_candidates can cut.
-# Each read carries its own domain: extract_sponsor_from_text keys on one, and
-# a piece with no sponsor of its own is skipped rather than mislabeled.
+# Two reads joined by a transition phrase, the shape build_split_candidates can cut. Each read carries its
+# own domain because extract_sponsor_from_text keys on one and a piece with no sponsor is skipped.
 TWO_ADS = (
     "BetterHelp therapy can help you live a more empowered life. "
     "Visit betterhelp.com/show to start with a licensed therapist today. "
@@ -122,8 +117,7 @@ def test_ordinary_span_creates_exactly_one_pattern(db):
 def test_standard_opener_is_not_read_as_two_transitions(db):
     """"This episode is brought to you by" also contains "brought to you by".
 
-    Counting phrase-list entries scored the most common opener in podcasting
-    as two transitions, so every read using it was dropped as contaminated.
+    Counting phrase-list entries would score that common opener as two transitions and drop the read.
     """
     matcher = TextPatternMatcher(db=db)
     text = ("This episode is brought to you by BetterHelp. "

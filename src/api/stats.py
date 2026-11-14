@@ -25,9 +25,8 @@ _DATE_PARAM_ERROR = ("{name} must be a date (YYYY-MM-DD) or an ISO 8601 "
 
 def _date_param_is_valid(value: str) -> bool:
     """True when a from/to value parses as a bare date or an ISO timestamp.
-
-    Same parse the db layer's day-start canonicalization uses, so the API
-    never accepts a value the query then silently treats as raw text."""
+    Same parse as the db layer's day-start canonicalization, so the API never accepts a value
+    the query then treats as raw text."""
     text = value.strip()
     if parse_iso_utc(text) is not None:
         return True
@@ -105,11 +104,8 @@ def get_stats_by_podcast():
 @api.route('/stats/reviewer', methods=['GET'])
 @log_request
 def get_reviewer_stats():
-    """Aggregate ad reviewer stats.
-
-    Optional filters: ``podcast_slug`` and ``episode_id``. Without either,
-    returns global aggregates over the ad_reviewer_log table.
-    """
+    """Aggregate ad reviewer stats, optionally filtered by ``podcast_slug`` and ``episode_id``;
+    global aggregates over ad_reviewer_log otherwise."""
     db = get_database()
     podcast_slug = request.args.get('podcast_slug')
     episode_id = request.args.get('episode_id')
@@ -130,10 +126,7 @@ def get_addressing_stats():
 @api.route('/stats/model-usage', methods=['GET'])
 @log_request
 def get_model_usage_stats():
-    """Paginated spend by (provider, model) over the llm_call_usage ledger.
-
-    The from/to filters select whole UTC days, inclusive of both ends.
-    """
+    """Paginated spend by (provider, model) over the llm_call_usage ledger; from/to select whole UTC days, inclusive."""
     db = get_database()
     params = _parse_list_params()
     invalid = _invalid_date_param(params)
@@ -149,17 +142,22 @@ def get_model_usage_stats():
     })
 
 
-@api.route('/stats/systemone', methods=['GET'])
-@log_request
-def get_systemone_stats():
-    """Separate logical native calls from their actual request rows."""
-    db = get_database()
+def _provider_scope_params():
+    """Date, provider and model query params, plus the first invalid date name."""
     params = {
         **_date_scope_params(),
         'provider': request.args.get('provider'),
         'model': request.args.get('model'),
     }
-    invalid = _invalid_date_param(params)
+    return params, _invalid_date_param(params)
+
+
+@api.route('/stats/systemone', methods=['GET'])
+@log_request
+def get_systemone_stats():
+    """Separate logical native calls from their actual request rows."""
+    db = get_database()
+    params, invalid = _provider_scope_params()
     if invalid:
         return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
     return json_response(db.get_systemone_stats(**params))
@@ -170,15 +168,23 @@ def get_systemone_stats():
 def get_llm_stats():
     """Aggregate LLM calls, excluding System One rows."""
     db = get_database()
-    params = {
-        **_date_scope_params(),
-        'provider': request.args.get('provider'),
-        'model': request.args.get('model'),
-    }
-    invalid = _invalid_date_param(params)
+    params, invalid = _provider_scope_params()
     if invalid:
         return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
     return json_response(db.get_llm_stats(**params))
+
+
+@api.route('/stats/audio-matching', methods=['GET'])
+@log_request
+def get_audio_matching_stats():
+    """Audio fingerprint matches in a period and how many patterns carry audio."""
+    params = _date_scope_params()
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    db = get_database()
+    return json_response({**db.get_audio_matching_stats(**params),
+                          'historyBackfillPending': db.history_backfill_pending()})
 
 
 @api.route('/stats/cleanup', methods=['GET'])
@@ -199,10 +205,7 @@ def get_cleanup_stats():
 @api.route('/stats/episode-costs', methods=['GET'])
 @log_request
 def get_episode_cost_stats():
-    """Paginated per-episode cost breakdown over the llm_call_usage ledger.
-
-    The from/to filters select whole UTC days, inclusive of both ends.
-    """
+    """Paginated per-episode cost breakdown over the llm_call_usage ledger; from/to select whole UTC days, inclusive."""
     db = get_database()
     params = _parse_list_params()
     invalid = _invalid_date_param(params)
@@ -238,12 +241,10 @@ def get_episode_cost_runs():
 @api.route('/stats/ledger-filter-options', methods=['GET'])
 @log_request
 def get_ledger_filter_options():
-    """Distinct providers and provider/model pairs in the ledger, for the
-    Stats filters.
+    """Distinct providers and provider/model pairs in the ledger, for the Stats filters.
 
-    Honors the same from/to/podcastSlug scope as the list endpoints (from/to
-    select whole UTC days) but is never paginated, so a provider or model
-    past the first page of a list request can still be selected.
+    Same from/to/podcastSlug scope as the list endpoints (from/to select whole UTC days) but
+    never paginated, so a provider or model past the first page can still be selected.
     """
     params = _date_scope_params()
     invalid = _invalid_date_param(params)
@@ -307,9 +308,8 @@ def _spend_attempt_json(row) -> dict:
 def get_spend_attempts():
     """Ledger attempts behind one run's or episode's spend.
 
-    Backs the Incomplete chip, which needs to point at the attempt carrying
-    no price. Reuses the billable predicate the totals are summed with, so
-    the listed rows are exactly the contributing ones.
+    Backs the Incomplete chip, pointing at the attempt with no price. Uses the billable
+    predicate the totals are summed with, so listed rows are exactly the contributing ones.
     """
     db = get_database()
     run_id = request.args.get('runId') or ''
@@ -320,7 +320,7 @@ def get_spend_attempts():
 
     podcast_id = -1
     if slug and episode_id:
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = db.get_podcast_row(slug)
         if not podcast:
             return error_response('Feed not found', 404)
         podcast_id = podcast['id']

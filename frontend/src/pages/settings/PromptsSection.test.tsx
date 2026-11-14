@@ -3,10 +3,15 @@
  * prompt field gets its own two-click reset button; the bulk button is
  * unaffected.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PromptsSection from './PromptsSection';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 function baseProps() {
   return {
@@ -121,5 +126,19 @@ describe('PromptsSection: per-prompt reset', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     expect(onResetCleanup).toHaveBeenCalledTimes(1);
     expect(onResetChapterPrompt).not.toHaveBeenCalled();
+  });
+});
+
+describe('PromptsSection: LLM provider None', () => {
+  it('disables the prompts with the reason', () => {
+    llmState.enabled = false;
+    render(<PromptsSection {...baseProps()} />);
+    expectGatedByLlm(screen.getByLabelText('First pass system prompt'));
+    expectGatedByLlm(screen.getByRole('button', { name: 'Reset prompts to default' }));
+  });
+
+  it('is enabled when the provider is set', () => {
+    render(<PromptsSection {...baseProps()} />);
+    expectNotGatedByLlm(screen.getByLabelText('First pass system prompt'));
   });
 });

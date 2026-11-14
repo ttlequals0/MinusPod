@@ -1,15 +1,6 @@
-"""Tests for the one-shot backfill of processing_history.ads_detected.
-
-Pre-2.5.28 the writer at _record_history_and_event recorded
-pass-1-after-reviewer cuts only. This migration repairs the LATEST
-history row per episode where the bug signature is unambiguous:
-
-  ads_detected == episode.ads_removed_firstpass
-  AND episode.ads_removed_secondpass > 0
-
-Older reprocess rows can't be safely corrected (episodes table only
-retains latest state) and are deliberately left alone.
-"""
+"""One-shot backfill of processing_history.ads_detected. Pre-2.5.28 the writer recorded pass-1 cuts only;
+the migration repairs the latest row per episode when ads_detected == ads_removed_firstpass and
+ads_removed_secondpass > 0. Older reprocess rows can't be recovered and are left alone."""
 import os
 import shutil
 import sqlite3
@@ -69,11 +60,7 @@ def _insert_history(conn, *, podcast_id, podcast_slug, episode_id,
 
 
 def _seed_state(db_path, *, episode, history_rows):
-    """Insert podcast, episode, and history rows into a fresh DB.
-
-    The schema-init pass for a brand-new DB runs _seed_default_settings
-    but no episode/history seeds, so the tables are empty for us.
-    """
+    """Insert podcast, episode, and history rows into a fresh DB (new DBs seed no episode/history rows)."""
     podcast_id = episode['podcast_id']
     podcast_slug = episode['podcast_slug']
     with closing(sqlite3.connect(db_path)) as conn:
@@ -164,11 +151,7 @@ class TestBackfillSkipsAlreadyCorrect:
 
 
 class TestBackfillSkipsNoVerificationCuts:
-    """Rows where the episode had zero verification cuts are left alone.
-    Even if ads_detected differs from ads_removed for some other reason,
-    we don't touch them because the bug only manifested when
-    secondpass > 0.
-    """
+    """Episodes with zero verification cuts are left alone: the bug only manifested when secondpass > 0."""
 
     def test_no_change_when_episode_had_no_secondpass(self, fresh_db_dir):
         _reload_db(fresh_db_dir)
@@ -193,11 +176,8 @@ class TestBackfillSkipsNoVerificationCuts:
 
 
 class TestBackfillSkipsOldReprocessRows:
-    """When an episode was reprocessed, only the LATEST history row is
-    corrected. Older rows are left alone because the episodes table
-    only retains the latest state and we cannot recover the true
-    pass-2 count for prior runs.
-    """
+    """Only the latest history row of a reprocessed episode is corrected; the episodes table keeps
+    only the latest state, so prior runs' pass-2 counts are unrecoverable."""
 
     def test_old_row_preserved_latest_corrected(self, fresh_db_dir):
         _reload_db(fresh_db_dir)
@@ -232,10 +212,8 @@ class TestBackfillSkipsOldReprocessRows:
 
 
 class TestBackfillIdempotency:
-    """Running the migration twice does nothing on the second run; the
-    gate row prevents repeat execution even if the data would still
-    match the bug signature.
-    """
+    """The migration is a no-op on a second run: the gate row prevents repeats even if data still
+    matches the bug signature."""
 
     def test_second_boot_is_a_no_op(self, fresh_db_dir):
         _reload_db(fresh_db_dir)

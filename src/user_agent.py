@@ -1,16 +1,10 @@
 """Outbound User-Agent resolution.
 
-A leaf module on purpose, following the processing_timeouts pattern: the value
-is read on every outbound request, so it needs a cache and an explicit
-invalidation hook rather than a settings query per call. It imports nothing
-from the repo but config, deliberately. `utils.ttl_cache` would look like the
-right cache to reuse here, but `utils/__init__` eagerly imports `utils.audio`,
-which imports storage, which imports this module, so reaching for it puts this
-module back in a cycle whenever it is imported before storage.
+A leaf module (imports only config at module level, so it cannot cycle with storage).
+The value is read on every outbound request, hence a cache plus an invalidation hook.
 
-Two strings because hosts disagree. Bot mitigation on some CDNs refuses
-browser UAs below a rolling version floor, while some feed hosts serve only a
-declared podcast client.
+Two strings because hosts disagree: some CDNs refuse browser UAs below a rolling version
+floor, while some feed hosts serve only a declared podcast client.
 """
 import logging
 import threading
@@ -85,6 +79,13 @@ def _resolve_override(podcast, override_key: str, setting_key: str) -> str:
 def download_user_agent(podcast=None) -> str:
     """Resolve a feed override, otherwise the global download UA."""
     return _resolve_override(podcast, "download_user_agent_override", DOWNLOAD_UA_SETTING)
+
+
+def settled_download_user_agent(outcome: dict | None, podcast=None) -> str:
+    """UA the audio download settled on, else the configured download UA."""
+    outcome = outcome or {}
+    return (outcome.get('fallback_user_agent') or outcome.get('download_user_agent')
+            or download_user_agent(podcast))
 
 
 def feed_user_agent(podcast=None) -> str:

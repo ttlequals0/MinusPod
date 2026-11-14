@@ -34,7 +34,6 @@ from config import (
     measured_evidence,
     MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CUT_CONFIDENCE,
-    coerce_bool_setting,
     resolve_max_boundary_shift,
 )
 from audio_enforcer import content_anchors
@@ -58,6 +57,7 @@ from llm_client import (
     is_review_inconclusive_error, ProviderRateLimitedError,
     StructuralRateLimitError,
 )
+from utils.http import redact_log_text
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
@@ -68,7 +68,7 @@ from utils.markers import (
     silent_absorbed_spans, TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
-    format_sponsor_block, render_prompt, apply_override,
+    format_sponsor_block, render_prompt, apply_override, seed_sponsors_enabled,
     format_detection_notes_block, scrub_description, strip_comments_from_prompt
 )
 from utils.text import (
@@ -112,7 +112,7 @@ logger = logging.getLogger(__name__)
 def _review_failure_reason(error: Exception) -> str:
     """Show sanitized quota guidance without exposing raw provider payloads."""
     if isinstance(error, StructuralRateLimitError):
-        return f"Review unavailable: {error}"
+        return redact_log_text(f"Review unavailable: {error}")
     if is_rate_limit_error(error):
         return "Review unavailable: LLM rate limit reached"
     return "Review unavailable: LLM call failed"
@@ -235,11 +235,10 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
     return bool(pattern and pattern.get('is_active') and is_defined_pattern(pattern))
 
 
-# Verdict/reasoning contradiction guard (spec 1.4). Verdicts come from
-# boundary arithmetic, so an unchanged span with not-an-ad reasoning ships
-# as "confirmed" -- hold those for review, never auto-reject. Patterns are
-# assertion-shaped regexes ("is not advertising"), not bare nouns: an
-# affirming reasoning ("not a false positive") must not trigger a hold.
+# Verdict/reasoning contradiction guard (spec 1.4). Verdicts come from boundary arithmetic, so an
+# unchanged span with not-an-ad reasoning ships as "confirmed": hold those for review, never auto-reject.
+# Patterns are assertion-shaped regexes ("is not advertising"), not bare nouns, so an affirming
+# reasoning ("not a false positive") does not trigger a hold.
 _PLURAL_NEGATION_PATTERN = (
     r'\bnone\s+(?:of\s+(?:them|these|those)\s+)?(?:are|is)\s+'
     r'(?:an?\s+)?ads?\b'
@@ -262,17 +261,12 @@ REVIEWER_CONTRADICTION_PATTERNS = (
 
 _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
 
-# Affirmation guard: reasoning that asserts the span IS an ad can never be
-# a contradiction hold, even when a negation appears later in the same
-# prose. Boundary notes like "that interview material is not advertising"
-# refer to a sub-span the reviewer wants trimmed, not the candidate
-# (example-podcast a1b2c3d4e5f6, another-podcast f6e5d4c3b2a1 both held
-# real ad breaks this way). Assertion-shaped, like the negations above.
+# Affirmation guard: reasoning that asserts the span IS an ad is never a contradiction hold, even when a negation
+# appears later in the prose ("that interview material is not advertising" refers to a sub-span the reviewer wants
+# trimmed, not the candidate). Assertion-shaped, like the negations above.
 #
-# TODO(structural): this affirmation/negation/trim-language regex triad is a
-# growing free-text heuristic (each pattern traces to a production episode).
-# The durable fix is a structured verdict field (e.g. is_ad plus trim bounds)
-# in the review prompt contract, so intent stops hiding in prose.
+# TODO(structural): this affirmation/negation/trim-language regex triad is a growing free-text heuristic. The
+# durable fix is a structured verdict field (e.g. is_ad plus trim bounds) in the review prompt contract.
 _ELLIPTICAL_AFFIRMATION_PATTERN = (
     r'^\s*(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b')
 
@@ -311,9 +305,8 @@ _TRIM_LANGUAGE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Elliptical openings ("Multiple ads ...") need stronger scoping than a
-# generic word such as "excluded".  When their prose also contains a
-# negation, only an explicit edge adjustment establishes that the negation
+# Elliptical openings ("Multiple ads ...") need stronger scoping than a generic word such as "excluded".
+# When their prose also contains a negation, only an explicit edge adjustment shows the negation
 # describes preserved context rather than the whole candidate.
 _EXPLICIT_BOUNDARY_TRIM_RE = re.compile(
     r'\b(?:adjust(?:ed|ing)?|move[sd]?|shift(?:ed|ing)?|trim(?:med|ming)?)\s+'
@@ -398,11 +391,9 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
 def reasoning_contradicts_cut(reasoning: str | None) -> bool:
     """True when reviewer reasoning asserts the span is not an ad.
 
-    An affirmation wins only when the prose also describes a boundary trim:
-    that combination means the negation is a note about a sub-span, which
-    trim recovery handles. An affirmation with a negation but NO trim
-    language is a whole-span dispute ("is an ad for the show's own merch,
-    which is not advertising") and must still hold: pre-guard behavior.
+    An affirmation wins only when the prose also describes a boundary trim (the negation is then a note
+    about a sub-span, handled by trim recovery). An affirmation plus negation with no trim language is a
+    whole-span dispute ("is an ad for the show's own merch, which is not advertising") and must still hold.
     """
     if not reasoning:
         return False
@@ -416,10 +407,9 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
                       original_start: float, original_end: float,
                       reasoning: str | None, confidence: float | None,
                       model: str | None, locked_edges=()) -> dict:
-    """Copy of ``ad`` with adjusted bounds and the reviewer bookkeeping
-    fields every adjust application must stamp. Single seam so the two
-    adjust paths (boundary-delta adjust, affirmed-confirm trim recovery)
-    cannot drift on which fields they write."""
+    """Copy of ``ad`` with adjusted bounds and the reviewer bookkeeping fields every adjust must stamp.
+
+    Single seam so the boundary-delta adjust and affirmed-confirm trim-recovery paths cannot drift."""
     updated = dict(ad)
     invalidate_tail_provenance(updated, end)
     updated["start"] = start
@@ -511,8 +501,7 @@ def log_contradiction_event(verdict: "ReviewVerdict", *, model: str | None,
 def _resolve_reviewer_parallel_ads() -> int:
     """Resolve the reviewer parallel-ads concurrency for this run.
 
-    DB-customized value wins over env default; both fall back to the
-    registered default in ENV_BACKED_SETTINGS. Clamped to [1, 32].
+    DB-customized value wins over the env default; both fall back to ENV_BACKED_SETTINGS. Clamped to [1, 32].
     """
     try:
         from llm_client import _get_cached_setting
@@ -536,11 +525,9 @@ def _resolve_reviewer_parallel_ads() -> int:
 RESURRECT_BAND_WIDTH = 0.20
 
 
-# Tolerance for treating a returned ad as "boundaries unchanged". Floats
-# that differ from the input by less than this are treated as confirmed
-# rather than adjust. Set tight (0.1s) so genuine sub-second corrections
-# from the LLM surface as adjust verdicts in the audit log; only true
-# rounding noise rounds away.
+# Tolerance for treating a returned ad as "boundaries unchanged": floats differing from the input by less
+# than this count as confirmed, not adjust. Tight (0.1s) so genuine sub-second corrections from the LLM
+# surface as adjust verdicts in the audit log; only true rounding noise rounds away.
 _CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
 
 
@@ -864,10 +851,9 @@ def _meta_min_conf(episode_meta: dict) -> float:
     return MIN_CUT_CONFIDENCE if value is None else value
 
 
-# Prose/number consistency check on adjust verdicts: warn when the reasoning
-# names a boundary figure further than the edge-proximity tolerance + 2s
-# margin from the emitted boundary (observability only; see
-# _warn_prose_boundary_mismatch).
+# Prose/number consistency check on adjust verdicts: warn when the reasoning names a boundary figure
+# further than the edge-proximity tolerance + 2s margin from the emitted boundary
+# (observability only; see _warn_prose_boundary_mismatch).
 _PROSE_BOUNDARY_WARN_GAP_S = BOUNDARY_SNAP_TOLERANCE_S + 2.0
 
 # Explicit seconds figures next to boundary words in adjust reasoning, e.g.
@@ -897,14 +883,11 @@ def _warn_prose_boundary_mismatch(
     slug: str | None,
     episode_id: str | None,
 ) -> None:
-    """Log when adjust reasoning names a boundary figure far from the emitted
-    number (example-podcast a1b2c3d4e5f6: reasoning named the ad's final
-    sentence near 28.4s while the emitted end was 20.0s). Observability only:
-    auto-arbitrating between two model numbers would be guesswork.
+    """Log when adjust reasoning names a boundary figure far from the emitted number (e.g. 28.4s vs
+    an emitted end of 20.0s).
 
-    The regexes key on boundary words, not the sentence's subject, so "show
-    content starts at 59.7s" given as the reason for an end trim read as a
-    claim about the ad. A figure landing on any real boundary is context.
+    Observability only: auto-arbitrating between two model numbers would be guesswork. The regexes key on boundary
+    words, not the sentence subject, so a figure landing on any real boundary is treated as context.
     """
     if not reasoning:
         return
@@ -929,8 +912,7 @@ def _warn_prose_boundary_mismatch(
 def _first_num(d: dict, keys: tuple, default: float) -> float:
     """Return the first finite numeric value among keys, else default.
 
-    Skips None, booleans, and NaN/Inf. The reviewer prompt may carry the
-    correction under a corrected_/adjusted_ key when start/end is absent.
+    Skips None, booleans, NaN/Inf. The reviewer may carry the correction under a corrected_/adjusted_ key.
     """
     for k in keys:
         f = finite_number(d.get(k))
@@ -973,10 +955,9 @@ class ReviewVerdict:
 class ReviewResult:
     """Full output of one reviewer invocation over both pools.
 
-    `accepted_after_review` is the post-reviewer cut list (adjustments applied,
-    rejections removed, resurrections added). `verdicts` is the full audit
-    trail, one entry per ad the reviewer evaluated. The `held_*` lists are the
-    ads a human has to settle; they are never cut.
+    `accepted_after_review` is the post-reviewer cut list (adjustments applied, rejections removed,
+    resurrections added); `verdicts` is the audit trail, one entry per ad evaluated; the `held_*` lists
+    are ads a human must settle and are never cut.
     """
     accepted_after_review: list[dict] = field(default_factory=list)
     rejected_by_reviewer: list[dict] = field(default_factory=list)
@@ -993,17 +974,10 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
                         bucket_radius: float = 60.0) -> str:
     """Render audio cue context for the reviewer's per-ad user prompt (#350).
 
-    Includes:
-    - Template cues within bucket_radius of the candidate boundaries,
-      rendered as ground-truth boundary markers.
-    - Spectral cues in the same radius, rendered as weak evidence only.
-    - The ``cue_pair`` block when the ad was synthesised from a bracketing
-      pair of cues; signals the reviewer to keep the ad even if the
-      transcript inside looks light on promotional language.
-    - The ``cue_snap`` block when the boundary snap already shifted an edge
-      to a cue; signals the reviewer not to undo that snap.
-
-    Returns the empty string when there is nothing relevant to surface.
+    Includes template cues within bucket_radius of the candidate boundaries (ground-truth markers), spectral
+    cues in the same radius (weak evidence), the ``cue_pair`` block when the ad was synthesised from a
+    bracketing cue pair (keep the ad even if the transcript looks light on promotion), and the ``cue_snap``
+    block when boundary snap already shifted an edge to a cue (do not undo it). Empty string if nothing applies.
     """
     lines = []
     if audio_analysis is not None:
@@ -1295,9 +1269,9 @@ def _member_item(member: dict) -> str:
         label = f"fingerprint pattern #{pattern}" if pattern is not None else 'fingerprint'
         match_lo = finite_number(member.get('fingerprint_match_start'))
         match_hi = finite_number(member.get('fingerprint_match_end'))
-        matched = (f", matched {_span_text(match_lo, match_hi)}"
-                   if match_lo is not None and match_hi is not None else '')
-        return f"{label} {text} (projected length{matched})"
+        if match_lo is None or match_hi is None:
+            return f"{label} {text}"
+        return f"{label} {text} (matched {_span_text(match_lo, match_hi)})"
     item = f"{stage} {text}"
     confidence = finite_number(member.get('confidence'))
     if confidence is not None:
@@ -1392,32 +1366,13 @@ class AdReviewer:
         pass_model: str,
         pass_provider: str | None = None,
     ) -> ReviewResult:
-        """Run reviewer over both pools.
+        """Run reviewer over both pools; returns ReviewResult (post-reviewer accepted list plus audit trail).
 
-        Args:
-            accepted_ads: Ads currently in the cut list (after validation +
-                confidence gate). Reviewer may confirm, adjust boundaries, or
-                reject these.
-            resurrection_eligible: Ads validator left out of the cut list whose
-                confidence is in the resurrection band. Reviewer may resurrect
-                or keep rejected.
-            segments: Whisper segments (in the same coordinate space as ad
-                start/end) used for context windows.
-            episode_meta: Dict with keys: podcast_name, episode_title,
-                podcast_description, episode_description, slug, episode_id,
-                podcast_id.
-            pass_num: 1 (first detection pass) or 2 (verification pass).
-            pass_model: Model used by the corresponding pass; used as fallback
-                when ``review_model`` setting is ``same_as_pass``.
-            pass_provider: Provider used by the corresponding pass; used as
-                fallback when ``review_provider`` setting is ``same_as_pass``.
-                Omitted callers (tests, calibration) fall back to the global
-                effective provider.
-
-        Returns:
-            ReviewResult with the post-reviewer accepted list and the audit
-            trail. On catastrophic failure, each accepted ad gets a synthetic
-            failure verdict and the per-ad failure rule.
+        accepted_ads are in the cut list (the reviewer may confirm, adjust or reject); resurrection_eligible were left
+        out by the validator within the resurrection band (the reviewer may resurrect). segments share the ad
+        coordinate space. pass_model / pass_provider apply when review_model / review_provider is ``same_as_pass``
+        (omitted callers use the global effective provider). On catastrophic failure each accepted ad gets a
+        synthetic failure verdict and the per-ad failure rule.
         """
         try:
             return self._review_inner(
@@ -1533,12 +1488,9 @@ class AdReviewer:
             max_workers=parallel_ads,
         )
         for verdict, updated_ad in accepted_results:
-            # Human corrections are the highest-confidence signal. They are
-            # deliberately omitted from the reviewer call and retain their
-            # validated bounds and cut decision unchanged. Do not synthesize
-            # a ReviewVerdict here: ad_reviewer_log and its totalReviews stat
-            # count actual LLM calls. The persisted validation.user_confirmed
-            # field is the audit record for this human-authorized bypass.
+            # Human corrections are the highest-confidence signal: omitted from the reviewer call, keeping
+            # validated bounds and cut decision. No ReviewVerdict is synthesized (ad_reviewer_log and totalReviews
+            # count actual LLM calls); validation.user_confirmed is the audit record for this bypass.
             if verdict is None:
                 result.accepted_after_review.append(updated_ad)
                 continue
@@ -1582,17 +1534,11 @@ class AdReviewer:
                 mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_CONTRADICTION,
                                    replace=True)
                 held["reviewer_contradiction"] = True
-                # Preserve the reviewer's proposed trim so the review UI can
-                # offer approving the trimmed span instead of all-or-nothing.
-                # An adjust verdict already carries adjusted_*; a confirmed
-                # verdict came back with unchanged boundaries, so recover
-                # machine bounds from the reasoning prose with one follow-up
-                # call (on any failure the hold ships without bounds, exactly
-                # as before; the verdict stays 'confirmed' and the ad stays
-                # out of the cut list either way). The persisted marker (held
-                # via _apply_reviewer_verdict_to_ad in processing.py) keeps
-                # pass-1 boundaries; these fields are mirrored here so both
-                # hold sites carry the same shape.
+                # Preserve the reviewer's proposed trim so the review UI can offer approving the trimmed span. An
+                # adjust verdict already carries adjusted_*; a confirmed one came back unchanged, so recover bounds from
+                # the reasoning prose with one follow-up call (on failure the hold ships without bounds). The persisted
+                # marker (via _apply_reviewer_verdict_to_ad in processing.py) keeps pass-1 boundaries; mirrored here so
+                # both hold sites share one shape.
                 if verdict.verdict == "confirmed":
                     recovered = self._recover_contradiction_trim(
                         verdict,
@@ -1628,13 +1574,9 @@ class AdReviewer:
                   and not verdict.proposal_clamped
                   and reasoning_affirms_ad(verdict.reasoning)
                   and _TRIM_LANGUAGE_RE.search(verdict.reasoning or "")):
-                # Affirmed ad whose prose describes a trim the boundary
-                # arithmetic missed (model returned the span unchanged).
-                # Recover the trim and apply it as an adjust; on any
-                # failure accept unchanged. Never a hold: the reviewer
-                # says this IS an ad. Pass 1 only: the pass-2 apply path
-                # coerces every adjust back to confirmed and discards the
-                # bounds, so spending the recovery call there buys nothing.
+                # Affirmed ad whose prose describes a trim the boundary arithmetic missed: recover the trim and apply it
+                # as an adjust, or accept unchanged on failure. Never a hold (the reviewer says this IS an ad). Pass 1
+                # only: the pass-2 apply path coerces every adjust back to confirmed, so recovery would buy nothing.
                 recovered = self._recover_contradiction_trim(
                     verdict,
                     ad=updated_ad,
@@ -2064,14 +2006,10 @@ class AdReviewer:
                 f"{clamped_start:.1f}-{clamped_end:.1f} (cap {max_shift}s)"
             )
 
-        # A merged ad's [start, end] is the union of multiple independently
-        # detected sub-ads. The reviewer must not pull a boundary inward
-        # past a transcript-anchored member (it would silently drop a
-        # confirmed sub-ad), but differential/VAD members carry
-        # alignment-derived padding whose trimming is exactly the
-        # reviewer's job. Markers persisted before member tracking carry
-        # the flag without the protected keys; those keep the old blanket
-        # expand-only rule.
+        # A merged ad's [start, end] is the union of independent sub-ads. The reviewer must not pull a boundary
+        # inward past a transcript-anchored member (it would drop a confirmed sub-ad), but differential/VAD members
+        # carry alignment padding whose trimming is its job. Markers persisted before member tracking carry the flag
+        # without the protected keys and keep the old blanket expand-only rule.
         if ad.get('merged_distinct_ads'):
             floor_start, floor_end = _measured_member_floor(
                 ad, clamped_start, clamped_end, original_start, original_end, min_conf,
@@ -2197,23 +2135,12 @@ class AdReviewer:
     ) -> tuple[float, float] | None:
         """Recover machine-readable trim bounds from a prose-only trim.
 
-        Fired only on a contradiction hold whose verdict derived as
-        'confirmed': the model returned the span unchanged while its
-        reasoning described a trim in prose (another-podcast
-        f6e5d4c3b2a1 shipped "the ad content ends at roughly 65.8s ... must
-        be trimmed off the end" with boundaries 0.0-87.8s intact, so the
-        hold carried no proposed bounds the UI could one-tap approve).
-
-        One small follow-up call through the shared call_llm seam turns the
-        reasoning back into {"ad_start": float, "ad_end": float}. Returns
-        (start, end) strictly inside the original span, or None on any
-        failure. Only a provider rate-limit hold propagates, so the run
-        records it instead of losing it here.
-
-        Two call sites share this recovery: the contradiction-hold branch
-        uses the result only to enrich the held marker's proposed bounds
-        (the ad stays held either way); the affirmed-confirm branch applies
-        the result as an adjust, accepting the ad with the recovered bounds.
+        Fired only on a contradiction hold whose verdict derived as 'confirmed': the model returned the span unchanged
+        while its reasoning described a trim in prose, so the hold carried no bounds the UI could one-tap approve. One
+        small follow-up call through the shared call_llm seam turns the reasoning into {"ad_start": float, "ad_end":
+        float}. Returns (start, end) strictly inside the original span, or None on failure; only a provider rate-limit
+        hold propagates. The contradiction-hold caller only enriches the held marker (the ad stays held); the
+        affirmed-confirm caller applies the result as an adjust.
         """
         # Merged spans: recovery may trim differential/VAD padding but must
         # not sever a transcript-anchored member. Legacy markers without
@@ -2341,12 +2268,9 @@ class AdReviewer:
     ) -> str:
         """Build the per-ad user prompt.
 
-        Mirrors detection's minimal-prose shape (Podcast / Episode /
-        description / Transcript) so the LLM emits a JSON array of ad
-        segments rather than inventing its own analysis schema. The
-        candidate ad is called out inline inside the transcript with
-        brackets, the same way detection presents segments. The system
-        prompt examples then drive the output shape.
+        Mirrors detection's minimal-prose shape (Podcast / Episode / description / Transcript) so the LLM
+        emits a JSON array of ad segments rather than its own analysis schema. The candidate ad is called out
+        inline in the transcript with brackets, as detection presents segments.
         """
         start = float(ad.get("start", 0.0))
         end = float(ad.get("end", 0.0))
@@ -2480,23 +2404,11 @@ class AdReviewer:
             logger.warning(f"reviewer sponsor list lookup failed: {e}")
             return ""
 
-    def _seed_sponsors_enabled(self, toggle_key: str) -> bool:
-        """Fails open (True): a missing or unreadable setting must not
-        silently strip the sponsor block."""
-        try:
-            value = self.db.get_setting(toggle_key)
-        except Exception as e:
-            logger.warning(f"Could not read {toggle_key}: {e}")
-            return True
-        if value is None:
-            return True
-        return coerce_bool_setting(value)
-
     def _sponsor_blocks(self) -> tuple[str, str]:
         """(review_block, resurrect_block), fetching the sponsor list at
         most once. A prompt whose toggle is off gets an empty block."""
-        review_on = self._seed_sponsors_enabled('seed_sponsors_reviewer')
-        resurrect_on = self._seed_sponsors_enabled('seed_sponsors_resurrect')
+        review_on = seed_sponsors_enabled(self.db, 'seed_sponsors_reviewer', logger)
+        resurrect_on = seed_sponsors_enabled(self.db, 'seed_sponsors_resurrect', logger)
         sponsor_list = (self._sponsor_list_or_empty()
                         if (review_on or resurrect_on) else "")
         block = format_sponsor_block(sponsor_list)
@@ -2508,20 +2420,11 @@ class AdReviewer:
         except Exception:
             return None
 
-    def _resolve_model(self, pass_model: str) -> str:
-        # Model-only resolution, kept for test_settings_validation coverage.
-        # Live review() calls resolve the whole route via _resolve_route.
-        configured = self._read_setting("review_model") or "same_as_pass"
-        if configured == "same_as_pass":
-            return pass_model
-        return configured
-
     def _resolve_route(self, pass_provider: str | None, pass_model: str,
                        pass_num: int = 1):
-        """Review route from the frozen run snapshot: an explicit slot uses the
-        resolved review route as frozen (so a mid-run change cannot re-route),
-        same_as_pass inherits the invoking pass's full route (pass 1 detection,
-        pass 2 verification). Outside a run, falls back to a live resolve_route.
+        """Review route from the frozen run snapshot: an explicit slot uses the resolved review route as
+        frozen (a mid-run change cannot re-route); same_as_pass inherits the invoking pass's full route
+        (pass 1 detection, pass 2 verification). Outside a run, falls back to a live resolve_route.
         """
         review_entry = route_for_phase('review', apply_live_failover=False)
         gate = review_entry.get('gate') if review_entry else None
@@ -2559,12 +2462,9 @@ class AdReviewer:
     def _extract_response_text(response) -> str:
         """Pull the response body text.
 
-        ``LLMClient.messages_create`` returns an ``LLMResponse`` whose
-        ``content`` is already the extracted string. Anthropic SDK responses
-        instead carry ``content`` as a list of TextBlocks. Handle both, and
-        fall through to ``response.text`` for any other shape; never call
-        ``str(response)`` since a dataclass repr produces literal ``\\n``
-        escape sequences that look like JSON but break the parser.
+        ``LLMClient.messages_create`` returns an ``LLMResponse`` whose ``content`` is already a string; Anthropic
+        SDK responses carry a list of TextBlocks. Handles both, falling through to ``response.text``. Never call
+        ``str(response)``: a dataclass repr yields literal ``\\n`` sequences that look like JSON but break the parser.
         """
         content = getattr(response, "content", None)
         if isinstance(content, str):
@@ -2621,18 +2521,11 @@ def split_resurrection_pool(
     ads_to_remove: list[dict],
     min_cut_confidence: float,
 ) -> list[dict]:
-    """Identify ads eligible for resurrection.
+    """Identify ads eligible for resurrection; returns a fresh list of dicts (inputs not mutated).
 
-    An ad is eligible when:
-    - It is in `all_ads_with_validation` but NOT in the cut list
-      (`ads_to_remove`) - i.e. the validator/confidence gate kept it out
-    - Its confidence falls in the resurrection band:
-      ``[min_cut_confidence - RESURRECT_BAND_WIDTH, min_cut_confidence)``
-    - Its validation decision did not stack non-confidence rejection reasons
-      (duration violations, transcript mismatches, density violations, FP
-      corrections all disqualify)
-
-    Returns a fresh list of dicts (does not mutate inputs).
+    Eligible: in `all_ads_with_validation` but not in the cut list (`ads_to_remove`); confidence in
+    ``[min_cut_confidence - RESURRECT_BAND_WIDTH, min_cut_confidence)``; and a validation decision with no
+    stacked non-confidence rejection reasons (duration, transcript mismatch, density, FP corrections).
     """
     cut_keys = {(a.get("start"), a.get("end")) for a in ads_to_remove}
     band_low = max(0.0, min_cut_confidence - RESURRECT_BAND_WIDTH)
@@ -2665,12 +2558,9 @@ def split_resurrection_pool(
 def _has_disqualifying_reasons(validation: dict) -> bool:
     """Return True if validator flags indicate a non-confidence rejection.
 
-    Matches the prefix scheme `ad_validator.py` emits into
-    ``validation['flags']``: ERROR-level flags are structural/quality issues
-    the reviewer cannot fix (duration violations, "not an ad" marker), and
-    "User marked as false positive" is a definitive user opt-out. Confidence
-    flags are intentionally NOT disqualifying since the reviewer's whole
-    purpose is to second-guess them.
+    Matches the prefix scheme `ad_validator.py` emits into ``validation['flags']``: ERROR-level flags are structural
+    issues the reviewer cannot fix (duration violations, "not an ad" marker) and "User marked as false positive" is a
+    definitive opt-out. Confidence flags don't disqualify: second-guessing them is the reviewer's purpose.
     """
     flags = validation.get('flags') or []
     if isinstance(flags, str):

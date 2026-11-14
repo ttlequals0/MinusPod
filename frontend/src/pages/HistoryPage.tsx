@@ -23,7 +23,7 @@ import StatTile from '../components/StatTile';
 import StatusBadge from '../components/StatusBadge';
 import DownloadsTab from './history/DownloadsTab';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
-import { focusRing, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { tableLink, tableCard, tableHead, th, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../components/tableStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 
@@ -34,8 +34,6 @@ const SORT_FIELDS: SortField[] = ['processedAt', 'processingDurationSeconds', 'a
 // Page, filters and sort live in the URL so Back and reload return to the same place.
 const PROCESSING_PARAM_DEFAULTS = { page: '1', status: 'all', podcast: '' };
 const STATUS_FILTERS: readonly StatusFilter[] = ['all', 'completed', 'failed'];
-
-const FILTER_TILE_CLASS = 'h-full w-full rounded-lg cursor-pointer transition-colors hover:border-primary/50';
 
 const elapsedOrDash = (seconds: number | null | undefined) => (seconds == null ? '-' : formatElapsed(seconds));
 
@@ -142,26 +140,14 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <StatTile label="Total processed" value={stats.totalProcessed} />
-          <button
-            type="button"
+          <StatTile label="Completed" value={stats.completedCount} tone="success"
             onClick={() => write({ status: statusFilter === 'completed' ? '' : 'completed' })}
-            aria-pressed={statusFilter === 'completed'}
-            title="Filter the list below by completed runs"
-            className={`block h-full min-w-0 rounded-lg ${focusRing}`}
-          >
-            <StatTile label="Completed" value={stats.completedCount} tone="success"
-              className={`${FILTER_TILE_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border'}`} />
-          </button>
-          <button
-            type="button"
+            selected={statusFilter === 'completed'}
+            title="Filter the list below by completed runs" />
+          <StatTile label="Failed" value={stats.failedCount} tone="destructive"
             onClick={() => write({ status: statusFilter === 'failed' ? '' : 'failed' })}
-            aria-pressed={statusFilter === 'failed'}
-            title="Filter the list below by failed runs"
-            className={`block h-full min-w-0 rounded-lg ${focusRing}`}
-          >
-            <StatTile label="Failed" value={stats.failedCount} tone="destructive"
-              className={`${FILTER_TILE_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border'}`} />
-          </button>
+            selected={statusFilter === 'failed'}
+            title="Filter the list below by failed runs" />
           <StatTile label="Total ads detected" value={stats.totalAdsDetected} />
           <StatTile label="Total cost" value={stats.totalLlmCost != null ? `$${stats.totalLlmCost.toFixed(2)}` : '-'} />
         </div>

@@ -164,7 +164,7 @@ function YouTubeSection() {
   const cookiesBusy = saveCookies.isPending || clearCookies.isPending;
 
   return (
-    <CollapsibleSection title="YouTube">
+    <CollapsibleSection title="YouTube" anchorId="youtube">
       {IS_DEMO ? (
         <DemoExplainer title="YouTube import">YouTube import needs yt-dlp on a running instance.</DemoExplainer>
       ) : isError ? (

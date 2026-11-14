@@ -1,11 +1,11 @@
-export interface TimedText {
+interface TimedText {
   start: number;
   end: number;
   text: string;
   speaker?: unknown;
 }
 
-export interface Paragraph<T extends TimedText> {
+interface Paragraph<T extends TimedText> {
   start: number;
   end: number;
   segments: T[];

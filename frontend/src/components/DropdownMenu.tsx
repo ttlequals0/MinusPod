@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { ReactNode, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { usePopoverTabs } from '../hooks/usePopover';
 import { focusRing } from './fieldStyles';
@@ -7,12 +7,16 @@ import Popover from './Popover';
 export interface DropdownMenuItem {
   title: string;
   subtitle?: string;
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
   /** Adds radio-menu semantics and a visible mark for the selected value. */
   checked?: boolean;
   /** Native tooltip on the item. */
   tooltip?: string;
+  /** Renders a link instead of a button; onClick still runs when set. */
+  href?: string;
+  /** Destructive text colour. */
+  destructive?: boolean;
 }
 
 interface DropdownMenuProps {
@@ -45,6 +49,7 @@ function DropdownMenu({
   align = 'auto',
   centerOnMobile,
 }: DropdownMenuProps) {
+  const menuId = useId();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -98,34 +103,41 @@ function DropdownMenu({
         {isOpen && items.map((item, i) => {
           const isFirst = i === 0;
           const isLast = i === items.length - 1;
+          const asLink = !!item.href && !item.disabled;
           const cls = [
             'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
+            asLink ? 'block touch-target' : '',
             'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent',
             item.checked !== undefined ? 'min-h-11 sm:min-h-0' : '',
             isFirst ? 'rounded-t-lg' : '',
             isLast ? 'rounded-b-lg' : '',
             isFirst ? '' : 'border-t border-border',
           ].filter(Boolean).join(' ');
+          // A link item's click must not be default-prevented, or the download never starts.
+          const ItemTag = asLink ? 'a' : 'button';
           return (
-            <button
+            <ItemTag
               key={item.title}
               role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
               aria-checked={item.checked}
-              disabled={item.disabled}
+              href={asLink ? item.href : undefined}
+              disabled={asLink ? undefined : item.disabled}
+              aria-labelledby={item.disabled && item.subtitle ? `${menuId}-title-${i}` : undefined}
+              aria-describedby={item.disabled && item.subtitle ? `${menuId}-sub-${i}` : undefined}
               title={item.tooltip}
               onClick={() => {
                 closeAndRefocus();
-                item.onClick();
+                item.onClick?.();
               }}
               onKeyDown={onItemKeyDown}
               className={`${cls} ${focusRing}`}
             >
               <span className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.title}</span>
+                <span id={`${menuId}-title-${i}`} className={`min-w-0 flex-1 text-sm font-medium ${item.destructive ? 'text-destructive' : 'text-foreground'}`}>{item.title}</span>
                 {item.checked && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
               </span>
-              {item.subtitle && <span className="block text-xs text-muted-foreground">{item.subtitle}</span>}
-            </button>
+              {item.subtitle && <span id={`${menuId}-sub-${i}`} className="block text-xs text-muted-foreground">{item.subtitle}</span>}
+            </ItemTag>
           );
         })}
       </Popover>

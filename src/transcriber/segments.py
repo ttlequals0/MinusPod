@@ -38,10 +38,9 @@ def filter_hallucinations(segments: list[dict]) -> list[dict]:
 def should_detect_foreign_language(transcribe_language, detected_lang) -> bool:
     """Run the foreign-language DAI detector only when the audio is English.
 
-    The detector flags non-English ad insertions inside English podcasts.
-    On a non-English podcast its heuristics match every segment, so we
-    skip it unless the user pinned ``whisper_language='en'`` or chose
-    ``'auto'`` and Whisper detected an English variant.
+    The detector flags non-English ad insertions in English podcasts; on a
+    non-English one it matches every segment. Runs only for ``whisper_language='en'``
+    or ``'auto'`` with a detected English variant.
     """
     if transcribe_language == 'en':
         return True
@@ -53,17 +52,8 @@ def should_detect_foreign_language(transcribe_language, detected_lang) -> bool:
 def detect_non_english_segment(text: str, primary_language: str) -> bool:
     """Detect if a segment is likely non-English (potential DAI ad).
 
-    Uses multiple heuristics:
-    1. High ratio of non-ASCII characters (Spanish, etc.)
-    2. Common Spanish/other language patterns
-    3. If primary detected language is not English and segment has markers
-
-    Args:
-        text: The segment text
-        primary_language: The overall detected language from Whisper
-
-    Returns:
-        True if segment appears to be non-English
+    Heuristics: high non-ASCII ratio, common Spanish/other-language patterns, and
+    markers when the primary detected language (from Whisper) is not English.
     """
     if not text or len(text) < 10:
         return False

@@ -10,6 +10,8 @@ import { formatModelLabel } from './settingsUtils';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { SAME_AS_PASS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import { selectBase, labelBase } from '../../components/fieldStyles';
+import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -63,6 +65,7 @@ function AdReviewerSection({
   onResetReviewPrompt,
   onResetResurrectPrompt,
 }: AdReviewerSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
 
@@ -74,17 +77,22 @@ function AdReviewerSection({
   // Without an option of its own, a stored model the catalog lacks (proxy,
   // private deployment, stale provider tag) displays as "Same as pass model".
   const modelIsOrphan =
+    llmEnabled &&
     Boolean(reviewer.model) &&
     reviewer.model !== SAME_AS_PASS &&
     !models.some((m) => m.id === reviewer.model);
-  const reviewModelMissing = reviewer.provider !== SAME_AS_PASS && !reviewer.model;
+  const reviewModelMissing = llmEnabled && reviewer.provider !== SAME_AS_PASS && !reviewer.model;
 
   return (
     <CollapsibleSection
       title="Ad reviewer"
       subtitle="Reviews each detected ad and decides confirm, adjust, or reject before the cut. Off by default."
     >
-      <div className="space-y-6 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
+      <LlmGate
+        disabled={!llmEnabled}
+        id="ad-reviewer"
+        className="space-y-6 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11"
+      >
         {reviewer.enabled && systemOneReview && (
           <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
             Ad review with System One models is experimental.
@@ -336,7 +344,7 @@ function AdReviewerSection({
             onConfirm={onResetPrompts}
           />
         </div>
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

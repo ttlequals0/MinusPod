@@ -46,6 +46,8 @@ function renderSection(
     onQueueFreshBoostChange: vi.fn(),
     queueBulkBoost: 0,
     onQueueBulkBoostChange: vi.fn(),
+    queueOrder: 'queued' as const,
+    onQueueOrderChange: vi.fn(),
     ...overrides,
   };
   const utils = render(
@@ -382,6 +384,30 @@ describe('QueueControlSection', () => {
     renderSection({}, new Set(['settings-section-something-else']));
     expect(mocked.getOfflineQueueSettings).not.toHaveBeenCalled();
     expect(mocked.getRateLimitHoldSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe('QueueControlSection processing order options', () => {
+  it('lists the orders the server reports, labelled', async () => {
+    renderSection({ queueOrderOptions: ['queued', 'newest_first'] });
+    const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual([
+      ['queued', 'As queued'], ['newest_first', 'Newest first'],
+    ]);
+  });
+
+  it('keeps a stored order the server does not list selected, and a no-op saves nothing', async () => {
+    const { props } = renderSection({ queueOrder: 'newest_first', queueOrderOptions: ['queued', 'oldest_first'] });
+    const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;
+    expect(select.value).toBe('newest_first');
+    expect(select.selectedOptions[0].textContent).toBe('Newest first');
+    expect(props.onQueueOrderChange).not.toHaveBeenCalled();
+  });
+
+  it('lists all three when the server reports none', async () => {
+    renderSection();
+    const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['queued', 'oldest_first', 'newest_first']);
   });
 });
 

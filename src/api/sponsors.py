@@ -63,10 +63,9 @@ def _attach_pattern_stats(sponsor_data, stats):
 @api.route('/sponsors/<int:sponsor_id>/tags', methods=['PUT'])
 @log_request
 def update_sponsor_tags(sponsor_id):
-    """Update a sponsor's tags. Body: {tags: ['tag1', ...]}.
+    """Update a sponsor's tags.
 
-    Each tag is validated against VALID_TAGS (which includes 'universal').
-    """
+    Body: {tags: ['tag1', ...]}; each is validated against VALID_TAGS (includes 'universal')."""
     from utils.community_tags import valid_tags
     service = get_sponsor_service()
     sponsor = service.db.get_known_sponsor_by_id(sponsor_id)
@@ -221,11 +220,8 @@ def list_normalizations():
 @api.route('/sponsors/normalizations', methods=['POST'])
 @log_request
 def add_normalization():
-    """Add a new normalization.
-
-    v2 shape: ``{terms, canonical, category}``. Legacy ``{pattern, replacement}``
-    is accepted for back-compat but logged as deprecated.
-    """
+    """Add a new normalization: v2 ``{terms, canonical, category}``, or legacy
+    ``{pattern, replacement}`` (accepted for back-compat, logged as deprecated)."""
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)
@@ -265,11 +261,7 @@ def add_normalization():
 @api.route('/sponsors/normalizations/<int:norm_id>', methods=['PUT'])
 @log_request
 def update_normalization(norm_id):
-    """Update a normalization.
-
-    Accepts v2 ``{terms, canonical, category}`` or legacy
-    ``{pattern, replacement, category}``.
-    """
+    """Update a normalization: v2 ``{terms, canonical, category}`` or legacy ``{pattern, replacement, category}``."""
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)

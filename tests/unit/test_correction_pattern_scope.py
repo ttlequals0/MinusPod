@@ -1,12 +1,8 @@
-"""Pattern auto-creation from corrections must store the slug, not the
-numeric podcast id (PR #196).
+"""Pattern auto-creation from corrections must store the slug, not the numeric podcast id (PR #196).
 
-The detection-side query reads `ad_patterns.podcast_id` against
-`podcasts.slug` (`src/database/patterns.py:17`). All other creation paths
-already pass the slug; this test pins the two correction paths
-(`type=confirm` and `type=adjust` with no existing pattern_id) so they
-can't regress to writing the numeric id.
-"""
+Detection reads `ad_patterns.podcast_id` against `podcasts.slug` (`src/database/patterns.py`);
+this pins the two correction paths (`type=confirm`, `type=adjust` with no existing pattern_id) to
+the slug."""
 import json
 from unittest.mock import patch, MagicMock
 
@@ -41,7 +37,7 @@ def _mock_db():
     of submit_correction, and records the create_ad_pattern call."""
     db = MagicMock()
     db.get_transcript_for_timestamps.return_value = TRANSCRIPT_TEXT
-    db.get_podcast_by_slug.return_value = {'id': NUMERIC_PODCAST_ID, 'slug': SLUG}
+    db.get_podcast_row.return_value = {'id': NUMERIC_PODCAST_ID, 'slug': SLUG}
     db.find_pattern_by_text.return_value = None
     # Real rows, not MagicMocks: pattern creation reads the sponsor row's
     # name/aliases as strings and scans existing patterns for near-duplicates.

@@ -42,6 +42,14 @@ def make_db(path):
     conn.execute("INSERT INTO pattern_corrections (pattern_id, correction_type, origin) VALUES (1, 'false_positive', 'user')")
     conn.execute("INSERT INTO ad_reviewer_log (episode_id, podcast_id, pass, pool, original_start, original_end, verdict, model_used, success, created_at) VALUES ('p1','zzexcluded',1,'x',0,1,'v','m',1,'2026-10-20 00:00:00')")
     conn.execute("INSERT INTO audio_fingerprints (pattern_id) VALUES (1)")
+    conn.execute(
+        "INSERT INTO audio_fingerprints (pattern_id, source_podcast_slug, source_episode_id, source_start, source_end)"
+        " VALUES (2, 'zzexcluded', 'p1', 10.0, 40.0)"
+    )
+    conn.execute(
+        "INSERT INTO audio_fingerprint_matches (pattern_id, episode_id, podcast_slug, match_start, match_end, in_scope)"
+        " VALUES (2, 'p1', 'zzexcluded', 10.0, 40.0, 1)"
+    )
     conn.execute("INSERT INTO addressing_log (created_at, podcast_slug, episode_id, pass_name, configured_mode, effective_mode, windows_judged, windows_compliant) VALUES ('2026-08-01T00:00:00Z','keep','old','p1','a','a',1,1)")
     conn.execute("INSERT INTO addressing_log (created_at, podcast_slug, episode_id, pass_name, configured_mode, effective_mode, windows_judged, windows_compliant) VALUES ('2026-10-20T00:00:00Z','keep','new','p1','a','a',1,1)")
     conn.execute("INSERT INTO ad_reviewer_log (episode_id, podcast_id, pass, pool, original_start, original_end, verdict, model_used, success, created_at) VALUES ('old','keep',1,'x',0,1,'v','m',1,'2026-10-20 00:00:00')")
@@ -71,7 +79,11 @@ def test_snapshot_excludes_windows_scrubs_and_shifts(tmp_path):
     assert conn.execute("SELECT name FROM sqlite_master WHERE name='search_index'").fetchone() is None
     assert not (tmp_path / 'snap.db-wal').exists()
     assert report.delta_days == 16
-    assert conn.execute("SELECT COUNT(*) FROM audio_fingerprints").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM audio_fingerprints").fetchone()[0] == 1
+    assert conn.execute(
+        "SELECT pattern_id, source_podcast_slug, source_episode_id, source_start, source_end FROM audio_fingerprints"
+    ).fetchone() == (2, None, None, None, None)
+    assert conn.execute("SELECT COUNT(*) FROM audio_fingerprint_matches").fetchone()[0] == 0
     assert conn.execute("SELECT id, podcast_id FROM ad_patterns").fetchall() == [(2, None)]
     assert conn.execute("SELECT COUNT(*) FROM pattern_corrections").fetchone()[0] == 0
     assert b'zzexcluded' not in out.read_bytes()

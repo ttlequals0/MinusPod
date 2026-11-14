@@ -6,6 +6,9 @@ from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, SEGMENT_CATEGORIES,
     SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
 )
+from database.fingerprint_cleanup import delete_pattern_dependents, delete_pattern_dependents_in
+from database.podcasts import normalize_network_id
+from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
@@ -30,6 +33,36 @@ def _row_with_category(row: dict) -> dict:
     if row.get('category') not in SEGMENT_CATEGORIES:
         row.pop('category', None)
     return row
+
+
+CORRECTION_EPISODES_SQL = """SELECT p.slug, e.episode_id FROM pattern_corrections c
+               JOIN episodes e ON e.episode_id = c.episode_id
+                 AND (c.podcast_id IS NULL OR e.podcast_id = c.podcast_id)
+               JOIN podcasts p ON p.id = e.podcast_id
+               WHERE c.pattern_id = ? AND c.correction_type != 'false_positive'
+                 AND e.original_file IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = c.pattern_id
+                                 AND f.episode_id = c.episode_id AND f.correction_type = 'false_positive')
+               GROUP BY e.id ORDER BY MAX(e.processed_at) DESC, e.id DESC LIMIT ?"""
+
+
+_NETWORK_SQL = "COALESCE(NULLIF(p.network_id_override, ''), p.network_id) = ?"
+
+
+def _pattern_scope_sql(pattern: dict) -> tuple[str, list]:
+    """AND clause and params limiting episodes (e, podcasts p) to the feeds a pattern's scope covers."""
+    if pattern.get('scope') == 'podcast':
+        return " AND p.slug = ?", [pattern.get('podcast_id')]
+    if pattern.get('scope') == 'network':
+        return f" AND {_NETWORK_SQL}", [pattern.get('network_id')]
+    return "", []
+
+
+def _marker_id_like(pattern_id: int) -> tuple[str, list]:
+    """Prefilter on the stored JSON text; the caller still parses the markers. Both separators, spaced and compact."""
+    forms = [f'%"pattern_id": {pattern_id}{end}%' for end in (',', '}')]
+    forms += [f'%"pattern_id":{pattern_id}{end}%' for end in (',', '}')]
+    return "(" + " OR ".join(["ed.ad_markers_json LIKE ?"] * len(forms)) + ")", forms
 
 
 class PatternMixin:
@@ -75,10 +108,7 @@ class PatternMixin:
         return [_row_with_category(dict(row)) for row in cursor.fetchall()]
 
     def find_patterns_by_community_ids(self, community_ids: list[str]) -> dict[str, dict]:
-        """Batch lookup: return {community_id: pattern_row} for the given ids.
-
-        Avoids the N+1 pattern when applying a manifest.
-        """
+        """Batch lookup of {community_id: pattern_row}, avoiding N+1 when applying a manifest."""
         if not community_ids:
             return {}
         conn = self.get_connection()
@@ -90,11 +120,7 @@ class PatternMixin:
         return {row['community_id']: _row_with_category(dict(row)) for row in cursor.fetchall()}
 
     def get_active_pattern_sponsors(self) -> set:
-        """Return a lowercase set of sponsor names with active patterns.
-
-        Preloaded once per detection pass so Gate B sponsor-is-known checks
-        avoid N+1 queries over the loop.
-        """
+        """Lowercase set of sponsor names with active patterns, preloaded once per detection pass for Gate B."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT DISTINCT LOWER(ks.name) AS s
@@ -177,12 +203,11 @@ class PatternMixin:
                           content_hash: str = None,
                           category: str = None,
                           community_last_confirmed_at: str = None) -> int:
-        """Insert an ad pattern on the caller's connection without committing.
-        Lets a multi-statement caller (e.g. replace-mode import) own the
-        transaction boundary so the whole batch is atomic. Returns pattern ID.
+        """Insert an ad pattern on the caller's connection without committing, so a multi-statement
+        caller (e.g. replace-mode import) owns the transaction. Returns pattern ID.
 
-        category is stored as given (including None -> NULL); readers return
-        NULL as None, so omitting it here leaves the pattern uncategorized."""
+        category is stored as given (None -> NULL, i.e. uncategorized)."""
+        network_id = normalize_network_id(network_id)
         cursor = conn.execute(
             """INSERT INTO ad_patterns
                (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
@@ -220,7 +245,7 @@ class PatternMixin:
                        'protected_from_sync', 'source_language', 'content_hash',
                        'category', 'community_last_confirmed_at'):
                 fields.append(f"{key} = ?")
-                values.append(value)
+                values.append(normalize_network_id(value) if key == 'network_id' else value)
             elif key in ('intro_variants', 'outro_variants'):
                 fields.append(f"{key} = ?")
                 values.append(json.dumps(value) if isinstance(value, list) else value)
@@ -288,14 +313,9 @@ class PatternMixin:
         """Hard-delete patterns by id on the caller's connection (no commit)."""
         if not ids:
             return 0
-        placeholders = ','.join('?' * len(ids))
-        # Explicit as well as the FK cascade: enforcement is per connection.
-        conn.execute(
-            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})",  # noqa: S608
-            ids,
-        )
+        delete_pattern_dependents(conn, ids)
         cursor = conn.execute(
-            f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",  # noqa: S608
+            f"DELETE FROM ad_patterns WHERE id IN ({','.join('?' * len(ids))})",  # noqa: S608
             ids,
         )
         return cursor.rowcount
@@ -331,11 +351,7 @@ class PatternMixin:
         )
         result: dict[int, list[str]] = {}
         for row in cursor.fetchall():
-            try:
-                tags = json.loads(row['tags'] or '[]')
-            except (ValueError, TypeError):
-                tags = []
-            result[row['id']] = tags if isinstance(tags, list) else []
+            result[row['id']] = load_json_list(row['tags'])
         return result
 
     def increment_pattern_match(self, pattern_id: int):
@@ -369,10 +385,7 @@ class PatternMixin:
 
     def _delete_ad_pattern_conn(self, conn, pattern_id: int) -> bool:
         """Delete an ad pattern on the caller's connection without committing."""
-        # Explicit as well as the FK cascade: enforcement is per connection.
-        conn.execute(
-            "DELETE FROM audio_fingerprints WHERE pattern_id = ?", (pattern_id,)
-        )
+        delete_pattern_dependents(conn, [pattern_id])
         cursor = conn.execute(
             "DELETE FROM ad_patterns WHERE id = ?", (pattern_id,)
         )
@@ -385,21 +398,15 @@ class PatternMixin:
             return self._delete_ad_pattern_conn(conn, pattern_id)
 
     def delete_all_community_patterns(self) -> int:
-        """Hard-delete every pattern with source='community'. Returns the
-        rowcount. `protected_from_sync` is ignored; the flag guards sync
-        reconciliation, not an explicit operator purge.
+        """Hard-delete every pattern with source='community'. Returns the rowcount.
 
-        Also deletes audio_fingerprints rows that point at the doomed
-        patterns. The FK cascades, but only on a connection with
-        foreign_keys on, so the delete stays explicit.
+        `protected_from_sync` is ignored: it guards sync reconciliation, not an
+        operator purge. audio_fingerprints rows are deleted explicitly because the
+        FK cascade only works on a connection with foreign_keys on.
         """
         invalidate_pattern_catalog_scope()
         conn = self.get_connection()
-        conn.execute(
-            "DELETE FROM audio_fingerprints WHERE pattern_id IN ("
-            "SELECT id FROM ad_patterns WHERE source = 'community'"
-            ")"
-        )
+        delete_pattern_dependents_in(conn, "(SELECT id FROM ad_patterns WHERE source = 'community')")
         cursor = conn.execute(
             "DELETE FROM ad_patterns WHERE source = 'community'"
         )
@@ -420,9 +427,9 @@ class PatternMixin:
                                    addressing_mode: str = None) -> int:
         """Create a pattern correction record. Returns correction ID.
 
-        source_hold_reason records which hold gate produced a
-        false_positive correction (e.g. 'differential_uncorroborated'), so
-        the text can later be excluded from cross-episode FP matching.
+        source_hold_reason records which hold gate produced a false_positive
+        (e.g. 'differential_uncorroborated') so its text can be excluded from
+        cross-episode FP matching.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -444,11 +451,8 @@ class PatternMixin:
                                         bounds_start: float, bounds_end: float) -> int:
         """Delete corrections that conflict with a new correction being submitted.
 
-        When user confirms or adjusts an ad, delete false_positive corrections
-        for the same bounds.
-        When user rejects an ad, delete confirm corrections for same bounds.
-
-        Returns number of deleted rows.
+        A confirm or adjustment deletes false_positive corrections for the same
+        bounds; a rejection deletes confirm corrections. Returns deleted row count.
         """
         # Determine the conflicting type
         if correction_type in ('confirm', 'boundary_adjustment'):
@@ -472,10 +476,8 @@ class PatternMixin:
                     parsed = json.loads(row['original_bounds'])
                     fp_start = float(parsed.get('start', 0))
                     fp_end = float(parsed.get('end', 0))
-                    # Same-span check, both directions (50% threshold, as
-                    # the validator): the rows conflict only when each span
-                    # mostly covers the other, so a rejection extending well
-                    # past the asserted span survives.
+                    # Same-span check in both directions (50% threshold, as the
+                    # validator): a rejection extending well past the span survives.
                     overlap_start = max(bounds_start, fp_start)
                     overlap_end = min(bounds_end, fp_end)
                     overlap = max(0, overlap_end - overlap_start)
@@ -492,6 +494,49 @@ class PatternMixin:
         if deleted:
             conn.commit()
         return deleted
+
+    def get_pattern_correction_episodes(self, pattern_id: int, limit: int) -> list[tuple[str, str]]:
+        """(slug, episode_id) of the newest-processed episodes that keep their original and hold a correction of the pattern but no false positive."""
+        # A legacy correction has no podcast_id, so its episode is found by episode_id alone
+        rows = self.get_connection().execute(CORRECTION_EPISODES_SQL,
+                                            (pattern_id, limit)).fetchall()
+        return [(r['slug'], r['episode_id']) for r in rows]
+
+    def get_pattern_origin_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
+        """In-scope (slug, episode_id) pairs for the origin episode id, which can repeat across feeds."""
+        scope_sql, params = _pattern_scope_sql(pattern)
+        rows = self.get_connection().execute(
+            "SELECT p.slug, e.episode_id FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "  # noqa: S608
+            f"WHERE e.episode_id = ?{scope_sql} "
+            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
+            (pattern['created_from_episode_id'], *params, limit)).fetchall()
+        return [(r['slug'], r['episode_id']) for r in rows]
+
+    def _scoped_retained_episodes(self, pattern: dict, extra_sql: str, extra_params: list,
+                                  limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope episodes that keep their original and meet extra_sql, minus false-positive ones."""
+        scope_sql, scope_params = _pattern_scope_sql(pattern)
+        rows = self.get_connection().execute(
+            "SELECT p.slug, e.episode_id FROM episodes e "  # noqa: S608
+            "JOIN podcasts p ON p.id = e.podcast_id "
+            "JOIN episode_details ed ON ed.episode_id = e.id "
+            f"WHERE e.original_file IS NOT NULL AND {extra_sql}{scope_sql} "
+            "AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = ? "
+            "AND f.episode_id = e.episode_id AND f.correction_type = 'false_positive' "
+            "AND (f.podcast_id IS NULL OR f.podcast_id = e.podcast_id)) "
+            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
+            (*extra_params, *scope_params, pattern['id'], limit)).fetchall()
+        return [(r['slug'], r['episode_id']) for r in rows]
+
+    def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
+        like_sql, like_params = _marker_id_like(pattern['id'])
+        return self._scoped_retained_episodes(pattern, like_sql, like_params, limit)
+
+    def get_pattern_transcript_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes that keep their original transcript, minus false-positive ones."""
+        return self._scoped_retained_episodes(
+            pattern, "ed.original_segments_json IS NOT NULL", [], limit)
 
     def get_pattern_corrections(self, pattern_id: int = None, limit: int = 100) -> list[dict]:
         """Get pattern corrections, optionally filtered by pattern_id."""
@@ -714,7 +759,7 @@ class PatternMixin:
                                        episode_id: str) -> list[dict]:
         """Get false_positive corrections for an episode with parsed bounds.
 
-        Returns list of dicts with 'start' and 'end' keys for easy overlap checking.
+        Returns dicts with 'start' and 'end' keys.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -734,9 +779,8 @@ class PatternMixin:
                                   episode_id: str) -> list[dict]:
         """Get confirmed corrections for an episode with parsed bounds.
 
-        Results are newest first so the latest user decision wins when
-        corrections overlap. Both confirm and boundary_adjustment keep an ad;
-        a trimmed confirm or boundary adjustment also carries the exact
+        Newest first so the latest decision wins on overlap. Confirm and
+        boundary_adjustment both keep an ad; a trimmed one also carries the
         user-approved bounds in ``confirmed_span``.
         """
         conn = self.get_connection()
@@ -774,14 +818,12 @@ class PatternMixin:
         """Get correction bounds for positional prior learning.
 
         Returns dicts with episode_id, correction_type, start, end. create,
-        boundary_adjustment, and trimmed-confirm corrections use
-        corrected_bounds; false_positive and plain confirm use
-        original_bounds. boundary_adjustment rows also carry
-        orig_start/orig_end (the bounds of the marker the user adjusted) so
-        the learner can match the adjustment to its marker. Rows without
-        valid bounds are skipped. Only corrections for episode_ids are
-        returned, keeping the query bounded to the learning window. Pass-2
-        auto-filed confirms are excluded so the prior never learns its own output.
+        boundary_adjustment and trimmed-confirm use corrected_bounds;
+        false_positive and plain confirm use original_bounds. boundary_adjustment
+        also carries orig_start/orig_end so the learner can match it to its marker.
+        Rows without valid bounds are skipped, and the query is limited to
+        episode_ids. Pass-2 auto-filed confirms are excluded so the prior never
+        learns its own output.
         """
         if not episode_ids:
             return []
@@ -826,12 +868,9 @@ class PatternMixin:
         return results
 
     def get_podcast_false_positive_texts(self, podcast_slug: str, limit: int = 100) -> list[dict]:
-        """Get all false positive texts for a podcast for cross-episode matching.
+        """False positive texts for a podcast, for cross-episode matching.
 
-        Returns list of dicts with:
-        - text: The rejected segment text
-        - episode_id: Which episode it came from
-        - start, end: Original time bounds
+        Dicts carry text (rejected segment), episode_id and original start/end.
         """
         conn = self.get_connection()
         cursor = conn.execute(f'''
@@ -869,23 +908,16 @@ class PatternMixin:
 
 
 def suppress_differential_fp_texts(db) -> int:
-    """One-shot backfill (2.76.0): suppress false-positive correction text
-    that came from a rejected dai_differential hold.
+    """One-shot backfill (2.76.0): suppress false-positive correction text from a rejected dai_differential hold.
 
-    Rejecting a differential-hold marker (the user or an auto-reject
-    confirming it was not an ad) still leaves the marker in
-    episode_details.ad_markers_json with detection_stage=='dai_differential'
-    even after hold_reason is popped. Before this backfill, that rejection's
-    text_snippet was scraped into cross-episode FP text matching the same
-    as any other false_positive correction, poisoning future differential
-    matching on other episodes with text that was only ever a hold
-    candidate, not a confirmed false positive of a real detector.
+    A rejected differential-hold marker stays in episode_details.ad_markers_json
+    with detection_stage=='dai_differential' even after hold_reason is popped, so
+    its text_snippet was feeding cross-episode FP matching and poisoning other
+    episodes with text that was only ever a hold candidate.
 
-    For every false_positive correction with a text_snippet, loads the
-    correction's episode markers and sets fp_suppressed=1 when
-    original_bounds match (tolerance 0.5s on both edges) a marker whose
-    detection_stage == 'dai_differential'. Never deletes rows. Returns the
-    count suppressed.
+    Sets fp_suppressed=1 on every false_positive correction whose original_bounds
+    match (0.5s tolerance on both edges) such a marker. Never deletes rows.
+    Returns the count suppressed.
     """
     conn = db.get_connection()
     rows = conn.execute(

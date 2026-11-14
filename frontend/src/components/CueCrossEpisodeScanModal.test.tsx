@@ -1,7 +1,5 @@
 /**
- * Focused tests for CueCrossEpisodeScanModal not covered by the panel suite:
- *   - Escape with a stacked CueMarkModal open must NOT close the parent modal
- *     (the seed modal owns Escape while it is up).
+ * Escape with a stacked CueMarkModal open must not close the parent modal (the seed modal owns Escape).
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';

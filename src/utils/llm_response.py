@@ -20,12 +20,10 @@ def json_object_is_blank(response_text: str | None) -> bool:
 
 
 def find_json_array_candidates(text: str):
-    """Yield each top-level ``[...]`` substring from ``text`` in left-to-right
-    order.
+    """Yield each top-level ``[...]`` substring of ``text``, left to right.
 
-    Linear-time single-pass scanner: tracks bracket depth and JSON string
-    context (so brackets inside ``"..."`` do not affect depth) and records
-    each span where the depth transitions from 0 -> 1 -> 0.
+    Single-pass scan tracking bracket depth and string context (brackets inside
+    ``"..."`` are ignored).
     """
     depth = 0
     start = -1
@@ -102,11 +100,8 @@ def extract_json_ads_array(
 ) -> tuple[list | None, str | None]:
     """Extract a JSON array of ad dicts from an LLM's response text.
 
-    Tries 4 strategies in order:
-    0. Direct JSON parse (handles various wrapper object structures)
-    1. Markdown code block extraction
-    2. Bracket-depth scan for top-level JSON arrays
-    3. Bracket-delimited fallback (first '[' to last ']')
+    Strategies in order: direct parse (incl. wrapper objects), markdown code block,
+    bracket-depth scan, first '[' to last ']'.
 
     Returns (ads_list, extraction_method) or (None, None) if no valid JSON found.
     """
@@ -196,17 +191,12 @@ _TRUNC_STRING_RE = re.compile(r'"(\w+)"\s*:\s*"([^"]{0,500})')
 
 
 def _salvage_truncated_single_ad(response_text: str) -> dict | None:
-    """Recover a usable ad dict from a response that started as a single-ad
-    JSON object but ran out of token budget mid-response.
+    """Recover an ad dict from a single-ad JSON object truncated by ``max_tokens``.
 
-    Observed in the offline benchmark with models that emit verbose ``reason``
-    fields and hit ``max_tokens`` before closing the object (Microsoft phi-4
-    was the canonical case). The four upstream strategies all bail because
-    the JSON is structurally invalid: no closing brace, often an unclosed
-    string literal at the very end. We regex-extract the numeric fields and
-    optionally the partial reason, then return the dict only if both ``start``
-    and ``end`` were recovered. Without those two, downstream IoU matching
-    can't do anything with the row, so we'd rather report no-ad than fabricate.
+    Verbose ``reason`` fields can hit the limit before the closing brace, so the
+    upstream strategies all fail. Regex-extracts the numeric fields and any partial
+    reason; returns the dict only if both ``start`` and ``end`` were recovered,
+    since IoU matching needs them and no-ad beats a fabricated row.
     """
     text = response_text.lstrip()
     # Reviewer + detector prompts return an array of ad verdicts; truncation
@@ -237,9 +227,9 @@ def _salvage_truncated_single_ad(response_text: str) -> dict | None:
 
 
 def find_first_dict_with_key(obj, key: str) -> dict | None:
-    """Walk a parsed JSON value and return the first dict that contains
-    ``key`` at its top level. Used to recover from LLMs that wrap their
-    verdict object in extra metadata fields or nest it inside an array.
+    """Return the first dict in a parsed JSON value with ``key`` at its top level.
+
+    Recovers verdicts that the LLM wrapped in metadata or nested in an array.
     """
     if isinstance(obj, dict):
         if key in obj:
@@ -263,11 +253,8 @@ def extract_json_object(
 ) -> tuple[dict | None, str | None]:
     """Extract a single JSON object from an LLM's response text.
 
-    Used by callers (e.g. the ad reviewer) that expect one JSON object per
-    LLM call rather than an array. Tries 3 strategies:
-    0. Direct JSON parse
-    1. Markdown code block
-    2. Brace-delimited fallback (first '{' to last '}')
+    For callers (e.g. the ad reviewer) expecting one object per call. Strategies in
+    order: direct parse, markdown code block, first '{' to last '}'.
 
     Returns (obj, extraction_method) or (None, None) if no valid JSON found.
     """

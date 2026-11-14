@@ -78,9 +78,8 @@ def test_invalid_stored_setting_falls_back_to_the_default():
 def test_reset_leaves_no_row_so_the_env_var_still_wins(monkeypatch):
     """Reset must clear the row, not freeze the current default into one.
 
-    A stored row wins over the env-backed default in _resolve, so writing the
-    resolved default on reset would pin the string this install first saw and
-    silently ignore both DOWNLOAD_USER_AGENT and a later shipped bump.
+    A stored row wins over the env-backed default in _resolve, so writing the resolved default would pin it
+    and ignore DOWNLOAD_USER_AGENT and later shipped bumps.
     """
     db = Database()
     db.set_setting(user_agent.DOWNLOAD_UA_SETTING, 'CustomAgent/9.9', is_default=False)
@@ -178,8 +177,7 @@ class TestAudioAvailabilityProbe:
 
 def test_module_imports_before_storage():
     """user_agent must stay a leaf: storage imports it, so importing it first
-    has to work. `utils.ttl_cache` drags utils/__init__ -> utils.audio ->
-    storage and puts it back in the cycle."""
+    has to work."""
     import subprocess
     import sys
 
@@ -227,3 +225,11 @@ def test_invalid_feed_override_warns_once_until_the_value_changes(caplog):
         assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
         warnings = [r for r in caplog.records if 'show-a' in r.message]
         assert len(warnings) == 1
+
+
+def test_settled_prefers_fallback_then_download_then_default(monkeypatch):
+    monkeypatch.setattr(user_agent, 'download_user_agent', lambda podcast=None: 'Default/1.0')
+    assert user_agent.settled_download_user_agent(
+        {'download_user_agent': 'D/1', 'fallback_user_agent': 'F/1'}) == 'F/1'
+    assert user_agent.settled_download_user_agent({'download_user_agent': 'D/1'}) == 'D/1'
+    assert user_agent.settled_download_user_agent(None) == 'Default/1.0'

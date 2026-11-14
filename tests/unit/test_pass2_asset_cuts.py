@@ -37,10 +37,7 @@ def test_pass2_cuts_empty_when_no_recut(monkeypatch):
 
 
 def test_pass2_rendered_cuts_carry_replacement_duration(monkeypatch):
-    """A recut span's own replacement_duration (e.g. a beep-action span
-    padded to its own length) must survive into the mapped output, instead
-    of being dropped and falling back to the fixed beep-clip default at
-    every downstream mapper."""
+    """A recut span's own replacement_duration survives into the mapped output instead of the beep-clip default."""
     monkeypatch.setattr(review, 'get_replacement_duration', lambda: 1.0)
     monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 1.0)
     monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 1.0)

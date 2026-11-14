@@ -96,10 +96,9 @@ def drive_verification_pass(findings=(), *, pairs=None, holds=(), cuts=(), kept=
                             recut_error=None, audio=None, segments=None,
                             segment_actions=None, extra_patches=(), cue_gate_enabled=False,
                             pass1_reviewer_rejects=(), **pass_kwargs):
-    """Run _run_verification_pass over findings with detection, validation and reviewers stubbed.
+    """Run _run_verification_pass with detection, validation and reviewers stubbed.
 
-    validate, gate and pass2_reviewer stand in for the processing helpers (default: pass
-    through, real gate); hold_verdicts turns the hold-release review on with those verdicts.
+    validate, gate and pass2_reviewer replace the processing helpers; hold_verdicts turns the hold-release review on.
     """
     processor = AudioProcessor()
     rendered = {}

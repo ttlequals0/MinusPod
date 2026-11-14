@@ -30,7 +30,7 @@ function PodcastIndexSection({
   const draftsPending = podcastIndexApiKey !== '' || podcastIndexApiSecret !== '';
   const usingPodcastIndex = searchProvider === 'podcastindex';
   return (
-    <CollapsibleSection title="Podcast search" storageKey="settings-section-podcast-index">
+    <CollapsibleSection title="Podcast search" storageKey="settings-section-podcast-index" anchorId="podcast-index">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Search for podcasts by name when adding feeds.

@@ -1,6 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
-import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
 import { apiUrl } from '../urlPrefix';
 import { mediaUrl } from '../utils/mediaUrl';
 import { IS_DEMO } from '../demo/flag';
@@ -44,7 +43,10 @@ export async function getEpisodeRunLog(
   );
 }
 
-export interface PeaksResponse {
+// How long the editor waits for a waveform that is still being prepared.
+const PEAKS_BUSY_BUDGET_MS = 10 * 60 * 1000;
+
+interface PeaksResponse {
   episodeId: string;
   start: number;
   end: number | null;
@@ -58,15 +60,17 @@ export async function getEpisodePeaks(
   start: number,
   end: number,
   resolutionMs = 50,
+  signal?: AbortSignal,
 ): Promise<PeaksResponse> {
   const qs = buildQueryString({ start, end, resolution_ms: resolutionMs });
   return apiRequest<PeaksResponse>(
     `/feeds/${slug}/episodes/${episodeId}/peaks${qs}`,
+    { busyBudgetMs: PEAKS_BUSY_BUDGET_MS, signal },
   );
 }
 
 
-export interface TranscriptSpanResponse {
+interface TranscriptSpanResponse {
   episodeId: string;
   start: number;
   end: number;
@@ -99,7 +103,7 @@ export interface OriginalSegment {
   words?: TranscriptWord[];
 }
 
-export interface OriginalSegmentsResponse {
+interface OriginalSegmentsResponse {
   episodeId: string;
   segments: OriginalSegment[];
 }
@@ -132,7 +136,7 @@ export async function getOriginalTranscript(slug: string, episodeId: string): Pr
   return response.originalTranscript;
 }
 
-export interface FeedsResponse {
+interface FeedsResponse {
   feeds: Feed[];
   // Stamped whenever an all-feeds refresh pass finishes (15-minute
   // scheduler or Refresh All); null until the first pass completes.
@@ -146,9 +150,9 @@ export interface FeedsResponse {
   offset?: number;
 }
 
-export type FeedSortField = 'recent' | 'title';
+type FeedSortField = 'recent' | 'title';
 
-export interface GetFeedsParams {
+interface GetFeedsParams {
   page?: number;
   limit?: number;
   // Adds a bounded per-feed `latestEpisodes` projection via one windowed
@@ -198,7 +202,7 @@ export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
 }
 
-export interface SubscriberKey {
+interface SubscriberKey {
   id: string;
   label: string;
   created_at: string;
@@ -206,7 +210,7 @@ export interface SubscriberKey {
   revoked_at: string | null;
 }
 
-export interface CreatedSubscriberKey extends SubscriberKey {
+interface CreatedSubscriberKey extends SubscriberKey {
   token: string;
   feedUrl: string;
 }
@@ -261,7 +265,7 @@ export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
 
-export interface FeedCreateOptions {
+interface FeedCreateOptions {
   slug?: string;
   autoProcessOverride?: boolean | null;
   maxEpisodes?: number;
@@ -284,7 +288,7 @@ export async function addFeed(sourceUrl: string, options: FeedCreateOptions = {}
   });
 }
 
-export interface AddLocalFeedPayload {
+interface AddLocalFeedPayload {
   title: string;
   slug?: string;
   description?: string;
@@ -293,7 +297,7 @@ export interface AddLocalFeedPayload {
   categories?: string[];
 }
 
-export interface AddLocalFeedResult {
+interface AddLocalFeedResult {
   slug: string;
   feedType: 'local';
   feedUrl: string;
@@ -307,12 +311,12 @@ export async function addLocalFeed(payload: AddLocalFeedPayload): Promise<AddLoc
   });
 }
 
-export interface AddRecentsFeedPayload {
+interface AddRecentsFeedPayload {
   title?: string;
   description?: string;
 }
 
-export interface AddRecentsFeedResult {
+interface AddRecentsFeedResult {
   slug: string;
   feedType: 'recents';
   feedUrl: string;
@@ -327,7 +331,7 @@ export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<Ad
   });
 }
 
-export interface AddYoutubeFeedPayload extends FeedCreateOptions {
+interface AddYoutubeFeedPayload extends FeedCreateOptions {
   sourceKind: 'playlist' | 'channel' | 'video';
   sourceId: string;
   title: string;
@@ -346,7 +350,7 @@ export async function addYoutubeFeed(
   });
 }
 
-export interface UploadFeedArtworkResult {
+interface UploadFeedArtworkResult {
   message: string;
   artworkUrl: string;
   warning?: string;
@@ -355,8 +359,7 @@ export interface UploadFeedArtworkResult {
 export async function uploadFeedArtwork(slug: string, file: File): Promise<UploadFeedArtworkResult> {
   const formData = new FormData();
   formData.append('file', file);
-  // skipRetry: mirrors importOpml -- a retry after a timed-out first attempt
-  // could re-process the same upload twice.
+  // skipRetry, as in importOpml: a retry after a timeout could process the same upload twice.
   return apiRequest<UploadFeedArtworkResult>(`/feeds/${slug}/artwork`, {
     method: 'POST',
     body: formData,
@@ -364,7 +367,7 @@ export async function uploadFeedArtwork(slug: string, file: File): Promise<Uploa
   });
 }
 
-export interface DeleteFeedResult {
+interface DeleteFeedResult {
   message: string;
   slug: string;
   pending: boolean;
@@ -412,7 +415,7 @@ export async function regenerateAllFeeds(): Promise<{ message: string; feedCount
 
 export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'titleSkipped' | 'descriptionSkipped' | 'durationSkipped'>;
 
-export interface EpisodesResponse {
+interface EpisodesResponse {
   selection?: EpisodeSelection[];
   // Present only with selection=true; true when the match count exceeded the 501-row cap.
   truncated?: boolean;
@@ -446,7 +449,7 @@ export async function approveEpisode(slug: string, episodeId: string): Promise<E
   return apiRequest<Episode>(`/feeds/${slug}/episodes/${episodeId}/approve`, { method: 'POST' });
 }
 
-export interface ReprocessEpisodeResult {
+interface ReprocessEpisodeResult {
   message: string;
   mode: string;
   jobState?: JobState;
@@ -463,96 +466,38 @@ export async function reprocessEpisode(
   );
 }
 
-export interface UpdateFeedPayload {
-  sourceUrl?: string;
-  // title and p20 are local feeds only; author, explicit and categories also work on YouTube feeds.
-  // The backend rejects them on a subscribed feed.
-  title?: string;
-  description?: string;
-  // null clears the stored value (the backend distinguishes "clear" from
-  // "field omitted"; sending undefined here drops the key from the JSON
-  // body entirely and the old value survives untouched).
+type FeedPatchKey =
+  | 'sourceUrl' | 'title' | 'description' | 'p20' | 'networkId' | 'daiPlatform'
+  | 'networkIdOverride' | 'autoProcessOverride' | 'autoProcessMaxAgeHoursOverride'
+  | 'languageOverride' | 'downloadUserAgentOverride' | 'feedUserAgentOverride' | 'titleOverride'
+  | 'descriptionOverride' | 'detectionNotes' | 'chapterNotes' | 'detectionMode' | 'chaptersMode'
+  | 'differentialFetchMode' | 'chaptersInNotes' | 'reviewLinksInNotes' | 'queuePriority'
+  | 'queueOrder' | 'lowAdYieldAction' | 'episodeLogs' | 'cueTemplateScoreOverride'
+  | 'cueCreateFromPairsOverride' | 'cueCutMatchesOverride' | 'cuePairMinBreakOverride'
+  | 'cuePairMaxBreakOverride' | 'cuePairMaxBreakFractionOverride' | 'cueSnapConfidenceOverride'
+  | 'cueSnapLeadOverride' | 'cueSnapLagOverride' | 'silenceSnapEnabled' | 'spliceVetoEnabled'
+  | 'transitionSnapEnabled' | 'maxAdDurationOverride' | 'youtubeIncludeShorts'
+  | 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride'
+  | 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytHidePrivateOverride'
+  | 'ytTranscribeOverride' | 'maxAdDurationRejectOverride' | 'adDetectionExcludeStartOverride'
+  | 'cueGatedApproval' | 'differentialFetchEnabled' | 'passthroughEnabled' | 'skipAdDetection'
+  | 'processingMode' | 'cueOnlySafety' | 'skipTranscription' | 'maxEpisodes'
+  | 'onlyExposeProcessedEpisodes' | 'requireManualApproval' | 'retentionDaysOverride'
+  | 'keepOriginalAudioOverride' | 'audioReplacementSoundOverride' | 'audioMp3StreamCopyOverride'
+  | 'titleSkipPatterns' | 'descriptionSkipPatterns' | 'descriptionTrimPattern'
+  | 'descriptionTrimMode' | 'titleSkipAction' | 'minDurationSeconds' | 'maxDurationSeconds'
+  | 'segmentCategoryActions' | 'detectShowSegments' | 'ownEpisodeGuids' | 'skipSecondPass'
+  | 'transcriptDifferential';
+
+// title and p20: local feeds only (the backend rejects them on a subscribed feed); author, explicit and
+// categories also work on YouTube feeds. null clears a stored value; undefined drops the key from the JSON
+// body and the old value survives. processingMode conflicts with detectionMode/skipAdDetection/passthroughEnabled,
+// and cue-only fields need cue_only. segmentCategoryActions replaces the stored map (null clears every override).
+export type UpdateFeedPayload = Partial<Pick<Feed, FeedPatchKey>> & {
   author?: string | null;
   explicit?: boolean;
   categories?: string[] | null;
-  p20?: Record<string, unknown>;
-  networkId?: string;
-  daiPlatform?: string;
-  networkIdOverride?: string | null;
-  autoProcessOverride?: boolean | null;
-  autoProcessMaxAgeHoursOverride?: number | null;
-  languageOverride?: string | null;
-  downloadUserAgentOverride?: string | null;
-  feedUserAgentOverride?: string | null;
-  titleOverride?: string | null;
-  descriptionOverride?: string | null;
-  detectionNotes?: string | null;
-  chapterNotes?: string | null;
-  detectionMode?: string | null;
-  chaptersMode?: 'auto' | 'generate' | 'off' | null;
-  differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
-  chaptersInNotes?: 'on' | 'off' | null;
-  reviewLinksInNotes?: 'on' | 'off' | null;
-  queuePriority?: 'high' | 'normal' | 'low' | null;
-  lowAdYieldAction?: LowAdYieldAction | null;
-  episodeLogs?: EpisodeLogsOverride | null;
-  cueTemplateScoreOverride?: number | null;
-  cueCreateFromPairsOverride?: boolean | null;
-  cueCutMatchesOverride?: boolean | null;
-  cuePairMinBreakOverride?: number | null;
-  cuePairMaxBreakOverride?: number | null;
-  cuePairMaxBreakFractionOverride?: number | null;
-  cueSnapConfidenceOverride?: number | null;
-  cueSnapLeadOverride?: number | null;
-  cueSnapLagOverride?: number | null;
-  silenceSnapEnabled?: boolean | null;
-  spliceVetoEnabled?: boolean | null;
-  transitionSnapEnabled?: boolean | null;
-  maxAdDurationOverride?: number | null;
-  youtubeIncludeShorts?: boolean | null;
-  ytProcessDelayMinutesOverride?: number | null;
-  ytProbeAttemptsOverride?: number | null;
-  ytProbeIntervalMinutesOverride?: number | null;
-  ytLlmFallbackOverride?: boolean | null;
-  ytLlmOnTopOverride?: boolean | null;
-  ytCaptionsOverride?: boolean | null;
-  ytHidePrivateOverride?: boolean | null;
-  ytTranscribeOverride?: boolean | null;
-  maxAdDurationRejectOverride?: number | null;
-  adDetectionExcludeStartOverride?: number | null;
-  cueGatedApproval?: boolean | null;
-  differentialFetchEnabled?: boolean | null;
-  passthroughEnabled?: boolean | null;
-  skipAdDetection?: boolean | null;
-  // Single-preset replacement for detectionMode/skipAdDetection/passthroughEnabled.
-  // Rejected by the backend if combined with any of those legacy fields.
-  processingMode?: ProcessingMode;
-  // Cue-only mode fields; the backend rejects them outside cue_only.
-  cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
-  skipTranscription?: boolean | null;
-  maxEpisodes?: number | null;
-  onlyExposeProcessedEpisodes?: boolean | null;
-  requireManualApproval?: boolean | null;
-  retentionDaysOverride?: number | null;
-  keepOriginalAudioOverride?: boolean | null;
-  audioReplacementSoundOverride?: boolean | null;
-  audioMp3StreamCopyOverride?: boolean | null;
-  titleSkipPatterns?: string[];
-  descriptionSkipPatterns?: string[];
-  descriptionTrimPattern?: string | null;
-  descriptionTrimMode?: 'to_end' | 'to_next';
-  titleSkipAction?: 'serve_original' | 'hide' | null;
-  minDurationSeconds?: number | null;
-  maxDurationSeconds?: number | null;
-  // Per-feed segment-action overrides (issue #565). The backend replaces
-  // the stored map outright, so callers must send the full desired partial
-  // map (not just the changed key); null clears every override.
-  segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
-  detectShowSegments?: boolean | null;
-  ownEpisodeGuids?: boolean | null;
-  skipSecondPass?: boolean | null;
-  transcriptDifferential?: boolean | null;
-}
+};
 
 export interface Network {
   id: string;
@@ -616,7 +561,7 @@ export async function reprocessAllEpisodes(
 }
 
 // The run is started in the background; the episode reports its outcome.
-export interface RegenerateChaptersResult {
+interface RegenerateChaptersResult {
   message: string;
   episodeId: string;
   status: 'started';
@@ -659,7 +604,7 @@ export async function bulkEpisodeAction(
   });
 }
 
-export interface SetEpisodesPassthroughResult {
+interface SetEpisodesPassthroughResult {
   updated: number;
   // Episodes also enqueued for a reprocess so the flag applies this run.
   // Only set (>0) when enabled=true; clearing never forces a reprocess.
@@ -684,9 +629,9 @@ export async function setEpisodesPassthrough(
   });
 }
 
-// ========== Local feed episode management (#625 Task 13) ==========
+// ========== Local feed episode management (#625) ==========
 
-export interface LocalEpisodeUploadResult extends Episode {
+interface LocalEpisodeUploadResult extends Episode {
   episodeNumber?: number;
   seasonNumber?: number;
   queued: boolean;
@@ -734,7 +679,7 @@ export async function uploadLocalEpisodeArtwork(
   });
 }
 
-// ========== Local feed bulk archive import (#625 Task 13) ==========
+// ========== Local feed bulk archive import (#625) ==========
 
 export interface ImportRejectedFile {
   file: string;
@@ -773,19 +718,13 @@ export interface ImportPlanEntry {
   mtimeNs: number;
   warnings: string[];
   errors: string[];
-  // True whenever this episodeId already exists in the feed, independent
-  // of overwrite -- a collision marker, not an outcome. It's only errors
-  // being empty that says whether this entry actually commits: with
-  // overwrite off the collision itself becomes an error; with overwrite on
-  // it doesn't, and this entry cleanly overwrites the existing episode.
+  // True when this episodeId already exists in the feed, regardless of overwrite: a collision marker, not an
+  // outcome. Only empty errors says whether the entry commits (overwrite off turns the collision into an error;
+  // on, the entry overwrites the existing episode).
   replacesExisting: boolean;
-  // The actual existing row's episode id when replacesExisting is true,
-  // else null. Usually identical to episodeId; can differ for a row
-  // imported before episode ids were canonicalized to minimal
-  // zero-padded width (e.g. 's01e0006' for what this entry mints as
-  // 's01e06'). Server-only bookkeeping for commit -- not currently
-  // surfaced anywhere in this UI. Optional so existing fixtures/tests
-  // that predate this field keep compiling unchanged.
+  // The existing row's episode id when replacesExisting is true, else null. Can differ from episodeId for rows
+  // imported before ids were canonicalized to minimal zero-padded width ('s01e0006' vs 's01e06'). Server-side
+  // bookkeeping for commit; optional so older fixtures keep compiling.
   replacesExistingId?: string | null;
 }
 
@@ -795,9 +734,8 @@ export interface ImportPlan {
   planHash: string;
   entries: ImportPlanEntry[];
   rejected: ImportRejectedFile[];
-  // Batch-level errors (currently just an out-of-order explicit publish-date
-  // pair) that block commit even when individual entries show no errors of
-  // their own -- see local_import.build_import_plan's docstring.
+  // Batch-level errors (e.g. an out-of-order explicit publish-date pair) that block commit even when no entry
+  // has errors; see local_import.build_import_plan.
   batchErrors: string[];
   totals: { importable: number; rejected: number; errors: number; bytes: number };
 }
@@ -824,7 +762,7 @@ export async function importCommit(
   });
 }
 
-export interface ImportReportEntry {
+interface ImportReportEntry {
   episodeId: string;
   audioFile?: string;
   warnings?: string[];
@@ -832,7 +770,7 @@ export interface ImportReportEntry {
   error?: string;
 }
 
-export interface ImportReport {
+interface ImportReport {
   committed: ImportReportEntry[];
   skipped: ImportReportEntry[];
   failed: ImportReportEntry[];
@@ -853,11 +791,9 @@ export async function importStatus(slug: string): Promise<ImportStatus> {
   return apiRequest<ImportStatus>(`/feeds/${slug}/import/status`);
 }
 
-// Empties the feed's upload staging directory. Staging accumulates across
-// canceled/abandoned import attempts (every upload lands there and only
-// clears on a successful commit), so this is called both when the operator
-// cancels a reviewed plan and from the "staged earlier" note's own button --
-// 409s server-side while an import is running for this feed.
+// Empties the feed's upload staging directory. Staging accumulates across canceled or abandoned imports (it
+// only clears on a successful commit), so this runs on cancel and from the "staged earlier" note's button.
+// The server 409s while an import is running.
 export async function clearImportStaging(slug: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/feeds/${slug}/import/staging`, {
     method: 'DELETE',

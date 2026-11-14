@@ -1,9 +1,5 @@
-"""Unit tests for the cue_cross_episode_scans DB state machine (D1b, #350).
-
-Mirrors test_database.py's test_cue_candidate_scan_state_machine /
-test_cue_candidate_scan_error_and_staleness but for the new family keyed by
-(podcast_id, episode_set_hash).
-"""
+"""Unit tests for the cue_cross_episode_scans DB state machine (D1b, #350), keyed by
+(podcast_id, episode_set_hash); mirrors test_database.py's cue_candidate_scan tests."""
 import json
 
 

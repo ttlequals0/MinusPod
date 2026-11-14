@@ -5,12 +5,12 @@ export interface AuthStatus {
   authenticated: boolean;
 }
 
-export interface LoginResponse {
+interface LoginResponse {
   authenticated: boolean;
   message: string;
 }
 
-export interface PasswordChangeResponse {
+interface PasswordChangeResponse {
   message: string;
   passwordSet: boolean;
 }
@@ -19,10 +19,10 @@ export async function getAuthStatus(): Promise<AuthStatus> {
   return apiRequest<AuthStatus>('/auth/status');
 }
 
-export async function login(password: string): Promise<LoginResponse> {
+export async function login(password: string, rememberMe: boolean): Promise<LoginResponse> {
   return apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
-    body: { password },
+    body: { password, rememberMe },
   });
 }
 

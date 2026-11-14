@@ -5,6 +5,7 @@ import functools
 import gc
 import logging
 import os
+import threading
 
 try:
     import pynvml
@@ -15,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 _GIB = 1024 ** 3
 _nvml_ready = None  # None unknown, True initialised, False unavailable
+_gpu_logged = False
+_gpu_log_lock = threading.Lock()
 
 
 def get_available_system_memory_gb() -> float | None:
@@ -99,6 +102,32 @@ def get_available_gpu_memory_gb() -> float | None:
     return _nvml_query(lambda h: pynvml.nvmlDeviceGetMemoryInfo(h).free / _GIB)
 
 
+def _gpu_summary(handle) -> str:
+    try:
+        index = f"NVML index {pynvml.nvmlDeviceGetIndex(handle)}, "
+    except pynvml.NVMLError:
+        index = ""  # a MIG slice has no index of its own
+    name = pynvml.nvmlDeviceGetName(handle)
+    bus = pynvml.nvmlDeviceGetPciInfo(handle).busId
+    total = pynvml.nvmlDeviceGetMemoryInfo(handle).total
+    name = name.decode() if isinstance(name, bytes) else name
+    bus = bus.decode() if isinstance(bus, bytes) else bus
+    return f"GPU: {name} ({index}bus {bus}, {total / _GIB:.1f} GiB)"
+
+
+def log_selected_gpu() -> None:
+    """Log the selected GPU once per process; a transient NVML failure is retried on the next call."""
+    global _gpu_logged
+    with _gpu_log_lock:
+        if _gpu_logged:
+            return
+        summary = _nvml_query(_gpu_summary)
+        if summary is not None:
+            logger.info(summary)
+        # Only a missing pynvml or a failed init is final.
+        _gpu_logged = summary is not None or pynvml is None or _nvml_ready is False
+
+
 def get_available_memory_gb(device: str = "cuda") -> tuple[float | None, str]:
     """Memory available for transcription as (GB, "gpu" | "system" | "unknown")."""
     if device == "cuda":
@@ -107,6 +136,7 @@ def get_available_memory_gb(device: str = "cuda") -> tuple[float | None, str]:
             sys_mem = get_available_system_memory_gb()
             if sys_mem is not None:
                 logger.info(f"Memory available - GPU: {gpu_mem:.1f}GB, System: {sys_mem:.1f}GB")
+            log_selected_gpu()
             # VRAM is the limit; system RAM is not the bottleneck for faster-whisper
             return gpu_mem, "gpu"
         logger.warning("GPU memory unreadable, sizing chunks from system RAM")

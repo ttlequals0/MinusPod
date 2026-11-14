@@ -1,9 +1,4 @@
-"""Bulk import API endpoints: upload/scan/commit/status (#625 Task 11).
-
-Mirrors test_local_episode_api.py's fixture style (shared app_client fixture
-from conftest.py, local _authed/_csrf_headers helpers, main_app singleton
-alignment).
-"""
+"""Bulk import API endpoints: upload/scan/commit/status (#625)."""
 import io
 import os
 import shutil
@@ -45,11 +40,9 @@ def _reset_rate_limiter():
 
 @pytest.fixture(autouse=True)
 def _align_main_app_singletons(app_client):
-    """See test_local_feed_api.py's identical fixture for the full
-    explanation: main_app.feeds / local_feed_builder freeze module-level
-    db/storage references at import time that can go stale relative to
-    api.get_database()/get_storage() by the time this module's tests run.
-    """
+    """Re-align main_app.feeds / local_feed_builder with api.get_database()/get_storage().
+
+    They freeze module-level db/storage references at import time that can go stale (see test_local_feed_api.py)."""
     import main_app.feeds as mf
     import local_feed_builder as lfb
     from api import get_database, get_storage
@@ -78,9 +71,8 @@ def local_feed(app_client):
     db = get_database()
     storage = get_storage()
     slug = 'local-import-api-local'
-    # The staging dir is keyed only by slug, not per-test -- clear any
-    # leftover files from a prior test in this module before this test's
-    # uploads/scans run, so plans stay scoped to what this test staged.
+    # The staging dir is keyed only by slug, not per-test: clear leftovers from earlier tests
+    # so plans stay scoped to what this test staged.
     shutil.rmtree(storage.import_staging_dir(slug), ignore_errors=True)
     db.create_podcast(slug, f'local://{slug}', 'Local Test', feed_type='local')
     yield {'slug': slug, 'db': db}
@@ -204,9 +196,8 @@ def test_upload_mixed_valid_and_rejected(app_client, local_feed):
 
 
 def test_upload_rejects_overlong_basename_without_crashing_batch(app_client, local_feed):
-    """A 300-char filename must not OSError (ENAMETOOLONG) the whole
-    request -- it degrades to a per-file rejection alongside the valid
-    file, which still stages normally."""
+    """A 300-char filename must not OSError (ENAMETOOLONG) the whole request; it is rejected
+    per-file while valid files still stage."""
     slug = local_feed['slug']
     _authed(app_client)
 
@@ -263,15 +254,11 @@ def test_upload_400_on_subscribed_feed(app_client, subscribed_feed):
 
 
 def test_upload_exempt_from_default_rate_limit(app_client, local_feed):
-    """(round-2 review finding 2) The blueprint's default rate limit
-    (200/min, api/__init__.py) must not apply to this route: the UI now
-    uploads one file per request (sequential per-file uploads for "x of y"
-    progress), so a batch past 200 files would otherwise start 429ing
-    partway through even though nothing is actually wrong. Functional,
-    not an internals check: loops past the default limit against the real
-    endpoint and confirms every response is a normal 200, never a 429 --
-    this module's autouse _reset_rate_limiter fixture confirms the limiter
-    itself is genuinely active in this test process."""
+    """The blueprint default rate limit (200/min, api/__init__.py) must not apply to this route.
+
+    The UI uploads one file per request, so a batch past 200 files would otherwise 429 partway.
+    Functional check: loops past the limit and expects only 200s; the autouse _reset_rate_limiter
+    fixture keeps the limiter active."""
     slug = local_feed['slug']
     _authed(app_client)
 
@@ -372,11 +359,10 @@ def test_commit_stale_hash_409(app_client, local_feed):
 
 
 def test_commit_overwrite_mismatch_from_scan_409s(app_client, local_feed):
-    """(round-2 review finding 4) The exact same files, scanned with
-    overwrite=False, then committed with overwrite=True (or vice versa)
-    must 409 as stale -- plan_hash folds overwrite into the hash, so a
-    commit whose overwrite doesn't match what was reviewed at scan time
-    can never slip through as if nothing had changed."""
+    """Scanning with overwrite=False then committing with overwrite=True (or vice versa) must 409 as stale.
+
+    plan_hash folds overwrite in, so a commit cannot slip through with an overwrite that differs
+    from the reviewed scan."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -396,17 +382,16 @@ def test_commit_overwrite_mismatch_from_scan_409s(app_client, local_feed):
     )
 
     assert resp.status_code == 409
-    # Disambiguated from a real content change: the recomputed hash with
-    # overwrite flipped matches what the client echoed, so nothing on disk
-    # actually changed -- the checkbox did.
+    # Disambiguated from a real content change: the recomputed hash with overwrite flipped
+    # matches the client echo, so only the checkbox changed.
     assert resp.get_json()['error'] == 'overwrite setting changed since scan; re-run scan'
 
 
 def test_commit_files_changed_after_scan_409s_with_files_changed_message(app_client, local_feed):
-    """A real content change (not a flipped overwrite checkbox) must 409
-    with the 'files changed' message -- recomputing the hash with the
-    flipped overwrite flag does NOT match the client-echoed hash here, so
-    the two 409 causes stay distinguishable."""
+    """A real content change must 409 with the 'files changed' message.
+
+    Recomputing the hash with the flipped overwrite flag does not match the echoed hash, so the two
+    409 causes stay distinguishable."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)

@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdPattern, updatePattern, deletePattern, splitPattern } from '../api/patterns';
+import { AdPattern, updatePattern, deletePattern, splitPattern, describePatternAudioOutcome } from '../api/patterns';
 import { getSponsors, addSponsor } from '../api/sponsors';
 import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
@@ -21,6 +21,14 @@ import { focusRing, inputBase, labelBase, selectBase, textareaBase } from './fie
 import CloseButton from './CloseButton';
 import StatTile from './StatTile';
 import { DemoDisabled } from './DemoDisabled';
+import PatternAudioSection from './PatternAudioSection';
+import PageTabs from './PageTabs';
+
+type DialogTab = 'details' | 'audio';
+const DIALOG_TABS = [
+  { value: 'details', label: 'Details' },
+  { value: 'audio', label: 'Audio' },
+] as const;
 
 // 44px icon buttons below sm, text buttons from sm
 
@@ -33,6 +41,7 @@ interface PatternDetailModalProps {
 function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
+  const [tab, setTab] = useState<DialogTab>('details');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editedPattern, setEditedPattern] = useState({
     text_template: pattern.text_template || '',
@@ -55,7 +64,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 400)}px`;
-  }, [isEditing, editedPattern.text_template]);
+  }, [isEditing, tab, editedPattern.text_template]);
 
   // Fetch sponsors for autocomplete
   const { data: sponsors } = useQuery({
@@ -108,9 +117,10 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
 
   const splitMutation = useMutation({
     mutationFn: () => splitPattern(pattern.id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['patterns'] });
-      onClose();
+      // Stay open when the new patterns got no audio, so the reason is read before the dialog goes
+      if (!describePatternAudioOutcome(result)) onClose();
     },
   });
 
@@ -127,22 +137,28 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   return (
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full"
       header={(
-        <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-            <h2 className="text-lg font-semibold text-foreground">
-              Pattern #{pattern.id}
-            </h2>
-            <ScopeBadge pattern={pattern} />
-            <SegmentCategoryBadge category={pattern.category} />
+        <div className="w-full min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+              <h2 className="text-lg font-semibold text-foreground">
+                Pattern #{pattern.id}
+              </h2>
+              <ScopeBadge pattern={pattern} />
+              <SegmentCategoryBadge category={pattern.category} />
+            </div>
+            <CloseButton onClick={requestClose} label="Close dialog" className="shrink-0" />
           </div>
-          <CloseButton onClick={requestClose} label="Close dialog" className="shrink-0" />
-        </>
+          {/* -mb-[17px] lays the tab rule over the header rule below the 16px padding */}
+          <div className="mt-3 -mb-[17px]">
+            <PageTabs id="pattern-dialog" label="Pattern sections" tabs={DIALOG_TABS} active={tab} onChange={setTab} flush />
+          </div>
+        </div>
       )}
       footer={(
-        <div className={`flex flex-nowrap justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
-          <div className="flex flex-nowrap items-center gap-1 sm:gap-2 max-sm:contents">
+        <div className={`flex flex-nowrap items-start justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
+          <div className="flex flex-nowrap items-start gap-1 sm:gap-2 max-sm:contents">
             {pattern.is_active && (
-              <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col gap-1`}>
+              <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col items-start gap-1`}>
                 <DemoDisabled>
                   <button
                     onClick={() => splitMutation.mutate()}
@@ -192,7 +208,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               </button>
             )}
           </div>
-          <div className={`flex flex-nowrap gap-1 sm:gap-2 ${showDeleteConfirm ? 'max-sm:hidden' : 'max-sm:contents'}`}>
+          <div className={`flex flex-nowrap items-center gap-1 sm:gap-2 ${showDeleteConfirm ? 'max-sm:hidden' : 'max-sm:contents'}`}>
             {isEditing ? (
               <>
                 <button
@@ -220,7 +236,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   Close
                 </button>
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => { setTab('details'); setIsEditing(true); }}
                   className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
                 >
                   Edit
@@ -231,10 +247,10 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         </div>
       )}
     >
-      {/* Content */}
-      <div className="p-4 space-y-4">
+      <div role="tabpanel" id="pattern-dialog-panel-details" aria-labelledby="pattern-dialog-tab-details" tabIndex={0}
+        hidden={tab !== 'details'} className={`p-4 space-y-4 ${focusRing}`}>
         {/* Stats Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-2 sm:gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2 sm:gap-4">
           <StatTile label="Confirmations" value={pattern.confirmation_count} tone="success" />
           <StatTile label="False positives" value={pattern.false_positive_count} tone="destructive" />
           <StatTile label="Status" value={pattern.is_active ? 'Active' : 'Inactive'} />
@@ -437,6 +453,19 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           </div>
         </div>
       </div>
+      {/* Mounted while hidden so an Edit edges draft and its queries survive a tab switch */}
+      <div role="tabpanel" id="pattern-dialog-panel-audio" aria-labelledby="pattern-dialog-tab-audio" tabIndex={0}
+        hidden={tab !== 'audio'} className={`p-4 space-y-4 ${focusRing}`}>
+        <PatternAudioSection pattern={pattern} active={tab === 'audio'} />
+      </div>
+
+      {splitMutation.data && describePatternAudioOutcome(splitMutation.data) && (
+        <div className="px-4 pb-4">
+          <div role="status" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+            {`Pattern split. ${describePatternAudioOutcome(splitMutation.data)}`}
+          </div>
+        </div>
+      )}
 
       {/* Error Display */}
       {(updateMutation.isError || deleteMutation.isError || splitMutation.isError) && (

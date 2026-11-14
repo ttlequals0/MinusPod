@@ -1,11 +1,7 @@
 /**
- * Component tests for SecuritySection (issue #461).
- *
- * The no-password warning must be state-aware:
- *   1. No password, no master passphrase: original full warning.
- *   2. No password, passphrase set: same severity, text acknowledges that
- *      the passphrase encrypts stored keys but does not restrict access.
- *   3. Password set: no warning at all.
+ * SecuritySection (#461): the no-password warning is state-aware. No password and no passphrase: full
+ * warning; passphrase set: same severity, noting it encrypts keys but does not restrict access; password
+ * set: none.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -119,17 +115,26 @@ describe('SecuritySection password form', () => {
   });
 });
 
-const ADD_BUTTON_NAME = '+ Add agent';
+const ADD_BUTTON_NAME = 'Add agent';
 
 describe('SecuritySection blocked user agents', () => {
-  it('renders existing patterns as chips', async () => {
+  it('renders existing patterns as table rows with a named remove button', async () => {
     mockGetSettings.mockResolvedValue(makeSettings({
       jitBlockedUserAgents: { value: ['PocketCasts', '^atc/'], isDefault: false },
     }));
     renderSection({ isPasswordSet: true, cryptoReady: true });
 
-    expect(await screen.findByText('PocketCasts')).toBeDefined();
-    expect(screen.getByText('^atc/')).toBeDefined();
+    expect((await screen.findAllByText('PocketCasts')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('^atc/').length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: 'Agent' })).toBeDefined();
+    expect(screen.getAllByRole('button', { name: 'Remove ^atc/' }).length).toBeGreaterThan(0);
+  });
+
+  it('shows an empty state when no agents are listed', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSection({ isPasswordSet: true, cryptoReady: true });
+
+    expect(await screen.findByText('No agents yet.')).toBeDefined();
   });
 
   it('adding one calls updateSettings with the appended array', async () => {
@@ -138,7 +143,7 @@ describe('SecuritySection blocked user agents', () => {
     }));
     renderSection({ isPasswordSet: true, cryptoReady: true });
 
-    await screen.findByText('PocketCasts');
+    await screen.findAllByText('PocketCasts');
     await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
     await userEvent.type(screen.getByLabelText('New blocked agent pattern'), '^atc/');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
@@ -154,8 +159,8 @@ describe('SecuritySection blocked user agents', () => {
     }));
     renderSection({ isPasswordSet: true, cryptoReady: true });
 
-    await screen.findByText('PocketCasts');
-    await userEvent.click(screen.getByRole('button', { name: 'Remove PocketCasts' }));
+    await screen.findAllByText('PocketCasts');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Remove PocketCasts' })[0]);
 
     expect(mockUpdateSettings).toHaveBeenCalledWith({
       jitBlockedUserAgents: ['^atc/'],

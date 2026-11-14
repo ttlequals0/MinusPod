@@ -3,11 +3,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addNormalization, updateNormalization } from '../api/sponsors';
 import { SponsorNormalization, NormalizationCategory } from '../api/types';
 import { getErrorMessage } from '../api/client';
-import { Modal, dialogFooterBtn } from './Modal';
+import { Modal } from './Modal';
 import CloseButton from './CloseButton';
-import { btnPrimary, btnOutline } from './buttonStyles';
+import SaveCancelFooter from './SaveCancelFooter';
 import { inputBase, labelBase, selectBase } from './fieldStyles';
-import { DemoDisabled } from './DemoDisabled';
 
 const CATEGORIES: NormalizationCategory[] = ['sponsor', 'url', 'number', 'phrase'];
 
@@ -59,23 +58,12 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
         </>
       )}
       footer={(
-        <>
-          <button
-            onClick={onClose}
-            className={`${dialogFooterBtn} ${btnOutline}`}
-          >
-            Cancel
-          </button>
-          <DemoDisabled>
-            <button
-              onClick={() => save.mutate()}
-              disabled={save.isPending}
-              className={`${dialogFooterBtn} ${btnPrimary}`}
-            >
-              {save.isPending ? 'Saving...' : isNew ? 'Add' : 'Save'}
-            </button>
-          </DemoDisabled>
-        </>
+        <SaveCancelFooter
+          onCancel={onClose}
+          onSave={() => save.mutate()}
+          pending={save.isPending}
+          saveLabel={isNew ? 'Add' : 'Save'}
+        />
       )}
     >
       <div className="p-4 space-y-4">

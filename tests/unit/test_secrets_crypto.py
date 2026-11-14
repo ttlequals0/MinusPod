@@ -3,6 +3,7 @@ import base64
 import os
 
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 import secrets_crypto
 
@@ -13,6 +14,12 @@ def _crypto_env(monkeypatch):
     secrets_crypto.reset_cache()
     yield
     secrets_crypto.reset_cache()
+
+
+def _encrypt_bytes(db, plaintext):
+    dek = secrets_crypto._derive_dek(db)
+    nonce = os.urandom(secrets_crypto._NONCE_LEN)
+    return secrets_crypto._BACKUP_MAGIC + nonce + AESGCM(dek).encrypt(nonce, plaintext, None)
 
 
 def test_roundtrip(temp_db):
@@ -28,9 +35,9 @@ def test_ciphertext_varies_across_encrypts(temp_db):
     assert secrets_crypto.decrypt(temp_db, a) == secrets_crypto.decrypt(temp_db, b) == 'same'
 
 
-def test_encrypt_bytes_roundtrip(temp_db):
+def test_decrypt_bytes_roundtrip(temp_db):
     payload = b"SQLite format 3\x00" + b"\x00" * 512
-    blob = secrets_crypto.encrypt_bytes(temp_db, payload)
+    blob = _encrypt_bytes(temp_db, payload)
     assert blob.startswith(b"MPBK01\x00")
     assert blob != payload
     assert secrets_crypto.decrypt_bytes(temp_db, blob) == payload
@@ -114,7 +121,7 @@ def test_decrypt_bytes_rejects_non_envelope(temp_db):
 
 
 def test_decrypt_bytes_rejects_truncated(temp_db):
-    blob = secrets_crypto.encrypt_bytes(temp_db, b"hello")
+    blob = _encrypt_bytes(temp_db, b"hello")
     with pytest.raises(Exception):
         secrets_crypto.decrypt_bytes(temp_db, blob[:-4])
 

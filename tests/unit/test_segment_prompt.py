@@ -1,7 +1,7 @@
-"""Tests for segment category emission in the detection prompt (issue #565).
+"""Segment category emission in the detection prompt (#565).
 
-SHOW_SEGMENTS_PROMPT_SECTION is opt-in per podcast (detect_show_segments),
-but merge-seam category normalization runs unconditionally.
+SHOW_SEGMENTS_PROMPT_SECTION is opt-in per podcast (detect_show_segments); merge-seam category
+normalization always runs.
 """
 import json
 import logging
@@ -23,7 +23,7 @@ from llm_client import LLMClient, LLMResponse
 
 
 class _FakeDb:
-    """Minimal db stub: get_setting for no-override, get_podcast_by_slug
+    """Minimal db stub: get_setting for no-override, get_podcast_row
     for the detect_show_segments flag, resolve_segment_actions for the
     category-miss warning gate."""
 
@@ -38,7 +38,7 @@ class _FakeDb:
             return self._system_prompt
         return None
 
-    def get_podcast_by_slug(self, slug):
+    def get_podcast_row(self, slug):
         if slug is None:
             return None
         return {'slug': slug, 'detect_show_segments': self._detect_show_segments}
@@ -158,7 +158,7 @@ class TestPromptComposition:
 
     def test_section_absent_when_no_podcast_row(self):
         det = _detector(detect_show_segments=True)
-        # slug=None -> get_podcast_by_slug short-circuits to no row.
+        # slug=None -> get_podcast_row short-circuits to no row.
         prompt = det._build_detection_system_prompt(None)
         assert SHOW_SEGMENTS_PROMPT_SECTION not in prompt
 
@@ -248,9 +248,9 @@ def _fake_ad(start, end, category=None):
 
 def _run_detect_ads(*, detect_show_segments, segment_actions, ads,
                      repair_side_effect=None):
-    """Drive detect_ads() with one canned window of LLM ads, bypassing the
-    real LLM call and the real category repair pass. Default repair_side_effect
-    leaves ads untouched; tests exercising repair pass their own.
+    """Drive detect_ads() with one canned window of LLM ads, bypassing the LLM call and the category repair pass.
+
+    The default repair_side_effect leaves ads untouched; repair tests pass their own.
     """
     detector = AdDetector(api_key='test-key')
     detector.db = _FakeDb(detect_show_segments=detect_show_segments,
@@ -560,10 +560,9 @@ class TestCategoryRepairEndToEnd:
 
 
 class TestCategoryRepairStructuredOutputSelection:
-    """response_format selection runs through one gate for every provider
-    (supports_json_schema_for_calls): a proven provider path, or an
-    OpenAI-compatible model whose probe passed. json_object otherwise, the
-    same fallback every other LLM call in this codebase already uses."""
+    """response_format goes through one gate for every provider (supports_json_schema_for_calls).
+
+    A proven provider path or an OpenAI-compatible model whose probe passed gets a schema; json_object otherwise."""
 
     def _detector_with_fake_client(self, content='[]'):
         detector = AdDetector(api_key='test-key')

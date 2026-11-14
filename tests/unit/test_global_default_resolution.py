@@ -1,9 +1,5 @@
-"""Tests for the per-feed -> global-default -> hard-fallback resolvers
-introduced in 2.0.20 (issue #181 follow-up).
-
-Resolvers under test (in src/database/podcasts.py):
-- get_max_episodes_for_podcast(slug, podcast=None)
-- is_only_expose_processed_for_podcast(slug, podcast=None)
+"""Per-feed -> global-default -> hard-fallback resolvers (issue #181) in src/database/podcasts.py:
+get_max_episodes_for_podcast(slug, podcast=None) and is_only_expose_processed_for_podcast(slug, podcast=None).
 """
 
 import pytest

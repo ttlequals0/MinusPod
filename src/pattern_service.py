@@ -1,12 +1,5 @@
-"""
-Pattern Service - Manages ad pattern hierarchy and automatic promotion.
-
-Handles:
-- Three-tier pattern hierarchy: Global -> Network -> Podcast
-- Automatic pattern promotion based on match frequency
-- RSS metadata extraction for network/DAI platform detection
-- Pattern lookup with scope priority
-"""
+"""Pattern service: scope hierarchy (podcast, network, global), match-based
+promotion, and RSS network/DAI platform detection."""
 import logging
 import json
 from datetime import datetime, timedelta
@@ -28,6 +21,7 @@ from utils.constants import (
     sanitize_sponsor_label,
 )
 from utils.text import extract_text_from_segments
+from utils.pattern_scope import network_for_network_scope
 from utils.time import parse_iso_utc
 from sponsor_normalize import get_or_create_known_sponsor
 from community_export import (
@@ -36,11 +30,6 @@ from community_export import (
     count_brand_occurrences,
     get_sponsor_row_or_stub,
 )
-
-# Verification-miss thresholds re-exported for back-compat with existing
-# test names. New code should import the LEARNING_* names directly.
-VERIFICATION_MIN_CONFIDENCE = LEARNING_MIN_CONFIDENCE
-VERIFICATION_MIN_CONFIDENCE_LONG = LEARNING_MIN_CONFIDENCE_LONG
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -74,10 +63,9 @@ def compute_pattern_trust(row: dict, now: datetime) -> str:
 
 
 def _splice_prefix(text: str, prefix: str) -> tuple[str, bool]:
-    """Return (text-without-prefix, applied?). Whitespace- and
-    case-insensitive: a leading space on either side or a case mismatch
-    doesn't block the splice. When `prefix` is empty or doesn't actually
-    start `text`, the original `text` is returned with `applied=False`.
+    """Return (text-without-prefix, applied?), ignoring leading whitespace and case.
+
+    An empty `prefix`, or one that does not start `text`, returns `text` unchanged.
     """
     if not prefix:
         return text, False
@@ -168,35 +156,17 @@ KNOWN_NETWORKS = {
 
 
 class PatternService:
-    """
-    Service for managing ad pattern hierarchy and promotion.
+    """Manages the pattern hierarchy and promotion.
 
-    Pattern Scope Hierarchy (lookup priority):
-    1. Podcast - Patterns specific to a single podcast
-    2. Network - Patterns shared across podcasts in the same network
-    3. Global - Patterns that apply to all podcasts (typically DAI ads)
+    Lookup priority: podcast, then network (shared within a network), then
+    global (all podcasts, typically DAI ads).
     """
 
     def __init__(self, db=None):
-        """
-        Initialize the pattern service.
-
-        Args:
-            db: Database instance
-        """
         self.db = db
 
     def detect_dai_platform(self, feed_url: str, feed_content: str = None) -> str | None:
-        """
-        Detect the DAI (Dynamic Ad Insertion) platform from feed metadata.
-
-        Args:
-            feed_url: The RSS feed URL
-            feed_content: Optional raw feed XML content
-
-        Returns:
-            Platform identifier string or None
-        """
+        """Detect the DAI (Dynamic Ad Insertion) platform id from the feed URL or XML, else None."""
         feed_url_lower = feed_url.lower()
 
         # Check URL against known platform domains
@@ -219,18 +189,7 @@ class PatternService:
 
     def detect_network(self, feed_url: str, feed_title: str = None,
                        feed_description: str = None, feed_author: str = None) -> str | None:
-        """
-        Detect the podcast network from feed metadata.
-
-        Args:
-            feed_url: The RSS feed URL
-            feed_title: Feed title
-            feed_description: Feed description
-            feed_author: Feed author/owner
-
-        Returns:
-            Network identifier string or None
-        """
+        """Detect the podcast network id from feed metadata, else None."""
         # Combine all metadata for searching
         searchable = ' '.join(filter(None, [
             feed_url.lower(),
@@ -252,16 +211,7 @@ class PatternService:
         podcast_id: str,
         network_id: str = None
     ) -> list[dict]:
-        """
-        Get all applicable patterns for a podcast, ordered by scope priority.
-
-        Args:
-            podcast_id: The podcast slug/ID
-            network_id: Optional network ID
-
-        Returns:
-            List of patterns, podcast-specific first, then network, then global
-        """
+        """Applicable patterns for a podcast: podcast scope first, then network, then global."""
         if not self.db:
             return []
 
@@ -303,15 +253,7 @@ class PatternService:
         return patterns
 
     def check_for_promotion(self, pattern_id: int) -> str | None:
-        """
-        Check if a pattern should be promoted to a broader scope.
-
-        Args:
-            pattern_id: The pattern ID to check
-
-        Returns:
-            New scope if promotion is warranted, None otherwise
-        """
+        """New scope if the pattern qualifies for promotion, else None."""
         if not self.db:
             return None
 
@@ -344,16 +286,7 @@ class PatternService:
         return None
 
     def promote_pattern(self, pattern_id: int, new_scope: str) -> bool:
-        """
-        Promote a pattern to a broader scope.
-
-        Args:
-            pattern_id: The pattern to promote
-            new_scope: The new scope ('network' or 'global')
-
-        Returns:
-            True if promotion succeeded
-        """
+        """Promote a pattern to new_scope ('network' or 'global'); True on success."""
         if not self.db:
             return False
 
@@ -362,8 +295,17 @@ class PatternService:
             if not pattern:
                 return False
 
+            # A network pattern matches only feeds on its network_id.
+            network_id = None
+            if new_scope == 'network':
+                network_id = network_for_network_scope(self.db, pattern)
+                if network_id is None:
+                    logger.warning(f"Pattern {pattern_id} has no network to promote into")
+                    return False
+
             # Update pattern scope
-            self.db.update_ad_pattern(pattern_id, scope=new_scope)
+            self.db.update_ad_pattern(
+                pattern_id, scope=new_scope, **({'network_id': network_id} if network_id else {}))
 
             # Log the promotion
             self.db.create_pattern_correction(
@@ -375,14 +317,14 @@ class PatternService:
             logger.info(f"Promoted pattern {pattern_id} to {new_scope} scope")
 
             # Consolidate similar patterns at the new scope level
-            scope_patterns = self.db.get_ad_patterns(scope=new_scope)
+            scope_patterns = self.db.get_ad_patterns(scope=new_scope, network_id=network_id)
             template = pattern.get('text_template', '')
             similar_ids = [pattern_id]
             for p in scope_patterns:
                 if p['id'] != pattern_id and self._patterns_similar(template, p.get('text_template', '')):
                     similar_ids.append(p['id'])
             if len(similar_ids) > 1:
-                merged_id = self.merge_similar_patterns(similar_ids, new_scope)
+                merged_id = self.merge_similar_patterns(similar_ids, new_scope, network_id)
                 if merged_id:
                     logger.info(
                         f"Merged promoted pattern {pattern_id} with "
@@ -398,20 +340,13 @@ class PatternService:
     def merge_similar_patterns(
         self,
         pattern_ids: list[int],
-        target_scope: str = 'network'
+        target_scope: str = 'network',
+        network_id: str | None = None
     ) -> int | None:
-        """
-        Merge multiple similar patterns into a single pattern.
+        """Merge similar patterns into one; returns its ID, or None on failure.
 
-        Combines text templates, intro/outro variants from all patterns.
-        The merged pattern inherits the highest confirmation count.
-
-        Args:
-            pattern_ids: List of pattern IDs to merge
-            target_scope: Scope for the merged pattern
-
-        Returns:
-            ID of the merged pattern, or None if merge failed
+        Combines templates and intro/outro variants; the result inherits the
+        highest confirmation count.
         """
         if not self.db or len(pattern_ids) < 2:
             return None
@@ -460,11 +395,8 @@ class PatternService:
             source_langs = {p.get('source_language') for p in patterns if p.get('source_language')}
             merged_language = next(iter(source_langs)) if len(source_langs) == 1 else None
 
-            # Reject merges whose combined template names sponsors outside the
-            # consolidated sponsor. A kitchen-sink template (e.g. "AG1,
-            # BetterHelp, Squarespace, ZipRecruiter...") gets high-weight TF-IDF
-            # tokens for every brand and over-matches any episode that mentions
-            # 2-3 of them.
+            # Reject merges whose template names sponsors outside the consolidated
+            # one: a kitchen-sink template over-matches any episode mentioning 2-3 of them.
             known_sponsors = self.db.get_known_sponsors(active_only=True)
             sponsor_row = None
             if merged_sponsor_name:
@@ -496,6 +428,7 @@ class PatternService:
                 scope=target_scope,
                 text_template=best_template,
                 sponsor_id=merged_sponsor_id,
+                network_id=network_id,
                 intro_variants=merged_intros,
                 outro_variants=merged_outros,
                 source_language=merged_language,
@@ -587,28 +520,26 @@ class PatternService:
         self,
         pattern_id: int,
         episode_id: str = None,
-        observed_duration: float = None
+        observed_duration: float = None,
+        promote: bool = True,
     ) -> None:
-        """
-        Record that a pattern was matched, updating last_matched_at.
+        """Record a match (updates last_matched_at); checks promotion unless promote is False.
 
-        Also triggers promotion check.
-
-        Args:
-            pattern_id: The matched pattern ID
-            episode_id: Optional episode ID for logging
-            observed_duration: Optional observed ad duration in seconds
+        observed_duration is in seconds.
         """
         if not self.db:
             return
 
         try:
-            # Atomic increment -- replaces manual read-then-write
+            # Atomic increment
             self.db.increment_pattern_match(pattern_id)
 
             # Update duration running average if provided
             if observed_duration is not None and observed_duration > 0:
                 self.db.update_pattern_duration(pattern_id, observed_duration)
+
+            if not promote:
+                return
 
             # Check if this sponsor qualifies for global promotion
             pattern = self.db.get_ad_pattern_by_id(pattern_id)
@@ -641,20 +572,7 @@ class PatternService:
         feed_description: str = None,
         feed_author: str = None
     ) -> dict[str, str | None]:
-        """
-        Detect and store DAI platform and network for a podcast.
-
-        Args:
-            podcast_id: Podcast slug/ID
-            feed_url: RSS feed URL
-            feed_content: Raw feed XML
-            feed_title: Feed title
-            feed_description: Feed description
-            feed_author: Feed author
-
-        Returns:
-            Dict with detected 'dai_platform' and 'network_id'
-        """
+        """Detect and store DAI platform and network; returns {'dai_platform', 'network_id'}."""
         result = {
             'dai_platform': None,
             'network_id': None
@@ -683,11 +601,9 @@ class PatternService:
                         dai_platform=dai_platform,
                         network_id=network_id
                     )
-                    row = self.db.get_podcast_by_slug(podcast_id)
+                    row = self.db.get_podcast_row(podcast_id)
                     if row:
-                        effective_network = (
-                            (row.get('network_id_override') or '').strip()
-                            or row.get('network_id') or None)
+                        effective_network = row.get('network_id_override') or row.get('network_id') or None
                         self.db.retag_network_cue_templates(
                             row['id'], effective_network, conn=conn)
                 logger.debug(
@@ -700,15 +616,7 @@ class PatternService:
         return result
 
     def check_sponsor_global_promotion(self, sponsor: str) -> bool:
-        """
-        Check if a sponsor appears in 3+ podcasts, warranting global promotion.
-
-        Args:
-            sponsor: The sponsor name to check
-
-        Returns:
-            True if sponsor qualifies for global promotion
-        """
+        """True if the sponsor appears in 3+ podcasts, warranting global promotion."""
         if not self.db or not sponsor:
             return False
 
@@ -741,17 +649,7 @@ class PatternService:
             return False
 
     def auto_promote_sponsor_patterns(self, sponsor: str) -> int:
-        """
-        Automatically promote all patterns for a sponsor to global scope.
-
-        Called when sponsor appears in 3+ podcasts.
-
-        Args:
-            sponsor: The sponsor name
-
-        Returns:
-            Number of patterns promoted
-        """
+        """Promote all of a sponsor's patterns to global scope; returns the count promoted."""
         if not self.db or not sponsor:
             return 0
 
@@ -831,16 +729,10 @@ class PatternService:
                                    segments: list[dict] | None = None) -> None:
         """Record ads found by verification that were missed by the first pass.
 
-        Boosts matching patterns so they're more likely to be detected in
-        future episodes. When ``segments`` is provided, also auto-creates a
-        podcast-scoped pattern for any unmatched sponsor so the cheap
-        text_pattern stage can catch it next time.
-
-        Args:
-            slug: Podcast slug
-            episode_id: Episode ID
-            missed_ads: List of ad dicts with sponsor, start, end, confidence
-            segments: Original-audio transcript segments (for auto-creation)
+        Boosts matching patterns; when ``segments`` is given, also auto-creates
+        a podcast-scoped pattern for any unmatched sponsor so the cheap
+        text_pattern stage catches it next time. missed_ads items carry
+        sponsor, start, end, confidence.
         """
         if not self.db:
             return
@@ -863,10 +755,8 @@ class PatternService:
             if not sponsor or sponsor.lower() in ('unknown', 'n/a', ''):
                 continue
 
-            # Filter parity with ad_detector.learn_from_detections. Pre-2.5.13
-            # this branch trusted every verification miss; the first-pass
-            # learner required confidence + was_cut + sane sponsor. Pattern
-            # #354 ("the big, Modelo?") came in through that gap.
+            # Filter parity with ad_detector.learn_from_detections: require
+            # confidence and a sane sponsor, not every verification miss.
             confidence = float(ad.get('confidence') or 0.0)
             duration = float(ad.get('end') or 0.0) - float(ad.get('start') or 0.0)
             min_confidence = (
@@ -929,10 +819,8 @@ class PatternService:
                     )
                     continue
 
-                # Occurrence gate against the transcript window: a real sponsor
-                # read names the brand at least twice (intro + outro). Skipped
-                # for a category with no advertiser to repeat, such as a
-                # self-promo.
+                # Occurrence gate: a real sponsor read names the brand at least
+                # twice (intro + outro); skipped for categories like self-promo.
                 start_s = float(ad.get('start') or 0.0)
                 end_s = float(ad.get('end') or 0.0)
                 category = ad.get('category')
@@ -995,19 +883,14 @@ class PatternService:
     ) -> bool:
         """Trim a pattern's text_template by the slice that fell outside the new bounds.
 
-        Computes the head slice [original_start, new_start) and tail slice
-        (new_end, original_end] from the transcript, then splices them out of
-        the existing `text_template` if they appear at its start/end. This is
-        Operation 1 from the plan ("trim-only updates") -- explicitly NOT a
-        full re-extract from the new bounds, which would fit the template to
-        one episode's transcription and risk breaking matches on episodes
-        that captured the cleaner version.
+        Splices the head slice [original_start, new_start) and tail slice
+        (new_end, original_end] out of `text_template` if they appear at its
+        start/end. Deliberately not a full re-extract from the new bounds,
+        which would fit the template to one episode's transcription and risk
+        breaking matches on episodes with the cleaner version.
 
-        intro_variants / outro_variants get the same head/tail prefix/suffix
-        treatment so they stay aligned with the new template.
-
-        Community patterns are never auto-rewritten by this method.
-        Returns True when the pattern was actually changed; False otherwise.
+        intro_variants / outro_variants get the same treatment. Community
+        patterns are never rewritten. Returns True when the pattern changed.
         """
         from utils.text import extract_text_in_range
 
@@ -1086,12 +969,9 @@ class PatternService:
     def import_community_pattern(self, data: dict) -> int:
         """Insert or update an ad pattern carrying a community_id.
 
-        New community_id -> INSERT with source='community', protected_from_sync=0.
-        Existing community_id with higher `version` -> UPDATE in place,
-        unless the row has `protected_from_sync = 1` (then skip).
-
-        Returns the pattern id (new or existing). Raises ValueError when
-        required fields are missing.
+        New community_id inserts with source='community'; an existing one with a
+        higher `version` updates in place unless `protected_from_sync = 1`.
+        Returns the pattern id; raises ValueError on missing required fields.
         """
         if not self.db:
             raise ValueError("import_community_pattern requires a database")
@@ -1116,9 +996,8 @@ class PatternService:
                     f"is protected; skipping"
                 )
                 return existing['id']
-            # Update gate. With a content_hash (thin-index sync), update when the
-            # hash differs -- version is no longer the control. Without one
-            # (manual import of a pattern file), fall back to version-greater-than.
+            # Update gate: with a content_hash (thin-index sync) update when it differs;
+            # without one (manual import) fall back to version-greater-than.
             if content_hash is not None:
                 if content_hash == existing.get('content_hash'):
                     return existing['id']
@@ -1144,11 +1023,9 @@ class PatternService:
             self.db.update_ad_pattern(existing['id'], **update_kwargs)
             return existing['id']
 
-        # Force scope=global. Older bundles (and the 2.4.0 seed files
-        # shipped pre-2.4.7) carried scope='podcast' verbatim from the
-        # source instance, which would make the row un-matchable without
-        # the (stripped) podcast_id. Tag eligibility handles per-podcast
-        # filtering for community patterns.
+        # Force scope=global: older bundles carried scope='podcast' without the
+        # (stripped) podcast_id, which would make the row un-matchable. Tag
+        # eligibility handles per-podcast filtering.
         pattern_id = self.db.create_ad_pattern(
             scope='global',
             text_template=data['text_template'],

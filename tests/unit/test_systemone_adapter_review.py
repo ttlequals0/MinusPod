@@ -36,16 +36,6 @@ _END_GROUP_OPTIONS: dict[str, list[float]] = {}
 _WORD_END_OPTIONS: dict[str, float] = {}
 
 
-def _upstream_status_error(
-    status: int, retry_after: str = "7"
-) -> httpx.HTTPStatusError:
-    request = httpx.Request("POST", "https://api.example/v1/systemone")
-    response = httpx.Response(
-        status, request=request, headers={"Retry-After": retry_after}
-    )
-    return httpx.HTTPStatusError("upstream failure", request=request, response=response)
-
-
 @pytest.fixture(autouse=True)
 def capture_start_options(monkeypatch):
     original = adapter._unit_start_question
@@ -515,21 +505,6 @@ def _meaningful_pair_prompt() -> str:
     )
 
 
-def _unsupported_original_prompt() -> str:
-    return build_review_prompt(
-        90.0, 110.0,
-        [(80.0, 89.9, "earlier context")],
-        [(94.0, 100.0, "This episode is sponsored by BetterHelp")],
-        [(100.0, 110.0, "context after"), (110.0, 120.0, "more context")],
-    ) + (
-        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
-        "Start edge:\n"
-        "[94.0-94.5] This\n[94.5-95.0] episode\n[95.0-95.3] is\n"
-        "[95.3-96.0] sponsored\n[96.0-96.2] by\n[96.2-100.0] BetterHelp\n"
-        "End edge:\n[96.2-100.0] BetterHelp\n[100.0-101.0] context\n"
-    )
-
-
 def _end_unit_option(target: float) -> str:
     for name, value in _END_UNIT_OPTIONS.items():
         if isinstance(value, float):
@@ -733,7 +708,7 @@ def minuspod_review_verdict(content, original_start, original_end, *, pool="acce
     review response, driven by MinusPod's own extract_json_ads_array."""
     ads, method = extract_json_ads_array(content)
     assert ads is not None, "MinusPod could not parse the review response"
-    if not ads:  # empty array -> reject (ad_reviewer.py:1246-1258)
+    if not ads:  # empty array -> reject (mirrors AdReviewer._review_single)
         return "reject", None, None, method
     kept = ads[0]
     assert isinstance(kept, dict)

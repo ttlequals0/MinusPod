@@ -15,48 +15,6 @@ from main_app.pipeline import common, transcribe, signals, detect, review, cuts,
 from main_app.pipeline import recut
 
 
-def test_last_totals_survives_inactive_collection():
-    ctx = run_context.begin('feed', 'ep1')
-    try:
-        ctx.tokens.start()
-        ctx.tokens.add(120, 30, 0.012)
-        first = ctx.tokens.collect_and_reset()
-        assert first == {
-            'input_tokens': 120, 'output_tokens': 30, 'cost': 0.012}
-        assert ctx.tokens.last_totals() == first
-        second = ctx.tokens.collect_and_reset()
-        assert second == {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
-        assert ctx.tokens.last_totals() == first
-    finally:
-        run_context.end(ctx)
-
-
-def test_start_clears_previous_run_snapshot():
-    ctx = run_context.begin('feed', 'ep1')
-    try:
-        ctx.tokens.start()
-        ctx.tokens.add(120, 30, 0.012)
-        ctx.tokens.collect_and_reset()
-        ctx.tokens.start()
-        assert ctx.tokens.last_totals() == {
-            'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
-    finally:
-        run_context.end(ctx)
-
-
-def test_last_totals_returns_copy():
-    ctx = run_context.begin('feed', 'ep1')
-    try:
-        ctx.tokens.start()
-        ctx.tokens.add(10, 5, 0.5)
-        ctx.tokens.collect_and_reset()
-        snapshot = ctx.tokens.last_totals()
-        snapshot['cost'] = 999.0
-        assert ctx.tokens.last_totals()['cost'] == 0.5
-    finally:
-        run_context.end(ctx)
-
-
 def test_budget_reconcile_sees_history_totals():
     ctx = run_context.begin('feed', 'ep1')
     try:
@@ -64,9 +22,6 @@ def test_budget_reconcile_sees_history_totals():
         ctx.tokens.add(120, 30, 0.012)
         history = get_episode_token_totals()
         assert history['cost'] == 0.012
-        late = ctx.tokens.last_totals()
-        assert late == history
-        assert late['cost'] == 0.012
     finally:
         run_context.end(ctx)
 
@@ -156,10 +111,9 @@ def _admissions_for(provider_keys, deny=None):
 
 
 def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=False):
-    """Drives process_episode through a full non-skip-detection run with
-    every ad-detection/verification stage stubbed to a no-op, isolating the
-    provider-reservation lifecycle at Stage 3 and finalize. Mirrors
-    test_skip_second_pass.py's harness."""
+    """Run process_episode through a full non-skip-detection run with detection/verification stages stubbed.
+
+    Isolates the provider-reservation lifecycle at Stage 3 and finalize; same harness as test_skip_second_pass.py."""
     podcast_row = {'id': 1, 'slug': 'budget-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
                    'passthrough_enabled': None, 'skip_ad_detection': None,
@@ -203,6 +157,7 @@ def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.reserve_provider_spend.side_effect = (
@@ -222,10 +177,8 @@ def _run_pipeline(required_providers, admissions, spends=None, incomplete_spend=
 
 
 class TestProviderScopedReservations:
-    """A run's phases can route to distinct provider TYPES (cross-provider
-    secondary routing); each distinct provider_key must get its own
-    reservation and be reconciled against its own ledger spend, not folded
-    into (or excluded from) the primary's."""
+    """Phases routed to distinct provider types each get their own reservation, reconciled against
+    their own ledger spend."""
 
     def test_cross_type_routing_reserves_and_reconciles_each_provider(self):
         required = [('anthropic', 'primary'), ('openrouter', 'secondary')]

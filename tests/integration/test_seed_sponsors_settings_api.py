@@ -95,12 +95,11 @@ def test_ad_addressing_mode_rejects_bogus_value(app_client):
 
 
 def test_ad_addressing_mode_persists_via_apply_processing_flags():
-    # adAddressingMode's 400 validation stays in the route, ahead of every
-    # phase, but persistence itself now happens inside _apply_processing_flags
-    # alongside its sibling flags (item 8). There is no second route-level
-    # validated field to combine with adAddressingMode in one payload for an
-    # end-to-end "reject leaves it unpersisted" check, so this unit-tests the
-    # phase helper directly against a fake db.
+    # adAddressingMode's 400 validation stays in the route, ahead of every phase,
+    # but persistence happens inside _apply_processing_flags with its sibling flags
+    # (item 8). No second route-level validated field exists to pair with it for an
+    # end-to-end "reject leaves it unpersisted" check, so this unit-tests the phase
+    # helper against a fake db.
     from api.settings.ad_detection import _apply_processing_flags
 
     calls = []

@@ -13,6 +13,8 @@ import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
 import QueryError from '../../components/QueryError';
 import { SkeletonRows } from '../../components/Skeleton';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
+import { LLM_DISABLED_REASON } from '../settings/LlmGate';
 import { IS_DEMO } from '../../demo/flag';
 import { DEMO_WRITE_TOOLTIP } from '../../demo/copy';
 
@@ -124,6 +126,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   const bound = (key: keyof YouTubeSettings['bounds']) => globals?.bounds[key];
   const pending = mutation.isPending;
   const demoTitle = IS_DEMO ? DEMO_WRITE_TOOLTIP : undefined;
+  const llmEnabled = useLlmEnabled();
+  const noModelNote = llmEnabled ? '' : ` ${LLM_DISABLED_REASON} Detection then uses text patterns, audio fingerprints and audio cues.`;
 
   return (
     <div className="mb-6">
@@ -166,7 +170,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             title={demoTitle}
             onChange={setBool('ytLlmFallbackOverride')}
           >
-            Run the ad detector when SponsorBlock has no marks for an episode.
+            Run the ad detector when SponsorBlock has no marks for an episode.{noModelNote}
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Pass 1 detection"
@@ -177,7 +181,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             title={demoTitle}
             onChange={setBool('ytLlmOnTopOverride')}
           >
-            Run pass 1 LLM detection even when SponsorBlock has marks, and cut both.
+            Run the ad detector even when SponsorBlock has marks, and cut both.{noModelNote}
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Captions"

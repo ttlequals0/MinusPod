@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,6 +6,11 @@ import FailoverSection from './FailoverSection';
 import type { FailoverOverview } from '../../api/failover';
 import type { ClaudeModel } from '../../api/types';
 import { makeFailoverProbe, makeFailoverTarget } from '../../test/failover';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 type Props = Parameters<typeof FailoverSection>[0];
 
@@ -284,5 +289,67 @@ describe('FailoverSection transcription failover', () => {
     }));
     expect(field.value).toBe('');
     expect(field.placeholder).toBe('7');
+  });
+});
+
+describe('FailoverSection: LLM provider None', () => {
+  const offOverview = makeOverview({
+    probes: {
+      'llm-a': makeFailoverProbe({ detail: 'LLM disabled' }), 'llm-b': makeFailoverProbe({ detail: 'LLM disabled' }),
+      'llm-failover': makeFailoverProbe({ detail: 'LLM disabled' }),
+      transcriber: makeFailoverProbe({ reachable: true, checkedAt: '2026-10-05T00:00:00Z' }),
+      'transcriber-failover': unprobed,
+    },
+  });
+
+  it('reads the LLM rows as disabled, not unprobed or failed, and offers no LLM failover action', async () => {
+    llmState.enabled = false;
+    renderSection({ overview: offOverview });
+    await openSection();
+    expect(screen.getAllByText('LLM disabled')).toHaveLength(3);
+    expect(screen.getAllByText('Unprobed')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Trigger failover for Provider A' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Trigger failover for Provider B' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Trigger failover for Transcriber' })).toBeDefined();
+  });
+
+  it('states the reason once as a hidden description per row, with one visible failover note above the LLM block', async () => {
+    llmState.enabled = false;
+    renderSection({ overview: offOverview });
+    await openSection();
+    expect(screen.getAllByText('LLM provider is set to None.').every((el) => el.className.includes('sr-only'))).toBe(true);
+    expect(screen.getAllByText('LLM provider is set to None.')).toHaveLength(3);
+    const note = screen.getByText('LLM failover is unavailable. LLM provider is set to None.');
+    const llmBlock = screen.getByRole('switch', { name: 'Enable LLM failover' }).closest('fieldset')!;
+    expect(llmBlock.contains(note)).toBe(true);
+    expect(llmBlock.contains(screen.getByRole('switch', { name: 'Enable transcription failover' }))).toBe(false);
+    const row = screen.getByText('Provider A').closest('li')!;
+    expect(document.getElementById(row.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
+  });
+
+  it('disables the LLM failover settings with the reason and keeps transcription failover usable', async () => {
+    llmState.enabled = false;
+    renderSection({ overview: offOverview });
+    await openSection();
+    expectGatedByLlm(screen.getByRole('switch', { name: 'Enable LLM failover' }));
+    expectNotGatedByLlm(screen.getByRole('switch', { name: 'Enable transcription failover' }));
+    expectNotGatedByLlm(screen.getByLabelText('Probe interval (minutes)'));
+  });
+
+  it('shows the normal rows when the provider is set', async () => {
+    renderSection();
+    await openSection();
+    expect(screen.queryByText('LLM disabled')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Trigger failover for Provider A' })).toBeDefined();
+    expectNotGatedByLlm(screen.getByRole('switch', { name: 'Enable LLM failover' }));
+  });
+});
+
+describe('FailoverSection: failover provider select', () => {
+  it('never offers None', async () => {
+    renderSection({ llm: { ...baseLlm, enabled: true, provider: 'anthropic' } });
+    await openSection();
+    const options = within(screen.getByLabelText('Failover provider type')).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).not.toContain('None');
   });
 });

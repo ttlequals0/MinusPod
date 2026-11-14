@@ -12,6 +12,9 @@ vi.mock('../../components/CollapsibleSection', () => ({
   ),
 }));
 
+const mockSettings = vi.fn();
+vi.mock('../../api/settings', () => ({ getSettings: (...args: unknown[]) => mockSettings(...args) }));
+
 const mockUpdateFeed = vi.fn();
 const mockUploadFeedArtwork = vi.fn();
 vi.mock('../../api/feeds', () => ({
@@ -55,6 +58,7 @@ function renderPanel(overrides: Partial<Feed> = {}) {
 describe('YouTubeFeedPanel', () => {
   beforeEach(() => {
     mockEnabled = true;
+    mockSettings.mockResolvedValue({ llmEnabled: true });
     mockGetSettings.mockReset();
     mockGetSettings.mockResolvedValue(undefined);
     mockUpdateFeed.mockReset();
@@ -232,5 +236,27 @@ describe('YouTubeFeedPanel', () => {
     await userEvent.type(input, '60');
     await userEvent.tab();
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: 60 }));
+  });
+});
+
+describe('YouTubeFeedPanel under LLM provider None', () => {
+  beforeEach(() => {
+    mockEnabled = true;
+    mockGetSettings.mockReset();
+    mockGetSettings.mockResolvedValue(undefined);
+    mockSettings.mockResolvedValue({ llmEnabled: false });
+  });
+
+  it('keeps the two detector options enabled and says what detection uses', async () => {
+    renderPanel();
+    const fallback = await screen.findByLabelText('LLM fallback') as HTMLSelectElement;
+    await waitFor(() => {
+      const help = document.getElementById(fallback.getAttribute('aria-describedby')!);
+      expect(help?.textContent).toContain('LLM provider is set to None.');
+    });
+    expect(fallback.disabled).toBe(false);
+    expect((screen.getByLabelText('Pass 1 detection') as HTMLSelectElement).disabled).toBe(false);
+    const help = document.getElementById(fallback.getAttribute('aria-describedby')!);
+    expect(help?.textContent).toContain('text patterns, audio fingerprints and audio cues');
   });
 });

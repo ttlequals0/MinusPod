@@ -39,7 +39,7 @@ audio_logger = logging.getLogger('podcast.audio')
 def _apply_boundary_adjustments(slug, episode_id, all_ads):
     """Override ad bounds with the user's boundary_adjustment corrections so a
     recut cuts the adjusted spans. Newest wins; unmatched corrections are skipped."""
-    podcast = db.get_podcast_by_slug(slug)
+    podcast = db.get_podcast_row(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
     adjusted = set()
     applied = 0
@@ -93,9 +93,8 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
 def _split_recut_counts(total_cut, verification_count):
     """Split a recut's cut total into (first pass, verification).
 
-    ad_markers_json already holds the merged pass-2 spans, so a recut's own
-    count is the total. Persistence adds the two back together, so the
-    verification share has to come out of the total, not on top of it."""
+    ad_markers_json already holds the merged pass-2 spans, and persistence adds
+    the two back together, so the verification share must come out of the total."""
     verification_count = max(0, min(verification_count or 0, total_cut))
     return total_cut - verification_count, verification_count
 
@@ -104,14 +103,14 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
                           episode_description, min_cut_confidence,
                           podcast_id=None, segment_actions=None, *, corrections,
                           episode_row=None, podcast_row=None):
-    """Build the cut list for a recut from the stored detections plus the user's
-    edits, with no re-detection. Manual adds already live in ad_markers_json;
-    boundary adjustments are applied here; rejects/confirms and confidence
-    gating run through the same AdValidator path a full reprocess uses.
-    segment_actions is loaded when not passed.
-    Returns (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects).
-    episode_row is the caller's episode read, loaded when not passed.
-    podcast_row, when given, is the caller's already-fetched podcasts row."""
+    """Build the cut list for a recut from stored detections plus the user's edits.
+
+    No re-detection: manual adds already live in ad_markers_json, boundary
+    adjustments are applied here, and rejects/confirms and confidence gating run
+    through the same AdValidator path as a full reprocess. segment_actions and
+    episode_row are loaded when not passed; podcast_row is the caller's
+    already-fetched row.
+    Returns (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects)."""
     from ad_validator import Decision
 
     episode = (episode_row if episode_row is not None
@@ -146,12 +145,11 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     keep_ads, all_ads = keep_rules._partition_keep_ads(
         all_ads, segment_actions, keep_rules._make_keep_differential_override(dd_parsed))
 
-    # Stamp saved cut state before validation re-derives it. A marker already
-    # cut in the published audio must not flip to held/review when settings
-    # tighten (e.g. cue gating newly enabled) -- it would resurrect the ad.
-    # The stamp survives validate()'s shallow copy, so it stays attached even
-    # when validation clamps/merges/extends the ad's boundaries (a span key
-    # would not).
+    # Stamp saved cut state before validation re-derives it. A marker already cut
+    # in the published audio must not flip to held/review when settings tighten
+    # (e.g. cue gating newly enabled), or it would resurrect the ad. The stamp
+    # survives validate()'s shallow copy even when it clamps/merges/extends
+    # boundaries (a span key would not).
     # A standing reviewer reject outranks the saved-cut stamp; only a user override lifts it.
     # A pending reviewer hold stays pending unless a user or its own pass-2 approval releases it.
     for a in all_ads:
@@ -171,9 +169,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         audio_analysis = None
 
     # Merge episode-level dai_differential into the audio_analysis dict so the
-    # validator's _audio_corroboration_source can find it on the recut path.
-    # The persisted audio_analysis_json does not include dai_differential
-    # (that lives in episode_details.dai_differential_json separately).
+    # validator's _audio_corroboration_source finds it on the recut path (the
+    # persisted audio_analysis_json keeps it in episode_details separately).
     if dd_parsed:
         if audio_analysis is None:
             audio_analysis = {}
@@ -200,9 +197,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
 
     # Force previously-cut markers back to ACCEPT so the gate cuts them again,
-    # overriding any hold/review outcome from re-validation. A trusted fragment
-    # split from a validated cut also survives the validator's short-duration
-    # rejection. Other fresh REJECTs, including later FP corrections, still win.
+    # overriding re-validation holds. A trusted fragment split from a validated cut
+    # survives the short-duration rejection. Other fresh REJECTs still win.
     reviewer_rejects = []
     for ad in validation_result.ads:
         if ad.pop('_reviewer_rejected', False):
@@ -252,13 +248,14 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                           episode_artwork_url, episode_published_at,
                           start_time, episode_data, cancel_event=None, podcast=None,
                           preacquired_audio=None, hold_for_approval=False):
-    """Pass-through mode (#521): download the episode and serve it exactly
-    as published -- no transcription, detection, LLM, cutting, or assets.
-    MinusPod acts as an archive/relay for the feed while the served feed
-    URL stays stable, so turning processing back on later needs no change
-    in the podcast app."""
+    """Pass-through mode (#521): download the episode and serve it as published.
+
+    No transcription, detection, LLM, cutting or assets. MinusPod acts as an
+    archive/relay while the served feed URL stays stable, so turning processing
+    back on later needs no change in the podcast app."""
     audio_path = preacquired_audio
     run_stats = {'mode': 'passthrough'}
+    download_outcome = {}
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
         common._publish_status('start_job', slug, episode_id, episode_title, podcast_name)
@@ -284,7 +281,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")
         else:
-            audio_path = transcribe._download_episode_audio(episode_url, podcast=podcast)
+            audio_path = transcribe._download_episode_audio(
+                episode_url, podcast=podcast, outcome=download_outcome)
         _check_cancel(cancel_event, slug, episode_id)
 
         duration = audio_processor.get_audio_duration(audio_path)
@@ -294,12 +292,10 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             raise Exception("Downloaded file is not playable audio "
                             "(ffprobe found no duration)")
 
-        # The serving stack names episode files .mp3 and declares
-        # audio/mpeg, so non-MP3 enclosures (m4a/aac) are converted -- the one
-        # transformation pass-through performs. Convert whenever the codec is
-        # not confidently 'mp3', including when ffprobe can't determine it
-        # (get_audio_codec returns None): the output is unconditionally .mp3,
-        # so moving unverified bytes through would serve a mislabeled file.
+        # The serving stack names files .mp3 and declares audio/mpeg, so non-MP3
+        # enclosures (m4a/aac) are converted, the one transformation pass-through
+        # does. Convert unless the codec is confidently 'mp3', including when ffprobe
+        # can't tell (None): unverified bytes would serve a mislabeled .mp3.
         codec = get_audio_codec(audio_path)
         if codec is None:
             # A transient ffprobe miss on a genuine MP3 would otherwise force a
@@ -331,7 +327,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
         # Network work runs after the publication-owner fence.
         run_stats.update(passthrough_assets.import_upstream_assets(
-            slug, episode_id, episode_data, podcast))
+            slug, episode_id, episode_data, podcast, outcome=download_outcome))
         run_stats['downloaded_duration'] = round(duration, 2)
         finalize._finalize_episode(slug, episode_id, episode_title, podcast_name,
                            pass1_cut_count=0, verification_count=0,
@@ -391,24 +387,23 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     run_stats=None, verification_count=0,
                     audio_cue_detections=0, owns_failure=True, progress=None,
                     podcast_row=None, hold_for_approval=False):
-    """Recut mode (issue #422): re-cut the retained original audio from the
-    current ad detections and re-time the saved transcript -- no download,
-    transcription, detection, LLM, or verification pass. Preconditions
-    (retained original, saved segments, ad markers) are enforced by the API.
+    """Recut mode (#422): re-cut the retained original from current ad detections.
 
-    Segment-category actions are re-resolved against the current per-feed/
-    global maps before cutting (issue #565): a marker's cut/keep fate is
-    not pinned to whatever the map said the last time this episode was
-    processed; _build_recut_ad_list applies the exact rule.
+    Re-times the saved transcript; no download, transcription, detection, LLM or
+    verification pass. Preconditions (retained original, saved segments, ad
+    markers) are enforced by the API.
 
-    run_stats, verification_count, and audio_cue_detections are forwarded to
-    the history row, so a folded approval recut keeps the run's stats.
-    podcast_row, when given, is the caller's already-fetched podcasts row.
+    Segment-category actions are re-resolved against the current per-feed/global
+    maps before cutting (#565); _build_recut_ad_list applies the exact rule.
+
+    run_stats, verification_count and audio_cue_detections are forwarded to the
+    history row, so a folded approval recut keeps the run's stats.
+    podcast_row is the caller's already-fetched podcasts row.
     hold_for_approval=True keeps an in-run recut under the manual-approval rule.
     owns_failure=False leaves the failure to the caller. ``progress`` is a dict
     the recut stamps 'mutated' on before it overwrites the episode's audio, so a
-    caller that means to fall back knows whether anything it would finalize is
-    still intact. Markers saved before a later failure are restored from entry."""
+    caller that falls back knows whether anything it would finalize is intact.
+    Markers saved before a later failure are restored from entry."""
 
     work_path = None
     markers_saved = False
@@ -531,19 +526,15 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         shutil.move(processed_path, final_path)
 
         common._publish_status('update_job_stage', slug, episode_id, "recut:assets", 85)
-        # Skip chapter regeneration: its topic-boundary detection is an LLM call,
-        # and recut is meant to be AI-free. The stored chapters JSON is instead
-        # remapped arithmetically onto the new cut list; the user can still
-        # refresh titles with the manual Regenerate Chapters action.
+        # Skip chapter regeneration: its topic-boundary detection is an LLM call
+        # and recut is AI-free. The stored chapters JSON is remapped arithmetically
+        # onto the new cut list; titles can be refreshed with Regenerate Chapters.
         #
-        # Coordinate note: applied_cuts are in ORIGINAL-episode coordinates
-        # (the recut re-cuts the retained original), while the stored chapters
-        # JSON sits on the PREVIOUS processed timeline. previous_cuts -- the
-        # prior render's applied cut list persisted as applied_cuts_json, also
-        # in original coordinates -- lets the remap go previous-processed ->
-        # original (inverse via previous_cuts) -> recut (adjust via
-        # applied_cuts). None (episode rendered before applied_cuts_json was
-        # persisted) makes the remap a safe no-op rather than a wrong guess.
+        # applied_cuts are in original-episode coordinates while the stored chapters
+        # sit on the previous processed timeline. previous_cuts (the prior render's
+        # applied_cuts_json, also original coordinates) lets the remap go
+        # previous-processed -> original -> recut. None (rendered before
+        # applied_cuts_json existed) makes the remap a safe no-op.
         previous_cuts = storage.get_applied_cuts(slug, episode_id)
         with common._measure_run_stage('assets'):
             publish._generate_assets(slug, episode_id, segments, applied_cuts,

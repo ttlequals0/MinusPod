@@ -22,7 +22,8 @@ EMPTIED = {
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
     'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
     'search_index_changes', 'search_index', 'text_patterns',
-    '_orphaned_audio_fingerprints', 'episode_feed_details',
+    '_orphaned_audio_fingerprints', 'episode_feed_details', 'episode_snap_stats',
+    'audio_fingerprint_matches', 'deferred_upgrade_steps',
 }
 
 COLUMN_DROPS = {
@@ -36,6 +37,9 @@ COLUMN_DROPS = {
     'llm_call_usage': {'rate_snapshot'},
     'systemone_call_diagnostics': {'diagnostics_json'},
     'pattern_cleanup_runs': {'error'},
+    'audio_fingerprints': {
+        'source_podcast_slug', 'source_episode_id', 'source_start', 'source_end',
+    },
 }
 
 PROMPT_OVERRIDES = {

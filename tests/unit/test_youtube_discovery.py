@@ -527,7 +527,6 @@ def _entry(source_id, title, channel='Example Channel', channel_id=None):
 
 
 CHAN = 'UCabcdefghijklmnopqrstuv'
-CHAN2 = 'UCzyxwvutsrqponmlkjihgfe'
 PL_PLAIN = 'PLplain0000000000'
 PL_POD = 'PLpodcast000000000'
 PL_ONLY_TAB = 'PLtabonly000000000'

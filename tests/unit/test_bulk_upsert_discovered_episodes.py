@@ -1,11 +1,9 @@
 """Discovered-episode upsert under write contention.
 
-bulk_upsert_discovered_episodes ran on a bare connection, so Python's default
-deferred transaction upgraded to a write lock at the first INSERT. That upgrade
-returns SQLITE_BUSY immediately instead of waiting on busy_timeout, and the
-per-episode except swallowed it, so a contended refresh reported success having
-discovered nothing.
-"""
+bulk_upsert_discovered_episodes used a bare connection, so the deferred transaction upgraded to a
+write lock at the first INSERT and got SQLITE_BUSY immediately instead of waiting on busy_timeout.
+The per-episode except swallowed it, so a contended refresh reported success having discovered
+nothing."""
 
 import sqlite3
 import time
@@ -341,10 +339,11 @@ def test_fuzzy_index_is_built_before_any_chunk_transaction(monkeypatch):
 
 
 def test_title_date_matched_refresh_replaces_fuzzy_index_entry(monkeypatch):
-    """A row matched by _refresh_discovery_state via title+date (not via its
-    own id, because a different incoming episode shares that title+date)
-    must have the fuzzy index point at the freshly re-fetched row, not an
-    orphaned copy loaded before the chunk's write transaction opened."""
+    """A row matched by _refresh_discovery_state via title+date (not its own id) must leave the
+    fuzzy index pointing at the re-fetched row.
+
+    Another incoming episode shares that title+date; the index must not keep an orphaned copy loaded
+    before the write transaction."""
     slug = _feed('upsert-fuzzy-title-date-refresh')
     old_id = _eid()
     db.upsert_episode(

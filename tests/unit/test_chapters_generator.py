@@ -14,7 +14,7 @@ bootstrap('chapters_generator_test_')
 
 import chapters_generator
 from chapters_generator import (
-    ChaptersGenerator, _parse_description_anchors, TOPIC_DETECTION_TEMPERATURE,
+    ChaptersGenerator, _parse_description_anchors,
     build_segment_hints,
 )
 from llm_client import ProviderRateLimitedError
@@ -392,28 +392,9 @@ class TestDescriptionAnchorPromptInjection:
         assert 'A discussion about modern podcasting' in prompt
 
 
-class TestTopicDetectionTemperature:
-    """Topic detection runs at the low TOPIC_DETECTION_TEMPERATURE constant."""
-
-    def test_temperature_passed_to_llm(self):
-        assert TOPIC_DETECTION_TEMPERATURE == 0.1
-
-        gen, stub = _make_generator_with_stub(canned_text='')
-        gen._detect_topic_boundaries(
-            transcript='[00:00] x',
-            start_time=0.0,
-            end_time=1800.0,
-            num_splits=3,
-        )
-        assert stub.calls, 'LLM must have been called'
-        assert stub.calls[-1]['temperature'] == TOPIC_DETECTION_TEMPERATURE
-
-
 class TestChapterTunablesAreConfigDriven:
-    """Verify chapters_generator reads from per-stage config, not the legacy
-    literals/constants. Pin this so a future refactor can't silently put
-    `temperature=0.3` back in place.
-    """
+    """Chapters generator reads per-stage config, not legacy literals (pins against a hardcoded
+    temperature=0.3 returning)."""
 
     def test_boundary_temperature_reads_from_config(self, monkeypatch):
         from llm_client import _clear_provider_cache
@@ -547,10 +528,8 @@ class TestSharedLLMCallPath:
         assert client.calls == 1
 
     def test_full_pipeline_degradation_reported_on_generator(self, caplog):
-        """Reproduces #530: both topic-detection and title-generation LLM
-        calls fail on a long episode, degrading to a single whole-episode
-        chapter. Must be visible on the generator instance (chapters_degraded
-        / reason) and logged, not look like a normal short episode."""
+        """Regression #530: both topic-detection and title-generation LLM calls failing on a long episode
+        must show as chapters_degraded / reason on the generator and be logged."""
         gen = ChaptersGenerator(api_key='test')
         client = _FailingClient(RuntimeError('temperature rejected'))
         gen._llm_client = client
@@ -621,16 +600,12 @@ class _SplitTextClient:
 
 
 class TestEmptyTopicDetectionDegradation:
-    """A response that succeeds at the API level but yields zero parsed
-    boundaries must be treated the same as a failed detection call on a
-    long episode: silently returning a single chapter with no degraded
-    flag hides the failure from operators."""
+    """A response that succeeds at the API level but yields zero parsed boundaries degrades like a
+    failed detection call on a long episode."""
 
     def test_empty_result_on_long_episode_flags_degraded(self, caplog):
-        """Response is non-empty (EmptyCompletionError retry never kicks in)
-        but nothing matches the MM:SS topic-line pattern, so
-        _detect_topic_boundaries returns [] with no exception; that must
-        still degrade the run."""
+        """A non-empty response with no MM:SS topic lines makes _detect_topic_boundaries return []
+        without an exception; that must still degrade the run."""
         gen = ChaptersGenerator(api_key='test')
         gen._llm_client = _SplitTextClient()
 

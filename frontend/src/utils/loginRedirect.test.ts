@@ -1,8 +1,6 @@
 /**
- * Tests for loginRedirect utility (issue #460).
- *
- * Verifies that the basename '/ui' is stripped from stored paths and that
- * invalid/dangerous values are rejected, preventing the /ui/ui/ui growth loop.
+ * loginRedirect (#460): the '/ui' basename is stripped from stored paths and invalid values are rejected,
+ * preventing the /ui/ui/ui growth loop.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { storeLoginRedirect, takeLoginRedirect } from './loginRedirect';
@@ -74,12 +72,7 @@ describe('takeLoginRedirect', () => {
 });
 
 describe('round-trip: navigate() with basename no longer doubles /ui', () => {
-  /**
-   * React Router with basename='/ui' strips the basename before passing the
-   * path to navigate(). So if we store '/feeds' (after stripping /ui), then
-   * navigate('/feeds') correctly navigates to /ui/feeds in the browser.
-   * This test documents that invariant.
-   */
+  // React Router strips basename '/ui' before navigate(), so storing '/feeds' lands on /ui/feeds.
   it('stored path + basename does not produce /ui/ui', () => {
     // Store a path as if coming from window.location.pathname='/ui/feeds'
     storeLoginRedirect('/ui/feeds');

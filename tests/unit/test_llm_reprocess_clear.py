@@ -1,11 +1,8 @@
 """Transcript-preserving clears used by LLM-only reprocess (issue #349).
 
-``clear_episode_ad_data`` and ``batch_clear_episode_ad_data`` must null the
-ad-detection outputs and regenerated assets while PRESERVING the transcript
-inputs, so a reprocess reuses the saved transcript instead of paying the
-re-transcription cost. Unlike ``clear_episode_details`` they must never delete
-the row or the transcript.
-"""
+``clear_episode_ad_data`` and ``batch_clear_episode_ad_data`` null ad-detection outputs and
+regenerated assets but keep the transcript inputs, so reprocess skips re-transcription. Unlike
+``clear_episode_details`` they never delete the row or the transcript."""
 
 
 def _seed_details(db, slug, episode_id):

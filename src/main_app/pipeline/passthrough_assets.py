@@ -5,15 +5,16 @@ import logging
 from transcript_differential import fetch_upstream_transcript
 from transcript_generator import TranscriptGenerator
 from upstream_chapters import chapters_document, fetch_upstream_chapters
-from user_agent import download_user_agent
+from user_agent import feed_user_agent, settled_download_user_agent
 
 from main_app.pipeline.shared import (db, storage)
 
 audio_logger = logging.getLogger('podcast.audio')
 
 
-def _import_chapters(slug, episode_id, url, user_agent):
-    chapters = fetch_upstream_chapters(url, user_agent=user_agent)
+def _import_chapters(slug, episode_id, url, user_agent, fallback_user_agent):
+    chapters = fetch_upstream_chapters(
+        url, user_agent=user_agent, fallback_user_agent=fallback_user_agent)
     if chapters is None:
         audio_logger.warning(f"[{slug}:{episode_id}] Upstream chapters fetch failed; skipping")
         return None
@@ -35,8 +36,9 @@ def _timed_segments(cues):
     return segments
 
 
-def _import_transcript(slug, episode_id, url, mime, user_agent):
-    transcript = fetch_upstream_transcript(url, mime, user_agent=user_agent)
+def _import_transcript(slug, episode_id, url, mime, user_agent, fallback_user_agent):
+    transcript = fetch_upstream_transcript(
+        url, mime, user_agent=user_agent, fallback_user_agent=fallback_user_agent)
     if transcript is None:
         audio_logger.warning(f"[{slug}:{episode_id}] Upstream transcript fetch or parse failed; skipping")
         return 'error'
@@ -60,26 +62,28 @@ def _import_transcript(slug, episode_id, url, mime, user_agent):
     return 'timed' if transcript.timed else 'untimed'
 
 
-def import_upstream_assets(slug, episode_id, episode, podcast=None) -> dict:
+def import_upstream_assets(slug, episode_id, episode, podcast=None, outcome=None) -> dict:
     """Store the publisher's chapters and transcript; never raises."""
     episode = episode or {}
     try:
-        user_agent = download_user_agent(podcast)
+        user_agent = settled_download_user_agent(outcome, podcast)
+        fallback_user_agent = feed_user_agent(podcast)
     except Exception:
-        user_agent = None
+        user_agent = fallback_user_agent = None
     stats = {'upstream_chapters': None, 'upstream_transcript': 'none'}
     chapters_url = episode.get('upstream_chapters_url')
     transcript_url = episode.get('upstream_transcript_url')
     if chapters_url:
         try:
-            stats['upstream_chapters'] = _import_chapters(slug, episode_id, chapters_url, user_agent)
+            stats['upstream_chapters'] = _import_chapters(
+                slug, episode_id, chapters_url, user_agent, fallback_user_agent)
         except Exception as e:
             audio_logger.warning(f"[{slug}:{episode_id}] Upstream chapters import failed: {e}")
     if transcript_url:
         try:
             stats['upstream_transcript'] = _import_transcript(
                 slug, episode_id, transcript_url,
-                episode.get('upstream_transcript_type'), user_agent)
+                episode.get('upstream_transcript_type'), user_agent, fallback_user_agent)
         except Exception as e:
             audio_logger.warning(f"[{slug}:{episode_id}] Upstream transcript import failed: {e}")
             stats['upstream_transcript'] = 'error'

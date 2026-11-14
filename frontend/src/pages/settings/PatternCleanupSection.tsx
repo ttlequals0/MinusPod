@@ -27,6 +27,8 @@ import { isSystemOneRoute } from './systemoneWarnings';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing, labelBase } from '../../components/fieldStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { LLM_DISABLED_REASON, LlmGate, isLlmDisabledError } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface PatternCleanupSectionProps {
   // Provider types behind each slot; secondaryProvider is '' when that slot is unusable.
@@ -43,6 +45,7 @@ interface PatternCleanupSectionProps {
 const STORAGE_KEY = 'settings-section-pattern-cleanup';
 
 function runErrorMessage(e: unknown): string {
+  if (isLlmDisabledError(e)) return LLM_DISABLED_REASON;
   if (e instanceof ApiError && e.status === 409) return 'A cleanup run is already in progress.';
   return getErrorMessage(e, 'Could not start the cleanup run');
 }
@@ -53,6 +56,7 @@ function PatternCleanupSection({
   detectionModel = '',
   providerIdentityHasUnsavedChanges = false,
 }: PatternCleanupSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const qc = useQueryClient();
   // Fetch only while the card is on screen; it sits in the collapsed Experiments group.
   const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
@@ -102,7 +106,7 @@ function PatternCleanupSection({
     || modelSelection !== (data.modelMissing ? '' : data.model || SAME_AS_DETECTION)
   );
   const update = (patch: Partial<PatternCleanupSettings>) => setDraft((d) => ({ ...d, ...patch }));
-  useUnsavedChanges(hasUnsavedChanges);
+  useUnsavedChanges(hasUnsavedChanges && llmEnabled);
 
   useEffect(() => {
     if (!data) return;
@@ -126,7 +130,7 @@ function PatternCleanupSection({
   // Mirrors llm_route: an unusable secondary falls back to the primary.
   const slot = cleanupSlot;
   const catalog = useModelCatalog(
-    slot === SLOT_SECONDARY ? secondaryProvider : primaryProvider, slot, visible && !!data,
+    slot === SLOT_SECONDARY ? secondaryProvider : primaryProvider, slot, visible && !!data && llmEnabled,
   );
 
   const save = useMutation({
@@ -142,6 +146,9 @@ function PatternCleanupSection({
 
   const run = useMutation({
     mutationFn: (force: boolean) => runPatternCleanup(force),
+    onError: (e: unknown) => {
+      if (isLlmDisabledError(e)) qc.invalidateQueries({ queryKey: ['settings'] });
+    },
     onSettled: () => {
       setConfirmForce(false);
       qc.invalidateQueries({ queryKey: patternCleanupQueryKey });
@@ -157,6 +164,7 @@ function PatternCleanupSection({
       title="Pattern cleanup"
       subtitle="Reviews learned patterns with an LLM and suggests trims, splits, renames and retirements for you to approve. Off by default."
       storageKey={STORAGE_KEY}
+      anchorId="pattern-cleanup-section"
       onToggle={setOpen}
     >
       {isError ? (
@@ -169,7 +177,7 @@ function PatternCleanupSection({
       ) : !data ? (
         <SkeletonRows count={3} />
       ) : (
-        <div className="space-y-4">
+        <LlmGate disabled={!llmEnabled} id="pattern-cleanup" className="space-y-4">
         {cleanupUsesSystemOne && (
           <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
             System One does not support pattern cleanup. Disable cleanup or select a chat provider and model.
@@ -302,7 +310,11 @@ function PatternCleanupSection({
               Force recheck all
             </button>
             {save.isSuccess && <SavedBadge className="ml-1" />}
-            {run.isError && <span className="text-sm text-destructive">{runErrorMessage(run.error)}</span>}
+            {run.isError && (
+              <span className={`text-sm ${isLlmDisabledError(run.error) ? 'text-muted-foreground' : 'text-destructive'}`}>
+                {runErrorMessage(run.error)}
+              </span>
+            )}
           </div>
 
           <div className="text-sm text-muted-foreground pt-2 border-t border-border space-y-0.5">
@@ -337,7 +349,7 @@ function PatternCleanupSection({
               </div>
             )}
           </div>
-        </div>
+        </LlmGate>
       )}
 
       {confirmForce && (

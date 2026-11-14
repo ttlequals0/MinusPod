@@ -95,6 +95,7 @@ def _recut_render_call(tmp_path, markers, confirmed):
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(markers)}
         db.get_podcast_by_slug.return_value = {'id': 1}
+        db.get_podcast_row.return_value = {'id': 1}
         db.get_original_segments.return_value = [
             {'start': float(t), 'end': float(t + 5), 'text': 'Show talk'} for t in range(0, 600, 5)]
         db.get_all_settings.return_value = {}

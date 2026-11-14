@@ -1,6 +1,7 @@
 """Pattern cleanup mixin: review runs, suggestions, and review stamps on learned patterns."""
 import json
 
+from database.error_text import redact_error
 from pattern_cleanup_hash import INVALID_MARKER, review_hash
 from utils.time import utc_now_iso
 
@@ -39,7 +40,7 @@ class PatternCleanupMixin:
         cursor = conn.execute(
             "UPDATE pattern_cleanup_runs SET status = 'failed', finished_at = ?, error = ? "
             "WHERE status = 'running'",
-            (utc_now_iso(), error))
+            (utc_now_iso(), redact_error(error)))
         conn.commit()
         return cursor.rowcount
 
@@ -53,7 +54,7 @@ class PatternCleanupMixin:
                    suggested_count = ?, skipped_count = ?, error_count = ?, error = ?, model = ?,
                    provider = ?, credential_slot = ?
                WHERE id = ?""",
-            (status, utc_now_iso(), reviewed, suggested, skipped, error_count, error, model,
+            (status, utc_now_iso(), reviewed, suggested, skipped, error_count, redact_error(error), model,
              provider, credential_slot, run_id))
         conn.commit()
 
@@ -176,15 +177,6 @@ class PatternCleanupMixin:
                 (status, utc_now_iso(), json.dumps(applied), suggestion_id))
         if conn is None:
             target.commit()
-
-    def has_pending_cleanup_suggestion(self, pattern_id: int, kind: str | None = None) -> bool:
-        query = ("SELECT 1 FROM pattern_cleanup_suggestions "
-                 "WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL")
-        params: list = [pattern_id]
-        if kind:
-            query += " AND kind = ?"
-            params.append(kind)
-        return self.get_connection().execute(query + " LIMIT 1", params).fetchone() is not None
 
     def stamp_pattern_cleanup_reviewed(self, pattern_id: int, review_hash: str, conn=None) -> None:
         target = conn or self.get_connection()

@@ -163,7 +163,8 @@ def test_chunked_body_keeps_the_model_loaded_after_success(loaded, monkeypatch):
     with patch('transcriber.chunking.calculate_optimal_chunk_duration', return_value=(1800.0, 'test')), \
             patch('transcriber.chunking.extract_audio_chunk', side_effect=extract), \
             patch('transcriber.settings._get_whisper_settings', return_value={'backend': 'local'}), \
-            patch('transcriber.clear_gpu_memory'):
+            patch('transcriber.clear_gpu_memory'), \
+            patch.object(WhisperModelSingleton, 'get_batched_pipeline', return_value=MagicMock()):
         result = t.transcribe_chunked('/tmp/input.mp3')
     assert result
     unload.assert_not_called()

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { PLAYBACK_RATES, ghostBtn } from './controlStyles';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
-import { touchTarget } from '../buttonStyles';
+import { touchTargetRow } from '../buttonStyles';
 import { focusRing } from '../fieldStyles';
 
 interface SpeedMenuProps {
@@ -44,13 +44,13 @@ function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className =
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`h-8 px-1.5 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} ${focusRing} ${touchTarget}`}
+        className={`h-8 max-sm:min-w-14 px-0.5 sm:px-1.5 rounded inline-flex items-center gap-0 sm:gap-1 text-xs font-semibold tabular-nums ${ghostBtn} ${focusRing} ${touchTargetRow}`}
         title="Playback speed"
         aria-expanded={open}
         aria-label="Playback speed"
       >
-        {playbackRate}&times;
-        <ChevronDown className="w-3 h-3 opacity-60" aria-hidden="true" />
+        <span className="min-w-[5ch] text-center">{playbackRate}&times;</span>
+        <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 opacity-60" aria-hidden="true" />
       </button>
       {open && (
         <ul className="absolute right-0 bottom-full mb-1 z-20 min-w-[3.25rem] rounded-md border border-border bg-card shadow-lg py-1">

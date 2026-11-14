@@ -384,10 +384,7 @@ def _dai_candidate_segments():
 
 
 def test_user_prompt_candidate_lines_are_timestamped():
-    """Every line (context and candidate) carries its segment start/end so
-    the model can quote an exact boundary for any sentence it names (#695):
-    the system prompt's adjust-boundaries examples derive their answers from
-    timestamped context lines."""
+    """Every line carries its segment start/end so the model can quote exact boundaries (#695)."""
     reviewer = _build_reviewer({'review_prompt': 'review'})
     prompt = reviewer._build_user_prompt(
         ad={'start': 120.0, 'end': 180.0},
@@ -443,11 +440,8 @@ def test_resurrect_prompt_candidate_lines_are_timestamped():
 
 
 def test_final_sentence_anchor_visible_in_prompt():
-    """Regression a1b2c3d4e5f6: with only the two span-edge anchors the model
-    trimmed the candidate to an interpolated end=20.0s while its reasoning
-    named the ad's final sentence, which ends at 28.42s. The timestamped
-    candidate lines now put that 28.4s edge in the prompt; the behavioral
-    improvement is model-side, this pins the prompt contract."""
+    """The timestamped candidate lines put the ad's final-sentence edge (28.4s) in the prompt; the
+    model-side behavior is not tested."""
     reviewer = _build_reviewer({'review_prompt': 'review'})
     prompt = reviewer._build_user_prompt(
         ad={'start': 0.0, 'end': 35.03},
@@ -471,7 +465,7 @@ def test_boundary_tolerance_constant():
 
 def test_prose_number_mismatch_logs_warning(caplog):
     """Reasoning names 'ends at 128.0s' while the emitted end is 150.0s
-    (gap 22s > 5s): one WARNING, no behavior change."""
+    (gap 22s > 5s): one warning, no behavior change."""
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
@@ -558,11 +552,7 @@ def _wide_reviewer(response):
 
 
 def test_prose_figure_naming_the_other_edge_is_context(caplog):
-    """"through 4143.8s" trips the end regex but names the emitted start.
-
-    Production shape: the reviewer described where the trimmed lead-in ended,
-    which is where the ad begins. Warning on it discards a correct start trim.
-    """
+    """"through 4143.8s" trips the end regex but names the emitted start, so it must not warn."""
     reviewer = _wide_reviewer(
         '[{"start": 4144.55, "end": 4225.9, "confidence": 0.9, '
         '"reason": "Trimmed leading show content (autorun registry discussion '
@@ -912,12 +902,8 @@ def test_resurrection_band_dynamic_with_min_cut_confidence():
 # ---------- Held-for-review guard ----------
 
 def test_resurrection_pool_skips_held_ads():
-    """Ads with held_for_review=True must never enter the resurrection pool.
-
-    A duration-hold converts a REJECT at confidence 0.70 into a held REVIEW.
-    That confidence sits inside the [0.60, 0.80) band, so without the guard
-    a resurrect verdict would un-hold it.
-    """
+    """Ads with held_for_review=True never enter the resurrection pool (a held 0.70 sits in the
+    [0.60, 0.80) band and would be un-held)."""
     min_cut = 0.80
     # This ad has in-band confidence but is held; it must be excluded.
     held_ad = {

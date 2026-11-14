@@ -1,16 +1,13 @@
-"""Cue detection telemetry mixin (#350 follow-up).
+"""Cue detection telemetry mixin (#350).
 
-One row per template cue the matcher surfaced for an episode, recording the
-match score and how detection used the cue (snap / pair / none / below_threshold)
-plus the user's review verdict. Advisory only -- nothing here changes the cut
-list. Two views read the same table: a per-feed advisory (judge a feed's cues
-before enabling cue-pair) and a global aggregate (tune thresholds).
+One row per template cue the matcher surfaced for an episode: match score, how
+detection used it (snap / pair / none / below_threshold) and the user's review
+verdict. Advisory only, nothing here changes the cut list. A per-feed advisory
+and a global aggregate read the same table.
 
-Phase 6 adds sub-threshold ``below_threshold`` rows plus per-cue
-``edge_distance_s`` and ``unused_reason`` diagnostics. The advisory / aggregate
-totals and confirm rate count only above-threshold rows (below_threshold is
-survivorship-free telemetry, not a detection the user reviews); a separate
-near-miss histogram and unused-reason breakdown surface the new rows.
+Totals and confirm rate count only above-threshold rows; ``below_threshold``
+rows (with ``edge_distance_s`` and ``unused_reason``) feed a separate near-miss
+histogram and unused-reason breakdown.
 """
 import logging
 
@@ -21,9 +18,8 @@ _VALID_VERDICTS = ('pending', 'confirmed', 'rejected')
 _VALID_OUTCOMES = ('snap', 'pair', 'cut', 'none', 'below_threshold')
 
 # Shared aggregate projection for the per-feed and global telemetry views.
-# Static SQL (no user input) -- safe to interpolate into both queries. Totals,
-# score stats, and confirm-rate inputs count only above-threshold rows via the
-# WHERE clause the callers apply; below_threshold rows are reported separately.
+# Static SQL (no user input), safe to interpolate into both queries. Callers' WHERE
+# clauses restrict totals to above-threshold rows; below_threshold is reported apart.
 _ADVISORY_AGGREGATE_SQL = """
     COUNT(*) AS total,
     SUM(outcome = 'snap') AS snapped,
@@ -52,11 +48,10 @@ class CueDetectionMixin:
                               records: list[dict]) -> int:
         """Replace this feed+episode's cue detections with ``records``.
 
-        Delete-then-insert keeps the row set in sync with the latest processing
-        run (scores and outcomes change on reprocess). Wrapped in a transaction
-        so a mid-loop failure rolls back and the prior run's rows survive.
-        Scoped by (podcast_id, episode_id) because episode_id (an RSS GUID) is
-        only unique within a feed. Returns rows inserted.
+        Delete-then-insert tracks the latest run (reprocess changes scores); the
+        transaction keeps the prior rows if the loop fails. Scoped by
+        (podcast_id, episode_id) because an RSS GUID is only unique within a feed.
+        Returns rows inserted.
         """
         with self.transaction() as conn:
             conn.execute(
@@ -111,8 +106,7 @@ class CueDetectionMixin:
     def cue_feed_advisory(self, podcast_id: int) -> dict:
         """Per-feed cue health: outcome/verdict counts, score range, confirm rate.
 
-        Counts above-threshold rows only; below_threshold near-misses are
-        advisory and excluded from the totals.
+        Counts above-threshold rows only; below_threshold near-misses are excluded.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -125,9 +119,8 @@ class CueDetectionMixin:
     def cue_aggregate_stats(self) -> dict:
         """Global cue telemetry: the feed-advisory shape plus histograms.
 
-        Adds a match-score histogram (above-threshold rows), a near-miss
-        histogram + total (below_threshold rows), and an unused-reason breakdown
-        (outcome='none' rows). Totals/confirm-rate exclude below_threshold.
+        Adds a match-score histogram (above-threshold), a near-miss histogram and
+        total (below_threshold) and an unused-reason breakdown (outcome='none').
         """
         conn = self.get_connection()
         totals = conn.execute(
@@ -224,8 +217,8 @@ class CueDetectionMixin:
                                      recent_episodes: int = 5) -> list[dict]:
         """Per-template last match / quiet flag for drift surfacing (issue #599).
 
-        Quiet: matched at least once ever, but zero above-threshold rows in
-        the feed's ``recent_episodes`` most recently-seen episodes.
+        Quiet: matched before, but no above-threshold rows in the feed's
+        ``recent_episodes`` most recent episodes.
         """
         conn = self.get_connection()
         recent = [r['episode_id'] for r in conn.execute(
@@ -289,9 +282,8 @@ def _histogram(buckets) -> list[dict]:
 def _advisory_dict(row) -> dict:
     """Shape a COUNT/SUM aggregate row into the advisory JSON payload.
 
-    A non-GROUP-BY COUNT/SUM always returns exactly one row, so ``row`` is never
-    None; SUM/AVG/MIN/MAX still yield NULL on an empty table, hence the ``or 0``
-    and ``is not None`` guards.
+    A non-GROUP-BY aggregate always returns one row, but SUM/AVG/MIN/MAX are NULL
+    on an empty table, hence the ``or 0`` and ``is not None`` guards.
     """
     confirmed = row['confirmed'] or 0
     rejected = row['rejected'] or 0

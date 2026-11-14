@@ -16,10 +16,7 @@ def write(
     xep_result: Optional[Dict[str, Any]] = None,
     output_dir: Optional[Path] = None,
 ) -> tuple[Path, Path]:
-    """Serialize results to report.md and report.json.
-
-    Returns (md_path, json_path).
-    """
+    """Serialize results to report.md and report.json; returns (md_path, json_path)."""
     out = Path(output_dir) if output_dir else _RESULTS_DIR
     out.mkdir(parents=True, exist_ok=True)
 

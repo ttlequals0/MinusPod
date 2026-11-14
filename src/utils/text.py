@@ -1,7 +1,4 @@
-"""Text utility functions.
-
-Provides shared transcript text extraction functions.
-"""
+"""Shared transcript text extraction helpers."""
 
 import math
 import re
@@ -13,11 +10,9 @@ from utils.time import parse_timestamp
 _TIMEZONE_DRIFT_MAX_SECONDS = 15 * 3600
 _TIMEZONE_DRIFT_STEP_SECONDS = 15 * 60
 
-# Edge-proximity tolerance for cut/trim boundaries. Used by the
-# pattern-rewrite anchor gate (a large trimmed boundary must land within
-# this distance of a transcript segment edge to be trusted) and as the base
-# for the ad reviewer's prose-mismatch warning margin. Boundaries are never
-# moved to segment edges; this only measures proximity.
+# Edge-proximity tolerance (seconds) for cut/trim boundaries: the pattern-rewrite
+# anchor gate and the base of the reviewer's prose-mismatch margin. Boundaries
+# are never moved to segment edges; this only measures proximity.
 BOUNDARY_SNAP_TOLERANCE_S = 3.0
 
 
@@ -41,13 +36,11 @@ def is_timezone_drift(a: datetime, b: datetime) -> bool:
 
 
 def word_boundary_re(terms) -> re.Pattern | None:
-    """One case-insensitive alternation matching any of `terms` as whole words,
-    or None when nothing is left to match. Longest first so an alternative that
-    prefixes another cannot win the match.
+    """Case-insensitive alternation matching any of `terms` as whole words, or None if none.
 
-    Lookarounds, not \\b: a brand whose first or last character is not a word
-    character ("Liquid I.V.", "Yahoo!") has no word boundary there, and \\b
-    would never match it.
+    Longest first so an alternative that prefixes another cannot win.
+    Lookarounds, not \\b: a term ending in a non-word character ("Yahoo!")
+    has no word boundary there.
     """
     escaped = sorted({t.strip() for t in terms if t and t.strip()},
                      key=len, reverse=True)
@@ -88,17 +81,7 @@ def truncate(text: str, limit: int) -> str:
 
 
 def parse_transcript_segments(transcript_text: str) -> list[dict]:
-    """Parse VTT-formatted transcript text into segment dicts.
-
-    Parses lines in the format:
-    [HH:MM:SS.mmm --> HH:MM:SS.mmm] Text content here
-
-    Args:
-        transcript_text: Raw transcript string with timestamped lines
-
-    Returns:
-        List of dicts with 'start', 'end', 'text' keys
-    """
+    """Parse lines like "[HH:MM:SS.mmm --> HH:MM:SS.mmm] text" into dicts with 'start', 'end', 'text'."""
     segments: list[dict] = []
     for line in transcript_text.split('\n'):
         if line.strip() and line.startswith('['):
@@ -121,16 +104,7 @@ def get_transcript_text_for_range(
     start_time: float,
     end_time: float,
 ) -> str:
-    """Get concatenated transcript text for a time range.
-
-    Args:
-        segments: List of transcript segment dicts with 'start', 'end', 'text'
-        start_time: Start of range in seconds
-        end_time: End of range in seconds
-
-    Returns:
-        Concatenated text from all overlapping segments
-    """
+    """Space-joined text of every segment overlapping [start_time, end_time] (seconds)."""
     texts = []
     for seg in segments:
         if seg['end'] >= start_time and seg['start'] <= end_time:
@@ -154,20 +128,10 @@ def get_timestamped_transcript_for_range(
     start_time: float,
     end_time: float,
 ) -> str:
-    """Get per-segment timestamped transcript lines for a time range.
+    """Overlapping segments as newline-joined "[12.3-15.7] text" lines (seconds).
 
-    Unlike get_transcript_text_for_range, which strips intra-span timestamps,
-    this keeps each overlapping segment on its own line with its start/end in
-    seconds so every sentence carries its boundary (reviewer prompts need
-    these anchors to emit exact trim timestamps).
-
-    Args:
-        segments: List of transcript segment dicts with 'start', 'end', 'text'
-        start_time: Start of range in seconds
-        end_time: End of range in seconds
-
-    Returns:
-        Newline-joined lines in the form "[12.3-15.7] text"
+    Unlike get_transcript_text_for_range, each segment keeps its boundaries,
+    which reviewer prompts need to emit exact trim timestamps.
     """
     lines = []
     for seg in segments:
@@ -207,20 +171,9 @@ def extract_text_in_range(
     end: float,
     include_partial: bool = True
 ) -> str:
-    """Extract text from VTT-formatted transcript within time range.
+    """Space-joined text of "[HH:MM:SS.mmm --> HH:MM:SS.mmm] text" lines within [start, end] seconds.
 
-    Parses transcript in the format:
-    [HH:MM:SS.mmm --> HH:MM:SS.mmm] Text content here
-
-    Args:
-        transcript: Full transcript text with timestamps
-        start: Start time in seconds
-        end: End time in seconds
-        include_partial: If True, include segments that partially overlap
-                        the range. If False, only include fully contained.
-
-    Returns:
-        Extracted text content, joined with spaces
+    include_partial=False keeps only segments fully inside the range.
     """
     return ' '.join(
         span['text']
@@ -235,12 +188,10 @@ def extract_timed_spans_in_range(
     end: float,
     include_partial: bool = True,
 ) -> list[dict]:
-    """The timed spans extract_text_in_range joins, with their char offsets.
+    """The timed spans extract_text_in_range joins, as {'start', 'end', 'text', 'offset'}.
 
-    Each dict is {'start', 'end', 'text', 'offset'}, where offset is the index
-    of that span's text inside the joined string. Callers that need to map a
-    character position in the extracted text back to a timestamp use this;
-    extract_text_in_range delegates here so the two cannot drift apart.
+    offset is the index of the span's text in the joined string, for mapping a
+    character position back to a timestamp. extract_text_in_range delegates here.
     """
     if not transcript:
         return []
@@ -279,20 +230,7 @@ def extract_text_from_segments(
     end: float,
     max_words: int | None = None
 ) -> str:
-    """Extract text from segment dicts within time range.
-
-    Works with segment lists (dicts with 'start', 'end', 'text' keys)
-    rather than VTT strings.
-
-    Args:
-        segments: List of segment dicts with start/end/text
-        start: Start time in seconds
-        end: End time in seconds
-        max_words: Optional maximum word count limit
-
-    Returns:
-        Extracted text content, joined with spaces
-    """
+    """Space-joined text of segment dicts within [start, end] seconds, capped at max_words if set."""
     spans = timed_spans_from_segments(segments, start, end)
     if not max_words:
         return ' '.join(span['text'] for span in spans)
@@ -309,11 +247,9 @@ def timed_spans_from_segments(
     start: float,
     end: float,
 ) -> list[dict]:
-    """The spans extract_text_from_segments joins, with their char offsets.
+    """The spans extract_text_from_segments joins, with char offsets.
 
-    Segments-shaped sibling of extract_timed_spans_in_range, so callers holding
-    segment dicts can map a character position back to a timestamp.
-    extract_text_from_segments joins this, so the two cannot drift apart.
+    Segment-dict sibling of extract_timed_spans_in_range.
     """
     spans: list[dict] = []
     offset = 0

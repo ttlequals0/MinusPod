@@ -1,7 +1,5 @@
-"""Unit tests for resolve_max_ad_duration_override and resolve_cue_gated_approval (Phase C, C1).
-
-Patterns mirror test_snap_flag_resolvers.py (B1) and test_cue_score_resolver.py (A).
-"""
+"""resolve_max_ad_duration_override and resolve_cue_gated_approval; patterns mirror
+test_snap_flag_resolvers.py and test_cue_score_resolver.py."""
 import logging
 import os
 import sys

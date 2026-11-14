@@ -161,10 +161,7 @@ class TestMergeAcrossShortContentGaps:
         assert len(result) == 2, "0 must disable merging, not merge unconditionally"
 
     def test_no_segments_never_merges(self):
-        """Without a transcript there is no content evidence: never merge.
-
-        Guards the catastrophic path where empty segments make every gap
-        measure 0 content and everything within the cap over-merges."""
+        """Without a transcript there is no content evidence: never merge."""
         ads = [_ad(10, 40), _ad(50, 80)]
         result = merge_ads_across_short_content_gaps(ads, [], min_content_seconds=12.0, max_merged_seconds=300.0)
         assert len(result) == 2

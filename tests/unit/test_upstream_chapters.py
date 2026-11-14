@@ -1,7 +1,7 @@
-"""Tests for the upstream podcast:chapters JSON source (issue #560 follow-up).
+"""Upstream podcast:chapters JSON source (#560).
 
-Covers RSS capture of the podcast:chapters URL (rss_parser.extract_episodes)
-and the fetch module (upstream_chapters.fetch_upstream_chapters).
+Covers RSS capture of the podcast:chapters URL (rss_parser.extract_episodes) and
+upstream_chapters.fetch_upstream_chapters.
 """
 import json
 
@@ -82,7 +82,7 @@ class TestFetchUpstreamChapters:
             ],
         }).encode('utf-8')
         monkeypatch.setattr(
-            'upstream_chapters.safe_get', lambda *a, **k: _response(body))
+            'utils.safe_http.safe_get', lambda *a, **k: _response(body))
 
         result = fetch_upstream_chapters('https://feed.example.com/ch.json')
 
@@ -94,7 +94,7 @@ class TestFetchUpstreamChapters:
 
     def test_chapter_count_is_capped(self, monkeypatch):
         body = json.dumps({'chapters': [{'startTime': i} for i in range(1500)]}).encode('utf-8')
-        monkeypatch.setattr('upstream_chapters.safe_get', lambda *a, **k: _response(body))
+        monkeypatch.setattr('utils.safe_http.safe_get', lambda *a, **k: _response(body))
 
         result = fetch_upstream_chapters('https://feed.example.com/ch.json')
 
@@ -104,7 +104,7 @@ class TestFetchUpstreamChapters:
     def test_oversized_body_returns_none(self, monkeypatch):
         def _boom(*a, **k):
             raise ResponseTooLargeError('too big')
-        monkeypatch.setattr('upstream_chapters.safe_get', lambda *a, **k: _response(b'{}'))
+        monkeypatch.setattr('utils.safe_http.safe_get', lambda *a, **k: _response(b'{}'))
         monkeypatch.setattr('upstream_chapters.read_response_capped', _boom)
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') is None
@@ -112,28 +112,28 @@ class TestFetchUpstreamChapters:
     def test_non_dict_json_returns_none(self, monkeypatch):
         body = json.dumps([1, 2, 3]).encode('utf-8')
         monkeypatch.setattr(
-            'upstream_chapters.safe_get', lambda *a, **k: _response(body))
+            'utils.safe_http.safe_get', lambda *a, **k: _response(body))
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') is None
 
     def test_missing_chapters_key_returns_none(self, monkeypatch):
         body = json.dumps({'version': '1.2.0'}).encode('utf-8')
         monkeypatch.setattr(
-            'upstream_chapters.safe_get', lambda *a, **k: _response(body))
+            'utils.safe_http.safe_get', lambda *a, **k: _response(body))
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') is None
 
     def test_timeout_returns_none(self, monkeypatch):
         def _boom(*a, **k):
             raise requests.exceptions.Timeout('timed out')
-        monkeypatch.setattr('upstream_chapters.safe_get', _boom)
+        monkeypatch.setattr('utils.safe_http.safe_get', _boom)
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') is None
 
     def test_empty_chapters_list_returns_empty_list(self, monkeypatch):
         body = json.dumps({'version': '1.2.0', 'chapters': []}).encode('utf-8')
         monkeypatch.setattr(
-            'upstream_chapters.safe_get', lambda *a, **k: _response(body))
+            'utils.safe_http.safe_get', lambda *a, **k: _response(body))
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') == []
 
@@ -144,7 +144,7 @@ class TestFetchUpstreamChapters:
             {'startTime': 10, 'title': 'Kept'},
         ]}).encode('utf-8')
         monkeypatch.setattr(
-            'upstream_chapters.safe_get', lambda *a, **k: _response(body))
+            'utils.safe_http.safe_get', lambda *a, **k: _response(body))
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') == \
             [{'startTime': 10, 'title': 'Kept'}]
@@ -159,7 +159,7 @@ def test_bool_start_time_and_non_http_asset_urls_are_dropped(monkeypatch):
         {'startTime': 10, 'title': 'ok',
          'img': 'javascript:alert(1)', 'url': 'https://ok.example/x'},
     ]}).encode()
-    monkeypatch.setattr('upstream_chapters.safe_get', lambda *a, **k: _response(body))
+    monkeypatch.setattr('utils.safe_http.safe_get', lambda *a, **k: _response(body))
     out = fetch_upstream_chapters('https://example.com/ch.json')
     assert out == [{'startTime': 10, 'title': 'ok', 'url': 'https://ok.example/x'}]
 
@@ -169,6 +169,45 @@ def test_explicit_feed_user_agent_is_sent(monkeypatch):
     def fetch(*args, **kwargs):
         seen.append(kwargs['headers']['User-Agent'])
         return _response(b'{"chapters": []}')
-    monkeypatch.setattr('upstream_chapters.safe_get', fetch)
+    monkeypatch.setattr('utils.safe_http.safe_get', fetch)
     assert fetch_upstream_chapters('https://example.com/chapters.json', user_agent='Feed/2.0') == []
     assert seen == ['Feed/2.0']
+
+
+def _response_status(body: bytes, status: int):
+    r = _response(body)
+    r.status_code = status
+    return r
+
+
+def test_403_on_settled_ua_retries_with_feed_ua(monkeypatch):
+    seen = []
+
+    def fetch(*a, **k):
+        ua = k['headers']['User-Agent']
+        seen.append(ua)
+        return _response_status(b'{"chapters": []}', 403 if ua == 'Settled/1' else 200)
+    monkeypatch.setattr('utils.safe_http.safe_get', fetch)
+    out = fetch_upstream_chapters('https://feed.example.com/ch.json',
+                                  user_agent='Settled/1', fallback_user_agent='Feed/2')
+    assert out == []
+    assert seen == ['Settled/1', 'Feed/2']
+
+
+def test_403_on_both_user_agents_returns_none(monkeypatch):
+    monkeypatch.setattr('utils.safe_http.safe_get',
+                        lambda *a, **k: _response_status(b'{}', 403))
+    assert fetch_upstream_chapters('https://feed.example.com/ch.json',
+                                   user_agent='Settled/1', fallback_user_agent='Feed/2') is None
+
+
+def test_same_settled_and_feed_ua_makes_one_request(monkeypatch):
+    seen = []
+
+    def fetch(*a, **k):
+        seen.append(k['headers']['User-Agent'])
+        return _response_status(b'{}', 403)
+    monkeypatch.setattr('utils.safe_http.safe_get', fetch)
+    assert fetch_upstream_chapters('https://feed.example.com/ch.json',
+                                   user_agent='Same/1', fallback_user_agent='Same/1') is None
+    assert seen == ['Same/1']

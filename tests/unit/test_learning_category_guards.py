@@ -1,18 +1,6 @@
-"""Learning guards on keep-action markers, and ad_patterns.category.
-
-Covers:
-- Corrections guard: a marker resolved to action_applied == 'keep' can
-  never create a pattern_correction row (which also seeds cross-episode
-  false-positive text, since both flow through the same
-  create_pattern_correction call).
-- ad_patterns.category: additive NULL column; NULL reads back as None and
-  only action resolution defaults it; the pattern learner stores a marker's
-  category on newly created patterns.
-- Community sync: export includes category; import without one leaves it
-  unset.
-- Kept markers still reach pattern learning: only correction/FP-text
-  creation is guarded, not learning.
-"""
+"""Learning guards on keep-action markers, and ad_patterns.category (additive NULL column; only action
+resolution defaults NULL). A 'keep' marker never creates a pattern_correction row or FP text but still
+reaches pattern learning; community export carries category and import without one leaves it unset."""
 import json
 import os
 import sys
@@ -325,10 +313,8 @@ class TestCommunitySyncCategory:
 
 
 class TestCommunitySyncReimportPreservesCategory:
-    """An old-format re-import payload (no 'category' key) must not NULL
-    out a stored category on an existing pattern:
-    import_community_pattern's update path only includes 'category' in the
-    update kwargs when the payload actually carries the key."""
+    """An old-format re-import payload (no 'category' key) must not NULL a stored category:
+    import_community_pattern's update path only sets 'category' when the payload carries the key."""
 
     def _seed_pattern(self, temp_db, community_id, category='cross_promo'):
         pattern_service = PatternService(temp_db)
@@ -482,13 +468,8 @@ class TestKeptMarkersStillLearn:
 
 
 # ========== 6. Pattern matches inherit stored segment category ==========
-#
-# Fingerprint/text-pattern re-matches of an already-learned pattern dropped
-# the pattern's stored category: a pattern learned from a kept cross_promo
-# marker re-matched with no category, fell through to the 'sponsor'
-# default, and got cut on a feed that keeps cross_promo. Fixed by threading
-# category through AdPattern/TextMatch, FingerprintMatch, and
-# _add_pattern_match.
+# Re-matches must keep a pattern's stored category, else a kept cross_promo pattern falls to the
+# 'sponsor' default and gets cut. Threaded via AdPattern/TextMatch, FingerprintMatch, _add_pattern_match.
 
 class TestPatternMatchCategoryInheritance:
 
@@ -556,11 +537,9 @@ class TestPatternMatchCategoryInheritance:
         assert merged[0]['category'] == 'self_promo'
 
     def test_legacy_none_category_stays_uncategorized_at_merge_seam(self):
-        """A match whose pattern genuinely has no category (category=None)
-        stays uncategorized at the merge seam rather than being relabelled
-        'sponsor', which would make it indistinguishable from a pattern that
-        really is a sponsor read. Action resolution still treats it as
-        sponsor, so cutting is unchanged."""
+        """A match whose pattern has no category stays uncategorized at the merge seam instead of being
+        relabelled 'sponsor' (indistinguishable from a real sponsor read); action resolution still
+        treats it as sponsor, so cutting is unchanged."""
         det = AdDetector(api_key='test-key')
         all_ads, regions = [], []
         match = TextMatch(
@@ -574,21 +553,22 @@ class TestPatternMatchCategoryInheritance:
 
     def test_fingerprint_pattern_linkage_carries_category(self, temp_db):
         """audio_fingerprints.pattern_id references ad_patterns.id, and
-        get_all_fingerprints_with_sponsors already joins ad_patterns for
+        get_active_fingerprints_with_scope already joins ad_patterns for
         the sponsor name, so category rides the same existing join."""
         pid = temp_db.create_ad_pattern(
             scope='global', text_template='x' * 60, category='cross_promo',
         )
         temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
 
-        rows = temp_db.get_all_fingerprints_with_sponsors()
+        rows = temp_db.get_active_fingerprints_with_scope()
         assert len(rows) == 1
         assert rows[0]['category'] == 'cross_promo'
 
         fp = AudioFingerprinter.__new__(AudioFingerprinter)
         fp.db = temp_db
         loaded = fp._load_fingerprints_from_db()
-        assert loaded == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
+        assert [(r['pattern_id'], r['fingerprint'], r['duration'], r['sponsor'], r.get('category'))
+                for r in loaded] == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
 
     def test_disabled_pattern_fingerprint_not_loaded(self, temp_db):
         """Disabling a pattern must silence its audio fingerprint too
@@ -598,7 +578,7 @@ class TestPatternMatchCategoryInheritance:
         temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
         temp_db.update_ad_pattern(pid, is_active=False)
 
-        assert temp_db.get_all_fingerprints_with_sponsors() == []
+        assert temp_db.get_active_fingerprints_with_scope() == []
 
     def test_fingerprint_pattern_with_no_category_stays_unset(self, temp_db):
         pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
@@ -607,7 +587,8 @@ class TestPatternMatchCategoryInheritance:
         fp = AudioFingerprinter.__new__(AudioFingerprinter)
         fp.db = temp_db
         loaded = fp._load_fingerprints_from_db()
-        assert loaded == [(pid, 'AQAA', 12.0, None, None)]
+        assert [(r['pattern_id'], r['fingerprint'], r['duration'], r['sponsor'], r.get('category'))
+                for r in loaded] == [(pid, 'AQAA', 12.0, None, None)]
 
 
 class TestKeepPartitionFromCategorizedDetection:

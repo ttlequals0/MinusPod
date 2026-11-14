@@ -1,7 +1,5 @@
-"""Approving a held marker annotates it server-side (issue #509): the marker
-gains approved=True while staying pending until a recut applies it, so the
-apply-bar count survives reloads and float drift (tolerance matching, like
-the reject path) instead of joining on exact correction bounds."""
+"""Approving a held marker sets approved=True server-side (issue #509); it stays pending until a recut,
+and tolerance matching (like the reject path) keeps the apply-bar count stable across reloads and float drift."""
 import json
 import os
 import tempfile

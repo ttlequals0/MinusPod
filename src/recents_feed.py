@@ -6,10 +6,9 @@ from audio_processor import get_replacement_duration
 from config import resolve_toggle
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
 from database.settings import feed_itunes_block_enabled
-from local_feed_builder import _append_channel_image, _channel_open, _append_local_episode_item, _channel_artwork_url
-from main_app import db, rss_parser, storage
-from main_app.feed_auth import active_feed_key
-from main_app.shared_state import invalidate_episode_lookup_cache
+import local_feed_builder
+from feed_build_support import active_feed_key, db, rss_parser, storage
+from lookup_cache import invalidate_episode_lookup_cache
 from utils.feed_guid import compute_feed_guid
 from utils.time import utc_now_iso
 
@@ -25,9 +24,9 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     channel_link = f"{base}/{RECENTS_SLUG}"
     replacement_duration = get_replacement_duration()
 
-    lines = _channel_open(title, channel_link, podcast.get('description') or '',
+    lines = local_feed_builder._channel_open(title, channel_link, podcast.get('description') or '',
                           itunes_block=feed_itunes_block_enabled(db))
-    _append_channel_image(lines, _channel_artwork_url(RECENTS_SLUG, base, feed_auth_key, storage),
+    local_feed_builder._append_channel_image(lines, local_feed_builder._channel_artwork_url(RECENTS_SLUG, base, feed_auth_key, storage),
                           title, channel_link)
     guid = compute_feed_guid(f"{base.rstrip('/')}/{RECENTS_SLUG}")
     lines.append(f'<podcast:guid>{rss_parser._escape_xml(guid)}</podcast:guid>')
@@ -41,7 +40,7 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
         # Per-item map: episode ids are only unique within a feed.
         notes = {ep['episode_id']: ep['chapters_json']} if list_chapters else {}
         cuts_json = ep.get('applied_cuts_json')
-        _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
+        local_feed_builder._append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
                                    chapter_notes=notes, title_prefix=f"{ep['source_title']}: ",
                                    applied_cuts={ep['episode_id']: cuts_json} if cuts_json else None,
                                    replacement_duration=replacement_duration,

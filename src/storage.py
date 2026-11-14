@@ -20,7 +20,10 @@ from artwork_watermark import (
     composite_watermark, cover_badge_salt, badge_path, normalize_badge_position,
 )
 from user_agent import download_user_agent
-from utils.episode_paths import episode_filename
+from utils.episode_paths import (
+    episode_filename, is_peaks_housekeeping_name, peaks_file_path, remove_peaks_artifacts,
+    sweep_stale_peaks_temp_files,
+)
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
@@ -46,10 +49,8 @@ _ALLOWED_IMAGE_TYPES = frozenset({
 # TTL for get_storage_stats(); disk usage does not change second-to-second
 # and the walk is thousands of stat() calls.
 STORAGE_STATS_TTL_SECONDS = 45
-# A feed whose artwork URL serves the wrong content type fails identically on
-# every refresh, so retrying each cycle only burns a request and a log line.
-# Long enough to stop the churn, short enough that a publisher fix is picked
-# up the same day. A forced refresh ignores it.
+# A bad artwork URL fails identically on every refresh; back off so retries stop
+# but a publisher fix is picked up the same day. A forced refresh ignores it.
 ARTWORK_FAILURE_TTL_SECONDS = 6 * 3600
 # A 404 means the resource is confirmed gone rather than transiently broken,
 # so it is backed off for longer than a generic fetch error.
@@ -91,10 +92,8 @@ EPISODE_ARTWORK_CACHE_BYTES = 64 * 1024 * 1024
 
 # Cached cover-art badge variant (issue #420), one per podcast dir.
 _WATERMARK_VARIANT = "artwork-minuspod.jpg"
-# Sidecar recording the cover_badge_salt the cached variant was rendered with.
-# Mtimes alone miss a BADGE_REVISION bump (same asset file, new rendering), so
-# without it an upgrade can keep serving the old badge at the new cache-busted
-# URL forever.
+# Sidecar recording the cover_badge_salt the variant was rendered with; mtimes
+# alone miss a BADGE_REVISION bump (same asset file, new rendering).
 _WATERMARK_SALT = "artwork-minuspod.salt"
 
 
@@ -103,10 +102,7 @@ def is_chapter_image_filename(value: str) -> bool:
 
 
 def _detect_image_mime(data: bytes) -> str | None:
-    """Return the canonical Content-Type for ``data`` based on file magic,
-    or None if the bytes do not match a supported image format. SVG is not
-    accepted because it admits script execution.
-    """
+    """Canonical Content-Type from file magic, or None if unsupported. SVG is rejected (script execution)."""
     if len(data) < 12:
         return None
     if data[:3] == b'\xff\xd8\xff':
@@ -121,11 +117,9 @@ def _detect_image_mime(data: bytes) -> str | None:
 
 
 def _max_artwork_bytes() -> int:
-    """Artwork size cap, configurable so operators can host very high-res
-    podcast covers without a code change. Default is 25 MB so animated GIF
-    covers and 3000x3000 JPEGs are cached comfortably; clamped so a typo
-    cannot turn this into a memory DoS. Env-backed: the UI value wins, the
-    env var seeds the default at boot (config.ENV_BACKED_SETTINGS).
+    """Artwork size cap in bytes (default 25 MB), clamped so a typo cannot cause a memory DoS.
+
+    Env-backed: the UI value wins, the env var seeds the default (config.ENV_BACKED_SETTINGS).
     """
     return get_env_backed_int('max_artwork_bytes',
                               floor=MAX_ARTWORK_BYTES_MIN,
@@ -139,11 +133,9 @@ class PathContainmentError(ValueError):
 
 
 def _safe_join_under(base: Path, *parts: str) -> Path:
-    """Join ``parts`` under ``base`` and verify the result stays inside ``base``.
+    """Join ``parts`` under ``base``; symlink and ``..`` escapes raise (resolve + relative_to).
 
-    Uses ``resolve()`` + ``relative_to()`` so symlink and ``..`` tricks raise
-    rather than silently escaping. The base is assumed to already exist; the
-    joined path may or may not.
+    ``base`` must already exist; the joined path need not.
     """
     base_resolved = base.resolve()
     joined = base_resolved.joinpath(*parts).resolve()
@@ -159,9 +151,7 @@ def _safe_join_under(base: Path, *parts: str) -> Path:
 class Storage:
     """Storage manager using SQLite for metadata and filesystem for large files.
 
-    Singleton, mirroring Database. Without this, every /api/v1/health call
-    (or any get_storage() accessor) constructs a fresh Storage and re-fires
-    the init log line - that path was producing ~120 lines/hr in prod.
+    Singleton, mirroring Database, so repeated get_storage() calls do not re-fire the init log.
     """
 
     _instance = None
@@ -193,11 +183,8 @@ class Storage:
         from database import Database
         self.db = Database(str(self.data_dir))
 
-        # get_storage_stats() result cache (single 'storage' key). TTLCache
-        # is documented lock-free, and this singleton is shared across Flask
-        # request threads: the lock guards the check-walk-store sequence so
-        # concurrent status calls serialize on the walk instead of
-        # duplicating it.
+        # get_storage_stats() cache. TTLCache is lock-free and this singleton is shared
+        # across request threads; the lock serializes the check-walk-store sequence.
         self._storage_stats_cache = TTLCache(STORAGE_STATS_TTL_SECONDS)
         self._storage_stats_lock = threading.Lock()
 
@@ -208,16 +195,14 @@ class Storage:
         # column is the durable record consulted when a cache is cold (restart).
         self._artwork_failure_cache = TTLCache(ARTWORK_FAILURE_TTL_SECONDS)
         self._artwork_404_cache = TTLCache(ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS)
+        # Keys whose skip was already logged this backoff window; bounded by TTLCache max_size.
+        self._artwork_skip_logged = TTLCache(max(_ARTWORK_FAILURE_WINDOWS.values()))
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
 
     def get_podcast_dir(self, slug: str) -> Path:
-        """Get podcast directory, creating if necessary.
-
-        Validates ``slug`` against traversal patterns and confirms the
-        resolved path stays under ``self.podcasts_dir``.
-        """
+        """Get podcast directory, creating if necessary; rejects slugs that escape ``podcasts_dir``."""
         podcast_dir = self._podcast_path(slug)
         podcast_dir.mkdir(exist_ok=True)
 
@@ -234,27 +219,15 @@ class Storage:
         return _safe_join_under(self.podcasts_dir, slug)
 
     def import_staging_dir(self, slug: str, create: bool = False) -> Path:
-        """Per-feed staging directory for an in-progress archive-import
-        commit (``<data>/import-staging/<slug>/``, local-feeds #625 Task 10).
+        """Per-feed staging directory for an archive-import commit (``<data>/import-staging/<slug>/``).
 
-        Browser-uploaded batch files land here ahead of the commit engine's
-        move into the podcast's episode storage. A commit whose scan/commit
-        request source included staging ('staging' or 'both') sweeps this
-        directory once it finishes, whether or not every entry actually
-        committed -- but not indiscriminately: a committed entry's audio is
-        already moved and its sidecars already deleted by that point, a
-        file the plan rejected outright (bad naming, empty, a stray .part)
-        is removed by the sweep, but a skipped or errored entry's audio and
-        sidecars (typically a bad sidecar next to an otherwise-good mp3)
-        are left in place so fixing the sidecar and rescanning doesn't also
-        mean re-uploading the audio. The directory itself is only removed
-        once nothing preserved remains in it. A commit scanned/run with
-        source='directory' never touches this directory at all, even if it
-        has stale content. Outside a commit, a stale staging dir just means
-        an upload/scan happened and nothing has committed yet; `DELETE
-        /feeds/{slug}/import/staging` (local_import.py) clears it on
-        demand, and the next "Choose files" selection clears it
-        automatically before uploading.
+        Browser-uploaded files land here before the commit engine moves them into episode
+        storage. A commit with source 'staging' or 'both' sweeps it afterwards: committed
+        entries are already moved, rejected files (bad naming, empty, stray .part) are
+        removed, but skipped or errored entries keep their audio and sidecars so fixing a
+        sidecar does not mean re-uploading. The directory goes only when nothing preserved
+        remains; source='directory' never touches it. `DELETE /feeds/{slug}/import/staging`
+        and the next "Choose files" selection also clear it.
         """
         if is_dangerous_slug(slug):
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")
@@ -264,57 +237,15 @@ class Storage:
         return path
 
     def import_source_dir(self, slug: str) -> Path:
-        """The user-managed archive-import directory for a feed
-        (``<data>/import/<slug>/``, local-feeds #625 Task 10).
+        """The operator-managed archive-import directory for a feed (``<data>/import/<slug>/``).
 
-        Never created here: an operator populates it directly on the shared
-        filesystem, so its absence just means nothing has been dropped in
-        yet. The commit engine moves each successfully committed entry's
-        audio out of it AND deletes that entry's sidecar files (json/txt/
-        artwork) with it -- a rejected or errored entry's files are left in
-        place untouched, for the operator to fix and re-scan.
+        Never created here; absence means nothing was dropped in yet. The commit engine
+        moves each committed entry's audio out and deletes its sidecars (json/txt/artwork);
+        rejected or errored entries are left untouched for the operator to fix and re-scan.
         """
         if is_dangerous_slug(slug):
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")
         return _safe_join_under(self.data_dir, 'import', slug)
-
-    def load_data_json(self, slug: str) -> dict[str, Any]:
-        """Load episode data for a podcast from SQLite."""
-        # Ensure directory exists
-        self.get_podcast_dir(slug)
-
-        podcast = self.db.get_podcast_by_slug(slug)
-        if not podcast:
-            return {"episodes": {}, "last_checked": None}
-
-        episodes, _ = self.db.get_episodes(slug, limit=10000)
-
-        episodes_dict = {}
-        for ep in episodes:
-            ep_data = {
-                'status': ep['status'],
-                'original_url': ep['original_url'],
-                'title': ep['title'],
-            }
-            if ep['processed_file']:
-                ep_data['processed_file'] = ep['processed_file']
-            if ep['processed_at']:
-                ep_data['processed_at'] = ep['processed_at']
-            if ep['original_duration']:
-                ep_data['original_duration'] = ep['original_duration']
-            if ep['new_duration']:
-                ep_data['new_duration'] = ep['new_duration']
-            if ep['ads_removed']:
-                ep_data['ads_removed'] = ep['ads_removed']
-            if ep['error_message']:
-                ep_data['error'] = ep['error_message']
-
-            episodes_dict[ep['episode_id']] = ep_data
-
-        return {
-            "episodes": episodes_dict,
-            "last_checked": podcast.get('last_checked_at')
-        }
 
     def _validated_episode_leaf(self, slug: str, episode_id: str, filename: str) -> Path:
         """Return a resolved path inside the episodes directory for ``slug``.
@@ -358,14 +289,11 @@ class Storage:
     def cleanup_stale_audio_versions(self, slug: str, episode_id: str,
                                        current_version: int,
                                        extension: str = ".mp3") -> int:
-        """Remove every audio file except the current version.
+        """Remove every audio file except the current version; returns the number deleted.
 
-        Clients hitting the legacy unversioned URL still resolve via
-        ``serve_episode``, which reads ``processed_version`` from the DB and
-        falls through to the current file, so we can delete everything else
-        immediately on finalize. The retained ``{episode_id}-original`` file
-        is untouched (``iter_episode_audio_paths`` does not include it).
-        Returns the number of files deleted.
+        Legacy unversioned URLs still resolve via ``serve_episode`` (it reads
+        ``processed_version``), so the rest can go on finalize. The retained
+        ``{episode_id}-original`` file is not listed by ``iter_episode_audio_paths``.
         """
         if current_version <= 0:
             return 0
@@ -391,6 +319,32 @@ class Storage:
         return self._validated_episode_leaf(
             slug, episode_id, f"{episode_id}-original{extension}"
         )
+
+    def get_peaks_path(self, slug: str, episode_id: str) -> Path:
+        """Get path for the peaks file that sits beside the retained original."""
+        return peaks_file_path(self.get_original_path(slug, episode_id))
+
+    def delete_peaks_file(self, slug: str, episode_id: str) -> bool:
+        """Remove the episode's peaks file and its lock; never raises.
+
+        True when the peaks file itself was removed.
+        """
+        try:
+            return remove_peaks_artifacts(self.get_peaks_path(slug, episode_id))
+        except PathContainmentError as exc:
+            logger.debug(f"[{slug}:{episode_id}] No peaks path: {exc}")
+            return False
+        except OSError as exc:
+            logger.warning(f"[{slug}:{episode_id}] Failed to delete peaks file: {exc}")
+            return False
+
+    def sweep_peaks_temp_files(self) -> int:
+        """Remove stale peaks temp files in every feed's episodes directory."""
+        removed = 0
+        for podcast_dir in self.podcasts_dir.iterdir():
+            if podcast_dir.is_dir():
+                removed += sweep_stale_peaks_temp_files(podcast_dir / "episodes")
+        return removed
 
     def save_rss(self, slug: str, content: str) -> None:
         """Save modified RSS feed to filesystem."""
@@ -446,10 +400,10 @@ class Storage:
 
     def save_chapters_and_applied_cuts(self, slug: str, episode_id: str,
                                        chapters: dict, cuts: list) -> None:
-        """Atomically persist chapters JSON plus the applied cut list it was
-        generated against (single DB statement; a failure can never leave
-        fresh chapters paired with stale cuts, which would poison the next
-        recut remap)."""
+        """Atomically persist chapters JSON and the cut list it was generated against.
+
+        One DB statement, so fresh chapters are never paired with stale cuts (which would poison the
+        next recut remap)."""
         self.db.save_chapters_and_applied_cuts(
             slug, episode_id, json.dumps(chapters), cuts
         )
@@ -508,13 +462,9 @@ class Storage:
 
     def save_ads_json(self, slug: str, episode_id: str, ads_data: Any,
                       pass_number: int = 1) -> None:
-        """Save Claude's ad detection response to database with pass marker.
+        """Save the ad detection response to the database with a pass marker.
 
-        Args:
-            slug: Podcast slug
-            episode_id: Episode ID
-            ads_data: Dict with 'ads', 'raw_response', and 'prompt' keys
-            pass_number: 1 for first pass, 2 for second pass (default: 1)
+        ``ads_data`` is a dict with 'ads', 'raw_response' and 'prompt' keys.
         """
         try:
             ad_markers = ads_data.get('ads', []) if isinstance(ads_data, dict) else []
@@ -556,8 +506,13 @@ class Storage:
                                          pending_review_count=pending_count)
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
+            return
 
         logger.debug(f"[{slug}:{episode_id}] Saved {len(all_ads)} combined ad markers")
+        try:
+            self.db.record_fingerprint_matches_from_markers(slug, episode_id, all_ads)
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] Could not record fingerprint match history: {e}")
 
 
     # ========== Artwork Methods ==========
@@ -572,10 +527,8 @@ class Storage:
 
             artwork_path = podcast_dir / f"artwork{ext}"
 
-            # Write the new image to a temp file and atomically move it into
-            # place, then delete the other-extension stale files. Deleting only
-            # after the new artwork is durable means a failed write can never
-            # leave the podcast with no artwork (secrets-storage-6).
+            # Atomically move a temp file into place, then delete other-extension stale files,
+            # so a failed write never leaves the podcast without artwork.
             with tempfile.NamedTemporaryFile(mode='wb', delete=False,
                                              dir=podcast_dir, suffix='.tmp') as tmp:
                 tmp.write(image_data)
@@ -739,13 +692,7 @@ class Storage:
         return art_dir
 
     def has_episode_artwork(self, slug: str, episode_id: str) -> bool:
-        """True if a cached episode cover exists -- no read, no LRU touch.
-
-        Mirrors has_artwork's existence-only contract at episode scope.
-        Callers that only need a boolean (e.g. deciding whether to emit
-        itunes:image) should use this instead of get_episode_artwork, which
-        reads the full file and bumps its mtime for LRU eviction purposes.
-        """
+        """True if a cached episode cover exists, without a read (a read would bump its LRU mtime)."""
         if not is_valid_episode_id(episode_id):
             return False
         art_dir = self._episode_artwork_dir(slug)
@@ -755,12 +702,7 @@ class Storage:
                    for ext, _ in _ARTWORK_EXTENSIONS)
 
     def remove_episode_artwork(self, slug: str, episode_id: str) -> bool:
-        """Delete a cached episode cover, if any.
-
-        Used when an episode row is hard-deleted (local feeds, #625 Task 8)
-        so no orphaned cover file survives the row it belonged to. Returns
-        True if a file was removed.
-        """
+        """Delete a cached episode cover, if any (used on hard delete); True if a file was removed."""
         if not is_valid_episode_id(episode_id):
             return False
         art_dir = self._episode_artwork_dir(slug)
@@ -800,25 +742,12 @@ class Storage:
                 return path.resolve(), content_type
         return None
 
-    def get_episode_artwork(self, slug: str,
-                            episode_id: str) -> tuple[bytes, str] | None:
-        """Cached episode cover. Returns (data, content_type) or None."""
-        found = self.episode_artwork_file(slug, episode_id)
-        if not found:
-            return None
-        try:
-            return found[0].read_bytes(), found[1]
-        except OSError:
-            return None
-
     def download_episode_artwork(self, slug: str, episode_id: str,
                                  artwork_url: str) -> bool:
         """Fetch and cache one episode's cover.
 
-        Shares the validation contract of ``download_artwork``: file-magic
-        allowlist, size cap, and a failure cache so a host that blocks or
-        404s is not re-fetched on every page load. Deliberately does not
-        touch the badge variant, which is podcast-level and unaffected.
+        Same validation as ``download_artwork`` (magic allowlist, size cap, failure cache).
+        Does not touch the podcast-level badge variant.
         """
         if not artwork_url or not is_valid_episode_id(episode_id):
             return False
@@ -832,20 +761,15 @@ class Storage:
             return False
 
         ok = self._download_episode_artwork_uncached(slug, episode_id, artwork_url, user_agent=ua)
-        # Only failures are stored. Caching successes too would fill the cache
-        # with entries nothing reads, and eviction is oldest-first, so a
-        # long-lived failure entry would be pushed out well before its TTL.
-        # No delete-on-success here: unlike the podcast path there is no
-        # force bypass, so a live failure entry always returns early above
-        # and success can never coexist with one.
+        # Store only failures: cached successes would evict failure entries before their TTL.
+        # No delete-on-success: with no force bypass, a live failure entry returns early above.
         if not ok:
             self._artwork_failure_cache.set(failure_key, True)
         return ok
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
                                           artwork_url: str, user_agent: str | None = None) -> bool:
-        """Fetch, validate, and save one episode cover. See
-        download_episode_artwork."""
+        """Fetch, validate, and save one episode cover. See download_episode_artwork."""
         try:
             logger.info(f"[{slug}:{episode_id}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")
@@ -907,16 +831,12 @@ class Storage:
     def save_episode_artwork(self, slug: str, episode_id: str,
                              image_data: bytes, content_type: str,
                              evict: bool = True) -> bool:
-        """Public wrapper around ``_save_episode_artwork`` for API-driven
-        uploads (local feeds' single-episode artwork upload, #625 Task 8).
-        ``content_type`` must already be validated (e.g. via
-        ``_detect_image_mime``) -- this method does not re-check it.
+        """Public wrapper around ``_save_episode_artwork`` for API-driven uploads.
 
-        ``evict=False`` skips the LRU cache trim. Local-feed episode
-        artwork is the only copy of that cover (there is no upstream URL
-        to re-download it from later), so it must never be evicted; a
-        subscribed feed's downloaded cover is a re-fetchable cache and is
-        safe to trim under the size cap (the default).
+        ``content_type`` must already be validated (e.g. via ``_detect_image_mime``).
+
+        ``evict=False`` skips the LRU trim: a local-feed cover is the only copy (no upstream
+        URL), while a subscribed feed's downloaded cover is re-fetchable and safe to trim.
         """
         return self._save_episode_artwork(slug, episode_id, image_data,
                                           content_type, evict=evict)
@@ -924,9 +844,8 @@ class Storage:
     def _save_episode_artwork(self, slug: str, episode_id: str,
                               image_data: bytes, content_type: str,
                               evict: bool = True) -> bool:
-        """Write one episode cover, replacing any stale extension, then trim
-        the feed's cache back under EPISODE_ARTWORK_CACHE_BYTES (unless
-        ``evict=False`` -- see ``save_episode_artwork``)."""
+        """Write one episode cover, replacing any stale extension, then trim the feed's cache
+        under EPISODE_ARTWORK_CACHE_BYTES (unless ``evict=False``, see ``save_episode_artwork``)."""
         art_dir = self._episode_artwork_dir(slug, create=True)
         if art_dir is None:
             return False
@@ -986,10 +905,9 @@ class Storage:
         return removed
 
     def clear_watermark_cache(self, slug: str) -> None:
-        """Drop the cached MinusPod badge variant (issue #420) so it recomposites
-        on the next request. Called when a new source cover is saved and by the
-        artwork refresh, so a change to the badge rendering or the toggle takes
-        effect even when the upstream cover itself is unchanged."""
+        """Drop the cached badge variant (issue #420) so it recomposites on the next request.
+
+        Called on a new source cover and on artwork refresh, so badge or toggle changes apply."""
         variant_path = self.get_podcast_dir(slug) / _WATERMARK_VARIANT
         variant_path.unlink(missing_ok=True)
 
@@ -999,10 +917,9 @@ class Storage:
         return normalize_badge_position(self.db.get_setting('artwork_badge_position'))
 
     def get_watermarked_artwork(self, slug: str) -> tuple[bytes, str] | None:
-        """Cover art with the MinusPod badge composited (issue #420), cached on
-        disk as artwork-minuspod.jpg. Returns (jpeg_bytes, 'image/jpeg'), or None
-        when there is no source artwork or compositing fails. save_artwork and the
-        artwork refresh clear the cached variant so it recomposites."""
+        """Cover art with the badge composited (issue #420), cached as artwork-minuspod.jpg.
+
+        Returns (jpeg_bytes, 'image/jpeg'), or None without source artwork or on compositing failure."""
         podcast_dir = self.podcast_dir_if_exists(slug)
         if not podcast_dir:
             return None
@@ -1037,14 +954,11 @@ class Storage:
         return composited, 'image/jpeg'
 
     def artwork_version(self, slug: str) -> str | None:
-        """Short content-addressed token for the badged cover-art URL cache-bust.
+        """Short content-addressed token to cache-bust the badged cover-art URL.
 
-        Shifts when the source cover bytes or the badge (cover_badge_salt: badge
-        asset fingerprint, BADGE_REVISION, corner) change, and is stable otherwise,
-        so downstream apps (Pocket Casts et al. cache channel art by URL and
-        rarely re-pull it) only re-fetch when the art actually changed. None when
-        there is no readable source cover, so the caller falls back to the bare
-        URL rather than aborting the whole feed render on an I/O error.
+        Changes only when the source cover bytes or the badge (cover_badge_salt) change, since
+        podcast apps cache channel art by URL. None when there is no readable source cover, so
+        the caller uses the bare URL instead of aborting the feed render.
         """
         try:
             source = self.get_artwork(slug)
@@ -1058,9 +972,9 @@ class Storage:
         return digest.hexdigest()[:8]
 
     def _watermark_variant_stale(self, podcast_dir, variant_path) -> bool:
-        """True if the cached badge variant predates the source cover or the
-        badge asset, so a fresh composite is served after a cover or badge
-        change even on the passive refresh path that never clears the cache.
+        """True if the cached badge variant predates the source cover or badge asset.
+
+        Covers the passive refresh path that never clears the cache.
         """
         try:
             variant_mtime = variant_path.stat().st_mtime
@@ -1142,11 +1056,9 @@ class Storage:
 
     def _artwork_in_backoff(self, slug: str, url: str, podcast: dict | None,
                             user_agent: str | None = None) -> bool:
-        """True if `url` failed recently enough that it should be skipped.
+        """True if `url` failed recently enough to skip.
 
-        Checks the in-process caches first, then the durable DB record (the
-        authoritative source, re-read each call so its own deadline is never
-        extended by an in-process TTL).
+        Checks the in-process caches, then the durable DB record (authoritative, re-read each call).
         """
         ua = user_agent or download_user_agent(podcast)
         key = self._artwork_negative_cache_key(slug, url, ua)
@@ -1162,22 +1074,19 @@ class Storage:
             return False
         status = entry.get('status')
         window = _ARTWORK_FAILURE_WINDOWS.get(status, ARTWORK_FAILURE_TTL_SECONDS)
-        # Do not warm the in-process cache here: its full TTL would restart
-        # from now and could outlast this entry's own deadline. The durable
-        # record above is authoritative and re-checked each call.
+        # Do not warm the in-process cache: its full TTL would restart now and could outlast this deadline.
         return (utc_now() - failed_at).total_seconds() < window
 
     def _record_artwork_negative_cache(self, slug: str, podcast: dict | None,
                                        url: str, status: str, user_agent: str | None = None) -> None:
         """Memoize a failed candidate URL, in-process and durably.
 
-        Mutates podcast['artwork_failure_state'] in place so a caller
-        iterating multiple candidates against the same dict sees each
-        prior failure when recording the next one, instead of each write
-        clobbering the last off a stale snapshot.
+        Mutates podcast['artwork_failure_state'] in place so later candidates see earlier
+        failures instead of clobbering them from a stale snapshot.
         """
         ua = user_agent or download_user_agent(podcast)
         key = self._artwork_negative_cache_key(slug, url, ua)
+        self._artwork_skip_logged.delete(key)
         if status == 'not_found':
             self._artwork_404_cache.set(key, True)
             self._artwork_failure_cache.delete(key)
@@ -1201,6 +1110,7 @@ class Storage:
         key = self._artwork_negative_cache_key(slug, url, ua)
         self._artwork_failure_cache.delete(key)
         self._artwork_404_cache.delete(key)
+        self._artwork_skip_logged.delete(key)
         state = self._artwork_failure_state(podcast)
         # The write path prunes, so clearing only has to drop this entry.
         if state.pop(url, None) is not None:
@@ -1215,18 +1125,12 @@ class Storage:
                          force: bool = False, bypass_backoff: bool | None = None) -> bool:
         """Download and cache podcast artwork, trying each candidate in order.
 
-        Accepts a single URL (legacy callers) or an ordered list of
-        feed-declared candidates (e.g. itunes:image then <image><url>). The
-        podcast's currently cached artwork_url is appended as a final
-        fallback candidate: when every fetched candidate fails, the
-        existing file and DB row are left completely untouched rather than
-        cleared. Each candidate's failure is memoized separately (see
-        _artwork_in_backoff) so a persistently broken preferred URL is
-        skipped on later refreshes without blocking a working alternate.
+        Takes one URL or an ordered list of feed-declared candidates. The cached artwork_url
+        is appended as a final fallback: if every candidate fails, the existing file and DB row
+        are left untouched. Failures are memoized per candidate (see _artwork_in_backoff).
         """
-        # force bypasses the "already cached" guard so a changed source is
-        # refetched; it does NOT bypass the per-URL failure backoff unless the
-        # caller asks (an explicit user refresh; a new candidate has no record).
+        # force bypasses the "already cached" guard but not the per-URL failure backoff
+        # unless the caller asks (an explicit user refresh; a new candidate has no record).
         if bypass_backoff is None:
             bypass_backoff = force
         candidates = self._normalize_artwork_candidates(artwork_urls)
@@ -1241,8 +1145,11 @@ class Storage:
 
         for url in candidates:
             if not bypass_backoff and self._artwork_in_backoff(slug, url, podcast, user_agent=ua):
-                logger.debug(
-                    f"[{slug}] Skipping artwork retry, this URL failed recently")
+                skip_key = self._artwork_negative_cache_key(slug, url, ua)
+                if self._artwork_skip_logged.get(skip_key) is None:
+                    self._artwork_skip_logged.set(skip_key, True)
+                    logger.debug(f"[{slug}] Skipping artwork retry for {safe_url_for_log(url)}, "
+                                 "it failed recently")
                 continue
             ok, status = self._download_artwork_uncached(slug, url, force, user_agent=ua)
             if ok:
@@ -1340,38 +1247,44 @@ class Storage:
         keep_original=True skips the original: local feeds keep it as the
         only copy (no upstream to re-download).
         """
-        deleted = False
+        audio_deleted = False
         candidates = list(self.iter_episode_audio_paths(slug, episode_id, ".mp3"))
+        peaks = None
         if not keep_original:
+            peaks = self.get_peaks_path(slug, episode_id)
+            if peaks.exists():
+                candidates.append(peaks)  # before the original so a fence stop never orphans it
             original = self.get_original_path(slug, episode_id, ".mp3")
             if original and original.exists():
                 candidates.append(original)
+        fenced = False
         for path in candidates:
             if can_delete is not None and not can_delete():
+                fenced = True
                 break
             if path.exists():
                 path.unlink()
-                deleted = True
-        if deleted:
+                audio_deleted = audio_deleted or path != peaks
+        if not keep_original and not fenced:
+            remove_peaks_artifacts(peaks)
+        if audio_deleted:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
-        return deleted
+        return audio_deleted
 
     def delete_original_only(self, slug: str, episode_id: str,
                              extension: str = ".mp3") -> tuple[bool, int]:
-        """Delete just the retained pre-cut original for one episode.
+        """Delete just the retained pre-cut original; returns (deleted, bytes_freed).
 
-        Returns (deleted, bytes_freed). Processed file(s), DB rows, and
-        transcripts are untouched. Used by the 2.5.14 two-pass retention
-        cleanup so an operator can drop originals on a shorter schedule
-        than the processed output without resetting the episode to
-        Discovered.
+        Processed files, DB rows and transcripts are untouched, so originals can expire sooner.
         """
         original = self.get_original_path(slug, episode_id, extension)
         if not original or not original.exists():
+            self.delete_peaks_file(slug, episode_id)
             return False, 0
         try:
             size = original.stat().st_size
             original.unlink()
+            self.delete_peaks_file(slug, episode_id)
             logger.debug(
                 f"[{slug}:{episode_id}] Deleted original audio (freed {size} bytes)"
             )
@@ -1386,8 +1299,7 @@ class Storage:
     def cleanup_episode_files(self, slug: str, episode_id: str) -> int:
         """Delete all files for an episode. Returns bytes freed.
 
-        Note: VTT and chapters are now stored in database, not files.
-        Database cascade delete handles episode_details when episode is deleted.
+        VTT and chapters live in the database; cascade delete handles episode_details.
         """
         freed = 0
 
@@ -1406,6 +1318,12 @@ class Storage:
                 except Exception as e:
                     logger.warning(f"Failed to delete {path}: {e}")
 
+        try:
+            peaks_size = self.get_peaks_path(slug, episode_id).stat().st_size
+        except OSError:
+            peaks_size = 0
+        if self.delete_peaks_file(slug, episode_id):
+            freed += peaks_size
         freed += self.remove_chapter_images(slug, episode_id)
         return freed
 
@@ -1429,12 +1347,7 @@ class Storage:
         return True
 
     def get_storage_stats(self) -> dict[str, Any]:
-        """Get storage statistics.
-
-        The full-tree walk stat()s every file under every podcast dir, so
-        the result is cached for STORAGE_STATS_TTL_SECONDS. The lock
-        serializes the check-walk-store sequence across request threads.
-        """
+        """Get storage statistics, cached for STORAGE_STATS_TTL_SECONDS (the walk stat()s every file)."""
         with self._storage_stats_lock:
             cached = self._storage_stats_cache.get('storage')
             if cached is not None:
@@ -1446,7 +1359,7 @@ class Storage:
             for podcast_dir in self.podcasts_dir.iterdir():
                 if podcast_dir.is_dir():
                     for f in podcast_dir.rglob('*'):
-                        if f.is_file():
+                        if f.is_file() and not is_peaks_housekeeping_name(f.name):
                             total_size += f.stat().st_size
                             file_count += 1
 

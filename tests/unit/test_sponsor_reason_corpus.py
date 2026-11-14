@@ -1,9 +1,7 @@
 """Sponsor extraction against a corpus of real LLM reason strings.
 
-The model rewords the reason on every run, so patterns keyed to a phrasing
-("X sponsor read") only ever cover the sample they were written for. These
-strings are real detector output with show identities replaced; they exist so
-a change to extraction is measured against variance rather than one example.
+The model rewords the reason every run, so patterns keyed to one phrasing cover only their sample. These
+strings are real detector output with show identities replaced, so extraction changes are measured against variance.
 """
 import os
 import sys

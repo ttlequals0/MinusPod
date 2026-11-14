@@ -1,8 +1,5 @@
-"""Unit tests for the cue window optimizer worker (D2a).
-
-Grid generation, tie-break math, baseline comparison, and payload shape.
-The matcher and decode are mocked so no ffmpeg or real audio is needed.
-"""
+"""Unit tests for the cue window optimizer worker: grid generation, tie-break math, baseline
+comparison, payload shape (matcher and decode mocked)."""
 import json
 import os
 import sys
@@ -161,10 +158,8 @@ def test_worker_produces_correct_payload_shape():
     with open(fake_audio_path, 'wb') as f:
         f.write(b'\x00' * 100)
 
-    # Mock out decode and matcher to avoid ffmpeg and real audio processing.
-    # compute_mfcc frames the region once and the worker slices it in frame
-    # space, so the fake must return a frame count consistent with its input
-    # length (16kHz, 25ms/10ms frames) rather than a fixed tiny matrix.
+    # Mock decode and matcher (no ffmpeg or real audio). compute_mfcc frames the region once and the
+    # worker slices in frame space, so the fake's frame count must match its input length (16kHz, 25ms/10ms).
     fake_pcm = _make_pcm(10.0)
 
     def fake_compute_mfcc(samples, *args, **kwargs):

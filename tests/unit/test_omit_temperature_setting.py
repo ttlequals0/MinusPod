@@ -1,9 +1,4 @@
-"""Tests for the omit_temperature operator override.
-
-Covers the SETTINGS_REGISTRY entry (registry default + PUT + GET round
-trip), and the resolution order in llm_capabilities.model_omits_temperature
-/ llm_client's DB-backed override plumbing.
-"""
+"""The omit_temperature operator override: registry entry (default, PUT, GET) and the llm_client override resolution."""
 import json
 
 import pytest

@@ -1,20 +1,18 @@
 """Minimal 5-field cron evaluator for MinusPod's community-sync schedule.
 
-Supports the common cron syntax users will write -- numbers, '*', ranges,
-lists, and step values -- for the five standard fields:
+Supports numbers, '*', ranges, lists and step values for the five standard fields:
 
   minute (0-59)  hour (0-23)  day-of-month (1-31)  month (1-12)  dow (0-6 sun=0)
 
-Designed to answer two questions:
+Two entry points:
 
-  * `is_valid_expression(expr)` -> bool -- for input validation in settings.
-  * `is_due(expr, last_run, now)` -> bool -- has a fire time elapsed since
-    `last_run`? Used by the background sync job that ticks every 15 min.
+  * `is_valid_expression(expr)` -> bool, for input validation in settings.
+  * `is_due(expr, last_run, now)` -> bool: has a fire time elapsed since `last_run`?
+    Used by the background sync job that ticks every 15 min.
 
-Day-of-month and day-of-week follow vixie-cron's OR semantics: if both
-are restricted, a fire happens when EITHER matches; if only one is
-restricted, only that one is consulted. Names for months and days are
-intentionally NOT supported to keep parsing simple.
+Day-of-month and day-of-week follow vixie-cron's OR semantics: if both are restricted,
+either matching fires; if only one is, only it is consulted. Month and day names are
+not supported.
 """
 from __future__ import annotations
 
@@ -119,11 +117,10 @@ def _matches(dt: datetime, sets: tuple[set[int], set[int], set[int], set[int], s
 
 
 def next_fire(expr: str, after: datetime, *, max_iters: int = 60 * 24 * 366) -> datetime:
-    """Return the first datetime > `after` that matches `expr`.
+    """First datetime > `after` matching `expr`, at minute resolution.
 
-    Resolution is minute. `after` may be naive or tz-aware; the return value
-    matches whichever was passed in. Raises ValueError if no fire within
-    `max_iters` minutes.
+    `after` may be naive or tz-aware and the result matches. Raises ValueError if
+    nothing fires within `max_iters` minutes.
     """
     sets = parse_expression(expr)
     # Drop to minute resolution and add one minute so `after` itself isn't a hit.

@@ -29,10 +29,8 @@ _ITUNES_SEARCH_URL = 'https://itunes.apple.com/search'
 def resolve_search_provider() -> str:
     """Effective podcast search provider.
 
-    An explicit Settings choice always wins. With no choice saved, installs
-    that already have PodcastIndex credentials keep using PodcastIndex
-    (their behavior before the provider option existed); everyone else gets
-    iTunes, which needs no key.
+    An explicit Settings choice wins. With none saved, installs with PodcastIndex credentials
+    keep PodcastIndex (their behavior before the option existed); others get keyless iTunes.
     """
     explicit = get_database().get_setting('podcast_search_provider')
     if explicit in PODCAST_SEARCH_PROVIDERS:
@@ -70,11 +68,9 @@ def _podcast_index_headers(api_key: str, api_secret: str) -> dict:
 def _get_podcast_index_credentials():
     """Resolve PodcastIndex credentials: DB first (decrypted), then env vars.
 
-    Both podcast_index_api_key and podcast_index_api_secret live in
-    SECRET_SETTING_KEYS and are stored encrypted under the master
-    passphrase. Using `get_setting` here would hand the `enc:v1:...`
-    ciphertext to the SHA-1 signer and produce a bogus X-Auth header;
-    PodcastIndex then 401s.
+    Both podcast_index_api_key and podcast_index_api_secret are in SECRET_SETTING_KEYS and
+    stored encrypted. `get_setting` would hand the `enc:v1:...` ciphertext to the SHA-1
+    signer and produce a bogus X-Auth header, which PodcastIndex 401s.
     """
     db = get_database()
     api_key = db.get_secret('podcast_index_api_key') or os.environ.get('PODCAST_INDEX_API_KEY', '')
@@ -166,11 +162,8 @@ def search_directory(query: str) -> tuple[list[dict], str]:
 @log_request
 @limiter.limit("30 per minute")
 def search_podcasts():
-    """Search for podcasts via the configured provider.
-
-    iTunes (keyless, the default for installs without PodcastIndex
-    credentials) or PodcastIndex.org. Both map to the same result shape.
-    """
+    """Search for podcasts via the configured provider: iTunes (keyless default) or
+    PodcastIndex.org, both mapped to the same result shape."""
     query = request.args.get('q', '').strip()
     if not query:
         return error_response('Query parameter "q" is required', 400)
@@ -187,9 +180,8 @@ def search_podcasts():
 def test_podcast_index():
     """Connection test for the configured PodcastIndex credentials (#544).
 
-    Sends the same signed request the real podcast search uses (a one-result
-    search), so a passing test means search will work. Uses only the saved
-    credentials; drafts in the form must be saved first.
+    Sends the same signed one-result search the real podcast search uses, so a pass means
+    search works. Uses saved credentials only; save form drafts first.
     """
     api_key, api_secret = _get_podcast_index_credentials()
     if not api_key or not api_secret:

@@ -1,9 +1,11 @@
 """Shared pytest fixtures for podcast server tests."""
+import logging
 import os
 import pkgutil
 import sys
 import tempfile
 import shutil
+import threading
 import pytest
 
 # Add src to path for imports
@@ -11,6 +13,72 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from database import Database
 from storage import Storage
+from tests.model_guard import _no_real_model_loads  # noqa: F401  (autouse fixture)
+
+
+_GUNICORN_LOGGERS = ('gunicorn.error', 'gunicorn.access')
+_pytest_excepthooks = None
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config):
+    # After pytest's own threading.excepthook is in place, before collection imports the app.
+    global _pytest_excepthooks
+    _pytest_excepthooks = (threading.excepthook, sys.excepthook)
+
+
+def _restore_excepthooks():
+    if _pytest_excepthooks is not None:
+        threading.excepthook, sys.excepthook = _pytest_excepthooks
+
+
+def pytest_collection_finish(session):
+    # Importing main_app routes uncaught exceptions to logging, which hides a thread failure from pytest.
+    _restore_excepthooks()
+
+
+@pytest.fixture(autouse=True)
+def _keep_pytest_excepthooks():
+    yield
+    _restore_excepthooks()
+
+
+# Third-party threads a test cannot own; matched on the thread name prefix.
+_THREAD_ALLOWLIST = (
+    'pytest_timeout',  # pytest-timeout's watchdog
+    'ThreadPoolExecutor',  # stdlib pools owned by third-party clients
+    'asyncio_',  # event-loop helpers of third-party clients
+)
+_THREAD_JOIN_TIMEOUT_S = 5.0
+
+
+@pytest.fixture(autouse=True)
+def _no_leaked_threads():
+    """Fail a test that leaves a thread it started running, naming the thread."""
+    before = set(threading.enumerate())
+    yield
+    leaked = []
+    for thread in threading.enumerate():
+        if thread in before or thread is threading.current_thread() or thread.name.startswith(_THREAD_ALLOWLIST):
+            continue
+        thread.join(timeout=_THREAD_JOIN_TIMEOUT_S)
+        if thread.is_alive():
+            leaked.append(f"{thread.name} (daemon={thread.daemon})")
+    if leaked:
+        pytest.fail(f"test left threads running: {', '.join(leaked)}", pytrace=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_gunicorn_loggers():
+    """pytest attaches its capture handlers to every non-propagating logger, so gunicorn's must not outlive a test."""
+    yield
+    for name in _GUNICORN_LOGGERS:
+        log = logging.Logger.manager.loggerDict.get(name)
+        if isinstance(log, logging.Logger):
+            for handler in [h for h in log.handlers if getattr(h, '_gunicorn', False)]:
+                log.removeHandler(handler)
+            log.propagate = True
+            log.setLevel(logging.NOTSET)
 
 
 def _restore_loaded_app_singletons():
@@ -198,8 +266,10 @@ def mock_episode(temp_db, mock_podcast):
 @pytest.fixture
 def app_client():
     """Flask test client for API integration tests."""
+    hooks = (threading.excepthook, sys.excepthook)
     # Import here to avoid circular imports and allow test isolation
     from main_app import app
+    threading.excepthook, sys.excepthook = hooks
 
     app.config['TESTING'] = True
     app.config['DEBUG'] = False
@@ -212,9 +282,8 @@ def app_client():
 def _reset_rss_circuit_breakers():
     """Clear the host-keyed RSS breaker registry between tests.
 
-    The registry is module-global; failed fetches in one test (e.g. fake
-    example.com feeds) can open a host's breaker and make an unrelated
-    later test's fetch bail before its mocks are reached.
+    The registry is module-global, so a failed fetch in one test can open a host's
+    breaker and make an unrelated test's fetch bail before its mocks run.
     """
     yield
     try:

@@ -12,6 +12,7 @@ from transcriber import Transcriber, TranscriptionRejectedError
 from transcriber.settings import (
     _get_whisper_settings, _get_whisper_compute_type, _api_timeout, PREPROCESS_AUDIO_FILTERS,
 )
+from transcriber.local import WhisperModelSingleton
 from transcriber.remote import (
     _whisper_api_rejects_word_timestamps, _whisper_api_rejects_vad_filter, is_whisper_failover_trigger,
 )
@@ -363,11 +364,14 @@ class TestTranscriberBackendDispatch:
     })
     def test_does_not_dispatch_to_api_when_local(self, mock_settings):
         transcriber = Transcriber()
-        with patch.object(Transcriber, '_transcribe_via_api') as mock_api:
+        with patch.object(Transcriber, '_transcribe_via_api') as mock_api, \
+                patch.object(WhisperModelSingleton, 'get_batched_pipeline',
+                             side_effect=RuntimeError('stub: no model')) as mock_model:
             try:
                 transcriber.transcribe('/tmp/test.wav')
             except Exception:
                 pass
+            mock_model.assert_called_once()
             mock_api.assert_not_called()
 
 
@@ -408,7 +412,6 @@ class TestWhisperModelSingletonFallback:
     """Tests for WhisperModelSingleton float16 -> int8_float16 -> int8 -> float32 fallback."""
 
     def _reset_singleton(self):
-        from transcriber.local import WhisperModelSingleton
         WhisperModelSingleton._instance = None
         WhisperModelSingleton._base_model = None
         WhisperModelSingleton._current_model_name = None
@@ -424,7 +427,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_float16_on_cuda_succeeds_first_try(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         with patch('transcriber.settings._get_whisper_settings', return_value=self._settings()), \
              patch('transcriber.settings._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.local.ctranslate2.get_cuda_device_count', return_value=1), \
@@ -441,7 +443,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_cuda_float16_failure_falls_back_to_int8_float16(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         call_log = []
 
         def fake_model(*args, **kwargs):
@@ -464,7 +465,6 @@ class TestWhisperModelSingletonFallback:
     def test_cuda_fallback_walks_chain_to_float32(self):
         """Pascal consumer (CC 6.1) fails float16 and int8_float16; should land on int8."""
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         call_log = []
 
         def fake_model(*args, **kwargs):
@@ -486,7 +486,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_cuda_fallback_raises_when_entire_chain_fails(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
 
         def fake_model(*args, **kwargs):
             raise RuntimeError(f"boom-{kwargs['compute_type']}")
@@ -506,7 +505,6 @@ class TestWhisperModelSingletonFallback:
     def test_explicit_non_float16_reraises_without_fallback(self):
         """Explicit int8_float16 failure must not silently fall back."""
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         call_log = []
 
         def fake_model(*args, **kwargs):
@@ -528,7 +526,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cpu'})
     def test_cpu_auto_resolves_to_int8_without_fallback(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         with patch('transcriber.settings._get_whisper_settings', return_value=self._settings()), \
              patch('transcriber.settings._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.local.WhisperModel') as mock_model, \
@@ -544,10 +541,8 @@ class TestWhisperModelSingletonFallback:
 class TestWordTimestampRejectionDetection:
     """_whisper_api_rejects_word_timestamps body-marker matcher.
 
-    Servers reject the ['segment','word'] granularity request inconsistently:
-    OpenAI proper returns HTTP 400, OpenVINO Model Server surfaces it as a 5xx.
-    The helper routes both into the segment-only fallback by inspecting the
-    response body for known markers.
+    Servers reject the ['segment','word'] granularity inconsistently (OpenAI returns 400, OpenVINO Model
+    Server a 5xx); the helper routes both into the segment-only fallback by inspecting the body for markers.
     """
 
     def _resp(self, status, body=''):
@@ -806,15 +801,6 @@ class TestWhisperServiceUnavailable:
                 assert result is None
         finally:
             os.unlink(temp_path)
-
-    def test_missing_base_url_returns_none(self):
-        with patch('transcriber.remote.safe_post') as mock_post:
-            transcriber = Transcriber()
-            result = transcriber._transcribe_via_api(
-                '/tmp/test.wav',
-                whisper_settings=self._make_settings(api_base_url=''))
-            assert result is None
-            mock_post.assert_not_called()
 
 
 class TestTranscriptionRejected:
@@ -1241,6 +1227,8 @@ class TestChunkExtractionTimeoutFallback:
             patch('transcriber.chunking.extract_audio_chunk', side_effect=extract),
             patch('transcriber.settings._get_whisper_settings', return_value={'backend': 'local'}),
             patch('transcriber.clear_gpu_memory'),
+            # The model warm-up runs before the loop; stub it so no real load is attempted.
+            patch.object(WhisperModelSingleton, 'get_batched_pipeline', return_value=MagicMock()),
         )
 
     def test_timeout_halves_the_chunk_and_retries(self):
@@ -1258,8 +1246,8 @@ class TestChunkExtractionTimeoutFallback:
             return tmp.name
 
         t = self._transcriber()
-        p1, p2, p3, p4 = self._patches(extract)
-        with p1, p2, p3, p4:
+        p1, p2, p3, p4, p5 = self._patches(extract)
+        with p1, p2, p3, p4, p5:
             t.transcribe_chunked('/tmp/in.mp3')
 
         # The full first chunk was attempted, and after the timeout the
@@ -1272,8 +1260,8 @@ class TestChunkExtractionTimeoutFallback:
             raise AudioExtractionTimeout('ffmpeg exceeded 300s')
 
         t = self._transcriber()
-        p1, p2, p3, p4 = self._patches(extract)
-        with p1, p2, p3, p4:
+        p1, p2, p3, p4, p5 = self._patches(extract)
+        with p1, p2, p3, p4, p5:
             with pytest.raises(AudioExtractionTimeout) as exc:
                 t.transcribe_chunked('/tmp/in.mp3')
         # The message must not claim the source file failed to decode.

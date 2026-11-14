@@ -1,6 +1,5 @@
-"""Tests for the episode title blacklist: matcher, and all three enforcement
-gates (RSS refresh queueing, on-demand JIT serve, worker claim) plus the
-served-RSS hide-mode filter.
+"""Episode title blacklist: the matcher, all three enforcement gates (RSS refresh queueing, on-demand JIT
+serve, worker claim) and the served-RSS hide-mode filter.
 """
 import json
 from unittest.mock import MagicMock, patch
@@ -291,10 +290,8 @@ class TestOnDemandServeGate:
            return_value={SLUG: {'in': 'local://example-podcast', 'out': SLUG}})
     def test_local_feed_matching_title_does_not_redirect(
             self, _feed_map, mock_db, _status, _lookup, mock_start, client):
-        """A local episode's original_url is the unreachable local:// sentinel,
-        so a title-blacklist match must never 302 to it (#625 review): the
-        blacklist is skipped entirely for local feeds and the episode
-        processes normally instead."""
+        """A local episode's original_url is the unreachable local:// sentinel, so a title-blacklist match must
+        never 302 to it (#625): the blacklist is skipped for local feeds and the episode processes normally."""
         mock_db.get_episode.return_value = {
             'episode_id': self.LOCAL_EP, 'status': 'discovered',
             'original_url': 'local://s01e01',

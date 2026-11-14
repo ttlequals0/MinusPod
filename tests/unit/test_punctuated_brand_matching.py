@@ -1,9 +1,7 @@
-"""A brand whose name ends in punctuation has to match wherever brands match.
+"""A brand whose name ends in punctuation must match wherever brands match.
 
-A word boundary sits between a word character and a non-word one, so the
-seeded 'Liquid IV' alias "Liquid I.V." has no boundary after its trailing dot
-and a \\b-anchored matcher never matched it. Every brand scan goes through
-utils.text.word_boundary_re lookarounds instead.
+A \\b boundary needs a word character next to a non-word one, so the alias "Liquid I.V." never matched after
+its trailing dot. Every brand scan uses utils.text.word_boundary_re lookarounds instead.
 """
 import os
 import sys

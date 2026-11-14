@@ -21,7 +21,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | _(none)_ | Claude API key (required when `LLM_PROVIDER=anthropic`, not needed for Ollama) |
-| `LLM_PROVIDER` | `anthropic` | Default LLM provider: `anthropic`, `openrouter`, `openai-compatible`, `ollama`, `typesafe`, or `systemone-compatible` |
+| `LLM_PROVIDER` | `anthropic` | Default LLM provider: `anthropic`, `openrouter`, `openai-compatible`, `ollama`, `typesafe`, `systemone-compatible`, or `none`. `none` runs without an LLM and needs no key or model, so the key and model variables below are ignored. See [Running without an LLM](llm-providers.md#running-without-an-llm) |
 | `OPENROUTER_API_KEY` | _(none)_ | OpenRouter API key (required when `LLM_PROVIDER=openrouter`) |
 | `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
 | `TYPESAFE_API_KEY` | _(none)_ | Provider A TypeSafe API key. Provider B uses its saved slot key. |
@@ -37,6 +37,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `WHISPER_DEVICE` | `cuda` (GPU image), `cpu` (CPU image/source) | `cuda` or `cpu`; applies to both local backends. Set to `cpu` with the CPU image or remote backend. |
 | `WHISPER_BACKEND` | `local` | `local` (faster-whisper, in the container), `parakeet` (NVIDIA Parakeet TDT 0.6B v3, in the container), or `openai-api` (remote HTTP server). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to `local` only. See [Transcription](transcription.md). |
 | `HF_HOME` | `/app/data/.cache` in both images | Persistent model-cache root. Parakeet uses `parakeet/nemo-parakeet-tdt-0.6b-v3` beneath it. See [model storage and sizing](installation.md#parakeet-sizing). |
+| `HF_HUB_OFFLINE` | _(unset)_ | Set to `1`, `on`, `yes` or `true` to turn off the Parakeet model update check, so a load never contacts Hugging Face after the first download. See [Transcription](transcription.md). |
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
@@ -50,7 +51,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
-| `LOG_FORMAT` | `text` | `text` or `json`. JSON output works with log aggregators (Loki, CloudWatch). |
+| `LOG_FORMAT` | `text` | `text` or `json`. JSON prints one object per line with a `level` field and also applies to gunicorn's own access and error logs. A log shipper should read that field instead of guessing the level from words in a text line, because any line that contains "error" would be mislabeled. |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
 | `TZ` | `UTC` | Container timezone (e.g. `America/New_York`). When set to a valid IANA zone, seeds the `notification_timezone` setting that computes `timestamp_local` in webhook and email notifications. Override the setting at Settings > Notifications, or `GET/PUT /api/v1/settings/notifications/timezone`, without touching `TZ`. |
 
@@ -103,8 +104,11 @@ Env-backed rows seed the default of the stored setting named in the row. The sto
 | `MINUSPOD_STOP_GRACE_PERIOD` | `360s` | Compose container shutdown grace. Keep it longer than `GUNICORN_GRACEFUL_TIMEOUT`. |
 | `MINUSPOD_BIND_ADDRESS` | `0.0.0.0` | Host address used by the Compose port mapping. Set `127.0.0.1` when a local reverse proxy, VPN, or wrapper is the only intended entry point. |
 | `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated and stored in the SQLite `settings` table. Set it explicitly only when required by a custom deployment. Rotating it invalidates every existing session. |
-| `SESSION_LIFETIME_HOURS` | `24` | How long authenticated sessions stay valid, in hours. |
+| `SESSION_LIFETIME_HOURS` | `24` | Idle length of a normal session, in hours (1 to 8760). Each use restarts the period. |
+| `SESSION_REMEMBER_DAYS` | `30` | Idle length in days (1 to 365) of a session that ticks "Remember me" at sign-in. |
 | `OMP_NUM_THREADS` | _(library default)_ | Caps OpenMP threads for local `faster-whisper` CPU transcription. On hybrid Intel CPUs the default can push work onto the slow E-cores and thrash the cache; set it to your performance-core count (more threads is not faster). No effect with a remote Whisper API or on GPU. See [Installation](installation.md#intel-hybrid-cpu-tuning-optional). |
+
+`SESSION_LIFETIME_HOURS` and `SESSION_REMEMBER_DAYS` give the starting values. A value saved in Settings > Security takes over from either variable and applies without a restart.
 
 ### LLM stage tunables
 

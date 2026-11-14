@@ -49,21 +49,19 @@ function TransportBar({
 }: TransportBarProps) {
   const off = disabledTitle !== undefined;
   return (
-    <div className="mt-3 mx-auto w-full sm:w-fit max-w-full px-2 sm:px-3 py-2 rounded-lg bg-secondary/50 border border-border">
-      {/* Controls and the selection readout share one row on desktop (there is
-          plenty of width) and stack on mobile, so the editor is not three lines
-          tall on a wide screen. The transport cluster keeps the speed control
-          grouped beside it at any width. */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center sm:gap-4">
-        <div className="flex items-center justify-center gap-0.5">
-          <button type="button" disabled={off} onClick={onSeekToStart} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to START pin">
+    <div className="mt-3 mx-auto w-full sm:w-fit max-w-full max-sm:[container-type:inline-size] px-0.5 sm:px-3 py-2 rounded-lg bg-secondary/50 border border-border">
+      {/* Controls and the selection readout share one row on desktop and stack on mobile, so the editor is not
+          three lines tall on a wide screen. The transport cluster keeps the speed control beside it. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-4 sm:gap-y-2">
+        <div className="flex items-center justify-center max-sm:flex-wrap gap-px sm:gap-0.5">
+          <button type="button" disabled={off} onClick={onSeekToStart} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to START pin">
             <SkipBack className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" disabled={off} onClick={() => onSeekRelative(-10)} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Back 10s">
+          <button type="button" disabled={off} onClick={() => onSeekRelative(-10)} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Back 10s">
             <Rewind className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" disabled={off} onClick={onTogglePlay} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${primaryBtn} ${touchTargetRow} ${focusRing}`} title={disabledTitle ?? 'Play / pause (Space)'}>
-            {isPlaying ? <Pause className="w-5 h-5 shrink-0" /> : <Play className="w-5 h-5 shrink-0" />}
+          <button type="button" disabled={off} onClick={onTogglePlay} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded max-sm:border max-sm:border-transparent ${primaryBtn} ${touchTargetRow} ${focusRing}`} title={disabledTitle ?? 'Play / pause (Space)'}>
+            {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
           </button>
           {onPlaySelection && (
             <button
@@ -79,19 +77,21 @@ function TransportBar({
               <span aria-hidden="true" className="text-xs font-bold leading-none">]</span>
             </button>
           )}
-          <button type="button" disabled={off} onClick={() => onSeekRelative(10)} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Forward 10s">
+          <button type="button" disabled={off} onClick={() => onSeekRelative(10)} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Forward 10s">
             <FastForward className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" disabled={off} onClick={onSeekToEnd} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to END pin">
+          <button type="button" disabled={off} onClick={onSeekToEnd} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to END pin">
             <SkipForward className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" disabled={off} onClick={onStop} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Stop (pause + return to START)">
+          <button type="button" disabled={off} onClick={onStop} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Stop (pause + return to START)">
             <Square className="w-4 h-4 shrink-0" />
           </button>
-          <SpeedMenu playbackRate={playbackRate} onChange={onPlaybackRateChange} className="ml-0.5 shrink-0" disabled={off} />
+          {/* Under 336 px of row width the speed trigger drops to its own centered row, like the player. */}
+          <div aria-hidden="true" className="hidden max-sm:@max-[21rem]:block basis-full h-0" />
+          <SpeedMenu playbackRate={playbackRate} onChange={onPlaybackRateChange} className="ml-px sm:ml-0.5 shrink-0 max-sm:@max-[21rem]:ml-0 max-sm:@max-[21rem]:mt-1" disabled={off} />
         </div>
-        {/* Selection readout: below the controls on mobile, beside them on desktop. */}
-        <div className="mt-2 sm:mt-0 flex items-center justify-center gap-2 flex-wrap text-xs tabular-nums text-muted-foreground">
+        {/* Selection readout: below the controls on mobile, beside them when it fits, and below them when it does not. */}
+        <div className="mt-2 sm:mt-0 flex items-center justify-center gap-2 flex-wrap sm:flex-nowrap sm:whitespace-nowrap text-xs tabular-nums text-muted-foreground">
           <span className="text-foreground">{formatTime(currentTime)}</span>
           <span>/</span>
           {selectionInfo ?? <span>{formatTime(selectionDuration)} selection</span>}

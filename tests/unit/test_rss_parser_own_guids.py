@@ -1,15 +1,18 @@
 """Per-feed GUID scheme in the served RSS (#598).
 
-modify_feed(own_episode_guids=True) must emit the MinusPod episode id as
-each item's <guid isPermaLink="false">, matching the DB-appended items;
-off (the default) must pass upstream GUIDs through byte-identically.
+modify_feed(own_episode_guids=True) emits the MinusPod episode id as each item's
+<guid isPermaLink="false">; off (the default) passes upstream GUIDs through byte-identically.
 """
 import os
 import re
 import sys
+from datetime import datetime, timezone
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+import rss_parser
 from rss_parser import RSSParser
 
 BASE = 'https://mp.example.com'
@@ -33,6 +36,18 @@ def _feed_xml():
     </item>
   </channel>
 </rss>"""
+
+
+class _FrozenDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_clock(monkeypatch):
+    # lastBuildDate is second-resolution; two renders straddling a tick differ.
+    monkeypatch.setattr(rss_parser, 'datetime', _FrozenDatetime)
 
 
 def _serve(**kwargs):

@@ -21,7 +21,8 @@ services:
       # =================================================================
       # LLM Provider Configuration (set in .env file)
       # =================================================================
-      # LLM_PROVIDER: anthropic (default), openrouter, openai-compatible, ollama
+      # LLM_PROVIDER: anthropic (default), openrouter, openai-compatible, ollama,
+      # typesafe, systemone-compatible, or none (no LLM, no key or model needed)
       # See .env.example for full configuration options per provider
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -53,6 +54,11 @@ services:
       # Internal listen port. Default 8000. Useful for host networking or
       # running multiple instances. Ignored when GUNICORN_BIND is set.
       - MINUSPOD_PORT=${MINUSPOD_PORT:-8000}
+      # Log output: text (default, human-readable) or json (one object per
+      # line with a level field a shipper can read).
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      # Log verbosity: DEBUG, INFO (default), WARNING, ERROR.
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Server log targets: unset = console, empty = disabled, path = file.
       # - GUNICORN_ACCESS_LOG=/app/data/access.log
       # - GUNICORN_ERROR_LOG=/app/data/error.log
@@ -74,6 +80,8 @@ services:
       # Auto follows BASE_URL. Override only for unusual proxy setups.
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-auto}
       - SESSION_COOKIE_SAMESITE=${SESSION_COOKIE_SAMESITE:-Strict}
+      - SESSION_LIFETIME_HOURS=${SESSION_LIFETIME_HOURS:-24}
+      - SESSION_REMEMBER_DAYS=${SESSION_REMEMBER_DAYS:-30}
 
       # Set once the deployment is HTTPS-only. HSTS traps browsers so
       # do not flip this on a dual-protocol setup.

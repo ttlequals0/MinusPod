@@ -16,7 +16,7 @@ const TRANSCRIPT_SNIPPET_FETCHES = 10;
 
 type DocType = 'show' | 'episode' | 'transcript' | 'pattern' | 'sponsor';
 
-export type SearchDoc = {
+type SearchDoc = {
   type: DocType;
   slug?: string;
   feedSlug?: string;
@@ -30,7 +30,7 @@ export type SearchDoc = {
   name?: string;
 };
 
-export type SearchIndexFile = {
+type SearchIndexFile = {
   version: 1;
   options: Options;
   index: unknown;

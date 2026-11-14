@@ -10,10 +10,7 @@ import {
 } from '../../api/detections';
 import { feedsQueryOptions } from '../../api/feeds';
 import { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
-import AdReviewModal, {
-  type AdReviewItem,
-  type AdReviewSubmit,
-} from '../../components/AdReviewModal';
+import AdReviewModal, { type AdReviewSubmit } from '../../components/AdReviewModal';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
 import StatTile from '../../components/StatTile';
 import { Pagination } from '../../components/Pagination';
@@ -24,6 +21,7 @@ import {
 import { DETECTION_REVIEWERS, DETECTION_SORTS, DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
 import { PendingRecutsBar } from './PendingRecutsBar';
+import { adReviewProps, splitTarget } from './detectionModalProps';
 import { sortFeeds } from '../../utils/feedSort';
 import { HOLD_REASON_LABELS } from '../../utils/holdReason';
 
@@ -182,36 +180,14 @@ export default function AdReviewTab() {
       {audition.audioElement}
       {splitting && (
         <SplitMarkerModal
-          target={{
-            podcastSlug: splitting.feedSlug,
-            episodeId: splitting.episodeId,
-            start: splitting.start,
-            end: splitting.end,
-          }}
+          target={splitTarget(splitting)}
           onClose={() => setSplitting(null)}
           onSplit={handleSplit}
         />
       )}
       {editing && (
         <AdReviewModal
-          item={{
-            podcastSlug: editing.feedSlug,
-            episodeId: editing.episodeId,
-            start: editing.start,
-            end: editing.end,
-            sponsor: editing.sponsor,
-            reason: editing.reason,
-            confidence: editing.confidence,
-            detectionStage: editing.detectionStage,
-            patternId: editing.patternId,
-            correctedBounds: null,
-            category: editing.category as AdReviewItem['category'],
-            actionApplied: editing.actionApplied,
-          } satisfies AdReviewItem}
-          episodeDuration={editing.episodeDuration ?? 0}
-          hasOriginal={editing.hasOriginalAudio}
-          audioMode={editing.hasOriginalAudio ? 'original' : 'processed'}
-          processedAudioUrl={editing.processedUrl}
+          {...adReviewProps(editing)}
           onClose={closeModal}
           onSkip={closeModal}
           onSubmit={(s: AdReviewSubmit) => {

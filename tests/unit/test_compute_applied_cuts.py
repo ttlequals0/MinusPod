@@ -1,8 +1,6 @@
 """compute_applied_cuts reproduces the merge/filter/end-trim remove_ads applies.
 
-Assets and the verification timestamp map consume this list, so it must match
-what ffmpeg actually cut, not the requested segments.
-"""
+Assets and the verification timestamp map consume it, so it must match what ffmpeg cut."""
 
 import logging
 

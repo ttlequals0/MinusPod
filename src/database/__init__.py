@@ -14,6 +14,7 @@ from database.patterns import PatternMixin
 from database.sponsors import SponsorMixin
 from database.stats import StatsMixin
 from database.maintenance import MaintenanceMixin
+from database.fingerprint_matches import FingerprintMatchMixin
 from database.fingerprints import FingerprintMixin
 from database.cue_templates import CueTemplateMixin
 from database.cue_detections import CueDetectionMixin
@@ -39,6 +40,7 @@ SLOW_SQLITE_SECONDS = 5.0
 # How long a writer waits for the lock. 30s left almost no margin: ordinary
 # feed-refresh writes were observed holding it 28.4s under contention.
 BUSY_TIMEOUT_MS = 60000
+WAL_SIZE_LIMIT_BYTES = 64 * 1024 * 1024
 _sqlite_metrics_lock = threading.Lock()
 _sqlite_metrics = {
     'slowStatements': 0,
@@ -329,7 +331,7 @@ The distinction between editorial mention and ad: an ad is paid promotional cont
 
 AUDIO CUE SIGNALS: if the prompt notes a labelled audio cue next to the candidate boundary, treat it as ground truth for that side and do not move the boundary across it. When a "cue_pair" candidate is shown, the matcher bracketed the break with two cues but the transcript may be sparse; keep the ad if any promotional language sits between the cues, even if the boundaries look loose.
 
-Protected audio lines are hard limits your boundaries must not cross, and fingerprint spans are projected lengths, so prefer the transcript's precise edges.
+Protected audio lines are hard limits your boundaries must not cross, and fingerprint spans are measured audio matches, but the transcript's precise edges are still preferred where they extend the span.
 
 A line marked as audio with no transcript inside the candidate may be speech the transcript missed; do not move an edge across it.
 
@@ -478,8 +480,8 @@ Return one JSON object:
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
-               FingerprintMixin, CueTemplateMixin, CueDetectionMixin,
-               QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
+               FingerprintMixin, FingerprintMatchMixin, CueTemplateMixin,
+               CueDetectionMixin, QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
                FeedSubscriberMixin, ProviderAdmissionMixin,
                UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin,
                DownloadHistoryMixin, YouTubeMixin):
@@ -534,13 +536,10 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
     def get_connection(self) -> sqlite3.Connection:
         """Get thread-local database connection.
 
-        WAL mode is preferred but not required: a stale or permissioned
-        WAL file on the mounted volume occasionally makes the first
-        ``PRAGMA journal_mode = WAL`` fail with "disk I/O error". When
-        that happens, reset the journal via ``PRAGMA journal_mode = DELETE``
-        and try WAL once more. If WAL is still refused, stay on DELETE
-        mode -- less concurrent, still correct -- rather than crash the
-        worker on boot.
+        WAL is preferred, not required: a stale WAL file on the mounted volume can
+        make the first ``PRAGMA journal_mode = WAL`` fail with "disk I/O error".
+        Reset to DELETE and retry WAL once; if still refused, stay on DELETE
+        (less concurrent, still correct) rather than crash the worker on boot.
         """
         if not hasattr(self._local, 'connection') or self._local.connection is None:
             self._local.connection = sqlite3.connect(
@@ -575,6 +574,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             try:
                 self._local.connection.execute("PRAGMA synchronous = NORMAL")
                 self._local.connection.execute("PRAGMA wal_autocheckpoint = 1000")
+                # Lets a truncating checkpoint shrink a WAL that once grew large.
+                self._local.connection.execute(f"PRAGMA journal_size_limit = {WAL_SIZE_LIMIT_BYTES}")
             except sqlite3.OperationalError:
                 pass
         return self._local.connection
@@ -611,24 +612,17 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
     def transaction(self, immediate: bool = False, busy_timeout_ms: int | None = None):
         """Context manager for database transactions.
 
-        Usage:
-            with db.transaction() as conn:
-                conn.execute("INSERT ...")
-                conn.execute("UPDATE ...")
-            # Auto-commits on success, auto-rolls back on exception
+        Commits on success, rolls back on exception.
 
-        immediate=True issues BEGIN IMMEDIATE so the write lock is taken
-        up front, where busy_timeout applies. The default deferred begin
-        upgrades to a write lock at the first DML statement, and that
-        upgrade fails instantly with "database is locked" when the
-        snapshot is stale (SQLITE_BUSY_SNAPSHOT is not retried by
-        busy_timeout). Use it for multi-statement writes that can run
-        alongside other writers (issue #566). busy_timeout_ms (immediate only)
-        caps the lock wait for best-effort writes.
+        immediate=True issues BEGIN IMMEDIATE so the write lock is taken up front,
+        where busy_timeout applies. A deferred begin upgrades at the first DML and
+        fails instantly with "database is locked" on a stale snapshot
+        (SQLITE_BUSY_SNAPSHOT is not retried); use immediate for multi-statement
+        writes that can overlap other writers (#566). busy_timeout_ms (immediate
+        only) caps the lock wait for best-effort writes.
 
-        Do not hold one across per-row Python work: a transaction spanning a
-        whole feed's episodes held the write lock past every other writer's
-        busy_timeout. Chunk the rows and take a transaction per chunk.
+        Do not hold one across per-row Python work; chunk rows and take a
+        transaction per chunk, or it outlasts other writers' busy_timeout.
         """
         if busy_timeout_ms is not None and not immediate:
             raise ValueError("busy_timeout_ms requires immediate=True")
@@ -638,11 +632,10 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
     def rollback_open_transaction(self) -> bool:
         """Roll back a transaction left open on this thread's connection.
 
-        Returns True when there was one. Connections are thread-local and
-        live for the worker thread's lifetime, so a write path that raises
-        between BEGIN and commit without rolling back would otherwise hold
-        its lock forever and fail every later write on the thread with
-        "database is locked" (issue #566). Does not create a connection.
+        Returns True when there was one. Connections live as long as the worker
+        thread, so a write that raises between BEGIN and commit would otherwise
+        hold its lock forever and fail later writes with "database is locked"
+        (#566). Does not create a connection.
         """
         conn = getattr(self._local, 'connection', None)
         if conn is not None and conn.in_transaction:
@@ -651,10 +644,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
         return False
 
     def clear_leaked_transaction(self, log, where: str) -> None:
-        """Logged, never-raising rollback_open_transaction. Called from the
-        guard points that bound a leaked transaction's lifetime: request
-        teardown, background loop iterations, and the episode processing
-        thread."""
+        """Logged, never-raising rollback_open_transaction, called at request teardown, background
+        loop iterations and the episode processing thread."""
         try:
             if self.rollback_open_transaction():
                 log.warning(f"Rolled back a leaked transaction ({where})")

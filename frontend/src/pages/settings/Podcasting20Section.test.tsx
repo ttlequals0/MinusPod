@@ -1,22 +1,33 @@
 /**
  * Tests for the Chapter density group in the Transcripts and chapters section.
  */
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Podcasting20Section from './Podcasting20Section';
 import type { UpdateSettingsPayload } from '../../api/types';
 import { baseDefaults, baseTunables, inputFor } from './tunablesTestFixtures';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { LLM_DISABLED_REASON } from './LlmGate';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 function Harness({
+  llmEnabled = true,
+  chaptersMode = 'auto',
   onSave = () => {},
   onChaptersInNotesChange = () => {},
   onReviewLinksInNotesChange = () => {},
 }: {
+  llmEnabled?: boolean;
+  chaptersMode?: 'auto' | 'generate' | 'off';
   onSave?: (payload: UpdateSettingsPayload) => void;
   onChaptersInNotesChange?: (enabled: boolean) => void;
   onReviewLinksInNotesChange?: (enabled: boolean) => void;
 }) {
+  setLlmEnabled(llmEnabled);
   return (
     <Podcasting20Section
       vttTranscriptsEnabled
@@ -27,7 +38,7 @@ function Harness({
       onChaptersEnabledChange={() => {}}
       onChaptersInNotesChange={onChaptersInNotesChange}
       onReviewLinksInNotesChange={onReviewLinksInNotesChange}
-      chaptersMode="auto"
+      chaptersMode={chaptersMode}
       onChaptersModeChange={() => {}}
       geometry={{
         tunables: baseTunables,
@@ -111,5 +122,40 @@ describe.each([
     render(<Harness {...{ [prop]: onChange }} />);
     await userEvent.click(screen.getByRole('switch', { name }));
     expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('Transcripts and chapters: LLM provider None', () => {
+  it('disables Always generate and keeps Auto and Off, with the reason beside the mode select', () => {
+    render(<Harness llmEnabled={false} chaptersMode="generate" />);
+    const mode = screen.getByLabelText('Chapter mode for feeds that inherit the global setting') as HTMLSelectElement;
+    expect((screen.getByRole('option', { name: 'Always generate' }) as HTMLOptionElement).disabled).toBe(true);
+    expect((screen.getByRole('option', { name: 'Auto' }) as HTMLOptionElement).disabled).toBe(false);
+    expect((screen.getByRole('option', { name: 'Off' }) as HTMLOptionElement).disabled).toBe(false);
+    expect(document.getElementById(mode.getAttribute('aria-describedby')!)?.textContent).toBe(
+      `${LLM_DISABLED_REASON} Always generate behaves like Auto.`,
+    );
+  });
+
+  it('keeps the plain reason when the saved mode is not generate', () => {
+    render(<Harness llmEnabled={false} chaptersMode="auto" />);
+    const mode = screen.getByLabelText('Chapter mode for feeds that inherit the global setting');
+    expect(document.getElementById(mode.getAttribute('aria-describedby')!)?.textContent).toBe(LLM_DISABLED_REASON);
+  });
+
+  it('disables the chapter density group, whose calls need a model', () => {
+    render(<Harness llmEnabled={false} />);
+    expectGatedByLlm(screen.getByRole('button', { name: 'Save chapter density' }));
+  });
+
+  it('keeps the other output toggles enabled', () => {
+    render(<Harness llmEnabled={false} />);
+    expectNotGatedByLlm(screen.getByRole('switch', { name: 'Generate chapters' }));
+  });
+
+  it('offers Always generate when the provider is set', () => {
+    render(<Harness />);
+    expect((screen.getByRole('option', { name: 'Always generate' }) as HTMLOptionElement).disabled).toBe(false);
+    expectNotGatedByLlm(screen.getByRole('button', { name: 'Save chapter density' }));
   });
 });

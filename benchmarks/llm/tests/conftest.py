@@ -91,9 +91,7 @@ text: This episode is brought to you by BetterHelp BetterHelp is online therapy
 def write_corpus_episode():
     """Write a loadable single-window corpus episode to disk; returns its directory.
 
-    Windows carry transcript_lines derived from the segments, so prompts
-    reconstructed from the written episode contain the segment text.
-    """
+    Windows carry transcript_lines derived from the segments."""
     def _write(root, ep_id="ep-test-001", segments=None, truth_text=None):
         segments = segments or _DEFAULT_SEGMENTS
         ep_dir = root / ep_id

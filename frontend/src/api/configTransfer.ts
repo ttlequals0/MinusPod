@@ -1,7 +1,7 @@
 import { apiFileRequest, apiRequest } from './client';
 import { downloadBlob } from './history';
 
-export interface RuntimeConfigFeed {
+interface RuntimeConfigFeed {
   slug: string;
   feedType: 'subscribed' | 'local' | 'recents';
   settings: Record<string, unknown>;

@@ -6,6 +6,7 @@ import secrets
 from flask import request
 
 from api import api, error_response, get_database, get_storage, json_response, limiter, log_request
+from database.error_text import redact_error
 from database.settings import YOUTUBE_RESET_SETTING_KEYS
 from secrets_crypto import is_available as crypto_available
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
@@ -52,7 +53,7 @@ def youtube_status_payload(db) -> dict:
             **ytdlp.status(db),
             'lastUpdateAt': db.get_setting('youtube_ytdlp_last_update_at'),
             'lastCheckAt': db.get_setting('youtube_ytdlp_last_check_at'),
-            'lastError': db.get_setting('youtube_ytdlp_last_error'),
+            'lastError': redact_error(db.get_setting('youtube_ytdlp_last_error')),
         },
         'cookies': cookies.status(storage),
         'bounds': {k: list(v) for k, v in yt_settings.BOUNDS.items()},

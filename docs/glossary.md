@@ -43,6 +43,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Audio cue** - A short, repeated sound a show plays around its ad breaks (a sting, a jingle). MinusPod can learn one as a template and use matches as hard evidence for ad boundaries. [Audio Cue Detection](audio-cues.md)
 
+**Audio fingerprint** - A Chromaprint signature of a known ad, stored on a pattern next to its text. MinusPod matches it against new episodes by sound alone, with no transcript or LLM call, and measures where the ad starts and ends. It can be turned off, edited, played or deleted per pattern. [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints)
+
 **Authenticated feeds** - An optional key appended to feed URLs so only clients holding it can pull your processed feeds. [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional)
 
 ## C
@@ -70,6 +72,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Correction** - Your verdict on a detection: "Confirm" or "Not ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
 **Corroboration** - Independent evidence from another detection stage, an overlapping marker, or a matched audio cue that backs an otherwise-uncertain detection, letting it cut instead of hold. Used by the cross-fetch differential stage to decide which candidates cut and which hold. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+
+**Coverage (audio fingerprint)** - The share of a stored fingerprint that was found in an episode, counting only points that carry information (silence and constant tones do not count). A match needs at least the minimum coverage setting. [Configuration > Audio fingerprinting](configuration.md#audio-fingerprinting)
 
 **Cover art badge** - The small mark MinusPod adds to a feed's artwork so you can tell the processed feed apart from the original in a podcast app. [Configuration > Cover art badge](configuration.md#cover-art-badge)
 
@@ -119,9 +123,11 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
-**Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+**Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. See Audio fingerprint. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Force recheck all** - Starts another review of every active learned pattern, including previously reviewed ones, and replaces their pending cleanup suggestions. Work proceeds in batches. [Pattern Cleanup > Force recheck](pattern-cleanup.md#force-recheck)
+
+**Found by audio only** - An audio fingerprint match whose marker no other detection stage contributed to. The Stats page counts these. [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints)
 
 **First pass (Pass 1)** - The main detection run over the freshly transcribed episode: patterns, cross-fetch, and the LLM reading the transcript in windows. [How It Works](how-it-works.md#how-it-works)
 
@@ -171,11 +177,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Mark action** - A segment action that leaves the audio intact and publishes a skippable chapter when chapters are enabled. Keep leaves the audio intact without an ad chapter. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 
+**Not this ad (audio match)** - The button on a row in a pattern's Recent matches that sends a reject correction for that episode and marks the match. A rejected match no longer counts toward the pattern's matches or mean similarity, and it stays in the history. [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints)
+
 **Multi-span Mark ad** - Selecting several transcript spans under one sponsor and saving each as a separate missed-ad correction. Each span must pass the minimum text length before saving starts. [Web Interface > Adding a New Ad](web-interface.md#adding-a-new-ad)
 
 ## N
 
-**Normalization** - A rule that maps sponsor name variants ("betterhelp.com slash pod", "Better Help") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
+**Normalization** - A rule that maps sponsor name variants ("acme.com slash pod", "Acme Co") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
 
 ## O
 

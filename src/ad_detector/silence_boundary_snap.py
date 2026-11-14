@@ -1,9 +1,9 @@
-"""Snap detected ad edges to nearby silence spans (task B3, Phase B).
+"""Snap detected ad edges to nearby silence spans.
 
-DAI ads are bracketed by short silences inserted by the ad-injection
-platform. When the LLM places an edge a second or two away from the real
-silence, snapping to the silence midpoint lands the cut in dead air and the
-retained half reconstitutes one natural pause.
+DAI ads are bracketed by short silences inserted by the ad-injection platform.
+When the LLM places an edge a second or two from the real silence, snapping to
+the silence midpoint lands the cut in dead air and the retained half
+reconstitutes one natural pause.
 
 Cue snap runs first and is stronger evidence; silence snap skips any edge
 already committed by cue snap. Pure function; no DB, no LLM, no IO.
@@ -34,11 +34,9 @@ def _pick_span(
 ) -> tuple[dict, float] | None:
     """Return (best_span, midpoint) to snap ``edge`` to, or None.
 
-    Selection key: nearest midpoint first; ties within 0.1s -> longer silence.
-
-    span_ends must be a precomputed list of span['end'] values in the same
-    order as spans (i.e. sorted by start since the producer sorts by start and
-    spans are non-overlapping, making ends monotonically non-decreasing too).
+    Selection key: nearest midpoint first; ties within 0.1s go to the longer
+    silence. span_ends must be the precomputed span['end'] values in span order
+    (sorted by start; non-overlapping spans make ends non-decreasing too).
     """
     # Lower bound: midpoint <= end, so end < edge - max_distance_s guarantees
     # mid < edge - max_distance_s, failing |mid - edge| <= max_distance_s.
@@ -84,14 +82,12 @@ def snap_ad_boundaries_to_silence(
     """Mutate ads in place, snapping each start/end to a nearby silence midpoint.
 
     Contract mirrors snap_ad_boundaries_to_cues: same guards, same audit record
-    layout (silence_snap instead of cue_snap). Cue snap runs first; any edge
-    already in ad['cue_snap'] is skipped.
-
-    Also sorts ads by start in place (needed for neighbour gap checks).
+    layout (silence_snap instead of cue_snap). Edges already in ad['cue_snap']
+    are skipped. Also sorts ads by start in place (needed for neighbour gaps).
 
     Guards (mandatory):
       a. If pre-snap duration >= MIN_AD_DURATION_FOR_REMOVAL and the snap would
-         reduce the ad below that threshold, revert the entire ad's silence snap.
+         reduce the ad below that threshold, revert the ad's silence snap.
       b. Reject an edge snap that would leave < MERGE_GAP_SECONDS between this
          ad and its neighbour.
     """
@@ -197,12 +193,11 @@ def snap_ad_boundaries_to_silence(
         if not snap_record:
             continue
 
-        # Guard A: if the pre-snap ad was long enough to be removable and the
-        # snap shrinks it below the removal threshold, revert entirely.
-        # Rationale: compute_applied_cuts silently drops sub-threshold cuts.
-        # Deliberately duration-only: compute_applied_cuts also keeps sub-10s cuts
-        # in the fingerprint stage and when confidence >= 0.9; ignoring those here
-        # is conservative by design -- better to revert than to silently shrink.
+        # Guard A: if the pre-snap ad was removable and the snap shrinks it below
+        # the removal threshold, revert entirely (compute_applied_cuts silently
+        # drops sub-threshold cuts). Duration-only on purpose: it also keeps
+        # sub-10s cuts in the fingerprint stage and at confidence >= 0.9, and
+        # ignoring those is conservative.
         snapped_duration = new_end - new_start
         if (
             pre_snap_duration >= MIN_AD_DURATION_FOR_REMOVAL

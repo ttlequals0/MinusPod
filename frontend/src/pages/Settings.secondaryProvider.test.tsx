@@ -1,9 +1,6 @@
 /**
- * Regression tests for the secondary provider type on the Settings page: the
- * value the LLM Provider section shows, the value the model-catalog queries
- * use, and the value Save writes must all be the same one. A display-only
- * fallback diverged from the saved value, so the form never settled clean and
- * stopped re-hydrating.
+ * The secondary provider type shown in the LLM Provider section, used by the model-catalog queries and
+ * written by Save must be one value; a display-only fallback once diverged and kept the form dirty.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';

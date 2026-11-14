@@ -1,7 +1,5 @@
-"""Mid-episode holes the batched decoder skipped are re-transcribed without VAD.
-
-Production shape: a sponsor read opening at 728.77s-752.55s never reached the transcript.
-"""
+"""Mid-episode holes the batched decoder skipped are re-transcribed without VAD
+(e.g. a sponsor read at 728.77s-752.55s that never reached the transcript)."""
 import os
 import sys
 import tempfile
@@ -34,10 +32,8 @@ def _production_shape():
 
 
 def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=()):
-    """Run Transcriber.repair_gaps with extraction, volume and decode faked.
-
-    Returns (added, empty, decode mock, extracted chunks, volume probe mock).
-    """
+    """Run Transcriber.repair_gaps with extraction, volume and decode faked; returns
+    (added, empty, decode mock, extracted chunks, volume probe mock)."""
     chunks = []
 
     def _extract(path, start, end):
@@ -306,13 +302,13 @@ def test_first_run_writes_originals_once_and_records_empty_holes():
 
 def test_mean_volume_db_parses_volumedetect():
     out = MagicMock(stderr='[Parsed_volumedetect_0 @ 0x1] mean_volume: -61.3 dB\n')
-    with patch.object(audio_utils, 'tracked_run', return_value=out) as run:
+    with patch.object(audio_utils.subprocess_registry, 'tracked_run', return_value=out) as run:
         assert audio_utils.mean_volume_db('/x.wav', 10.0, 5.0) == -61.3
     cmd = run.call_args.args[0]
     assert cmd[cmd.index('-ss') + 1] == '10.0' and cmd[cmd.index('-t') + 1] == '5.0'
     assert cmd.index('-ss') < cmd.index('-i') < cmd.index('-t')
-    with patch.object(audio_utils, 'tracked_run',
+    with patch.object(audio_utils.subprocess_registry, 'tracked_run',
                       return_value=MagicMock(stderr='garbage')):
         assert audio_utils.mean_volume_db('/x.wav') is None
-    with patch.object(audio_utils, 'tracked_run', side_effect=OSError('no ffmpeg')):
+    with patch.object(audio_utils.subprocess_registry, 'tracked_run', side_effect=OSError('no ffmpeg')):
         assert audio_utils.mean_volume_db('/x.wav') is None

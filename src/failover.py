@@ -22,6 +22,7 @@ from config import (
     WHISPER_DEVICE_DEFAULT, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting, normalize_whisper_device,
     PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE, TYPESAFE_SYSTEMONE_URL,
 )
+from utils.http import redact_exc, redact_log_text
 from utils.time import parse_iso_utc, utc_now_iso
 
 logger = logging.getLogger('podcast.failover')
@@ -165,6 +166,8 @@ def _reset_healthy_streak_in_transaction(conn, target: str) -> None:
 def _apply_transition_in_transaction(conn, target: str, action: str,
                                      source: str, reason: str | None) -> bool:
     setting_key = f'failover_state:{target}'
+    # An automatic reason is exception text, which can carry a signed URL or credentials.
+    reason = redact_log_text(reason or '')[:500]
     if action == 'trigger' and not _configured_in_transaction(conn, target):
         return False
     current = _state_in_transaction(conn, target)
@@ -173,7 +176,7 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
             return False
         value = json.dumps({
             'active': True, 'source': source, 'since': utc_now_iso(),
-            'reason': (reason or '')[:500],
+            'reason': reason,
         })
         database.Database._upsert_setting(conn, setting_key, value, is_default=False)
         _reset_healthy_streak_in_transaction(conn, target)
@@ -186,10 +189,7 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
         conn, generation_key, str(_generation_in_transaction(conn, target) + 1),
         is_default=False,
     )
-    conn.execute(
-        "INSERT INTO failover_events (target, action, source, reason) VALUES (?, ?, ?, ?)",
-        (target, action, source, (reason or '')[:500]),
-    )
+    database.Database.insert_failover_event(conn, target, action, source, reason)
     return True
 
 
@@ -332,12 +332,19 @@ def recovery_probes() -> int:
         return 3
 
 
+def _llm_target_off(target: str) -> bool:
+    """An llm: target is ignored while the primary provider is none."""
+    return target.startswith('llm:') and llm_client.llm_disabled()
+
+
 def enabled_probe_targets() -> list[str]:
-    targets = ['llm:primary']
-    if coerce_bool_setting(_setting('secondary_provider_enabled')):
-        targets.append('llm:secondary')
-    if coerce_bool_setting(_setting('failover_llm_enabled')) and _setting('failover_llm_provider'):
-        targets.append('llm:failover')
+    targets = []
+    if not llm_client.llm_disabled():
+        targets.append('llm:primary')
+        if coerce_bool_setting(_setting('secondary_provider_enabled')):
+            targets.append('llm:secondary')
+        if coerce_bool_setting(_setting('failover_llm_enabled')) and _setting('failover_llm_provider'):
+            targets.append('llm:failover')
     targets.append('whisper:active')
     if coerce_bool_setting(_setting('failover_whisper_enabled')):
         targets.append('whisper:failover')
@@ -347,6 +354,8 @@ def enabled_probe_targets() -> list[str]:
 def run_probe_targets(active_phases: dict | None = None,
                       *, whisper_required: bool = True) -> list[str]:
     targets = []
+    if llm_client.llm_disabled():
+        active_phases = {}
     if active_phases is None:
         for target in (TARGET_LLM_PRIMARY, TARGET_LLM_SECONDARY):
             if target == TARGET_LLM_SECONDARY and not coerce_bool_setting(
@@ -574,10 +583,14 @@ def _probe_context_is_current(conn, target: str, context: dict) -> bool:
 
 
 def all_probe_states() -> dict[str, dict]:
-    return {t: probe_state(t) for t in PROBE_TARGETS}
+    """Stored probe states; llm: targets read as disabled while the provider is none, not their pre-none results."""
+    off = {**_PROBE_DEFAULT, 'detail': 'LLM disabled'}
+    return {t: dict(off) if _llm_target_off(t) else probe_state(t) for t in PROBE_TARGETS}
 
 
 def probe_target(target: str, request_config: dict | None = None) -> dict:
+    if _llm_target_off(target):
+        return {'reachable': None, 'status': None, 'detail': 'LLM disabled'}
     try:
         if request_config is None:
             request_config = _capture_probe_context(database.Database(), target)['request_config']
@@ -636,7 +649,7 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")
-        return {'reachable': False, 'status': None, 'detail': str(exc)[:200]}
+        return {'reachable': False, 'status': None, 'detail': redact_exc(exc, 200)}
 
 
 def _probe_state_value(raw: str | None) -> dict:
@@ -890,7 +903,8 @@ def _probe_requested_target(db, target: str, checked_at: str | None,
 
 def probe_tick(db, targets: list[str] | None = None,
                *, wait_for_inflight: bool = False) -> dict[str, dict]:
-    targets = list(dict.fromkeys(enabled_probe_targets() if targets is None else targets))
+    targets = [target for target in dict.fromkeys(
+        enabled_probe_targets() if targets is None else targets) if not _llm_target_off(target)]
     if not targets:
         return {}
     baselines = {target: probe_state(target)['checked_at'] for target in targets}
@@ -949,7 +963,7 @@ def ensure_fresh_probes(targets: list[str]) -> None:
     cutoff = time.time() - probe_interval_seconds()
     db = database.Database()
     baselines = []
-    for target in dict.fromkeys(targets):
+    for target in dict.fromkeys(t for t in targets if not _llm_target_off(t)):
         cached = _probe_state_value(db.get_setting(f'failover_probe:{target}'))
         context = _capture_probe_context(db, target)
         checked = cached.get('checked_at')

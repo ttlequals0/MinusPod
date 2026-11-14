@@ -1,25 +1,8 @@
-"""Tests for the segment-category cut partition (issue #565): the
-remove-vs-beep split for the markers that reach the final cut list.
+"""Tests for the segment-category cut partition (#565): the remove-vs-beep split for markers
+reaching the final cut list.
 
-'keep' is fully owned by _partition_keep_ads and never reaches this code;
-this only distinguishes remove from beep on markers that already cut,
-reusing the same per-episode segment_actions map.
-
-Under test:
-- main_app.pipeline.keep_rules._partition_cut_actions (pure partition helper)
-- main_app.processing.process_episode integration: the audio-processor
-  'beep' flag reaches AudioProcessor.process_episode, and action_applied
-  is persisted on saved markers without leaking that transient flag
-- audio_processor.AudioProcessor.remove_ads real-ffmpeg behavior: 'remove'
-  shortens the episode (fixed-length beep clip), 'beep' pads that clip
-  with silence to the span's own length so duration is preserved, and an
-  empty cut list leaves the audio byte-identical
-- main_app.pipeline.recut._recut_episode: a marker saved with
-  action_applied='beep' in an earlier pass still renders as beep on
-  recut, not a silent full remove
-- call-site uniformity: every AudioProcessor.process_episode call in
-  processing.py derives 'beep' from action_applied
-"""
+'keep' never reaches it (_partition_keep_ads owns it). Also covers process_episode and recut beep
+handling, real-ffmpeg remove_ads, and call-site uniformity."""
 import ast
 import filecmp
 import inspect
@@ -122,11 +105,8 @@ def _cross_promo_ad():
 
 
 def _run_pipeline(first_pass_ads, segment_actions, feed_actions=None):
-    """Drive process_episode's full pass-1 flow with every stage but the
-    cut partition itself mocked out (mirrors test_keep_bypass.py's
-    harness). Returns the recorded mocks so tests can inspect what the
-    audio processor and storage were actually called with.
-    """
+    """Drive process_episode's pass-1 flow with every stage but the cut partition mocked (as in
+    test_keep_bypass.py); returns the recorded mocks."""
     podcast_row = {'id': 1, 'slug': 'cut-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
                    'passthrough_enabled': None, 'skip_ad_detection': None,
@@ -180,6 +160,7 @@ def _run_pipeline(first_pass_ads, segment_actions, feed_actions=None):
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
+        db.get_podcast_row.return_value = podcast_row
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
@@ -336,10 +317,8 @@ class TestAudioProcessorCutPartition:
 
 
 class TestProcessEpisodeCallSiteUniformity:
-    """Every AudioProcessor.process_episode call in processing.py and the pipeline modules must pass
-    a beep-derived audio_segments list, not a raw marker list, or a future
-    call site could silently reintroduce a saved 'beep' marker rendering
-    as a full remove."""
+    """Every AudioProcessor.process_episode call must pass a beep-derived audio_segments list, so a
+    saved 'beep' marker can never render as a full remove."""
 
     def test_every_call_site_passes_audio_segments(self):
         sources = [inspect.getsource(m) for m in (processing, verify, recut)]

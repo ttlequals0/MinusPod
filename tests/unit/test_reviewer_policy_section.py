@@ -72,10 +72,10 @@ def test_prompt_carries_policy_barriers_members_and_measured_edges():
     assert '5000.0' not in prompt
     assert 'Evidence envelope: 3492.9-3680.7s' in prompt
     assert 'Member: claude 3492.9-3573.2s conf 0.95 precise start,end\n' in prompt
-    assert ('Member: fingerprint pattern #12 3544.2-3680.7s (projected length, '
-            'matched 3544.2-3600.0s)\n') in prompt
+    assert ('Member: fingerprint pattern #12 3544.2-3680.7s (matched 3544.2-3600.0s)\n'
+            in prompt)
     assert ('Measured edges: start 3492.9s (transcript, precise), '
-            'end 3573.2s (transcript, precise)') in prompt
+            'end 3600.0s (fingerprint)') in prompt
     assert prompt.index('Effective category actions') < prompt.index('Transcript (60s')
 
 
@@ -150,7 +150,7 @@ def test_holds_are_not_listed_and_plain_ad_has_no_provenance():
 
 def test_default_review_prompt_states_the_hard_limit():
     assert 'Protected audio lines are hard limits' in DEFAULT_REVIEW_PROMPT
-    assert 'fingerprint spans are projected lengths' in DEFAULT_REVIEW_PROMPT
+    assert 'fingerprint spans are measured audio matches' in DEFAULT_REVIEW_PROMPT
 
 
 def test_fingerprint_members_record_their_pattern_id():

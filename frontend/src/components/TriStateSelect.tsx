@@ -1,10 +1,7 @@
 import { inputBase } from './fieldStyles';
 
 interface TriStateSelectProps {
-  /**
-   * Tri-state value: true = override-on, false = override-off, null = use
-   * the matching site-wide default.
-   */
+  /** Tri-state: true = override-on, false = override-off, null = use the site-wide default. */
   value: boolean | null | undefined;
   onChange: (value: boolean | null) => void;
   id?: string;

@@ -1,5 +1,4 @@
 import { Link } from 'react-router';
-import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
 import { feedDisplayTitle, feedHasUpstream } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
@@ -7,13 +6,11 @@ import Artwork from './Artwork';
 import FeedArtworkLink from './FeedArtworkLink';
 import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
-import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
 import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
-import { btnBase, btnPrimaryOutline, btnDestructiveOutline } from './buttonStyles';
+import { FeedRefreshMenu, FeedDeleteButton } from './FeedRowActions';
 import { focusRing } from './fieldStyles';
-import { DemoDisabled } from './DemoDisabled';
 import { cardTitle, cardPad } from './pageStyles';
 
 interface FeedCardProps {
@@ -96,38 +93,9 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
         <CopyButton text={feed.feedUrl} className="h-8 px-2" />
         <div className="flex gap-2">
           {hasUpstream && (
-            <DemoDisabled>
-              <DropdownMenu
-                triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
-                triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
-                disabled={isRefreshing}
-                title="Refresh feed"
-                items={[
-                  {
-                    title: 'Refresh',
-                    subtitle: 'Check for new episodes',
-                    onClick: () => onRefresh(feed.slug),
-                  },
-                  {
-                    title: 'Force refresh',
-                    subtitle: 'Bypass cache',
-                    onClick: () => onRefresh(feed.slug, { force: true }),
-                  },
-                ]}
-              />
-            </DemoDisabled>
+            <FeedRefreshMenu slug={feed.slug} onRefresh={onRefresh} isRefreshing={isRefreshing} />
           )}
-          <DemoDisabled>
-            <button
-              onClick={() => onDelete(feed.slug)}
-              className={`${btnBase} ${btnDestructiveOutline}`}
-              title="Delete feed"
-              aria-label="Delete feed"
-            >
-              <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
-              <span className="hidden sm:inline">Delete</span>
-            </button>
-          </DemoDisabled>
+          <FeedDeleteButton slug={feed.slug} onDelete={onDelete} iconClassName="w-4 h-4 sm:hidden" />
         </div>
       </div>
     </div>
