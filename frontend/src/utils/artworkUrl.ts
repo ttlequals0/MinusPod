@@ -1,3 +1,4 @@
+import { IS_DEMO } from '../demo/flag';
 import { mediaUrl } from './mediaUrl';
 
 /** Feed cover: the API's URL, else the proxy endpoint. */
@@ -5,7 +6,7 @@ export function feedArtworkSrc(slug: string, feedArtworkUrl?: string | null): st
   return mediaUrl({ kind: 'feedArtwork', slug, apiArtworkUrl: feedArtworkUrl })!;
 }
 
-/** Small list-row cover: the API's thumbnail address, else the feed's. The demo keeps its static covers. */
+/** Small list-row cover: the API's thumbnail address, else the feed's. The demo serves its static covers. */
 export function episodeThumbSrc(
   slug: string,
   episodeId?: string | null,
@@ -13,11 +14,8 @@ export function episodeThumbSrc(
   episodeArtworkUrl?: string | null,
   feedArtworkUrl?: string | null,
 ): string {
-  if (episodeId && (thumbUrl || episodeArtworkUrl)) {
-    const src = mediaUrl({ kind: 'episodeThumb', slug, episodeId, apiThumbUrl: thumbUrl });
-    if (src) return src;
-  }
-  return feedArtworkSrc(slug, feedArtworkUrl);
+  if (IS_DEMO) return episodeArtworkSrc(slug, episodeId, episodeArtworkUrl, feedArtworkUrl);
+  return episodeId && thumbUrl ? thumbUrl : feedArtworkSrc(slug, feedArtworkUrl);
 }
 
 /**
