@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 import tempfile
 import shutil
+from io import BytesIO
+
+from PIL import Image
 
 from config import (
     HTTP_TIMEOUT_FETCH,
@@ -81,8 +84,12 @@ _ARTWORK_EXTENSIONS = (
     ('.webp', 'image/webp'),
 )
 
-# Per-feed episode covers live here, one file per episode id (issue #617).
+# Per-feed episode covers (issue #617). Downloaded covers are keyed by the sha256 of their
+# URL, so episodes sharing a cover share one file; local-feed covers stay keyed by episode id.
 _EPISODE_ARTWORK_DIR = "episode-artwork"
+_THUMB_STEM_SUFFIX = ".thumb"
+COVER_THUMB_MAX_SIDE = 256
+_COVER_LOCK_STRIPES = 16
 _EPISODE_ARTWORK_TOUCH_SECONDS = 86400
 _CHAPTER_IMAGE_NAME_RE = re.compile(r'[0-9a-f]{64}\.(jpg|png)')
 # Per-feed ceiling on that directory. Publisher episode covers run large (a
@@ -99,6 +106,28 @@ _WATERMARK_SALT = "artwork-minuspod.salt"
 
 def is_chapter_image_filename(value: str) -> bool:
     return bool(_CHAPTER_IMAGE_NAME_RE.fullmatch(value))
+
+
+def make_cover_thumbnail(data: bytes) -> tuple[bytes, str]:
+    """Downscale a cover to COVER_THUMB_MAX_SIDE on its longest side (never upscaled); (bytes, mime)."""
+    with Image.open(BytesIO(data)) as img:
+        img.thumbnail((COVER_THUMB_MAX_SIDE, COVER_THUMB_MAX_SIDE), Image.LANCZOS)
+        out = BytesIO()
+        if img.mode in ('RGBA', 'LA', 'PA') or 'transparency' in img.info:
+            img.convert('RGBA').save(out, 'PNG', optimize=True)
+            return out.getvalue(), 'image/png'
+        img.convert('RGB').save(out, 'JPEG', quality=85, optimize=True)
+        return out.getvalue(), 'image/jpeg'
+
+
+def artwork_url_key(artwork_url: str) -> str:
+    """Cache key of a downloaded cover: sha256 hex of its URL."""
+    return hashlib.sha256(artwork_url.encode('utf-8')).hexdigest()
+
+
+def artwork_url_version(artwork_url: str) -> str:
+    """Browser cache-bust token for a downloaded cover."""
+    return artwork_url_key(artwork_url)[:12]
 
 
 def _detect_image_mime(data: bytes) -> str | None:
@@ -199,6 +228,9 @@ class Storage:
         self._artwork_skip_logged = TTLCache(max(_ARTWORK_FAILURE_WINDOWS.values()))
         # Episode cover URLs that already warned in this process, so repeats log at DEBUG.
         self._episode_artwork_warned = TTLCache(EPISODE_ARTWORK_WARNED_TTL_SECONDS)
+        self._cover_thumb_warned = TTLCache(EPISODE_ARTWORK_WARNED_TTL_SECONDS)
+        # Striped so concurrent rows of one shared cover fetch it once.
+        self._cover_locks = tuple(threading.Lock() for _ in range(_COVER_LOCK_STRIPES))
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -704,130 +736,259 @@ class Storage:
                    for ext, _ in _ARTWORK_EXTENSIONS)
 
     def remove_episode_artwork(self, slug: str, episode_id: str) -> bool:
-        """Delete a cached episode cover, if any (used on hard delete); True if a file was removed."""
+        """Delete an episode's id-keyed cover and thumbnail (hard delete); shared URL-keyed files stay."""
         if not is_valid_episode_id(episode_id):
             return False
         art_dir = self._episode_artwork_dir(slug)
         if not art_dir or not art_dir.is_dir():
             return False
         removed = False
-        for ext, _ in _ARTWORK_EXTENSIONS:
-            path = _safe_join_under(art_dir, f"{episode_id}{ext}")
-            if path.exists():
-                try:
-                    path.unlink()
-                    removed = True
-                except OSError as exc:
-                    logger.warning(
-                        f"[{slug}:{episode_id}] Failed to delete episode artwork: {exc}")
+        for stem in (episode_id, episode_id + _THUMB_STEM_SUFFIX):
+            for ext, _ in _ARTWORK_EXTENSIONS:
+                path = _safe_join_under(art_dir, f"{stem}{ext}")
+                if path.exists():
+                    try:
+                        path.unlink()
+                        removed = True
+                    except OSError as exc:
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Failed to delete episode artwork: {exc}")
         return removed
 
-    def episode_artwork_file(self, slug: str,
-                             episode_id: str) -> tuple[Path, str] | None:
-        """Path and content type of a cached episode cover, or None.
-
-        Refreshes the mtime for LRU eviction at most daily so the ETag stays stable.
-        """
+    def local_artwork_version(self, slug: str, episode_id: str) -> str | None:
+        """Cache-bust token from the id-keyed cover's mtime and size (one stat, no touch), or None."""
         if not is_valid_episode_id(episode_id):
             return None
         art_dir = self._episode_artwork_dir(slug)
         if not art_dir or not art_dir.is_dir():
             return None
+        for ext, _ in _ARTWORK_EXTENSIONS:
+            try:
+                stat = _safe_join_under(art_dir, f"{episode_id}{ext}").stat()
+            except OSError:
+                continue
+            return hashlib.sha256(f"{stat.st_mtime_ns}:{stat.st_size}".encode()).hexdigest()[:12]
+        return None
+
+    def _cover_file(self, slug: str, stem: str, touch: bool = True) -> tuple[Path, str] | None:
+        """Path and content type of the cached cover named ``stem``, or None.
+
+        Refreshes the mtime for LRU eviction at most daily so the ETag stays stable.
+        """
+        art_dir = self._episode_artwork_dir(slug)
+        if not art_dir or not art_dir.is_dir():
+            return None
         for ext, content_type in _ARTWORK_EXTENSIONS:
-            path = _safe_join_under(art_dir, f"{episode_id}{ext}")
+            path = _safe_join_under(art_dir, f"{stem}{ext}")
             if path.exists():
-                try:
-                    if time.time() - path.stat().st_mtime > _EPISODE_ARTWORK_TOUCH_SECONDS:
-                        os.utime(path, None)
-                except OSError:
-                    pass
+                if touch:
+                    try:
+                        if time.time() - path.stat().st_mtime > _EPISODE_ARTWORK_TOUCH_SECONDS:
+                            os.utime(path, None)
+                    except OSError:
+                        pass
                 return path.resolve(), content_type
         return None
 
+    def episode_artwork_file(self, slug: str, episode_id: str,
+                             touch: bool = True) -> tuple[Path, str] | None:
+        """Path and content type of an id-keyed episode cover, or None."""
+        if not is_valid_episode_id(episode_id):
+            return None
+        return self._cover_file(slug, episode_id, touch=touch)
+
+    def _cover_lock(self, stem: str) -> threading.Lock:
+        return self._cover_locks[hash(stem) % _COVER_LOCK_STRIPES]
+
+    def _save_cover_thumb(self, slug: str, stem: str, data: bytes, evict: bool) -> bool:
+        """Write the thumbnail of ``data`` as ``<stem>.thumb``; False (warned once) if it cannot be made."""
+        try:
+            thumb, mime = make_cover_thumbnail(data)
+        except Exception as exc:
+            if not self._cover_thumb_warned.get(stem):
+                self._cover_thumb_warned.set(stem, True)
+                logger.warning(f"[{slug}] Cover thumbnail failed, serving the original: {exc}")
+            return False
+        return self._write_cover(slug, stem + _THUMB_STEM_SUFFIX, thumb, mime, evict=evict)
+
+    def url_artwork_file(self, slug: str, artwork_url: str,
+                         thumb: bool = False) -> tuple[Path, str] | None:
+        """Cached URL-keyed cover (or its thumbnail), or None."""
+        stem = artwork_url_key(artwork_url) + (_THUMB_STEM_SUFFIX if thumb else '')
+        return self._cover_file(slug, stem)
+
+    def cache_url_artwork(self, slug: str, artwork_url: str,
+                          thumb: bool = False) -> tuple[Path, str] | None:
+        """Cached or freshly fetched cover for a publisher URL, shared by every episode using it.
+
+        A thumbnail request writes only the thumbnail; the full file is stored only when the
+        thumbnail cannot be made (the original is then served).
+        """
+        found = self.url_artwork_file(slug, artwork_url, thumb)
+        if found:
+            return found
+        key = artwork_url_key(artwork_url)
+        with self._cover_lock(key):
+            found = self.url_artwork_file(slug, artwork_url, thumb)
+            if found:
+                return found
+            full = self.url_artwork_file(slug, artwork_url) if thumb else None
+            if full:
+                try:
+                    data = full[0].read_bytes()
+                except OSError:
+                    return full
+                if self._save_cover_thumb(slug, key, data, evict=True):
+                    return self.url_artwork_file(slug, artwork_url, True) or full
+                return full
+            fetched = self._download_url_artwork(slug, artwork_url)
+            if not fetched:
+                return None
+            data, mime = fetched
+            if thumb and self._save_cover_thumb(slug, key, data, evict=True):
+                return self.url_artwork_file(slug, artwork_url, True)
+            if self._write_cover(slug, key, data, mime):
+                return self.url_artwork_file(slug, artwork_url)
+            return None
+
+    def local_artwork_file(self, slug: str, episode_id: str,
+                           thumb: bool = False) -> tuple[Path, str] | None:
+        """Id-keyed cover (never evicted) or its derived thumbnail; the original if no thumbnail can be made."""
+        full = self.episode_artwork_file(slug, episode_id, touch=False)
+        if not full or not thumb:
+            return full
+        stem = episode_id + _THUMB_STEM_SUFFIX
+        found = self._cover_file(slug, stem, touch=False)
+        if found:
+            return found
+        with self._cover_lock(stem):
+            found = self._cover_file(slug, stem, touch=False)
+            if found:
+                return found
+            try:
+                data = full[0].read_bytes()
+            except OSError:
+                return full
+            if self._save_cover_thumb(slug, episode_id, data, evict=False):
+                return self._cover_file(slug, stem, touch=False) or full
+        return full
+
+    def _download_with_failure_cache(self, slug: str, label: str, artwork_url: str,
+                                     key_scope: str, download) -> Any:
+        """Run ``download(user_agent, fail_level)`` behind the failure cache and warn-once logging.
+
+        ``key_scope`` prefixes the failure/warn keys; a falsy result is cached as a failure.
+        """
+        ua = download_user_agent(self.db.get_podcast_by_slug(slug))
+        failure_key = f"{key_scope}\n{artwork_url}\n{ua}"
+        if self._artwork_failure_cache.get(failure_key):
+            logger.debug(f"[{label}] Skipping episode artwork retry, this URL failed recently")
+            return None
+
+        warned_key = f"{key_scope}\n{artwork_url}"
+        fail_level = logging.DEBUG if self._episode_artwork_warned.get(warned_key) else logging.WARNING
+        result = download(ua, fail_level)
+        if result:
+            self._episode_artwork_warned.delete(warned_key)
+        else:
+            self._episode_artwork_warned.set(warned_key, True)
+            # Store only failures: cached successes would evict failure entries before their TTL.
+            self._artwork_failure_cache.set(failure_key, True)
+        return result
+
     def download_episode_artwork(self, slug: str, episode_id: str,
                                  artwork_url: str) -> bool:
-        """Fetch and cache one episode's cover.
+        """Fetch and cache one episode's cover under its episode id.
 
         Same validation as ``download_artwork`` (magic allowlist, size cap, failure cache).
         Does not touch the podcast-level badge variant.
         """
         if not artwork_url or not is_valid_episode_id(episode_id):
             return False
+        return bool(self._download_with_failure_cache(
+            slug, f"{slug}:{episode_id}", artwork_url, f"{slug}\n{episode_id}",
+            lambda ua, level: self._download_episode_artwork_uncached(
+                slug, episode_id, artwork_url, user_agent=ua, fail_level=level)))
 
-        ua = download_user_agent(self.db.get_podcast_by_slug(slug))
-        failure_key = f"{slug}\n{episode_id}\n{artwork_url}\n{ua}"
-        if self._artwork_failure_cache.get(failure_key):
-            logger.debug(
-                f"[{slug}:{episode_id}] Skipping episode artwork retry, "
-                f"this URL failed recently")
-            return False
-
-        warned_key = f"{slug}\n{episode_id}\n{artwork_url}"
-        fail_level = logging.DEBUG if self._episode_artwork_warned.get(warned_key) else logging.WARNING
-        ok = self._download_episode_artwork_uncached(
-            slug, episode_id, artwork_url, user_agent=ua, fail_level=fail_level)
-        if ok:
-            self._episode_artwork_warned.delete(warned_key)
-        else:
-            self._episode_artwork_warned.set(warned_key, True)
-        # Store only failures: cached successes would evict failure entries before their TTL.
-        # No delete-on-success: with no force bypass, a live failure entry returns early above.
-        if not ok:
-            self._artwork_failure_cache.set(failure_key, True)
-        return ok
+    def _download_url_artwork(self, slug: str, artwork_url: str) -> tuple[bytes, str] | None:
+        """Fetch and validate a publisher cover for the URL-keyed cache; (bytes, mime) or None."""
+        if not artwork_url:
+            return None
+        return self._download_with_failure_cache(
+            slug, slug, artwork_url, slug,
+            lambda ua, level: self._fetch_validated_artwork(
+                slug, slug, artwork_url, user_agent=ua, fail_level=level))
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
                                           artwork_url: str, user_agent: str | None = None,
                                           fail_level: int = logging.WARNING) -> bool:
-        """Fetch, validate, and save one episode cover; failures log at fail_level. See download_episode_artwork."""
+        """Fetch, validate, and save one id-keyed episode cover; failures log at fail_level."""
+        fetched = self._fetch_validated_artwork(
+            slug, f"{slug}:{episode_id}", artwork_url, user_agent=user_agent,
+            fail_level=fail_level)
+        if not fetched:
+            return False
         try:
-            logger.info(f"[{slug}:{episode_id}] Downloading episode artwork from "
+            return self._save_episode_artwork(slug, episode_id, *fetched)
+        except Exception as e:
+            logger.log(
+                fail_level, f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
+            return False
+
+    def _fetch_validated_artwork(self, slug: str, label: str, artwork_url: str,
+                                 user_agent: str | None = None,
+                                 fail_level: int = logging.WARNING) -> tuple[bytes, str] | None:
+        """Fetch a cover through the validated path (SSRF, content-type allowlist, size cap, magic).
+
+        ``label`` is the log prefix. Returns (bytes, mime) or None; failures log at fail_level.
+        """
+        try:
+            logger.info(f"[{label}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")
 
             podcast = self.db.get_podcast_by_slug(slug)
             try:
                 response = self._fetch_artwork_response(
-                    f"{slug}:{episode_id}", artwork_url,
+                    label, artwork_url,
                     user_agent or download_user_agent(podcast), podcast)
             except SSRFError as e:
                 logger.log(
-                    fail_level, f"[{slug}:{episode_id}] SSRF blocked in "
+                    fail_level, f"[{label}] SSRF blocked in "
                     f"download_episode_artwork: {e}")
-                return False
+                return None
             response.raise_for_status()
 
             declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
             if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
                 logger.log(
-                    fail_level, "[%s:%s] episode_artwork_rejected_content_type declared=%s url=%s",
-                    slug, episode_id, declared_type, safe_url_for_log(artwork_url),
+                    fail_level, "[%s] episode_artwork_rejected_content_type declared=%s url=%s",
+                    label, declared_type, safe_url_for_log(artwork_url),
                 )
-                return False
+                return None
 
             max_bytes = _max_artwork_bytes()
             try:
                 image_data = read_response_capped(response, max_bytes, chunk_size=65536)
             except ResponseTooLargeError:
                 logger.log(
-                    fail_level, "[%s:%s] episode_artwork_size_cap_exceeded max=%d url=%s",
-                    slug, episode_id, max_bytes, safe_url_for_log(artwork_url),
+                    fail_level, "[%s] episode_artwork_size_cap_exceeded max=%d url=%s",
+                    label, max_bytes, safe_url_for_log(artwork_url),
                 )
-                return False
+                return None
 
             detected = _detect_image_mime(image_data)
             if not detected:
                 logger.log(
-                    fail_level, "[%s:%s] episode_artwork_rejected_magic declared=%s url=%s",
-                    slug, episode_id, declared_type, safe_url_for_log(artwork_url),
+                    fail_level, "[%s] episode_artwork_rejected_magic declared=%s url=%s",
+                    label, declared_type, safe_url_for_log(artwork_url),
                 )
-                return False
+                return None
 
-            return self._save_episode_artwork(slug, episode_id, image_data, detected)
+            return image_data, detected
 
         except Exception as e:
-            logger.log(
-                fail_level, f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
-            return False
+            logger.log(fail_level, f"[{label}] Failed to download episode artwork: {e}")
+            return None
 
     def save_episode_artwork(self, slug: str, episode_id: str,
                              image_data: bytes, content_type: str,
@@ -845,14 +1006,24 @@ class Storage:
     def _save_episode_artwork(self, slug: str, episode_id: str,
                               image_data: bytes, content_type: str,
                               evict: bool = True) -> bool:
-        """Write one episode cover, replacing any stale extension, then trim the feed's cache
+        """Write an id-keyed cover and drop its stale thumbnail (``evict=False`` skips the LRU trim)."""
+        art_dir = self._episode_artwork_dir(slug)
+        if art_dir is not None and art_dir.is_dir():
+            for ext, _ in _ARTWORK_EXTENSIONS:
+                _safe_join_under(
+                    art_dir, f"{episode_id}{_THUMB_STEM_SUFFIX}{ext}").unlink(missing_ok=True)
+        return self._write_cover(slug, episode_id, image_data, content_type, evict=evict)
+
+    def _write_cover(self, slug: str, stem: str, image_data: bytes, content_type: str,
+                     evict: bool = True) -> bool:
+        """Write one cover file, replacing any stale extension, then trim the feed's cache
         under EPISODE_ARTWORK_CACHE_BYTES (unless ``evict=False``, see ``save_episode_artwork``)."""
         art_dir = self._episode_artwork_dir(slug, create=True)
         if art_dir is None:
             return False
 
         ext = _EXTENSION_BY_TYPE.get(content_type.lower(), '.jpg')
-        artwork_path = _safe_join_under(art_dir, f"{episode_id}{ext}")
+        artwork_path = _safe_join_under(art_dir, f"{stem}{ext}")
 
         with tempfile.NamedTemporaryFile(mode='wb', delete=False,
                                          dir=art_dir, suffix='.tmp') as tmp:
@@ -861,7 +1032,7 @@ class Storage:
         os.replace(tmp_path, artwork_path)
 
         for old_ext, _ in _ARTWORK_EXTENSIONS:
-            old_path = _safe_join_under(art_dir, f"{episode_id}{old_ext}")
+            old_path = _safe_join_under(art_dir, f"{stem}{old_ext}")
             if old_path.exists() and old_path != artwork_path:
                 old_path.unlink()
 

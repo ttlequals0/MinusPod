@@ -309,6 +309,15 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_episode_artwork_url(self, slug: str, episode_id: str) -> str | None:
+        """The episode's publisher cover URL (one narrow row, no transcript join), or None."""
+        row = self.get_connection().execute(
+            """SELECT e.artwork_url FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)).fetchone()
+        return row['artwork_url'] if row else None
+
     def get_episode_neighbors(self, slug: str, episode_id: str) -> dict[str, dict | None]:
         """Adjacent episodes in the feed's default newest-first order.
 
