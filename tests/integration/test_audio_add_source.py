@@ -713,3 +713,15 @@ def test_pattern_id_is_found_through_the_marker_writer(fp_feed, fp_original):
     _markers(fp_feed, [_break(pid, [_member(pid, 150.0, 200.0)])])
     assert fp_feed.get_pattern_marker_episodes(pattern, 5) == [(SLUG, EPISODE)]
     assert fp_feed.get_pattern_marker_episodes(fp_feed.get_ad_pattern_by_id(other), 5) == []
+
+
+def test_marker_older_than_the_window_is_not_returned(fp_feed, cleanup_paths, monkeypatch):
+    import database.patterns as patterns_mod
+    monkeypatch.setattr(patterns_mod, 'CANDIDATE_WINDOW', 3)
+    pid = _text_pattern(fp_feed, scope='global', podcast_id=None)
+    marker = [{'start': 60.0, 'end': 108.0, 'pattern_id': pid}]
+    for n in range(5):
+        cleanup_paths.append((SLUG, _episode_id(n)))
+        _feed_episode(fp_feed, SLUG, _episode_id(n), f'2026-01-01T00:0{n}:00Z', marker if n in (0, 3) else [])
+    found = fp_feed.get_pattern_marker_episodes(fp_feed.get_ad_pattern_by_id(pid), 5)
+    assert found == [(SLUG, _episode_id(3))]

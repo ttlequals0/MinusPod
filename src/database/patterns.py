@@ -59,6 +59,10 @@ def _pattern_scope_sql(pattern: dict) -> tuple[str, list]:
     return "", []
 
 
+# Newest retained in-scope episodes the candidate lookups look through; bounds the scan of the large markers column
+CANDIDATE_WINDOW = 200
+
+
 def _marker_id_like(pattern_id: int) -> tuple[str, list]:
     """Prefilter on the stored JSON text; the caller still parses the markers."""
     # save_episode_details writes plain json.dumps, so only the spaced separator occurs
@@ -523,18 +527,26 @@ class PatternMixin:
 
     def _scoped_retained_episodes(self, pattern: dict, extra_sql: str, extra_params: list,
                                   limit: int) -> list[tuple[str, str]]:
-        """Newest in-scope episodes that keep their original and meet extra_sql, minus false-positive ones."""
+        """Newest in-scope episodes that keep their original and meet extra_sql, minus false-positive ones.
+
+        Only the newest CANDIDATE_WINDOW such episodes are considered, so a match older than that is not returned.
+        """
         scope_sql, scope_params = _pattern_scope_sql(pattern)
+        # The window is picked from episodes alone so episode_details (large rows) is read only for it
         rows = self.get_connection().execute(
-            "SELECT p.slug, e.episode_id FROM episodes e "  # noqa: S608
+            "SELECT p.slug, w.episode_id FROM ("  # noqa: S608
+            "SELECT e.id, e.podcast_id, e.episode_id, e.processed_at FROM episodes e "
             "JOIN podcasts p ON p.id = e.podcast_id "
-            "JOIN episode_details ed ON ed.episode_id = e.id "
-            f"WHERE e.original_file IS NOT NULL AND {extra_sql}{scope_sql} "
+            f"WHERE e.original_file IS NOT NULL{scope_sql} "
             "AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = ? "
             "AND f.episode_id = e.episode_id AND f.correction_type = 'false_positive' "
             "AND (f.podcast_id IS NULL OR f.podcast_id = e.podcast_id)) "
-            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
-            (*extra_params, *scope_params, pattern['id'], limit)).fetchall()
+            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?) w "
+            "JOIN podcasts p ON p.id = w.podcast_id "
+            "JOIN episode_details ed ON ed.episode_id = w.id "
+            f"WHERE {extra_sql} "
+            "ORDER BY w.processed_at DESC, w.id DESC LIMIT ?",
+            (*scope_params, pattern['id'], CANDIDATE_WINDOW, *extra_params, limit)).fetchall()
         return [(r['slug'], r['episode_id']) for r in rows]
 
     def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:

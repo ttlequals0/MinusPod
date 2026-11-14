@@ -1066,6 +1066,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting ON episodes(sb_state) WHERE sb_state IN ('waiting','probing');
 CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_activity_at ON episodes(COALESCE(processed_at, updated_at));
+CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at);
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;
