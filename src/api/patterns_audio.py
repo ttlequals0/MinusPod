@@ -21,6 +21,7 @@ from pattern_audio import (
 from audio_fingerprinter import (
     clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
 )
+from community_export import normalize_aliases
 from config import FFMPEG_SHORT_TIMEOUT, MIN_AD_DURATION, is_keep_like, is_pending_review
 from storage import PathContainmentError
 from text_pattern_matcher import MAX_MATCH_DURATION
@@ -168,6 +169,19 @@ def _search_context(db, slug):
             tags, get_pattern_language(db, slug=slug))
 
 
+def _transcript_candidates(db, pattern):
+    """Episodes whose markers name the pattern's sponsor first, then the newest in scope, TRANSCRIPT_SEARCH_EPISODES in all."""
+    names = []
+    if pattern.get('sponsor'):
+        aliases = normalize_aliases((db.get_known_sponsor_by_name(pattern['sponsor']) or {}).get('aliases'))
+        names = list(dict.fromkeys([pattern['sponsor'], *aliases]))
+    found = db.get_pattern_sponsor_episodes(pattern, names, TRANSCRIPT_SEARCH_EPISODES) if names else []
+    if len(found) < TRANSCRIPT_SEARCH_EPISODES:
+        found += [c for c in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES)
+                  if c not in found]
+    return found[:TRANSCRIPT_SEARCH_EPISODES]
+
+
 def _transcript_source(db, storage, pattern):
     """The first span of the pattern's own text in a retained in-scope transcript, newest first, or None."""
     if not pattern.get('is_active') or not pattern.get('text_template'):
@@ -179,7 +193,7 @@ def _transcript_source(db, storage, pattern):
         return None
     contexts = {}
     with pattern_catalog_scope():
-        for slug, episode_id in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES):
+        for slug, episode_id in _transcript_candidates(db, pattern):
             episode = db.get_episode(slug, episode_id)
             _, err = resolve_retained_original(db, storage, slug, episode_id, episode)
             if err:
