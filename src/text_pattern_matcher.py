@@ -297,6 +297,9 @@ def required_fuzzy_score(phrase_len: int) -> float:
 # over-cut. Reuses LONG_AD_WARN (longest reasonable single read).
 MAX_MATCH_DURATION = LONG_AD_WARN
 
+# Seconds around a content match searched for the template's opening and closing phrases
+ALIGN_PAD_S = 20.0
+
 # Proportional TF-IDF window sizing
 WINDOW_SIZES = [500, 1000, 1500, 2500]
 WINDOW_SIZE_TOLERANCE = 0.6
@@ -666,10 +669,11 @@ class TextPatternMatcher:
         network_id: str = None,
         podcast_tags: set | None = None,
         language: str | None = None,
+        only_pattern_id: int | None = None,
     ) -> list[TextMatch]:
         with self._match_lock:
             return self._find_matches_locked(
-                segments, podcast_id, network_id, podcast_tags, language)
+                segments, podcast_id, network_id, podcast_tags, language, only_pattern_id)
 
     def _find_matches_locked(
         self,
@@ -678,6 +682,7 @@ class TextPatternMatcher:
         network_id: str = None,
         podcast_tags: set | None = None,
         language: str | None = None,
+        only_pattern_id: int | None = None,
     ) -> list[TextMatch]:
         """Search transcript segments ('start', 'end', 'text') for known ad patterns; returns TextMatch list.
 
@@ -687,6 +692,7 @@ class TextPatternMatcher:
                 not overlap (unless either side has no tags or the sponsor is 'universal').
             language: Optional ISO 639-1 code. Patterns with a different source_language
                 are excluded (#252); null means language-agnostic.
+            only_pattern_id: Match just this pattern, still scored against the whole catalog.
         """
         if not self.is_available():
             return []
@@ -723,6 +729,9 @@ class TextPatternMatcher:
                 p for p in applicable_patterns
                 if not getattr(p, 'source_language', None) or p.source_language == language
             ]
+
+        if only_pattern_id is not None:
+            applicable_patterns = [p for p in applicable_patterns if p.id == only_pattern_id]
 
         if not applicable_patterns:
             return []
@@ -1178,6 +1187,26 @@ class TextPatternMatcher:
             abs_pos, abs_pos + len(matched), seg_map, segs
         )
         return start_time
+
+    def align_to_template(self, segments, match, template):
+        """(start, end) of the template's opening and closing phrases near a match, or None when either is missing."""
+        full_text, segment_map = self._concat_segments(segments)
+        near = [(lo, hi) for (lo, hi, i) in segment_map
+                if segments[i].get('end', 0) > match.start - ALIGN_PAD_S
+                and segments[i].get('start', 0) < match.end + ALIGN_PAD_S]
+        if not near:
+            return None
+        region_start = near[0][0]
+        region = full_text[region_start:near[-1][1]].lower()
+        edges = []
+        for phrase, edge_time in ((_extract_intro_phrase(template), self._phrase_start_time),
+                                  (_extract_outro_phrase(template), self._phrase_end_time)):
+            phrase = phrase.lower()
+            pos, score, matched = self._fuzzy_find(region, phrase, required_fuzzy_score(len(phrase)))
+            if not matched:
+                return None
+            edges.append(edge_time(region_start, pos, matched, segment_map, segments))
+        return (edges[0], edges[1]) if None not in edges and edges[1] > edges[0] else None
 
     def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
         """Scan forward from intro match for a known outro variant."""

@@ -20609,8 +20609,11 @@ components:
             original and store an accepted marker of the pattern, or a merged member of one (the member's own span, clipped to its marker). An origin episode of
             a pattern with no podcast is looked up by episode id within the pattern's
             scope. It uses the pre-trim span of a reviewer-adjusted marker
-            and the earliest marker when there are several. Null when the pattern has
-            a fingerprint or none of those episodes holds such a marker.
+            and the earliest marker when there are several. When no marker source with a
+            retained original exists, the 10 newest in-scope episodes that keep their
+            original and its transcript are searched for the pattern's own text, and the
+            first matched span is returned. Null when the pattern has a fingerprint or
+            neither search finds a source.
           oneOf:
             - type: 'null'
             - allOf:

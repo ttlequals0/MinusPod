@@ -1,4 +1,6 @@
 """The audio detail names the span a missing fingerprint could be built from."""
+import json
+
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, TEMPLATE, csrf
@@ -398,3 +400,152 @@ def test_rebuild_from_a_member_span_records_that_source(app_client, fp_feed, fp_
     assert resp.status_code == 200 and resp.get_json()['fingerprintStored'] is True
     row = fp_feed.get_audio_fingerprint(pid, with_blob=False)
     assert (row['source_episode_id'], row['source_start'], row['source_end']) == (EPISODE, 150.0, 200.0)
+
+
+FILLER_WORDS = ('garden weather recipe train holiday coffee museum bicycle market winter river novel cinema '
+                'orchard harbor ticket violin summer lantern meadow compass').split()
+AD_SENTENCES = [
+    TEMPLATE,
+    'Acme handles every form, every deduction and every deadline so you never have to guess.',
+    'Answer a few simple questions and Acme fills in the rest of your return for you right away.',
+    'Thousands of people switched to Acme this year and saved hours of paperwork each week.',
+    'Go to acme.com slash taxes today and use the promo code SAVE to get twenty percent off.',
+]
+AD_TEXT = ' '.join(AD_SENTENCES)
+SHORT_AD_TEXT = ' '.join(AD_SENTENCES[:3])
+SEGMENT_S = 3.0
+
+
+def _transcript(db, slug, episode, ad_at=60.0, ad_text=AD_TEXT, total=240.0, skip_words=(0, 0), with_ad=True):
+    """Store 3 s segments of unrelated filler with the ad words from ad_at; returns the ad's (start, end).
+
+    skip_words drops that many words from the ad's start and end, leaving the middle.
+    """
+    words = ad_text.split()
+    chunks = [' '.join(words[i:i + 5]) for i in range(0, len(words), 5)]
+    ad_end = ad_at + SEGMENT_S * len(chunks)
+    segments, t, n = [], 0.0, 0
+    while t < total:
+        if with_ad and ad_at <= t < ad_end:
+            text = chunks[round((t - ad_at) / SEGMENT_S)]
+        else:
+            text = ' '.join(FILLER_WORDS[(n + k * 7) % len(FILLER_WORDS)] for k in range(8))
+        segments.append({'start': t, 'end': t + SEGMENT_S, 'text': text})
+        t, n = t + SEGMENT_S, n + 1
+    if skip_words != (0, 0):
+        keep = [i for i, s in enumerate(segments) if ad_at <= s['start'] < ad_end]
+        for i in keep[:skip_words[0]] + keep[len(keep) - skip_words[1]:]:
+            segments[i]['text'] = 'unrelated filler words about something else entirely here'
+    conn = db.get_connection()
+    row = conn.execute("SELECT e.id FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+                       "WHERE p.slug = ? AND e.episode_id = ?", (slug, episode)).fetchone()
+    conn.execute("INSERT OR IGNORE INTO episode_details (episode_id) VALUES (?)", (row['id'],))
+    conn.execute("UPDATE episode_details SET original_segments_json = ? WHERE episode_id = ?",
+                 (json.dumps(segments), row['id']))
+    conn.commit()
+    return ad_at, ad_end
+
+
+@pytest.mark.parametrize('ad_text, ad_at', [
+    (AD_TEXT, 0.0), (AD_TEXT, 60.0), (AD_TEXT, 180.0),
+    (SHORT_AD_TEXT, 0.0), (SHORT_AD_TEXT, 60.0), (SHORT_AD_TEXT, 200.0),
+])
+def test_transcript_search_offers_the_span_of_the_pattern_text(app_client, fp_feed, fp_original, ad_text, ad_at):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=ad_text)
+    start, end = _transcript(fp_feed, SLUG, EPISODE, ad_at=ad_at, ad_text=ad_text)
+    body = _detail(app_client, pid)['addSource']
+    assert (body['podcastSlug'], body['episodeId'], body['available']) == (SLUG, EPISODE, True)
+    assert abs(body['start'] - start) <= 2.0 and abs(body['end'] - end) <= 2.0
+
+
+def test_template_without_an_alignable_opening_is_not_offered(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE, skip_words=(5, 0))
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_span_far_from_the_known_ad_length_is_not_offered(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    fp_feed.get_connection().execute("UPDATE ad_patterns SET avg_duration = 10 WHERE id = ?", (pid,))
+    fp_feed.get_connection().commit()
+    _transcript(fp_feed, SLUG, EPISODE)
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_marker_source_wins_over_the_transcript(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE)
+    _markers(fp_feed, [{'start': 20.0, 'end': 40.0, 'pattern_id': pid}])
+    body = _detail(app_client, pid)['addSource']
+    assert (body['start'], body['end']) == (20.0, 40.0)
+
+
+def test_transcript_beats_an_expired_marker_source(app_client, fp_feed, other_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _markers(fp_feed, [{'start': 20.0, 'end': 40.0, 'pattern_id': pid}])
+    _other_episode(fp_feed, '2026-02-01T00:00:00Z', pid=pid, markers=[])
+    _transcript(fp_feed, SLUG, OTHER)
+    body = _detail(app_client, pid)['addSource']
+    assert (body['episodeId'], body['available']) == (OTHER, True)
+
+
+def test_expired_marker_source_is_kept_when_the_transcript_has_nothing(app_client, fp_feed):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [{'start': 20.0, 'end': 40.0, 'pattern_id': pid}])
+    _transcript(fp_feed, SLUG, EPISODE, with_ad=False)
+    assert _detail(app_client, pid)['addSource']['available'] is False
+
+
+def test_transcript_of_another_podcast_is_not_searched(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    cleanup_paths.append(('other-podcast', 'c3d4e5f6a1b2'))
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-02-01T00:00:00Z', [])
+    _transcript(fp_feed, 'other-podcast', 'c3d4e5f6a1b2')
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_global_pattern_searches_the_transcript_of_any_feed(app_client, fp_feed, cleanup_paths):
+    pid = _pattern(fp_feed, scope='global', podcast_id=None, created_from_episode_id=None, text_template=AD_TEXT)
+    cleanup_paths.append(('other-podcast', 'c3d4e5f6a1b2'))
+    _feed_episode(fp_feed, 'other-podcast', 'c3d4e5f6a1b2', '2026-02-01T00:00:00Z', [])
+    _transcript(fp_feed, 'other-podcast', 'c3d4e5f6a1b2')
+    assert _detail(app_client, pid)['addSource']['podcastSlug'] == 'other-podcast'
+
+
+def test_transcript_of_an_episode_without_a_retained_original_is_not_searched(app_client, fp_feed):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE)
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_match_overlapping_a_rejected_marker_is_not_offered(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE)
+    _markers(fp_feed, [{'start': 55.0, 'end': 75.0, 'pattern_id': pid + 1, 'validation': {'decision': 'REJECT'}}])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_episode_with_a_false_positive_is_not_searched(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE)
+    fp_feed.create_pattern_correction('false_positive', pattern_id=pid, episode_id=EPISODE,
+                                      podcast_id=fp_feed.get_podcast_by_slug(SLUG)['id'])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_estimated_span_is_not_offered(app_client, fp_feed, fp_original, monkeypatch):
+    from text_pattern_matcher import TextMatch, TextPatternMatcher
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE)
+    monkeypatch.setattr(TextPatternMatcher, 'find_matches', lambda self, *a, **k: [
+        TextMatch(pattern_id=pid, start=60.0, end=70.0, confidence=0.9, span_estimated=True)])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_rebuild_route_accepts_a_transcript_found_span(app_client, fp_feed, fp_original, stub_fingerprinting):
+    pid = _pattern(fp_feed, created_from_episode_id=None, text_template=AD_TEXT)
+    _transcript(fp_feed, SLUG, EPISODE)
+    src = _detail(app_client, pid)['addSource']
+    resp = app_client.post(f'/api/v1/patterns/{pid}/audio/rebuild', headers=csrf(app_client),
+                           json={k: src[k] for k in ('podcastSlug', 'episodeId', 'start', 'end')})
+    assert resp.status_code == 200 and resp.get_json()['fingerprintStored'] is True
