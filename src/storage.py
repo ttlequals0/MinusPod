@@ -953,14 +953,18 @@ class Storage:
         fail_key = f"thumb\n{slug}\n{episode_id}\n{self.local_artwork_version(slug, episode_id)}"
         return self._serve_thumb(slug, episode_id, fail_key, load, lambda: full, evict=False)
 
+    @staticmethod
+    def _cover_label(scope: str, artwork_url: str) -> str:
+        """Log label "<scope> cover=<url version>"; scope is "slug" or "slug:episode_id"."""
+        return f"{scope} cover={artwork_url_version(artwork_url)}"
+
     def _download_with_failure_cache(self, slug: str, artwork_url: str, key_scope: str,
-                                     download, log_scope: str | None = None) -> Any:
+                                     log_scope: str, download) -> Any:
         """Run ``download(user_agent, fail_level)`` behind the failure cache and warn-once logging.
 
-        ``key_scope`` prefixes the failure and warn keys; ``log_scope`` (default: ``key_scope`` joined
-        with ':') starts the log label, which ends with the cover's URL version.
+        ``key_scope`` prefixes the failure and warn keys; ``log_scope`` starts the log label.
         """
-        label = f"{log_scope or key_scope.replace(chr(10), ':')} cover={artwork_url_version(artwork_url)}"
+        label = self._cover_label(log_scope, artwork_url)
         ua = download_user_agent(self.db.get_podcast_by_slug(slug))
         failure_key = f"{key_scope}\n{artwork_url}\n{ua}"
         if self._artwork_failure_cache.get(failure_key):
@@ -988,7 +992,7 @@ class Storage:
         if not artwork_url or not is_valid_episode_id(episode_id):
             return False
         return bool(self._download_with_failure_cache(
-            slug, artwork_url, f"{slug}\n{episode_id}",
+            slug, artwork_url, f"{slug}\n{episode_id}", f"{slug}:{episode_id}",
             lambda ua, level: self._download_episode_artwork_uncached(
                 slug, episode_id, artwork_url, user_agent=ua, fail_level=level)))
 
@@ -999,10 +1003,9 @@ class Storage:
             return None
         scope = f"{slug}:{episode_id}" if episode_id else slug
         return self._download_with_failure_cache(
-            slug, artwork_url, slug,
+            slug, artwork_url, slug, scope,
             lambda ua, level: self._fetch_validated_artwork(
-                slug, scope, artwork_url, user_agent=ua, fail_level=level),
-            log_scope=scope)
+                slug, scope, artwork_url, user_agent=ua, fail_level=level))
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
                                           artwork_url: str, user_agent: str | None = None,
@@ -1017,19 +1020,19 @@ class Storage:
             return self._save_episode_artwork(slug, episode_id, *fetched)
         except Exception as e:
             logger.log(
-                fail_level, f"[{slug}:{episode_id} cover={artwork_url_version(artwork_url)}] "
+                fail_level, f"[{self._cover_label(f'{slug}:{episode_id}', artwork_url)}] "
                 f"Failed to download episode artwork: {e}")
             return False
 
-    def _fetch_validated_artwork(self, slug: str, label: str, artwork_url: str,
+    def _fetch_validated_artwork(self, slug: str, scope: str, artwork_url: str,
                                  user_agent: str | None = None,
                                  fail_level: int = logging.WARNING) -> tuple[bytes, str] | None:
         """Fetch a cover through the validated path (SSRF, content-type allowlist, size cap, magic).
 
-        ``label`` is the log prefix, suffixed with the cover's URL version. Returns (bytes, mime) or None;
+        ``scope`` is "slug" or "slug:episode_id" for the log label. Returns (bytes, mime) or None;
         failures log at fail_level.
         """
-        label = f"{label} cover={artwork_url_version(artwork_url)}"
+        label = self._cover_label(scope, artwork_url)
         try:
             logger.info(f"[{label}] Downloading episode artwork from "
                         f"{safe_url_for_log(artwork_url)}")

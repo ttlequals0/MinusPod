@@ -413,3 +413,14 @@ def test_without_an_episode_keyed_file_the_cover_is_downloaded(storage):
         found = storage.cache_url_artwork(SLUG, URL, thumb=True, episode_id=EP)
 
     assert fetch.call_count == 1 and found is not None
+
+
+@pytest.mark.parametrize('episode_id, scope', [(EP, f'{SLUG}:{EP}'), (None, SLUG)])
+def test_cover_download_log_label(storage, caplog, episode_id, scope):
+    version = storage_module.artwork_url_version(URL)
+    with patch.object(storage, '_fetch_artwork_response', side_effect=storage_module.SSRFError('x')), \
+            patch.object(storage.db, 'get_podcast_by_slug', return_value=None), \
+            caplog.at_level('INFO', logger=storage_module.logger.name):
+        storage._download_url_artwork(SLUG, URL, episode_id)
+
+    assert f'[{scope} cover={version}] Downloading episode artwork' in caplog.text
