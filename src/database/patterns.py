@@ -9,7 +9,7 @@ from config import (
 from database.fingerprint_cleanup import delete_pattern_dependents, delete_pattern_dependents_in
 from database.podcasts import normalize_network_id
 from utils.json_fields import load_json_list
-from utils.markers import parse_ad_markers
+from utils.markers import normalize_sponsor_key, parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
 logger = logging.getLogger(__name__)
@@ -507,10 +507,8 @@ class PatternMixin:
 
     def _scoped_retained_episodes(self, pattern: dict, limit: int, ref: tuple[str, list[str]] | None = None,
                                   need_segments: bool = False) -> list[tuple[str, str]]:
-        """Newest in-scope episodes that keep their original, minus false-positive ones.
-
-        ref is (ref_type, values) to require a marker reference; need_segments skips episodes with no original segments.
-        """
+        """Newest in-scope retained episodes minus false-positive ones; ref is (ref_type, values) to require
+        a marker reference, need_segments to skip episodes without original segments."""
         scope_sql, scope_params = _pattern_scope_sql(pattern)
         params = []
         source = "episodes e"
@@ -533,7 +531,7 @@ class PatternMixin:
             (*params, *scope_params, pattern['id']))
         found = []
         for row in rows:
-            # typeof() reads the row header only, not the large segments value
+            # Checked per surviving row: as an EXISTS it runs for every candidate before the sort (5 s cold at 17k)
             if need_segments and not (conn.execute(
                     "SELECT typeof(original_segments_json) != 'null' FROM episode_details WHERE episode_id = ?",
                     (row['id'],)).fetchone() or (0,))[0]:
@@ -550,7 +548,7 @@ class PatternMixin:
 
     def get_pattern_sponsor_episodes(self, pattern: dict, names: list[str], limit: int) -> list[tuple[str, str]]:
         """Newest in-scope retained episodes with a transcript whose markers name one of the sponsor names."""
-        values = list(dict.fromkeys(n.strip().lower() for n in names if n and n.strip()))
+        values = list(dict.fromkeys(normalize_sponsor_key(n) for n in names if n and n.strip()))
         if not values:
             return []
         return self._scoped_retained_episodes(pattern, limit, ('sponsor', values), need_segments=True)

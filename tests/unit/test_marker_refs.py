@@ -5,8 +5,9 @@ import pytest
 
 import database.episodes as episodes_mod
 from database import Database
+from database.marker_refs import replace_marker_refs
 from database.schema import deferred
-from utils.markers import extract_marker_refs
+from utils.markers import extract_marker_refs, normalize_sponsor_key
 
 SLUG = 'example-podcast'
 GATE = deferred.MARKER_REFS_GATE
@@ -199,6 +200,12 @@ def test_global_transcript_lookup_scans_the_processed_at_index(temp_db):
     assert 'SCAN e USING INDEX idx_episodes_processed_at' in plan and 'episode_details' not in plan
 
 
+def test_podcast_transcript_lookup_uses_the_retained_by_feed_index(temp_db):
+    pattern = {'id': 1, 'scope': 'podcast', 'podcast_id': SLUG}
+    plan = _plan(temp_db, lambda: temp_db.get_pattern_transcript_episodes(pattern, 10))
+    assert 'idx_episodes_retained_by_feed' in plan and 'TEMP B-TREE' not in plan
+
+
 def test_lookups_have_no_age_limit_and_keep_newest_first(temp_db):
     old = _episode(temp_db, 1, [{'pattern_id': 7, 'sponsor': 'Acme'}], processed_at='2020-01-01T00:00:00Z')
     for n in range(2, 60):
@@ -251,3 +258,28 @@ def test_existing_database_gets_the_table_indexes_and_triggers_back(temp_db, tem
     reopened._initialized = False
     Database.__init__(reopened, data_dir=temp_dir)
     assert {'episode_marker_refs', *INDEXES, *TRIGGERS} <= _schema_objects(reopened)
+
+
+def test_a_save_with_unchanged_refs_writes_no_ref_rows(temp_db):
+    eid = _episode(temp_db, 1, [{'pattern_id': 7, 'sponsor': 'Acme'}])
+    conn = temp_db.get_connection()
+    pk = conn.execute("SELECT id FROM episodes WHERE episode_id = ?", (eid,)).fetchone()['id']
+    before = conn.total_changes
+    assert replace_marker_refs(conn, pk, [{'pattern_id': 7, 'sponsor': ' acme '}, {'pattern_id': 7}]) is None
+    assert conn.total_changes == before
+    replace_marker_refs(conn, pk, [{'pattern_id': 7}, {'pattern_id': 8}])
+    assert conn.total_changes == before + 2
+    assert _refs(temp_db) == {('pattern', '7'), ('pattern', '8')}
+
+
+def test_the_pending_flags_keep_a_done_answer_until_the_schema_is_registered_again(temp_db):
+    assert not temp_db.marker_refs_pending()
+    temp_db.get_connection().execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
+    temp_db.get_connection().commit()
+    assert not temp_db.marker_refs_pending()
+    temp_db._init_schema()
+    assert temp_db.marker_refs_pending()
+
+
+def test_sponsor_keys_are_stripped_and_lowercased():
+    assert normalize_sponsor_key('  Acme Co ') == 'acme co'

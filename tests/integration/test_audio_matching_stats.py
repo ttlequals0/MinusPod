@@ -141,6 +141,7 @@ def test_the_backfill_flag_follows_the_step(app_client, fp_feed):
     conn = fp_feed.get_connection()
     assert _get(app_client).get_json()['historyBackfillPending'] is False
     conn.execute("DELETE FROM schema_migrations WHERE name = 'backfill_fingerprint_matches_v1'")
+    fp_feed.__dict__.pop('_done_gates', None)  # a hand-removed mark is not seen through the done cache
     conn.commit()
     try:
         assert _get(app_client).get_json()['historyBackfillPending'] is True

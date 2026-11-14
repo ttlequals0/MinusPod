@@ -354,6 +354,11 @@ def parse_ad_markers(raw) -> list[dict] | None:
     return normalize_loaded_markers(markers)
 
 
+def normalize_sponsor_key(name: str) -> str:
+    """The form sponsor names are compared in: stripped and lowercased."""
+    return name.strip().lower()
+
+
 def extract_marker_refs(markers) -> set[tuple[str, str]]:
     """Distinct ('pattern', id) and ('sponsor', stripped lowercase name) pairs named anywhere in parsed markers."""
     refs = set()
@@ -367,7 +372,7 @@ def extract_marker_refs(markers) -> set[tuple[str, str]]:
             if isinstance(pattern_id, int) and not isinstance(pattern_id, bool):
                 refs.add(('pattern', str(pattern_id)))
             if isinstance(sponsor, str) and sponsor.strip():
-                refs.add(('sponsor', sponsor.strip().lower()))
+                refs.add(('sponsor', normalize_sponsor_key(sponsor)))
             stack.extend(v for v in node.values() if isinstance(v, (list, dict)))
     return refs
 

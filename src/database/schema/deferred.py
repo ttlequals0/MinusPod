@@ -34,6 +34,7 @@ class DeferredUpgradeMixin:
 
     def _register_deferred_upgrade_steps(self, conn, fresh: bool) -> None:
         """Record every unfinished step as pending; a fresh install has nothing to do and marks them done."""
+        self.__dict__.pop('_done_gates', None)
         for name in STEP_NAMES:
             if _is_done(conn, name):
                 state = 'done'
@@ -57,13 +58,23 @@ class DeferredUpgradeMixin:
         conn = self.get_connection()
         return [name for name in STEP_NAMES if not _is_done(conn, name)]
 
+    def _gate_pending(self, name: str) -> bool:
+        """Whether the step is unfinished; a done answer is kept, as a finished step never reverts."""
+        done = self.__dict__.setdefault('_done_gates', set())
+        if name in done:
+            return False
+        if _is_done(self.get_connection(), name):
+            done.add(name)
+            return False
+        return True
+
     def history_backfill_pending(self) -> bool:
         """Whether the match history backfill has not finished."""
-        return not _is_done(self.get_connection(), BACKFILL_GATE)
+        return self._gate_pending(BACKFILL_GATE)
 
     def marker_refs_pending(self) -> bool:
         """Whether the fill of episode_marker_refs from stored markers has not finished."""
-        return not _is_done(self.get_connection(), MARKER_REFS_GATE)
+        return self._gate_pending(MARKER_REFS_GATE)
 
     def _claim_upgrade_step(self, name: str, owner: str, now: float,
                             stale_after: float = STALE_HEARTBEAT_SECONDS) -> dict | None:
