@@ -796,19 +796,21 @@ class Storage:
         art_dir = self._episode_artwork_dir(slug)
         if not art_dir or not art_dir.is_dir():
             return {}
-        names = {entry.name for entry in os.scandir(art_dir)}
+        with os.scandir(art_dir) as entries:
+            by_name = {entry.name: entry for entry in entries}
         versions = {}
         for episode_id in episode_ids:
             if not is_valid_episode_id(episode_id):
                 continue
             for ext, _ in _ARTWORK_EXTENSIONS:
-                if f"{episode_id}{ext}" in names:
-                    try:
-                        versions[episode_id] = self._stat_version(
-                            _safe_join_under(art_dir, f"{episode_id}{ext}").stat())
-                    except OSError:
-                        pass
-                    break
+                entry = by_name.get(f"{episode_id}{ext}")
+                if entry is None:
+                    continue
+                try:
+                    versions[episode_id] = self._stat_version(entry.stat())
+                except OSError:
+                    pass
+                break
         return versions
 
     def cover_version(self, slug: str, episode_id: str, artwork_url: str | None) -> str | None:
@@ -895,11 +897,11 @@ class Storage:
         stem = artwork_url_key(artwork_url) + (_THUMB_STEM_SUFFIX if thumb else '')
         return self._cover_file(slug, stem)
 
-    def cache_url_artwork(self, slug: str, artwork_url: str,
-                          thumb: bool = False) -> tuple[Path, str] | None:
+    def cache_url_artwork(self, slug: str, artwork_url: str, thumb: bool = False,
+                          episode_id: str | None = None) -> tuple[Path, str] | None:
         """Cached or freshly fetched cover (or thumbnail) for a publisher URL, shared by its episodes.
 
-        A thumbnail request stores only the thumbnail unless none can be made; oversized images give None.
+        An id-keyed file of ``episode_id`` is the source before any download. Oversized images give None.
         """
         found = self.url_artwork_file(slug, artwork_url, thumb)
         if found:
@@ -910,7 +912,8 @@ class Storage:
         def original():
             nonlocal fetched
             if fetched is None:
-                full = self.url_artwork_file(slug, artwork_url)
+                full = (self.url_artwork_file(slug, artwork_url)
+                        or (self.episode_artwork_file(slug, episode_id, touch=False) if episode_id else None))
                 try:
                     fetched = ((full[0].read_bytes(), full[1]) if full
                                else self._download_url_artwork(slug, artwork_url)) or False

@@ -265,7 +265,8 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
     if ep.get('original_duration') and ep.get('new_duration'):
         time_saved = ep['original_duration'] - ep['new_duration']
 
-    artwork_url = _secure_artwork_url(ep.get('artwork_url'))
+    secure_url = _secure_artwork_url(ep.get('artwork_url'))
+    artwork_url = secure_url
     if artwork_url is None and slug is not None:
         artwork_url = _local_artwork_fallback_url(
             ep, is_local=is_local, storage=storage, slug=slug, local_versions=local_versions)
@@ -274,7 +275,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
     if slug is not None:
         thumb_url = _artwork_thumb_url(
             ep, slug=slug, is_local=is_local, storage=storage, local_versions=local_versions,
-            artwork_url=_secure_artwork_url(ep.get('artwork_url')))
+            artwork_url=secure_url)
 
     return {
         'id': ep['episode_id'],
@@ -504,7 +505,7 @@ def get_episode_artwork(slug, episode_id):
     artwork_url = _secure_artwork_url(get_database().get_episode_artwork_url(slug, episode_id))
     version = storage.cover_version(slug, episode_id, artwork_url)
     if artwork_url:
-        artwork = storage.cache_url_artwork(slug, artwork_url, thumb=thumb)
+        artwork = storage.cache_url_artwork(slug, artwork_url, thumb=thumb, episode_id=episode_id)
     else:
         artwork = storage.local_artwork_file(slug, episode_id, thumb=thumb)
 

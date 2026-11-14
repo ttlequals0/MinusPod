@@ -377,3 +377,39 @@ def test_versions_for_a_page_match_the_per_episode_version(storage):
 
     assert storage.local_artwork_versions(SLUG, [EP, 'ffffffffffff']) == {
         EP: storage.local_artwork_version(SLUG, EP)}
+
+
+def test_a_served_thumbnail_is_touched_and_survives_eviction(storage, monkeypatch):
+    with patch.object(storage, '_fetch_validated_artwork', return_value=(_png(600), 'image/png')):
+        thumb_path = storage.cache_url_artwork(SLUG, URL, thumb=True)[0]
+    art_dir = storage._episode_artwork_dir(SLUG)
+    unserved = art_dir / ('b' * 64 + '.png')
+    unserved.write_bytes(b'x' * 200)
+    old = 1_000
+    for path in (thumb_path, unserved):
+        os.utime(path, (old, old))
+
+    assert storage.cache_url_artwork(SLUG, URL, thumb=True)[0] == thumb_path
+    assert thumb_path.stat().st_mtime > old
+
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', thumb_path.stat().st_size + 100)
+    storage._write_cover(SLUG, 'c' * 64, b'y' * 10, 'image/png')
+    assert thumb_path.exists() and not unserved.exists()
+
+
+def test_an_episode_keyed_file_is_the_thumbnail_source_before_any_download(storage):
+    storage._save_episode_artwork(SLUG, EP, _png(600), 'image/png')
+    with patch.object(storage, '_fetch_validated_artwork') as fetch:
+        found = storage.cache_url_artwork(SLUG, URL, thumb=True, episode_id=EP)
+
+    assert fetch.call_count == 0
+    with Image.open(found[0]) as img:
+        assert max(img.size) <= 256
+
+
+def test_without_an_episode_keyed_file_the_cover_is_downloaded(storage):
+    with patch.object(storage, '_fetch_validated_artwork',
+                      return_value=(_png(600), 'image/png')) as fetch:
+        found = storage.cache_url_artwork(SLUG, URL, thumb=True, episode_id=EP)
+
+    assert fetch.call_count == 1 and found is not None
