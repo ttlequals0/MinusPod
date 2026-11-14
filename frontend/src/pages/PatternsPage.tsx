@@ -59,11 +59,13 @@ const SORT_FIELDS: readonly (keyof AdPattern)[] = [
 ];
 const SCOPE_FILTERS: readonly ScopeFilter[] = ['all', 'global', 'network', 'podcast'];
 const ORIGIN_FILTERS: readonly OriginFilter[] = ['all', 'auto', 'user'];
+type AudioFilter = 'all' | 'has' | 'on' | 'off' | 'none';
+const AUDIO_FILTERS: readonly AudioFilter[] = ['all', 'has', 'on', 'off', 'none'];
 const SOURCE_FILTERS: readonly SourceFilter[] = ['all', 'local', 'community', 'imported'];
 
 // Page, filters, search and sort live in the URL so Back and reload return to the same place.
 const PATTERN_PARAM_DEFAULTS = {
-  page: '1', scope: 'all', origin: 'all', source: 'all', category: '', inactive: '',
+  page: '1', scope: 'all', origin: 'all', source: 'all', audio: 'all', category: '', inactive: '',
 };
 
 // Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
@@ -78,6 +80,7 @@ function PatternsPage() {
   const scopeFilter = readOneOf('scope', SCOPE_FILTERS, 'all');
   const originFilter = readOneOf('origin', ORIGIN_FILTERS, 'all');
   const sourceFilter = readOneOf('source', SOURCE_FILTERS, 'all');
+  const audioFilter = readOneOf('audio', AUDIO_FILTERS, 'all');
   const categoryFilter = read('category');
   const showInactive = read('inactive') === '1';
   // ?q= belongs to the visible tab; the sponsors tab reads it itself.
@@ -186,6 +189,11 @@ function PatternsPage() {
       if (categoryFilter === UNSET_CATEGORY && pattern.category) return false;
       if (categoryFilter && categoryFilter !== UNSET_CATEGORY
           && pattern.category !== categoryFilter) return false;
+      // A missing summary (older data) counts as no audio.
+      const audioState = pattern.audio?.state ?? 'none';
+      if (audioFilter === 'has' && audioState === 'none') return false;
+      if ((audioFilter === 'on' || audioFilter === 'off' || audioFilter === 'none')
+          && audioState !== (audioFilter === 'on' ? 'active' : audioFilter)) return false;
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
@@ -216,7 +224,7 @@ function PatternsPage() {
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [patterns, originFilter, categoryFilter, searchQuery, sortField, sortDirection]);
+  }, [patterns, originFilter, categoryFilter, audioFilter, searchQuery, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil((sortedPatterns?.length || 0) / limit);
@@ -341,7 +349,7 @@ function PatternsPage() {
 
       {/* Filters */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
-        <div className={`${filterGrid} lg:grid-cols-4`}>
+        <div className={`${filterGrid} lg:grid-cols-5`}>
           {/* Scope filter */}
           <div className="min-w-0">
             <label htmlFor="patterns-scope" className={filterLabel}>Scope</label>
@@ -404,8 +412,25 @@ function PatternsPage() {
             </select>
           </div>
 
+          {/* Audio filter */}
+          <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-1">
+            <label htmlFor="patterns-audio" className={filterLabel}>Audio</label>
+            <select
+              id="patterns-audio"
+              value={audioFilter}
+              onChange={(e) => write({ audio: e.target.value })}
+              className={`${filterControl} ${selectBase}`}
+            >
+              <option value="all">All</option>
+              <option value="has">Has audio</option>
+              <option value="on">Audio on</option>
+              <option value="off">Audio off</option>
+              <option value="none">No audio</option>
+            </select>
+          </div>
+
           {/* Search */}
-          <div className="min-w-0 min-[375px]:col-span-2">
+          <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-4">
             <label htmlFor="patterns-search" className={filterLabel}>Search</label>
             <input
               id="patterns-search"

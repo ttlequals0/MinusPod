@@ -379,6 +379,71 @@ describe('PatternsPage audio column', () => {
   });
 });
 
+describe('PatternsPage audio filter', () => {
+  function row(id: number, state?: string) {
+    return {
+      id, scope: 'global', network_id: null, podcast_id: null,
+      dai_platform: null, text_template: 'x'.repeat(60),
+      intro_variants: '[]', outro_variants: '[]', sponsor: `Sponsor ${String(id).padStart(2, '0')}`,
+      confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+      created_at: `2026-01-${String(id).padStart(2, '0')}T00:00:00Z`, created_from_episode_id: null,
+      is_active: true, disabled_at: null, disabled_reason: null, category: null,
+      ...(state ? { audio: { state, available: true, matchCount: 0, meanSimilarity: null } } : {}),
+    };
+  }
+  const seed = () => mockGetPatterns.mockResolvedValue([
+    row(1, 'active'), row(2, 'off'), row(3, 'none'), row(4),
+  ]);
+  const shown = () => [1, 2, 3, 4].filter((n) => screen.queryAllByText(`Sponsor 0${n}`).length > 0);
+
+  it.each([
+    ['all', [1, 2, 3, 4]],
+    ['has', [1, 2]],
+    ['on', [1]],
+    ['off', [2]],
+    ['none', [3, 4]],
+  ])('filters by %s', async (value, expected) => {
+    seed();
+    renderPage();
+    await screen.findAllByText('Sponsor 01');
+    await userEvent.selectOptions(screen.getByLabelText('Audio'), value);
+    await waitFor(() => expect(shown()).toEqual(expected));
+  });
+
+  it('restores the filter from the URL and writes it back', async () => {
+    seed();
+    renderPage('/patterns?audio=off');
+    await screen.findAllByText('Sponsor 02');
+    expect(shown()).toEqual([2]);
+    expect((screen.getByLabelText('Audio') as HTMLSelectElement).value).toBe('off');
+    await userEvent.selectOptions(screen.getByLabelText('Audio'), 'none');
+    expect(screen.getByTestId('loc').textContent).toContain('audio=none');
+  });
+
+  it('falls back to All for an unknown value', async () => {
+    seed();
+    renderPage('/patterns?audio=bogus');
+    await screen.findAllByText('Sponsor 01');
+    expect((screen.getByLabelText('Audio') as HTMLSelectElement).value).toBe('all');
+    expect(shown()).toEqual([1, 2, 3, 4]);
+  });
+
+  it('shows the empty state when nothing matches', async () => {
+    mockGetPatterns.mockResolvedValue([row(1, 'active')]);
+    renderPage('/patterns?audio=off');
+    expect((await screen.findAllByText('No patterns match these filters.')).length).toBeGreaterThan(0);
+  });
+
+  it('returns to the first page when the filter changes', async () => {
+    mockGetPatterns.mockResolvedValue(Array.from({ length: 25 }, (_, i) => row(i + 1, 'active')));
+    renderPage('/patterns?page=2&sort=id&dir=asc');
+    await screen.findAllByText('Sponsor 25');
+    await userEvent.selectOptions(screen.getByLabelText('Audio'), 'on');
+    expect((await screen.findAllByText('Sponsor 01')).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('loc').textContent).not.toContain('page=2');
+  });
+});
+
 describe('PatternsPage detected ads tab', () => {
   it('switches to the detected ads tab and requests cut detections', async () => {
     renderPage();
