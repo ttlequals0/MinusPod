@@ -125,24 +125,24 @@ def _marker_pattern_spans(marker, pattern_id):
     return spans
 
 
-def _episode_markers(db, slug, episode_id):
-    """(marker dicts, episode status) of an episode."""
-    episode = db.get_episode(slug, episode_id) or {}
+def _episode_markers(episode):
+    """(marker dicts, status) of an episode row."""
+    episode = episode or {}
     markers = [m for m in parse_ad_markers(episode.get('ad_markers_json')) or [] if isinstance(m, dict)]
     return markers, EpisodeStatus.from_api(episode.get('status'))
 
 
 def _own_marker_span(db, slug, episode_id, pattern_id):
     """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
-    markers, status = _episode_markers(db, slug, episode_id)
+    markers, status = _episode_markers(db.get_episode(slug, episode_id))
     spans = sorted(span for marker in markers if not _is_rejected_marker(marker, status)
                    for span in _marker_pattern_spans(marker, pattern_id))
     return spans[0] if spans else None
 
 
-def _rejected_spans(db, slug, episode_id):
-    """Displayed spans of the episode's rejected markers."""
-    markers, status = _episode_markers(db, slug, episode_id)
+def _rejected_spans(episode):
+    """Displayed spans of the rejected markers of an episode row."""
+    markers, status = _episode_markers(episode)
     return [span for marker in markers if _is_rejected_marker(marker, status)
             and (span := _displayed_span(marker))]
 
@@ -153,7 +153,8 @@ def _plausible_length(pattern, start, end):
     if length < MIN_AD_DURATION or length > MAX_MATCH_DURATION:
         return False
     known = pattern.get('avg_duration')
-    return not known or known / KNOWN_LENGTH_FACTOR <= length <= known * KNOWN_LENGTH_FACTOR
+    # NULL or a non-positive average means no length has been learned
+    return not known or known <= 0 or known / KNOWN_LENGTH_FACTOR <= length <= known * KNOWN_LENGTH_FACTOR
 
 
 def _search_context(db, slug):
@@ -179,7 +180,8 @@ def _transcript_source(db, storage, pattern):
     contexts = {}
     with pattern_catalog_scope():
         for slug, episode_id in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES):
-            _, err = resolve_retained_original(db, storage, slug, episode_id)
+            episode = db.get_episode(slug, episode_id)
+            _, err = resolve_retained_original(db, storage, slug, episode_id, episode)
             if err:
                 continue
             segments = db.get_original_segments(slug, episode_id)
@@ -193,7 +195,7 @@ def _transcript_source(db, storage, pattern):
                 language=language, only_pattern_id=pattern['id'])
             if not matches:
                 continue
-            rejected = _rejected_spans(db, slug, episode_id)
+            rejected = _rejected_spans(episode)
             for match in sorted(matches, key=lambda m: m.start):
                 if match.span_estimated or not usable_span(match.start, match.end):
                     continue

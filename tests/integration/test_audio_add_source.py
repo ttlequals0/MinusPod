@@ -4,6 +4,7 @@ import json
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, TEMPLATE, csrf
+from text_pattern_matcher import _extract_outro_phrase
 
 
 def _detail(client, pid):
@@ -424,10 +425,12 @@ def _text_pattern(db, **kw):
     return _pattern(db, **{'created_from_episode_id': None, 'text_template': AD_TEXT, **kw})
 
 
-def _transcript(db, slug, episode, ad_at=60.0, ad_text=AD_TEXT, total=240.0, drop_head=0, drop_tail=0, with_ad=True):
+def _transcript(db, slug, episode, ad_at=60.0, ad_text=AD_TEXT, total=240.0, drop_head=0, drop_tail=0, with_ad=True,
+                echo_closing=False):
     """Store 3 s segments of unrelated filler with the ad words from ad_at; returns the ad's (start, end).
 
-    drop_head and drop_tail blank that many ad segments at its start and end.
+    drop_head and drop_tail blank that many ad segments at its start and end; echo_closing repeats the
+    template's closing phrase so it ends 10 s before the ad.
     """
     words = ad_text.split()
     chunks = [' '.join(words[i:i + 5]) for i in range(0, len(words), 5)]
@@ -440,6 +443,15 @@ def _transcript(db, slug, episode, ad_at=60.0, ad_text=AD_TEXT, total=240.0, dro
             text = ' '.join(FILLER_WORDS[(n + k * 7) % len(FILLER_WORDS)] for k in range(8))
         segments.append({'start': t, 'end': t + SEGMENT_S, 'text': text})
         t, n = t + SEGMENT_S, n + 1
+    if echo_closing:
+        closing = _extract_outro_phrase(ad_text).split()
+        echo = [' '.join(closing[i:i + 5]) for i in range(0, len(closing), 5)]
+        first = round(ad_at / SEGMENT_S) - 3 - len(echo)
+        for k, text in enumerate(echo):
+            segments[first + k]['text'] = text
+        # The read's own closing is slightly garbled, so the exact echo scores higher than it
+        garbled = segments[round(ad_at / SEGMENT_S) + len(chunks) - 3]
+        garbled['text'] = 'garbled ' + garbled['text'].split(' ', 1)[1]
     ad_rows = [i for i, seg in enumerate(segments) if ad_at <= seg['start'] < ad_end]
     for i in ad_rows[:drop_head] + ad_rows[len(ad_rows) - drop_tail:]:
         segments[i]['text'] = 'unrelated filler words about something else entirely here'
@@ -463,6 +475,27 @@ def test_transcript_search_offers_the_span_of_the_pattern_text(app_client, fp_fe
     body = _detail(app_client, pid)['addSource']
     assert (body['podcastSlug'], body['episodeId'], body['available']) == (SLUG, EPISODE, True)
     assert abs(body['start'] - start) <= 2.0 and abs(body['end'] - end) <= 2.0
+
+
+def test_closing_phrase_before_the_ad_does_not_end_the_span_early(app_client, fp_feed, fp_original):
+    pid = _text_pattern(fp_feed)
+    start, end = _transcript(fp_feed, SLUG, EPISODE, ad_at=99.0, echo_closing=True)
+    body = _detail(app_client, pid)['addSource']
+    assert abs(body['start'] - start) <= 2.0 and abs(body['end'] - end) <= 2.0
+
+
+def test_closing_phrase_only_before_the_opening_is_not_offered(app_client, fp_feed, fp_original):
+    pid = _text_pattern(fp_feed)
+    _transcript(fp_feed, SLUG, EPISODE, ad_at=99.0, echo_closing=True, drop_tail=9)
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_zero_average_duration_means_no_known_length(app_client, fp_feed, fp_original):
+    pid = _text_pattern(fp_feed)
+    fp_feed.get_connection().execute("UPDATE ad_patterns SET avg_duration = 0 WHERE id = ?", (pid,))
+    fp_feed.get_connection().commit()
+    _transcript(fp_feed, SLUG, EPISODE)
+    assert _detail(app_client, pid)['addSource']['available'] is True
 
 
 def test_template_without_an_alignable_opening_is_not_offered(app_client, fp_feed, fp_original):

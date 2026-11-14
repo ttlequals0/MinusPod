@@ -1196,15 +1196,17 @@ class TextPatternMatcher:
             return None
         region_start = bounds[0]
         region = full_text[region_start:bounds[1]].lower()
-        edges = []
-        for phrase, edge_time in ((_extract_intro_phrase(template), self._phrase_start_time),
-                                  (_extract_outro_phrase(template), self._phrase_end_time)):
-            phrase = phrase.lower()
-            pos, _, matched = self._fuzzy_find(region, phrase, required_fuzzy_score(len(phrase)))
-            if not matched:
-                return None
-            edges.append(edge_time(region_start, pos, matched, segment_map, segments))
-        start, end = edges
+        intro, outro = _extract_intro_phrase(template).lower(), _extract_outro_phrase(template).lower()
+        pos, _, matched = self._fuzzy_find(region, intro, required_fuzzy_score(len(intro)))
+        if not matched:
+            return None
+        start = self._phrase_start_time(region_start, pos, matched, segment_map, segments)
+        # The closing phrase is searched from the opening on, so an earlier repeat of it is not taken
+        tail_start = region_start + pos
+        end_pos, _, end_matched = self._fuzzy_find(region[pos:], outro, required_fuzzy_score(len(outro)))
+        if not end_matched:
+            return None
+        end = self._phrase_end_time(tail_start, end_pos, end_matched, segment_map, segments)
         return (start, end) if None not in (start, end) and end > start else None
 
     def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):

@@ -12,9 +12,9 @@ logger = logging.getLogger('podcast.pattern_audio')
 RETAINED_MATCH_CANDIDATES = 20
 
 
-def resolve_retained_original(db, storage, slug, episode_id):
-    """(path, None) for a retained original on disk, else (None, reason)."""
-    episode = db.get_episode(slug, episode_id)
+def resolve_retained_original(db, storage, slug, episode_id, episode=None):
+    """(path, None) for a retained original on disk, else (None, reason); episode is the row when already loaded."""
+    episode = episode if episode is not None else db.get_episode(slug, episode_id)
     if not episode or not episode.get('original_file'):
         return None, 'original_not_retained'
     try:
