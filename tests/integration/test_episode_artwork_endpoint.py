@@ -2,11 +2,14 @@
 
 Publishers reject a browser's cross-site Referer, so the cover is fetched server-side and served
 from MinusPod's origin. The URL is read from the episode row, never the caller."""
+import struct
+import zlib
 from io import BytesIO
 from unittest.mock import patch
 
 import pytest
 from PIL import Image
+from PIL.JpegImagePlugin import JpegImageFile
 
 from tests.app_bootstrap import bootstrap
 
@@ -199,6 +202,65 @@ def test_an_image_that_cannot_be_thumbnailed_is_served_as_is(client, caplog):
     assert second.data == broken
     warnings = [r for r in caplog.records if 'thumbnail failed' in r.getMessage()]
     assert len(warnings) == 1
+
+
+def _header_only_png(width, height):
+    """A few dozen bytes that declare a huge bitmap; nothing can decode it."""
+    ihdr = b'IHDR' + struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)
+    idat = b'IDAT' + zlib.compress(b'\x00')
+    return (b'\x89PNG\r\n\x1a\n' + struct.pack('>I', 13) + ihdr + struct.pack('>I', zlib.crc32(ihdr))
+            + struct.pack('>I', len(idat) - 4) + idat + struct.pack('>I', zlib.crc32(idat)))
+
+
+@pytest.mark.parametrize('declared', [(9000, 9000), (30000, 30000)])
+def test_an_oversized_cover_is_never_decoded_and_is_not_refetched(client, declared):
+    storage = storage_module.Storage()
+    storage._cover_thumb_warned.clear()
+    huge = _header_only_png(*declared)
+    with _fetching(storage, data=huge, mime='image/png') as fetch:
+        with patch.object(Image.Image, 'load', side_effect=AssertionError('decoded')) as load:
+            first = client.get(_url() + '?size=thumb')
+            second = client.get(_url() + '?size=thumb')
+
+    assert first.status_code == second.status_code == 302
+    assert first.headers['Location'].endswith(f'/api/v1/feeds/{SLUG}/artwork')
+    assert fetch.call_count == 1
+    assert load.call_count == 0
+    assert list(storage._episode_artwork_dir(SLUG).iterdir()) == []
+
+
+def test_a_cover_over_a_lowered_pixel_cap_is_refused_and_decoded_once(client, monkeypatch):
+    storage = storage_module.Storage()
+    monkeypatch.setattr(storage_module, 'COVER_MAX_DECODE_PIXELS', 100 * 100)
+    with _fetching(storage) as fetch, \
+            patch.object(storage_module, 'make_cover_thumbnail',
+                         wraps=storage_module.make_cover_thumbnail) as make:
+        assert client.get(_url() + '?size=thumb').status_code == 302
+        assert client.get(_url() + '?size=thumb').status_code == 302
+
+    assert fetch.call_count == 1
+    assert make.call_count == 1
+
+
+def test_a_failed_thumbnail_is_not_decoded_again_on_the_next_request(client):
+    storage = storage_module.Storage()
+    broken = b'\xff\xd8\xff\xe0' + b'\x00' * 64
+    with _fetching(storage, data=broken) as fetch, \
+            patch.object(storage_module, 'make_cover_thumbnail',
+                         wraps=storage_module.make_cover_thumbnail) as make:
+        client.get(_url() + '?size=thumb')
+        second = client.get(_url() + '?size=thumb')
+
+    assert second.data == broken
+    assert fetch.call_count == 1
+    assert make.call_count == 1
+
+
+def test_a_jpeg_thumbnail_decodes_at_reduced_size():
+    with patch.object(JpegImageFile, 'draft', autospec=True, side_effect=JpegImageFile.draft) as draft:
+        storage_module.make_cover_thumbnail(SOURCE)
+
+    assert draft.call_args_list[0].args[1:] == ("RGB", (256, 256))
 
 
 def test_an_unknown_size_is_a_bad_request(client):

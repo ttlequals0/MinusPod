@@ -6,6 +6,7 @@ import os
 import re
 import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Any
 import tempfile
@@ -89,6 +90,7 @@ _ARTWORK_EXTENSIONS = (
 _EPISODE_ARTWORK_DIR = "episode-artwork"
 _THUMB_STEM_SUFFIX = ".thumb"
 COVER_THUMB_MAX_SIDE = 256
+COVER_MAX_DECODE_PIXELS = 8192 * 8192
 _COVER_LOCK_STRIPES = 16
 _EPISODE_ARTWORK_TOUCH_SECONDS = 86400
 _CHAPTER_IMAGE_NAME_RE = re.compile(r'[0-9a-f]{64}\.(jpg|png)')
@@ -108,16 +110,34 @@ def is_chapter_image_filename(value: str) -> bool:
     return bool(_CHAPTER_IMAGE_NAME_RE.fullmatch(value))
 
 
+class CoverTooLargeError(ValueError):
+    """A cover declares more pixels than the decode cap, so no thumbnail is made from it."""
+
+
 def make_cover_thumbnail(data: bytes) -> tuple[bytes, str]:
-    """Downscale a cover to COVER_THUMB_MAX_SIDE on its longest side (never upscaled); (bytes, mime)."""
-    with Image.open(BytesIO(data)) as img:
-        img.thumbnail((COVER_THUMB_MAX_SIDE, COVER_THUMB_MAX_SIDE), Image.LANCZOS)
-        out = BytesIO()
-        if img.mode in ('RGBA', 'LA', 'PA') or 'transparency' in img.info:
-            img.convert('RGBA').save(out, 'PNG', optimize=True)
-            return out.getvalue(), 'image/png'
-        img.convert('RGB').save(out, 'JPEG', quality=85, optimize=True)
-        return out.getvalue(), 'image/jpeg'
+    """Downscale a cover to COVER_THUMB_MAX_SIDE on its longest side (never upscaled); (bytes, mime).
+
+    Raises CoverTooLargeError before decoding when the header declares more than
+    COVER_MAX_DECODE_PIXELS, or when Pillow flags a decompression bomb.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(BytesIO(data)) as img:
+                width, height = img.size
+                if width * height > COVER_MAX_DECODE_PIXELS:
+                    raise CoverTooLargeError(f"{width}x{height} exceeds the decode cap")
+                if img.format == 'JPEG':
+                    img.draft('RGB', (COVER_THUMB_MAX_SIDE, COVER_THUMB_MAX_SIDE))
+                img.thumbnail((COVER_THUMB_MAX_SIDE, COVER_THUMB_MAX_SIDE), Image.LANCZOS)
+                out = BytesIO()
+                if img.mode in ('RGBA', 'LA', 'PA') or 'transparency' in img.info:
+                    img.convert('RGBA').save(out, 'PNG', optimize=True)
+                    return out.getvalue(), 'image/png'
+                img.convert('RGB').save(out, 'JPEG', quality=85, optimize=True)
+                return out.getvalue(), 'image/jpeg'
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise CoverTooLargeError(str(exc)) from exc
 
 
 def artwork_url_key(artwork_url: str) -> str:
@@ -800,14 +820,21 @@ class Storage:
     def _cover_lock(self, stem: str) -> threading.Lock:
         return self._cover_locks[hash(stem) % _COVER_LOCK_STRIPES]
 
-    def _save_cover_thumb(self, slug: str, stem: str, data: bytes, evict: bool) -> bool:
-        """Write the thumbnail of ``data`` as ``<stem>.thumb``; False (warned once) if it cannot be made."""
+    def _save_cover_thumb(self, slug: str, stem: str, data: bytes, evict: bool,
+                          fail_key: str) -> bool:
+        """Write the thumbnail of ``data`` as ``<stem>.thumb``.
+
+        False when it cannot be made; the failure is remembered under ``fail_key`` ('oversize'
+        or 'error') so the cover is not decoded again, and logged once at WARNING.
+        """
         try:
             thumb, mime = make_cover_thumbnail(data)
         except Exception as exc:
+            self._artwork_failure_cache.set(
+                fail_key, 'oversize' if isinstance(exc, CoverTooLargeError) else 'error')
             if not self._cover_thumb_warned.get(stem):
                 self._cover_thumb_warned.set(stem, True)
-                logger.warning(f"[{slug}] Cover thumbnail failed, serving the original: {exc}")
+                logger.warning(f"[{slug}] Cover thumbnail failed: {exc}")
             return False
         return self._write_cover(slug, stem + _THUMB_STEM_SUFFIX, thumb, mime, evict=evict)
 
@@ -821,39 +848,51 @@ class Storage:
                           thumb: bool = False) -> tuple[Path, str] | None:
         """Cached or freshly fetched cover for a publisher URL, shared by every episode using it.
 
-        A thumbnail request writes only the thumbnail; the full file is stored only when the
-        thumbnail cannot be made (the original is then served).
+        A thumbnail request writes only the thumbnail. When none can be made the original is
+        stored and served, except an oversized image, which yields None (nothing is decoded).
         """
         found = self.url_artwork_file(slug, artwork_url, thumb)
         if found:
             return found
         key = artwork_url_key(artwork_url)
+        fail_key = f"thumb\n{slug}\n{key}"
         with self._cover_lock(key):
             found = self.url_artwork_file(slug, artwork_url, thumb)
             if found:
                 return found
             full = self.url_artwork_file(slug, artwork_url) if thumb else None
+            marker = self._artwork_failure_cache.get(fail_key) if thumb else None
+            if marker == 'oversize':
+                return None
+            if marker == 'error' and full:
+                return full
             if full:
                 try:
                     data = full[0].read_bytes()
                 except OSError:
                     return full
-                if self._save_cover_thumb(slug, key, data, evict=True):
+                if self._save_cover_thumb(slug, key, data, True, fail_key):
                     return self.url_artwork_file(slug, artwork_url, True) or full
-                return full
+                return None if self._artwork_failure_cache.get(fail_key) == 'oversize' else full
             fetched = self._download_url_artwork(slug, artwork_url)
             if not fetched:
                 return None
             data, mime = fetched
-            if thumb and self._save_cover_thumb(slug, key, data, evict=True):
-                return self.url_artwork_file(slug, artwork_url, True)
+            if thumb:
+                if self._save_cover_thumb(slug, key, data, True, fail_key):
+                    return self.url_artwork_file(slug, artwork_url, True)
+                if self._artwork_failure_cache.get(fail_key) == 'oversize':
+                    return None
             if self._write_cover(slug, key, data, mime):
                 return self.url_artwork_file(slug, artwork_url)
             return None
 
     def local_artwork_file(self, slug: str, episode_id: str,
                            thumb: bool = False) -> tuple[Path, str] | None:
-        """Id-keyed cover (never evicted) or its derived thumbnail; the original if no thumbnail can be made."""
+        """Id-keyed cover (never evicted) or its derived thumbnail.
+
+        The original is served if no thumbnail can be made, except an oversized image (None).
+        """
         full = self.episode_artwork_file(slug, episode_id, touch=False)
         if not full or not thumb:
             return full
@@ -861,17 +900,21 @@ class Storage:
         found = self._cover_file(slug, stem, touch=False)
         if found:
             return found
+        fail_key = f"thumb\n{slug}\n{episode_id}\n{self.local_artwork_version(slug, episode_id)}"
         with self._cover_lock(stem):
             found = self._cover_file(slug, stem, touch=False)
             if found:
                 return found
-            try:
-                data = full[0].read_bytes()
-            except OSError:
-                return full
-            if self._save_cover_thumb(slug, episode_id, data, evict=False):
-                return self._cover_file(slug, stem, touch=False) or full
-        return full
+            marker = self._artwork_failure_cache.get(fail_key)
+            if marker is None:
+                try:
+                    data = full[0].read_bytes()
+                except OSError:
+                    return full
+                if self._save_cover_thumb(slug, episode_id, data, False, fail_key):
+                    return self._cover_file(slug, stem, touch=False) or full
+                marker = self._artwork_failure_cache.get(fail_key)
+        return None if marker == 'oversize' else full
 
     def _download_with_failure_cache(self, slug: str, label: str, artwork_url: str,
                                      key_scope: str, download) -> Any:
