@@ -15,6 +15,8 @@ release notes.
 - The Patterns table has one-line column headers, even column spacing and right-aligned Confirmed and False pos. counts. Dates in the table and on pattern cards read `Nov/14/26`, with the full date and time on hover.
 - A truncated sponsor name or text preview in the Patterns table shows its full text on hover.
 - Cover download log lines name the episode and a short identifier for the cover.
+- Memory freed by episode processing is returned to the system once the queue is empty. An idle instance kept it before. (#1001)
+- Both images set `MALLOC_ARENA_MAX=2` and `OPENBLAS_NUM_THREADS=1` by default. Override them in compose if needed. (#1001)
 
 ### Fixed
 
