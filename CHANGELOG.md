@@ -8,6 +8,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.4] - 2026-11-14
+
+### Changed
+
+- The Patterns table has one-line column headers, even column spacing and right-aligned Confirmed and False pos. counts. Dates in the table and on pattern cards read `Nov/14/26`, with the full date and time on hover.
+- A truncated sponsor name or text preview in the Patterns table shows its full text on hover.
+- Cover download log lines name the episode and a short identifier for the cover.
+
+### Fixed
+
+- Browsers can reuse a cached episode cover thumbnail for 7 days without asking the server. In 2.102.3 they checked each thumbnail again on every visit. (#1000)
+
 ## [2.102.3] - 2026-11-14
 
 ### Added
