@@ -663,6 +663,7 @@ def test_sponsor_with_more_aliases_than_the_cap_queries_the_sponsor_name_first(
 
 
 def test_sponsor_with_a_quote_and_non_ascii_is_found_through_the_marker_writer(fp_feed, fp_original):
+    # the writer stores the lowercased name as a ref; lookups strip and lowercase the names asked for
     name = 'Acme "Tax" Caf\u00e9 50%_off'
     pid = _text_pattern(fp_feed)
     _transcript(fp_feed, SLUG, EPISODE)
@@ -715,13 +716,11 @@ def test_pattern_id_is_found_through_the_marker_writer(fp_feed, fp_original):
     assert fp_feed.get_pattern_marker_episodes(fp_feed.get_ad_pattern_by_id(other), 5) == []
 
 
-def test_marker_older_than_the_window_is_not_returned(fp_feed, cleanup_paths, monkeypatch):
-    import database.patterns as patterns_mod
-    monkeypatch.setattr(patterns_mod, 'CANDIDATE_WINDOW', 3)
+def test_marker_in_the_oldest_of_many_episodes_is_returned(fp_feed, cleanup_paths):
     pid = _text_pattern(fp_feed, scope='global', podcast_id=None)
     marker = [{'start': 60.0, 'end': 108.0, 'pattern_id': pid}]
-    for n in range(5):
+    for n in range(40):
         cleanup_paths.append((SLUG, _episode_id(n)))
-        _feed_episode(fp_feed, SLUG, _episode_id(n), f'2026-01-01T00:0{n}:00Z', marker if n in (0, 3) else [])
+        _feed_episode(fp_feed, SLUG, _episode_id(n), f'2026-01-01T00:{n:02d}:00Z', marker if n == 0 else [])
     found = fp_feed.get_pattern_marker_episodes(fp_feed.get_ad_pattern_by_id(pid), 5)
-    assert found == [(SLUG, _episode_id(3))]
+    assert found == [(SLUG, _episode_id(0))]
