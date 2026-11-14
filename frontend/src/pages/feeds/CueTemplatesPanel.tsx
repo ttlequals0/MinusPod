@@ -49,6 +49,8 @@ import { DemoDisabled } from '../../components/DemoDisabled';
 import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
+// Fill the grid cell below xl; natural width in the inline xl row.
+const cellFill = 'w-full xl:w-auto';
 
 interface Props {
   slug: string;
@@ -406,9 +408,9 @@ function CueTemplatesPanel({ slug }: Props) {
             {templates.map((t) => (
               <li key={t.id} className="px-3 py-2 text-sm">
                 <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   <Checkbox
-                    className="min-h-11 min-w-11 justify-center"
+                    className={`min-h-11 min-w-11 justify-center ${editingId === t.id ? '' : '-mt-3'}`}
                     checked={t.enabled}
                     onChange={() => handleToggle(t)}
                     disabled={t.owned === false}
@@ -504,12 +506,12 @@ function CueTemplatesPanel({ slug }: Props) {
                   </div>
                 </div>
                 {editingId !== t.id && (
-                  <div className="flex flex-wrap items-center gap-1.5 xl:shrink-0">
+                  <div className="grid grid-cols-1 min-[380px]:grid-cols-2 min-[680px]:grid-cols-4 gap-1.5 xl:flex xl:flex-wrap xl:items-center xl:shrink-0">
                     {t.hasAudio !== false && (
                       <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline}`}
+                          className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
                           onClick={() => togglePlay(t)}
                           disabled={IS_DEMO}
                           title={playingId === t.id ? 'Stop' : 'Play this cue'}
@@ -522,7 +524,7 @@ function CueTemplatesPanel({ slug }: Props) {
                     )}
                     <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
                       <a
-                        className={`${rowActionBtn} ${btnOutline} touch-target`}
+                        className={`${rowActionBtn} ${btnOutline} ${cellFill} touch-target`}
                         href={cueTemplateExportUrl(t.id)}
                         title="Download this cue as a portable zip"
                       >
@@ -530,7 +532,7 @@ function CueTemplatesPanel({ slug }: Props) {
                       </a>
                     </DemoDisabled>
                     {t.owned === false ? (
-                      <span className="text-xs text-muted-foreground italic">
+                      <span className="col-span-full text-xs text-muted-foreground italic">
                         Shared from this network
                       </span>
                     ) : (
@@ -541,7 +543,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           return (
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnOutline}`}
+                              className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
                               onClick={() => handlePromote(t)}
                               title={
                                 t.scope === 'network'
@@ -559,7 +561,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         })()}
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline}`}
+                          className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
                           onClick={() => startEditType(t)}
                         >
                           Change type
@@ -584,24 +586,22 @@ function CueTemplatesPanel({ slug }: Props) {
                               }
                             }}
                             placeholder="inherit"
-                            className="w-20"
+                            className="w-full xl:w-20 h-auto py-2 sm:py-[5px] text-sm sm:text-xs max-sm:h-11 min-h-11 sm:min-h-0"
                             aria-label="Score threshold"
                           />
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnOutline}`}
+                            className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
                             Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
                           </button>
                         )}
-                        {/* Optimize and Delete wrap as one unit so Delete never sits alone on a line. */}
-                        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          className={`${rowActionBtn} ${btnOutline}`}
+                          className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
                           onClick={() => {
                             setActionError(null);
                             setOptimizeId(optimizeId === t.id ? null : t.id);
@@ -613,13 +613,12 @@ function CueTemplatesPanel({ slug }: Props) {
                         >
                           Optimize window
                         </button>
-                        <div className="flex items-center gap-1.5">
                         {confirmDeleteId === t.id ? (
                           <>
                             <DemoDisabled>
                               <button
                                 type="button"
-                                className={`${rowActionBtn} ${btnDestructive}`}
+                                className={`${rowActionBtn} ${btnDestructive} ${cellFill}`}
                                 onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
                               >
                                 Delete cue
@@ -627,7 +626,7 @@ function CueTemplatesPanel({ slug }: Props) {
                             </DemoDisabled>
                             <button
                               type="button"
-                              className={`${rowActionBtn} ${btnOutline}`}
+                              className={`${rowActionBtn} ${btnOutline} ${cellFill}`}
                               onClick={() => setConfirmDeleteId(null)}
                             >
                               Cancel
@@ -636,14 +635,12 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`${rowActionBtn} ${btnDestructiveOutline}`}
+                            className={`${rowActionBtn} ${btnDestructiveOutline} ${cellFill}`}
                             onClick={() => setConfirmDeleteId(t.id)}
                           >
                             Delete
                           </button>
                         )}
-                        </div>
-                        </div>
                       </>
                     )}
                   </div>
