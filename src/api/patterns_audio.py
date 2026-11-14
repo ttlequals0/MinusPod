@@ -14,7 +14,9 @@ from api import (
 )
 from api import preview_cache
 from api.patterns import PATTERN_ROUTE, fingerprint_response_fields
-from pattern_audio import resolve_retained_original, store_pattern_audio
+from pattern_audio import (
+    candidate_spans, first_retained_source, resolve_retained_original, store_pattern_audio, usable_span,
+)
 from audio_fingerprinter import (
     clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
 )
@@ -28,7 +30,6 @@ from utils.subprocess_registry import tracked_run
 logger = logging.getLogger('podcast.api')
 
 MAX_PREVIEW_SECONDS = 600
-RETAINED_MATCH_CANDIDATES = 20
 ADD_SOURCE_EPISODES = 5
 MATCHES_PER_PAGE_DEFAULT = 10
 MATCHES_PER_PAGE_MAX = 50
@@ -51,11 +52,6 @@ def original_not_retained_response():
                                 'original_not_retained')
 
 
-def _usable_span(start, end):
-    return (isinstance(start, (int, float)) and isinstance(end, (int, float))
-            and math.isfinite(start) and math.isfinite(end) and end > start)
-
-
 def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=None, in_scope_only=False):
     """Pick the playable source of a pattern's audio: (source, None) or (None, error response).
 
@@ -71,24 +67,9 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=Non
             return None, error_response('Match not found', 404)
         candidates = [match]
     else:
-        candidates = [
-            {'podcast_slug': m['podcast_slug'], 'episode_id': m['episode_id'],
-             'match_start': m['match_start'], 'match_end': m['match_end']}
-            for m in db.get_retained_fingerprint_matches(
-                pattern_id, RETAINED_MATCH_CANDIDATES, in_scope_only)]
-        candidates.append({
-            'podcast_slug': fingerprint['source_podcast_slug'],
-            'episode_id': fingerprint['source_episode_id'],
-            'match_start': fingerprint['source_start'], 'match_end': fingerprint['source_end']})
-    for cand in candidates:
-        if not cand['podcast_slug'] or not cand['episode_id'] or \
-                not _usable_span(cand['match_start'], cand['match_end']):
-            continue
-        path, err = resolve_retained_original(db, storage, cand['podcast_slug'], cand['episode_id'])
-        if err is None:
-            return {'podcastSlug': cand['podcast_slug'], 'episodeId': cand['episode_id'],
-                    'start': cand['match_start'], 'end': cand['match_end'], 'path': path}, None
-    return None, original_not_retained_response()
+        candidates = candidate_spans(db, pattern_id, fingerprint, in_scope_only)
+    source = first_retained_source(db, storage, candidates)
+    return (source, None) if source else (None, original_not_retained_response())
 
 
 def _span(source):
@@ -109,7 +90,7 @@ def _displayed_span(marker):
     if marker.get('reviewer_verdict') == 'adjust':
         start, end = marker.get('reviewer_original_start', start), marker.get('reviewer_original_end', end)
     # A null reviewer-original bound makes the span unusable, so the marker is skipped
-    return (start, end) if _usable_span(start, end) else None
+    return (start, end) if usable_span(start, end) else None
 
 
 def _is_rejected_marker(marker, episode_status):
@@ -174,7 +155,7 @@ def build_audio_detail(db, storage, pattern_id):
     detail['length'] = fingerprint['duration']
     detail['createdAt'] = fingerprint['created_at']
     slug, episode_id = fingerprint['source_podcast_slug'], fingerprint['source_episode_id']
-    if slug and episode_id and _usable_span(fingerprint['source_start'], fingerprint['source_end']):
+    if slug and episode_id and usable_span(fingerprint['source_start'], fingerprint['source_end']):
         _, built_err = resolve_retained_original(db, storage, slug, episode_id)
         detail['builtFrom'] = {'podcastSlug': slug, 'episodeId': episode_id,
                                'start': fingerprint['source_start'], 'end': fingerprint['source_end'],

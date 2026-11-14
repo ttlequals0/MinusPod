@@ -27,7 +27,8 @@ from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
     resolved_stage_slot, SLOT_SECONDARY,
 )
-from pattern_audio import audio_source_on, carry_audio_to_children, rebuild_pattern_audio
+from audio_fingerprinter import FingerprintStoreResult
+from pattern_audio import carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
@@ -1241,10 +1242,16 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
         pattern['id'], review_hash(text, sponsor,
                                   category if category is not None else pattern.get('category')), conn=conn)
     applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text,
-               'audio_source': audio_source_on(conn, pattern['id'])}
+               **_audio_fields(db, conn, pattern['id'])}
     if sponsor_name:
         applied['sponsor_id'] = sponsor_id
     return applied
+
+
+def _audio_fields(db, conn, pattern_id: int) -> dict:
+    """The source a trim or split rebuilds audio from; audio_unresolved marks audio that is on but has no source."""
+    source, wanted = rebuild_audio_source(db, conn, pattern_id)
+    return {'audio_source': source, **({'audio_unresolved': True} if wanted and source is None else {})}
 
 
 def _apply_disable(db, conn, pattern: dict, reason: str) -> dict:
@@ -1313,7 +1320,7 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     return {
         'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
         'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
-        'disabled_reason': disabled_reason, 'audio_source': audio_source_on(conn, pattern['id']),
+        'disabled_reason': disabled_reason, **_audio_fields(db, conn, pattern['id']),
     }
 
 
@@ -1374,7 +1381,9 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     invalidate_pattern_catalog_scope()
     # Decoding audio stays out of the write transaction.
     source = applied.get('audio_source')
-    if applied.get('new_pattern_ids'):
+    if applied.get('audio_unresolved'):
+        outcomes = [(pattern['id'], FingerprintStoreResult(False, 'original_not_retained'))]
+    elif applied.get('new_pattern_ids'):
         outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
     elif applied.get('text') is not None:
         outcomes = rebuild_pattern_audio(db, source, pattern['id'], applied['text'])
@@ -1444,7 +1453,8 @@ def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
 def _restore_trimmed_audio(db, pattern_id: int, source: dict | None, restored_text: str | None) -> list:
     """Rebuild the pre-trim fingerprint only when the trim replaced it with another span."""
     current = db.get_audio_fingerprint(pattern_id, with_blob=False)
-    if (not source or current is None
+    # A fingerprint with no recorded source was never replaced by the trim.
+    if (not source or current is None or current['source_start'] is None
             or (current['source_start'], current['source_end']) == (source['start'], source['end'])):
         return []
     return rebuild_pattern_audio(db, source, pattern_id, restored_text, locate=False)

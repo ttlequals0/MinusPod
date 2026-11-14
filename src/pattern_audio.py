@@ -1,5 +1,6 @@
 """Pattern audio fingerprints: store them from a retained original and carry them across a split or trim."""
 import logging
+import math
 
 from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
 from storage import PathContainmentError, Storage
@@ -7,6 +8,8 @@ from text_pattern_matcher import split_template_text
 from utils.text import extract_timed_spans_in_range
 
 logger = logging.getLogger('podcast.pattern_audio')
+
+RETAINED_MATCH_CANDIDATES = 20
 
 
 def resolve_retained_original(db, storage, slug, episode_id):
@@ -19,6 +22,36 @@ def resolve_retained_original(db, storage, slug, episode_id):
     except PathContainmentError:
         return None, 'original_not_retained'
     return (path, None) if path.exists() else (None, 'original_not_retained')
+
+
+def usable_span(start, end):
+    return (isinstance(start, (int, float)) and isinstance(end, (int, float))
+            and math.isfinite(start) and math.isfinite(end) and end > start)
+
+
+def candidate_spans(db, pattern_id, fingerprint, in_scope_only=False, recorded_first=False):
+    """Newest retained matches and the fingerprint's recorded source as candidate spans, best first."""
+    candidates = [
+        {'podcast_slug': m['podcast_slug'], 'episode_id': m['episode_id'],
+         'match_start': m['match_start'], 'match_end': m['match_end']}
+        for m in db.get_retained_fingerprint_matches(pattern_id, RETAINED_MATCH_CANDIDATES, in_scope_only)]
+    recorded = {
+        'podcast_slug': fingerprint['source_podcast_slug'], 'episode_id': fingerprint['source_episode_id'],
+        'match_start': fingerprint['source_start'], 'match_end': fingerprint['source_end']}
+    return [recorded, *candidates] if recorded_first else [*candidates, recorded]
+
+
+def first_retained_source(db, storage, candidates):
+    """The first candidate span whose original is retained, as a source with its path, else None."""
+    for cand in candidates:
+        if not cand['podcast_slug'] or not cand['episode_id'] or \
+                not usable_span(cand['match_start'], cand['match_end']):
+            continue
+        path, err = resolve_retained_original(db, storage, cand['podcast_slug'], cand['episode_id'])
+        if err is None:
+            return {'podcastSlug': cand['podcast_slug'], 'episodeId': cand['episode_id'],
+                    'start': cand['match_start'], 'end': cand['match_end'], 'path': path}
+    return None
 
 
 class EpisodeAudio:
@@ -143,12 +176,17 @@ def store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force
     return outcomes
 
 
-def audio_source_on(conn, pattern_id):
-    """The source span of a pattern's usable fingerprint, or None when it has none, is off or was deleted."""
-    row = conn.execute(
+def _usable_fingerprint_row(conn, pattern_id):
+    """The pattern's fingerprint row when it is on and its audio was not deleted, else None."""
+    return conn.execute(
         "SELECT af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end "
         "FROM audio_fingerprints af JOIN ad_patterns ap ON ap.id = af.pattern_id "
         "WHERE af.pattern_id = ? AND af.enabled = 1 AND ap.audio_removed = 0", (pattern_id,)).fetchone()
+
+
+def audio_source_on(conn, pattern_id):
+    """The source span of a pattern's usable fingerprint, or None when it has none, is off or was deleted."""
+    row = _usable_fingerprint_row(conn, pattern_id)
     if not row or not row['source_podcast_slug'] or not row['source_episode_id']:
         return None
     start, end = row['source_start'], row['source_end']
@@ -156,6 +194,19 @@ def audio_source_on(conn, pattern_id):
         return None
     return {'slug': row['source_podcast_slug'], 'episode_id': row['source_episode_id'],
             'start': start, 'end': end}
+
+
+def rebuild_audio_source(db, conn, pattern_id):
+    """(source, wanted) for rebuilding a pattern's audio: the recorded source if retained, else a retained in-scope match."""
+    row = _usable_fingerprint_row(conn, pattern_id)
+    if row is None:
+        return None, False
+    found = first_retained_source(
+        db, Storage(), candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
+    if found is None:
+        return None, True
+    return {'slug': found['podcastSlug'], 'episode_id': found['episodeId'],
+            'start': found['start'], 'end': found['end']}, True
 
 
 def carry_audio_to_children(db, source, child_ids):
@@ -181,7 +232,7 @@ def rebuild_pattern_audio(db, source, pattern_id, expected_text, *, locate=True)
     try:
         pattern = db.get_ad_pattern_by_id(pattern_id)
         if (not pattern or pattern.get('text_template') != expected_text
-                or audio_source_on(db.get_connection(), pattern_id) is None):
+                or _usable_fingerprint_row(db.get_connection(), pattern_id) is None):
             return []
         if locate:
             return store_patterns_audio(
