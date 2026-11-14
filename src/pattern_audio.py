@@ -184,18 +184,6 @@ def _usable_fingerprint_row(conn, pattern_id):
         "WHERE af.pattern_id = ? AND af.enabled = 1 AND ap.audio_removed = 0", (pattern_id,)).fetchone()
 
 
-def audio_source_on(conn, pattern_id):
-    """The source span of a pattern's usable fingerprint, or None when it has none, is off or was deleted."""
-    row = _usable_fingerprint_row(conn, pattern_id)
-    if not row or not row['source_podcast_slug'] or not row['source_episode_id']:
-        return None
-    start, end = row['source_start'], row['source_end']
-    if start is None or end is None or end <= start:
-        return None
-    return {'slug': row['source_podcast_slug'], 'episode_id': row['source_episode_id'],
-            'start': start, 'end': end}
-
-
 def rebuild_audio_source(db, conn, pattern_id):
     """(source, wanted) for rebuilding a pattern's audio: the recorded source if retained, else a retained in-scope match."""
     row = _usable_fingerprint_row(conn, pattern_id)
@@ -207,6 +195,11 @@ def rebuild_audio_source(db, conn, pattern_id):
         return None, True
     return {'slug': found['podcastSlug'], 'episode_id': found['episodeId'],
             'start': found['start'], 'end': found['end']}, True
+
+
+def unresolved_audio_outcomes(pattern_id):
+    """The outcome reported for a pattern whose audio is on but has no retained source to rebuild from."""
+    return [(pattern_id, FingerprintStoreResult(False, 'original_not_retained'))]
 
 
 def carry_audio_to_children(db, source, child_ids):

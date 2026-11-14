@@ -294,11 +294,12 @@ def test_overlapping_child_text_gets_audio_only_for_the_earlier_child(
     assert _span(fp_feed, kids[0]) == (10.0, 40.0) and _span(fp_feed, kids[1]) is None
 
 
-def test_parent_fingerprint_without_a_source_gives_children_no_audio_and_no_fields(
+def test_manual_split_of_a_legacy_fingerprint_without_a_match_reports_the_reason(
         app_client, fp_feed, fp_original, stub_fingerprinting, parent):
     fp_feed.create_audio_fingerprint(parent, OLD, 60.0)
     body = app_client.post(f'/api/v1/patterns/{parent}/split', headers=csrf(app_client)).get_json()
-    assert body['success'] and 'fingerprintStored' not in body
+    assert (body['success'], body['fingerprintStored'], body['fingerprintSkippedReason']) == (
+        True, False, 'original_not_retained')
     assert all(_span(fp_feed, k) is None for k in body['new_pattern_ids'])
 
 
@@ -422,3 +423,39 @@ def test_undo_of_an_unrebuilt_legacy_trim_leaves_the_fingerprint_alone(fp_feed, 
     result = pattern_cleanup.undo_suggestion(fp_feed, sid)
     assert result['fingerprint_outcomes'] == []
     assert fp_feed.get_audio_fingerprint(legacy)['fingerprint'] == OLD
+
+
+def test_manual_split_of_a_legacy_fingerprint_uses_a_retained_in_scope_match(
+        app_client, fp_feed, fp_original, stub_fingerprinting, legacy):
+    _match(fp_feed, legacy)
+    body = app_client.post(f'/api/v1/patterns/{legacy}/split', headers=csrf(app_client)).get_json()
+    assert body['fingerprintStored'] is True
+    assert [_span(fp_feed, k) for k in body['new_pattern_ids']] == [(10.0, 40.0), (40.0, 70.0)]
+
+
+def test_manual_split_of_a_legacy_fingerprint_ignores_out_of_scope_matches(
+        app_client, fp_feed, fp_original, stub_fingerprinting, legacy):
+    _match(fp_feed, legacy, in_scope=False)
+    body = app_client.post(f'/api/v1/patterns/{legacy}/split', headers=csrf(app_client)).get_json()
+    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'original_not_retained')
+
+
+def test_manual_split_without_a_retained_original_reports_the_reason_for_a_legacy_fingerprint(
+        app_client, fp_feed, stub_fingerprinting, legacy):
+    _match(fp_feed, legacy)
+    body = app_client.post(f'/api/v1/patterns/{legacy}/split', headers=csrf(app_client)).get_json()
+    assert body['fingerprintSkippedReason'] == 'original_not_retained'
+
+
+@pytest.mark.parametrize('setup', ['none', 'off', 'removed'])
+def test_manual_split_without_usable_audio_has_no_fingerprint_fields(
+        app_client, fp_feed, fp_original, stub_fingerprinting, legacy, setup):
+    _match(fp_feed, legacy)
+    if setup == 'none':
+        fp_feed.delete_audio_fingerprint(legacy)
+    elif setup == 'off':
+        fp_feed.set_fingerprint_enabled(legacy, False)
+    else:
+        fp_feed.set_pattern_audio_removed(legacy, True)
+    body = app_client.post(f'/api/v1/patterns/{legacy}/split', headers=csrf(app_client)).get_json()
+    assert body['success'] and 'fingerprintStored' not in body

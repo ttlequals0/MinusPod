@@ -29,7 +29,7 @@ from utils.text import (
     parse_transcript_segments,
 )
 from pattern_audio import (
-    audio_source_on, carry_audio_to_children, store_patterns_audio,
+    carry_audio_to_children, rebuild_audio_source, store_patterns_audio, unresolved_audio_outcomes,
 )
 from text_pattern_matcher import (
     split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
@@ -330,7 +330,7 @@ def split_pattern(pattern_id):
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
-    source = audio_source_on(db.get_connection(), pattern_id)
+    source, audio_wanted = rebuild_audio_source(db, db.get_connection(), pattern_id)
     new_ids = matcher.split_pattern(pattern_id)
 
     if not new_ids:
@@ -339,12 +339,14 @@ def split_pattern(pattern_id):
             400
         )
 
+    outcomes = (unresolved_audio_outcomes(pattern_id) if audio_wanted and source is None
+                else carry_audio_to_children(db, source, new_ids))
     return json_response({
         'success': True,
         'original_pattern_id': pattern_id,
         'new_pattern_ids': new_ids,
         'message': f'Split into {len(new_ids)} patterns',
-        **fingerprint_response_fields(carry_audio_to_children(db, source, new_ids)),
+        **fingerprint_response_fields(outcomes),
     })
 
 

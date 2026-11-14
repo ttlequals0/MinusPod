@@ -5395,9 +5395,11 @@ paths:
         Split a pattern containing multiple ad transition phrases into separate
         single-sponsor patterns. The original pattern is disabled and new patterns
         are created for each detected sponsor segment. When the original has audio that
-        is on and not deleted, and its source episode still retains the original, each
-        new pattern is fingerprinted over its own span of that episode. This is best
-        effort and never fails the split.
+        is on and not deleted, each new pattern is fingerprinted over its own span of
+        the pattern's recorded source episode, or of a retained in-scope match when the
+        recorded source is missing or no longer retained. When no retained source exists
+        the response carries `fingerprintStored: false` with `original_not_retained`.
+        This is best effort and never fails the split.
       operationId: splitPattern
       parameters:
         - name: pattern_id

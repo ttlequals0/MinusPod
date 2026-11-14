@@ -27,8 +27,9 @@ from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
     resolved_stage_slot, SLOT_SECONDARY,
 )
-from audio_fingerprinter import FingerprintStoreResult
-from pattern_audio import carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio
+from pattern_audio import (
+    carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio, unresolved_audio_outcomes,
+)
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
@@ -1382,7 +1383,7 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     # Decoding audio stays out of the write transaction.
     source = applied.get('audio_source')
     if applied.get('audio_unresolved'):
-        outcomes = [(pattern['id'], FingerprintStoreResult(False, 'original_not_retained'))]
+        outcomes = unresolved_audio_outcomes(pattern['id'])
     elif applied.get('new_pattern_ids'):
         outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
     elif applied.get('text') is not None:
