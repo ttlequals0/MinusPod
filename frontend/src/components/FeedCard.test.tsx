@@ -124,7 +124,7 @@ describe('FeedCard processed bar and buttons', () => {
 
   it('uses outline recipes for Refresh and Delete', () => {
     renderCard(makeFeed());
-    expect(screen.getByRole('button', { name: /Refresh/ }).className).toContain('border-primary/80');
-    expect(screen.getByRole('button', { name: 'Delete feed' }).className).toContain('border-destructive/80');
+    expect(screen.getByRole('button', { name: /Refresh/ }).className).toContain('shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.8)]');
+    expect(screen.getByRole('button', { name: 'Delete feed' }).className).toContain('shadow-[inset_0_0_0_1px_hsl(var(--destructive)/0.8)]');
   });
 });

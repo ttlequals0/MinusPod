@@ -26,8 +26,9 @@ export const touchCompact =
 // For a row that must stay on one line on a phone: full height, shared width below sm.
 export const touchTargetRow =
   'inline-flex items-center justify-center min-h-11 sm:min-h-0 max-sm:min-w-0';
+// The outline is an inset shadow, not a border, so these stay the height of the fill buttons beside them.
 // Accent action that should not dominate its surface (Refresh on feed cards, rows and page).
 // 80 percent keeps the border above the 3:1 non-text floor on every theme.
-export const btnPrimaryOutline = 'border border-primary/80 text-primary hover:bg-primary/10';
+export const btnPrimaryOutline = 'shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.8)] text-primary hover:bg-primary/10';
 // Destructive action that is not the primary one in its group (Delete beside Edit).
-export const btnDestructiveOutline = 'border border-destructive/80 text-destructive hover:bg-destructive/10';
+export const btnDestructiveOutline = 'shadow-[inset_0_0_0_1px_hsl(var(--destructive)/0.8)] text-destructive hover:bg-destructive/10';
