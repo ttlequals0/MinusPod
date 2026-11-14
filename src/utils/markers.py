@@ -421,6 +421,8 @@ COARSE_MEMBER_STAGES = frozenset({
 })
 
 MERGED_MEMBER_SPANS = 'merged_member_spans'
+# Stages whose member spans name the pattern that produced them.
+PATTERN_MEMBER_STAGES = frozenset({'fingerprint', 'text_pattern'})
 # Every detection stage folded into a marker, including those that leave no member span.
 MERGED_STAGES = 'merged_stages'
 
@@ -585,7 +587,7 @@ def member_spans(marker: dict) -> list[dict]:
             value = finite_number(marker.get(key))
             if value is not None:
                 member[key] = value
-    if stage in ('fingerprint', 'text_pattern') and marker.get('pattern_id') is not None:
+    if stage in PATTERN_MEMBER_STAGES and marker.get('pattern_id') is not None:
         member['pattern_id'] = marker['pattern_id']
     return [member]
 

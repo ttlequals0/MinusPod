@@ -1191,22 +1191,21 @@ class TextPatternMatcher:
     def align_to_template(self, segments, match, template):
         """(start, end) of the template's opening and closing phrases near a match, or None when either is missing."""
         full_text, segment_map = self._concat_segments(segments)
-        near = [(lo, hi) for (lo, hi, i) in segment_map
-                if segments[i].get('end', 0) > match.start - ALIGN_PAD_S
-                and segments[i].get('start', 0) < match.end + ALIGN_PAD_S]
-        if not near:
+        bounds = self._char_range(segment_map, segments, match.start - ALIGN_PAD_S, match.end + ALIGN_PAD_S)
+        if bounds is None:
             return None
-        region_start = near[0][0]
-        region = full_text[region_start:near[-1][1]].lower()
+        region_start = bounds[0]
+        region = full_text[region_start:bounds[1]].lower()
         edges = []
         for phrase, edge_time in ((_extract_intro_phrase(template), self._phrase_start_time),
                                   (_extract_outro_phrase(template), self._phrase_end_time)):
             phrase = phrase.lower()
-            pos, score, matched = self._fuzzy_find(region, phrase, required_fuzzy_score(len(phrase)))
+            pos, _, matched = self._fuzzy_find(region, phrase, required_fuzzy_score(len(phrase)))
             if not matched:
                 return None
             edges.append(edge_time(region_start, pos, matched, segment_map, segments))
-        return (edges[0], edges[1]) if None not in edges and edges[1] > edges[0] else None
+        start, end = edges
+        return (start, end) if None not in (start, end) and end > start else None
 
     def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
         """Scan forward from intro match for a known outro variant."""

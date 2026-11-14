@@ -1,5 +1,6 @@
 """Audio fingerprint routes of a pattern: source resolution and playback."""
 import io
+import json
 import logging
 import math
 import os
@@ -22,11 +23,12 @@ from audio_fingerprinter import (
 )
 from config import FFMPEG_SHORT_TIMEOUT, MIN_AD_DURATION, is_keep_like, is_pending_review
 from storage import PathContainmentError
-from text_pattern_matcher import MAX_MATCH_DURATION, TextPatternMatcher
+from text_pattern_matcher import MAX_MATCH_DURATION
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.markers import MERGED_MEMBER_SPANS, finite_number, parse_ad_markers
-from utils.constants import LEARNING_SPLIT_DURATION_FACTOR, EpisodeStatus
+from utils.constants import EpisodeStatus
 from utils.language import get_pattern_language
+from utils.pattern_catalog import pattern_catalog_scope
 from utils.subprocess_registry import tracked_run
 from utils.time import overlap_seconds
 
@@ -35,6 +37,8 @@ logger = logging.getLogger('podcast.api')
 MAX_PREVIEW_SECONDS = 600
 ADD_SOURCE_EPISODES = 5
 TRANSCRIPT_SEARCH_EPISODES = 10
+# A found span may differ from the pattern's known ad length by this factor either way
+KNOWN_LENGTH_FACTOR = 2
 MATCHES_PER_PAGE_DEFAULT = 10
 MATCHES_PER_PAGE_MAX = 50
 MAX_REBUILD_SECONDS = 600
@@ -114,66 +118,91 @@ def _marker_pattern_spans(marker, pattern_id):
     for member in marker.get(MERGED_MEMBER_SPANS) or []:
         if isinstance(member, dict) and member.get('pattern_id') == pattern_id:
             lo, hi = finite_number(member.get('start')), finite_number(member.get('end'))
-            if lo is not None and hi is not None and usable_span(max(outer[0], lo), min(outer[1], hi)):
-                spans.append((max(outer[0], lo), min(outer[1], hi)))
+            if lo is not None and hi is not None:
+                clipped = (max(outer[0], lo), min(outer[1], hi))
+                if usable_span(*clipped):
+                    spans.append(clipped)
     return spans
+
+
+def _episode_markers(db, slug, episode_id):
+    """(marker dicts, episode status) of an episode."""
+    episode = db.get_episode(slug, episode_id) or {}
+    markers = [m for m in parse_ad_markers(episode.get('ad_markers_json')) or [] if isinstance(m, dict)]
+    return markers, EpisodeStatus.from_api(episode.get('status'))
 
 
 def _own_marker_span(db, slug, episode_id, pattern_id):
     """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
-    episode = db.get_episode(slug, episode_id)
-    status = EpisodeStatus.from_api((episode or {}).get('status'))
-    spans = sorted(span for marker in parse_ad_markers((episode or {}).get('ad_markers_json')) or []
-                   if isinstance(marker, dict) and not _is_rejected_marker(marker, status)
+    markers, status = _episode_markers(db, slug, episode_id)
+    spans = sorted(span for marker in markers if not _is_rejected_marker(marker, status)
                    for span in _marker_pattern_spans(marker, pattern_id))
     return spans[0] if spans else None
 
 
 def _rejected_spans(db, slug, episode_id):
     """Displayed spans of the episode's rejected markers."""
-    episode = db.get_episode(slug, episode_id)
-    status = EpisodeStatus.from_api((episode or {}).get('status'))
-    return [span for marker in parse_ad_markers((episode or {}).get('ad_markers_json')) or []
-            if isinstance(marker, dict) and _is_rejected_marker(marker, status)
+    markers, status = _episode_markers(db, slug, episode_id)
+    return [span for marker in markers if _is_rejected_marker(marker, status)
             and (span := _displayed_span(marker))]
 
 
 def _plausible_length(pattern, start, end):
     """Whether the span is a plausible ad length for the pattern."""
     length = end - start
-    known = pattern.get('avg_duration')
     if length < MIN_AD_DURATION or length > MAX_MATCH_DURATION:
         return False
-    return not known or known / LEARNING_SPLIT_DURATION_FACTOR <= length <= known * LEARNING_SPLIT_DURATION_FACTOR
+    known = pattern.get('avg_duration')
+    return not known or known / KNOWN_LENGTH_FACTOR <= length <= known * KNOWN_LENGTH_FACTOR
+
+
+def _search_context(db, slug):
+    """(network id, tags, language) detection passes the matcher for a feed."""
+    row = db.get_podcast_row(slug) or {}
+    try:
+        tags = set(json.loads(row['tags'])) if row.get('tags') else None
+    except (TypeError, ValueError):
+        tags = None
+    return (row.get('network_id_override') or row.get('network_id') or None,
+            tags, get_pattern_language(db, slug=slug))
 
 
 def _transcript_source(db, storage, pattern):
     """The first span of the pattern's own text in a retained in-scope transcript, newest first, or None."""
-    if not pattern.get('is_active'):
+    if not pattern.get('is_active') or not pattern.get('text_template'):
         return None
-    matcher = TextPatternMatcher(db=db)
-    for slug, episode_id in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES):
-        _, err = resolve_retained_original(db, storage, slug, episode_id)
-        segments = None if err else db.get_original_segments(slug, episode_id)
-        if not segments:
-            continue
-        podcast = db.get_podcast_by_slug(slug) or {}
-        matches = matcher.find_matches(
-            segments, podcast_id=slug,
-            network_id=podcast.get('network_id_override') or podcast.get('network_id') or None,
-            podcast_tags=set(db.get_podcast_tags(slug)['effective']),
-            language=get_pattern_language(db, slug=slug), only_pattern_id=pattern['id'])
-        rejected = None
-        for match in sorted(matches, key=lambda m: m.start):
-            if match.pattern_id != pattern['id'] or match.span_estimated or not usable_span(match.start, match.end):
+    # Imported here because main_app imports the API; this matcher is not the detection pipeline's
+    from main_app import pattern_service
+    matcher = pattern_service.text_pattern_matcher()
+    if not matcher.is_available():
+        return None
+    contexts = {}
+    with pattern_catalog_scope():
+        for slug, episode_id in db.get_pattern_transcript_episodes(pattern, TRANSCRIPT_SEARCH_EPISODES):
+            _, err = resolve_retained_original(db, storage, slug, episode_id)
+            if err:
                 continue
-            aligned = matcher.align_to_template(segments, match, pattern['text_template'])
-            if aligned is None or not _plausible_length(pattern, *aligned):
+            segments = db.get_original_segments(slug, episode_id)
+            if not segments:
                 continue
-            rejected = _rejected_spans(db, slug, episode_id) if rejected is None else rejected
-            if not any(overlap_seconds(*aligned, lo, hi) > 0 for lo, hi in rejected):
-                return {'podcastSlug': slug, 'episodeId': episode_id,
-                        'start': aligned[0], 'end': aligned[1], 'available': True}
+            if slug not in contexts:
+                contexts[slug] = _search_context(db, slug)
+            network_id, tags, language = contexts[slug]
+            matches = matcher.find_matches(
+                segments, podcast_id=slug, network_id=network_id, podcast_tags=tags,
+                language=language, only_pattern_id=pattern['id'])
+            if not matches:
+                continue
+            rejected = _rejected_spans(db, slug, episode_id)
+            for match in sorted(matches, key=lambda m: m.start):
+                if match.span_estimated or not usable_span(match.start, match.end):
+                    continue
+                aligned = matcher.align_to_template(segments, match, pattern['text_template'])
+                if aligned is None or not _plausible_length(pattern, *aligned):
+                    continue
+                if not any(overlap_seconds(*aligned, lo, hi) > 0 for lo, hi in rejected):
+                    return {'podcastSlug': slug, 'episodeId': episode_id,
+                            'start': aligned[0], 'end': aligned[1], 'available': True}
     return None
 
 

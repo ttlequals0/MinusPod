@@ -512,36 +512,31 @@ class PatternMixin:
             (pattern['created_from_episode_id'], *params, limit)).fetchall()
         return [(r['slug'], r['episode_id']) for r in rows]
 
-    def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
-        """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
+    def _scoped_retained_episodes(self, pattern: dict, extra_sql: str, extra_params: list,
+                                  limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope episodes that keep their original and meet extra_sql, minus false-positive ones."""
         scope_sql, scope_params = _pattern_scope_sql(pattern)
-        like_sql, like_params = _marker_id_like(pattern['id'])
         rows = self.get_connection().execute(
             "SELECT p.slug, e.episode_id FROM episodes e "  # noqa: S608
             "JOIN podcasts p ON p.id = e.podcast_id "
             "JOIN episode_details ed ON ed.episode_id = e.id "
-            f"WHERE e.original_file IS NOT NULL AND {like_sql}{scope_sql} "
+            f"WHERE e.original_file IS NOT NULL AND {extra_sql}{scope_sql} "
             "AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = ? "
             "AND f.episode_id = e.episode_id AND f.correction_type = 'false_positive' "
             "AND (f.podcast_id IS NULL OR f.podcast_id = e.podcast_id)) "
             "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
-            (*like_params, *scope_params, pattern['id'], limit)).fetchall()
+            (*extra_params, *scope_params, pattern['id'], limit)).fetchall()
         return [(r['slug'], r['episode_id']) for r in rows]
 
+    def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
+        like_sql, like_params = _marker_id_like(pattern['id'])
+        return self._scoped_retained_episodes(pattern, like_sql, like_params, limit)
+
     def get_pattern_transcript_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
-        """Newest in-scope episodes that keep their original and its transcript, minus false-positive ones."""
-        scope_sql, scope_params = _pattern_scope_sql(pattern)
-        rows = self.get_connection().execute(
-            "SELECT p.slug, e.episode_id FROM episodes e "  # noqa: S608
-            "JOIN podcasts p ON p.id = e.podcast_id "
-            "JOIN episode_details ed ON ed.episode_id = e.id "
-            f"WHERE e.original_file IS NOT NULL AND ed.original_segments_json IS NOT NULL{scope_sql} "
-            "AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = ? "
-            "AND f.episode_id = e.episode_id AND f.correction_type = 'false_positive' "
-            "AND (f.podcast_id IS NULL OR f.podcast_id = e.podcast_id)) "
-            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
-            (*scope_params, pattern['id'], limit)).fetchall()
-        return [(r['slug'], r['episode_id']) for r in rows]
+        """Newest in-scope retained episodes that keep their original transcript, minus false-positive ones."""
+        return self._scoped_retained_episodes(
+            pattern, "ed.original_segments_json IS NOT NULL", [], limit)
 
     def get_pattern_corrections(self, pattern_id: int = None, limit: int = 100) -> list[dict]:
         """Get pattern corrections, optionally filtered by pattern_id."""
