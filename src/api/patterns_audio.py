@@ -268,6 +268,7 @@ def build_audio_detail(db, storage, pattern_id):
                    'outOfScope': summary['out_of_scope_count']},
         'meanSimilarity': summary['mean_similarity'], 'lastMatchedAt': summary['last_matched_at'],
         'historyBackfillPending': db.history_backfill_pending(),
+        'markerIndexPending': db.marker_refs_pending(),
     }
     if fingerprint is None:
         detail['addSource'] = _add_source(db, storage, pattern_id)

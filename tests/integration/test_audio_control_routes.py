@@ -343,3 +343,16 @@ def test_legacy_built_from_is_null_with_only_out_of_scope_matches(app_client, fp
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['builtFrom'] is None and body['source']['start'] == 60.0
     assert body['editSource'] is None
+
+
+def test_detail_carries_the_marker_index_flag(app_client, fp_pattern, fp_feed):
+    conn = fp_feed.get_connection()
+    gate = 'backfill_episode_marker_refs_v1'
+    assert _get(app_client, fp_pattern).get_json()['markerIndexPending'] is False
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (gate,))
+    conn.commit()
+    try:
+        assert _get(app_client, fp_pattern).get_json()['markerIndexPending'] is True
+    finally:
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
