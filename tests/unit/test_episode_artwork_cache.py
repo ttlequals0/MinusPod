@@ -3,9 +3,11 @@ import os
 import sys
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -27,7 +29,8 @@ def _cached_cover(storage, slug, episode_id):
 
 
 @pytest.fixture
-def storage(tmp_path):
+def storage(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage_module, '_EVICT_SCAN_INTERVAL_SECONDS', 0)
     Storage._instance = None
     s = Storage(str(tmp_path))
     s._artwork_failure_cache.clear()
@@ -299,3 +302,125 @@ def test_cleanup_podcast_dir_refuses_traversal_slug(storage, tmp_path):
 
     assert storage.cleanup_podcast_dir('../victim') is False
     assert (victim / 'data.txt').exists()
+
+
+def test_deleting_an_episode_leaves_the_shared_url_keyed_cover(storage):
+    key = storage_module.artwork_url_key(URL)
+    storage._write_cover(SLUG, key, JPEG, 'image/jpeg')
+    storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
+
+    assert storage.remove_episode_artwork(SLUG, EP) is True
+
+    assert storage.url_artwork_file(SLUG, URL) is not None
+    assert storage.has_episode_artwork(SLUG, EP) is False
+
+
+def test_old_episode_keyed_files_fall_out_of_a_full_cache_with_the_url_keyed_ones(storage, monkeypatch):
+    blob = b'\xff\xd8\xff\xe0' + b'\x00' * 96  # 100 bytes each
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 10_000)
+    art_dir = storage._episode_artwork_dir(SLUG, create=True)
+    storage._save_episode_artwork(SLUG, EP, blob, 'image/jpeg')
+    os.utime(art_dir / f'{EP}.jpg', (1_000, 1_000))
+
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 250)
+    for n in range(3):
+        storage._write_cover(SLUG, storage_module.artwork_url_key(f'{URL}{n}'), blob, 'image/jpeg')
+
+    assert not (art_dir / f'{EP}.jpg').exists()
+    assert sum(p.stat().st_size for p in art_dir.iterdir()) <= 250
+
+
+def test_local_covers_and_their_thumbnails_survive_a_full_cache(storage, monkeypatch):
+    local = _png(400)
+    storage.save_episode_artwork(SLUG, EP, local, 'image/png', evict=False)
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 50)
+
+    assert storage.local_artwork_file(SLUG, EP, thumb=True) is not None
+
+    names = {p.name for p in storage._episode_artwork_dir(SLUG).iterdir()}
+    assert names == {f'{EP}.png', f'{EP}.thumb.png'}
+
+
+def test_thumbnails_count_toward_the_cap_and_are_evictable(storage, monkeypatch):
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 1)
+    storage._write_cover(SLUG, 'a' * 64 + '.thumb', JPEG, 'image/jpeg')
+
+    assert list(storage._episode_artwork_dir(SLUG).iterdir()) == []
+
+
+def _png(side):
+    out = BytesIO()
+    Image.new('RGBA', (side, side), (200, 30, 30, 128)).save(out, 'PNG')
+    return out.getvalue()
+
+
+def test_thumbnails_keep_alpha_and_never_exceed_256_px():
+    thumb, mime = storage_module.make_cover_thumbnail(_png(1000))
+
+    assert mime == 'image/png'
+    with Image.open(BytesIO(thumb)) as img:
+        assert img.size == (256, 256)
+
+
+def test_saves_inside_the_scan_window_scan_the_directory_once(storage, monkeypatch):
+    monkeypatch.setattr(storage_module, '_EVICT_SCAN_INTERVAL_SECONDS', 60)
+    art_dir = storage._episode_artwork_dir(SLUG, create=True)
+    with patch.object(type(art_dir), 'iterdir', autospec=True, side_effect=type(art_dir).iterdir) as listing:
+        storage._write_cover(SLUG, 'a' * 64, JPEG, 'image/jpeg')
+        storage._write_cover(SLUG, 'b' * 64, JPEG, 'image/jpeg')
+
+    assert listing.call_count == 1
+
+
+def test_versions_for_a_page_match_the_per_episode_version(storage):
+    storage.save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg', evict=False)
+
+    assert storage.local_artwork_versions(SLUG, [EP, 'ffffffffffff']) == {
+        EP: storage.local_artwork_version(SLUG, EP)}
+
+
+def test_a_served_thumbnail_is_touched_and_survives_eviction(storage, monkeypatch):
+    with patch.object(storage, '_fetch_validated_artwork', return_value=(_png(600), 'image/png')):
+        thumb_path = storage.cache_url_artwork(SLUG, URL, thumb=True)[0]
+    art_dir = storage._episode_artwork_dir(SLUG)
+    unserved = art_dir / ('b' * 64 + '.png')
+    unserved.write_bytes(b'x' * 200)
+    old = 1_000
+    for path in (thumb_path, unserved):
+        os.utime(path, (old, old))
+
+    assert storage.cache_url_artwork(SLUG, URL, thumb=True)[0] == thumb_path
+    assert thumb_path.stat().st_mtime > old
+
+    monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', thumb_path.stat().st_size + 100)
+    storage._write_cover(SLUG, 'c' * 64, b'y' * 10, 'image/png')
+    assert thumb_path.exists() and not unserved.exists()
+
+
+def test_an_episode_keyed_file_is_the_thumbnail_source_before_any_download(storage):
+    storage._save_episode_artwork(SLUG, EP, _png(600), 'image/png')
+    with patch.object(storage, '_fetch_validated_artwork') as fetch:
+        found = storage.cache_url_artwork(SLUG, URL, thumb=True, episode_id=EP)
+
+    assert fetch.call_count == 0
+    with Image.open(found[0]) as img:
+        assert max(img.size) <= 256
+
+
+def test_without_an_episode_keyed_file_the_cover_is_downloaded(storage):
+    with patch.object(storage, '_fetch_validated_artwork',
+                      return_value=(_png(600), 'image/png')) as fetch:
+        found = storage.cache_url_artwork(SLUG, URL, thumb=True, episode_id=EP)
+
+    assert fetch.call_count == 1 and found is not None
+
+
+@pytest.mark.parametrize('episode_id, scope', [(EP, f'{SLUG}:{EP}'), (None, SLUG)])
+def test_cover_download_log_label(storage, caplog, episode_id, scope):
+    version = storage_module.artwork_url_version(URL)
+    with patch.object(storage, '_fetch_artwork_response', side_effect=storage_module.SSRFError('x')), \
+            patch.object(storage.db, 'get_podcast_by_slug', return_value=None), \
+            caplog.at_level('INFO', logger=storage_module.logger.name):
+        storage._download_url_artwork(SLUG, URL, episode_id)
+
+    assert f'[{scope} cover={version}] Downloading episode artwork' in caplog.text

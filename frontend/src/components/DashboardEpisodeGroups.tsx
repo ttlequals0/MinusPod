@@ -33,6 +33,7 @@ function toEpisode(summary: EpisodeSummary): Episode {
     status: summary.status,
     jobState: summary.jobState,
     artworkUrl: summary.artworkUrl ?? undefined,
+    artworkThumbUrl: summary.artworkThumbUrl,
     description: summary.description ?? undefined,
     error: summary.error,
     pendingReviewCount: summary.pendingReviewCount,

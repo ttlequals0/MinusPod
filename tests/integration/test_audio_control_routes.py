@@ -286,6 +286,7 @@ def test_detail_carries_the_backfill_flag(app_client, fp_pattern, fp_feed):
     conn = fp_feed.get_connection()
     assert _get(app_client, fp_pattern).get_json()['historyBackfillPending'] is False
     conn.execute("DELETE FROM schema_migrations WHERE name = 'backfill_fingerprint_matches_v1'")
+    fp_feed.__dict__.pop('_done_gates', None)  # a hand-removed mark is not seen through the done cache
     conn.commit()
     try:
         assert _get(app_client, fp_pattern).get_json()['historyBackfillPending'] is True
@@ -343,3 +344,17 @@ def test_legacy_built_from_is_null_with_only_out_of_scope_matches(app_client, fp
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['builtFrom'] is None and body['source']['start'] == 60.0
     assert body['editSource'] is None
+
+
+def test_detail_carries_the_marker_index_flag(app_client, fp_pattern, fp_feed):
+    conn = fp_feed.get_connection()
+    gate = 'backfill_episode_marker_refs_v1'
+    assert _get(app_client, fp_pattern).get_json()['markerIndexPending'] is False
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (gate,))
+    fp_feed.__dict__.pop("_done_gates", None)
+    conn.commit()
+    try:
+        assert _get(app_client, fp_pattern).get_json()['markerIndexPending'] is True
+    finally:
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()

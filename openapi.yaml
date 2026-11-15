@@ -2032,13 +2032,42 @@ paths:
         from the publisher directly. The URL comes from the episode record,
         never from the caller. Redirects to the feed cover when the episode
         has no cover of its own or the publisher refuses the fetch.
+
+
+        Downloaded covers are cached once per feed by their publisher URL, so
+        episodes that share a cover share one file. With `size=thumb` the
+        response is a thumbnail of at most 256 px on its longest side (never
+        upscaled); the full-size file is not stored for a thumbnail request.
+        If a thumbnail cannot be made from a valid image, the original is
+        served. A request whose `v` matches the token in the episode's
+        `artworkThumbUrl` is answered with `Cache-Control: private,
+        max-age=604800, immutable`; any other request revalidates with
+        `no-cache`. Limited to 3000 requests per minute.
       operationId: getEpisodeArtwork
       parameters:
         - $ref: '#/components/parameters/slug'
         - $ref: '#/components/parameters/episode_id'
+        - name: size
+          in: query
+          required: false
+          description: Set to `thumb` for a 256 px thumbnail. Omit for the full-size cover.
+          schema:
+            type: string
+            enum: [thumb]
+        - name: v
+          in: query
+          required: false
+          description: Cache-bust token copied from `artworkThumbUrl`. A matching value allows 7 days of browser caching; a missing or different value keeps `no-cache`.
+          schema:
+            type: string
       responses:
         '200':
           description: Artwork image
+          headers:
+            Cache-Control:
+              description: "`private, max-age=604800, immutable` when `v` matches, otherwise `no-cache`."
+              schema:
+                type: string
           content:
             image/jpeg:
               schema:
@@ -2049,9 +2078,15 @@ paths:
                 type: string
                 format: binary
         '302':
-          description: No episode cover available; redirects to the feed cover
+          description: No episode cover available; redirects to the feed cover. Sent with `Cache-Control` no-cache.
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Unknown `size` value, or a malformed slug or episode id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
     post:
       tags:
         - LocalFeeds
@@ -16018,6 +16053,11 @@ components:
             - string
             - 'null'
           description: Same fallback rules as EpisodeSummary.artworkUrl.
+        artworkThumbUrl:
+          type:
+            - string
+            - 'null'
+          description: Same meaning as EpisodeSummary.artworkThumbUrl.
         error:
           type:
             - string
@@ -16178,6 +16218,9 @@ components:
         artworkUrl:
           type: [string, 'null']
           description: Episode cover declared by the publisher. Null when the episode declares none, or when the URL is not https and would be blocked as mixed content; clients fall back to the feed artwork. A local feed has no publisher, so this instead falls back to /api/v1/feeds/{slug}/episodes/{episode_id}/artwork whenever the episode has a cached cover (an upload or embedded-artwork extraction), and stays null only when it has none.
+        artworkThumbUrl:
+          type: [string, 'null']
+          description: Same-origin address of the episode's 256 px thumbnail (`/api/v1/feeds/{slug}/episodes/{episode_id}/artwork?size=thumb&v=...`), with the `v` cache-bust token the route needs for 7-day browser caching. Null when the episode has no cover. Lists render this instead of building the address.
         error:
           type: [string, 'null']
           description: Failure reason from the most recent processing attempt, present when status is failed or permanently_failed
@@ -20610,9 +20653,10 @@ components:
             a pattern with no podcast is looked up by episode id within the pattern's
             scope. It uses the pre-trim span of a reviewer-adjusted marker
             and the earliest marker when there are several. When no marker source with a
-            retained original exists, the 10 newest in-scope episodes that keep their
-            original and its transcript are searched for the pattern's own text, and the
-            first matched span is returned. Null when the pattern has a fingerprint or
+            retained original exists, up to 10 of the newest in-scope episodes that keep their original
+            and its transcript are searched for the pattern's own text, those whose markers
+            name the pattern's sponsor first and then the newest, and the first matched span
+            is returned. Null when the pattern has a fingerprint or
             neither search finds a source.
           oneOf:
             - type: 'null'
@@ -20648,6 +20692,9 @@ components:
         historyBackfillPending:
           type: boolean
           description: True while the one-time fill of match history from older episodes is still running, so the counts are not final.
+        markerIndexPending:
+          type: boolean
+          description: True while the one-time fill of the marker lookup index from older episodes is still running after an upgrade, so addSource can miss older episodes until it finishes.
 
     Network:
       type: object

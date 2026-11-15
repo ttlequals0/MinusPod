@@ -62,7 +62,7 @@ def test_preferred_candidate_succeeds(temp_db, tmp_path):
     pref = 'https://cdn.example.com/pref.png'
     alt = 'https://cdn.example.com/alt.png'
 
-    with patch('storage.safe_get', return_value=_mock_response('image/png', PNG)) as mock_get:
+    with patch('utils.safe_http.safe_get', return_value=_mock_response('image/png', PNG)) as mock_get:
         result = storage.download_artwork(slug, [pref, alt])
 
     assert result is True
@@ -81,7 +81,7 @@ def test_preferred_404_alternate_succeeds_persists_and_skips_preferred_next_refr
     responses = {pref: _mock_response(status_code=404),
                 alt: _mock_response('image/png', PNG)}
 
-    with patch('storage.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
+    with patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
         result = storage.download_artwork(slug, [pref, alt])
 
     assert result is True
@@ -92,7 +92,7 @@ def test_preferred_404_alternate_succeeds_persists_and_skips_preferred_next_refr
 
     # A later routine refresh must not re-hit the known-bad preferred
     # candidate, and reads the working alternate from the on-disk cache.
-    with patch('storage.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get2:
+    with patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get2:
         result2 = storage.download_artwork(slug, [pref, alt])
 
     assert result2 is True
@@ -104,7 +104,7 @@ def test_both_candidates_fail_but_existing_cache_is_retained(temp_db, tmp_path):
     slug = 'both-fail-cached'
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     old_url = 'https://cdn.example.com/old.png'
-    with patch('storage.safe_get', return_value=_mock_response('image/png', PNG)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response('image/png', PNG)):
         assert storage.download_artwork(slug, old_url) is True
     cached_before = storage.get_artwork(slug)
 
@@ -113,7 +113,7 @@ def test_both_candidates_fail_but_existing_cache_is_retained(temp_db, tmp_path):
     responses = {pref: _mock_response(status_code=404),
                 alt: _mock_response(status_code=500)}
 
-    with patch('storage.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
+    with patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
         result = storage.download_artwork(slug, [pref, alt])
 
     assert result is True, "falls back to the still-valid cached cover"
@@ -133,7 +133,7 @@ def test_both_candidates_fail_without_cache_records_404_backoff(temp_db, tmp_pat
     responses = {pref: _mock_response(status_code=404),
                 alt: _mock_response(status_code=404)}
 
-    with patch('storage.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
+    with patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
         result = storage.download_artwork(slug, [pref, alt])
 
     assert result is False
@@ -146,7 +146,7 @@ def test_both_candidates_fail_without_cache_records_404_backoff(temp_db, tmp_pat
     assert state[alt]['status'] == 'not_found'
 
     # Existing failure backoff: an immediate retry makes no further requests.
-    with patch('storage.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get2:
+    with patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get2:
         result2 = storage.download_artwork(slug, [pref, alt])
     assert result2 is False
     assert mock_get2.call_count == 0
@@ -160,7 +160,7 @@ def test_uncached_403_is_classified_not_found(temp_db, tmp_path):
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     url = 'https://cdn.example.com/blocked.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=403)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=403)):
         result = storage._download_artwork_uncached(slug, url, force=False)
 
     assert result == (False, 'not_found')
@@ -173,7 +173,7 @@ def test_uncached_transient_4xx_is_classified_error_not_not_found(temp_db, tmp_p
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     url = 'https://cdn.example.com/throttled.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=status)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=status)):
         result = storage._download_artwork_uncached(slug, url, force=False)
 
     assert result == (False, 'error')
@@ -185,7 +185,7 @@ def test_uncached_404_is_still_classified_not_found(temp_db, tmp_path):
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     url = 'https://cdn.example.com/gone.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=404)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=404)):
         result = storage._download_artwork_uncached(slug, url, force=False)
 
     assert result == (False, 'not_found')
@@ -197,11 +197,11 @@ def test_download_artwork_backs_off_a_day_after_403(temp_db, tmp_path):
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     url = 'https://cdn.example.com/blocked.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=403)) as mock_get:
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=403)) as mock_get:
         assert storage.download_artwork(slug, url) is False
-    assert mock_get.call_count == 1
+    assert mock_get.call_count == 2  # download agent, then the feed agent
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=403)) as mock_get2:
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=403)) as mock_get2:
         assert storage.download_artwork(slug, url) is False
     assert mock_get2.call_count == 0, "403 must share the 24h not_found backoff, not retry every 6h"
 
@@ -227,7 +227,7 @@ def test_negative_cache_is_404_aware_and_survives_a_restart(temp_db, tmp_path):
     Storage._instance = None
     storage2 = Storage(data_dir=str(tmp_path))
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=404)) as mock_get:
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=404)) as mock_get:
         storage2.download_artwork(slug, error_url)
         assert mock_get.called, "the shorter generic-error window (6h) must have expired"
 
@@ -242,12 +242,12 @@ def test_negative_cache_resets_after_a_forced_retry_succeeds(temp_db, tmp_path):
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     url = 'https://cdn.example.com/flip.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=500)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=500)):
         assert storage.download_artwork(slug, url) is False
     row = storage.db.get_podcast_by_slug(slug)
     assert json.loads(row['artwork_failure_state'])[url]['status'] == 'error'
 
-    with patch('storage.safe_get', return_value=_mock_response('image/png', PNG)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response('image/png', PNG)):
         assert storage.download_artwork(slug, url, force=True) is True
     row = storage.db.get_podcast_by_slug(slug)
     assert json.loads(row['artwork_failure_state'] or '{}') == {}, \
@@ -261,12 +261,12 @@ def test_negative_cache_is_scoped_to_the_specific_url(temp_db, tmp_path):
     old_url = 'https://cdn.example.com/v1.png'
     new_url = 'https://cdn.example.com/v2.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=500)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=500)):
         assert storage.download_artwork(slug, old_url) is False
 
     # A different candidate URL (e.g. the feed changed its declared cover)
     # is unaffected by the older URL's backoff.
-    with patch('storage.safe_get', return_value=_mock_response('image/png', PNG)) as mock_get:
+    with patch('utils.safe_http.safe_get', return_value=_mock_response('image/png', PNG)) as mock_get:
         assert storage.download_artwork(slug, new_url) is True
     assert mock_get.called
 
@@ -288,7 +288,7 @@ def test_expired_entries_are_dropped_on_the_next_write(temp_db, tmp_path):
         'https://cdn.example.com/unparseable.png': {'status': 'error', 'at': 'nonsense'},
     }))
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=500)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=500)):
         assert storage.download_artwork(
             slug, 'https://cdn.example.com/new.png') is False
 
@@ -311,7 +311,7 @@ def test_failure_state_is_capped(temp_db, tmp_path):
     }
     storage.db.update_podcast(slug, artwork_failure_state=json.dumps(crowd))
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=500)):
+    with patch('utils.safe_http.safe_get', return_value=_mock_response(status_code=500)):
         assert storage.download_artwork(
             slug, 'https://cdn.example.com/newest.png') is False
 
@@ -345,7 +345,7 @@ def test_refresh_persists_the_alternate_and_stops_retrying_a_dead_preferred():
     }
 
     with patch.object(mf.rss_parser, 'fetch_feed_conditional', return_value=(feed, None, None)), \
-         patch.object(storage_mod, 'safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
+         patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
         mf.refresh_rss_feed(slug, f'https://example.com/{slug}.xml', force=True)
 
     row = mf.db.get_podcast_by_slug(slug)
@@ -358,7 +358,7 @@ def test_refresh_persists_the_alternate_and_stops_retrying_a_dead_preferred():
     # from the on-disk cache rather than re-fetched.
     mf._refresh_coalesce.invalidate()
     with patch.object(mf.rss_parser, 'fetch_feed_conditional', return_value=(feed, None, None)), \
-         patch.object(storage_mod, 'safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get2:
+         patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get2:
         mf.refresh_rss_feed(slug, f'https://example.com/{slug}.xml', force=False)
 
     assert mock_get2.call_count == 0
@@ -384,7 +384,7 @@ def test_recovery_endpoint_uses_candidate_fallback():
     with app.test_client() as client, \
          patch.object(api_feeds, '_extract_artwork_candidates_from_feed',
                       return_value=[pref, alt]), \
-         patch.object(storage_mod, 'safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
+         patch('utils.safe_http.safe_get', side_effect=lambda url, **kw: responses[url]) as mock_get:
         resp = client.get(f'/api/v1/feeds/{slug}/artwork')
 
     assert resp.status_code == 200

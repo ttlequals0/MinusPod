@@ -1,23 +1,8 @@
 """A broken artwork URL is not refetched on every feed refresh."""
 import logging
-import os
-import sys
 from unittest.mock import patch
 
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from storage import Storage  # noqa: E402
-
-
-@pytest.fixture
-def storage(tmp_path):
-    Storage._instance = None
-    s = Storage(str(tmp_path))
-    s._artwork_failure_cache.clear()
-    yield s
-    Storage._instance = None
 
 
 URL = 'http://example.com/artwork.jpg'

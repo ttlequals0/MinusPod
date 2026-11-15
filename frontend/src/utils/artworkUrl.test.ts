@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { episodeArtworkSrc, feedArtworkSrc } from './artworkUrl';
+import { episodeArtworkSrc, episodeThumbSrc, feedArtworkSrc } from './artworkUrl';
 
 describe('feedArtworkSrc', () => {
   it('uses the API URL when present', () => {
@@ -40,6 +40,23 @@ describe('episodeArtworkSrc', () => {
   it('falls back to the proxy endpoint when nothing else is available', () => {
     expect(episodeArtworkSrc('show', undefined, undefined, undefined))
       .toBe('/api/v1/feeds/show/artwork');
+  });
+});
+
+describe('episodeThumbSrc', () => {
+  const thumb = '/api/v1/feeds/show/episodes/abc123def456/artwork?size=thumb&v=0123456789ab';
+
+  it('uses the thumbnail address from the API as given', () => {
+    expect(episodeThumbSrc('show', 'abc123def456', thumb, 'https://cdn.example/ep1.jpg', '/feed.jpg')).toBe(thumb);
+  });
+
+  it('falls back to the feed cover when the episode has no thumbnail address', () => {
+    expect(episodeThumbSrc('show', 'abc123def456', null, null, '/feed.jpg')).toBe('/feed.jpg');
+  });
+
+  it('does not rebuild a full-size address from artworkUrl alone', () => {
+    expect(episodeThumbSrc('show', 'abc123def456', undefined, 'https://cdn.example/ep1.jpg', '/feed.jpg'))
+      .toBe('/feed.jpg');
   });
 });
 

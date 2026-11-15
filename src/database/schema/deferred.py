@@ -7,15 +7,18 @@ import uuid
 
 from database.error_text import redaction_units
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
+from database.marker_refs import replace_marker_refs
 
 logger = logging.getLogger(__name__)
 
 REDACT_GATE = 'redact_stored_error_text'
-STEP_NAMES = (REDACT_GATE, BACKFILL_GATE)
+MARKER_REFS_GATE = 'backfill_episode_marker_refs_v1'
+STEP_NAMES = (REDACT_GATE, BACKFILL_GATE, MARKER_REFS_GATE)
 STALE_HEARTBEAT_SECONDS = 120.0
 REDACT_PAGE_ROWS = 500
 BACKFILL_PAGE_EPISODES = 100
 ORIGIN_PAGE_PATTERNS = 200
+MARKER_REFS_PAGE_EPISODES = 25
 
 
 class StepClaimLost(Exception):
@@ -31,6 +34,7 @@ class DeferredUpgradeMixin:
 
     def _register_deferred_upgrade_steps(self, conn, fresh: bool) -> None:
         """Record every unfinished step as pending; a fresh install has nothing to do and marks them done."""
+        self.__dict__.pop('_done_gates', None)
         for name in STEP_NAMES:
             if _is_done(conn, name):
                 state = 'done'
@@ -54,9 +58,23 @@ class DeferredUpgradeMixin:
         conn = self.get_connection()
         return [name for name in STEP_NAMES if not _is_done(conn, name)]
 
+    def _gate_pending(self, name: str) -> bool:
+        """Whether the step is unfinished; a done answer is kept, as a finished step never reverts."""
+        done = self.__dict__.setdefault('_done_gates', set())
+        if name in done:
+            return False
+        if _is_done(self.get_connection(), name):
+            done.add(name)
+            return False
+        return True
+
     def history_backfill_pending(self) -> bool:
         """Whether the match history backfill has not finished."""
-        return not _is_done(self.get_connection(), BACKFILL_GATE)
+        return self._gate_pending(BACKFILL_GATE)
+
+    def marker_refs_pending(self) -> bool:
+        """Whether the fill of episode_marker_refs from stored markers has not finished."""
+        return self._gate_pending(MARKER_REFS_GATE)
 
     def _claim_upgrade_step(self, name: str, owner: str, now: float,
                             stale_after: float = STALE_HEARTBEAT_SECONDS) -> dict | None:
@@ -102,7 +120,8 @@ class DeferredUpgradeMixin:
         return ok
 
     def _run_claimed_step(self, name, owner, claim, clock, pause, should_stop) -> None:
-        advance = {REDACT_GATE: self._advance_redaction, BACKFILL_GATE: self._advance_backfill}[name]
+        advance = {REDACT_GATE: self._advance_redaction, BACKFILL_GATE: self._advance_backfill,
+                   MARKER_REFS_GATE: self._advance_marker_refs}[name]
         started = clock()
         ctx = {'rows': claim['rows_done'], 'out_of_scope': set()}
         cursor = claim['cursor']
@@ -187,6 +206,27 @@ class DeferredUpgradeMixin:
             return 0
         conn.execute(f"UPDATE {table} SET {column} = ? WHERE rowid = ?", (redacted, rid))  # noqa: S608
         return 1
+
+    def _advance_marker_refs(self, cursor, save, ctx):
+        """Fill refs for one page of episodes with stored markers; None when none are left."""
+        after = cursor.get('after', 0)
+        # Read inside the write transaction so a marker write between read and fill cannot leave stale refs
+        with self.transaction(immediate=True) as write:
+            rows = write.execute(
+                "SELECT episode_id, ad_markers_json FROM episode_details "
+                "WHERE episode_id > ? AND ad_markers_json IS NOT NULL ORDER BY episode_id LIMIT ?",
+                (after, MARKER_REFS_PAGE_EPISODES)).fetchall()
+            if not rows:
+                return None
+            for row in rows:
+                try:
+                    markers = json.loads(row['ad_markers_json'])
+                except ValueError:
+                    markers = []
+                replace_marker_refs(write, row['episode_id'], markers)
+            new_cursor = {'after': rows[-1]['episode_id']}
+            save(write, new_cursor, len(rows))
+        return new_cursor
 
     def _advance_backfill(self, cursor, save, ctx):
         """Write match history for one page of episodes, then the fingerprint origins; None when done."""
