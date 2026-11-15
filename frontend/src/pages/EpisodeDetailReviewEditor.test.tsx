@@ -127,6 +127,7 @@ vi.mock('../hooks/useLocalStorageState', () => ({
 
 vi.mock('../utils/confidence', () => ({
   formatConfidence: () => '95%',
+  formatConfidenceTitle: () => undefined,
 }));
 
 // Mutable mutation stubs; reassigned per test.
