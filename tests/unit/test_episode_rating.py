@@ -132,6 +132,36 @@ def test_five_stars_dismisses_held_markers_without_a_correction(seeded):
                 if c['correction_type'] == 'false_positive']
 
 
+def test_confirm_markers_must_be_a_boolean(seeded):
+    client, _ = seeded
+    for value in ('yes', 1, 0, []):
+        assert _put(client, {'rating': 5, 'confirm_markers': value}).status_code == 400, value
+
+
+def test_confirm_markers_true_confirms_at_five(seeded):
+    client, db = seeded
+    _seed_cut_and_held(db)
+    body = _put(client, {'rating': 5, 'confirm_markers': True}).get_json()
+    assert (body['confirmedMarkers'], body['dismissedMarkers']) == (1, 1)
+
+
+def test_confirm_markers_false_only_stores_the_rating(seeded):
+    client, db = seeded
+    _seed_cut_and_held(db)
+    body = _put(client, {'rating': 5, 'confirm_markers': False}).get_json()
+    assert (body['confirmedMarkers'], body['dismissedMarkers']) == (0, 0)
+    assert body['rating']['value'] == 5
+    assert json.loads(db.get_episode(SLUG, EPISODE)['ad_markers_json'])[1]['held_for_review'] is True
+    assert not db.get_episode_corrections(db.get_podcast_by_slug(SLUG)['id'], EPISODE)
+
+
+def test_confirm_markers_true_below_five_does_nothing(seeded):
+    client, db = seeded
+    _seed_cut_and_held(db)
+    body = _put(client, {'rating': 4, 'confirm_markers': True}).get_json()
+    assert (body['confirmedMarkers'], body['dismissedMarkers']) == (0, 0)
+
+
 def test_four_stars_leaves_held_markers(seeded):
     client, db = seeded
     _seed_cut_and_held(db)
