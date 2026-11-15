@@ -1393,7 +1393,7 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     else:
         outcomes = []
     if applied.get('text') is not None:
-        _fit_duration(db, pattern, applied, outcomes)
+        _fit_duration(db, suggestion_id, pattern, applied, outcomes)
     if _changes_audio(applied):
         _record_audio_outcomes(db, suggestion_id, suggestion['kind'], pattern['id'], applied, outcomes)
     result = db.get_cleanup_suggestion(suggestion_id)
@@ -1406,7 +1406,7 @@ def _changes_audio(applied: dict) -> bool:
     return bool(applied.get('new_pattern_ids')) or applied.get('text') is not None
 
 
-def _fit_duration(db, pattern: dict, applied: dict, outcomes: list) -> None:
+def _fit_duration(db, suggestion_id: int, pattern: dict, applied: dict, outcomes: list) -> None:
     """Shorten the stored duration after a trim: to the rebuilt fingerprint's span, else by the text ratio; never up."""
     current = db.get_ad_pattern_by_id(pattern['id'])
     previous = applied.get('previous_avg_duration')
@@ -1421,6 +1421,10 @@ def _fit_duration(db, pattern: dict, applied: dict, outcomes: list) -> None:
             new = end - start
     if new is not None and 0 < new < previous:
         db.update_ad_pattern(pattern['id'], avg_duration=new)
+        try:
+            db.merge_cleanup_suggestion_applied(suggestion_id, {'fitted_avg_duration': new})
+        except Exception as e:
+            logger.warning(f"pattern_cleanup: could not store the fitted duration of suggestion {suggestion_id}: {e}")
 
 
 def _record_audio_outcomes(db, suggestion_id: int, kind: str, pattern_id: int, applied: dict,
@@ -1533,8 +1537,11 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
                 updates['sponsor_id'] = before.get('sponsor_id')
             if payload.get('category'):
                 updates['category'] = before.get('category')
-            # Approvals recorded before the duration was saved have no key, so their duration is left as is.
-            if 'previous_avg_duration' in applied:
+            # Restore only a duration the trim itself wrote and nothing has moved since.
+            fitted = applied.get('fitted_avg_duration')
+            current = pattern.get('avg_duration')
+            if (isinstance(fitted, (int, float)) and 'previous_avg_duration' in applied
+                    and isinstance(current, (int, float)) and math.isclose(current, fitted, abs_tol=1e-6)):
                 updates['avg_duration'] = applied['previous_avg_duration']
             db._update_ad_pattern_conn(conn, pattern['id'], **updates)
         elif suggestion['kind'] == 'rename':

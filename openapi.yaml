@@ -15271,7 +15271,10 @@ components:
               description: Source episode span of the pattern's fingerprint when it was approved, used to restore audio on undo. Null when it had none.
             previousAvgDuration:
               type: [number, 'null']
-              description: Stored average duration in seconds before a trim, restored exactly on undo. Absent on approvals made before it was recorded.
+              description: Stored average duration in seconds before a trim, restored on undo only while the duration still equals fittedAvgDuration. Absent on approvals made before it was recorded.
+            fittedAvgDuration:
+              type: number
+              description: Average duration in seconds the trim wrote. Absent when the trim left the duration unchanged.
             audioOutcomes:
               type: array
               description: Audio fingerprint outcome per pattern from approving a trim or split.

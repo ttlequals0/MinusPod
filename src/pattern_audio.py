@@ -15,6 +15,8 @@ logger = logging.getLogger('podcast.pattern_audio')
 RETAINED_MATCH_CANDIDATES = 20
 # Minimum alignment score (0-100) for a template to count as found despite transcription differences
 FUZZY_LOCATE_FLOOR = 88.0
+# Shorter templates score too easily against unrelated text, so they must match exactly
+FUZZY_LOCATE_MIN_CHARS = 40
 
 
 def resolve_retained_original(db, storage, slug, episode_id, episode=None):
@@ -145,7 +147,8 @@ def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, lo
         pattern = patterns.get(pid) or {}
         template = ' '.join((pattern.get('text_template') or '').split())
         # split children come in text order, so a repeat inside an earlier child is not theirs
-        where = _find_text(joined, template, after if locate else 0, locate) if template else None
+        fuzzy = locate and len(template) >= FUZZY_LOCATE_MIN_CHARS
+        where = _find_text(joined, template, after if locate else 0, fuzzy) if template else None
         if where is None:
             continue
         lo, hi = where
@@ -209,12 +212,12 @@ def _usable_fingerprint_row(conn, pattern_id):
 
 
 def locate_template_span(db, slug, episode_id, template):
-    """The whole-segment (start, end) of template in an episode's transcript, else None."""
+    """The whole-segment (start, end) of template verbatim in an episode's transcript, else None."""
     template = ' '.join((template or '').split())
     if not template:
         return None
     spans, words, joined, offsets = _timed_words(db, slug, episode_id, 0, math.inf)
-    where = _find_text(joined, template, 0, True)
+    where = _find_text(joined, template, 0, False)
     covered = _covered_segments(words, offsets, *where) if where else []
     if not covered:
         return None
@@ -224,6 +227,8 @@ def locate_template_span(db, slug, episode_id, template):
 
 def _creating_episode(db, storage, pattern):
     """The pattern's creating episode with its retained original, else None."""
+    if not pattern:
+        return None
     slug, episode_id = pattern['podcast_id'], pattern['created_from_episode_id']
     if not slug or not episode_id:
         return None

@@ -4,14 +4,14 @@ import logging
 import pytest
 
 from tests.integration.fingerprint_helpers import (  # noqa: E402
-    EPISODE, FIRST_READ, OTHER, SECOND_TEMPLATE, SLUG, TWO_SPONSORS, csrf, seed_other_episode,
+    EPISODE, FIRST_READ, OTHER, SECOND_TEMPLATE, SLUG, TEMPLATE, TWO_SPONSORS, csrf, seed_other_episode,
     seed_timed_transcript, seed_two_sponsor_transcript, stamp,
 )
 from tests.integration.cleanup_helpers import (  # noqa: E402
     OLD, source_span as _span, split as _split, suggest as _suggest, trim as _trim,
 )
 import pattern_cleanup  # noqa: E402  must follow the helpers, which bootstrap the data dir
-from pattern_audio import own_pattern_spans  # noqa: E402
+from pattern_audio import FUZZY_LOCATE_MIN_CHARS, locate_template_span, own_pattern_spans  # noqa: E402
 from tests.fingerprint_match_helpers import record_fingerprint_match  # noqa: E402
 
 
@@ -143,6 +143,41 @@ def test_a_repeat_before_the_previous_child_is_not_taken_by_a_fuzzy_match():
     assert own[1] == (40.0, 70.0) and own[2] is None
 
 
+SHORT_GENERIC = 'brought to you by acme today'
+NEAR_MISS = 'this one is brought to you by acme toda'
+
+
+def test_a_short_template_is_not_fuzzy_located_in_the_whole_transcript(fp_feed):
+    assert len(SHORT_GENERIC) < FUZZY_LOCATE_MIN_CHARS
+    seed_timed_transcript(fp_feed, [(10.0, 40.0, NEAR_MISS)])
+    assert locate_template_span(fp_feed, SLUG, EPISODE, SHORT_GENERIC) is None
+
+
+def test_a_long_template_is_not_fuzzy_located_in_the_whole_transcript(fp_feed):
+    seed_timed_transcript(fp_feed, [(10.0, 40.0, FIRST_READ.replace('easy', 'quick'))])
+    assert locate_template_span(fp_feed, SLUG, EPISODE, FIRST_READ) is None
+
+
+def test_an_unlocated_template_falls_through_to_the_marker_span(fp_feed, fp_original, stub_fingerprinting):
+    seed_timed_transcript(fp_feed, [(10.0, 40.0, FIRST_READ.replace('easy', 'quick')), (40.0, 70.0, 'Chatter.')])
+    pid = _legacy_pattern(fp_feed, text=FIRST_READ)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[
+        {'start': 10.0, 'end': 40.0, 'pattern_id': pid, 'was_cut': True, 'validation': {'decision': 'ACCEPT'}}])
+    _trim(fp_feed, pid, text=TEMPLATE)
+    slug, episode, start, end = _span(fp_feed, pid)
+    assert (slug, episode) == (SLUG, EPISODE) and 10.0 <= start < end <= 40.0
+
+
+def test_a_short_child_is_not_fuzzy_located_inside_a_span():
+    own = _located([(10.0, 40.0, NEAR_MISS)], {1: SHORT_GENERIC}, 10.0, 40.0)
+    assert own[1] is None
+
+
+def test_a_short_child_is_still_found_exactly_inside_a_span():
+    own = _located([(10.0, 40.0, SHORT_GENERIC), (40.0, 70.0, 'Other words.')], {1: SHORT_GENERIC}, 10.0, 70.0)
+    assert own[1] == pytest.approx((10.0, 40.0), abs=1.0)
+
+
 # C: a trim moves the stored duration
 
 def _avg(db, pid):
@@ -186,7 +221,25 @@ def test_undo_trim_is_not_refused_after_the_duration_moved_again(fp_feed, fp_ori
     sid, _ = _trim(fp_feed, pid)
     fp_feed.update_ad_pattern(pid, avg_duration=31.0)
     assert pattern_cleanup.undo_suggestion(fp_feed, sid)['status'] == 'undone'
-    assert _avg(fp_feed, pid) == 92.5
+    assert _avg(fp_feed, pid) == 31.0
+
+
+def test_undo_trim_keeps_a_duration_set_after_an_unset_one(fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    sid, _ = _trim(fp_feed, pid)
+    fp_feed.update_ad_pattern(pid, avg_duration=31.0)
+    assert pattern_cleanup.undo_suggestion(fp_feed, sid)['status'] == 'undone'
+    assert _avg(fp_feed, pid) == 31.0
+
+
+def test_undo_leaves_the_duration_alone_when_the_trim_did_not_change_it(fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, avg_duration=12.0)
+    sid, _ = _trim(fp_feed, pid)
+    fp_feed.update_ad_pattern(pid, avg_duration=20.0)
+    assert pattern_cleanup.undo_suggestion(fp_feed, sid)['status'] == 'undone'
+    assert _avg(fp_feed, pid) == 20.0
 
 
 def test_a_split_leaves_the_parent_duration_alone(fp_feed, fp_original, stub_fingerprinting):
