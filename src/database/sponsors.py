@@ -2,6 +2,8 @@
 import json
 import logging
 
+from utils.markers import normalize_sponsor_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +53,7 @@ class SponsorMixin:
                 aliases = []
             for name in [row['name'], *aliases]:
                 if isinstance(name, str) and name.strip():
-                    result[name.strip().lower()] = row['segment_category']
+                    result[normalize_sponsor_key(name)] = row['segment_category']
         return result
 
     def create_known_sponsor(self, name: str, aliases: list[str] = None,

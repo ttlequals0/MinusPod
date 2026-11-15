@@ -407,6 +407,13 @@ def paged_args(default_limit=50, max_limit=100):
     return limit, offset
 
 
+def mark_long_cacheable(response, cache_control):
+    """Let the browser reuse a response without asking: no Cookie in Vary, no stale Expires."""
+    response.headers['Cache-Control'] = cache_control
+    response.headers.pop('Expires', None)
+    response.skip_cookie_vary = True
+
+
 def image_response(path, content_type):
     """Serve a cached image with stat-based ETag/Last-Modified revalidation."""
     response = send_file(path, mimetype=content_type, conditional=True, max_age=0)

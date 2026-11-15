@@ -8,11 +8,40 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.102.5] - 2026-11-15
+## [2.102.4] - 2026-11-14
+
+### Changed
+
+- The Patterns table has one-line column headers, even column spacing and right-aligned Confirmed and False pos. counts. Dates in the table and on pattern cards read `Nov/14/26`, with the full date and time on hover.
+- A truncated sponsor name or text preview in the Patterns table shows its full text on hover.
+- Cover download log lines name the episode and a short identifier for the cover.
+- Memory freed by episode processing is returned to the system once the queue is empty. An idle instance kept it before. (#1001)
+- Both images set `MALLOC_ARENA_MAX=2` and `OPENBLAS_NUM_THREADS=1` by default. Override them in compose if needed. (#1001)
 
 ### Fixed
 
-- A blank system prompt no longer sends an empty system message (OpenAI-compatible and Ollama) or an empty `system` parameter (Anthropic). Some gateways in front of these APIs reject an empty system block with a 400, so the request failed before reaching the model. A non-blank system prompt is sent as before, and the JSON-format fallback for endpoints without `json_object` support adds a system message when there was none.
+- Browsers can reuse a cached episode cover thumbnail for 7 days without asking the server. In 2.102.3 they checked each thumbnail again on every visit. (#1000)
+
+## [2.102.3] - 2026-11-14
+
+### Added
+
+- `GET /feeds/{slug}/episodes/{episode_id}/artwork` accepts `size=thumb` and returns a 256 px thumbnail. Episode responses carry its address in `artworkThumbUrl`. (#1000)
+
+### Changed
+
+- Episode lists load 256 px cover thumbnails, and the browser keeps each one for 7 days. They requested the full-size cover for every row on every visit, which was slow on long lists and left grey placeholders when many covers loaded at once. Reported with measurements by Punkamonk. (#1000)
+- A cover shared by many episodes of a feed is downloaded and stored once. It was downloaded and stored once per episode. (#1000)
+- Episode cover requests have their own limit of 3000 per minute. They counted against the general limit of 200 per minute. (#1000)
+- Add audio to pattern finds episodes through a new index of the pattern ids and sponsors named in each episode's ad markers. The lookup read every episode's stored markers and could take more than 10 seconds on a library of 18,000 episodes. It now takes under 100 ms.
+- After an upgrade, a one-time background step builds that index from existing episodes. Until it finishes, Add audio can miss older episodes, and `GET /patterns/{id}/audio` reports `markerIndexPending: true`.
+- A freshly published episode whose audio is not available yet is logged as a warning while it still has retries left. It was logged as an error.
+- A feed or episode cover URL that keeps failing logs one warning. It logged the same warning at every retry.
+
+### Fixed
+
+- Add audio to pattern searches the retained episodes most likely to hold the ad. It tried only the 10 newest retained episodes in the pattern's scope, so an ad further back was never found. Episodes whose ad markers name the pattern's sponsor, or one of its aliases, are now searched first, and the newest episodes fill the remaining places. A pattern with no sponsor is searched as before.
+- An artwork download that a host refuses with a 403 is retried once with the feed User-Agent, as the audio download already does, before the failure is recorded.
 
 ## [2.102.2] - 2026-11-13
 

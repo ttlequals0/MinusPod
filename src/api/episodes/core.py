@@ -4,7 +4,7 @@ import json
 import logging
 from flask import redirect, request, send_file, url_for
 from api import (
-    api, log_request, json_response, error_response, image_response,
+    api, limiter, log_request, json_response, error_response, image_response, mark_long_cacheable,
     get_database, get_storage, get_feed_auth_key, public_path,
 )
 import config
@@ -115,6 +115,8 @@ def list_episodes(slug):
 
     # One batched lookup for the whole page rather than one query per row.
     job_states = db.get_episode_job_states([ep['episode_id'] for ep in episodes])
+    local_versions = (storage.local_artwork_versions(slug, [ep['episode_id'] for ep in episodes])
+                      if is_local and storage is not None else None)
 
     episode_list = []
     for ep in episodes:
@@ -142,7 +144,7 @@ def list_episodes(slug):
             ep, slug=owner_slug,
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
             is_youtube=(ep.get('source_feed_type') == 'youtube') if source_slug else is_youtube,
-            storage=storage,
+            storage=storage, local_versions=local_versions,
             title_skip_patterns=(ep.get('source_title_skip_patterns')
                                  if source_slug else podcast.get('title_skip_patterns')),
             description_skip_patterns=(ep.get('source_description_skip_patterns')
@@ -195,7 +197,14 @@ def _secure_artwork_url(url):
     return url if (url or '').startswith(('https://', 'http://')) else None
 
 
-def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
+IMMUTABLE_COVER_CACHE_CONTROL = 'private, max-age=604800, immutable'
+
+
+def _artwork_route(slug, episode_id):
+    return public_path(f"/api/v1/feeds/{slug}/episodes/{episode_id}/artwork")
+
+
+def _local_artwork_fallback_url(ep, *, is_local, storage, slug, local_versions=None):
     """The admin artwork proxy route, or None.
 
     Local episodes never get an ``artwork_url`` (it is populated only from an upstream RSS
@@ -207,9 +216,26 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
     """
     if not is_local or storage is None:
         return None
-    if not storage.has_episode_artwork(slug, ep['episode_id']):
+    has_cover = (ep['episode_id'] in local_versions if local_versions is not None
+                 else storage.has_episode_artwork(slug, ep['episode_id']))
+    return _artwork_route(slug, ep['episode_id']) if has_cover else None
+
+
+def _artwork_thumb_url(ep, *, slug, is_local, storage, artwork_url, local_versions=None):
+    """Same-origin thumbnail address with its cache-bust token, or None when the episode has no cover."""
+    if storage is None:
         return None
-    return public_path(f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork")
+    if artwork_url:
+        version = storage.cover_version(slug, ep['episode_id'], artwork_url)
+    elif is_local and local_versions is not None:
+        version = local_versions.get(ep['episode_id'])
+    elif is_local:
+        version = storage.cover_version(slug, ep['episode_id'], None)
+    else:
+        version = None
+    if not version:
+        return None
+    return f"{_artwork_route(slug, ep['episode_id'])}?size=thumb&v={version}"
 
 
 def _sponsorblock_json(ep):
@@ -226,22 +252,30 @@ def _sponsorblock_json(ep):
 
 def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, storage=None,
                        title_skip_patterns=None, description_skip_patterns=None,
-                       duration_filters=None):
+                       duration_filters=None, local_versions=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for the frontend: 'processed' -> 'completed'; discovered/
     permanently_failed pass through. ``slug``/``is_local``/``storage`` are needed only for
     the local-episode artworkUrl fallback (see _local_artwork_fallback_url); callers pass a
     hoisted ``is_local``/``storage`` so a list does not re-query the podcast row per row.
+    ``local_versions`` is a page's id-to-version map from one directory listing.
     """
     time_saved = 0
     if ep.get('original_duration') and ep.get('new_duration'):
         time_saved = ep['original_duration'] - ep['new_duration']
 
-    artwork_url = _secure_artwork_url(ep.get('artwork_url'))
+    secure_url = _secure_artwork_url(ep.get('artwork_url'))
+    artwork_url = secure_url
     if artwork_url is None and slug is not None:
         artwork_url = _local_artwork_fallback_url(
-            ep, is_local=is_local, storage=storage, slug=slug)
+            ep, is_local=is_local, storage=storage, slug=slug, local_versions=local_versions)
+
+    thumb_url = None
+    if slug is not None:
+        thumb_url = _artwork_thumb_url(
+            ep, slug=slug, is_local=is_local, storage=storage, local_versions=local_versions,
+            artwork_url=secure_url)
 
     return {
         'id': ep['episode_id'],
@@ -262,6 +296,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
         'hasOriginalAudio': bool(ep.get('original_file')),
         'error': redact_error(ep.get('error_message')),
         'artworkUrl': artwork_url,
+        'artworkThumbUrl': thumb_url,
         'pendingReviewCount': ep.get('pending_review_count', 0),
         'awaitingApproval': bool(ep.get('approval_pending_at')),
         'approvalPendingAt': ep.get('approval_pending_at'),
@@ -450,6 +485,7 @@ def get_episode(slug, episode_id):
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/artwork', methods=['GET'])
+@limiter.limit("3000 per minute")
 @log_request
 def get_episode_artwork(slug, episode_id):
     """Serve an episode cover through MinusPod instead of hot-linking it.
@@ -458,25 +494,32 @@ def get_episode_artwork(slug, episode_id):
     browser sends for a hot-linked ``<img>``, giving a 403 and grey placeholder (#617).
     Fetching server-side sidesteps that and keeps the reader's IP out of the publisher's logs.
     The URL comes from the episode row, never the caller, so it cannot be aimed at an
-    arbitrary host.
+    arbitrary host. ``size=thumb`` serves a 256 px thumbnail; a matching ``v`` allows 7-day caching.
     """
-    storage = get_storage()
-    db = get_database()
+    size = request.args.get('size')
+    if size not in (None, 'thumb'):
+        return error_response("size must be 'thumb'", 400)
+    thumb = size == 'thumb'
 
-    artwork = storage.episode_artwork_file(slug, episode_id)
-    if not artwork:
-        episode = db.get_episode(slug, episode_id)
-        artwork_url = (episode or {}).get('artwork_url')
-        if artwork_url and storage.download_episode_artwork(
-                slug, episode_id, artwork_url):
-            artwork = storage.episode_artwork_file(slug, episode_id)
+    storage = get_storage()
+    artwork_url = _secure_artwork_url(get_database().get_episode_artwork_url(slug, episode_id))
+    version = storage.cover_version(slug, episode_id, artwork_url)
+    if artwork_url:
+        artwork = storage.cache_url_artwork(slug, artwork_url, thumb=thumb, episode_id=episode_id)
+    else:
+        artwork = storage.local_artwork_file(slug, episode_id, thumb=thumb)
 
     if not artwork:
         # No episode cover to be had: hand back the show cover so the row
         # keeps an image rather than collapsing to the grey placeholder.
-        return redirect(url_for('api.get_artwork', slug=slug))
+        response = redirect(url_for('api.get_artwork', slug=slug))
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
 
-    return image_response(*artwork)
+    response = image_response(*artwork)
+    if version and request.args.get('v') == version:
+        mark_long_cacheable(response, IMMUTABLE_COVER_CACHE_CONTROL)
+    return response
 
 
 # Straight from the stdlib so warning/critical aliases cannot drift from what

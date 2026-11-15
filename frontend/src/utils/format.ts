@@ -18,6 +18,16 @@ export function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Mon/DD/YY (e.g. Nov/14/26) in every locale, local time; `-` for a missing value.
+export function formatDateShort(dateStr: string | null): string {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${MONTHS[d.getMonth()]}/${two(d.getDate())}/${two(d.getFullYear() % 100)}`;
+}
+
 // Display name for a subscriber key, which may have no label.
 export function keyLabel(key: { label: string }): string {
   return key.label || 'Unlabeled subscriber';
