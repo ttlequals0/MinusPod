@@ -19,12 +19,16 @@ release notes.
 - The pre-roll detector finds the show's opening line in feeds whose title has a subtitle, such as "Show Name: The Weekly Talk". It tries the main title first, then the full title. Contributed by no84by. (#1004)
 - The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the edge the transcript differential confirmed. The cut could keep the first words of the show. Contributed by no84by. (#1004)
 - A Whisper repetition loop is no longer read as transcript. Text-pattern matching and the validator skip runs of 8 or more short, near-identical cues. When a marker is mostly inside loops and has no measured evidence or decision of yours behind it, the text outside the loops decides. Ad language there trims the marker to that read. A sponsor name alone, or ad language in the loop text itself, holds it with the new reason `transcript_loop`. With neither, it is rejected. Contributed by no84by. (#1005)
+- Feed settings name no global value in "Use global" and "Inherit global" labels until the global settings have loaded. A wrong value could show for a moment. Contributed by no84by. (#1007)
 
 ### Changed
 
 - A cleanup trim shortens the pattern's stored duration: to the length of the rebuilt audio, or in proportion to the shorter text when no audio was rebuilt. Matching uses the stored duration to place a missing edge, so a trimmed pattern could still cut its old, longer span. Undo restores the earlier duration unless later matches have changed it.
 - Each cleanup approval and undo logs what happened to the audio. `GET /patterns/cleanup/suggestions` returns it in `applied.audioOutcomes` and `applied.undoAudioOutcomes`, with `applied.previousAvgDuration` and `applied.fittedAvgDuration` for trims.
 - The manual pattern split picks its audio source the same way as a cleanup split.
+- A cleanup trim turns the pattern's audio off when no retained episode has that audio. The old audio still matched the part the trim removed. Its data and match history are kept, and undo turns it back on unless the audio changed in between. The approval reports `audio_turned_off`, and `applied.audioDisabled` records it.
+- A cut row on the episode page says what your confirm or reject did. A reject reads "Marked not an ad: the audio comes back at the next recut" and offers Recut now. Contributed by no84by. (#1007)
+- The confidence on an episode row shows the model's value and the value after review on hover when the two differ. Contributed by no84by. (#1007)
 
 ## [2.102.4] - 2026-11-14
 
