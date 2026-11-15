@@ -42,3 +42,15 @@ export function KeptBadge({ actionApplied }: { actionApplied?: string | null }) 
     </span>
   );
 }
+
+// Marks a short host ask or sponsor thanks flagged by the detector.
+export function ShortAskBadge() {
+  return (
+    <span
+      className={`${badgeBase} ${tint.warning}`}
+      title="Short host ask or sponsor thanks, cut on sentence edges"
+    >
+      Short ask
+    </span>
+  );
+}

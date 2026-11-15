@@ -136,12 +136,18 @@ LEAD_TAIL_MAX_S = 3.0
 _SENTENCE_END_RE = re.compile(r'[.!?]["\')\]]*$')
 
 
-def _sentences(units: list[dict]) -> list[dict]:
-    """Group timed units (words, or whole untimed segments) into sentences."""
+def _sentences(units: list[dict], *, max_gap_s: float | None = None,
+               max_s: float | None = None) -> list[dict]:
+    """Group timed units (words, or whole untimed segments) into sentences.
+    ``max_gap_s`` and ``max_s`` also close one at a pause or a length, for unpunctuated text."""
     sentences, current = [], []
     for unit in units:
+        if current and max_gap_s is not None and unit['start'] - current[-1]['end'] >= max_gap_s:
+            sentences.append(current)
+            current = []
         current.append(unit)
-        if _SENTENCE_END_RE.search((unit.get('text') or '').strip()):
+        if (_SENTENCE_END_RE.search((unit.get('text') or '').strip())
+                or (max_s is not None and unit['end'] - current[0]['start'] >= max_s)):
             sentences.append(current)
             current = []
     if current:

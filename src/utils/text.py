@@ -123,6 +123,33 @@ def transcript_gaps(segments: list[dict], min_s: float) -> list[tuple[float, flo
     return gaps
 
 
+SPARSE_SEGMENT_MIN_S = 8.0
+SPARSE_SEGMENT_MAX_WORDS_PER_S = 0.5
+
+
+def is_sparse_line(duration: float, words: int, min_s: float = SPARSE_SEGMENT_MIN_S,
+                   max_words_per_s: float = SPARSE_SEGMENT_MAX_WORDS_PER_S) -> bool:
+    """Whether a line of `duration` seconds holds too few `words` to be a real transcription."""
+    return duration >= min_s and words / duration < max_words_per_s
+
+
+def sparse_segment_holes(segments: list[dict], min_s: float = SPARSE_SEGMENT_MIN_S,
+                         max_words_per_s: float = SPARSE_SEGMENT_MAX_WORDS_PER_S
+                         ) -> list[tuple[float, float]]:
+    """(start, end) of every segment of min_s or more with too few words for its length (music-only excluded).
+    A decoder hallucination leaves one short line over speech, which transcript_gaps never sees."""
+    holes = []
+    for seg in segments:
+        start, end = seg.get('start', 0.0), seg.get('end', 0.0)
+        length = end - start
+        text = seg.get('text', '')
+        if not any(ch.isalpha() for ch in text):
+            continue
+        if is_sparse_line(length, len(text.split()), min_s, max_words_per_s):
+            holes.append((start, end))
+    return holes
+
+
 def get_timestamped_transcript_for_range(
     segments: list[dict],
     start_time: float,

@@ -18,7 +18,7 @@ from utils.time import (
 
 from config import (
     MIN_AD_DURATION, HOLD_REASON_REVIEWER_CONTRADICTION,
-    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT, resolve_precise_cut_edges,
 )
 
 from llm_capabilities import (
@@ -43,11 +43,21 @@ def _build_reviewer(db, ad_detector) -> AdReviewer:
     )
 
 
+def _snip_short_asks(slug) -> bool:
+    """The feed's resolved snip_short_asks; off when it cannot be read."""
+    try:
+        return bool(db.resolve_feed_bool(slug, 'snip_short_asks', 'snip_short_asks'))
+    except Exception as e:
+        audio_logger.warning(f"[{slug}] Could not resolve snip_short_asks: {e}")
+        return False
+
+
 def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
                         episode_title, podcast_description, episode_description,
                         audio_analysis=None, effective_category_actions=None,
                         hard_barriers=None, min_cut_confidence=None,
-                        protected_spans=None, detection_notes=None):
+                        protected_spans=None, detection_notes=None,
+                        edge_check=False, marker_spans=None):
     return {
         'podcast_name': podcast_name,
         'episode_title': episode_title,
@@ -68,6 +78,11 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
         'min_cut_confidence': min_cut_confidence,
         # Labelled keeps and user rejections the reviewer prompt lists as hard limits.
         'protected_spans': protected_spans,
+        'snip_short_asks': _snip_short_asks(slug),
+        # precise_cut_edges, pass 1 only: show the reviewer the sentences beside each edge;
+        # every marker bars a widened edge.
+        'edge_check': edge_check,
+        'marker_spans': marker_spans,
     }
 
 
@@ -652,6 +667,9 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         min_cut_confidence=min_cut_confidence,
         protected_spans=_labelled_protected_spans(keep_ads, user_rejects),
         detection_notes=detection_notes,
+        edge_check=pass_num == 1 and resolve_precise_cut_edges(db),
+        marker_spans=[(m['start'], m['end']) for m in all_ads_with_validation
+                      if m.get('start') is not None and m.get('end') is not None],
     )
     result = reviewer.review(
         accepted_ads=ads_to_remove,

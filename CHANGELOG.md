@@ -8,6 +8,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Added
+
+- Remove short host asks and sponsor thanks, a new setting that is off by default. When on, the detection, reviewer and resurrect prompts gain a short-asks section, and the model may flag a 2 to 40 second interaction, self-promo or sponsor sentence with `short_ask`. A flagged marker uses a 2 second floor instead of the usual 7 and 10 second floors, and its edges snap to sentence edges within 1.5 seconds of the model's edges (within 0.5 seconds for an ask under 3 seconds); with no such edge the flag is dropped and the usual floors apply. The episode page shows a Short ask chip and counts short asks in the Detected ads header. Each feed can follow the global setting or turn it on or off. API: `snipShortAsks` on `PUT /api/v1/settings/ad-detection` and on the feed `PATCH` (true, false or null). See [Configuration](docs/configuration.md).
+- Precise cut edges, an advanced switch in Settings, LLM tunables (`preciseCutEdges`, off by default). When on, each cut edge moves into the pause beside the nearest sentence or word boundary (from the analyzer's silence spans, or a short audio read when there are none), an edge on a transcript line that straddles a dynamic-ad splice moves onto the splice, the first-pass reviewer may name the lead-in and closing sentences of a read, a near-empty transcript line inside a hole is re-decoded, and the fade at an edge in a pause is kept inside that pause. User-confirmed edges, episode edges, DAI cores, transcript-aligned and splice edges, cue-cut markers and audio-fingerprint match edges are never moved. Off, detection, prompts and renders are unchanged.
+
+### Fixed
+
+- The pre-roll detector finds the show's opening line in feeds whose title has a subtitle ("Show Name: The Weekly Talk", "Show Name - Daily", "Show Name (Podcast)"). It tries the main title first, then the full title. Before, the show-name match never fired on such feeds and the pre-roll could run past the show's opening line.
+- The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the word-aligned edge that the transcript differential confirmed for that span. Before, it was accepted only on a timed word edge with a pause after it, so the cut could keep the first words of the show.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed

@@ -585,6 +585,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'detect_show_segments': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='detectShowSegments', payload_kind='bool'),
+    # Global default for removing short host asks and sponsor thanks. Per-feed
+    # snip_short_asks (INTEGER): NULL inherits this, 0 off, 1 on.
+    'snip_short_asks': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='snipShortAsks', payload_kind='bool'),
     # Seed-sponsors toggles (issue: hushpod adoption). One per prompt that
     # takes the dynamic sponsor block; off renders that prompt with an empty
     # {sponsor_database}. All default on to preserve current behavior.
@@ -1061,6 +1066,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
+    # Hidden opt-in (Stage tunables page): word-gap snap, splice straddle, reviewer edge
+    # check, sparse-hole repair and edge fade. Off reproduces the cut edges without them.
+    'precise_cut_edges': SettingSpec(
+        default='false', payload_key='preciseCutEdges', payload_kind='bool'),
 
     # Notifications
     # IANA zone for timestamp_local in webhook/email payloads: the container TZ

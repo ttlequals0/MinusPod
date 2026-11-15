@@ -16,6 +16,7 @@ from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.http import redact_stored_text
 from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
+from utils.short_asks import floor_for
 from mp3_stream_copy import copy_mp3
 from config import (
     CUE_MATCH_STAGE, FFMPEG_LONG_TIMEOUT,
@@ -61,6 +62,14 @@ def get_replace_audio_path() -> str:
             return str(candidate)
     # Nothing on disk; return the shipped location so the error names it.
     return str(ASSETS_BUILTIN_DIR / REPLACE_AUDIO_FILENAME)
+
+
+def edge_fade(default: float, ad: dict, edge: str) -> float:
+    """Fade length next to a cut edge: the default, or the pause it was placed in when that is shorter."""
+    pause = (ad.get('edge_pause_s') or {}).get(edge)
+    if not default or not isinstance(pause, (int, float)):
+        return default
+    return min(default, max(0.05, pause))
 
 
 def get_replacement_duration() -> float:
@@ -290,9 +299,20 @@ class AudioProcessor:
                 # Extend current segment (use max to handle overlapping/contained ads)
                 if ad['end'] > current_segment['end']:
                     current_segment['end'] = ad['end']
+                    pauses = dict(current_segment.get('edge_pause_s') or {})
+                    pauses.pop('end', None)
+                    if 'end' in (ad.get('edge_pause_s') or {}):
+                        pauses['end'] = ad['edge_pause_s']['end']
+                    if pauses:
+                        current_segment['edge_pause_s'] = pauses
+                    else:
+                        current_segment.pop('edge_pause_s', None)
                     current_segment['_confirmed_cut'] = confirmed_cut
                     current_segment['_precise_end'] = precise_end
                     current_segment['_locked_end'] = confirmed_cut or precise_end
+                # A merged span is no longer purely the flagged ask: drop the flag.
+                for key in ('category', 'short_ask', 'short_ask_origin'):
+                    current_segment.pop(key, None)
                 if 'reason' in ad:
                     current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
                 # Carry the strongest trust signal of the merged members so
@@ -312,9 +332,13 @@ class AudioProcessor:
                                    '_locked_start': confirmed_cut or precise_start,
                                    '_locked_end': confirmed_cut or precise_end}
                 for key in ('reason', 'confidence', 'detection_stage', 'beep',
-                            '_measured_split_fragment'):
+                            '_measured_split_fragment', 'edge_pause_s'):
                     if key in ad:
                         current_segment[key] = ad[key]
+                if ad.get('short_ask') is True:
+                    for key in ('category', 'short_ask', 'short_ask_origin'):
+                        if key in ad:
+                            current_segment[key] = ad[key]
         if current_segment:
             merged_ads.append(current_segment)
 
@@ -329,7 +353,7 @@ class AudioProcessor:
                           or ad.get('detection_stage') in ('fingerprint', CUE_MATCH_STAGE)
                           or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
                           or measured_split)
-            if duration >= MIN_AD_DURATION_FOR_REMOVAL:
+            if duration >= floor_for(ad, MIN_AD_DURATION_FOR_REMOVAL):
                 ads.append(ad)
             elif keep_short:
                 ads.append(ad)
@@ -496,8 +520,10 @@ class AudioProcessor:
                 # Add content before ad (with fades at boundaries)
                 if ad_start > current_time:
                     content_duration = ad_start - current_time
-                    fade_in = fade_in_duration if i and ads[i - 1]['replacement_duration'] > 0 else 0.0
-                    fade_out = fade_out_duration if ad['replacement_duration'] > 0 else 0.0
+                    fade_in = (edge_fade(fade_in_duration, ads[i - 1], 'end')
+                               if i and ads[i - 1]['replacement_duration'] > 0 else 0.0)
+                    fade_out = (edge_fade(fade_out_duration, ad, 'start')
+                                if ad['replacement_duration'] > 0 else 0.0)
                     chain = f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS"
                     if content_duration > fade_in + fade_out:
                         if fade_in:
@@ -537,8 +563,9 @@ class AudioProcessor:
             if current_time < total_duration:
                 content_duration = total_duration - current_time
                 chain = f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS"
-                if ads[-1]['replacement_duration'] > 0 and content_duration > fade_in_duration:
-                    chain += f",afade=t=in:d={fade_in_duration}"
+                last_fade_in = edge_fade(fade_in_duration, ads[-1], 'end')
+                if ads[-1]['replacement_duration'] > 0 and content_duration > last_fade_in:
+                    chain += f",afade=t=in:d={last_fade_in}"
                 filter_parts.append(f"{chain}[s{segment_idx}]")
                 concat_parts.append(f"[s{segment_idx}]")
 

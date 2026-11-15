@@ -584,6 +584,9 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     resolved_category = resolve_ad_category(ad)
     if resolved_category:
         ad_entry['category'] = resolved_category
+    # Only the literal true counts; the detector decides whether the feed keeps it.
+    if ad.get('short_ask') is True:
+        ad_entry['short_ask'] = True
     return ad_entry
 
 
@@ -912,8 +915,20 @@ def _mode_detection_schema(addressing_mode: str) -> dict:
 _MODE_DETECTION_SCHEMAS = {mode: _mode_detection_schema(mode) for mode in ("timestamps", "segment_ids")}
 
 
-def ad_detection_json_schema(addressing_mode: str) -> dict:
-    return _MODE_DETECTION_SCHEMAS["segment_ids" if addressing_mode == "segment_ids" else "timestamps"]
+def _short_ask_detection_schema(addressing_mode: str) -> dict:
+    schema = copy.deepcopy(_mode_detection_schema(addressing_mode))
+    schema["properties"]["ads"]["items"]["properties"]["short_ask"] = {"type": "boolean"}
+    return schema
+
+
+_SHORT_ASK_DETECTION_SCHEMAS = {mode: _short_ask_detection_schema(mode)
+                                for mode in ("timestamps", "segment_ids")}
+
+
+def ad_detection_json_schema(addressing_mode: str, short_ask: bool = False) -> dict:
+    """Per-mode detection schema; short_ask adds the optional flag for feeds that opted in."""
+    schemas = _SHORT_ASK_DETECTION_SCHEMAS if short_ask else _MODE_DETECTION_SCHEMAS
+    return schemas["segment_ids" if addressing_mode == "segment_ids" else "timestamps"]
 
 
 # Small fixed budget: the repair call only ever emits a short JSON array,

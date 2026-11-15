@@ -542,6 +542,44 @@ def _pass1_action_for_applied_cut(cut, pass1_markers):
     return actions.pop() if len(actions) == 1 else None
 
 
+def _carry_edge_protection(current, candidate):
+    """Fold the candidate's edge protection into the merged cut: its end flags if its end wins."""
+    candidate_ends = candidate['end'] > current['end'] + EDGE_TOLERANCE
+    same_end = abs(candidate['end'] - current['end']) <= EDGE_TOLERANCE
+    anchors = {edge for edge in current.get('edge_splice_anchor') or () if edge == 'start' or not candidate_ends}
+    if candidate_ends or same_end:
+        anchors |= {edge for edge in candidate.get('edge_splice_anchor') or () if edge == 'end'}
+    if anchors:
+        current['edge_splice_anchor'] = sorted(anchors)
+    else:
+        current.pop('edge_splice_anchor', None)
+    if candidate_ends:
+        current.pop('tail_splice_snap', None)
+        if current.get('transcript_span'):
+            current['transcript_span'] = {k: v for k, v in current['transcript_span'].items() if k != 'end'}
+    if candidate_ends or same_end:
+        if candidate.get('tail_splice_snap') and not current.get('tail_splice_snap'):
+            current['tail_splice_snap'] = candidate['tail_splice_snap']
+        # cue_snap is per side: keep current's start record, take only the end record from the end-winning cut.
+        snap = {k: v for k, v in (current.get('cue_snap') or {}).items() if k != 'end' or not candidate_ends}
+        end_snap = (candidate.get('cue_snap') or {}).get('end')
+        if end_snap and 'end' not in snap:
+            snap['end'] = end_snap
+        if snap:
+            current['cue_snap'] = snap
+        else:
+            current.pop('cue_snap', None)
+        span, other = current.get('transcript_span') or {}, candidate.get('transcript_span') or {}
+        if other.get('offset_confirmed') and 'end' not in span:
+            current['transcript_span'] = {**span, 'end': other['end'], 'offset_confirmed': True}
+    # Deliberate: the candidate's span-level offset_confirmed and whole-cut user_confirmed also protect current's start edge.
+    if (candidate.get('validation') or {}).get('user_confirmed'):
+        current['validation'] = {**(current.get('validation') or {}), 'user_confirmed': True}
+    cores = [*(current.get('dai_core_spans') or []), *(candidate.get('dai_core_spans') or [])]
+    if cores:
+        current['dai_core_spans'] = cores
+
+
 def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
                         original_segments, protected_ranges, min_content):
     """Return a safe original-coordinate rerender plan when pass boundaries join."""
@@ -600,6 +638,7 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         if (same_action and combines_passes and eligible
                 and end - start <= MAX_MERGED_DURATION
                 and not crosses_protected(start, end)):
+            _carry_edge_protection(current, candidate)
             current['end'] = max(current['end'], candidate['end'])
             current['_crosspass_sources'].update(candidate['_crosspass_sources'])
             current['_measured_split_fragment'] = bool(
@@ -618,10 +657,15 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
 def _rerender_crosspass_from_original(slug, episode_id, original_audio_path,
                                       processed_path, planned_cuts,
                                       local_audio_processor, cut_barriers,
-                                      hard_barriers=None):
-    """Render a final cross-pass union without mutating either input on failure."""
+                                      hard_barriers=None, segments=None,
+                                      silence_spans=None):
+    """Render a final cross-pass union without mutating either input on failure.
+    ``silence_spans`` are the pass-1 analyzer's (original coordinates) for the word-gap edge snap."""
     audio_segments = [dict(cut, beep=(cut['action_applied'] == 'beep'))
                       for cut in planned_cuts]
+    audio_segments = cuts._snap_cut_edges_to_words(
+        slug, episode_id, audio_segments, None, segments, original_audio_path,
+        silence_spans=silence_spans)
     result = local_audio_processor.process_episode(
         original_audio_path, audio_segments, cut_barriers=cut_barriers,
         hard_barriers=hard_barriers)
@@ -750,7 +794,7 @@ def _render_barriers(hard, markers, rendered_cuts=(), pass1_cuts=None):
 
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                             local_audio_processor,
-                            cut_barriers=None, hard_barriers=None):
+                            cut_barriers=None, hard_barriers=None, segments=None):
     """Re-cut the pass-1 processed audio with verification ads.
 
     Returns (processed_path, recut_applied, recut_ok): recut_applied is the cut
@@ -762,6 +806,10 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
     # instead of silently falling back to a full remove.
     audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
                       for ad in v_ads_to_cut]
+    # The analyzer's silence spans are in original coordinates, so the word-gap snap reads this
+    # file's audio around each edge instead.
+    audio_segments = cuts._snap_cut_edges_to_words(
+        slug, episode_id, audio_segments, None, segments, processed_path)
     recut_result = local_audio_processor.process_episode(
         processed_path, audio_segments,
         cut_barriers=cut_barriers, hard_barriers=hard_barriers)
@@ -789,7 +837,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_verification=False, segment_actions=None,
                             differential_override=None, run_stats=None,
                             original_audio_path=None, pass1_markers=None,
-                            pass1_reviewer_rejects=None, *, false_positive_corrections):
+                            pass1_reviewer_rejects=None, *, false_positive_corrections,
+                            original_silence_spans=None):
     """Pipeline stage: run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -1111,6 +1160,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         processed_path, recut_applied, recut_ok = _rerender_crosspass_from_original(
                             slug, episode_id, original_audio_path, processed_path,
                             crosspass_plan, local_audio_processor,
+                            segments=original_segments, silence_spans=original_silence_spans,
                             **_render_barriers(protection.hard_orig, protection.holds_orig))
                     else:
                         audio_logger.info(
@@ -1118,7 +1168,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             f"{len(v_ads_to_cut)} verification ad(s)")
                         processed_path, recut_applied, recut_ok = _recut_processed_audio(
                             slug, episode_id, processed_path, v_ads_to_cut,
-                            local_audio_processor,
+                            local_audio_processor, segments=verification_segments,
                             **_render_barriers(protection.hard_proc, protection.holds_orig,
                                                pass1_cuts=protection.pass1_cuts),
                         )
