@@ -23,6 +23,7 @@ from config import (
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
     resolve_cue_gated_approval,
+    resolve_edge_crossfade_s, resolve_precise_cut_edges,
 )
 
 from utils.constants import EpisodeStatus
@@ -88,6 +89,15 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         applied += 1
     if applied:
         audio_logger.info(f"[{slug}:{episode_id}] Recut: applied {applied} boundary adjustment(s)")
+
+
+def _stored_silence_spans(slug, episode_id):
+    """Silence spans the last full run's analyzer stored (original coordinates), or None."""
+    try:
+        analysis = json.loads(db.get_episode_audio_analysis(slug, episode_id) or 'null')
+    except (TypeError, ValueError):
+        return None
+    return analysis.get('silence_spans') if isinstance(analysis, dict) else None
 
 
 def _split_recut_counts(total_cut, verification_count):
@@ -436,7 +446,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
             audio_output['mp3_stream_copy_enabled'] = False
         local_audio_processor = AudioProcessor(
-            bitrate=bitrate, compression_level=compression_level, **audio_output)
+            bitrate=bitrate, compression_level=compression_level,
+            edge_crossfade_s=resolve_edge_crossfade_s(db), **audio_output)
         original_duration = (local_audio_processor.get_audio_duration(work_path)
                              or (segments[-1]['end'] if segments else 0))
         min_cut_confidence = common.get_min_cut_confidence()
@@ -468,6 +479,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         ads_to_remove = keep_rules._stamp_and_carve_cuts(
             slug, episode_id, [ad for ad in ads_to_remove if id(ad) not in reject_ids],
             all_ads_with_validation, segment_actions, keep_ads)
+
+        ads_to_remove = cuts._snap_cut_edges_to_words(
+            slug, episode_id, ads_to_remove, all_ads_with_validation,
+            segments, work_path, original_duration,
+            silence_spans=(_stored_silence_spans(slug, episode_id)
+                           if resolve_precise_cut_edges(db) else None))
 
         audio_logger.info(
             f"[{slug}:{episode_id}] Recut: {len(ads_to_remove)} ad(s) to remove "

@@ -31,7 +31,7 @@ def _production_shape():
             _seg(752.55, 760.0, 'And the nicest thing? It works with everything')]
 
 
-def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=()):
+def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=(), sparse=False):
     """Run Transcriber.repair_gaps with extraction, volume and decode faked; returns
     (added, empty, decode mock, extracted chunks, volume probe mock)."""
     chunks = []
@@ -52,7 +52,7 @@ def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=()):
          patch.object(audio_utils, 'mean_volume_db', return_value=volume) as probe, \
          patch.object(Transcriber, '_transcribe_sequential', decode):
         added, empty = Transcriber().repair_gaps(
-            '/audio.mp3', segments, min_s, None, skip=skip)
+            '/audio.mp3', segments, min_s, None, skip=skip, sparse=sparse)
     return added, empty, decode, chunks, probe
 
 

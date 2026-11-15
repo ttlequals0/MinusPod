@@ -66,6 +66,7 @@ SEED_SNAPSHOT = {
     'ad_chapter_min_confidence': '0.9',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
+    'snip_short_asks': '0',
     'seed_sponsors_detection': 'true',
     'seed_sponsors_verification': 'true',
     'seed_sponsors_reviewer': 'true',
@@ -247,6 +248,7 @@ EXPECTED_AD_RESET_KEYS = {
     'chapter_title_temperature', 'chapter_title_max_tokens',
     'chapter_title_reasoning_budget', 'chapter_title_reasoning_level',
     'ollama_num_ctx', 'window_size_seconds', 'window_overlap_seconds',
+    'cut_edge_pause_drop_db', 'cut_edge_crossfade_ms',
     'verification_miss_hold_min_confidence',
     'verification_miss_autocut_min_confidence',
     'learning_min_confidence', 'learning_min_confidence_long',
@@ -527,7 +529,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 186
+        assert len(payload_keys) == 188
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

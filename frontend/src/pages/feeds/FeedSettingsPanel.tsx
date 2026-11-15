@@ -1619,6 +1619,31 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
+              {/* Short host asks: tri-state, inheriting the global snipShortAsks default. */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block">Short host asks</span>
+                  <span className="text-xs text-muted-foreground/70 block">
+                    Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s).
+                  </span>
+                </div>
+                <div className="flex flex-col items-start sm:items-end gap-1">
+                  <SegmentedToggle
+                    value={feed.snipShortAsks == null ? 'inherit' : feed.snipShortAsks ? 'on' : 'off'}
+                    options={[
+                      { value: 'inherit', label: settings ? `Use global setting (currently ${(settings.snipShortAsks?.value ?? false) ? 'On' : 'Off'})` : 'Use global setting' },
+                      { value: 'on', label: 'On' },
+                      { value: 'off', label: 'Off' },
+                    ]}
+                    onChange={(v) => updateMutation.mutate({
+                      snipShortAsks: v === 'inherit' ? null : v === 'on',
+                    })}
+                    disabled={updateMutation.isPending}
+                    ariaLabel="Remove short host asks and sponsor thanks"
+                  />
+                </div>
+              </div>
+
               {/* Bulk re-render (issue #565): apply the current segment
                   actions to every already-processed episode. */}
               <div className="pt-2 border-t border-border flex flex-col gap-2">

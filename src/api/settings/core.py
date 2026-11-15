@@ -136,6 +136,8 @@ def _build_settings_payload():
         registry_default('whats_new_on_upgrade')))
     detect_show_segments_default = coerce_bool_setting(common._setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
+    snip_short_asks_default = coerce_bool_setting(common._setting_value(
+        settings, 'snip_short_asks', registry_default('snip_short_asks')))
     text_recurrence_hints = coerce_bool_setting(common._setting_value(
         settings, 'text_recurrence_hints', registry_default('text_recurrence_hints')))
     ad_addressing_mode = common._setting_value(
@@ -228,6 +230,8 @@ def _build_settings_payload():
 
     omit_temperature = coerce_bool_setting(common._setting_value(
         settings, 'omit_temperature', registry_default('omit_temperature')))
+    precise_cut_edges = coerce_bool_setting(common._setting_value(
+        settings, 'precise_cut_edges', registry_default('precise_cut_edges')))
     llm_json_schema_enabled = coerce_bool_setting(common._setting_value(
         settings, 'llm_json_schema_enabled', registry_default('llm_json_schema_enabled')))
 
@@ -616,6 +620,7 @@ def _build_settings_payload():
         'whatsNewOnUpgrade': _sv('whats_new_on_upgrade', whats_new_on_upgrade),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
+        'snipShortAsks': _sv('snip_short_asks', snip_short_asks_default),
         'textRecurrenceHints': _sv(
             'text_recurrence_hints', text_recurrence_hints),
         'adAddressingMode': _sv(
@@ -684,6 +689,7 @@ def _build_settings_payload():
         'llmProvider': _sv('llm_provider', llm_provider),
         'llmEnabled': not llm_disabled(llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
+        'preciseCutEdges': _sv('precise_cut_edges', precise_cut_edges),
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),

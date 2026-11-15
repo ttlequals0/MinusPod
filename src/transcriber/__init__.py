@@ -20,7 +20,7 @@ from utils.errors import (
     TranscriptionRejectedError,
 )
 from utils.segments import normalize_segments
-from utils.text import transcript_gaps
+from utils.text import sparse_segment_holes, transcript_gaps
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
 from utils.url import SSRFError
@@ -483,14 +483,18 @@ class Transcriber:
 
     def repair_gaps(self, audio_path: str, segments: list[dict], min_s: float,
                     language_override: str | None = None,
-                    skip=()) -> tuple[list[dict], list[dict]]:
+                    skip=(), sparse: bool = False) -> tuple[list[dict], list[dict]]:
         """Re-decode transcript gaps of min_s or more the batched decoder skipped.
 
         Holes matching a `skip` record are left alone; caps keep the largest holes.
+        With `sparse`, a long segment holding almost no words is a hole too: its re-decode replaces
+        it (removed from `segments` in place) only when it holds at least twice the words.
         Returns (added segments flagged novad_hole, holes that held nothing as {start, end, reason}).
         """
         prefix = settings._log_prefix()
         holes = transcript_gaps(segments, min_s)
+        sparse_holes = sparse_segment_holes(segments) if sparse else []
+        holes.extend(hole for hole in sparse_holes if hole not in holes)
         known = [hole for hole in holes if chunking._hole_recorded(hole, skip)]
         if known:
             logger.info(f"{prefix}Skipping {len(known)} untranscribed hole(s) "
@@ -518,7 +522,16 @@ class Transcriber:
             recovered, reason = self.transcribe_span_no_vad(
                 audio_path, hole_start, hole_end, language_override, 'novad_hole',
                 quiet_db=HOLE_RETRANSCRIBE_QUIET_DB)
-            if recovered:
+            old = next((seg for seg in segments if (seg['start'], seg['end']) == (hole_start, hole_end)
+                        and (hole_start, hole_end) in sparse_holes), None)
+            if old is not None and recovered:
+                if (sum(len(seg.get('text', '').split()) for seg in recovered)
+                        >= 2 * len(old.get('text', '').split())):
+                    segments.remove(old)
+                    added.extend(recovered)
+                else:
+                    empty.append({'start': hole_start, 'end': hole_end, 'reason': 'not_denser'})
+            elif recovered:
                 added.extend(recovered)
             elif reason:
                 empty.append({'start': hole_start, 'end': hole_end, 'reason': reason})

@@ -28,6 +28,7 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW,
     CUE_ONLY_PROVEN_EPISODES,
     count_not_cut, is_pending_review, is_keep_like,
+    resolve_edge_crossfade_s,
     resolve_processing_mode,
     resolve_skip_second_pass,
     resolve_skip_transcription,
@@ -998,6 +999,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     segments, audio_analysis_result, podcast_name=podcast_name
                 )
 
+                # precise_cut_edges: one transcript segment spanning a strong splice carries
+                # mistimed words; the reviewer read them, so widen the edge onto the splice.
+                ads_to_remove = cuts._snap_straddled_edges(
+                    slug, episode_id, ads_to_remove, all_ads_with_validation,
+                    segments, audio_analysis_result
+                )
+
+                # precise_cut_edges: no edge lands inside a word (sentence or word boundary, then the pause).
+                ads_to_remove = cuts._snap_cut_edges_to_words(
+                    slug, episode_id, ads_to_remove, all_ads_with_validation,
+                    segments, audio_path, episode_duration,
+                    silence_spans=getattr(audio_analysis_result, 'silence_spans', None),
+                    silence_tunables=getattr(audio_analysis_result, 'silence_tunables', None)
+                )
+
             # Human-approved trim bounds are the final boundary authority.
             # Run after every automated reviewer and tail mutation so neither
             # the audio cut nor its persisted marker can drift from approval.
@@ -1015,6 +1031,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_to_remove, all_ads_with_validation, segment_actions,
                 keep_override)
 
+            # Reviewer and tail sweeps may have moved a short ask; pull it back to sentence edges.
+            ads_to_remove = detect._clamp_short_asks(
+                ads_to_remove, segments, masters=all_ads_with_validation)
+
             ads_to_remove = keep_rules._stamp_and_carve_cuts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segment_actions, keep_ads)
@@ -1029,7 +1049,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
                 audio_output['mp3_stream_copy_enabled'] = False
             local_audio_processor = AudioProcessor(
-                bitrate=bitrate, compression_level=compression_level, **audio_output)
+                bitrate=bitrate, compression_level=compression_level,
+                edge_crossfade_s=resolve_edge_crossfade_s(db), **audio_output)
 
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must use
@@ -1098,6 +1119,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     pass1_markers=ads_to_remove,
                     false_positive_corrections=user_corrections[0],
                     pass1_reviewer_rejects=pass1_reviewer_rejects,
+                    original_silence_spans=getattr(audio_analysis_result, 'silence_spans', None),
                 )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and

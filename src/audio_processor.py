@@ -16,6 +16,7 @@ from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.http import redact_stored_text
 from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
+from utils.short_asks import floor_for
 from mp3_stream_copy import copy_mp3
 from config import (
     CUE_MATCH_STAGE, FFMPEG_LONG_TIMEOUT,
@@ -63,6 +64,14 @@ def get_replace_audio_path() -> str:
     return str(ASSETS_BUILTIN_DIR / REPLACE_AUDIO_FILENAME)
 
 
+def edge_fade(default: float, ad: dict, edge: str) -> float:
+    """Fade length next to a cut edge: the default, or the pause it was placed in when that is shorter."""
+    pause = (ad.get('edge_pause_s') or {}).get(edge)
+    if not default or not isinstance(pause, (int, float)):
+        return default
+    return min(default, max(0.05, pause))
+
+
 def get_replacement_duration() -> float:
     """Length of the replacement (beep) audio in seconds.
 
@@ -87,12 +96,44 @@ NORMALIZE_PRESETS = {
 DEFAULT_NORMALIZE_INTENSITY = 'normal'
 
 
+def _crossfaded_cuts(ads, total_duration, crossfade_s) -> list[bool]:
+    """Per cut: whether its kept sides meet in a crossfade, each reaching crossfade_s / 2 into the cut.
+    That keeps a plain cut's length, so timeline maps stay exact; pieces too short join with a plain cut."""
+    if crossfade_s <= 0:
+        return [False] * len(ads)
+    flags = []
+    for i, ad in enumerate(ads):
+        before = ad['start'] - (ads[i - 1]['end'] if i else 0.0)
+        after = (ads[i + 1]['start'] if i + 1 < len(ads) else total_duration) - ad['end']
+        flags.append(ad['replacement_duration'] == 0 and ad['end'] - ad['start'] >= crossfade_s
+                     and before > 2 * crossfade_s and after > 2 * crossfade_s)
+    return flags
+
+
+def _crossfade_joins(pieces, crossfade_s, filter_parts):
+    """Append equal-power acrossfade filters for each (label, crossfades into previous); return concat labels."""
+    joined = []
+    for label, fade_in_previous in pieces:
+        if fade_in_previous and joined:
+            out = f"[xf{len(filter_parts)}]"
+            filter_parts.append(
+                f"{joined[-1]}{label}acrossfade=d={crossfade_s:.3f}:c1=qsin:c2=qsin{out}")
+            joined[-1] = out
+            continue
+        joined.append(label)
+    return joined
+
+
 class AudioProcessor:
     def __init__(self, replace_audio_path: str = None, bitrate: str = '128k', *,
                  replacement_sound_enabled: bool = True,
                  mp3_stream_copy_enabled: bool = False,
-                 compression_level: str = 'default'):
+                 compression_level: str = 'default',
+                 edge_crossfade_s: float = 0.0):
         self.replace_audio_path = replace_audio_path or get_replace_audio_path()
+        # precise_cut_edges: >0 joins kept audio with an equal-power crossfade of this length where
+        # no replacement clip sits between, and shapes the fades beside a clip the same way.
+        self.edge_crossfade_s = edge_crossfade_s
         self.bitrate = bitrate
         self.replacement_sound_enabled = replacement_sound_enabled
         self.mp3_stream_copy_enabled = mp3_stream_copy_enabled
@@ -290,9 +331,20 @@ class AudioProcessor:
                 # Extend current segment (use max to handle overlapping/contained ads)
                 if ad['end'] > current_segment['end']:
                     current_segment['end'] = ad['end']
+                    pauses = dict(current_segment.get('edge_pause_s') or {})
+                    pauses.pop('end', None)
+                    if 'end' in (ad.get('edge_pause_s') or {}):
+                        pauses['end'] = ad['edge_pause_s']['end']
+                    if pauses:
+                        current_segment['edge_pause_s'] = pauses
+                    else:
+                        current_segment.pop('edge_pause_s', None)
                     current_segment['_confirmed_cut'] = confirmed_cut
                     current_segment['_precise_end'] = precise_end
                     current_segment['_locked_end'] = confirmed_cut or precise_end
+                # A merged span is no longer purely the flagged ask: drop the flag.
+                for key in ('category', 'short_ask', 'short_ask_origin'):
+                    current_segment.pop(key, None)
                 if 'reason' in ad:
                     current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
                 # Carry the strongest trust signal of the merged members so
@@ -312,9 +364,13 @@ class AudioProcessor:
                                    '_locked_start': confirmed_cut or precise_start,
                                    '_locked_end': confirmed_cut or precise_end}
                 for key in ('reason', 'confidence', 'detection_stage', 'beep',
-                            '_measured_split_fragment'):
+                            '_measured_split_fragment', 'edge_pause_s'):
                     if key in ad:
                         current_segment[key] = ad[key]
+                if ad.get('short_ask') is True:
+                    for key in ('category', 'short_ask', 'short_ask_origin'):
+                        if key in ad:
+                            current_segment[key] = ad[key]
         if current_segment:
             merged_ads.append(current_segment)
 
@@ -329,7 +385,7 @@ class AudioProcessor:
                           or ad.get('detection_stage') in ('fingerprint', CUE_MATCH_STAGE)
                           or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
                           or measured_split)
-            if duration >= MIN_AD_DURATION_FOR_REMOVAL:
+            if duration >= floor_for(ad, MIN_AD_DURATION_FOR_REMOVAL):
                 ads.append(ad)
             elif keep_short:
                 ads.append(ad)
@@ -459,6 +515,9 @@ class AudioProcessor:
             # Strategy: Split audio into segments, replace ad segments with beep
             filter_parts = []
             concat_parts = []
+            # (label, crossfades into the previous piece) per concat input, for the crossfade pass.
+            pieces = []
+            curve = ':curve=qsin' if self.edge_crossfade_s > 0 else ''
             current_time = 0
             segment_idx = 0
 
@@ -483,6 +542,10 @@ class AudioProcessor:
                 if layout:
                     conform += f":channel_layouts={layout}"
 
+            # A crossfaded cut lends half the crossfade to each kept side, keeping the timeline exact.
+            crossfaded = _crossfaded_cuts(ads, total_duration, self.edge_crossfade_s)
+            reach = self.edge_crossfade_s / 2
+
             # Split beep input into N copies (one per ad) - ffmpeg streams can only be used once
             sound_ads = [i for i, ad in enumerate(ads) if ad['replacement_duration'] > 0]
             if len(sound_ads) > 1:
@@ -495,17 +558,23 @@ class AudioProcessor:
 
                 # Add content before ad (with fades at boundaries)
                 if ad_start > current_time:
-                    content_duration = ad_start - current_time
-                    fade_in = fade_in_duration if i and ads[i - 1]['replacement_duration'] > 0 else 0.0
-                    fade_out = fade_out_duration if ad['replacement_duration'] > 0 else 0.0
-                    chain = f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS"
+                    joins_previous = bool(i and crossfaded[i - 1])
+                    piece_start = current_time - reach if joins_previous else current_time
+                    piece_end = ad_start + reach if crossfaded[i] else ad_start
+                    content_duration = piece_end - piece_start
+                    fade_in = (edge_fade(fade_in_duration, ads[i - 1], 'end')
+                               if i and ads[i - 1]['replacement_duration'] > 0 else 0.0)
+                    fade_out = (edge_fade(fade_out_duration, ad, 'start')
+                                if ad['replacement_duration'] > 0 else 0.0)
+                    chain = f"[0:a]atrim={piece_start}:{piece_end},asetpts=PTS-STARTPTS"
                     if content_duration > fade_in + fade_out:
                         if fade_in:
-                            chain += f",afade=t=in:d={fade_in}"
+                            chain += f",afade=t=in:d={fade_in}{curve}"
                         if fade_out:
-                            chain += f",afade=t=out:st={content_duration - fade_out}:d={fade_out}"
+                            chain += f",afade=t=out:st={content_duration - fade_out}:d={fade_out}{curve}"
                     filter_parts.append(f"{chain}[s{segment_idx}]")
                     concat_parts.append(f"[s{segment_idx}]")
+                    pieces.append((f"[s{segment_idx}]", joins_previous))
                     segment_idx += 1
 
                 # Add single replacement audio with fades and volume reduction to 40%
@@ -528,6 +597,7 @@ class AudioProcessor:
                         beep_chain += f",apad=whole_dur={filler:.3f}"
                 filter_parts.append(f"{beep_chain}{conform}[beep{segment_idx}]")
                 concat_parts.append(f"[beep{segment_idx}]")
+                pieces.append((f"[beep{segment_idx}]", False))
 
                 current_time = ad_end
 
@@ -535,12 +605,19 @@ class AudioProcessor:
             # end-of-episode cut to total_duration (the episode then ends at the beep), so no short post-roll
             # residue can reach here.
             if current_time < total_duration:
-                content_duration = total_duration - current_time
-                chain = f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS"
-                if ads[-1]['replacement_duration'] > 0 and content_duration > fade_in_duration:
-                    chain += f",afade=t=in:d={fade_in_duration}"
+                joins_previous = crossfaded[-1]
+                piece_start = current_time - reach if joins_previous else current_time
+                content_duration = total_duration - piece_start
+                chain = f"[0:a]atrim={piece_start}:{total_duration},asetpts=PTS-STARTPTS"
+                last_fade_in = edge_fade(fade_in_duration, ads[-1], 'end')
+                if ads[-1]['replacement_duration'] > 0 and content_duration > last_fade_in:
+                    chain += f",afade=t=in:d={last_fade_in}{curve}"
                 filter_parts.append(f"{chain}[s{segment_idx}]")
                 concat_parts.append(f"[s{segment_idx}]")
+                pieces.append((f"[s{segment_idx}]", joins_previous))
+
+            if any(crossfaded):
+                concat_parts = _crossfade_joins(pieces, self.edge_crossfade_s, filter_parts)
 
             # Concatenate all parts
             if not concat_parts:

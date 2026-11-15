@@ -8,6 +8,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Added
+
+- Remove short host asks and sponsor thanks, a new setting that is off by default. When on, the detection, reviewer and resurrect prompts gain a short-asks section, and the model may flag a 2 to 40 second interaction, self-promo or sponsor sentence with `short_ask`. A flagged marker uses a 2 second floor instead of the usual 7 and 10 second floors, and its edges snap to sentence edges within 1.5 seconds of the model's edges (within 0.5 seconds for an ask under 3 seconds); with no such edge the flag is dropped and the usual floors apply. The episode page shows a Short ask chip and counts short asks in the Detected ads header. Each feed can follow the global setting or turn it on or off. API: `snipShortAsks` on `PUT /api/v1/settings/ad-detection` and on the feed `PATCH` (true, false or null). See [Configuration](docs/configuration.md).
+- Precise cut edges, an advanced switch in Settings, LLM tunables (`preciseCutEdges`, off by default). When on, each cut edge moves into the pause beside the nearest sentence or word boundary (from the analyzer's silence spans, or a short audio read when there are none), an edge on a transcript line that straddles a dynamic-ad splice moves onto the splice, the first-pass reviewer may name the lead-in and closing sentences of a read, a near-empty transcript line inside a hole is re-decoded, and the fade at an edge in a pause is kept inside that pause. User-confirmed edges, episode edges, DAI cores, transcript-aligned and splice edges, cue-cut markers and audio-fingerprint match edges are never moved. Off, detection, prompts and renders are unchanged.
+- With Precise cut edges on, cut edges follow the waveform as well as the word times. A pause is a run at least 15 dB under the local speech level (`cutEdgePauseDropDb` on `PUT /api/v1/settings/ad-detection`, 6 to 40, default 15). With no such pause in reach, the edge goes to the quietest 10 ms frame of its own gap between words. An edge already in a pause but next to the kept speech moves in far enough for its fade. Near-digital silence at a dynamic-ad splice within 0.5 seconds takes the edge whatever the word times say. A pause found only under the lower threshold never moves an edge across a word. A join with no replacement clip is an equal-power crossfade of `cutEdgeCrossfadeMs` milliseconds (same route, 0 to 200, default 40; 0 is a plain cut) that keeps the episode length. With Precise cut edges off, none of this applies.
+
+### Fixed
+
+- The pre-roll detector finds the show's opening line in feeds whose title has a subtitle ("Show Name: The Weekly Talk", "Show Name - Daily", "Show Name (Podcast)"). It tries the main title first, then the full title. Before, the show-name match never fired on such feeds and the pre-roll could run past the show's opening line.
+- The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the word-aligned edge that the transcript differential confirmed for that span. Before, it was accepted only on a timed word edge with a pause after it, so the cut could keep the first words of the show.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed

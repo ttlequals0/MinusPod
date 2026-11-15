@@ -3,18 +3,23 @@
 import logging
 from ad_detector import extend_ad_boundaries_by_content
 
+from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
+
 from ad_detector.boundaries import (
     snap_extended_ad_tails_to_splice,
+    strong_splice_events,
     snap_terminal_ad_to_splice,
     transition_pair_silence_events,
 )
 
 from audio_processor import get_replacement_duration
+from utils.audio import ffmpeg_energy_reader
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            ensure_hold_id,
                            carve_partly_cut, is_carved,
                            clip_merge_spans, merge_runs, reviewer_edge_locked, subtract_spans)
 
+from utils.short_asks import floor_for
 from utils.time import (
     merge_cut_spans, overlap_ratio, overlap_seconds,
     ranges_overlap,
@@ -23,7 +28,8 @@ from utils.time import (
 from config import (
     MIN_AD_DURATION, MIN_AD_DURATION_FOR_REMOVAL,
     CORRECTION_MATCH_MIN_COVERAGE,
-    is_known_ad, is_pending_review, resolve_silence_snap_tunables,
+    is_known_ad, is_pending_review, resolve_cut_edge_pause_drop_db, resolve_precise_cut_edges,
+    resolve_silence_snap_tunables,
     TERMINAL_SNAP_WINDOW_SECONDS,
 )
 
@@ -219,8 +225,11 @@ def _carve_cuts_around(ads_to_remove, all_ads, ranges, *, user_trim=False, tag='
         else:
             trusted = (ad.get('_measured_split_fragment')
                        or ad['end'] - ad['start'] >= MIN_AD_DURATION_FOR_REMOVAL)
+            # Only a piece keeping both marker edges ends on sentence edges; others get the normal floor.
             spans = [(start, end) for start, end in spans
-                     if trusted or end - start >= MIN_AD_DURATION]
+                     if trusted or end - start >= (
+                         floor_for(ad, MIN_AD_DURATION)
+                         if (start, end) == (ad['start'], ad['end']) else MIN_AD_DURATION)]
             audio_logger.info(
                 f"{tag} Pass 1 cut {ad['start']:.1f}s-{ad['end']:.1f}s "
                 f"split around kept audio into {len(spans)} removable fragment(s)")
@@ -404,6 +413,109 @@ def _snap_completed_cut_tails_to_splice(
     if changed:
         storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
     return snapped
+
+
+def _straddle_splices(audio_analysis_result):
+    """Strong digital silences always; the weaker deep silences only once calibrated."""
+    splice = getattr(audio_analysis_result, 'splice_evidence', None) or {}
+    if not isinstance(splice, dict):
+        return []
+    events = splice.get('events') or []
+    strong = strong_splice_events(events)
+    calibration = splice.get('calibration') or {}
+    if isinstance(calibration, dict) and calibration.get('status') in SPLICE_EVENTS_CALIBRATED_STATUSES:
+        strong.extend(e for e in events if e.get('type') == 'deep_silence'
+                      and e.get('time') is not None and e.get('end_time') is not None)
+    return strong
+
+
+def _snap_straddled_edges(slug, episode_id, ads_to_remove, all_ads_with_validation,
+                          segments, audio_analysis_result):
+    """With precise_cut_edges, move a cut edge onto a strong splice that one transcript segment spans.
+    Whisper can smear one segment's word times across a splice, which leaves the cut inside the ad."""
+    if not ads_to_remove or not segments or not resolve_precise_cut_edges(db):
+        return ads_to_remove
+    splices = _straddle_splices(audio_analysis_result)
+    if not splices:
+        return ads_to_remove
+    snapped = snap_extended_ad_tails_to_splice(
+        ads_to_remove, segments, splices, coverage_ads=all_ads_with_validation, straddle=True)
+    # Straddle mode reads neither the episode duration nor the terminal-snap window.
+    snapped = snap_terminal_ad_to_splice(
+        snapped, segments, splices, episode_duration=0.0, window_s=0.0,
+        coverage_ads=all_ads_with_validation, straddle=True)
+    result, changed = [], False
+    for ad, updated in zip(ads_to_remove, snapped, strict=True):
+        if (updated['start'], updated['end']) == (ad['start'], ad['end']):
+            result.append(ad)
+            continue
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Splice straddle: cut {ad['start']:.1f}s-{ad['end']:.1f}s "
+            f"to {updated['start']:.1f}s-{updated['end']:.1f}s")
+        master = _find_master(all_ads_with_validation, ad)
+        if master is not None:
+            for key in ('start', 'end', 'edge_splice_anchor',
+                        'reviewer_locked_start', 'reviewer_locked_end'):
+                if key in updated:
+                    master[key] = updated[key]
+        changed = True
+        result.append(updated)
+    if changed:
+        storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+    return result
+
+
+def _snap_cut_edges_to_words(slug, episode_id, ads_to_remove, all_ads_with_validation,
+                             segments, audio_path, duration=None, energy_reader=None,
+                             silence_spans=None, silence_tunables=None):
+    """With precise_cut_edges, put each cut edge in a pause beside a word boundary, never inside a word.
+    Off, a cut drops any edge_pause_s a flag-on run stored; a cut the snap changes is a new dict."""
+    if not ads_to_remove:
+        return ads_to_remove
+    if not resolve_precise_cut_edges(db):
+        if not any('edge_pause_s' in ad for ad in ads_to_remove):
+            return ads_to_remove
+        return [{k: v for k, v in ad.items() if k != 'edge_pause_s'} for ad in ads_to_remove]
+    if not segments or not (silence_spans or audio_path or energy_reader):
+        return ads_to_remove
+    reader = energy_reader or (ffmpeg_energy_reader(audio_path) if audio_path else None)
+    drop_db = resolve_cut_edge_pause_drop_db()
+    tunables = (silence_tunables if silence_tunables is not None
+                else resolve_silence_snap_tunables(db))
+    masters = all_ads_with_validation or []
+    neighbours = [*masters, *ads_to_remove]
+    result, changed = [], False
+    for ad in ads_to_remove:
+        updated = {k: v for k, v in ad.items() if k not in ('edge_snap', 'edge_pause_s')}
+        snap_ad_boundaries_to_silence(
+            [updated], silence_spans or [], tunables['max_distance_seconds'],
+            tunables['min_duration_seconds'], word_segments=segments, energy_reader=reader,
+            neighbours=[m for m in neighbours if m is not ad], duration=duration, drop_db=drop_db)
+        if 'edge_snap' not in updated:
+            result.append(ad)
+            continue
+        if updated['start'] > ad['start'] or updated['end'] < ad['end']:
+            clip_merge_spans(updated, updated['start'], updated['end'])
+        for edge in ('start', 'end'):
+            if f'reviewer_locked_{edge}' in updated:
+                updated[f'reviewer_locked_{edge}'] = updated[edge]
+        moved = (updated['start'], updated['end']) != (ad['start'], ad['end'])
+        if moved:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Word snap: cut {ad['start']:.2f}s-{ad['end']:.2f}s "
+                f"to {updated['start']:.2f}s-{updated['end']:.2f}s")
+        master = _find_master(masters, ad) if masters else None
+        if master is not None:
+            master.update({k: updated[k] for k in (
+                'start', 'end', 'edge_snap', 'edge_pause_s',
+                'reviewer_locked_start', 'reviewer_locked_end') if k in updated})
+            if moved:
+                clip_merge_spans(master, master['start'], master['end'])
+        changed = changed or master is not None
+        result.append(updated)
+    if changed:
+        storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+    return result
 
 
 def _finalize_user_confirmed_bounds(
