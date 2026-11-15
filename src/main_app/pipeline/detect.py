@@ -13,6 +13,7 @@ from ad_detector.cue_cut_ads import synthesize_ads_from_cue_matches
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
+from utils.short_asks import clamp_short_ask
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
     CHAPTER_TRIM_SOURCES, CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
@@ -48,7 +49,7 @@ from utils.errors import ServiceUnavailableError
 
 from webhook_service import fire_cue_template_quiet_event
 
-from main_app.pipeline import common
+from main_app.pipeline import common, cuts
 from main_app.pipeline.shared import (db, storage, ad_detector, sponsor_service)
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -385,6 +386,23 @@ def _vad_gap_enabled(db) -> bool:
     return str(value).strip().lower() != 'false'
 
 
+def _clamp_short_asks(ads, segments, masters=None):
+    """Snap flagged short asks to sentence edges within the edge cap, in place; others untouched.
+    Sweeps rebuild cut dicts, so ``masters`` get the result too, or the render would not find them cut."""
+    for ad in ads:
+        if ad.get('short_ask') is not True:
+            continue
+        master = cuts._find_master(masters, ad) if masters else None
+        clamp_short_ask(ad, segments)
+        if master is None or master is ad:
+            continue
+        master['start'], master['end'] = ad['start'], ad['end']
+        for key in ('short_ask', 'short_ask_origin'):
+            if key not in ad:
+                master.pop(key, None)
+    return ads
+
+
 def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=None,
                        podcast_name=None, keep_ads=None):
     """Apply the boundary refinement pipeline. Returns updated list.
@@ -418,7 +436,7 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
             min_content_seconds=min_content,
             false_positive_corrections=false_positive_corrections,
         )
-    return all_ads
+    return _clamp_short_asks(all_ads, segments) if all_ads else all_ads
 
 
 def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,

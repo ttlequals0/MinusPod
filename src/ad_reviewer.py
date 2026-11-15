@@ -44,6 +44,8 @@ from ad_detector.cue_boundary_snap import (
 )
 from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
+from utils.constants import SHORT_ASKS_REVIEW_SECTION
+from utils.short_asks import floor_for
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_route import (
     Route, SAME_AS_PASS, SLOT_PRIMARY, apply_failover, client_for_route,
@@ -1464,8 +1466,11 @@ class AdReviewer:
         self._active_route = self._resolve_route(pass_provider, pass_model, pass_num)
         model = self._active_route.model_id
         review_sponsor_block, resurrect_sponsor_block = self._sponsor_blocks()
-        review_prompt = self._render_review_prompt(max_shift, review_sponsor_block)
-        resurrect_prompt = self._render_resurrect_prompt(resurrect_sponsor_block)
+        short_asks = bool(episode_meta.get('snip_short_asks'))
+        review_prompt = self._render_review_prompt(
+            max_shift, review_sponsor_block, short_asks=short_asks)
+        resurrect_prompt = self._render_resurrect_prompt(
+            resurrect_sponsor_block, short_asks=short_asks)
 
         result = ReviewResult(verdicts=[])
 
@@ -2238,11 +2243,12 @@ class AdReviewer:
                 end = max(end, core_end)
         if (start - o_start) + (o_end - end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S:
             return None
-        if end - start < MIN_AD_DURATION_FOR_REMOVAL and not protection_conflict:
+        trim_floor = floor_for(ad, MIN_AD_DURATION_FOR_REMOVAL)
+        if end - start < trim_floor and not protection_conflict:
             logger.info(
                 f"[{slug}:{episode_id}] {call_label} recovered trim "
                 f"{start:.1f}-{end:.1f}s is {end - start:.1f}s, under the "
-                f"{MIN_AD_DURATION_FOR_REMOVAL:.0f}s floor for span "
+                f"{trim_floor:.0f}s floor for span "
                 f"{o_start:.1f}-{o_end:.1f}s. Holding without bounds."
             )
             return None
@@ -2376,7 +2382,8 @@ class AdReviewer:
             f"{word_context}"
         )
 
-    def _render_review_prompt(self, max_shift: int, sponsor_block: str) -> str:
+    def _render_review_prompt(self, max_shift: int, sponsor_block: str,
+                              short_asks: bool = False) -> str:
         prompt = self._read_setting("review_prompt") or DEFAULT_REVIEW_PROMPT
         prompt = strip_comments_from_prompt(prompt)
         rendered = render_prompt(
@@ -2390,12 +2397,16 @@ class AdReviewer:
                 f"end must be within {max_shift} seconds of the "
                 f"original detected boundaries."
             )
+        if short_asks:
+            rendered = f"{rendered}\n\n{SHORT_ASKS_REVIEW_SECTION}"
         return self._apply_pass_override(rendered, "review_prompt_override")
 
-    def _render_resurrect_prompt(self, sponsor_block: str) -> str:
+    def _render_resurrect_prompt(self, sponsor_block: str, short_asks: bool = False) -> str:
         prompt = self._read_setting("resurrect_prompt") or DEFAULT_RESURRECT_PROMPT
         prompt = strip_comments_from_prompt(prompt)
         rendered = render_prompt(prompt, sponsor_database=sponsor_block)
+        if short_asks:
+            rendered = f"{rendered}\n\n{SHORT_ASKS_REVIEW_SECTION}"
         return self._apply_pass_override(rendered, "resurrect_prompt_override")
 
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:

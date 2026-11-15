@@ -16,6 +16,7 @@ from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.http import redact_stored_text
 from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
+from utils.short_asks import floor_for
 from mp3_stream_copy import copy_mp3
 from config import (
     CUE_MATCH_STAGE, FFMPEG_LONG_TIMEOUT,
@@ -293,6 +294,9 @@ class AudioProcessor:
                     current_segment['_confirmed_cut'] = confirmed_cut
                     current_segment['_precise_end'] = precise_end
                     current_segment['_locked_end'] = confirmed_cut or precise_end
+                # A merged span is no longer purely the flagged ask: drop the flag.
+                for key in ('category', 'short_ask', 'short_ask_origin'):
+                    current_segment.pop(key, None)
                 if 'reason' in ad:
                     current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
                 # Carry the strongest trust signal of the merged members so
@@ -315,6 +319,10 @@ class AudioProcessor:
                             '_measured_split_fragment'):
                     if key in ad:
                         current_segment[key] = ad[key]
+                if ad.get('short_ask') is True:
+                    for key in ('category', 'short_ask', 'short_ask_origin'):
+                        if key in ad:
+                            current_segment[key] = ad[key]
         if current_segment:
             merged_ads.append(current_segment)
 
@@ -329,7 +337,7 @@ class AudioProcessor:
                           or ad.get('detection_stage') in ('fingerprint', CUE_MATCH_STAGE)
                           or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
                           or measured_split)
-            if duration >= MIN_AD_DURATION_FOR_REMOVAL:
+            if duration >= floor_for(ad, MIN_AD_DURATION_FOR_REMOVAL):
                 ads.append(ad)
             elif keep_short:
                 ads.append(ad)

@@ -18,7 +18,7 @@ import { LLM_DISABLED_REASON, isLlmDisabledError } from './settings/LlmGate';
 import { isLlmEnabled } from '../hooks/useLlmEnabled';
 import { isSystemOneChapterRoute } from './settings/systemoneWarnings';
 import { getErrorMessage, jobStateOf } from '../api/client';
-import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
+import { SegmentCategoryBadge, KeptBadge, ShortAskBadge } from '../components/SegmentCategoryBadge';
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
@@ -787,6 +787,8 @@ function EpisodeDetail() {
   // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
   const audioUrl = mediaUrl({ kind: 'audio', url: episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3` });
 
+  const shortAskCount = (episode.adMarkers ?? []).filter((m) => m.short_ask === true).length;
+
   const renderAdMarkerCard = (segment: AdSegment, index: number) => (
     <div
       key={index}
@@ -807,6 +809,7 @@ function EpisodeDetail() {
           {formatTimestamp(displayedSpan(segment).start)} - {formatTimestamp(displayedSpan(segment).end)}
         </span>
         <SegmentCategoryBadge category={segment.category} />
+        {segment.short_ask === true && <ShortAskBadge />}
         {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
         {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
           <StageBadge stage={segment.detection_stage} />
@@ -1458,9 +1461,9 @@ function EpisodeDetail() {
             {/* Row 1: Title + Edit button */}
             <div className="flex items-center justify-between">
               <h2 className={cardTitle}>
-                Detected ads ({adBlocks.length === episode.adMarkers.length
+                {`Detected ads (${adBlocks.length === episode.adMarkers.length
                   ? episode.adMarkers.length
-                  : `${adBlocks.length} ${adBlocks.length === 1 ? 'block' : 'blocks'}, ${episode.adMarkers.length} segments`})
+                  : `${adBlocks.length} ${adBlocks.length === 1 ? 'block' : 'blocks'}, ${episode.adMarkers.length} segments`})${shortAskCount > 0 ? ` \u00b7 Short asks (${shortAskCount})` : ''}`}
               </h2>
               {episode.status === 'completed' && episode.transcript && (
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1555,6 +1558,7 @@ function EpisodeDetail() {
                       {categories.map((c) => (
                         <SegmentCategoryBadge key={c} category={c || null} />
                       ))}
+                      {members.some(({ marker }) => marker.short_ask === true) && <ShortAskBadge />}
                       <button
                         type="button"
                         onClick={() => toggleAdBlock(key)}

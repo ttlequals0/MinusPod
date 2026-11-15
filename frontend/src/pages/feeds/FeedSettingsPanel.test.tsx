@@ -910,6 +910,57 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
   });
 });
 
+describe('FeedSettingsPanel short-asks tri-state control', () => {
+  const NAME = 'Remove short host asks and sponsor thanks';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('selects Inherit by default and shows the effective global value', async () => {
+    mockGetSettings.mockResolvedValue({ snipShortAsks: { value: true, isDefault: false } });
+    renderPanel(makeFeed());
+
+    const group = screen.getByRole('radiogroup', { name: NAME });
+    await waitFor(() => {
+      expect(within(group).getByRole('radio', { name: 'Use global setting (currently On)' }).getAttribute('aria-checked')).toBe('true');
+    });
+  });
+
+  it('selecting On fires updateFeed with snipShortAsks true', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: NAME })).getByRole('radio', { name: 'On' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { snipShortAsks: true });
+  });
+
+  it('selecting Off fires updateFeed with snipShortAsks false', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: NAME })).getByRole('radio', { name: 'Off' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { snipShortAsks: false });
+  });
+
+  it('explicit true selects On; Inherit fires null', async () => {
+    renderPanel(makeFeed({ snipShortAsks: true }));
+    const group = screen.getByRole('radiogroup', { name: NAME });
+    expect(within(group).getByRole('radio', { name: 'On' }).getAttribute('aria-checked')).toBe('true');
+    await userEvent.click(await within(group).findByRole('radio', { name: 'Use global setting (currently Off)' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { snipShortAsks: null });
+  });
+
+  it('does not claim a global state while settings are still loading', async () => {
+    let resolve: (v: unknown) => void = () => {};
+    mockGetSettings.mockReturnValue(new Promise((r) => { resolve = r; }));
+    renderPanel(makeFeed());
+    const group = screen.getByRole('radiogroup', { name: NAME });
+    expect(within(group).getByRole('radio', { name: 'Use global setting' })).toBeDefined();
+    expect(within(group).queryByRole('radio', { name: /currently/ })).toBeNull();
+    resolve({ snipShortAsks: { value: true, isDefault: false } });
+    await within(group).findByRole('radio', { name: 'Use global setting (currently On)' });
+  });
+});
+
 describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {
   const TOGGLE_NAME = 'Serve MinusPod episode IDs';
 

@@ -136,6 +136,8 @@ def _build_settings_payload():
         registry_default('whats_new_on_upgrade')))
     detect_show_segments_default = coerce_bool_setting(common._setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
+    snip_short_asks_default = coerce_bool_setting(common._setting_value(
+        settings, 'snip_short_asks', registry_default('snip_short_asks')))
     text_recurrence_hints = coerce_bool_setting(common._setting_value(
         settings, 'text_recurrence_hints', registry_default('text_recurrence_hints')))
     ad_addressing_mode = common._setting_value(
@@ -616,6 +618,7 @@ def _build_settings_payload():
         'whatsNewOnUpgrade': _sv('whats_new_on_upgrade', whats_new_on_upgrade),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
+        'snipShortAsks': _sv('snip_short_asks', snip_short_asks_default),
         'textRecurrenceHints': _sv(
             'text_recurrence_hints', text_recurrence_hints),
         'adAddressingMode': _sv(

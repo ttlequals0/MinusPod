@@ -585,6 +585,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'detect_show_segments': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='detectShowSegments', payload_kind='bool'),
+    # Global default for removing short host asks and sponsor thanks. Per-feed
+    # snip_short_asks (INTEGER): NULL inherits this, 0 off, 1 on.
+    'snip_short_asks': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='snipShortAsks', payload_kind='bool'),
     # Seed-sponsors toggles (issue: hushpod adoption). One per prompt that
     # takes the dynamic sponsor block; off renders that prompt with an empty
     # {sponsor_database}. All default on to preserve current behavior.

@@ -15,6 +15,7 @@ from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            carve_partly_cut, is_carved,
                            clip_merge_spans, merge_runs, reviewer_edge_locked, subtract_spans)
 
+from utils.short_asks import floor_for
 from utils.time import (
     merge_cut_spans, overlap_ratio, overlap_seconds,
     ranges_overlap,
@@ -219,8 +220,11 @@ def _carve_cuts_around(ads_to_remove, all_ads, ranges, *, user_trim=False, tag='
         else:
             trusted = (ad.get('_measured_split_fragment')
                        or ad['end'] - ad['start'] >= MIN_AD_DURATION_FOR_REMOVAL)
+            # Only a piece keeping both marker edges ends on sentence edges; others get the normal floor.
             spans = [(start, end) for start, end in spans
-                     if trusted or end - start >= MIN_AD_DURATION]
+                     if trusted or end - start >= (
+                         floor_for(ad, MIN_AD_DURATION)
+                         if (start, end) == (ad['start'], ad['end']) else MIN_AD_DURATION)]
             audio_logger.info(
                 f"{tag} Pass 1 cut {ad['start']:.1f}s-{ad['end']:.1f}s "
                 f"split around kept audio into {len(spans)} removable fragment(s)")

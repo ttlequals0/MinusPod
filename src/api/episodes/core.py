@@ -20,6 +20,7 @@ from database.error_text import redact_error, redact_json_error
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
+from utils.short_asks import is_short_ask
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
@@ -356,6 +357,9 @@ def get_episode(slug, episode_id):
                 if marker.get('category') is None:
                     marker.pop('category', None)
                 marker['actionApplied'] = marker.get('action_applied')
+                # Serve the backend decision, not the stored flag: a merged marker can outgrow the caps.
+                if 'short_ask' in marker:
+                    marker['short_ask'] = is_short_ask(marker)
                 if is_pending_review(marker):
                     pending_review_markers.append(marker)
                 elif is_keep_like(marker.get('action_applied')):

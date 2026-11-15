@@ -676,6 +676,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             # (issue #565); NULL = inherit the detect_show_segments global
             # setting, 0 = explicit off, 1 = explicit on.
             ('detect_show_segments', 'INTEGER'),
+            # Per-feed opt-in for removing short host asks; NULL inherits the snip_short_asks global.
+            ('snip_short_asks', 'INTEGER'),
             # Cue-only mode: transcription opt-out and safety policy
             ('skip_transcription', 'INTEGER'),
             ('cue_only_safety', 'TEXT'),

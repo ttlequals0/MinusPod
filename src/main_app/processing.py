@@ -1036,6 +1036,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_to_remove, all_ads_with_validation, segment_actions,
                 keep_override)
 
+            # Reviewer and tail sweeps may have moved a short ask; pull it back to sentence edges.
+            ads_to_remove = detect._clamp_short_asks(
+                ads_to_remove, segments, masters=all_ads_with_validation)
+
             ads_to_remove = keep_rules._stamp_and_carve_cuts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segment_actions, keep_ads)
