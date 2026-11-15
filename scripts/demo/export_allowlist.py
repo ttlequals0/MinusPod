@@ -68,6 +68,7 @@ _KEPT_ALL = (
     'cue_detections', 'cue_candidate_dismissals', 'podping_hosts',
     'addressing_log', 'pattern_cleanup_suggestions', 'pattern_cleanup_checks',
     'pattern_cleanup_deleted_actions', 'audio_fingerprints', 'failover_events',
+    'episode_marker_refs',
 )
 
 
@@ -142,6 +143,7 @@ PODCAST_REF: dict[str, tuple[str, str]] = {
 # episode column is episodes.id).
 EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'episode_details': ('', 'episode_id', ''),
+    'episode_marker_refs': ('', 'episode_pk', ''),
     'pattern_corrections': ('podcast_id', 'episode_id', 'id'),
     'processing_runs': ('podcast_id', 'episode_id', 'id'),
     'episode_downloads': ('podcast_id', 'episode_id', 'id'),

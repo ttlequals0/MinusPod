@@ -215,6 +215,7 @@ export interface EpisodeSummary {
   status: EpisodeStatusKey;
   jobState?: JobState;
   artworkUrl?: string | null;
+  artworkThumbUrl?: string | null;
   description?: string | null;
   error?: string | null;
   pendingReviewCount?: number;
@@ -274,6 +275,8 @@ export interface Episode {
   durationSkipped?: boolean;
   error?: string | null;
   artworkUrl?: string | null;
+  // Same-origin 256 px cover address for list rows; null when the episode has no cover.
+  artworkThumbUrl?: string | null;
   // Set once on the first successful processing run and never cleared by reprocess (unlike status, which cycles
   // back through pending/processing). The reliable "ever finished processing" signal; null/absent means never.
   processedAt?: string | null;
@@ -710,7 +713,8 @@ export interface AdSegment {
     | 'cue_template_unproven'
     | 'cue_low_confidence'
     | 'no_transcript_evidence'
-    | 'transcript_differential_unreviewed';
+    | 'transcript_differential_unreviewed'
+    | 'transcript_loop';
   // Detected span this fragment was carved from when the render removed only part of it.
   carved_from?: { start: number; end: number };
   // Set when a confirm correction matched this held marker (issue #509);

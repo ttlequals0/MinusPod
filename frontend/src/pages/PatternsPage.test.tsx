@@ -316,6 +316,20 @@ describe('PatternsPage audio column', () => {
     expect(table.querySelectorAll('col')).toHaveLength(11);
   });
 
+  it('keeps full header names for shortened labels and shows dates as Mon/DD/YY with the full time in the title', async () => {
+    mockGetPatterns.mockResolvedValue([{ ...audioPattern(1), created_at: '2026-11-04T15:30:00' }]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    expect(within(table).getByRole('button', { name: 'False positives' })).toBeDefined();
+    const created = within(table).getByText('Nov/04/26');
+    expect(created.getAttribute('title')).toMatch(/2026/);
+    const headers = within(table).getAllByRole('columnheader');
+    const lastMatchedCol = headers.findIndex((h) => h.textContent === 'Last matched');
+    expect(lastMatchedCol).toBeGreaterThan(-1);
+    expect(within(table).getAllByRole('row')[1].querySelectorAll('td')[lastMatchedCol].textContent).toBe('-');
+  });
+
   it('leaves the Sponsor column unsized so it takes the spare width', async () => {
     mockGetPatterns.mockResolvedValue([audioPattern(1)]);
     renderPage();

@@ -164,6 +164,22 @@ _JSON_FORMAT_SYSTEM_INSTRUCTION = (
     "Malformed JSON causes parsing failures.</output_format>"
 )
 
+def _with_system_message(system: str, messages: list[dict]) -> list[dict]:
+    """Prepend the system prompt, or nothing when it is blank: some gateways reject an empty system block."""
+    if system and system.strip():
+        return [{"role": "system", "content": system}] + messages
+    return list(messages)
+
+
+def _append_system_instruction(all_messages: list[dict], system: str,
+                               instruction: str) -> None:
+    """Add instruction to the system message in place, creating it when a blank prompt omitted it."""
+    if all_messages and all_messages[0].get("role") == "system":
+        all_messages[0] = {**all_messages[0], "content": system + instruction}
+    else:
+        all_messages.insert(0, {"role": "system", "content": instruction.lstrip()})
+
+
 _STRUCTURED_TOOL_SYSTEM_INSTRUCTION = (
     "\n\nWhen a structured-output tool is provided, call that expected tool "
     "and return its object. Do not answer with free text."
@@ -1207,7 +1223,7 @@ class AnthropicClient(LLMClient):
             effective_system += _STRUCTURED_TOOL_SYSTEM_INSTRUCTION
 
         system_blocks = None
-        if effective_system:
+        if effective_system and effective_system.strip():
             system_blocks = [{
                 "type": "text",
                 "text": effective_system,
@@ -1221,10 +1237,11 @@ class AnthropicClient(LLMClient):
             kw = dict(
                 model=model,
                 max_tokens=tok,
-                system=system_blocks if system_blocks is not None else "",
                 messages=messages,
                 timeout=timeout,
             )
+            if system_blocks is not None:
+                kw["system"] = system_blocks
             reasoning_kwargs = translate_reasoning_effort(
                 PROVIDER_ANTHROPIC, reasoning, model)
             kw.update(reasoning_kwargs)
@@ -1486,7 +1503,7 @@ class OpenAICompatibleClient(LLMClient):
 
         self._ensure_client()
 
-        all_messages = [{"role": "system", "content": system}] + messages
+        all_messages = _with_system_message(system, messages)
 
         eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
@@ -1532,7 +1549,8 @@ class OpenAICompatibleClient(LLMClient):
                 if (rf.get('type') == 'json_object'
                         and self._get_json_format_supported(model) is False):
                     if '<output_format>' not in system:
-                        all_messages[0] = {**all_messages[0], "content": system + _JSON_FORMAT_SYSTEM_INSTRUCTION}
+                        _append_system_instruction(
+                            all_messages, system, _JSON_FORMAT_SYSTEM_INSTRUCTION)
                         logger.debug("Endpoint lacks json_object support; using prompt injection fallback")
                 else:
                     kw["response_format"] = rf
@@ -1967,7 +1985,7 @@ class OllamaNativeClient(OpenAICompatibleClient):
         episode_id: str | None,
         pass_name: str | None,
     ) -> LLMResponse:
-        all_messages = [{"role": "system", "content": system}] + messages
+        all_messages = _with_system_message(system, messages)
 
         eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort

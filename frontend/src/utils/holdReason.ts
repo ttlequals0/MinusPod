@@ -19,6 +19,7 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
   cue_low_confidence: 'Low-confidence cue',
   no_transcript_evidence: 'No ad language in transcript',
   transcript_differential_unreviewed: 'Upstream transcript omits this span',
+  transcript_loop: 'Whisper repetition loop',
 };
 
 // Tooltip text for each hold reason.
@@ -41,4 +42,5 @@ export const HOLD_REASON_TITLES: Record<HoldReason, string> = {
   cue_low_confidence: 'The cue match fell below the cut-confidence threshold',
   no_transcript_evidence: "No sponsor, link, promo code or ad phrase in this span's transcript",
   transcript_differential_unreviewed: 'This span is missing from the upstream transcript, and no other detector confirmed it is an ad.',
+  transcript_loop: 'The transcript here is a repeating loop, so it cannot show whether this span is an ad.',
 };

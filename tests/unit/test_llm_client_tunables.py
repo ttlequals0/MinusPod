@@ -857,7 +857,7 @@ class TestAnthropicJsonSchemaStructuredOutput:
             messages=[{"role": "user", "content": "hi"}],
         )
 
-        assert mock_sdk.messages.create.call_args.kwargs["system"] == ""
+        assert "system" not in mock_sdk.messages.create.call_args.kwargs
 
     def test_json_object_request_never_sets_tools(self):
         from llm_client import AnthropicClient

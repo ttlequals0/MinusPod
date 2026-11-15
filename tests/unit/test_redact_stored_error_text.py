@@ -83,7 +83,7 @@ def _snapshot(db):
     conn = db.get_connection()
     tables = [r['name'] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
-        "AND name NOT IN ('schema_migrations', 'search_index', 'deferred_upgrade_steps') AND name NOT LIKE 'search_index_%'")]
+        "AND name NOT IN ('schema_migrations', 'search_index', 'deferred_upgrade_steps', 'episode_marker_refs') AND name NOT LIKE 'search_index_%'")]
     out = {}
     for table in tables:
         for row in conn.execute(f'SELECT rowid AS rid, * FROM "{table}"'):  # noqa: S608

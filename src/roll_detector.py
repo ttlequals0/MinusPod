@@ -61,6 +61,7 @@ MAX_POSTROLL_DURATION = 120.0  # seconds
 MIN_SHOW_NAME_CHARS = 8
 _NON_ALNUM = re.compile(r'[^a-z0-9]+')
 _SHOW_NAME_AFFIXES = re.compile(r'^the | (podcast|show)$')
+_SUBTITLE_SPLIT = re.compile(r'\s*(?::|\s[-\u2013\u2014|]\s|\()')
 
 
 def _plain_words(text: str) -> str:
@@ -69,12 +70,32 @@ def _plain_words(text: str) -> str:
 
 def _show_name_key(podcast_name: str) -> str:
     """Podcast name reduced to the words a host would say when opening the show."""
-    key = _SHOW_NAME_AFFIXES.sub('', _plain_words(podcast_name))
-    return key if len(key) >= MIN_SHOW_NAME_CHARS else ''
+    # Hosts say the main title, not the feed subtitle after a colon, dash or bracket.
+    main = _SUBTITLE_SPLIT.split(podcast_name or '', maxsplit=1)[0]
+    for name in (main, podcast_name):
+        key = _SHOW_NAME_AFFIXES.sub('', _plain_words(name))
+        if len(key) >= MIN_SHOW_NAME_CHARS:
+            return key
+    return ''
 
 
 def _names_show(text: str, name_key: str) -> bool:
     return bool(name_key) and name_key in _plain_words(text)
+
+
+def show_start_line(segments: list[dict], podcast_name: str) -> tuple[float, float] | None:
+    """(start, end) of the first line in the pre-roll window that names or opens the show, else None."""
+    if not segments:
+        return None
+    key = _show_name_key(podcast_name)
+    first = segments[0]['start']
+    for seg in segments:
+        if seg['start'] > first + MAX_PREROLL_DURATION:
+            break
+        text = seg.get('text', '')
+        if _names_show(text, key) or any(p.search(text) for p in SHOW_START_PATTERNS):
+            return seg['start'], seg['end']
+    return None
 
 
 def _region_covered(start: float, end: float, ads: list[dict],
@@ -122,18 +143,10 @@ def detect_preroll(
         return None
 
     episode_start = segments[0]['start']
-    max_search_end = episode_start + MAX_PREROLL_DURATION
 
     # Find first show-start segment
-    name_key = _show_name_key(podcast_name)
-    show_start_time = None
-    for seg in segments:
-        if seg['start'] > max_search_end:
-            break
-        text = seg.get('text', '')
-        if _names_show(text, name_key) or any(p.search(text) for p in SHOW_START_PATTERNS):
-            show_start_time = seg['start']
-            break
+    line = show_start_line(segments, podcast_name)
+    show_start_time = line[0] if line else None
 
     if show_start_time is None or show_start_time <= episode_start + 5.0:
         return None

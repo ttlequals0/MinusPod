@@ -50,6 +50,7 @@ from rate_limit_hold import (
 
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
+from transcriber.segments import find_loop_runs
 import failover
 import run_context
 from reprocess_modes import (
@@ -62,6 +63,7 @@ from utils.constants import (
 
 from utils.episode_paths import episode_relative_path, published_episode_version
 from utils.gpu import get_available_memory_gb
+from utils.memory import trim_idle_memory
 
 audio_logger = logging.getLogger('podcast.audio')
 
@@ -158,6 +160,20 @@ def _cleanup_cancelled_processing_output(slug, episode_id, run_id, queue,
     return True, False
 
 
+_trim_lock = threading.Lock()
+
+
+def _trim_when_drained(queue):
+    """Trim the heap when a run finishes with nothing active or queued."""
+    try:
+        with _trim_lock:
+            if queue.get_current() or db.count_pending_queued_episodes():
+                return
+            trim_idle_memory()
+    except Exception as exc:
+        audio_logger.debug("Idle memory trim check failed: %s", exc)
+
+
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None, run_id=None):
     """Background thread wrapper for process_episode with queue management."""
     ctx = run_context.begin(slug, episode_id, run_id=run_id)
@@ -228,6 +244,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         with _cancel_events_lock:
             _cancel_events.pop(run_id, None)
         run_context.end(ctx)
+        _trim_when_drained(queue)
 
 
 def start_background_processing(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None):
@@ -758,6 +775,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             run_stats['downloaded_duration'] = round(episode_duration, 2)
             run_stats['transcript_segments'] = len(segments)
+            # Found once: detection stage 2 and the validator both skip loop cues.
+            loop_runs = find_loop_runs(segments)
 
             podcast_id = ctx.podcast_id
             opening_exclusion_seconds = resolve_ad_detection_exclude_start_seconds(
@@ -832,6 +851,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         run_stats=run_stats,
                         action_map=segment_actions,
                         transcript_spans=transcript_spans,
+                        loop_runs=loop_runs,
                     )
                 _check_cancel(cancel_event, slug, episode_id)
 
@@ -915,6 +935,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         transcript_spans=transcript_spans,
                         description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                           (podcast_settings or {}).get('description_trim_mode')),
+                        loop_runs=loop_runs,
                     )
 
                 # Late keep partition: _refine_and_validate synthesizes heuristic
