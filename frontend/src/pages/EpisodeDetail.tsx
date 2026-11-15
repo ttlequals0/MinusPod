@@ -630,20 +630,6 @@ function EpisodeDetail() {
       // matching this reject means the review set just emptied.
       const held = episode?.pendingReviewMarkers ?? [];
       const oa = correction.originalAd;
-      const chainedRecut = pendingRecutRef.current;
-      if (correction.type === 'confirm' && oa
-          && held.some((m) => m.start === oa.start && m.end === oa.end)) {
-        const marker = (data as CorrectionResult | undefined)?.marker;
-        showHeldBanner(
-          chainedRecut ? 'Saved. Cutting now.'
-          : marker?.was_cut ? `Saved ${formatTimestamp(marker.start)} - ${formatTimestamp(marker.end)}.`
-          : marker ? `Saved ${formatTimestamp(marker.start)} - ${formatTimestamp(marker.end)}. Not cut yet.`
-          : 'Saved. Not cut yet.');
-      }
-      if (chainedRecut) {
-        pendingRecutRef.current = false;
-        handleReprocess('recut');
-      }
       if (oa && (correction.type === 'confirm' || correction.type === 'reject')
           && episode?.adMarkers?.some((m) => m.start === oa.start && m.end === oa.end)) {
         setCorrectionNotice(correction.type === 'confirm' ? CONFIRMED_TEXT : NOT_AD_TEXT);
