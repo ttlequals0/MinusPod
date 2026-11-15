@@ -191,6 +191,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const globalKeepOriginalLabel = audioSettings?.keepOriginalAudio === false
     ? 'discard' : 'keep';
 
+  // Until the global values arrive the inherit labels say nothing about them,
+  // so a wrong first value never flashes.
+  const settingsReady = settings !== undefined;
+  const audioReady = audioSettings !== undefined;
+  const inheritLabel = (prefix: string, value: string, ready: boolean = settingsReady) =>
+    ready ? `${prefix} (${value})` : prefix;
+  const followingGlobalNote = (value: boolean) =>
+    settingsReady ? `Following the global setting (currently ${value ? 'on' : 'off'}).` : 'Following the global setting.';
+
   const retentionMode: RetentionMode =
     feed.retentionDaysOverride == null ? 'global'
       : feed.retentionDaysOverride === 0 ? 'archive' : 'custom';
@@ -965,7 +974,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Low ad yield action"
                   >
-                    <option value="">Use global ({globalLowAdYieldLabel})</option>
+                    <option value="">{inheritLabel('Use global', globalLowAdYieldLabel)}</option>
                     {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
                       <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
                     ))}
@@ -1167,7 +1176,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     aria-label="Chapters"
                     aria-describedby={llmDisabled ? 'feed-chapters-llm-disabled' : undefined}
                   >
-                    <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>Inherit global ({inheritedChapterMode})</option>
+                    <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>{inheritLabel('Inherit global', inheritedChapterMode)}</option>
                     <option value="auto" disabled={nativeChapterGenerationBlocked}>Auto</option>
                     <option value="generate" disabled={nativeChapterGenerationBlocked || llmDisabled}>Always generate</option>
                     <option value="off">Off</option>
@@ -1232,7 +1241,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="Chapter list"
                 ariaLabel="Chapters in descriptions"
                 value={feed.chaptersInNotes}
-                globalOn={!!settings?.chaptersInNotes?.value}
+                globalOn={settingsReady ? !!settings?.chaptersInNotes?.value : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(chaptersInNotes) => updateMutation.mutate({ chaptersInNotes })}
               >
@@ -1244,7 +1253,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="Review links"
                 ariaLabel="Review links in descriptions"
                 value={feed.reviewLinksInNotes}
-                globalOn={!!settings?.reviewLinksInNotes?.value}
+                globalOn={settingsReady ? !!settings?.reviewLinksInNotes?.value : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(reviewLinksInNotes) => updateMutation.mutate({ reviewLinksInNotes })}
               >
@@ -1312,7 +1321,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="Replacement sound"
                 ariaLabel="Replacement sound"
                 value={feed.audioReplacementSoundOverride == null ? null : feed.audioReplacementSoundOverride ? 'on' : 'off'}
-                globalOn={settings?.audioReplacementSoundEnabled?.value ?? true}
+                globalOn={settingsReady ? settings?.audioReplacementSoundEnabled?.value ?? true : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(value) => updateMutation.mutate({ audioReplacementSoundOverride: value === null ? null : value === 'on' })}
               >
@@ -1322,7 +1331,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="MP3 stream copy"
                 ariaLabel="MP3 stream copy"
                 value={feed.audioMp3StreamCopyOverride == null ? null : feed.audioMp3StreamCopyOverride ? 'on' : 'off'}
-                globalOn={settings?.audioMp3StreamCopyEnabled?.value ?? false}
+                globalOn={settingsReady ? settings?.audioMp3StreamCopyEnabled?.value ?? false : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(value) => updateMutation.mutate({ audioMp3StreamCopyOverride: value === null ? null : value === 'on' })}
               >
@@ -1378,7 +1387,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   />
                   {feed.requireManualApproval == null && (
                     <p className="text-xs text-muted-foreground">
-                      Following the global setting (currently {(settings?.requireManualApprovalDefault?.value ?? false) ? 'on' : 'off'}).
+                      {followingGlobalNote(settings?.requireManualApprovalDefault?.value ?? false)}
                     </p>
                   )}
                 </div>
@@ -1423,7 +1432,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                     aria-label="Run log storage"
                   >
-                    <option value="">Use global ({globalEpisodeLogsLabel})</option>
+                    <option value="">{inheritLabel('Use global', globalEpisodeLogsLabel)}</option>
                     <option value="on">Keep logs</option>
                     <option value="off">Don't keep logs</option>
                   </select>
@@ -1458,7 +1467,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                       aria-label="Retention"
                     >
-                      <option value="global">Use global ({globalStorageRetentionLabel})</option>
+                      <option value="global">{inheritLabel('Use global', globalStorageRetentionLabel)}</option>
                       <option value="archive">Archive, never delete</option>
                       <option value="custom">Keep for</option>
                     </select>
@@ -1512,7 +1521,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                       aria-label="Keep original audio"
                     >
-                      <option value="">Use global ({globalKeepOriginalLabel})</option>
+                      <option value="">{inheritLabel('Use global', globalKeepOriginalLabel, audioReady)}</option>
                       <option value="on">Keep the uncut copy</option>
                       <option value="off">Discard the uncut copy</option>
                     </select>
@@ -1613,7 +1622,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   />
                   {feed.detectShowSegments == null && (
                     <p className="text-xs text-muted-foreground">
-                      Following the global setting (currently {(settings?.detectShowSegments?.value ?? false) ? 'on' : 'off'}).
+                      {followingGlobalNote(settings?.detectShowSegments?.value ?? false)}
                     </p>
                   )}
                 </div>
@@ -1873,7 +1882,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Splice check"
                   >
-                    <option value="">Use global ({settings?.spliceVetoEnabled?.value === false ? 'off' : 'on'})</option>
+                    <option value="">{inheritLabel('Use global', settings?.spliceVetoEnabled?.value === false ? 'off' : 'on')}</option>
                     <option value="true">Hold cuts without splice evidence</option>
                     <option value="false">Cut without splice evidence</option>
                   </select>
@@ -1917,7 +1926,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
                     aria-label="Verification pass"
                   >
-                    <option value="inherit">Inherit global ({settings?.skipSecondPass?.value ? 'Skip' : 'Run'})</option>
+                    <option value="inherit">{inheritLabel('Inherit global', settings?.skipSecondPass?.value ? 'Skip' : 'Run')}</option>
                     <option value="run">Run verification</option>
                     <option value="skip">Skip verification</option>
                   </select>
@@ -1951,7 +1960,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       className={`min-w-0 disabled:opacity-50 ${selectBase}`}
                       aria-label="Fetch each episode twice to find inserted ads"
                     >
-                      <option value="inherit">Inherit global ({settings?.differentialFetchMode?.value ?? 'auto'})</option>
+                      <option value="inherit">{inheritLabel('Inherit global', settings?.differentialFetchMode?.value ?? 'auto')}</option>
                       <option value="auto">Auto (on for dynamic-ad feeds)</option>
                       <option value="on">On</option>
                       <option value="off">Off</option>
@@ -1999,7 +2008,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
                     aria-label="Compare with the publisher transcript"
                   >
-                    <option value="inherit">Inherit global ({settings?.transcriptDifferentialEnabled?.value === false ? 'Off' : 'On'})</option>
+                    <option value="inherit">{inheritLabel('Inherit global', settings?.transcriptDifferentialEnabled?.value === false ? 'Off' : 'On')}</option>
                     <option value="on">On</option>
                     <option value="off">Off</option>
                   </select>

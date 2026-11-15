@@ -866,7 +866,7 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
     await waitFor(() => {
       expect(within(group).getByRole('radio', { name: 'Inherit' }).getAttribute('aria-checked')).toBe('true');
     });
-    expect(within(group.parentElement as HTMLElement).getByText('Following the global setting (currently off).')).toBeDefined();
+    expect(await within(group.parentElement as HTMLElement).findByText('Following the global setting (currently off).')).toBeDefined();
   });
 
   it('reflects a global default of on in the helper text', async () => {
@@ -1885,6 +1885,27 @@ describe('FeedSettingsPanel require manual approval tri-state control', () => {
     expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: null });
     await userEvent.click(within(group).getByRole('radio', { name: 'Off' }));
     expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: false });
+  });
+});
+
+describe('FeedSettingsPanel inherit labels while global settings load', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows no global value until settings arrive, then the real one', async () => {
+    let resolve!: (v: unknown) => void;
+    mockGetSettings.mockReturnValue(new Promise((r) => { resolve = r; }));
+    renderPanel(makeFeed());
+    const select = await screen.findByLabelText('Compare with the publisher transcript');
+    expect(within(select).getByRole('option', { name: 'Inherit global' })).toBeDefined();
+    expect(within(select).queryByRole('option', { name: /Inherit global \(/ })).toBeNull();
+    const sound = screen.getByLabelText('Replacement sound');
+    expect(within(sound).getByRole('option', { name: 'Use global' })).toBeDefined();
+    resolve({ transcriptDifferentialEnabled: { value: false, isDefault: false } });
+    await waitFor(() => expect(within(select).getByRole('option', { name: 'Inherit global (Off)' })).toBeDefined());
+    expect(within(sound).getByRole('option', { name: 'Use global (on)' })).toBeDefined();
   });
 });
 

@@ -811,9 +811,9 @@ export async function submitSponsorBlock(
 }
 
 export async function rateEpisode(
-  slug: string, episodeId: string, rating: number, notes: string | null,
+  slug: string, episodeId: string, rating: number, notes: string | null, confirmMarkers?: boolean,
 ): Promise<{ rating: EpisodeRating; confirmedMarkers: number; dismissedMarkers: number }> {
-  return apiRequest(`/feeds/${slug}/episodes/${episodeId}/rating`, { method: 'PUT', body: { rating, notes } });
+  return apiRequest(`/feeds/${slug}/episodes/${episodeId}/rating`, { method: 'PUT', body: { rating, notes, confirm_markers: confirmMarkers } });
 }
 
 export async function clearEpisodeRating(slug: string, episodeId: string): Promise<void> {

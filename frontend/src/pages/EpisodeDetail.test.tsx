@@ -75,6 +75,7 @@ vi.mock('../hooks/useLocalStorageState', () => ({
 
 vi.mock('../utils/confidence', () => ({
   formatConfidence: () => '95%',
+  formatConfidenceTitle: () => undefined,
 }));
 
 // Mutable mutation stubs; reassigned per test.
@@ -2656,6 +2657,46 @@ describe('Episode rating', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null));
     expect(await screen.findByText('Saved. 4 cut segments confirmed.')).not.toBeNull();
+  });
+
+  it('shows the confirm option ticked at 5 stars and saves exactly as before', async () => {
+    const user = userEvent.setup();
+    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 2, dismissedMarkers: 0 });
+    renderDetail(makeEpisode({ rating: null }));
+    expect(screen.queryByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' })).toBeNull();
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    const box = screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null));
+    expect(await screen.findByText('Saved. 2 cut segments confirmed.')).not.toBeNull();
+  });
+
+  it('re-arms the confirm option when the star count changes and hides it for a stored 5', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ rating: null }));
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }));
+    await user.click(screen.getByRole('radio', { name: '3 stars' }));
+    await user.click(screen.getByRole('radio', { name: '5 stars' }));
+    expect((screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('shows no confirm option while the stored rating is already 5', async () => {
+    renderDetail(makeEpisode({ rating: { value: 5, notes: null, ratedAt: '2026-10-30T10:00:00Z' } }));
+    await screen.findByRole('radio', { name: '5 stars' });
+    expect(screen.queryByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' })).toBeNull();
+  });
+
+  it('stores a 5 without confirming when the box is unticked', async () => {
+    const user = userEvent.setup();
+    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
+    renderDetail(makeEpisode({ rating: null }));
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null, false));
+    expect(await screen.findByText('Rating saved.')).not.toBeNull();
   });
 
   it('reports dismissed held segments after a 5-star rating', async () => {

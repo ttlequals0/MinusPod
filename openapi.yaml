@@ -2724,7 +2724,8 @@ paths:
         characters and kept only below 5. A rating of 5 confirms every cut ad
         segment through the same path as a confirm correction, without changing
         the audio or queuing a recut. A 5 also dismisses every held segment
-        without recording a correction.
+        without recording a correction. Send confirm_markers false to store the
+        rating without either; omitted behaves as true.
       operationId: putEpisodeRating
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -2739,6 +2740,7 @@ paths:
               properties:
                 rating: { type: integer, minimum: 1, maximum: 5 }
                 notes: { type: [string, 'null'], maxLength: 2000 }
+                confirm_markers: { type: boolean, description: "At 5 stars, false skips confirming cut segments and dismissing held ones. Omitted behaves as true." }
       responses:
         '200':
           description: The stored rating, how many cut segments were newly confirmed and how many held segments were dismissed

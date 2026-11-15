@@ -8,6 +8,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Added
+
+- Picking 5 stars in the episode rating shows "Confirm all cuts and dismiss held ones", ticked by default. Unticking it stores the 5-star rating without confirming cuts or dismissing held markers. The default is unchanged: a 5-star rating still confirms and dismisses. API: optional `confirm_markers` on `PUT /api/v1/feeds/{slug}/episodes/{id}/rating` (omitted means true).
+- After a confirm or reject on a cut row, the row shows a result line ("Confirmed", or "Marked not an ad" with "the audio comes back at the next recut" and a Recut now button) and a short notice.
+- The confidence on an episode row has a tooltip naming the model confidence and the confidence after review when the two differ.
+
+### Fixed
+
+- Feed settings no longer show a guessed global value ("Use global (off)", "Inherit global (Run)") before the global settings have loaded. The inherit labels show no value until then.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed

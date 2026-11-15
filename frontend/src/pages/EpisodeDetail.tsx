@@ -33,7 +33,7 @@ import EpisodeRating from '../components/EpisodeRating';
 import SponsorBlockSubmit from '../components/SponsorBlockSubmit';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
-import { formatConfidence } from '../utils/confidence';
+import { formatConfidence, formatConfidenceTitle } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
 import { confirmLabel, isKeepLike, rejectLabel } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
@@ -136,6 +136,17 @@ function correctionBadgeLabel(correction: EpisodeCorrection): string {
     return correction.origin === 'auto_pass2' ? 'Auto-approved' : 'Confirmed';
   }
   return correction.correction_type === 'false_positive' ? 'Not ad' : 'Adjusted';
+}
+
+const CONFIRMED_TEXT = 'Confirmed';
+const NOT_AD_TEXT = 'Marked not an ad: the audio comes back at the next recut';
+
+// Plain-language outcome for a correction on a cut row; null when nothing was decided.
+function correctionResultText(correction?: EpisodeCorrection): string | null {
+  if (!correction) return null;
+  if (correction.correction_type === 'confirm') return correction.origin === 'auto_pass2' ? null : CONFIRMED_TEXT;
+  if (correction.correction_type === 'false_positive') return NOT_AD_TEXT;
+  return null;
 }
 
 type ProposedAdSegment = AdSegment & { reviewer_proposed_start: number; reviewer_proposed_end: number };
@@ -389,6 +400,8 @@ function EpisodeDetail() {
   // Transient banner for a rejected correction or reprocess; the backend's
   // own message is shown verbatim.
   const [correctionError, setCorrectionError] = useState<string | null>(null);
+  // Transient confirmation after a confirm or reject on a cut row.
+  const [correctionNotice, setCorrectionNotice] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
   // Held/rejected row currently open in the standalone waveform editor
@@ -600,6 +613,10 @@ function EpisodeDetail() {
       // matching this reject means the review set just emptied.
       const held = episode?.pendingReviewMarkers ?? [];
       const oa = correction.originalAd;
+      if (oa && (correction.type === 'confirm' || correction.type === 'reject')
+          && episode?.adMarkers?.some((m) => m.start === oa.start && m.end === oa.end)) {
+        setCorrectionNotice(correction.type === 'confirm' ? CONFIRMED_TEXT : NOT_AD_TEXT);
+      }
       if (correction.type === 'reject' && held.length === 1 && oa
           && held[0].start === oa.start && held[0].end === oa.end) {
         setHeldReviewCleared(true);
@@ -615,6 +632,12 @@ function EpisodeDetail() {
       setTimeout(() => setSaveStatus('idle'), 3000);
     },
   });
+
+  useEffect(() => {
+    if (!correctionNotice) return;
+    const timer = setTimeout(() => setCorrectionNotice(null), 8000);
+    return () => clearTimeout(timer);
+  }, [correctionNotice]);
 
   // Handle ad corrections from AdEditor
   const handleCorrection = (correction: AdCorrection) => {
@@ -892,7 +915,8 @@ function EpisodeDetail() {
         )}
         {(() => {
           const correction = getAdCorrection(segment.start, segment.end);
-          if (correction) {
+          // The result line below says it in words; the badge would repeat it.
+          if (correction && !correctionResultText(correction)) {
             return (
               <span className={`${badgeBase} ${
                 correction.correction_type === 'confirm'
@@ -907,10 +931,32 @@ function EpisodeDetail() {
           }
           return null;
         })()}
-        <span className="ml-auto text-sm text-muted-foreground whitespace-nowrap">
+        <span className="ml-auto text-sm text-muted-foreground whitespace-nowrap" title={formatConfidenceTitle(segment)}>
           {formatConfidence(segment)}
         </span>
       </div>
+      {(() => {
+        const correction = getAdCorrection(segment.start, segment.end);
+        const result = correctionResultText(correction);
+        if (!result) return null;
+        const recutPending = correction?.correction_type === 'false_positive';
+        return (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            <span data-testid={`ad-result-${index}`} className={recutPending ? 'text-warning' : 'text-success'}>{result}</span>
+            {recutPending && episode.hasOriginalAudio && (
+              <button
+                type="button"
+                onClick={() => handleReprocess('recut')}
+                disabled={reprocessBlocked}
+                title={reprocessBlockedReason ?? 'Recut the audio now so this segment comes back'}
+                className={`${rowActionBtn} ${btnSecondary} ${focusRing}`}
+              >
+                Recut now
+              </button>
+            )}
+          </div>
+        );
+      })()}
       {/* Detector's note, labelled "Match:" so reviewer-edited text is not read as a sponsor claim. */}
       {segment.reason && (
         <ExpandableText
@@ -1061,6 +1107,15 @@ function EpisodeDetail() {
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between gap-3">
           <span>{correctionError}</span>
           <CloseButton onClick={() => setCorrectionError(null)} label="Dismiss" className="shrink-0" />
+        </div>
+      )}
+
+      {correctionNotice && (
+        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] z-50">
+          <div role="status" className="max-w-sm bg-card border border-border rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
+            <span className="flex-1">{correctionNotice}</span>
+            <CloseButton onClick={() => setCorrectionNotice(null)} label="Dismiss" className="shrink-0" />
+          </div>
         </div>
       )}
 
@@ -1801,7 +1856,7 @@ function EpisodeDetail() {
                         </span>
                       )}
                     </div>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground" title={formatConfidenceTitle(segment)}>
                       {formatConfidence(segment)}
                     </span>
                   </div>
@@ -2027,7 +2082,7 @@ function EpisodeDetail() {
                             </span>
                           )}
                         </div>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-muted-foreground" title={formatConfidenceTitle(segment)}>
                           {formatConfidence(segment)}
                         </span>
                       </div>

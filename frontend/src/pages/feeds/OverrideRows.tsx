@@ -13,7 +13,8 @@ export function GlobalOverrideRow({
   label: string;
   ariaLabel: string;
   value: 'on' | 'off' | null | undefined;
-  globalOn: boolean;
+  // Undefined until the global settings load; the label then names no value.
+  globalOn: boolean | undefined;
   disabled: boolean;
   title?: string;
   onChange: (value: 'on' | 'off' | null) => void;
@@ -33,7 +34,7 @@ export function GlobalOverrideRow({
           aria-label={ariaLabel}
           aria-describedby={`${id}-help`}
         >
-          <option value="">Use global ({globalOn ? 'on' : 'off'})</option>
+          <option value="">{globalOn === undefined ? 'Use global' : `Use global (${globalOn ? 'on' : 'off'})`}</option>
           <option value="on">On</option>
           <option value="off">Off</option>
         </select>

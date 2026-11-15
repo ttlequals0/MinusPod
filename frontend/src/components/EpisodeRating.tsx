@@ -35,6 +35,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const queryClient = useQueryClient();
   const [value, setValue] = useState<number>(rating?.value ?? 0);
   const [notes, setNotes] = useState(rating?.notes ?? '');
+  const [confirmMarkers, setConfirmMarkers] = useState(true);
   // A link asking for the rating already stored needs no request, only the notice.
   const [message, setMessage] = useState<string | null>(() =>
     validRequest(requestedRating) && requestedRating === rating?.value ? `Already rated ${stars(requestedRating)}` : null);
@@ -54,11 +55,13 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   };
 
   const save = useMutation({
-    mutationFn: ({ count, restoreNotes }: { count: number; viaLink?: boolean; restoreNotes?: string | null }) =>
-      rateEpisode(slug, episodeId, count, count < 5 ? (restoreNotes ?? (notes.trim() || null)) : null),
+    mutationFn: ({ count, restoreNotes, confirm }: { count: number; viaLink?: boolean; restoreNotes?: string | null; confirm?: false }) =>
+      rateEpisode(slug, episodeId, count, count < 5 ? (restoreNotes ?? (notes.trim() || null)) : null,
+        ...(confirm === undefined ? [] : [confirm])),
     onMutate: () => { setError(null); setMessage(null); },
-    onSuccess: (result, { count, viaLink, restoreNotes }) => {
+    onSuccess: (result, { count, viaLink, restoreNotes, confirm }) => {
       setValue(count);
+      setConfirmMarkers(true);
       if (count === 5) setNotes('');
       if (restoreNotes !== undefined) {
         setNotes(restoreNotes ?? '');
@@ -71,7 +74,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
           ...(confirmed || !dismissed ? [`${segments(confirmed, 'cut')} confirmed`] : []),
           ...(dismissed ? [`${segments(dismissed, 'held')} dismissed`] : []),
         ];
-        setMessage(count === 5 ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
+        setMessage(count === 5 && confirm !== false ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
       }
       setRating(result.rating);
     },
@@ -117,12 +120,15 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const busy = save.isPending || clear.isPending;
   const dirty = value !== (rating?.value ?? 0) || (value < 5 && notes.trim() !== (rating?.notes ?? ''));
 
+  // Choosing a star count re-arms the confirm option, so an earlier untick never carries over.
+  const pick = (n: number) => { setValue(n); setConfirmMarkers(true); };
+
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     const step = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
     if (!step) return;
     e.preventDefault();
     const next = Math.min(5, Math.max(1, (value || (step > 0 ? 0 : 6)) + step));
-    setValue(next);
+    pick(next);
     (e.currentTarget.parentElement?.children[next - 1] as HTMLElement | undefined)?.focus();
   };
 
@@ -147,7 +153,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
             aria-label={`${n} ${n === 1 ? 'star' : 'stars'}`}
             tabIndex={value === n || (value === 0 && n === 1) ? 0 : -1}
             disabled={busy}
-            onClick={() => setValue(n)}
+            onClick={() => pick(n)}
             onKeyDown={onKeyDown}
             className={`${touchTarget} sm:min-h-9 sm:pointer-fine:min-w-9 rounded text-warning ${focusRing}`}
           >
@@ -155,6 +161,20 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
           </button>
         ))}
       </div>
+      {value === 5 && rating?.value !== 5 && (
+        <div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={confirmMarkers}
+              disabled={busy}
+              onChange={(e) => setConfirmMarkers(e.target.checked)}
+            />
+            Confirm all cuts and dismiss held ones
+          </label>
+          <p className="text-sm text-muted-foreground">Untick to store a 5-star rating without confirming anything.</p>
+        </div>
+      )}
       {value > 0 && value < 5 && (
         <div>
           <label htmlFor="episode-rating-notes" className="sr-only">Rating notes</label>
@@ -176,7 +196,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
             type="button"
             className={`${btnBase} ${btnPrimary}`}
             disabled={value === 0 || !dirty || busy}
-            onClick={() => save.mutate({ count: value })}
+            onClick={() => save.mutate({ count: value, confirm: value === 5 && !confirmMarkers ? false : undefined })}
           >
             {save.isPending ? 'Saving...' : 'Save'}
           </button>
