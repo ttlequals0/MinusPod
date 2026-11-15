@@ -323,10 +323,11 @@ _STORED_SHAPES = {
 def test_uncapped_stored_redaction_is_linear_on_multi_megabyte_input(name):
     build = _STORED_SHAPES[name]
     n = -(-2_000_000 // (len(build(2)) - len(build(1))))
-    small, large = _min_times([build(n), build(2 * n)], redact_stored_text, runs=3)
-    assert len(build(2 * n)) >= 4_000_000
-    assert large < 4.0, (name, small, large)
-    assert large / max(small, 1e-3) < 3, (name, small, large)
+    # 4x the input: linear is 4x the time, quadratic 16x, so 8 leaves noise room on both sides.
+    small, large = _min_times([build(n), build(4 * n)], redact_stored_text, runs=7)
+    assert len(build(4 * n)) >= 8_000_000
+    assert large < 8.0, (name, small, large)
+    assert large / max(small, 1e-3) < 8, (name, small, large)
 
 
 def test_redact_exc_matches_redact_log_text_and_cuts():
