@@ -18,6 +18,7 @@ release notes.
 - A blank system prompt no longer sends an empty system message (OpenAI-compatible and Ollama) or an empty `system` parameter (Anthropic). Some gateways reject an empty system block with a 400. Contributed by no84by. (#1003)
 - The pre-roll detector finds the show's opening line in feeds whose title has a subtitle, such as "Show Name: The Weekly Talk". It tries the main title first, then the full title. Contributed by no84by. (#1004)
 - The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the edge the transcript differential confirmed. The cut could keep the first words of the show. Contributed by no84by. (#1004)
+- A Whisper repetition loop is no longer read as transcript. Text-pattern matching and the validator skip runs of 8 or more short, near-identical cues. When a marker is mostly inside loops and has no measured evidence or decision of yours behind it, the text outside the loops decides. Ad language there trims the marker to that read. A sponsor name alone, or ad language in the loop text itself, holds it with the new reason `transcript_loop`. With neither, it is rejected. Contributed by no84by. (#1005)
 
 ### Changed
 
