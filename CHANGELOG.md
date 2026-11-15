@@ -29,6 +29,7 @@ release notes.
 - A cleanup trim turns the pattern's audio off when no retained episode has that audio. The old audio still matched the part the trim removed. Its data and match history are kept, and undo turns it back on unless the audio changed in between. The approval reports `audio_turned_off`, and `applied.audioDisabled` records it.
 - A cut row on the episode page says what your confirm or reject did. A reject reads "Marked not an ad: the audio comes back at the next recut" and offers Recut now. Contributed by no84by. (#1007)
 - The confidence on an episode row shows the model's value and the value after review on hover when the two differ. Contributed by no84by. (#1007)
+- A 5-star rating can be stored without confirming cuts or dismissing held markers. Picking 5 stars shows "Confirm all cuts and dismiss held ones", ticked by default. Untick it to store the rating alone. `PUT /feeds/{slug}/episodes/{episode_id}/rating` accepts `confirm_markers`, and leaving it out behaves as before. Contributed by no84by. (#1007)
 
 ## [2.102.4] - 2026-11-14
 
