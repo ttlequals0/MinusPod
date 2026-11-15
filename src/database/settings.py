@@ -1066,6 +1066,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
+    # Hidden opt-in (Stage tunables page): word-gap snap, splice straddle, reviewer edge
+    # check, sparse-hole repair and edge fade. Off reproduces the cut edges without them.
+    'precise_cut_edges': SettingSpec(
+        default='false', payload_key='preciseCutEdges', payload_kind='bool'),
 
     # Notifications
     # IANA zone for timestamp_local in webhook/email payloads: the container TZ

@@ -1273,6 +1273,16 @@ def resolve_silence_snap_enabled(db, podcast_id):
     return _resolve_snap_flag(db, podcast_id, 'silence_snap_enabled')
 
 
+def resolve_precise_cut_edges(db):
+    """Global hidden opt-in for the precise cut-edge steps (word-gap snap, splice straddle,
+    reviewer edge check, sparse-hole repair, edge fade). Default False; fails closed."""
+    try:
+        return coerce_bool_setting(db.get_setting('precise_cut_edges')) if db else False
+    except Exception:
+        _tunable_logger.warning('precise_cut_edges: read failed; defaulting to False')
+        return False
+
+
 DIFFERENTIAL_FETCH_MODE_AUTO = 'auto'
 DIFFERENTIAL_FETCH_MODE_ON = 'on'
 DIFFERENTIAL_FETCH_MODE_OFF = 'off'

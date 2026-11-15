@@ -1,4 +1,5 @@
 """Opt-in LLM ad reviewer."""
+import copy
 import json
 import logging
 import math
@@ -36,8 +37,10 @@ from config import (
     MIN_CUT_CONFIDENCE,
     resolve_max_boundary_shift,
 )
+from roll_detector import show_start_line
 from audio_enforcer import content_anchors
-from ad_detector.boundaries import timed_line_segments
+from ad_detector.boundaries import extend_ad_boundaries_by_content, timed_line_segments
+from ad_detector import edge_reach
 from ad_detector.cue_boundary_snap import (
     MIN_CUE_CONFIDENCE_FOR_SNAP, _cue_role, cue_removal_enabled,
     cue_snap_edge_limit,
@@ -107,6 +110,11 @@ AD_REVIEW_JSON_SCHEMA = {
     },
     "required": ["ads"],
 }
+
+# precise_cut_edges: the pass-1 edge check adds two optional answers, a sentence label or null.
+AD_REVIEW_EDGE_CHECK_JSON_SCHEMA = copy.deepcopy(AD_REVIEW_JSON_SCHEMA)
+AD_REVIEW_EDGE_CHECK_JSON_SCHEMA["properties"]["ads"]["items"]["properties"].update(
+    lead_in_from={"type": ["string", "null"]}, tail_to={"type": ["string", "null"]})
 
 logger = logging.getLogger(__name__)
 
@@ -1782,7 +1790,9 @@ class AdReviewer:
             credential_slot=credential_slot,
             stage_tunable_prefix='reviewer',
             response_format=schema_format_for(
-                model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
+                model, 'ad_review',
+                (AD_REVIEW_EDGE_CHECK_JSON_SCHEMA if self._edge_check_enabled(ad, pool, episode_meta)
+                 else AD_REVIEW_JSON_SCHEMA),
                 'Review verdicts for the candidate ad.', provider=provider),
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
@@ -1913,6 +1923,13 @@ class AdReviewer:
             new_start, new_end, original_start, original_end,
             clamped_start, clamped_end)
 
+        edge_locks, edge_anchors = (), ()
+        if self._edge_check_enabled(ad, pool, episode_meta):
+            clamped_start, clamped_end, edge_locks, edge_anchors = self._widen_to_edge_answers(
+                kept=kept, ad=ad, segments=segments, episode_meta=episode_meta,
+                start=clamped_start, end=clamped_end, original_start=original_start,
+                original_end=original_end, max_shift=max_shift)
+
         # Verdict is derived from the boundary delta, not from the LLM.
         delta_start = clamped_start - original_start
         delta_end = clamped_end - original_end
@@ -1966,9 +1983,13 @@ class AdReviewer:
                     ("end", end_keys, new_end, clamped_end))
                 if _first_num(kept, keys, None) is not None
                 and _edge_matches(clamped, proposed))
+            locked_edges = tuple(dict.fromkeys((*locked_edges, *edge_locks)))
             updated = _adjusted_ad_copy(
                 ad, clamped_start, clamped_end, original_start, original_end,
                 reason, confidence, model, locked_edges)
+            if edge_anchors:
+                updated['edge_splice_anchor'] = sorted(
+                    set(updated.get('edge_splice_anchor') or ()) | set(edge_anchors))
             return (
                 ReviewVerdict(
                     pool=pool, pass_num=pass_num, verdict="adjust",
@@ -1993,6 +2014,93 @@ class AdReviewer:
             ),
             ad,
         )
+
+    @staticmethod
+    def _edge_check_enabled(ad, pool, episode_meta) -> bool:
+        return bool(episode_meta.get('edge_check') and pool == 'accepted'
+                    and not (ad.get('validation') or {}).get('user_confirmed'))
+
+    @staticmethod
+    def _edge_floors(episode_meta, segments, start, end, original_start, original_end,
+                     max_shift):
+        """Lowest start and highest end an edge-check extension may reach."""
+        spans = [(b['start'], b['end']) for b in episode_meta.get('hard_barriers') or []
+                 if b.get('start') is not None and b.get('end') is not None]
+        spans.extend(tuple(span) for span in episode_meta.get('marker_spans') or [])
+        floor = original_start - max_shift
+        ceiling = original_end + max_shift
+        for lo, hi in spans:
+            if (abs(lo - original_start) <= EDGE_TOLERANCE
+                    and abs(hi - original_end) <= EDGE_TOLERANCE):
+                continue
+            if lo < start - EDGE_TOLERANCE:
+                floor = max(floor, hi if hi <= start + EDGE_TOLERANCE else start)
+            if hi > end + EDGE_TOLERANCE:
+                ceiling = min(ceiling, lo if lo >= end - EDGE_TOLERANCE else end)
+        zone = show_start_line(segments, episode_meta.get('podcast_name'))
+        if zone is not None:
+            show_start, show_end = zone
+            floor = start if start <= show_start else max(floor, show_end)
+        pre_roll, _post = content_anchors(episode_meta.get('audio_analysis'))
+        if pre_roll is not None and start < pre_roll:
+            floor = start
+        return floor, ceiling
+
+    def _widen_to_edge_answers(self, *, kept, ad, segments, episode_meta, start, end,
+                               original_start, original_end, max_shift):
+        """(start, end, locked edges, splice-anchored edges) widened onto the sentences the reviewer named."""
+        slug, episode_id = episode_meta.get('slug'), episode_meta.get('episode_id')
+        lead_in, tail = kept.get('lead_in_from'), kept.get('tail_to')
+        before, after = edge_reach.edge_check_sentences(segments, original_start, original_end)
+        if not before and not after:
+            self._log_edge_check(
+                slug, episode_id, original_start, original_end, lead_in, tail, None, None, [],
+                'declined: no sentences beside the cut')
+            return start, end, (), ()
+        audio = episode_meta.get('audio_analysis')
+        floor, ceiling = self._edge_floors(
+            episode_meta, segments, start, end, original_start, original_end, max_shift)
+        hint = {'before': before, 'after': after, 'lead_in_from': lead_in, 'tail_to': tail,
+                'splices': edge_reach.strong_splices(
+                    (getattr(audio, 'splice_evidence', None) or {}).get('events')),
+                'start_floor': floor, 'end_ceiling': ceiling}
+        (widened,) = extend_ad_boundaries_by_content(
+            [{**ad, 'start': start, 'end': end}], segments, edge_hints=[hint])
+        result = widened['edge_hint_result']
+        new_start, new_end = widened['start'], widened['end']
+        decisions = [
+            self._edge_decision('start', start, new_start, lead_in, before, floor, result['sparse']),
+            self._edge_decision('end', end, new_end, tail, after, ceiling, False)]
+        self._log_edge_check(
+            slug, episode_id, original_start, original_end, lead_in, tail, floor, ceiling,
+            result['anchored'], '; '.join(decisions),
+            moved=f"{start:.1f}-{end:.1f} to {new_start:.1f}-{new_end:.1f}")
+        return new_start, new_end, tuple(result['widened']), tuple(result['anchored'])
+
+    @staticmethod
+    def _edge_decision(edge, old, new, answer, sentences, limit, sparse) -> str:
+        """One edge's outcome in words: moved to X, or declined and why."""
+        if (new < old - EDGE_TOLERANCE) if edge == 'start' else (new > old + EDGE_TOLERANCE):
+            how = ' (sparse line fallback)' if sparse else ''
+            return f"{edge} moved to {new:.1f}{how}"
+        if not sentences:
+            return f"{edge} declined: no sentences beside the cut"
+        if not answer:
+            return f"{edge} declined: no answer from the reviewer"
+        return (f"{edge} declined: answer {answer} reaches no further than the "
+                f"{'floor' if edge == 'start' else 'ceiling'} {limit:.1f} allows")
+
+    @staticmethod
+    def _log_edge_check(slug, episode_id, original_start, original_end, lead_in, tail,
+                        floor, ceiling, anchored, decision, moved=None):
+        """One INFO line per edge check, so a run log shows what the reviewer answered and why."""
+        limits = ('floor n/a ceiling n/a' if floor is None
+                  else f"floor {floor:.1f} ceiling {ceiling:.1f}")
+        anchor = f"splice anchor {', '.join(anchored)}" if anchored else 'splice anchor none'
+        logger.info(
+            f"[{slug}:{episode_id}] Edge check @ {original_start:.1f}-{original_end:.1f}s: "
+            f"lead_in_from={lead_in or 'none'} tail_to={tail or 'none'} {limits} {anchor}: "
+            f"{decision}" + (f" ({moved})" if moved else ''))
 
     def _clamp_proposed_bounds(self, ad, new_start, new_end,
                                original_start, original_end, max_shift,
@@ -2365,6 +2473,16 @@ class AdReviewer:
 
         policy_section = _format_policy_section(ad, episode_meta, max_shift)
 
+        edge_block = ''
+        if self._edge_check_enabled(ad, pool, episode_meta):
+            before, after = edge_reach.edge_check_sentences(segments, start, end)
+            audio = episode_meta.get('audio_analysis')
+            edge_block = edge_reach.format_edge_check(
+                before, after,
+                edge_reach.strong_splices(
+                    (getattr(audio, 'splice_evidence', None) or {}).get('events')),
+                start, end)
+
         return (
             f"Podcast: {podcast_name}\n"
             f"Episode: {episode_title}\n"
@@ -2380,6 +2498,7 @@ class AdReviewer:
             f"<<< CANDIDATE AD END [{end:.1f}s] <<<\n"
             f"{after_text}\n"
             f"{word_context}"
+            f"{edge_block}"
         )
 
     def _render_review_prompt(self, max_shift: int, sponsor_block: str,

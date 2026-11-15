@@ -230,6 +230,8 @@ def _build_settings_payload():
 
     omit_temperature = coerce_bool_setting(common._setting_value(
         settings, 'omit_temperature', registry_default('omit_temperature')))
+    precise_cut_edges = coerce_bool_setting(common._setting_value(
+        settings, 'precise_cut_edges', registry_default('precise_cut_edges')))
     llm_json_schema_enabled = coerce_bool_setting(common._setting_value(
         settings, 'llm_json_schema_enabled', registry_default('llm_json_schema_enabled')))
 
@@ -687,6 +689,7 @@ def _build_settings_payload():
         'llmProvider': _sv('llm_provider', llm_provider),
         'llmEnabled': not llm_disabled(llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
+        'preciseCutEdges': _sv('precise_cut_edges', precise_cut_edges),
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),

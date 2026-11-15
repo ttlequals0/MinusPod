@@ -174,6 +174,10 @@ Anthropic stages expose both controls. The stage's model determines which settin
 
 If a provider rejects temperature, reasoning, or thinking settings, that in-flight call can retry once with a compatible fallback. A concurrent call that records the same incompatibility does not consume the retry. Reasoning exhaustion can retry with low effort on adaptive-only Anthropic models, or with reasoning disabled on other models. Processing history stores a sanitized notice for each pass whose reasoning or thinking value was rejected. The notice includes requested and fallback values but no provider error text. The episode page shows notices from the latest completed run. A later pass tries its configured values again.
 
+#### Precise cut edges
+
+Off by default, at the bottom of the LLM tunables section. On, each cut edge is placed in the pause beside a word boundary, an edge follows a dynamic-ad splice that one transcript line spans, the first reviewer pass is asked which sentences just outside a cut belong to the same read, near-empty transcript lines are re-decoded during hole repair, and the fade beside a snapped edge is shortened to the pause. It costs extra audio reads and reviewer tokens. Off, cut edges are placed exactly as without it.
+
 #### Env-var defaults
 
 Every tunable has a matching env var (`DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL`, etc.). The env var supplies the default; a value saved in Settings wins over it, like every other env-backed setting. When the env var is set, the control shows a note naming the variable it inherits its default from. Full list in `.env.example`.

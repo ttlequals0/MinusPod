@@ -23,6 +23,7 @@ from utils.markers import (
     note_merged_members,
     quote_edge_valid as _quote_edge_valid,
     recorded_member_spans,
+    reviewer_edge_locked,
     word_timed_edge_valid,
 )
 from utils.segments import join_word_segments, word_spans
@@ -655,6 +656,138 @@ def _supported_ad_utterance(utterance: dict, prior_domains: set,
     return solicits and bool(domains or has_phone or has_offer)
 
 
+# Edge check answers (precise_cut_edges): the reviewer names the earliest sentence
+# before the start and the last one after the end that belong to the same read.
+EDGE_SLACK_S = 0.5  # word times drift this much around a cut edge
+LEAD_IN_MAX_MOVE_S = 25.0
+TAIL_MAX_MOVE_S = 12.0
+SPLICE_ANCHOR_S = 3.0
+_EDGE_LABEL = re.compile(r'^([BA])(\d+)$', re.IGNORECASE)
+
+
+def parse_edge_label(value, kind: str, sentences: list[dict]) -> int | None:
+    """1-based index of the named sentence in its list, None for anything unknown."""
+    if not isinstance(value, str):
+        return None
+    match = _EDGE_LABEL.match(value.strip())
+    if not match or match.group(1).upper() != kind:
+        return None
+    index = int(match.group(2))
+    return index if 1 <= index <= len(sentences) else None
+
+
+def _nearest_splice(splices, edge: float, key: int):
+    """The splice nearest the new edge on its outer side (EDGE_SLACK_S for drifting word times)."""
+    best = None
+    for span in splices:
+        if (span[1] > edge + EDGE_SLACK_S) if key else (span[0] < edge - EDGE_SLACK_S):
+            continue
+        gap = abs(span[key] - edge)
+        if gap <= SPLICE_ANCHOR_S and (best is None or gap < best[0]):
+            best = (gap, span)
+    return best[1] if best else None
+
+
+def resolve_edge_extension(*, start: float, end: float, before: list[dict], after: list[dict],
+                           lead_in_from, tail_to, splices, start_floor: float,
+                           end_ceiling: float):
+    """New (start, end, anchored edges) after a reviewer's lead-in / tail answer, on whole sentences.
+    A cap never leaves a cut mid-sentence; a strong splice within a few seconds takes the edge."""
+    anchored = []
+    k = parse_edge_label(lead_in_from, 'B', before)
+    if k:
+        floor = max(start_floor, start - LEAD_IN_MAX_MOVE_S)
+        usable = [s for s in before[:k] if s['start'] >= floor - 1e-6]
+        if usable:
+            new_start = usable[-1]['start']
+            span = _nearest_splice(splices, new_start, 1)
+            if span and floor - 1e-6 <= span[1] <= start:
+                new_start = span[1]
+                anchored.append('start')
+            if new_start < start:
+                start = new_start
+            else:
+                anchored = [edge for edge in anchored if edge != 'start']
+    k = parse_edge_label(tail_to, 'A', after)
+    if k:
+        ceiling = min(end_ceiling, end + TAIL_MAX_MOVE_S)
+        usable = [s for s in after[:k] if s['end'] <= ceiling + 1e-6]
+        if usable:
+            new_end = usable[-1]['end']
+            span = _nearest_splice(splices, new_end, 0)
+            if span and end < span[0] <= ceiling + 1e-6:
+                new_end = span[0]
+                anchored.append('end')
+            if new_end > end:
+                end = new_end
+            else:
+                anchored = [edge for edge in anchored if edge != 'end']
+    return start, end, anchored
+
+
+def _covered(lo: float, hi: float, spans) -> float:
+    return sum(max(0.0, min(hi, b) - max(lo, a)) for a, b in spans)
+
+
+def sparse_lead_in_start(before: list[dict], start: float, independent_spans,
+                         start_floor: float) -> float | None:
+    """Start of a sparse line touching the start when an independent member covers half of it."""
+    if not before:
+        return None
+    first = before[0]
+    if not first['sparse'] or abs(first['end'] - start) > EDGE_SLACK_S:
+        return None
+    length = first['end'] - first['start']
+    if length <= 0 or _covered(first['start'], first['end'], independent_spans) < 0.5 * length:
+        return None
+    # The line's own times are unreliable, so a cap or barrier inside it clips the edge there.
+    reach = max(first['start'], start_floor, start - LEAD_IN_MAX_MOVE_S)
+    return reach if reach < first['end'] - EDGE_SLACK_S else None
+
+
+def independent_member_spans(ad: dict) -> list[tuple[float, float]]:
+    """Spans found by a detector that does not read the transcript text: differential and DAI core."""
+    spans = []
+    transcript = ad.get('transcript_span') or {}
+    for member in ad.get('merged_member_spans') or []:
+        if member.get('stage') == 'transcript_differential' and transcript.get('offset_confirmed'):
+            spans.append((member['start'], member['end']))
+    for core in ad.get('dai_core_spans') or []:
+        spans.append((core['start'], core['end']))
+    return spans
+
+
+def _extend_by_edge_hint(ad: dict, hint: dict) -> dict:
+    """A copy of the ad widened onto the sentences its edge hint names, with ``edge_hint_result``.
+    With no lead-in answer, a sparse line at the start that an independent detector covers is taken."""
+    start, end = ad['start'], ad['end']
+    new_start, new_end, anchored = resolve_edge_extension(
+        start=start, end=end, before=hint['before'], after=hint['after'],
+        lead_in_from=hint.get('lead_in_from'), tail_to=hint.get('tail_to'),
+        splices=hint['splices'], start_floor=hint['start_floor'], end_ceiling=hint['end_ceiling'])
+    sparse = None
+    if new_start >= start - EDGE_TOLERANCE:
+        sparse = sparse_lead_in_start(hint['before'], start, independent_member_spans(ad),
+                                      hint['start_floor'])
+        if sparse is not None:
+            new_start = sparse
+    widened = []
+    if new_start < start - EDGE_TOLERANCE:
+        widened.append('start')
+    else:
+        new_start = start
+    if new_end > end + EDGE_TOLERANCE:
+        widened.append('end')
+    else:
+        new_end = end
+    ad_copy = ad.copy()
+    ad_copy['start'], ad_copy['end'] = new_start, new_end
+    ad_copy['edge_hint_result'] = {
+        'widened': widened, 'anchored': [edge for edge in anchored if edge in widened],
+        'sparse': sparse is not None}
+    return ad_copy
+
+
 def _bounded_transcript_text(segments: list[dict], start: float,
                              end: float, memo: dict | None = None) -> str:
     words = []
@@ -675,7 +808,8 @@ def _bounded_transcript_text(segments: list[dict], start: float,
 def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                                     extend_start: bool = True,
                                     podcast_name: str = None,
-                                    barriers: list[dict] = None) -> list[dict]:
+                                    barriers: list[dict] = None, *,
+                                    edge_hints: list[dict | None] | None = None) -> list[dict]:
     """Extend ad boundaries by checking adjacent segments for ad-like content.
 
     Examines transcript text just before and after each ad boundary; if it holds
@@ -692,10 +826,16 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
             content at a boundary
         barriers: Markers the walk must not extend into (defaults to ``ads``);
             the tail pass passes the full marker set including kept and held
+        edge_hints: One entry per ad (or None) carrying the reviewer's edge check
+            answers; the ads are then widened onto the named lead-in and tail
+            sentences instead of by keywords (see ``_extend_by_edge_hint``).
 
     Returns:
         List of ads with boundaries extended where ad content continues
     """
+    if edge_hints is not None:
+        return [ad.copy() if hint is None else _extend_by_edge_hint(ad, hint)
+                for ad, hint in zip(ads, edge_hints, strict=True)]
     memo = {}
     if not ads or not segments:
         return ads
@@ -1889,8 +2029,13 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
                                coverage_ads: list[dict] | None = None,
                                blocking_ads: list[dict] | None = None,
                                eof_tolerance_s: float = TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
-                               podcast_name: str = None) -> list[dict]:
+                               podcast_name: str = None, *,
+                               straddle: bool = False) -> list[dict]:
     """Snap a terminal ad's start back to the strongest deep-silence splice.
+
+    With ``straddle`` the start of any ad (not only a terminal one) moves instead onto a splice
+    that the one transcript segment before it spans (see ``_straddle_start``); the events are
+    then the strong splices the caller selected.
 
     DAI post-roll blocks often begin at an encoded silence a few seconds before
     the LLM or reviewer placed the marker start. For a marker ending within
@@ -1904,6 +2049,8 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
 
     Returns a new list with snapped copies; other ads pass through.
     """
+    if straddle:
+        return _straddle_snap(ads, segments, splice_events, coverage_ads, 'start')
     memo = {}
     if not ads or not splice_events or episode_duration <= 0:
         return ads
@@ -2028,7 +2175,8 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
                                      splice_events: list[dict],
                                      window_s: float = BOUNDARY_EXTENSION_WINDOW,
                                      coverage_ads: list[dict] | None = None,
-                                     podcast_name: str | None = None) -> list[dict]:
+                                     podcast_name: str | None = None, *,
+                                     straddle: bool = False) -> list[dict]:
     """Finish a content-extended ad at a nearby forward splice boundary.
 
     The post-review tail sweep can recover a spoken CTA from transcript text, but
@@ -2037,7 +2185,15 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
     silence splice evidence without crossing another marker or transcribed
     content. This keeps recovery narrow while stopping the final seconds of a DAI
     spot leaking into the processed episode.
+
+    With ``straddle`` the eligible ads are instead those whose end is followed by one
+    transcript segment that spans a splice: whisper merged the ad's last line, the ad bed
+    and the show's first words, so the words before the splice are mistimed and the
+    content check cannot apply. The end moves onto the splice (see ``_straddle_end``);
+    the events are then the strong splices the caller selected.
     """
+    if straddle:
+        return _straddle_snap(ads, segments, splice_events, coverage_ads, 'end')
     memo = {}
     if not ads or not splice_events or window_s <= 0:
         return ads
@@ -2104,6 +2260,121 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
             )
             break
         out.append(ad_copy)
+    return out
+
+
+STRADDLE_MAX_DISTANCE_S = 8.0
+# A digital-zero silence this long and deep is an ad insertion, never a mastered speech pause.
+STRONG_SPLICE_MIN_S = 0.4
+STRONG_SPLICE_DEPTH_DBFS = -90.0
+
+
+def strong_splice_events(events) -> list[dict]:
+    """Digital-silence events long and deep enough that no mastered speech pause makes them."""
+    return [e for e in events or [] if e.get('type') == 'digital_silence'
+            and e.get('time') is not None and e.get('end_time') is not None
+            and e.get('depth_dbfs') is not None
+            and e['end_time'] - e['time'] >= STRONG_SPLICE_MIN_S
+            and e['depth_dbfs'] <= STRONG_SPLICE_DEPTH_DBFS]
+_STRADDLE_DOMAIN = re.compile(r'\b[a-z0-9-]+\.(?:com|net|org|io|co|tv|ai|me|app)\b')
+
+
+def _names_the_ad(text: str, sponsor, ad_text: str) -> bool:
+    lowered = text.lower()
+    name = (sponsor or '').strip().lower()
+    if name and name in lowered:
+        return True
+    return any(domain in lowered for domain in set(_STRADDLE_DOMAIN.findall(ad_text.lower())))
+
+
+def _straddle_end(segments, end, splices, sponsor, ad_text, barrier_start=None, locked_end=None):
+    """End moved onto a splice that the segment after the cut spans, when the line before names the
+    sponsor, else None. A reviewer-locked end widens only when the lock sits before the splice."""
+    slack = EDGE_SLACK_S
+    ordered = sorted(segments, key=lambda s: (s['start'], s['end']))
+    for t0, t1 in splices:
+        if not (end - slack <= t0 <= end + STRADDLE_MAX_DISTANCE_S):
+            continue
+        straddling = [s for s in ordered
+                      if end - slack <= s['start'] <= end + slack and s['end'] > t1]
+        if not straddling:
+            continue
+        seg = straddling[0]
+        if any(s is not seg and end + slack < s['start'] < t0 for s in ordered):
+            continue
+        if any(s['start'] < end - slack and s['end'] > end + slack for s in ordered):
+            continue
+        before = [s for s in ordered if s['end'] <= end + slack and s is not seg]
+        if not before or not _names_the_ad(before[-1].get('text', ''), sponsor, ad_text):
+            continue
+        if locked_end is not None and not (seg['start'] - slack <= locked_end <= t0):
+            continue
+        if barrier_start is not None and t1 > barrier_start + 1e-6:
+            continue
+        return t1
+    return None
+
+
+def _straddle_start(segments, start, splices, sponsor, ad_text, barrier_end=None,
+                    locked_start=None):
+    """Mirror of ``_straddle_end``: the segment before the start spans a splice; start moves to its time."""
+    slack = EDGE_SLACK_S
+    ordered = sorted(segments, key=lambda s: (s['start'], s['end']))
+    for t0, t1 in splices:
+        if not (start - STRADDLE_MAX_DISTANCE_S <= t1 <= start + slack):
+            continue
+        straddling = [s for s in ordered
+                      if start - slack <= s['end'] <= start + slack and s['start'] < t0]
+        if not straddling:
+            continue
+        seg = straddling[-1]
+        if any(s is not seg and t1 < s['end'] and s['start'] < start - slack for s in ordered):
+            continue
+        after = [s for s in ordered if s['start'] >= start - slack and s is not seg]
+        if not after or not _names_the_ad(after[0].get('text', ''), sponsor, ad_text):
+            continue
+        if locked_start is not None and not (t1 <= locked_start <= seg['end'] + slack):
+            continue
+        if barrier_end is not None and t0 < barrier_end - 1e-6:
+            continue
+        return t0
+    return None
+
+
+def _straddle_snap(ads, segments, splice_events, coverage_ads, edge):
+    """Straddle mode of the two splice snaps for one edge; a user-confirmed ad or a marker in the way stops it."""
+    if not ads or not segments or not splice_events:
+        return ads
+    splices = sorted((float(e['time']), float(e['end_time'])) for e in splice_events
+                     if e.get('time') is not None and e.get('end_time') is not None)
+    coverage = coverage_ads if coverage_ads is not None else ads
+    out = []
+    for ad in ads:
+        ad_copy = ad.copy()
+        out.append(ad_copy)
+        if (ad.get('validation') or {}).get('user_confirmed'):
+            continue
+        others = [m for m in coverage if m is not ad
+                  and (m.get('start') != ad['start'] or m.get('end') != ad['end'])]
+        ad_text = ' '.join(filter(None, [ad.get('reason'), ad.get('end_text'), ad.get('start_text')]))
+        locked = ad.get(f'reviewer_locked_{edge}') if reviewer_edge_locked(ad, edge) else None
+        if edge == 'end':
+            later = [m['start'] for m in others if m.get('start', 0) >= ad['end'] - EDGE_TOLERANCE]
+            value = _straddle_end(segments, ad['end'], splices, ad.get('sponsor'), ad_text,
+                                  min(later) if later else None, locked)
+            moved = value is not None and value > ad['end'] + EDGE_TOLERANCE
+        else:
+            earlier = [m['end'] for m in others if m.get('end', 0) <= ad['start'] + EDGE_TOLERANCE]
+            value = _straddle_start(segments, ad['start'], splices, ad.get('sponsor'), ad_text,
+                                    max(earlier) if earlier else None, locked)
+            moved = value is not None and value < ad['start'] - EDGE_TOLERANCE
+        if not moved:
+            continue
+        logger.info(f"Splice straddle ({edge}): {ad[edge]:.1f}s to {value:.1f}s")
+        ad_copy[edge] = value
+        ad_copy['edge_splice_anchor'] = sorted({*(ad.get('edge_splice_anchor') or ()), edge})
+        if f'reviewer_locked_{edge}' in ad_copy:
+            ad_copy[f'reviewer_locked_{edge}'] = value
     return out
 
 

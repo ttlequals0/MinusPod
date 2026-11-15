@@ -27,6 +27,40 @@ def test_crosspass_plan_joins_touching_and_filler_gap_cuts():
     assert plan[0]['action_applied'] == 'remove'
 
 
+def test_crosspass_merge_keeps_the_candidate_edge_protection():
+    from ad_detector.silence_boundary_snap import _word_snap_skip
+    segs = [{'start': 0.0, 'end': 90.0, 'text': 'content'}]
+    pass1 = [_cut(100.0, 150.0, replacement_duration=1.0, edge_splice_anchor=['start', 'end'])]
+    candidate = _cut(150.0, 220.0, edge_splice_anchor=['end'], dai_core_spans=[{'start': 160.0, 'end': 220.0}],
+                     validation={'user_confirmed': True},
+                     transcript_span={'start': 150.0, 'end': 220.0, 'offset_confirmed': True})
+    merged = verify._crosspass_cut_plan(pass1, [_cut(100.0, 150.0)], [candidate], segs, [], 12.0)[0]
+    assert (merged['start'], merged['end']) == (100.0, 220.0)
+    assert merged['validation']['user_confirmed'] is True
+    assert merged['dai_core_spans'] == [{'start': 160.0, 'end': 220.0}]
+    assert merged['edge_splice_anchor'] == ['end', 'start']
+    assert _word_snap_skip(merged, 'end', 220.0, None) == 'user_confirmed'
+    plain = verify._crosspass_cut_plan(
+        pass1, [_cut(100.0, 150.0)], [_cut(150.0, 220.0)], segs, [], 12.0)[0]
+    # The pass-1 end anchor belonged to an edge that is now inside the merged cut.
+    assert plain['edge_splice_anchor'] == ['start']
+
+
+def test_crosspass_merge_carries_candidate_alignment_and_dai_core():
+    from ad_detector.silence_boundary_snap import _word_snap_skip
+    segs = [{'start': 0.0, 'end': 90.0, 'text': 'content'}]
+    candidate = _cut(150.0, 220.0, dai_core_spans=[{'start': 160.0, 'end': 220.0}])
+    merged = verify._crosspass_cut_plan(
+        [_cut(100.0, 150.0, replacement_duration=1.0)], [_cut(100.0, 150.0)], [candidate],
+        segs, [], 12.0)[0]
+    assert _word_snap_skip(merged, 'end', 220.0, None) == 'dai_core'
+    aligned = _cut(150.0, 220.0, transcript_span={'start': 150.0, 'end': 220.0, 'offset_confirmed': True})
+    merged = verify._crosspass_cut_plan(
+        [_cut(100.0, 150.0, replacement_duration=1.0)], [_cut(100.0, 150.0)], [aligned],
+        segs, [], 12.0)[0]
+    assert _word_snap_skip(merged, 'end', 220.0, None) == 'transcript_aligned'
+
+
 def test_crosspass_plan_joins_overlapping_cuts():
     plan = verify._crosspass_cut_plan(
         [_cut(100.0, 160.0, replacement_duration=1.0)],
@@ -318,3 +352,20 @@ def test_crosspass_rerender_clips_a_pass1_cut_at_a_false_positive():
     applied = AudioProcessor().compute_applied_cuts(
         audio.process_episode.call_args.args[1], 1000.0, hard_barriers=hard)
     assert [(c['start'], c['end']) for c in applied] == [(100.0, 185.0), (400.0, 480.0)]
+
+
+def test_carry_edge_protection_keeps_start_cue_when_candidate_end_wins():
+    current = {'start': 10.0, 'end': 20.0,
+               'cue_snap': {'start': {'cue': 'current-start'}, 'end': {'cue': 'current-end'}}}
+    candidate = {'start': 18.0, 'end': 40.0,
+                 'cue_snap': {'start': {'cue': 'candidate-start'}, 'end': {'cue': 'candidate-end'}}}
+    verify._carry_edge_protection(current, candidate)
+    assert current['cue_snap'] == {'start': {'cue': 'current-start'}, 'end': {'cue': 'candidate-end'}}
+
+
+def test_carry_edge_protection_drops_stale_end_cue_when_candidate_has_none():
+    current = {'start': 10.0, 'end': 20.0,
+               'cue_snap': {'start': {'cue': 'current-start'}, 'end': {'cue': 'current-end'}}}
+    candidate = {'start': 18.0, 'end': 40.0, 'cue_snap': {'start': {'cue': 'candidate-start'}}}
+    verify._carry_edge_protection(current, candidate)
+    assert current['cue_snap'] == {'start': {'cue': 'current-start'}}

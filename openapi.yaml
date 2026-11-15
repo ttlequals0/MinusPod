@@ -8335,6 +8335,11 @@ paths:
                   description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled. none runs episodes with the model-free detectors only and needs no key, base URL or model; saved keys and models are kept.
                   enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible, none]
                   example: anthropic
+                preciseCutEdges:
+                  type: boolean
+                  description: |
+                    Hidden opt-in for precise cut edges: word-gap snap, splice straddle, the
+                    reviewer edge check, sparse-hole repair and edge fade. Off by default.
                 omitTemperature:
                   type: boolean
                   description: |
@@ -19236,6 +19241,16 @@ components:
           properties:
             value:
               type: boolean
+        preciseCutEdges:
+          type: object
+          description: |
+            Hidden opt-in for precise cut edges: word-gap snap, splice straddle, the reviewer
+            edge check, sparse-hole repair and edge fade. Off by default.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         llmJsonSchemaEnabled:
           type: object
           description: |
@@ -19899,6 +19914,8 @@ components:
             podpingEnabled:
               type: boolean
             omitTemperature:
+              type: boolean
+            preciseCutEdges:
               type: boolean
             llmJsonSchemaEnabled:
               type: boolean

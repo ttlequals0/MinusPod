@@ -309,6 +309,8 @@ def _validate_processing_defaults_payload(data):
         return 'transcriptDifferentialEnabled must be a boolean', 400
     if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
         return 'spliceVetoEnabled must be a boolean', 400
+    if 'preciseCutEdges' in data and not isinstance(data['preciseCutEdges'], bool):
+        return 'preciseCutEdges must be a boolean', 400
     for key in ('onlyExposeProcessedDefault', 'chaptersInNotes', 'reviewLinksInNotes', 'feedItunesBlock'):
         if key in data and not isinstance(data[key], bool):
             return f'{key} must be a boolean', 400
@@ -920,6 +922,11 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)
         logger.info(f"Updated omit_temperature to: {value}")
+
+    if 'preciseCutEdges' in data:
+        value = 'true' if data['preciseCutEdges'] else 'false'
+        db.set_setting('precise_cut_edges', value, is_default=False)
+        logger.info(f"Updated precise_cut_edges to: {value}")
 
     if 'llmJsonSchemaEnabled' in data:
         value = 'true' if data['llmJsonSchemaEnabled'] else 'false'

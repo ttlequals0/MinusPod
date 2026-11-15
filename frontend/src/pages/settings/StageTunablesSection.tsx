@@ -46,6 +46,7 @@ interface StageTunablesSectionProps {
   parallelWindows: number;
   parallelWindowsDefault: number;
   omitTemperature: boolean;
+  preciseCutEdges?: boolean;
 }
 
 interface StageBlock {
@@ -121,6 +122,9 @@ const PARALLEL_KEY = 'adDetectionParallelWindows';
 // because it sits right next to the per-stage temperature controls it governs.
 const OMIT_TEMPERATURE_KEY = 'omitTemperature';
 
+// 'preciseCutEdges' is a hidden global switch with no other home, kept with the advanced tunables.
+const PRECISE_CUT_EDGES_KEY = 'preciseCutEdges';
+
 type DraftValue = number | string | boolean | null;
 type DraftRecord = Record<string, DraftValue>;
 
@@ -132,7 +136,7 @@ const TUNABLE_KEYS: (keyof StageTunables)[] = [
 
 // Every key this section edits, in a stable order. Used for diffing the draft
 // against the server baseline and for building the save payload.
-const DRAFT_KEYS: string[] = [...TUNABLE_KEYS, PARALLEL_KEY, OMIT_TEMPERATURE_KEY];
+const DRAFT_KEYS: string[] = [...TUNABLE_KEYS, PARALLEL_KEY, OMIT_TEMPERATURE_KEY, PRECISE_CUT_EDGES_KEY];
 
 // Server truth as a flat draft. null means "not set" (resolves to env/default
 // at read time); a value means an explicit override.
@@ -190,11 +194,13 @@ function buildBaseline(
   tunables: StageTunables,
   parallelWindows: number,
   omitTemperature: boolean,
+  preciseCutEdges: boolean,
 ): DraftRecord {
   return {
     ...baselineFromTunables(tunables, TUNABLE_KEYS),
     [PARALLEL_KEY]: parallelWindows,
     [OMIT_TEMPERATURE_KEY]: omitTemperature,
+    [PRECISE_CUT_EDGES_KEY]: preciseCutEdges,
   };
 }
 
@@ -584,6 +590,29 @@ function OmitTemperatureToggle({
   );
 }
 
+function PreciseCutEdgesToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="bg-muted/40 rounded-lg p-3">
+      <label className="flex items-center gap-3 cursor-pointer">
+        <ToggleSwitch checked={checked} onChange={onChange} ariaLabel="Precise cut edges" />
+        <span className="text-sm font-medium text-foreground">Precise cut edges</span>
+      </label>
+      <p className="mt-2 text-sm text-muted-foreground ml-14">
+        Places each cut edge in the pause beside a word, follows a dynamic-ad splice that one
+        transcript line spans, asks the reviewer about lead-in and closing sentences, re-decodes
+        near-empty transcript lines and shortens the fade to the pause. Costs extra audio reads
+        and reviewer tokens.
+      </p>
+    </div>
+  );
+}
+
 function StageTunablesSection({
   tunables,
   defaults,
@@ -605,11 +634,12 @@ function StageTunablesSection({
   parallelWindows,
   parallelWindowsDefault,
   omitTemperature,
+  preciseCutEdges = false,
 }: StageTunablesSectionProps) {
   const llmEnabled = useLlmEnabled();
   const serverBaseline = useMemo(
-    () => buildBaseline(tunables, parallelWindows, omitTemperature),
-    [tunables, parallelWindows, omitTemperature],
+    () => buildBaseline(tunables, parallelWindows, omitTemperature, preciseCutEdges),
+    [tunables, parallelWindows, omitTemperature, preciseCutEdges],
   );
   const { draft, dirty, setField, buildPayload } = useServerDraft(DRAFT_KEYS, serverBaseline, llmEnabled);
 
@@ -691,6 +721,10 @@ function StageTunablesSection({
           value={draft[PARALLEL_KEY] as number}
           defaultValue={parallelWindowsDefault}
           setField={setField}
+        />
+        <PreciseCutEdgesToggle
+          checked={draft[PRECISE_CUT_EDGES_KEY] as boolean}
+          onChange={(checked) => setField(PRECISE_CUT_EDGES_KEY, checked)}
         />
 
         <div className="pt-2 flex items-center">

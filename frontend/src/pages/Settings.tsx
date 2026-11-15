@@ -1529,6 +1529,7 @@ function Settings() {
           parallelWindows={settings.adDetectionParallelWindows?.value ?? settings.defaults?.adDetectionParallelWindows ?? 4}
           parallelWindowsDefault={settings.defaults?.adDetectionParallelWindows ?? 4}
           omitTemperature={settings.omitTemperature?.value ?? settings.defaults?.omitTemperature ?? false}
+          preciseCutEdges={settings.preciseCutEdges?.value ?? settings.defaults?.preciseCutEdges ?? false}
         />
       )}
 

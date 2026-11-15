@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
+import numpy as np
+
 from config import FFMPEG_SHORT_TIMEOUT, FFPROBE_TIMEOUT
 from storage import _detect_image_mime
 from utils import subprocess_registry
@@ -255,3 +257,24 @@ class AudioMetadata:
     def invalidate(cls, path: str) -> None:
         """Remove a specific path from the cache."""
         cls._cache.pop(path, None)
+
+
+def ffmpeg_energy_reader(audio_path: str):
+    """reader(t0, t1) over an audio file: 16 kHz mono, 10 ms RMS frames in dBFS (None when unreadable)."""
+    def read(t0: float, t1: float):
+        if t1 <= t0:
+            return None
+        cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-nostats', '-ss', f'{t0:.3f}',
+               '-t', f'{t1 - t0:.3f}', '-i', audio_path, '-vn', '-ac', '1', '-ar', '16000',
+               '-f', 's16le', '-']
+        try:
+            result = subprocess_registry.tracked_run(cmd, capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT)
+        except Exception as e:
+            logger.warning(f"Edge energy read failed for {audio_path}: {e}")
+            return None
+        if result.returncode != 0 or not result.stdout:
+            return None
+        samples = np.frombuffer(result.stdout[:len(result.stdout) // 320 * 320], dtype='<i2')
+        rms = np.sqrt(np.mean(np.square(samples.astype(np.float64).reshape(-1, 160)), axis=1)) / 32768.0
+        return np.maximum(-120.0, 20.0 * np.log10(np.maximum(rms, 1e-6))).tolist()
+    return read

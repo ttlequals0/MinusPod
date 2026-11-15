@@ -183,6 +183,7 @@ _ALLOW_GENERAL = (
     'podping_enabled', 'only_expose_processed_default',
     'feed_itunes_block', 'require_manual_approval_default',
     'whats_new_on_upgrade', 'detect_show_segments', 'snip_short_asks',
+    'precise_cut_edges',
     'seed_sponsors_detection',
     'seed_sponsors_verification', 'seed_sponsors_reviewer',
     'seed_sponsors_resurrect', 'text_recurrence_hints', 'ad_addressing_mode',

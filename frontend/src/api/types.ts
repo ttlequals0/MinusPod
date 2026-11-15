@@ -1067,6 +1067,7 @@ export interface Settings {
   // False when the primary provider is None; the UI reads this, never the provider string.
   llmEnabled: boolean;
   omitTemperature: SettingValueBoolean;
+  preciseCutEdges?: SettingValueBoolean;
   llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
   systemoneBaseUrl: SettingValue;
@@ -1181,6 +1182,7 @@ export interface Settings {
     minCutConfidence: number;
     llmProvider: LlmProvider;
     omitTemperature: boolean;
+    preciseCutEdges?: boolean;
     llmJsonSchemaEnabled: boolean;
     openaiBaseUrl: string;
     pricingSourceMode: string;
@@ -1500,6 +1502,7 @@ export interface UpdateSettingsPayload {
   windowSizeSeconds?: number | null;
   windowOverlapSeconds?: number | null;
   omitTemperature?: boolean;
+  preciseCutEdges?: boolean;
   llmJsonSchemaEnabled?: boolean;
 }
 

@@ -5,6 +5,7 @@ import os
 from config import (
     log_download_query_enabled,
     UNREVIEWABLE_GAP_SECONDS,
+    resolve_precise_cut_edges,
     resolve_tail_retranscribe_tunables,
 )
 
@@ -60,8 +61,9 @@ def _retranscribe_holes_no_vad(audio_path, segments, language_override, tried=()
         return [], []
     hole_min = max(common._setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
                    UNREVIEWABLE_GAP_SECONDS)
+    # precise_cut_edges: a long line holding almost no words is re-decoded too.
     return transcriber.repair_gaps(audio_path, segments, hole_min, language_override,
-                                   skip=tried)
+                                   skip=tried, sparse=resolve_precise_cut_edges(db))
 
 
 def _repair_transcript(slug, episode_id, audio_path, segments, language_override,
@@ -270,7 +272,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
                 tried=db.get_repair_holes(slug, episode_id))
             db.add_repair_holes(slug, episode_id, empty_holes)
             if added:
-                # A repair only adds segments to the same transcription, so it
+                # A repair adds segments (and may swap a sparse one) of the same transcription, so it
                 # replaces the write-once originals and is not redone next time.
                 repaired_text = transcriber.segments_to_text(segments)
                 storage.save_transcript(slug, episode_id, repaired_text)
