@@ -925,7 +925,7 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
 
     const group = screen.getByRole('radiogroup', { name: NAME });
     await waitFor(() => {
-      expect(within(group).getByRole('radio', { name: 'Use global setting (currently On)' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(group).getByRole('radio', { name: 'Use global (On)' }).getAttribute('aria-checked')).toBe('true');
     });
   });
 
@@ -945,7 +945,7 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
     renderPanel(makeFeed({ snipShortAsks: true }));
     const group = screen.getByRole('radiogroup', { name: NAME });
     expect(within(group).getByRole('radio', { name: 'On' }).getAttribute('aria-checked')).toBe('true');
-    await userEvent.click(await within(group).findByRole('radio', { name: 'Use global setting (currently Off)' }));
+    await userEvent.click(await within(group).findByRole('radio', { name: 'Use global (Off)' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { snipShortAsks: null });
   });
 
@@ -954,10 +954,10 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
     mockGetSettings.mockReturnValue(new Promise((r) => { resolve = r; }));
     renderPanel(makeFeed());
     const group = screen.getByRole('radiogroup', { name: NAME });
-    expect(within(group).getByRole('radio', { name: 'Use global setting' })).toBeDefined();
+    expect(within(group).getByRole('radio', { name: 'Use global' })).toBeDefined();
     expect(within(group).queryByRole('radio', { name: /currently/ })).toBeNull();
     resolve({ snipShortAsks: { value: true, isDefault: false } });
-    await within(group).findByRole('radio', { name: 'Use global setting (currently On)' });
+    await within(group).findByRole('radio', { name: 'Use global (On)' });
   });
 });
 

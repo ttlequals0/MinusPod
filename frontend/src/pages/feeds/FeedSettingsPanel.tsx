@@ -1639,7 +1639,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <SegmentedToggle
                     value={feed.snipShortAsks == null ? 'inherit' : feed.snipShortAsks ? 'on' : 'off'}
                     options={[
-                      { value: 'inherit', label: settings ? `Use global setting (currently ${(settings.snipShortAsks?.value ?? false) ? 'On' : 'Off'})` : 'Use global setting' },
+                      { value: 'inherit', label: inheritLabel('Use global', settingsReady ? ((settings.snipShortAsks?.value ?? false) ? 'On' : 'Off') : undefined) },
                       { value: 'on', label: 'On' },
                       { value: 'off', label: 'Off' },
                     ]}
