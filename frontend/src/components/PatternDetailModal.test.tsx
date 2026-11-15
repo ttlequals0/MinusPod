@@ -268,6 +268,24 @@ describe('podcast link', () => {
   });
 });
 
+describe('PatternDetailModal show promo pattern', () => {
+  it('shows the show rather than (Unknown) for a sponsorless interaction pattern', () => {
+    renderModal(makePattern({ sponsor: null, category: 'interaction', podcast_name: 'Example Show', is_show_promo: true }));
+    expect(screen.getAllByText('Example Show').length).toBeGreaterThan(0);
+    expect(screen.queryByText('(Unknown)')).toBeNull();
+  });
+
+  it('keeps (Unknown) for a legacy sponsorless row and for a global one', () => {
+    renderModal(makePattern({ sponsor: null, category: 'interaction', is_show_promo: false }));
+    expect(screen.getAllByText('(Unknown)').length).toBeGreaterThan(0);
+  });
+
+  it('keeps (Unknown) for a sponsorless pattern with no promo category', () => {
+    renderModal(makePattern({ sponsor: null, category: 'sponsor' }));
+    expect(screen.getAllByText('(Unknown)').length).toBeGreaterThan(0);
+  });
+});
+
 const ACTIVE_AUDIO = {
   state: 'active', available: true, length: 45, createdAt: '2026-01-02T00:00:00Z',
   builtFrom: { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 55, available: true },

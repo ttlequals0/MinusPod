@@ -21,7 +21,7 @@ from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, r
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from chapter_notes import format_chapter_block
-from utils.constants import EpisodeStatus
+from utils.constants import EpisodeStatus, is_show_promo_pattern
 from utils.episode_paths import episode_public_url
 import episode_runs
 from api.episodes import common
@@ -34,6 +34,28 @@ SELECTION_FETCH_CAP = 501
 
 # Pseudo-status: episodes a feed filter rule matches. Resolved here because the rules are fnmatch and HTML stripping, not SQL.
 FILTERED_STATUS = 'filtered'
+
+
+def _attach_pattern_summaries(db, markers):
+    """Mark a marker matched by a learned show pattern with a compact summary of it."""
+    ids = sorted({m['pattern_id'] for m in markers if m.get('pattern_id')})
+    if not ids:
+        return
+    confirms = db.count_pattern_confirms(ids)
+    summaries = {}
+    for pid, pattern in db.get_ad_patterns_by_ids(ids).items():
+        if is_show_promo_pattern(pattern):
+            summaries[pid] = {
+                'id': pid,
+                'templateStart': ' '.join((pattern.get('text_template') or '').split()[:8]),
+                'confirmedCount': confirms.get(pid, 0),
+                'matchCount': pattern.get('confirmation_count') or 0,
+                'createdBy': pattern.get('created_by'),
+            }
+    for marker in markers:
+        summary = summaries.get(marker.get('pattern_id'))
+        if summary:
+            marker['patternSummary'] = summary
 
 
 def _processed_url(slug: str, episode_id: str, version: int,
@@ -311,6 +333,7 @@ def get_episode(slug, episode_id):
             # stamped shows up in actionApplied/the bucket here without a recut.
             all_markers = refresh_keep_like_markers(
                 all_markers, db.resolve_segment_actions(slug, podcast))
+            _attach_pattern_summaries(db, all_markers)
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
                 # Markers persisted by a failed run were never cut.

@@ -720,6 +720,8 @@ export interface AdSegment {
   // What kind of content this span is (issue #565). Unset when no stage
   // classified it; the UI shows Uncategorized.
   category?: SegmentCategory;
+  // Set when a learned show pattern matched this marker.
+  patternSummary?: { id: number; templateStart: string; confirmedCount: number; matchCount: number; createdBy: string } | null;
   // What the resolved segment-action map did with this marker's category.
   // Null when the marker predates the feature or the action never resolved.
   actionApplied?: SegmentAction | null;
@@ -904,7 +906,15 @@ export const WHISPER_BACKENDS = {
   PARAKEET: 'parakeet' as const,
 };
 
+// The configured minimum duration is already applied to floors[].seconds.
+export interface ShowPromoRules {
+  floors: Record<string, { seconds: number; chars: number }>;
+  maxSeconds: number;
+}
+
 export interface Settings {
+  // Read-only; present on GET /settings only.
+  showPromoRules?: ShowPromoRules;
   systemPrompt: SettingValue;
   verificationPrompt: SettingValue;
   reviewPrompt: SettingValue;

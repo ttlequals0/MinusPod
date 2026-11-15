@@ -34,12 +34,15 @@ import {
   savePlayWhileDragging,
 } from '../utils/adReviewHelpers';
 import Checkbox from './Checkbox';
+import { useShowPromoRules } from '../hooks/useShowPromoRules';
 import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
   SEGMENT_CATEGORY_LABELS,
   isKeepLike,
   rejectLabel,
+  isShowPromoCategory,
+  showPromoSpanProblem,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
@@ -348,6 +351,23 @@ function AdReviewModal({
     ? orderedRuns.find((r) => r.text.trim().length < 50)
     : undefined;
 
+  // Mirrors the server's show-pattern gate so Save never starts a create the server will refuse.
+  const showPromoRules = useShowPromoRules();
+  const showPromoCreate = !sponsorInput.trim() && isShowPromoCategory(showPromoRules, categoryInput);
+  const effectiveScope = showPromoCreate ? 'podcast' : scopeInput;
+  const showPromoProblem = useMemo(() => {
+    if (!showPromoCreate) return null;
+    const spans = isMultiSpan
+      ? orderedRuns.map((r) => ({ seconds: r.end - r.start, chars: r.text.trim().length }))
+      : [{ seconds: adEnd - adStart, chars: textTemplateInput.trim().length }];
+    for (const span of spans) {
+      const problem = showPromoSpanProblem(showPromoRules, categoryInput, span.seconds, span.chars);
+      if (problem) return problem;
+    }
+    return null;
+  }, [showPromoCreate, showPromoRules, categoryInput, isMultiSpan, orderedRuns,
+    adStart, adEnd, textTemplateInput]);
+
   // One `create` correction per run, in time order. Stops on the first
   // failure; already-saved runs are not re-submitted, and the modal stays
   // open with each run's outcome visible.
@@ -375,7 +395,7 @@ function AdReviewModal({
           end: run.end,
           sponsor: sponsorInput.trim(),
           textTemplate: run.text.trim(),
-          scope: scopeInput,
+          scope: effectiveScope,
           reason: reasonInput,
           category: categoryInput === '' ? null : categoryInput,
         }, { silent: true });
@@ -1459,12 +1479,20 @@ function AdReviewModal({
               />
             </label>
             <Checkbox
-              checked={scopeInput === 'global'}
+              checked={effectiveScope === 'global'}
               onChange={(v) => setScopeInput(v ? 'global' : 'podcast')}
-              disabled={lockMultiFields}
+              disabled={lockMultiFields || showPromoCreate}
               label="Apply across all podcasts (global pattern)"
               labelClassName="text-sm"
             />
+            {showPromoCreate && (
+              <p className="text-xs text-muted-foreground">
+                With no sponsor, this read is learned for this show only.
+              </p>
+            )}
+            {showPromoProblem && (
+              <p className="text-xs text-destructive">{showPromoProblem}</p>
+            )}
             {isMultiSpan && shortRun && (
               <p className="text-xs text-destructive">
                 The {formatTime(shortRun.start)} - {formatTime(shortRun.end)} span is only{' '}
@@ -1554,7 +1582,8 @@ function AdReviewModal({
                   <button
                     type="button"
                     disabled={
-                      !sponsorInput.trim() ||
+                      (!sponsorInput.trim() && !showPromoCreate) ||
+                      showPromoProblem !== null ||
                       multiSubmitting ||
                       (isMultiSpan
                         ? shortRun !== undefined
@@ -1574,7 +1603,7 @@ function AdReviewModal({
                           end: adEnd,
                           sponsor: sponsorInput.trim(),
                           textTemplate: textTemplateInput.trim(),
-                          scope: scopeInput,
+                          scope: effectiveScope,
                           reason: reasonInput,
                           category: categoryInput === '' ? null : categoryInput,
                         });

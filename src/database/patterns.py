@@ -447,6 +447,19 @@ class PatternMixin:
         conn.commit()
         return cursor.lastrowid
 
+    def count_pattern_confirms(self, pattern_ids: list[int]) -> dict[int, int]:
+        """Human confirm corrections per pattern id; ids with none are absent."""
+        if not pattern_ids:
+            return {}
+        placeholders = ','.join('?' * len(pattern_ids))
+        cursor = self.get_connection().execute(
+            f"""SELECT pattern_id, COUNT(*) AS n FROM pattern_corrections
+                WHERE correction_type = 'confirm' AND origin = ? AND pattern_id IN ({placeholders})
+                GROUP BY pattern_id""",  # noqa: S608
+            (CORRECTION_ORIGIN_USER, *pattern_ids),
+        )
+        return {row['pattern_id']: row['n'] for row in cursor.fetchall()}
+
     def delete_conflicting_corrections(self, podcast_id: int, episode_id: str, correction_type: str,
                                         bounds_start: float, bounds_end: float) -> int:
         """Delete corrections that conflict with a new correction being submitted.

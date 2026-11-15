@@ -8,6 +8,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Added
+
+- Confirming an interaction, self-promo or cross-promo marker on the episode page, or creating one with Mark ad and a blank Sponsor, teaches that show a text pattern with no sponsor, the marker's category and podcast scope. Later episodes of the show match the read without an LLM call, and the match skips the ad reviewer. It is learned from a human confirm only and never promoted beyond the podcast. The span must be at least 20 seconds and 150 characters (interaction, self-promo) or 30 seconds and 225 characters (cross-promo); the Pattern minimum duration can raise the duration floor and the maximum duration still applies. A match is cut at the learned read's edges and is never merged with another match. A pattern is disabled after three different markers matched by it are rejected, once its rejects exceed half of its matches. These patterns show the category and the show name on the Patterns page, have a Show promos tile, and are not exported to community patterns. An episode row matched by one links to it. See [Configuration](docs/configuration.md). API: `GET /api/v1/settings` reports `showPromoRules`, and pattern rows carry `is_show_promo`.
+
+### Changed
+
+- Confirming or rejecting a marker on the episode page now sends its pattern, as the Patterns page already does. A confirm credits the matched pattern and a reject counts a false positive on it, for sponsor patterns too.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed

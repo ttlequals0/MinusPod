@@ -27,7 +27,7 @@ import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
 import { audioSummaryLabel } from '../utils/patternAudio';
 import {
-  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
+  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY, patternSponsorLabel,
 } from '../utils/segmentCategory';
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
@@ -185,6 +185,7 @@ function PatternsPage() {
   const sortedPatterns = useMemo(() => {
     const filtered = patterns?.filter(pattern => {
       if (originFilter === 'user' && pattern.created_by !== 'user') return false;
+      // Show promos (created_by 'show_promo') are not user-made, so they list under Auto.
       if (originFilter === 'auto' && pattern.created_by === 'user') return false;
       if (categoryFilter === UNSET_CATEGORY && pattern.category) return false;
       if (categoryFilter && categoryFilter !== UNSET_CATEGORY
@@ -332,13 +333,14 @@ function PatternsPage() {
 
       {/* Stats Summary */}
       {stats && (
-        <section aria-label="Pattern statistics" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+        <section aria-label="Pattern statistics" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
           <StatTile label="Total" value={stats.total} />
           <StatTile label="Active" value={stats.active} tone="success" />
           <StatTile label="Global" value={stats.by_scope.global} />
           <StatTile label="Network" value={stats.by_scope.network} />
           <StatTile label="Podcast" value={stats.by_scope.podcast} />
           <StatTile label="Unknown sponsor" value={stats.no_sponsor} tone={stats.no_sponsor > 0 ? 'warning' : 'default'} />
+          <StatTile label="Show promos" value={stats.show_promo ?? 0} />
           <StatTile label="High false positives" value={stats.high_false_positive_count}
             tone={stats.high_false_positive_count > 0 ? 'destructive' : 'default'} />
         </section>
@@ -503,11 +505,11 @@ function PatternsPage() {
             )}
             <button
               type="button"
-              aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+              aria-label={`View pattern ${pattern.id}: ${pattern.is_show_promo ? patternSponsorLabel(pattern) : pattern.sponsor || 'Unknown sponsor'}`}
               className={`${tableLink} text-left text-sm font-medium mb-1`}
               onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
             >
-              {pattern.sponsor || '(Unknown)'}
+              {patternSponsorLabel(pattern)}
             </button>
             {pattern.text_template && (
               <div className="text-xs text-muted-foreground truncate mb-3">
@@ -604,11 +606,11 @@ function PatternsPage() {
                   <td className="px-2 py-3 text-sm overflow-hidden">
                     <button
                       type="button"
-                      aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+                      aria-label={`View pattern ${pattern.id}: ${pattern.is_show_promo ? patternSponsorLabel(pattern) : pattern.sponsor || 'Unknown sponsor'}`}
                       className={`${tableLink} max-w-full text-left text-sm font-medium truncate`}
                       onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
                     >
-                      {pattern.sponsor || '(Unknown)'}
+                      {patternSponsorLabel(pattern)}
                     </button>
                     {pattern.text_template && (
                       <div className="text-xs text-muted-foreground truncate">
