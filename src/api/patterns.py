@@ -334,7 +334,9 @@ def split_pattern(pattern_id):
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
-    source, audio_wanted = rebuild_audio_source(db, db.get_connection(), pattern_id)
+    before = db.get_ad_pattern_by_id(pattern_id)
+    source, audio_wanted = rebuild_audio_source(
+        db, db.get_connection(), pattern_id, prefer_text=(before or {}).get('text_template'))
     new_ids = matcher.split_pattern(pattern_id)
 
     if not new_ids:

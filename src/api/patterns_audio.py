@@ -16,18 +16,18 @@ from api import (
 from api import preview_cache
 from api.patterns import PATTERN_ROUTE, fingerprint_response_fields
 from pattern_audio import (
-    candidate_spans, first_retained_source, resolve_retained_original, store_pattern_audio, usable_span,
+    candidate_spans, creating_episode_source, first_retained_source, resolve_retained_original,
+    store_pattern_audio,
 )
 from audio_fingerprinter import (
     clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
 )
 from community_export import normalize_aliases
-from config import FFMPEG_SHORT_TIMEOUT, MIN_AD_DURATION, is_keep_like, is_pending_review
+from config import FFMPEG_SHORT_TIMEOUT, MIN_AD_DURATION
 from storage import PathContainmentError
 from text_pattern_matcher import MAX_MATCH_DURATION
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
-from utils.markers import MERGED_MEMBER_SPANS, finite_number, parse_ad_markers
-from utils.constants import EpisodeStatus
+from utils.markers import displayed_span, episode_markers, is_rejected_marker, own_marker_span, usable_span
 from utils.language import get_pattern_language
 from utils.pattern_catalog import pattern_catalog_scope
 from utils.subprocess_registry import tracked_run
@@ -69,7 +69,8 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=Non
     """Pick the playable source of a pattern's audio: (source, None) or (None, error response).
 
     fingerprint is the pattern's stored row when the caller already has it. in_scope_only keeps
-    out-of-scope matches out, for a source the fingerprint may be rebuilt from.
+    out-of-scope matches out, for a source the fingerprint may be rebuilt from. Without a match, the
+    pattern's creating episode is the last resort, as it is for a rebuild.
     """
     fingerprint = fingerprint or db.get_audio_fingerprint(pattern_id, with_blob=False)
     if fingerprint is None:
@@ -82,6 +83,8 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=Non
     else:
         candidates = candidate_spans(db, pattern_id, fingerprint, in_scope_only)
     source = first_retained_source(db, storage, candidates)
+    if source is None and match_id is None:
+        source = creating_episode_source(db, storage, db.get_ad_pattern_by_id(pattern_id), pattern_id)
     return (source, None) if source else (None, original_not_retained_response())
 
 
@@ -97,59 +100,11 @@ def _still_matchable(db, fingerprint):
         ints, min_coverage=clamped_fingerprint_setting(db, 'fingerprint_min_coverage'))
 
 
-def _displayed_span(marker):
-    """The span the episode page shows for a marker: the pre-trim range of a reviewer-adjusted one."""
-    start, end = marker.get('start'), marker.get('end')
-    if marker.get('reviewer_verdict') == 'adjust':
-        start, end = marker.get('reviewer_original_start', start), marker.get('reviewer_original_end', end)
-    # A null reviewer-original bound makes the span unusable, so the marker is skipped
-    return (start, end) if usable_span(start, end) else None
-
-
-def _is_rejected_marker(marker, episode_status):
-    """Whether the episode page files the marker under rejected: REJECT or never cut, and neither held nor kept."""
-    if is_pending_review(marker) or is_keep_like(marker.get('action_applied')):
-        return False
-    was_cut = marker.get('was_cut', episode_status == EpisodeStatus.PROCESSED)
-    return (marker.get('validation') or {}).get('decision') == 'REJECT' or not was_cut
-
-
-def _marker_pattern_spans(marker, pattern_id):
-    """Displayed spans of a marker for the pattern: its own, and each merged member's, clipped to the marker."""
-    outer = _displayed_span(marker)
-    if outer is None:
-        return []
-    spans = [outer] if marker.get('pattern_id') == pattern_id else []
-    for member in marker.get(MERGED_MEMBER_SPANS) or []:
-        if isinstance(member, dict) and member.get('pattern_id') == pattern_id:
-            lo, hi = finite_number(member.get('start')), finite_number(member.get('end'))
-            if lo is not None and hi is not None:
-                clipped = (max(outer[0], lo), min(outer[1], hi))
-                if usable_span(*clipped):
-                    spans.append(clipped)
-    return spans
-
-
-def _episode_markers(episode):
-    """(marker dicts, status) of an episode row."""
-    episode = episode or {}
-    markers = [m for m in parse_ad_markers(episode.get('ad_markers_json')) or [] if isinstance(m, dict)]
-    return markers, EpisodeStatus.from_api(episode.get('status'))
-
-
-def _own_marker_span(db, slug, episode_id, pattern_id):
-    """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
-    markers, status = _episode_markers(db.get_episode(slug, episode_id))
-    spans = sorted(span for marker in markers if not _is_rejected_marker(marker, status)
-                   for span in _marker_pattern_spans(marker, pattern_id))
-    return spans[0] if spans else None
-
-
 def _rejected_spans(episode):
     """Displayed spans of the rejected markers of an episode row."""
-    markers, status = _episode_markers(episode)
-    return [span for marker in markers if _is_rejected_marker(marker, status)
-            and (span := _displayed_span(marker))]
+    markers, status = episode_markers(episode)
+    return [span for marker in markers if is_rejected_marker(marker, status)
+            and (span := displayed_span(marker))]
 
 
 def _plausible_length(pattern, start, end):
@@ -245,7 +200,7 @@ def _add_source(db, storage, pattern_id):
         candidates += [c for c in found if c not in candidates]
     expired = None
     for slug, episode_id in candidates:
-        span = _own_marker_span(db, slug, episode_id, pattern_id)
+        span = own_marker_span(db.get_episode(slug, episode_id), pattern_id)
         if span is None:
             continue
         _, err = resolve_retained_original(db, storage, slug, episode_id)
@@ -290,10 +245,9 @@ def build_audio_detail(db, storage, pattern_id):
     scoped, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, in_scope_only=True)
     if scoped:
         detail['editSource'] = _span(scoped)
-    # Legacy fingerprints have no recorded origin; offer an in-scope match.
-    if detail['builtFrom'] is None:
-        if scoped:
-            detail['builtFrom'] = {**_span(scoped), 'available': True}
+    # Legacy fingerprints have no recorded origin; offer an in-scope match, never a derived span.
+    if detail['builtFrom'] is None and scoped and not scoped.get('derived'):
+        detail['builtFrom'] = {**_span(scoped), 'available': True}
     return detail
 
 

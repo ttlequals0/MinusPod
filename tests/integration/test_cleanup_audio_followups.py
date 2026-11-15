@@ -4,35 +4,15 @@ import logging
 import pytest
 
 from tests.integration.fingerprint_helpers import (  # noqa: E402
-    EPISODE, FIRST_READ, SECOND_TEMPLATE, SLUG, TWO_SPONSORS, csrf, seed_timed_transcript,
-    seed_two_sponsor_transcript,
+    EPISODE, FIRST_READ, OTHER, SECOND_TEMPLATE, SLUG, TWO_SPONSORS, csrf, seed_other_episode,
+    seed_timed_transcript, seed_two_sponsor_transcript, stamp,
+)
+from tests.integration.cleanup_helpers import (  # noqa: E402
+    OLD, source_span as _span, split as _split, suggest as _suggest, trim as _trim,
 )
 import pattern_cleanup  # noqa: E402  must follow the helpers, which bootstrap the data dir
 from pattern_audio import own_pattern_spans  # noqa: E402
 from tests.fingerprint_match_helpers import record_fingerprint_match  # noqa: E402
-
-OLD = b'AQAAold'
-OTHER = 'b2c3d4e5f6a1'
-PIECES = [{'text': FIRST_READ, 'sponsor': 'Acme'}, {'text': SECOND_TEMPLATE, 'sponsor': 'Beta Corp'}]
-
-
-def _stamp(sec):
-    return f'{int(sec // 3600):02d}:{int(sec % 3600 // 60):02d}:{sec % 60:06.3f}'
-
-
-def _seed_other_episode(db, lines, retained=True):
-    from api import get_storage
-    db.upsert_episode(slug=SLUG, episode_id=OTHER, original_url='https://example.com/b.mp3',
-                      title='Episode Two', original_duration=300.0, status='processed')
-    db.save_original_transcript(SLUG, OTHER, '\n'.join(
-        f'[{_stamp(a)} --> {_stamp(b)}] {text}' for a, b, text in lines))
-    if retained:
-        path = get_storage().get_original_path(SLUG, OTHER)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b'ID3')
-        db.upsert_episode(SLUG, OTHER, original_file=path.name)
-        return path
-    return None
 
 
 def _legacy_pattern(db, avg_duration=None, created_from=EPISODE, text=TWO_SPONSORS):
@@ -42,27 +22,6 @@ def _legacy_pattern(db, avg_duration=None, created_from=EPISODE, text=TWO_SPONSO
     if avg_duration is not None:
         db.update_ad_pattern(pid, avg_duration=avg_duration)
     return pid
-
-
-def _suggest(db, pid, kind, payload):
-    before = pattern_cleanup._before_snapshot(db.get_ad_pattern_by_id(pid))
-    return db.upsert_cleanup_suggestion(None, pid, kind, 0.9, ['r'], payload, before)
-
-
-def _span(db, pid):
-    row = db.get_audio_fingerprint(pid, with_blob=False)
-    return row and (row['source_podcast_slug'], row['source_episode_id'], row['source_start'], row['source_end'])
-
-
-def _trim(db, pid, text=SECOND_TEMPLATE):
-    sid = _suggest(db, pid, 'trim', {'text': text})
-    return sid, pattern_cleanup.apply_suggestion(db, sid)
-
-
-def _split(db, pid):
-    sid = _suggest(db, pid, 'split', {'pieces': PIECES})
-    result = pattern_cleanup.apply_suggestion(db, sid)
-    return sid, result, result['applied']['new_pattern_ids']
 
 
 # A: the creating episode is the fallback source
@@ -112,7 +71,7 @@ def test_creating_episode_marker_gives_the_span_when_the_template_is_not_in_the_
 def test_trim_prefers_the_creating_episode_where_the_text_can_be_located(
         fp_feed, fp_original, stub_fingerprinting):
     seed_two_sponsor_transcript(fp_feed)
-    _seed_other_episode(fp_feed, [(10.0, 60.0, 'A different read that shares nothing with the template.')])
+    seed_other_episode(fp_feed, [(10.0, 60.0, 'A different read that shares nothing with the template.')])
     pid = _legacy_pattern(fp_feed)
     fp_feed.create_audio_fingerprint(pid, OLD, 50.0, source_podcast_slug=SLUG, source_episode_id=OTHER,
                                      source_start=10.0, source_end=60.0)
@@ -123,7 +82,7 @@ def test_trim_prefers_the_creating_episode_where_the_text_can_be_located(
 def test_trim_keeps_the_recorded_source_when_the_creating_episode_lacks_the_text(
         fp_feed, fp_original, stub_fingerprinting):
     seed_timed_transcript(fp_feed, [(10.0, 70.0, 'Nothing like the pattern text appears in this episode at all.')])
-    _seed_other_episode(fp_feed, [(10.0, 40.0, FIRST_READ), (40.0, 70.0, SECOND_TEMPLATE)])
+    seed_other_episode(fp_feed, [(10.0, 40.0, FIRST_READ), (40.0, 70.0, SECOND_TEMPLATE)])
     pid = _legacy_pattern(fp_feed)
     fp_feed.create_audio_fingerprint(pid, OLD, 60.0, source_podcast_slug=SLUG, source_episode_id=OTHER,
                                      source_start=10.0, source_end=70.0)
@@ -136,7 +95,7 @@ def test_split_of_a_match_in_another_episode_finds_children_despite_wording_chan
     seed_two_sponsor_transcript(fp_feed)
     first = FIRST_READ.replace('the easy way', 'the simple way').replace('today', 'right now')
     second = SECOND_TEMPLATE.replace('better way', 'best way').replace('bonus offer today', 'bonus offer')
-    _seed_other_episode(fp_feed, [(100.0, 125.0, first), (125.0, 150.0, second)])
+    seed_other_episode(fp_feed, [(100.0, 125.0, first), (125.0, 150.0, second)])
     pid = _legacy_pattern(fp_feed)
     record_fingerprint_match(fp_feed, pid, OTHER, SLUG, 100.0, 150.0, 0.9, 0.9, True, False)
     _, _, kids = _split(fp_feed, pid)
@@ -158,7 +117,7 @@ class _FakeDb:
 
 
 def _located(lines, templates, start, end):
-    transcript = '\n'.join(f'[{_stamp(a)} --> {_stamp(b)}] {text}' for a, b, text in lines)
+    transcript = '\n'.join(f'[{stamp(a)} --> {stamp(b)}] {text}' for a, b, text in lines)
     return own_pattern_spans(_FakeDb(transcript, templates), SLUG, EPISODE, list(templates), start, end,
                              None, locate=True)
 
@@ -286,3 +245,77 @@ def test_undo_logs_and_stores_its_outcome(fp_feed, fp_original, stub_fingerprint
         pattern_cleanup.undo_suggestion(fp_feed, sid)
     assert any(f'suggestion {sid}' in r.getMessage() and 'undo' in r.getMessage() for r in caplog.records)
     assert 'undo_audio_outcomes' in fp_feed.get_cleanup_suggestion(sid)['applied']
+
+
+# E: rebuild and the audio detail agree on the creating-episode source
+
+UNLOCATABLE = 'Quantum zebras juggle seventeen purple umbrellas beneath the marble clock tower every Thursday.'
+
+
+def _unmatched_transcript(db):
+    seed_timed_transcript(db, [(10.0, 70.0, 'The hosts discuss gardening and the weather in great detail.'),
+                               (70.0, 100.0, SECOND_TEMPLATE)])
+
+
+def test_marker_fallback_honours_a_merged_member_of_another_marker(fp_feed, fp_original, stub_fingerprinting):
+    _unmatched_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, text=UNLOCATABLE)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[
+        {'start': 10.0, 'end': 100.0, 'pattern_id': pid + 1000, 'was_cut': True,
+         'validation': {'decision': 'ACCEPT'},
+         'merged_member_spans': [{'pattern_id': pid, 'start': 70.0, 'end': 100.0, 'stage': 'text_pattern'}]}])
+    _, result = _trim(fp_feed, pid, UNLOCATABLE[:60])
+    assert (result['applied']['audio_source']['start'], result['applied']['audio_source']['end']) == (70.0, 100.0)
+
+
+def test_marker_fallback_skips_a_marker_that_was_never_cut(fp_feed, fp_original, stub_fingerprinting):
+    _unmatched_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, text=UNLOCATABLE)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[
+        {'start': 70.0, 'end': 100.0, 'pattern_id': pid, 'was_cut': False, 'validation': {'decision': 'ACCEPT'}}])
+    _, result = _trim(fp_feed, pid, UNLOCATABLE[:60])
+    assert result['applied']['audio_source'] is None and result['applied']['audio_unresolved'] is True
+
+
+def test_legacy_audio_detail_reports_the_creating_episode_without_claiming_it_built_the_audio(
+        app_client, fp_feed, fp_original):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    body = app_client.get(f'/api/v1/patterns/{pid}/audio').get_json()
+    span = {'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 10.0, 'end': 70.0}
+    assert body['available'] is True and body['source'] == span and body['editSource'] == span
+    assert body['builtFrom'] is None
+
+
+def test_legacy_audio_detail_is_unavailable_without_a_creating_episode_original(app_client, fp_feed):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    body = app_client.get(f'/api/v1/patterns/{pid}/audio').get_json()
+    assert body['available'] is False and body['editSource'] is None and body['builtFrom'] is None
+
+
+def test_legacy_audio_detail_ignores_a_pattern_without_a_creating_episode(app_client, fp_feed, fp_original):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, created_from=None)
+    body = app_client.get(f'/api/v1/patterns/{pid}/audio').get_json()
+    assert body['available'] is False and body['editSource'] is None
+
+
+def test_legacy_audio_preview_resolves_the_creating_episode(fp_feed, fp_original):
+    from api import get_storage
+    from api.patterns_audio import resolve_audio_source
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    source, err = resolve_audio_source(fp_feed, get_storage(), pid)
+    assert err is None and (source['start'], source['end']) == (10.0, 70.0)
+
+
+def test_manual_split_prefers_the_creating_episode_like_the_cleanup_split(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    seed_other_episode(fp_feed, [(100.0, 130.0, FIRST_READ), (130.0, 160.0, SECOND_TEMPLATE)])
+    pid = _legacy_pattern(fp_feed)
+    fp_feed.create_audio_fingerprint(pid, OLD, 60.0, source_podcast_slug=SLUG, source_episode_id=OTHER,
+                                     source_start=100.0, source_end=160.0)
+    body = app_client.post(f'/api/v1/patterns/{pid}/split', headers=csrf(app_client)).get_json()
+    assert [_span(fp_feed, k)[:2] for k in body['new_pattern_ids']] == [(SLUG, EPISODE)] * 2

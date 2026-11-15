@@ -9,6 +9,7 @@ from itertools import accumulate, pairwise
 from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
                     is_keep_like, is_pending_review, repair_segment_category)
+from utils.constants import EpisodeStatus
 from utils.time import overlap_ratio
 
 
@@ -1080,3 +1081,57 @@ def collapse_duplicate_markers(markers):
         fold_marker_pair(twin, marker)
         folded += 1
     return (collapsed, folded) if folded else (markers, 0)
+
+
+def usable_span(start, end) -> bool:
+    """Whether start and end are finite numbers with end after start."""
+    return (isinstance(start, (int, float)) and isinstance(end, (int, float))
+            and math.isfinite(start) and math.isfinite(end) and end > start)
+
+
+def displayed_span(marker: dict) -> tuple[float, float] | None:
+    """The span the episode page shows for a marker: the pre-trim range of a reviewer-adjusted one."""
+    start, end = marker.get('start'), marker.get('end')
+    if marker.get('reviewer_verdict') == 'adjust':
+        start, end = marker.get('reviewer_original_start', start), marker.get('reviewer_original_end', end)
+    # A null reviewer-original bound makes the span unusable, so the marker is skipped
+    return (start, end) if usable_span(start, end) else None
+
+
+def is_rejected_marker(marker: dict, episode_status) -> bool:
+    """Whether the episode page files the marker under rejected: REJECT or never cut, and neither held nor kept."""
+    if is_pending_review(marker) or is_keep_like(marker.get('action_applied')):
+        return False
+    was_cut = marker.get('was_cut', episode_status == EpisodeStatus.PROCESSED)
+    return (marker.get('validation') or {}).get('decision') == 'REJECT' or not was_cut
+
+
+def marker_pattern_spans(marker: dict, pattern_id: int) -> list[tuple[float, float]]:
+    """Displayed spans of a marker for the pattern: its own, and each merged member's, clipped to the marker."""
+    outer = displayed_span(marker)
+    if outer is None:
+        return []
+    spans = [outer] if marker.get('pattern_id') == pattern_id else []
+    for member in marker.get(MERGED_MEMBER_SPANS) or []:
+        if isinstance(member, dict) and member.get('pattern_id') == pattern_id:
+            lo, hi = finite_number(member.get('start')), finite_number(member.get('end'))
+            if lo is not None and hi is not None:
+                clipped = (max(outer[0], lo), min(outer[1], hi))
+                if usable_span(*clipped):
+                    spans.append(clipped)
+    return spans
+
+
+def episode_markers(episode: dict | None) -> tuple[list[dict], EpisodeStatus]:
+    """(marker dicts, status) of an episode row."""
+    episode = episode or {}
+    markers = [m for m in parse_ad_markers(episode.get('ad_markers_json')) or [] if isinstance(m, dict)]
+    return markers, EpisodeStatus.from_api(episode.get('status'))
+
+
+def own_marker_span(episode: dict | None, pattern_id: int) -> tuple[float, float] | None:
+    """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
+    markers, status = episode_markers(episode)
+    spans = sorted(span for marker in markers if not is_rejected_marker(marker, status)
+                   for span in marker_pattern_spans(marker, pattern_id))
+    return spans[0] if spans else None

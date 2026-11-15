@@ -7,9 +7,9 @@ from tests.integration.fingerprint_helpers import (  # noqa: E402
 )
 import pattern_cleanup  # noqa: E402  must follow the helpers, which bootstrap the data dir
 from tests.fingerprint_match_helpers import record_fingerprint_match  # noqa: E402
-
-OLD = b'AQAAold'
-PIECES = [{'text': FIRST_READ, 'sponsor': 'Acme'}, {'text': SECOND_TEMPLATE, 'sponsor': 'Beta Corp'}]
+from tests.integration.cleanup_helpers import (  # noqa: E402
+    OLD, PIECES, source_span, split as _split, suggest as _suggest, trim as _trim,
+)
 
 
 def _make_parent(fp_feed, lines=None):
@@ -28,20 +28,9 @@ def parent(fp_feed):
     return _make_parent(fp_feed)
 
 
-def _suggest(db, pid, kind, payload):
-    before = pattern_cleanup._before_snapshot(db.get_ad_pattern_by_id(pid))
-    return db.upsert_cleanup_suggestion(None, pid, kind, 0.9, ['r'], payload, before)
-
-
 def _span(db, pid):
-    row = db.get_audio_fingerprint(pid, with_blob=False)
-    return row and (row['source_start'], row['source_end'])
-
-
-def _split(db, pid):
-    sid = _suggest(db, pid, 'split', {'pieces': PIECES})
-    result = pattern_cleanup.apply_suggestion(db, sid)
-    return sid, result, result['applied']['new_pattern_ids']
+    source = source_span(db, pid)
+    return source and source[2:]
 
 
 def test_cleanup_split_gives_each_child_its_own_span(fp_feed, fp_original, stub_fingerprinting, parent):
@@ -124,11 +113,6 @@ def test_cleanup_approve_route_reports_the_outcome(app_client, fp_feed, fp_origi
     body = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve',
                            headers=csrf(app_client)).get_json()
     assert body['status'] == 'approved' and body['fingerprintStored'] is True
-
-
-def _trim(db, pid, text=SECOND_TEMPLATE):
-    sid = _suggest(db, pid, 'trim', {'text': text})
-    return sid, pattern_cleanup.apply_suggestion(db, sid)
 
 
 def test_trim_rebuilds_the_fingerprint_from_the_trimmed_span(fp_feed, fp_original, stub_fingerprinting, parent):

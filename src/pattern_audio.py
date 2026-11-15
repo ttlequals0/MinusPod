@@ -7,7 +7,7 @@ from rapidfuzz import fuzz
 from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
 from storage import PathContainmentError, Storage
 from text_pattern_matcher import split_template_text
-from utils.markers import parse_ad_markers
+from utils.markers import own_marker_span, usable_span
 from utils.text import extract_timed_spans_in_range
 
 logger = logging.getLogger('podcast.pattern_audio')
@@ -27,11 +27,6 @@ def resolve_retained_original(db, storage, slug, episode_id, episode=None):
     except PathContainmentError:
         return None, 'original_not_retained'
     return (path, None) if path.exists() else (None, 'original_not_retained')
-
-
-def usable_span(start, end):
-    return (isinstance(start, (int, float)) and isinstance(end, (int, float))
-            and math.isfinite(start) and math.isfinite(end) and end > start)
 
 
 def candidate_spans(db, pattern_id, fingerprint, in_scope_only=False, recorded_first=False):
@@ -116,7 +111,7 @@ def _find_text(joined, template, after, fuzzy):
     if not fuzzy or len(template) > len(joined) - after:
         return None
     alignment = fuzz.partial_ratio_alignment(template, joined[after:], score_cutoff=FUZZY_LOCATE_FLOOR)
-    if alignment is None or alignment.score < FUZZY_LOCATE_FLOOR or alignment.dest_end <= alignment.dest_start:
+    if alignment is None or alignment.dest_end <= alignment.dest_start:
         return None
     return after + alignment.dest_start, after + alignment.dest_end
 
@@ -227,50 +222,58 @@ def locate_template_span(db, slug, episode_id, template):
     return span if usable_span(*span) else None
 
 
-def _marker_span(db, slug, episode_id, pattern_id):
-    """The earliest span of the episode's own stored marker for the pattern, else None."""
-    markers = parse_ad_markers((db.get_episode(slug, episode_id) or {}).get('ad_markers_json')) or []
-    spans = sorted((m['start'], m['end']) for m in markers
-                   if isinstance(m, dict) and m.get('pattern_id') == pattern_id
-                   and (m.get('validation') or {}).get('decision') != 'REJECT'
-                   and usable_span(m.get('start'), m.get('end')))
-    return spans[0] if spans else None
-
-
-def _creating_episode_source(db, storage, pattern_id, row, text, *, marker):
-    """A source in the episode the pattern was learned from, when its original is retained and a span is derivable."""
-    slug, episode_id = row['podcast_id'], row['created_from_episode_id']
+def _creating_episode(db, storage, pattern):
+    """The pattern's creating episode with its retained original, else None."""
+    slug, episode_id = pattern['podcast_id'], pattern['created_from_episode_id']
     if not slug or not episode_id:
         return None
-    path, err = resolve_retained_original(db, storage, slug, episode_id)
-    if err:
-        return None
-    span = locate_template_span(db, slug, episode_id, text)
-    if span is None and marker:
-        span = _marker_span(db, slug, episode_id, pattern_id)
+    episode = db.get_episode(slug, episode_id)
+    path, err = resolve_retained_original(db, storage, slug, episode_id, episode)
+    return None if err else {'slug': slug, 'episode_id': episode_id, 'episode': episode, 'path': path}
+
+
+def _creating_source(created, span):
     if span is None:
         return None
-    return {'podcastSlug': slug, 'episodeId': episode_id, 'start': span[0], 'end': span[1], 'path': path}
+    return {'podcastSlug': created['slug'], 'episodeId': created['episode_id'],
+            'start': span[0], 'end': span[1], 'path': created['path'], 'derived': True}
+
+
+def _located_source(db, created, text):
+    return _creating_source(created, locate_template_span(db, created['slug'], created['episode_id'], text))
+
+
+def creating_episode_source(db, storage, pattern, pattern_id, *, created=None, skip_locate=False):
+    """Source in the pattern's creating episode: where its text is, else its own marker; created/skip_locate reuse earlier work."""
+    created = created or _creating_episode(db, storage, pattern)
+    if created is None:
+        return None
+    found = None if skip_locate else _located_source(db, created, pattern['text_template'])
+    return found or _creating_source(created, own_marker_span(created['episode'], pattern_id))
+
+
+def _same_text(a, b):
+    return ' '.join((a or '').split()) == ' '.join((b or '').split())
 
 
 def rebuild_audio_source(db, conn, pattern_id, *, prefer_text=None):
-    """(source, wanted): the recorded source if retained, else a retained in-scope match, else the creating episode.
+    """(source, wanted): the recorded source if retained, else an in-scope match, else the creating episode.
 
-    prefer_text is the template a cleanup trim or split starts from: where the creating episode contains it,
-    that episode comes first, since its wording is the one the templates were cut from.
+    prefer_text is the pre-edit template of a trim or split; its wording came from the creating episode, so that leads.
     """
     row = _usable_fingerprint_row(conn, pattern_id)
     if row is None:
         return None, False
     storage = Storage()
-    found = None
-    if prefer_text:
-        found = _creating_episode_source(db, storage, pattern_id, row, prefer_text, marker=False)
+    created = _creating_episode(db, storage, row) if prefer_text else None
+    found = _located_source(db, created, prefer_text) if created else None
     if found is None:
         found = first_retained_source(
             db, storage, candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
-    if found is None:
-        found = _creating_episode_source(db, storage, pattern_id, row, row['text_template'], marker=True)
+    if found is None and not (prefer_text and created is None):
+        found = creating_episode_source(
+            db, storage, row, pattern_id, created=created,
+            skip_locate=bool(prefer_text) and _same_text(prefer_text, row['text_template']))
     if found is None:
         return None, True
     return {'slug': found['podcastSlug'], 'episode_id': found['episodeId'],
