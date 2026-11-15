@@ -38,4 +38,4 @@ def test_the_first_reason_by_precedence_wins(present, winner):
 def test_the_precedence_lists_every_reason_once():
     assert FINGERPRINT_SKIP_PRECEDENCE == (
         'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns', 'span_not_found',
-        'original_not_retained', 'segment_too_short', 'not_distinctive', 'fingerprint_failed')
+        'original_not_retained', 'audio_turned_off', 'segment_too_short', 'not_distinctive', 'fingerprint_failed')

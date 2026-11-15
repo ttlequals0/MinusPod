@@ -331,8 +331,8 @@ def test_legacy_with_only_out_of_scope_or_rejected_matches_reports_the_reason(
     _match(fp_feed, legacy, start=11.0)
     assert fp_feed.mark_fingerprint_match_rejected(legacy, SLUG, EPISODE, 11.0, 70.0)
     result = _trim(fp_feed, legacy)[1] if kind == 'trim' else _split(fp_feed, legacy)[1]
-    assert [(o[1].stored, o[1].skipped_reason) for o in result['fingerprint_outcomes']] == [
-        (False, 'original_not_retained')]
+    reason = 'audio_turned_off' if kind == 'trim' else 'original_not_retained'
+    assert [(o[1].stored, o[1].skipped_reason) for o in result['fingerprint_outcomes']] == [(False, reason)]
     assert fp_feed.get_audio_fingerprint(legacy)['fingerprint'] == OLD
 
 
@@ -340,14 +340,14 @@ def test_legacy_without_a_retained_original_reports_the_reason(fp_feed, stub_fin
     _match(fp_feed, legacy)
     _, result = _trim(fp_feed, legacy)
     assert result['status'] == 'approved'
-    assert [o[1].skipped_reason for o in result['fingerprint_outcomes']] == ['original_not_retained']
+    assert [o[1].skipped_reason for o in result['fingerprint_outcomes']] == ['audio_turned_off']
 
 
 def test_legacy_route_response_carries_the_skip_reason(app_client, fp_feed, stub_fingerprinting, legacy):
     sid = _suggest(fp_feed, legacy, 'trim', {'text': SECOND_TEMPLATE})
     body = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve',
                            headers=csrf(app_client)).get_json()
-    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'original_not_retained')
+    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'audio_turned_off')
 
 
 def test_recorded_source_wins_over_a_newer_match_when_retained(fp_feed, fp_original, stub_fingerprinting, parent):

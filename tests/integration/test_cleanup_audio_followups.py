@@ -41,7 +41,7 @@ def test_legacy_trim_stays_unresolved_when_the_text_cannot_be_derived(
     seed_timed_transcript(fp_feed, [(10.0, 70.0, 'Nothing like the pattern text appears in this episode at all.')])
     pid = _legacy_pattern(fp_feed)
     _, result = _trim(fp_feed, pid)
-    assert {o[1].skipped_reason for o in result['fingerprint_outcomes']} == {'original_not_retained'}
+    assert {o[1].skipped_reason for o in result['fingerprint_outcomes']} == {'audio_turned_off'}
     assert fp_feed.get_audio_fingerprint(pid)['fingerprint'] == OLD
 
 
@@ -50,7 +50,7 @@ def test_legacy_trim_stays_unresolved_when_the_creating_episode_is_not_retained(
     seed_two_sponsor_transcript(fp_feed)
     pid = _legacy_pattern(fp_feed)
     _, result = _trim(fp_feed, pid)
-    assert {o[1].skipped_reason for o in result['fingerprint_outcomes']} == {'original_not_retained'}
+    assert {o[1].skipped_reason for o in result['fingerprint_outcomes']} == {'audio_turned_off'}
 
 
 def test_creating_episode_marker_gives_the_span_when_the_template_is_not_in_the_transcript(
@@ -268,8 +268,8 @@ def test_unresolved_and_failed_outcomes_are_stored_with_their_reason(fp_feed, fp
     with caplog.at_level(logging.INFO, logger='podcast.pattern_cleanup'):
         sid, _ = _trim(fp_feed, pid)
     assert fp_feed.get_cleanup_suggestion(sid)['applied']['audio_outcomes'] == [
-        {'pattern_id': pid, 'stored': False, 'reason': 'original_not_retained'}]
-    assert any('original_not_retained' in r.getMessage() for r in caplog.records)
+        {'pattern_id': pid, 'stored': False, 'reason': 'audio_turned_off'}]
+    assert any('audio_turned_off' in r.getMessage() for r in caplog.records)
 
 
 def test_split_outcomes_name_every_child(fp_feed, fp_original, stub_fingerprinting):
@@ -298,6 +298,90 @@ def test_undo_logs_and_stores_its_outcome(fp_feed, fp_original, stub_fingerprint
         pattern_cleanup.undo_suggestion(fp_feed, sid)
     assert any(f'suggestion {sid}' in r.getMessage() and 'undo' in r.getMessage() for r in caplog.records)
     assert 'undo_audio_outcomes' in fp_feed.get_cleanup_suggestion(sid)['applied']
+
+
+# F: a trim whose audio has no retained source turns the old fingerprint off
+
+def _unretained_trim(db):
+    seed_two_sponsor_transcript(db)
+    pid = _legacy_pattern(db)
+    sid, result = _trim(db, pid)
+    assert db.get_audio_fingerprint(pid)['enabled'] == 0
+    return pid, sid, result
+
+
+def test_unresolved_trim_turns_the_fingerprint_off_and_keeps_it(fp_feed, stub_fingerprinting):
+    pid = _legacy_pattern(fp_feed)
+    seed_two_sponsor_transcript(fp_feed)
+    record_fingerprint_match(fp_feed, pid, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
+    sid, result = _trim(fp_feed, pid)
+    row = fp_feed.get_audio_fingerprint(pid)
+    assert row['enabled'] == 0 and row['fingerprint'] == OLD
+    assert fp_feed.get_connection().execute(
+        "SELECT COUNT(*) FROM audio_fingerprint_matches WHERE pattern_id = ?", (pid,)).fetchone()[0] == 1
+    applied = fp_feed.get_cleanup_suggestion(sid)['applied']
+    assert applied['audio_disabled'] is True
+    assert applied['audio_outcomes'] == [{'pattern_id': pid, 'stored': False, 'reason': 'audio_turned_off'}]
+    assert {o[1].skipped_reason for o in result['fingerprint_outcomes']} == {'audio_turned_off'}
+
+
+def test_undo_turns_the_fingerprint_back_on(fp_feed, stub_fingerprinting):
+    pid, sid, _ = _unretained_trim(fp_feed)
+    pattern_cleanup.undo_suggestion(fp_feed, sid)
+    assert fp_feed.get_audio_fingerprint(pid)['enabled'] == 1
+
+
+def test_undo_leaves_audio_that_was_turned_back_on_alone(fp_feed, stub_fingerprinting):
+    pid, sid, _ = _unretained_trim(fp_feed)
+    fp_feed.set_fingerprint_enabled(pid, True)
+    fp_feed.set_fingerprint_enabled(pid, False)
+    fp_feed.create_audio_fingerprint(pid, b'AQAAnew', 30.0)
+    result = pattern_cleanup.undo_suggestion(fp_feed, sid)
+    assert result['status'] == 'undone'
+    row = fp_feed.get_audio_fingerprint(pid)
+    assert row['enabled'] == 0 and row['fingerprint'] == b'AQAAnew'
+
+
+def test_undo_leaves_audio_that_is_already_on_alone(fp_feed, stub_fingerprinting):
+    pid, sid, _ = _unretained_trim(fp_feed)
+    fp_feed.set_fingerprint_enabled(pid, True)
+    pattern_cleanup.undo_suggestion(fp_feed, sid)
+    row = fp_feed.get_audio_fingerprint(pid)
+    assert row['enabled'] == 1 and row['fingerprint'] == OLD
+
+
+def test_undo_succeeds_when_the_fingerprint_was_deleted(fp_feed, stub_fingerprinting):
+    pid, sid, _ = _unretained_trim(fp_feed)
+    fp_feed.delete_audio_fingerprint(pid)
+    assert pattern_cleanup.undo_suggestion(fp_feed, sid)['status'] == 'undone'
+
+
+def test_trim_that_finds_a_source_leaves_the_fingerprint_on(fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    sid, _ = _trim(fp_feed, pid)
+    assert fp_feed.get_audio_fingerprint(pid)['enabled'] == 1
+    assert 'audio_disabled' not in fp_feed.get_cleanup_suggestion(sid)['applied']
+
+
+def test_split_without_a_source_does_not_report_audio_turned_off(fp_feed, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    sid, result, _ = _split(fp_feed, pid)
+    assert 'audio_disabled' not in fp_feed.get_cleanup_suggestion(sid)['applied']
+    assert fp_feed.get_audio_fingerprint(pid)['enabled'] == 1
+
+
+def test_listed_suggestions_return_audio_disabled(app_client, fp_feed, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    sid = _suggest(fp_feed, pid, 'trim', {'text': SECOND_TEMPLATE})
+    approved = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve', headers=csrf(app_client))
+    assert approved.get_json()['fingerprintSkippedReason'] == 'audio_turned_off'
+    body = app_client.get('/api/v1/patterns/cleanup/suggestions?status=approved').get_json()
+    item = next(s for s in body['suggestions'] if s['id'] == sid)
+    assert item['applied']['audioDisabled'] is True
+    assert item['applied']['audioOutcomes'] == [{'patternId': pid, 'stored': False, 'reason': 'audio_turned_off'}]
 
 
 # E: rebuild and the audio detail agree on the creating-episode source

@@ -290,6 +290,11 @@ def unresolved_audio_outcomes(pattern_id):
     return [(pattern_id, FingerprintStoreResult(False, 'original_not_retained'))]
 
 
+def turned_off_audio_outcomes(pattern_id):
+    """The outcome for a trim with no retained source that switched the old fingerprint off."""
+    return [(pattern_id, FingerprintStoreResult(False, 'audio_turned_off'))]
+
+
 def carry_audio_to_children(db, source, child_ids):
     """Fingerprint each still-active split child over its own span of the parent's source; best effort."""
     if not source:

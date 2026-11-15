@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import logging
 import math
@@ -28,7 +29,8 @@ from llm_route import (
     resolved_stage_slot, SLOT_SECONDARY,
 )
 from pattern_audio import (
-    carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio, unresolved_audio_outcomes,
+    carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio, turned_off_audio_outcomes,
+    unresolved_audio_outcomes,
 )
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
@@ -1386,6 +1388,8 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     source = applied.get('audio_source')
     if applied.get('audio_unresolved'):
         outcomes = unresolved_audio_outcomes(pattern['id'])
+        if suggestion['kind'] != 'split' and _turn_off_stale_audio(db, suggestion_id, pattern['id'], applied):
+            outcomes = turned_off_audio_outcomes(pattern['id'])
     elif applied.get('new_pattern_ids'):
         outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
     elif applied.get('text') is not None:
@@ -1399,6 +1403,39 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     result = db.get_cleanup_suggestion(suggestion_id)
     result['fingerprint_outcomes'] = outcomes
     return result
+
+
+def _blob_digest(fingerprint: dict | None) -> str | None:
+    return hashlib.sha256(fingerprint['fingerprint']).hexdigest() if fingerprint else None
+
+
+def _turn_off_stale_audio(db, suggestion_id: int, pattern_id: int, applied: dict) -> bool:
+    """Switch off the fingerprint of a trim with no retained source, since it still matches the cut text; keeps the row."""
+    try:
+        before = db.get_audio_fingerprint(pattern_id)
+        if not before or not before['enabled'] or not db.set_fingerprint_enabled(pattern_id, False):
+            return False
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not turn off the audio of pattern {pattern_id}: {e}")
+        return False
+    applied.update({'audio_disabled': True, 'audio_disabled_digest': _blob_digest(before)})
+    try:
+        db.merge_cleanup_suggestion_applied(
+            suggestion_id, {k: applied[k] for k in ('audio_disabled', 'audio_disabled_digest')})
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not store the audio switch of suggestion {suggestion_id}: {e}")
+    return True
+
+
+def _restore_stale_audio(db, pattern_id: int, applied: dict) -> None:
+    """Switch the audio back on only if this trim turned it off and it is still off and unchanged."""
+    try:
+        current = db.get_audio_fingerprint(pattern_id)
+        if (current and not current['enabled']
+                and _blob_digest(current) == applied.get('audio_disabled_digest')):
+            db.set_fingerprint_enabled(pattern_id, True)
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not turn the audio of pattern {pattern_id} back on: {e}")
 
 
 def _changes_audio(applied: dict) -> bool:
@@ -1576,6 +1613,8 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
     if suggestion['kind'] != 'split' and applied.get('text') is not None:
         outcomes = _restore_trimmed_audio(
             db, pattern['id'], applied.get('audio_source'), before.get('text_template'))
+        if applied.get('audio_disabled'):
+            _restore_stale_audio(db, pattern['id'], applied)
     if _changes_audio(applied):
         _record_audio_outcomes(db, suggestion_id, suggestion['kind'], pattern['id'], {}, outcomes, undo=True)
     result = db.get_cleanup_suggestion(suggestion_id)

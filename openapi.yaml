@@ -15178,7 +15178,7 @@ components:
           type: boolean
         reason:
           type: [string, 'null']
-          description: Why no fingerprint was stored; null when one was.
+          description: Why no fingerprint was stored; null when one was. `audio_turned_off` means a trim found no retained source for the old audio, so that fingerprint was switched off and kept.
 
     PatternCleanupSuggestion:
       type: object
@@ -15275,6 +15275,12 @@ components:
             fittedAvgDuration:
               type: number
               description: Average duration in seconds the trim wrote. Absent when the trim left the duration unchanged.
+            audioDisabled:
+              type: boolean
+              description: True when this trim found no retained source and switched the pattern's old fingerprint off (reason `audio_turned_off`). Undo switches it back on only while it is still off and unchanged. Absent otherwise.
+            audioDisabledDigest:
+              type: string
+              description: SHA-256 of the fingerprint that was switched off, used by undo to tell it is unchanged.
             audioOutcomes:
               type: array
               description: Audio fingerprint outcome per pattern from approving a trim or split.

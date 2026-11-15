@@ -317,6 +317,19 @@ describe('CleanupTab', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('tells the operator when an approval turned the pattern audio off', async () => {
+    mockApprove.mockResolvedValueOnce({
+      ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: false,
+      fingerprintSkippedReason: 'audio_turned_off',
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    expect((await screen.findByRole('status')).textContent)
+      .toBe("The pattern's audio was turned off because no retained episode has it.");
+  });
+
   it('shows no audio notice when the fingerprint was stored or the field is absent', async () => {
     mockApprove.mockResolvedValueOnce({ ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: true });
     renderTab();
