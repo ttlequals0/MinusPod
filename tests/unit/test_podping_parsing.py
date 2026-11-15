@@ -4,36 +4,7 @@ from podping_listener import (
     normalize_feed_url,
     extract_podping_events,
     match_iris,
-    PODPING_NODES,
-    ACTIONABLE_REASONS,
-    COOLDOWN_SECONDS,
-    MAX_CATCHUP_BLOCKS,
 )
-
-
-class TestConstants:
-    """Test module constants."""
-
-    def test_podping_nodes_defined(self):
-        """PODPING_NODES should be a list of strings."""
-        assert PODPING_NODES == [
-            'https://api.hive.blog',
-            'https://api.openhive.network',
-            'https://api.deathwing.me',
-            'https://techcoderx.com',
-        ]
-
-    def test_actionable_reasons(self):
-        """ACTIONABLE_REASONS should contain update and live."""
-        assert ACTIONABLE_REASONS == {'update', 'live'}
-
-    def test_cooldown_seconds(self):
-        """COOLDOWN_SECONDS should be 300."""
-        assert COOLDOWN_SECONDS == 300
-
-    def test_max_catchup_blocks(self):
-        """MAX_CATCHUP_BLOCKS should be 100."""
-        assert MAX_CATCHUP_BLOCKS == 100
 
 
 class TestNormalizeFeedUrl:

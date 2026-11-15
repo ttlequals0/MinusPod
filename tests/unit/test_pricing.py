@@ -963,31 +963,6 @@ class TestEmptyCompletionGuard:
         assert detector._llm_client.messages_create.call_count == 1
 
 
-class TestHistoryPageParam:
-    """Test history endpoint page parameter conversion."""
-
-    def test_page_to_offset_conversion(self):
-        """page=3 with limit=10 should produce offset=20."""
-        # Test the logic directly
-        limit = 10
-        page = 3
-        offset = (page - 1) * limit
-        assert offset == 20
-
-    def test_offset_to_page_derivation(self):
-        """offset=20 with limit=10 should derive page=3."""
-        limit = 10
-        offset = 20
-        page = (offset // limit) + 1
-        assert page == 3
-
-    def test_page_1_is_offset_0(self):
-        limit = 50
-        page = 1
-        offset = (page - 1) * limit
-        assert offset == 0
-
-
 class TestGetModelPricingSourceFilter:
     """Test get_model_pricing with source filter."""
 

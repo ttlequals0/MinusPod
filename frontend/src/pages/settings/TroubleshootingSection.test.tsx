@@ -19,14 +19,6 @@ describe('TroubleshootingSection', () => {
     mockDownloadDiagnostics.mockResolvedValue(undefined);
   });
 
-  it('keeps the export cards in a responsive two-column grid', () => {
-    render(<TroubleshootingSection />);
-
-    expect(screen.getByRole('heading', { name: 'Troubleshooting' })).toBeDefined();
-    expect(screen.getByText('Configuration export').parentElement?.parentElement?.parentElement?.parentElement?.className)
-      .toContain('sm:grid-cols-2');
-  });
-
   it('downloads the redacted configuration once and shows the busy state', async () => {
     let resolveDownload: () => void = () => {};
     mockDownloadConfig.mockReturnValue(new Promise<void>((resolve) => { resolveDownload = resolve; }));

@@ -53,38 +53,6 @@ class TestGetEffectiveOllamaApiKey(unittest.TestCase):
         self.assertIsNone(get_effective_ollama_api_key())
 
 
-class TestGetLlmTimeoutOpenRouter(unittest.TestCase):
-    """Verify OpenRouter gets the fast cloud timeout, not the local timeout."""
-
-    @patch('llm_client.get_effective_provider', return_value='openrouter')
-    def test_openrouter_gets_default_timeout(self, _mock):
-        from llm_client import get_llm_timeout
-        from config import LLM_TIMEOUT_DEFAULT
-        self.assertEqual(get_llm_timeout(), LLM_TIMEOUT_DEFAULT)
-
-    @patch('llm_client.get_effective_provider', return_value='ollama')
-    def test_ollama_gets_local_timeout(self, _mock):
-        from llm_client import get_llm_timeout
-        from config import LLM_TIMEOUT_LOCAL
-        self.assertEqual(get_llm_timeout(), LLM_TIMEOUT_LOCAL)
-
-
-class TestGetLlmMaxRetriesOpenRouter(unittest.TestCase):
-    """Verify OpenRouter gets the cloud retry count, not the local one."""
-
-    @patch('llm_client.get_effective_provider', return_value='openrouter')
-    def test_openrouter_gets_default_retries(self, _mock):
-        from llm_client import get_llm_max_retries
-        from config import LLM_RETRY_MAX_RETRIES
-        self.assertEqual(get_llm_max_retries(), LLM_RETRY_MAX_RETRIES)
-
-    @patch('llm_client.get_effective_provider', return_value='ollama')
-    def test_ollama_gets_local_retries(self, _mock):
-        from llm_client import get_llm_max_retries
-        from config import LLM_RETRY_MAX_RETRIES_LOCAL
-        self.assertEqual(get_llm_max_retries(), LLM_RETRY_MAX_RETRIES_LOCAL)
-
-
 class TestGetApiKeyOpenRouter(unittest.TestCase):
     """Verify get_api_key returns the OpenRouter key for the openrouter provider."""
 

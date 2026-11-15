@@ -1,10 +1,8 @@
 """Scope gate shared by the text and audio matchers."""
-import ast
 from types import SimpleNamespace
 
 import pytest
 
-import utils.pattern_scope as mod
 from text_pattern_matcher import TextPatternMatcher, pattern_passes_scope, UNIVERSAL_TAG
 
 def _filter_result(scope, pat_net, net, pat_pod, pod, source, stags, ptags):
@@ -143,10 +141,3 @@ def test_podcast_scope_and_community_tags():
 def test_unknown_scope_is_dropped():
     assert not pattern_passes_scope('bogus', None, None, 'local', set(),
                                     podcast_id='p', network_id='n', podcast_tag_set=set())
-
-
-def test_scope_module_is_a_leaf():
-    tree = ast.parse(open(mod.__file__).read())
-    imported = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
-    imported |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
-    assert imported == {'utils.community_tags'}

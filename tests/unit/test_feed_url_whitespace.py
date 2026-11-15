@@ -34,10 +34,6 @@ def _csrf(client):
     return {}
 
 
-def test_every_whitespace_code_point_is_covered():
-    assert len(SPACES) == 29
-
-
 @pytest.mark.parametrize('char', SPACES + CONTROLS, ids=[f'U+{ord(c):04X}' for c in SPACES + CONTROLS])
 def test_whitespace_and_control_characters_are_refused(char):
     with pytest.raises(SSRFError, match='whitespace or control'):

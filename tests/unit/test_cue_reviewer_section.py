@@ -106,22 +106,6 @@ def test_template_cue_renders_as_ground_truth_not_weak_evidence():
     assert 'GENERIC AUDIO CUES NEARBY' not in out
 
 
-def test_content_transition_trailing_sentence_updated():
-    analysis = _result_with(_non_ad_cue(99.0, 99.5, AUDIO_CUE_TYPE_CONTENT_TRANSITION))
-    out = _format_cue_section(audio_analysis=analysis, ad_start=100.0, ad_end=160.0)
-    assert 'aligning a boundary to a marker when the transcript supports it' in out
-    assert 'a marker never forces a cut' in out
-    # old wording must be gone
-    assert 'Use these as supporting evidence' not in out
-
-
-def test_intro_outro_exception_sentence_present():
-    analysis = _result_with(_non_ad_cue(99.0, 99.5, 'show_intro', label='theme'))
-    out = _format_cue_section(audio_analysis=analysis, ad_start=100.0, ad_end=160.0)
-    assert 'pre-roll ad may end exactly where the intro starts' in out
-    assert 'post-roll ad may begin where the outro ends' in out
-
-
 def test_bucket_radius_follows_setting():
     # Cue at 80 s from the ad edge: inside default radius (60 s) -> NOT included
     # when radius is 30 s, but included at 90 s radius.

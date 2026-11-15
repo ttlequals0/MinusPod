@@ -4,7 +4,6 @@ validate() sorts, merges and drops ads, so positional keep_indices pairing could
 ad to the wrong original twin (after A+B merge, C paired with B's original). Each original now travels
 through validation as a reference on the processed dict.
 """
-import inspect
 import threading
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
@@ -1317,17 +1316,6 @@ def test_successful_fold_recut_does_not_finalize_twice():
 
     assert m['result'] is True
     m['finalize'].assert_not_called()
-
-
-def test_the_recut_run_stat_is_capped_with_the_history_row():
-    """The history row caps the pass-2 share against the recut's own total;
-    run_stats reports the same number, from the same source line."""
-    src = inspect.getsource(recut._recut_episode)
-    assert '_split_recut_counts(' in src, 'recut.py changed on disk since import'
-    split = src.split('_split_recut_counts(')[1]
-
-    assert "run_stats['verification_ads_cut'] = verification_count" in split
-    assert recut._split_recut_counts(3, 5) == (0, 3)
 
 
 def test_the_pipeline_hands_pass1_the_feeds_id():

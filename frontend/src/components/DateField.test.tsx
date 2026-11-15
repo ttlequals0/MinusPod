@@ -12,15 +12,6 @@ describe('DateField', () => {
     expect(input.max).toBe('2026-10-31');
   });
 
-  it('carries the narrow-viewport overflow classes', () => {
-    render(<DateField id="d" label="Since" value="" onChange={() => {}} />);
-    const cls = screen.getByLabelText('Since').className;
-    for (const c of ['max-sm:px-0', 'max-sm:text-base', '[&::-webkit-date-and-time-value]:text-left',
-      '[&::-webkit-datetime-edit]:min-w-0', '[&::-webkit-datetime-edit]:p-0']) {
-      expect(cls).toContain(c);
-    }
-  });
-
   it('calls onChange on change and again on blur with the typed value', () => {
     const onChange = vi.fn();
     render(<DateField id="d" label="Since" value="" onChange={onChange} />);

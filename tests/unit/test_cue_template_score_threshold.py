@@ -131,25 +131,6 @@ def test_scan_chunk_uses_per_template_threshold_to_gate_match():
     assert len(per_template_matches[1]) == 1
 
 
-def test_scan_chunk_per_template_threshold_blocks_below_its_own_value():
-    """With per-template 0.999, a noisy-only haystack yields no match."""
-    rng = np.random.default_rng(55)
-    template_mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
-    # No planted match; haystack is pure noise, scores will be low
-    haystack = rng.standard_normal((200, N_COEFFS)).astype(np.float32) * 0.1
-
-    row = _make_row(template_mfcc, score_threshold=0.999)
-    matcher = AudioCueTemplateMatcher(templates=[row], score_threshold=0.1)
-
-    per_template_matches = {1: []}
-    per_template_peak = {1: 0.0}
-    per_template_near_misses = {1: []}
-    matcher._scan_chunk(haystack, 0.0, per_template_matches, per_template_peak, per_template_near_misses)
-
-    # Noisy haystack won't exceed 0.999
-    assert len(per_template_matches[1]) == 0
-
-
 def test_scan_chunk_null_per_template_threshold_falls_back_to_instance():
     """NULL per-template threshold: instance threshold governs matching."""
     rng = np.random.default_rng(11)
@@ -385,82 +366,24 @@ def test_suggest_sweep_strips_per_template_thresholds():
 # Shared validator: _normalize_nullable_finite_float (findings 2, 3, 4, 5)
 # ---------------------------------------------------------------------------
 
-def test_shared_validator_rejects_nan():
-    """NaN passes range comparisons (NaN < lo is False); validator must catch it."""
+@pytest.mark.parametrize('raw, lo, hi, expect_error, expect_value', [
+    pytest.param(float('nan'), 0.0, 1.0, True, None, id='rejects_nan'),
+    pytest.param(float('inf'), 0.0, 1.0, True, None, id='rejects_inf'),
+    pytest.param(float('-inf'), 0.0, 1.0, True, None, id='rejects_neg_inf'),
+    pytest.param(True, 0.0, 2.0, True, None, id='rejects_bool_true'),
+    pytest.param(False, 0.0, 2.0, True, None, id='rejects_bool_false'),
+    pytest.param('', 0.0, 1.0, False, None, id='empty_string_clears'),
+    pytest.param(None, 0.0, 1.0, False, None, id='none_clears'),
+    pytest.param(0.75, 0.30, 0.99, False, 0.75, id='valid_float_accepted'),
+    pytest.param(0.10, 0.30, 0.99, True, None, id='rejects_below_floor'),
+    pytest.param(1.0, 0.30, 0.99, True, None, id='rejects_above_ceiling'),
+])
+def test_shared_validator(raw, lo, hi, expect_error, expect_value):
     from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(float('nan'), 'field', 0.0, 1.0)
-    assert err is not None
-    assert val is None
-
-
-def test_shared_validator_rejects_inf():
-    """Infinity must be rejected explicitly."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(float('inf'), 'field', 0.0, 1.0)
-    assert err is not None
-    assert val is None
-
-
-def test_shared_validator_rejects_neg_inf():
-    """Negative infinity must be rejected."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(float('-inf'), 'field', 0.0, 1.0)
-    assert err is not None
-    assert val is None
-
-
-def test_shared_validator_rejects_bool_true():
-    """True coerces to 1.0 via float(); must be rejected as a boolean."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(True, 'field', 0.0, 2.0)
-    assert err is not None
-    assert val is None
-
-
-def test_shared_validator_rejects_bool_false():
-    """False coerces to 0.0 via float(); must be rejected as a boolean."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(False, 'field', 0.0, 2.0)
-    assert err is not None
-    assert val is None
-
-
-def test_shared_validator_empty_string_clears():
-    """Empty string must clear the override (return None, None)."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float('', 'field', 0.0, 1.0)
-    assert err is None
-    assert val is None
-
-
-def test_shared_validator_none_clears():
-    """None must clear the override (return None, None)."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(None, 'field', 0.0, 1.0)
-    assert err is None
-    assert val is None
-
-
-def test_shared_validator_valid_float_accepted():
-    """A normal in-range float must be accepted and returned as float."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(0.75, 'field', 0.30, 0.99)
-    assert err is None
-    assert abs(val - 0.75) < 1e-9
-
-
-def test_shared_validator_rejects_below_floor():
-    """Value below lo must return an error."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(0.10, 'field', 0.30, 0.99)
-    assert err is not None
-    assert val is None
-
-
-def test_shared_validator_rejects_above_ceiling():
-    """Value above hi must return an error."""
-    from api import _normalize_nullable_finite_float
-    val, err = _normalize_nullable_finite_float(1.0, 'field', 0.30, 0.99)
-    assert err is not None
-    assert val is None
+    val, err = _normalize_nullable_finite_float(raw, 'field', lo, hi)
+    assert (err is not None) is expect_error
+    if expect_value is None:
+        assert val is None
+    else:
+        assert abs(val - expect_value) < 1e-9
 

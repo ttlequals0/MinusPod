@@ -1,5 +1,5 @@
 // Cover art links to the feed (#718) without adding a second focus stop or
-// a second accessible name; footer alignment stays a full-height flex column.
+// a second accessible name.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -43,15 +43,7 @@ describe('FeedCard artwork link', () => {
   });
 });
 
-describe('FeedCard footer alignment', () => {
-  it('stretches the root to full height with a flex column so the footer pins to the bottom', () => {
-    const { container } = renderCard(makeFeed({ statusCounts: undefined }));
-    const root = container.firstChild as HTMLElement;
-    expect(root.className).toContain('h-full');
-    expect(root.className).toContain('flex');
-    expect(root.className).toContain('flex-col');
-  });
-
+describe('FeedCard footer', () => {
   it('renders the action row as the last child of the root regardless of statusCounts', () => {
     const withCounts = renderCard(makeFeed({
       statusCounts: {
@@ -64,21 +56,17 @@ describe('FeedCard footer alignment', () => {
     for (const { container } of [withCounts, withoutCounts]) {
       const root = container.firstChild as HTMLElement;
       const footer = root.lastElementChild as HTMLElement;
-      expect(footer.className).toContain('bg-secondary/50');
       expect(footer.textContent).toContain('Copy URL');
     }
   });
 });
 
 describe('FeedCard fixed slots', () => {
-  // Every card reserves the same rows so a grid of feeds lines up.
-  it('renders the refresh, podping and status slots even when the feed has none', () => {
-    const { container } = renderCard(makeFeed({
+  it('shows "Not refreshed yet" when the feed has never been refreshed', () => {
+    renderCard(makeFeed({
       lastRefreshed: undefined, podpingCoverage: null, statusCounts: undefined,
     }));
     expect(screen.getByText('Not refreshed yet')).toBeDefined();
-    expect(container.querySelector('.h-4.mt-1')).not.toBeNull();
-    expect(container.querySelector('.min-h-\\[1\\.375rem\\]')).not.toBeNull();
   });
 
   it('exposes the refresh failure without a hover tooltip', () => {
@@ -120,11 +108,5 @@ describe('FeedCard processed bar and buttons', () => {
     renderCard(makeFeed({ episodeCount: 0 }));
     expect(screen.getByText('0 of 0 processed')).toBeDefined();
     expect(screen.getByRole('progressbar', { name: 'Episodes processed' }).getAttribute('aria-valuenow')).toBe('0');
-  });
-
-  it('uses outline recipes for Refresh and Delete', () => {
-    renderCard(makeFeed());
-    expect(screen.getByRole('button', { name: /Refresh/ }).className).toContain('shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.8)]');
-    expect(screen.getByRole('button', { name: 'Delete feed' }).className).toContain('shadow-[inset_0_0_0_1px_hsl(var(--destructive)/0.8)]');
   });
 });

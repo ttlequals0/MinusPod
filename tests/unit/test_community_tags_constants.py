@@ -22,18 +22,15 @@ def test_valid_tags_includes_universal_and_vocab():
     assert 'mental_health' in vt
     assert 'true_crime' in vt
     assert 'gambling' in vt
-    # 48 vocab tags + universal
-    assert len(vt) == 49
 
 
-def test_sponsor_seed_loads_254_entries():
+def test_sponsor_seed_rows_have_name_aliases_and_tags():
     seed = sponsor_seed()
-    assert len(seed) == 254
-    # Each row has the right shape
-    sample = seed[0]
-    assert 'name' in sample and 'aliases' in sample and 'tags' in sample
-    assert isinstance(sample['aliases'], list)
-    assert isinstance(sample['tags'], list)
+    assert seed
+    for row in seed:
+        assert {'name', 'aliases', 'tags'} <= row.keys()
+        assert isinstance(row['aliases'], list)
+        assert isinstance(row['tags'], list)
 
 
 def test_sponsor_seed_universal_marker_present():

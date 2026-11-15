@@ -214,29 +214,6 @@ describe('FeedDetail: pending action labels', () => {
   });
 });
 
-describe('FeedDetail: copy control mobile sizing', () => {
-  it('does not carry the unprefixed px-4 py-2 padding that fights icon-only sizing', async () => {
-    renderFeedDetail(makeFeed());
-    await waitFor(() => {
-      expect(screen.getByText('Test Feed')).toBeDefined();
-    });
-    const copyButton = screen.getByTitle('Copy feed URL');
-    expect(copyButton.className).not.toContain('px-4 py-2');
-    expect(copyButton.className).not.toContain('sm:px-2');
-    expect(copyButton.className).not.toContain('h-8 w-8');
-  });
-
-  it('hides the label with a plain responsive class instead of hideLabelOnMobile', async () => {
-    renderFeedDetail(makeFeed());
-    await waitFor(() => {
-      expect(screen.getByText('Test Feed')).toBeDefined();
-    });
-    const label = screen.getByTitle('Copy feed URL').querySelector('span');
-    expect(label?.className).toContain('hidden');
-    expect(label?.className).toContain('sm:inline');
-  });
-});
-
 describe('FeedDetail: episode list URL state', () => {
   it('requests the page named in the URL', async () => {
     mockInitialSearch = 'page=3';

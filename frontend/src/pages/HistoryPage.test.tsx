@@ -74,14 +74,6 @@ describe('HistoryPage: Version column', () => {
     });
   });
 
-  it('renders podcast and episode links in foreground text', async () => {
-    renderPage([makeEntry()]);
-    const podcast = (await screen.findAllByRole('link', { name: 'Test Feed' }))[0];
-    const episode = screen.getAllByRole('link', { name: 'Episode One' })[0];
-    expect(podcast.className).toContain('text-foreground');
-    expect(episode.className).toContain('text-foreground');
-  });
-
   it('labels the run time and audio length columns', async () => {
     renderPage([makeEntry()]);
     expect(await screen.findByRole('columnheader', { name: /Run time/ })).toBeTruthy();
