@@ -1020,23 +1020,11 @@ class AdDetector:
             sponsor_block = ""
         return render_prompt(prompt, sponsor_database=sponsor_block)
 
-    def _podcast_wants_show_segments(self, slug: str) -> bool:
-        """Return whether this podcast opted into intro/outro/recap detection.
-
-        Per-feed value if explicitly set, else the detect_show_segments global
-        default. One DB lookup per detect_ads() call, not per window (same
-        pattern as _build_known_pattern_hint).
-        """
-        if not slug or not self.db:
-            return False
-        try:
-            return self.db.resolve_detect_show_segments(slug)
-        except Exception as e:
-            logger.warning(f"Could not check detect_show_segments for {slug}: {e}")
-            return False
-
     def _podcast_wants(self, slug: str, column: str, setting_key: str) -> bool:
-        """Whether the per-feed bool `column` (else the `setting_key` global) is on; off when unreadable."""
+        """Whether the per-feed bool `column` (else the `setting_key` global) is on; off when unreadable.
+
+        One DB lookup per detect_ads() call, not per window.
+        """
         if not slug or not self.db:
             return False
         try:
@@ -1149,7 +1137,7 @@ class AdDetector:
         the show-segments section so both layer independently.
         """
         prompt = self.get_system_prompt()
-        if self._podcast_wants_show_segments(slug):
+        if self._podcast_wants(slug, 'detect_show_segments', 'detect_show_segments'):
             prompt = f"{prompt}\n\n{SHOW_SEGMENTS_PROMPT_SECTION}"
         if self._podcast_wants(slug, 'snip_short_asks', 'snip_short_asks'):
             prompt = f"{prompt}\n\n{SHORT_ASKS_PROMPT_SECTION}"

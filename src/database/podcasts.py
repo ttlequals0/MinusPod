@@ -735,12 +735,7 @@ class PodcastMixin:
     def resolve_detect_show_segments(self, slug: str,
                                      podcast: dict | None = None) -> bool:
         """Resolve detect_show_segments: per-feed value if non-NULL, else the global setting, else False."""
-        if podcast is None:
-            podcast = self.get_podcast_row(slug)
-        per_feed = podcast.get('detect_show_segments') if podcast else None
-        if per_feed is not None:
-            return bool(per_feed)
-        return coerce_bool_setting(self.get_setting('detect_show_segments'))
+        return self.resolve_feed_bool(slug, 'detect_show_segments', 'detect_show_segments', podcast)
 
     def resolve_feed_bool(self, slug: str, column: str, setting_key: str,
                           podcast: dict | None = None) -> bool:

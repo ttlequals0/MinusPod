@@ -30,11 +30,9 @@ class _Db:
         return self.system_prompt if key == 'system_prompt' else None
 
     def resolve_feed_bool(self, slug, column, setting_key, podcast=None):
-        assert column == setting_key == 'snip_short_asks'
-        return self.short_asks
-
-    def resolve_detect_show_segments(self, slug):
-        return self.show_segments
+        assert column == setting_key
+        return {'snip_short_asks': self.short_asks,
+                'detect_show_segments': self.show_segments}[column]
 
 
 def _detector(**kw):
@@ -71,8 +69,7 @@ class TestSystemPrompt:
 
     def test_db_without_the_resolver_is_off(self):
         det = AdDetector()
-        det.db = SimpleNamespace(get_setting=lambda key: None,
-                                 resolve_detect_show_segments=lambda slug: False)
+        det.db = SimpleNamespace(get_setting=lambda key: None)
         assert SHORT_ASKS_PROMPT_SECTION not in det._build_detection_system_prompt('feed')
 
 

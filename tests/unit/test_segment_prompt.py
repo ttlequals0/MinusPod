@@ -42,7 +42,8 @@ class _FakeDb:
             return None
         return {'slug': slug, 'detect_show_segments': self._detect_show_segments}
 
-    def resolve_detect_show_segments(self, slug):
+    def resolve_feed_bool(self, slug, column, setting_key, podcast=None):
+        assert column == setting_key == 'detect_show_segments'
         return self._detect_show_segments
 
     def resolve_segment_actions(self, slug):
