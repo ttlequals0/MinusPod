@@ -205,15 +205,32 @@ export async function deletePattern(id: number): Promise<void> {
 
 // Correction API
 
+// Response of POST .../corrections. `recut_pending` and `marker` are only
+// present on backends that report the marker's state after the write.
+export interface CorrectionResult {
+  message?: string;
+  pattern_id?: number | null;
+  recut_pending?: boolean;
+  marker?: {
+    start: number;
+    end: number;
+    approved: boolean;
+    was_cut: boolean;
+    hold_reason: string | null;
+  };
+}
+
 export async function submitCorrection(
   slug: string,
   episodeId: string,
   correction: PatternCorrection
-): Promise<void> {
-  await apiRequest(`/episodes/${slug}/${episodeId}/corrections`, {
-    method: 'POST',
-    body: correction,
-  });
+): Promise<CorrectionResult> {
+  const result = await apiRequest<CorrectionResult | null | undefined>(
+    `/episodes/${slug}/${episodeId}/corrections`, {
+      method: 'POST',
+      body: correction,
+    });
+  return result ?? {};
 }
 
 interface UnresolvedCorrectionCandidate {

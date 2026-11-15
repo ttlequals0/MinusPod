@@ -561,6 +561,27 @@ class AdValidator:
 
         return None
 
+    @staticmethod
+    def _drop_duplicate_approved_spans(result):
+        """Several candidates clamped to one user-approved span leave one marker."""
+        seen = set()
+        kept = []
+        for ad in result.ads:
+            validation = ad.get('validation') or {}
+            approved = validation.get('confirmed_span')
+            if (approved and validation.get('decision') == Decision.ACCEPT.value
+                    and (ad['start'], ad['end']) == (approved['start'], approved['end'])):
+                key = (ad['start'], ad['end'])
+                if key in seen:
+                    logger.info(
+                        f"Dropping duplicate marker {ad['start']:.1f}s-{ad['end']:.1f}s: "
+                        f"already covered by the same user-approved span")
+                    result.accepted -= 1
+                    continue
+                seen.add(key)
+            kept.append(ad)
+        result.ads = kept
+
     def _overlaps_corrections(self, corrections: list[dict], start: float, end: float,
                                overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
         """Check if a time range (seconds) overlaps any correction ({'start','end'} dicts).
@@ -834,6 +855,7 @@ class AdValidator:
                 result.reviewed += 1
             else:
                 result.rejected += 1
+        self._drop_duplicate_approved_spans(result)
         result.ads.sort(key=lambda a: a['start'])
 
         # Step 5: Check overall density

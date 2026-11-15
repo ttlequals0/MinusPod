@@ -263,7 +263,7 @@ _ALLOW_DETECTION_TUNING = (
 _ALLOW_STAGE_TUNABLES = (
     'chapter_target_seconds', 'chapter_window_seconds', 'chapter_max_boundaries',
     'chapter_min_duration_seconds', 'window_size_seconds',
-    'window_overlap_seconds',
+    'window_overlap_seconds', 'held_widen_seconds',
 )
 
 DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(

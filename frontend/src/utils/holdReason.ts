@@ -42,3 +42,18 @@ export const HOLD_REASON_TITLES: Record<HoldReason, string> = {
   no_transcript_evidence: "No sponsor, link, promo code or ad phrase in this span's transcript",
   transcript_differential_unreviewed: 'This span is missing from the upstream transcript, and no other detector confirmed it is an ad.',
 };
+
+// A reason string the UI does not know yet (a newer backend) still gets a
+// readable label rather than an empty badge.
+export function holdReasonLabel(reason?: string | null): string {
+  if (!reason) return 'Held';
+  const known = (HOLD_REASON_LABELS as Record<string, string | undefined>)[reason];
+  if (known) return known;
+  const spaced = reason.replace(/_/g, ' ').trim();
+  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : 'Held';
+}
+
+export function holdReasonTitle(reason?: string | null): string {
+  if (!reason) return 'Held for manual review';
+  return (HOLD_REASON_TITLES as Record<string, string | undefined>)[reason] ?? 'Held for manual review';
+}

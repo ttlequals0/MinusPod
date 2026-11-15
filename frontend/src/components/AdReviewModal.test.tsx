@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -498,6 +499,242 @@ describe('AdReviewModal multi-span create', () => {
     expect(screen.getByText(/0:30\.0 - 0:40\.0: Could not save/)).toBeTruthy();
     expect(onCreateDone).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+const HELD = { reasonLabel: 'Reviewer contradiction', approved: false };
+
+async function typeStart(user: ReturnType<typeof userEvent.setup>, text: string) {
+  const box = screen.getByLabelText('Selection start time');
+  await user.clear(box);
+  await user.type(box, text);
+  await user.tab();
+}
+async function typeEnd(user: ReturnType<typeof userEvent.setup>, text: string) {
+  const box = screen.getByLabelText('Selection end time');
+  await user.clear(box);
+  await user.type(box, text);
+  await user.tab();
+}
+
+describe('AdReviewModal held editor copy', () => {
+  it('held editor titles the dialog with the hold reason', () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 99.5, max: 190.5 } });
+    expect(screen.getByRole('heading', { name: 'Held for review: Reviewer contradiction' })).toBeTruthy();
+  });
+
+  it('held editor says the span can shrink and how far it can grow', () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 40, max: 250 } });
+    expect(screen.getByText(
+      'You can shrink this span, or grow it by up to 60 s earlier and 60 s later. Saving approves it; it is not cut until the confirmed spans are cut.',
+    )).toBeTruthy();
+  });
+
+  it('held editor rounds the growth limit down to whole seconds', () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 39.5, max: 250.5 } });
+    expect(screen.getByText(
+      'You can shrink this span, or grow it by up to 60 s earlier and 60 s later. Saving approves it; it is not cut until the confirmed spans are cut.',
+    )).toBeTruthy();
+  });
+
+  it('held editor with a 0.5 s window says to use Add ad instead of growing', () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 99.5, max: 190.5 } });
+    expect(screen.getByText(
+      'You can shrink this span. To cover more audio, use Add ad. Saving approves it; it is not cut until the confirmed spans are cut.',
+    )).toBeTruthy();
+  });
+
+  it('held editor says which side cannot grow instead of 0 s', () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 100, max: 250 } });
+    expect(screen.getByText(
+      'You can shrink this span, or grow it by up to 60 s later (it cannot grow earlier). Saving approves it; it is not cut until the confirmed spans are cut.',
+    )).toBeTruthy();
+    cleanup();
+    renderModal({ heldContext: HELD, boundsWindow: { min: 40, max: 190.4 } });
+    expect(screen.getByText(
+      'You can shrink this span, or grow it by up to 60 s earlier (it cannot grow later). Saving approves it; it is not cut until the confirmed spans are cut.',
+    )).toBeTruthy();
+  });
+
+  it('held editor states the new span and the original once moved', async () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 40, max: 250 } });
+    const user = userEvent.setup();
+    await typeStart(user, '105');
+    expect(screen.getByText(
+      'Saving keeps 1:45.0 - 3:10.0 (was 1:40.0 - 3:10.0). It is not cut until the confirmed spans are cut.',
+    )).toBeTruthy();
+  });
+
+  it('held editor on an approved row says it is already confirmed', () => {
+    renderModal({ heldContext: { ...HELD, approved: true }, boundsWindow: { min: 99.5, max: 190.5 } });
+    expect(screen.getByText(/^Already confirmed, not cut yet\. You can shrink/)).toBeTruthy();
+  });
+
+  it('non-held editor keeps the Detected ad title', () => {
+    renderModal();
+    expect(screen.getByRole('heading', { name: 'Detected ad' })).toBeTruthy();
+    expect(screen.getByText('Confirm will record this ad as-detected.')).toBeTruthy();
+  });
+});
+
+describe('AdReviewModal boundary errors', () => {
+  const win = { min: 90, max: 200 };
+
+  it('held error tells the earliest allowed time when start is too early', async () => {
+    renderModal({ boundsWindow: win, heldContext: HELD });
+    const user = userEvent.setup();
+    await typeStart(user, '60');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Start must be at or after 1:30. To cover more audio, use Add ad.');
+  });
+
+  it('held error tells the latest allowed time when end is too late', async () => {
+    renderModal({ boundsWindow: win, heldContext: HELD });
+    const user = userEvent.setup();
+    await typeEnd(user, '260');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'End must be at or before 3:20. To cover more audio, use Add ad.');
+  });
+
+  it('a bounds window outside the held editor keeps the detected-span error', async () => {
+    renderModal({ boundsWindow: win });
+    const user = userEvent.setup();
+    await typeEnd(user, '260');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Selection must stay within the detected span (1:30.0 - 3:20.0)');
+  });
+
+  it('held error points to Add ad', async () => {
+    renderModal({ boundsWindow: win, heldContext: HELD });
+    const user = userEvent.setup();
+    await typeEnd(user, '260');
+    expect(screen.getByRole('alert').textContent).toMatch(/ To cover more audio, use Add ad\.$/);
+  });
+
+  it('error tells how to fix an end before start', async () => {
+    renderModal({ boundsWindow: win });
+    const user = userEvent.setup();
+    await typeEnd(user, '95');
+    await typeStart(user, '150');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Start must be before End');
+  });
+
+  it('error tells how to fix a too-short selection', async () => {
+    renderModal({ boundsWindow: win });
+    const user = userEvent.setup();
+    await typeEnd(user, '150');
+    await typeStart(user, '149.5');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Selection must be at least 1s long');
+  });
+
+  it('Confirm stays disabled while an error shows', async () => {
+    renderModal({ boundsWindow: win });
+    const user = userEvent.setup();
+    await typeStart(user, '60');
+    const confirm = screen.getByRole('button', { name: /^Confirm/ }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+  });
+});
+
+describe('AdReviewModal exact-time inputs', () => {
+  it('labels the start and end boxes', () => {
+    renderModal();
+    expect(screen.getByText('Start (m:ss or seconds)')).toBeTruthy();
+    expect(screen.getByText('End (m:ss or seconds)')).toBeTruthy();
+  });
+
+  it('shows the allowed range before any error', () => {
+    renderModal({ boundsWindow: { min: 90, max: 200 } });
+    expect(screen.getByTestId('bounds-range').textContent).toBe('Allowed: 1:30 - 3:20');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps a tenth when a limit is not a whole second, rounded inward', () => {
+    renderModal({ boundsWindow: { min: 89.5, max: 200.5 } });
+    expect(screen.getByTestId('bounds-range').textContent).toBe('Allowed: 1:29.5 - 3:20.5');
+  });
+
+  it('never shows a lower limit above what the server accepts', () => {
+    renderModal({ boundsWindow: { min: 58.6, max: 200.04 } });
+    expect(screen.getByTestId('bounds-range').textContent).toBe('Allowed: 0:58.6 - 3:20');
+  });
+
+  it('shows no allowed range without a window', () => {
+    renderModal();
+    expect(screen.queryByTestId('bounds-range')).toBeNull();
+  });
+
+  it('Reset to original restores both boundaries and clears the error', async () => {
+    renderModal({ boundsWindow: { min: 90, max: 200 } });
+    const user = userEvent.setup();
+    expect(screen.queryByTestId('reset-bounds')).toBeNull();
+    await typeStart(user, '60');
+    await typeEnd(user, '150');
+    expect(screen.getByRole('alert')).toBeTruthy();
+    await user.click(screen.getByTestId('reset-bounds'));
+    expect((screen.getByLabelText('Selection start time') as HTMLInputElement).value).toBe('1:40.0');
+    expect((screen.getByLabelText('Selection end time') as HTMLInputElement).value).toBe('3:10.0');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('reset-bounds')).toBeNull();
+  });
+
+  it('typing seconds commits on Enter', async () => {
+    renderModal({ boundsWindow: { min: 90, max: 200 } });
+    const user = userEvent.setup();
+    const box = screen.getByLabelText('Selection end time') as HTMLInputElement;
+    await user.clear(box);
+    await user.type(box, '150{Enter}');
+    await waitFor(() => expect(box.value).toBe('2:30.0'));
+    expect(screen.getByText('(originally 1:40.0 - 3:10.0)')).toBeTruthy();
+  });
+});
+
+describe('AdReviewModal held save buttons', () => {
+  const win = { min: 90, max: 200 };
+
+  it('held editor offers Confirm and an extra Save, cut later', () => {
+    renderModal({ heldContext: HELD, boundsWindow: win });
+    expect(screen.getByRole('button', { name: /^Confirm/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save, cut later' })).toBeTruthy();
+  });
+
+  it('Confirm submits without cutLater so the host keeps the one-tap chain', async () => {
+    const { onSubmit } = renderModal({ heldContext: HELD, boundsWindow: win });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^Confirm/ }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0].kind).toBe('confirm');
+    expect(onSubmit.mock.calls[0][0].cutLater).toBeUndefined();
+  });
+
+  it('Save, cut later on a moved span submits the adjusted bounds with cutLater', async () => {
+    const { onSubmit } = renderModal({ heldContext: HELD, boundsWindow: win });
+    const user = userEvent.setup();
+    await typeStart(user, '105');
+    await user.click(screen.getByRole('button', { name: 'Save, cut later' }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining(
+      { kind: 'adjust', adjustedStart: 105, adjustedEnd: 190, cutLater: true }));
+  });
+
+  it('Save, cut later submits a plain confirm with cutLater', async () => {
+    const { onSubmit } = renderModal({ heldContext: HELD, boundsWindow: win });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Save, cut later' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ kind: 'confirm', cutLater: true });
+  });
+
+  it('lists a +/-0.5 s window (widening off) as the allowed range', () => {
+    renderModal({ heldContext: HELD, boundsWindow: { min: 99.5, max: 190.5 } });
+    expect(screen.getByTestId('bounds-range').textContent).toBe('Allowed: 1:39.5 - 3:10.5');
+  });
+
+  it('non-held editor has no Save, cut later', () => {
+    renderModal();
+    expect(screen.getByRole('button', { name: /^Confirm/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save, cut later' })).toBeNull();
   });
 });
 

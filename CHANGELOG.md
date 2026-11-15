@@ -8,6 +8,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Added
+
+- Held for review markers can optionally be widened by hand. A new advanced setting, "Widen held ads by (seconds)" under Settings, LLM tunables (`heldWidenSeconds`, 0 to 120, default 0), lets the held editor move a held marker's edges up to that many seconds past its reviewed span, stopped at decided or kept neighbours and the episode edges. Above 0, an adjust on a held marker also approves it with the adjusted bounds. At 0 the window and the adjust behave as before.
+
+### Changed
+
+- The held editor shows the allowed range and how far the span can still grow, "Save, cut later" never starts a recut, and the reason a marker is held is shown as text under its badges.
+
+### Fixed
+
+- Recut no longer applies a stored adjustment that is under 1 second or that a newer confirm of the same span replaced, so an old adjustment can no longer override a newer confirm. Each skipped adjustment is logged.
+- Rejecting a span clears the approval of a held marker whose confirm the reject removed, so the episode no longer reads "confirmed, not cut yet" for a span the recut will not cut.
+- When several detections clamp to the same approved span, validation keeps one marker for it.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed

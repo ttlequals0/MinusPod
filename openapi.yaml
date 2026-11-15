@@ -3460,6 +3460,11 @@ paths:
           fingerprint recorded a match for the span, that match is marked rejected.
         - adjust: Correct ad boundaries. Also creates patterns from the adjusted boundaries
           (like confirm), ensuring accurate pattern text is learned from the corrected segment.
+          When heldWidenSeconds is above 0, on a held-for-review marker it also moves the marker to the
+          adjusted bounds and approves it, like a trimmed confirm; the audio is still uncut until a recut.
+          adjusted_start/adjusted_end must be numbers, at least 1s apart (end after start),
+          start >= 0 and end <= the episode duration, otherwise 400 and nothing is recorded.
+          A trimmed confirm follows the same rules plus its own envelope around the reviewed span.
           The pattern's audio fingerprint is rebuilt from the adjusted span of the retained
           original, even if its audio was deleted earlier, and the deleted marker is cleared
           when the rebuild succeeds. This is best effort and never fails the request.
@@ -3541,6 +3546,32 @@ paths:
                   previousCategory:
                     type: string
                     description: Segment category before the change; returned by recategorize
+                  recut_pending:
+                    type: boolean
+                    description: >-
+                      Always true when present. Returned by confirm, reject, adjust and
+                      recategorize when the span matches a stored marker: the decision is
+                      saved and takes effect in the audio at the next recut.
+                  marker:
+                    type: object
+                    description: >-
+                      The matching marker as stored after the write (a trimmed confirm or an
+                      adjust on a held marker reports the new bounds). Omitted when no marker
+                      matches the span.
+                    properties:
+                      start:
+                        type: number
+                      end:
+                        type: number
+                      approved:
+                        type: boolean
+                        description: False when the marker has no approval
+                      was_cut:
+                        type: boolean
+                        description: Whether the audio is already cut; false means a recut is still needed
+                      hold_reason:
+                        type: [string, 'null']
+                        description: Why the marker is held for review; null when it is not held
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -8699,6 +8730,15 @@ paths:
                   minimum: 0
                   maximum: 1770
                   description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
+                heldWidenSeconds:
+                  type: [number, 'null']
+                  minimum: 0
+                  maximum: 120
+                  description: >-
+                    Seconds a held-for-review marker's edges may be moved past the reviewed span, each way, limited by cut, approved,
+                    kept and rejected neighbours and the episode edges. 0 (default) keeps the reviewed span plus or minus 0.5 s. A
+                    value above 0 also makes an adjust approve the held marker at once and drops a stored adjustment outside that
+                    window when the recut replays it. Null clears the stored value.
                 verificationMissHoldMinConfidence:
                   type: number
                   format: float
@@ -17587,6 +17627,21 @@ components:
             reason:
               type: string
               description: Reviewer reasoning, or the abstain reason for an inconclusive review.
+        allowedBounds:
+          type: object
+          description: >-
+            Set on pendingReviewMarkers only. The earliest start and latest end, in seconds,
+            a human may confirm this held marker at. With heldWidenSeconds 0 (default) this is the
+            span, widened to the reviewer's proposal when it has a usable one, +/- 0.5 s; above 0,
+            its span (and first-detected span) widened by up to that many
+            seconds each way, stopped at cut, approved, kept or rejected neighbours and at 0 and the
+            episode end. The corrections API enforces exactly this window for a
+            trimmed confirm.
+          properties:
+            min:
+              type: number
+            max:
+              type: number
         reviewer_proposed_start:
           type: [number, 'null']
           description: Informational reviewer-proposed start on a held marker. It is not applied until a human confirms it.
@@ -20669,10 +20724,14 @@ components:
           enum: [confirm, reject, adjust, create, split, recategorize]
           description: |
             - confirm: Mark detection as correct (creates/updates pattern).
-              Optionally pass adjusted_start/adjusted_end to approve a trimmed
-              sub-span of a held marker (e.g. the reviewer's proposed trim);
-              the marker's boundaries move to the trimmed span before approval
-              and only the ad portion is cut on recut.
+              Optionally pass adjusted_start/adjusted_end to approve a held
+              marker with changed bounds (e.g. the reviewer's proposed trim).
+              The bounds may shrink, or grow by up to heldWidenSeconds each way (further
+              when the reviewer proposed a larger span; the allowedBounds on
+              the episode payload give the exact limits), but never into a cut,
+              approved, kept or rejected neighbour, and the span must stay at
+              least 1 s long. The marker's boundaries move to the new span
+              before approval and only that span is cut on recut.
             - reject: Mark as false positive (stores text for cross-episode exclusion)
             - adjust: Correct boundaries (also creates pattern from adjusted segment)
             - create: Mark a brand-new ad the detector missed (top-level
@@ -20714,14 +20773,16 @@ components:
           type: number
           description: >-
             Corrected start time in seconds (required for adjust; optional for
-            confirm as a trimmed approval, must lie within the original span
-            and both bounds must be supplied together)
+            confirm as a trimmed approval, must lie within the allowed window
+            around the original span, see the confirm description; both bounds
+            must be supplied together)
         adjusted_end:
           type: number
           description: >-
             Corrected end time in seconds (required for adjust; optional for
-            confirm as a trimmed approval, must lie within the original span
-            and both bounds must be supplied together)
+            confirm as a trimmed approval, must lie within the allowed window
+            around the original span, see the confirm description; both bounds
+            must be supplied together)
         split_points:
           type: array
           items:
