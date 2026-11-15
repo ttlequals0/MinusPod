@@ -8,7 +8,7 @@ SHORT_ASK_TIGHT_BELOW_S = 3.0
 SHORT_ASK_TIGHT_EDGE_CAP_S = 0.5
 _EPS = 0.05
 _SENTENCE_END = ('.', '?', '!')
-_CLOSERS = '"\')]}”’'
+_CLOSERS = '"\')]}\u201d\u2019'
 
 
 def _origin(ad):
