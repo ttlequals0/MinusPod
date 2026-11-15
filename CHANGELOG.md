@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Added
+
+- Remove short host asks and sponsor thanks, a new setting that is off by default. When on, the detection, reviewer and resurrect prompts gain a short-asks section, and the model may flag a 2 to 40 second interaction, self-promo or sponsor sentence with `short_ask`. A flagged marker uses a 2 second floor instead of the usual 7 and 10 second floors, and its edges snap to sentence edges within 1.5 seconds of the model's edges (within 0.5 seconds for an ask under 3 seconds); with no such edge the flag is dropped and the usual floors apply. The episode page shows a Short ask chip and counts short asks in the Detected ads header. Each feed can follow the global setting or turn it on or off. API: `snipShortAsks` on `PUT /api/v1/settings/ad-detection` and on the feed `PATCH` (true, false or null). See [Configuration](docs/configuration.md).
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed

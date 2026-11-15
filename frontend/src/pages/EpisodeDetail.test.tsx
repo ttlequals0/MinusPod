@@ -840,6 +840,37 @@ describe('EpisodeList: pending chip', () => {
   });
 });
 
+describe('Short ask chip and header count', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the chip on flagged markers and counts them in the header', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [
+        { start: 10, end: 20, confidence: 0.9, detection_stage: 'claude', short_ask: true },
+        { start: 100, end: 160, confidence: 0.9, detection_stage: 'claude' },
+        { start: 300, end: 310, confidence: 0.9, detection_stage: 'claude', short_ask: false },
+      ],
+    }));
+    await waitFor(() => expect(screen.getByText('Detected ads (3) \u00b7 Short asks (1)')).toBeDefined());
+    expect(screen.getAllByText('Short ask')).toHaveLength(1);
+    expect(screen.getByText('Short ask').getAttribute('title')).toBe(
+      'Short host ask or sponsor thanks, cut on sentence edges',
+    );
+  });
+
+  it('omits the chip and the count when no marker is flagged', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
+    }));
+    await waitFor(() => expect(screen.getByText('Detected ads (1)')).toBeDefined());
+    expect(screen.queryByText('Short ask')).toBeNull();
+  });
+});
+
 describe('Differential status and corroboration badges', () => {
   beforeEach(() => {
     vi.clearAllMocks();

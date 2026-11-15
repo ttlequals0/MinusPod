@@ -1305,6 +1305,25 @@ Output: [{"start": 2324.5, "end": 2381.1, "confidence": 0.85, "category": "outro
 """
 
 
+# Opt-in addition (snip_short_asks): appended after the show-segments section
+# when the feed asks for short host asks and sponsor thanks to be removed.
+SHORT_ASKS_PROMPT_SECTION = """SHORT HOST ASKS:
+This podcast has asked for short host-spoken asks and thank-yous to be removed. For this podcast they ARE ad content, even when the host says them live: the "NOT AN AD" rule and the "produced or inserted" wording above do not cover them. Mark each of these:
+- interaction: asks to subscribe, follow, rate, review, share, turn on notifications, comment, or tell a friend
+- self_promo: the host's own merch, Patreon, membership, newsletter, live shows, book, app, or other podcast
+- sponsor: a thank-you to sponsors ("thanks to our sponsors X and Y", "brought to you by", "support for this show comes from") and a sponsor's call to action (a promo code or URL for a company that pays for the show)
+
+RULES FOR SHORT HOST ASKS:
+- One marker per run of such sentences. Start at the first word of the first sentence and end at the end of the last sentence. Never start or end in the middle of a sentence.
+- Set "category" to exactly "interaction", "self_promo", or "sponsor" and add "short_ask": true to the object.
+- Never mark a guest's own book, show, or project, a recommendation or link the host gives without a sponsor relationship, any mention of a company, product, book, or person that is part of the conversation, or the host's own work when it is the episode's topic. self_promo is only the host's own work. If you are unsure whether a sentence is an ask or a thank-you, do not mark it.
+"""
+
+# Opt-in addition to the reviewer and resurrect system prompts (snip_short_asks).
+SHORT_ASKS_REVIEW_SECTION = """SHORT HOST ASKS ON THIS FEED:
+This feed removes short host-spoken asks, self-promotion, and sponsor thank-yous. On this feed such a sentence is an ad: a host asking listeners to subscribe, rate, follow, or share, promoting their own shows or Patreon, or thanking or naming sponsors with a call to action. For a marker of 40 seconds or less in interaction, self_promo, or sponsor, "Host organically mentioning own shows or Patreon" is not a reason to reject it. Still reject editorial talk about a company, product, or person that is part of the conversation, a recommendation the host gives without a sponsor relationship, and any guest's own work. Move a boundary only to the start or end of a sentence, and never into the middle of one.
+"""
+
 # Provenance of a reprocess_requested_at stamp. The stamp itself only says
 # "may bypass the auto-process gate", which is not the same as a person asking.
 REPROCESS_SOURCE_JIT = 'jit'

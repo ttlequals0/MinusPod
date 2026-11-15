@@ -1332,6 +1332,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in to detect intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. true/false override the global detectShowSegments setting for this feed; null falls back to it.
+                snipShortAsks:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed opt-in to remove short host-spoken asks, self-promotion and sponsor thank-yous (2 to 40 seconds, cut on sentence edges only). true/false override the global snipShortAsks setting for this feed; null falls back to it.
                 skipSecondPass:
                   type:
                     - boolean
@@ -8016,6 +8021,9 @@ paths:
                 detectShowSegments:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
+                snipShortAsks:
+                  type: boolean
+                  description: Global default for removing short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Overridden by per-feed snipShortAsks when set. Default false.
                 seedSponsorsDetection:
                   type: boolean
                   description: Whether the detection pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
@@ -15953,6 +15961,11 @@ components:
             - boolean
             - 'null'
           description: Whether this feed detects intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null means use the global detectShowSegments setting. true/false override the global for this feed.
+        snipShortAsks:
+          type:
+            - boolean
+            - 'null'
+          description: Whether this feed removes short host asks and sponsor thanks. Null means use the global snipShortAsks setting. true/false override the global for this feed.
         ownEpisodeGuids:
           type:
             - boolean
@@ -18774,6 +18787,14 @@ components:
               description: Global default for detecting intro, outro, and recap/housekeeping segments (per-feed detectShowSegments overrides when set)
             isDefault:
               type: boolean
+        snipShortAsks:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Global default for removing short host asks and sponsor thanks (per-feed snipShortAsks overrides when set)
+            isDefault:
+              type: boolean
         seedSponsorsDetection:
           type: object
           properties:
@@ -19855,6 +19876,8 @@ components:
             whatsNewOnUpgrade:
               type: boolean
             detectShowSegments:
+              type: boolean
+            snipShortAsks:
               type: boolean
             seedSponsorsDetection:
               type: boolean

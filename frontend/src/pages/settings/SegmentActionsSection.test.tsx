@@ -17,6 +17,7 @@ function SegmentActionsHarness({ onCommit }: {
 }) {
   const [actions, setActions] = useState<Record<string, string>>({});
   const [detectShowSegments, setDetectShowSegments] = useState(false);
+  const [snipShortAsks, setSnipShortAsks] = useState(false);
   return (
     <SegmentActionsSection
       segmentCategoryActions={actions}
@@ -26,6 +27,8 @@ function SegmentActionsHarness({ onCommit }: {
       }}
       detectShowSegments={detectShowSegments}
       onDetectShowSegmentsChange={setDetectShowSegments}
+      snipShortAsks={snipShortAsks}
+      onSnipShortAsksChange={setSnipShortAsks}
     />
   );
 }
@@ -87,5 +90,27 @@ describe('SegmentActionsSection: global show-segments default', () => {
 
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     expect(commits).toEqual([]);
+  });
+});
+
+describe('SegmentActionsSection: global short-asks default', () => {
+  const NAME = 'Remove short host asks and sponsor thanks';
+
+  it('renders off by default', () => {
+    render(<SegmentActionsHarness onCommit={() => {}} />);
+    expect(screen.getByRole('switch', { name: NAME }).getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('turns on without touching the category mutation or the show-segments switch', async () => {
+    const commits: Array<{ segmentCategoryActions: Record<string, string> }> = [];
+    render(<SegmentActionsHarness onCommit={(payload) => commits.push(payload)} />);
+
+    const toggle = screen.getByRole('switch', { name: NAME });
+    await userEvent.click(toggle);
+
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect(commits).toEqual([]);
+    expect(screen.getByRole('switch', { name: 'Detect intro, outro, and housekeeping segments' })
+      .getAttribute('aria-checked')).toBe('false');
   });
 });

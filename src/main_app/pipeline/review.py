@@ -43,6 +43,15 @@ def _build_reviewer(db, ad_detector) -> AdReviewer:
     )
 
 
+def _snip_short_asks(slug) -> bool:
+    """The feed's resolved snip_short_asks; off when it cannot be read."""
+    try:
+        return bool(db.resolve_feed_bool(slug, 'snip_short_asks', 'snip_short_asks'))
+    except Exception as e:
+        audio_logger.warning(f"[{slug}] Could not resolve snip_short_asks: {e}")
+        return False
+
+
 def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
                         episode_title, podcast_description, episode_description,
                         audio_analysis=None, effective_category_actions=None,
@@ -68,6 +77,7 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
         'min_cut_confidence': min_cut_confidence,
         # Labelled keeps and user rejections the reviewer prompt lists as hard limits.
         'protected_spans': protected_spans,
+        'snip_short_asks': _snip_short_asks(slug),
     }
 
 

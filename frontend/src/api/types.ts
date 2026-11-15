@@ -183,6 +183,9 @@ export interface Feed {
   // Also detect intro/outro/recap/housekeeping segments. Null inherits the
   // global detectShowSegments default.
   detectShowSegments?: boolean | null;
+  // Remove short host asks and sponsor thanks. Null inherits the global
+  // snipShortAsks default.
+  snipShortAsks?: boolean | null;
   // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass
   // upstream GUIDs through; new feeds are created with true.
   ownEpisodeGuids?: boolean | null;
@@ -723,6 +726,8 @@ export interface AdSegment {
   // What the resolved segment-action map did with this marker's category.
   // Null when the marker predates the feature or the action never resolved.
   actionApplied?: SegmentAction | null;
+  // Set by the detector on a 2-40 s host ask or sponsor thanks (snip_short_asks).
+  short_ask?: boolean;
 }
 
 export type QueueOrder = 'queued' | 'oldest_first' | 'newest_first';
@@ -946,6 +951,7 @@ export interface Settings {
   requireManualApprovalDefault?: SettingValueBoolean;
   whatsNewOnUpgrade?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
+  snipShortAsks?: SettingValueBoolean;
   textRecurrenceHints: SettingValueBoolean;
   adAddressingMode: SettingValue;
   processNewEpisodesFirst: SettingValueBoolean;
@@ -1148,6 +1154,7 @@ export interface Settings {
     requireManualApprovalDefault?: boolean;
     whatsNewOnUpgrade?: boolean;
     detectShowSegments: boolean;
+    snipShortAsks?: boolean;
     textRecurrenceHints: boolean;
     adAddressingMode: string;
     processNewEpisodesFirst: boolean;
@@ -1307,6 +1314,7 @@ export interface UpdateSettingsPayload {
   requireManualApprovalDefault?: boolean;
   whatsNewOnUpgrade?: boolean;
   detectShowSegments?: boolean;
+  snipShortAsks?: boolean;
   textRecurrenceHints?: boolean;
   adAddressingMode?: string;
   processNewEpisodesFirst?: boolean;
