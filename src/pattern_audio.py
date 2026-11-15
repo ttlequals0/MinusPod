@@ -2,14 +2,19 @@
 import logging
 import math
 
+from rapidfuzz import fuzz
+
 from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
 from storage import PathContainmentError, Storage
 from text_pattern_matcher import split_template_text
+from utils.markers import parse_ad_markers
 from utils.text import extract_timed_spans_in_range
 
 logger = logging.getLogger('podcast.pattern_audio')
 
 RETAINED_MATCH_CANDIDATES = 20
+# Minimum alignment score (0-100) for a template to count as found despite transcription differences
+FUZZY_LOCATE_FLOOR = 88.0
 
 
 def resolve_retained_original(db, storage, slug, episode_id, episode=None):
@@ -103,20 +108,41 @@ def _edge_time(spans, words, offsets, i, char_pos, fallback):
     return seg['start'] + frac * (seg['end'] - seg['start'])
 
 
-def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, locate=False):
-    """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
-    # locate: the templates were cut from the span by something other than split_template_text
-    if not locate and (len(pattern_ids) < 2 or not text or len(split_template_text(text)) < 2):
-        return {pid: (start, end) for pid in pattern_ids}
-    spans = extract_timed_spans_in_range(
-        db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
+def _find_text(joined, template, after, fuzzy):
+    """(lo, hi) of template in joined at or after `after`: exact, else a strict fuzzy alignment when allowed."""
+    lo = joined.find(template, after)
+    if lo >= 0:
+        return lo, lo + len(template)
+    if not fuzzy or len(template) > len(joined) - after:
+        return None
+    alignment = fuzz.partial_ratio_alignment(template, joined[after:], score_cutoff=FUZZY_LOCATE_FLOOR)
+    if alignment is None or alignment.score < FUZZY_LOCATE_FLOOR or alignment.dest_end <= alignment.dest_start:
+        return None
+    return after + alignment.dest_start, after + alignment.dest_end
+
+
+def _timed_words(db, slug, episode_id, start, end):
+    """(spans, words, joined text, word offsets) of the transcript between start and end."""
+    spans = extract_timed_spans_in_range(db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
     words = [' '.join(span['text'].split()) for span in spans]
-    joined = ' '.join(words)
     offsets = []
     offset = 0
     for word in words:
         offsets.append(offset)
         offset += len(word) + 1
+    return spans, words, ' '.join(words), offsets
+
+
+def _covered_segments(words, offsets, lo, hi):
+    return [i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < hi]
+
+
+def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, locate=False):
+    """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
+    # locate: the templates were cut from the span by something other than split_template_text
+    if not locate and (len(pattern_ids) < 2 or not text or len(split_template_text(text)) < 2):
+        return {pid: (start, end) for pid in pattern_ids}
+    spans, words, joined, offsets = _timed_words(db, slug, episode_id, start, end)
     found = {}
     patterns = db.get_ad_patterns_by_ids(pattern_ids)
     after = 0
@@ -124,13 +150,15 @@ def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, lo
         pattern = patterns.get(pid) or {}
         template = ' '.join((pattern.get('text_template') or '').split())
         # split children come in text order, so a repeat inside an earlier child is not theirs
-        lo = joined.find(template, after if locate else 0) if template else -1
-        if locate and lo >= 0:
-            after = lo + len(template)
-        covered = [] if lo < 0 else [
-            i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < lo + len(template)]
+        where = _find_text(joined, template, after if locate else 0, locate) if template else None
+        if where is None:
+            continue
+        lo, hi = where
+        if locate:
+            after = hi
+        covered = _covered_segments(words, offsets, lo, hi)
         if covered:
-            found[pid] = (lo, lo + len(template), covered[0], covered[-1])
+            found[pid] = (lo, hi, covered[0], covered[-1])
     own = dict.fromkeys(pattern_ids)
     previous_last, previous_end = None, start
     for pid, (lo, hi, first, last) in sorted(found.items(), key=lambda item: item[1][:2]):
@@ -179,18 +207,70 @@ def store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force
 def _usable_fingerprint_row(conn, pattern_id):
     """The pattern's fingerprint row when it is on and its audio was not deleted, else None."""
     return conn.execute(
-        "SELECT af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end "
+        "SELECT af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end, "
+        "ap.podcast_id, ap.created_from_episode_id, ap.text_template "
         "FROM audio_fingerprints af JOIN ad_patterns ap ON ap.id = af.pattern_id "
         "WHERE af.pattern_id = ? AND af.enabled = 1 AND ap.audio_removed = 0", (pattern_id,)).fetchone()
 
 
-def rebuild_audio_source(db, conn, pattern_id):
-    """(source, wanted): the recorded source if retained, else a retained in-scope match."""
+def locate_template_span(db, slug, episode_id, template):
+    """The whole-segment (start, end) of template in an episode's transcript, else None."""
+    template = ' '.join((template or '').split())
+    if not template:
+        return None
+    spans, words, joined, offsets = _timed_words(db, slug, episode_id, 0, math.inf)
+    where = _find_text(joined, template, 0, True)
+    covered = _covered_segments(words, offsets, *where) if where else []
+    if not covered:
+        return None
+    span = (spans[covered[0]]['start'], spans[covered[-1]]['end'])
+    return span if usable_span(*span) else None
+
+
+def _marker_span(db, slug, episode_id, pattern_id):
+    """The earliest span of the episode's own stored marker for the pattern, else None."""
+    markers = parse_ad_markers((db.get_episode(slug, episode_id) or {}).get('ad_markers_json')) or []
+    spans = sorted((m['start'], m['end']) for m in markers
+                   if isinstance(m, dict) and m.get('pattern_id') == pattern_id
+                   and (m.get('validation') or {}).get('decision') != 'REJECT'
+                   and usable_span(m.get('start'), m.get('end')))
+    return spans[0] if spans else None
+
+
+def _creating_episode_source(db, storage, pattern_id, row, text, *, marker):
+    """A source in the episode the pattern was learned from, when its original is retained and a span is derivable."""
+    slug, episode_id = row['podcast_id'], row['created_from_episode_id']
+    if not slug or not episode_id:
+        return None
+    path, err = resolve_retained_original(db, storage, slug, episode_id)
+    if err:
+        return None
+    span = locate_template_span(db, slug, episode_id, text)
+    if span is None and marker:
+        span = _marker_span(db, slug, episode_id, pattern_id)
+    if span is None:
+        return None
+    return {'podcastSlug': slug, 'episodeId': episode_id, 'start': span[0], 'end': span[1], 'path': path}
+
+
+def rebuild_audio_source(db, conn, pattern_id, *, prefer_text=None):
+    """(source, wanted): the recorded source if retained, else a retained in-scope match, else the creating episode.
+
+    prefer_text is the template a cleanup trim or split starts from: where the creating episode contains it,
+    that episode comes first, since its wording is the one the templates were cut from.
+    """
     row = _usable_fingerprint_row(conn, pattern_id)
     if row is None:
         return None, False
-    found = first_retained_source(
-        db, Storage(), candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
+    storage = Storage()
+    found = None
+    if prefer_text:
+        found = _creating_episode_source(db, storage, pattern_id, row, prefer_text, marker=False)
+    if found is None:
+        found = first_retained_source(
+            db, storage, candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
+    if found is None:
+        found = _creating_episode_source(db, storage, pattern_id, row, row['text_template'], marker=True)
     if found is None:
         return None, True
     return {'slug': found['podcastSlug'], 'episode_id': found['episodeId'],
