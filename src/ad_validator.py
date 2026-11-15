@@ -76,6 +76,7 @@ from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
 from sponsor_service import SponsorService
 from utils.constants import (AUDIO_ECHO_RE, is_brand_token, is_non_brand_name,
                              mentions_advertising, squash_brand)
+from utils.short_asks import floor_for
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
@@ -1039,7 +1040,7 @@ class AdValidator:
             # A stinger is short by nature; only a sliver is an error.
             if duration < CUE_MATCH_MIN_DURATION:
                 flags.append(f"ERROR: Very short ({duration:.1f}s)")
-        elif duration < MIN_AD_DURATION:
+        elif duration < floor_for(ad, MIN_AD_DURATION):
             flags.append(f"ERROR: Very short ({duration:.1f}s)")
         elif duration < SHORT_AD_WARN:
             flags.append(f"WARN: Short duration ({duration:.1f}s)")
