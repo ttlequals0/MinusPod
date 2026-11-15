@@ -8090,8 +8090,8 @@ paths:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
                 snipShortAsks:
-                  type: boolean
-                  description: Global default for removing short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Overridden by per-feed snipShortAsks when set. Default false.
+                  type: [boolean, 'null']
+                  description: Global default for removing short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Overridden by per-feed snipShortAsks when set. null resets it to the default, false. Any other type is a 400.
                 seedSponsorsDetection:
                   type: boolean
                   description: Whether the detection pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
@@ -8899,6 +8899,9 @@ paths:
                 properties:
                   message:
                     type: string
+                  snipShortAsks:
+                    type: boolean
+                    description: Stored global value, present only when snipShortAsks was sent.
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -17589,6 +17592,9 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
           description: Which detection stage found this ad
           example: first_pass
+        short_ask:
+          type: boolean
+          description: Set on a 2 to 40 second host ask or sponsor thanks flagged while the feed has snipShortAsks on.
         pattern_id:
           type: [integer, 'null']
           description: The ad pattern this marker matched or created, when any.
