@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Fixed
+
+- A blank system prompt no longer sends an empty system message (OpenAI-compatible and Ollama) or an empty `system` parameter (Anthropic). Some gateways in front of these APIs reject an empty system block with a 400, so the request failed before reaching the model. A non-blank system prompt is sent as before, and the JSON-format fallback for endpoints without `json_object` support adds a system message when there was none.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed
