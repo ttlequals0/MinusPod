@@ -28,7 +28,7 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW, CUE_ONLY_SAFETY_AUTO_CUT,
     CUE_ONLY_AUTOCUT_CONFIDENCE,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
-    HOLD_REASON_LARGE_VAD_GAP, HOLD_REASON_NO_TRANSCRIPT_EVIDENCE,
+    HOLD_REASON_LARGE_VAD_GAP, HOLD_REASON_NO_TRANSCRIPT_EVIDENCE, HOLD_REASON_TRANSCRIPT_LOOP,
     EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE, measured_evidence, repair_segment_category,
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
     REVIEWER_REJECT_PRESERVED_FLAG, is_keep_like,
@@ -67,6 +67,7 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping, identical_coverage
 from community_export import brand_match_candidates
 from text_pattern_matcher import AD_TRANSITION_PHRASES, bounded_segment_texts
+from transcriber.segments import LOOP_MIN_COVERAGE, drop_loop_cues, find_loop_runs, loop_coverage
 from sponsor_context import (BARE_LINK_RE, BRAND_LINK_RE, COMMERCIAL_CONTEXT_RE, CTA_LINK_RE,
                              SPONSOR_FRAMING_RE, SPONSOR_IS_SPONSOR_RE, SPONSOR_MIN_MENTIONS,
                              SPONSOR_THANKS_RE, VANITY_LINK_RE, description_sponsor_re,
@@ -347,6 +348,7 @@ class AdValidator:
     CORROBORATION_WINDOW_S = 5.0
     CORROBORATION_MIN_VOLUME_STEP_DB = 12.0
     TAIL_EOF_WINDOW_S = 5.0  # marker end this close to EOF counts as tail
+    LOOP_TOUCH_S = 5.0  # a loop this close to ad language is the same read
 
     def __init__(self, episode_duration: float, segments: list[dict] = None,
                  episode_description: str = None,
@@ -365,7 +367,8 @@ class AdValidator:
                  max_ad_duration: float = MAX_AD_DURATION,
                  max_ad_duration_confirmed: float = MAX_AD_DURATION_CONFIRMED,
                  podcast_name: str = None,
-                 transcript_spans: list[dict] = None):
+                 transcript_spans: list[dict] = None,
+                 loop_runs: list[tuple[float, float, int]] = None):
         """Initialize validator.
 
         episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
@@ -379,12 +382,18 @@ class AdValidator:
         handle here): a differential region corroborates a marker only at or under it. sponsor_service confirms a
         long ad names a real advertiser when the description lists none (optional). max_ad_duration is the length
         above which an ad needs a confirmed sponsor (per feed); max_ad_duration_confirmed the length above which even
-        that does not help. transcript_spans are upstream transcript gaps (original timeline).
+        that does not help. transcript_spans are upstream transcript gaps (original timeline). loop_runs are the
+        Whisper repetition runs of segments when the caller already computed them; found here when None.
         """
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
         self.episode_duration = episode_duration
         self.segments = segments or []
+        # Loop cues are no transcript evidence: marker text lookups skip them.
+        self._loop_runs = find_loop_runs(self.segments) if loop_runs is None else loop_runs
+        self._evidence_source = None   # the segments _evidence_cache was built from
+        for lo, hi, n in self._loop_runs:
+            logger.info(f"Transcript loop: {n} near-identical cues over {lo:.1f}-{hi:.1f}s")
         self.episode_description = episode_description or ""
         self._description_sponsor_re = description_sponsor_re(self.episode_description)
         self.false_positive_corrections = false_positive_corrections or []
@@ -500,8 +509,80 @@ class AdValidator:
         return (show in squashed
                 or (len(words) >= 3 and show.startswith(squashed)))
 
+    @property
+    def _evidence_segments(self) -> list[dict]:
+        """Transcript cues outside loop runs; rebuilt only when ``segments`` is replaced."""
+        if self._evidence_source is not self.segments:
+            self._evidence_source = self.segments
+            self._evidence_cache = drop_loop_cues(self.segments, self._loop_runs)
+        return self._evidence_cache
+
+    def _loop_dominated(self, ad: dict) -> bool:
+        """A marker mostly inside a Whisper loop that no measured signal or human backs."""
+        return bool(self._loop_runs
+                    and not ad.get('_confirmed_correction')
+                    and not ad.get('_has_confirmed_correction_candidate')
+                    and not ad.get('_reviewer_rejected')
+                    and not ad.get('_user_kept_by_trim')
+                    and loop_coverage(self._loop_runs, ad['start'], ad['end']) >= LOOP_MIN_COVERAGE
+                    and not measured_evidence(ad))
+
+    def _loop_verdict(self, ad: dict) -> str | None:
+        """'weak' when only a sponsor mention outside the loops hints at an ad, 'no_evidence' when
+        nothing does; None when the marker is not loop-dominated or has real text evidence."""
+        if not self._loop_dominated(ad) or self._has_transcript_ad_evidence(ad):
+            return None
+        text = ' '.join(self._bounded_text_segments(ad))
+        sponsor = ad.get('sponsor')
+        if (sponsor and self._names_sponsor(text, sponsor)) or self._registry_mentions(text):
+            return 'weak'
+        return 'no_evidence'
+
+    def _registry_mentions(self, text: str) -> int:
+        try:
+            return self.sponsor_service.count_sponsor_mentions(text) if self.sponsor_service else 0
+        except Exception as e:
+            logger.debug(f"Sponsor registry lookup failed: {e}")
+            return 0
+
+    def _trim_loop_marker(self, ad: dict) -> dict:
+        """A loop-dominated marker with ad language outside the loops keeps the cues that carry
+        it and the loop runs touching them; loops elsewhere in the span are not part of the cut."""
+        start, end = ad['start'], ad['end']
+        # A human's earlier decision is matched on the exact detected bounds: leave them alone.
+        if (not self._loop_dominated(ad) or not self._has_transcript_ad_evidence(ad)
+                or self._matching_confirmed(start, end) is not None
+                or self._overlaps_false_positive(start, end)):
+            return ad
+        inside = [s for s in self._evidence_segments if s['end'] > start and s['start'] < end]
+        carrying = ([s for s in inside if self._cue_has_ad_language(s.get('text', ''))]
+                    or [s for s in inside if self._registry_mentions(s.get('text', ''))])
+        if not carrying:
+            return ad
+        lo = max(start, min(s['start'] for s in carrying))
+        hi = min(end, max(s['end'] for s in carrying))
+        grown = True
+        while grown:   # a read can run under several loops split by a few clean cues
+            grown = False
+            for a, b, _ in self._loop_runs:
+                if a < lo and b >= lo - self.LOOP_TOUCH_S:
+                    lo, grown = a, True
+                if b > hi and a <= hi + self.LOOP_TOUCH_S:
+                    hi, grown = b, True
+        lo, hi = max(start, lo), min(end, hi)
+        if lo - start <= EDGE_TOLERANCE and end - hi <= EDGE_TOLERANCE:
+            return ad
+        logger.info(f"Trimming {start:.1f}-{end:.1f}s to {lo:.1f}-{hi:.1f}s: ad language only there, loops elsewhere")
+        return self._narrowed(ad, lo, hi, keep_members=True)
+
+    def _cue_has_ad_language(self, text: str) -> bool:
+        lowered = text.lower()
+        return (any(pattern.search(text) for pattern in self.TRANSCRIPT_EVIDENCE_RES)
+                or bool(self.AD_SIGNAL_PATTERNS.search(text))
+                or any(phrase in lowered for phrase in self.EVIDENCE_TRANSITION_PHRASES))
+
     def _bounded_text_segments(self, ad: dict) -> list[str]:
-        return bounded_segment_texts(self.segments, ad['start'], ad['end'])
+        return bounded_segment_texts(self._evidence_segments, ad['start'], ad['end'])
 
     def _names_sponsor(self, text: str, sponsor: str) -> bool:
         name_re = _sponsor_name_re(sponsor)
@@ -627,6 +708,7 @@ class AdValidator:
             # Stamped before the trim split so carved fragments inherit it.
             if reviewer_reject_stands(ad, self.confirmed_corrections):
                 ad['_reviewer_rejected'] = True
+        ads = [self._trim_loop_marker(ad) for ad in ads]
         self._trim_ranges = user_trimmed_keep_ranges(self.confirmed_corrections)
         for protected in self._trim_ranges:
             split_ads = []
@@ -1326,7 +1408,7 @@ class AdValidator:
 
     def _get_text_in_range(self, start: float, end: float) -> str:
         """Get transcript text within time range (via utils.text.extract_text_from_segments)."""
-        return extract_text_from_segments(self.segments, start, end)
+        return extract_text_from_segments(self._evidence_segments, start, end)
 
     def _make_decision(self, confidence: float, flags: list[str],
                         duration: float = 0.0) -> Decision:
@@ -1367,6 +1449,18 @@ class AdValidator:
         # Adjacency is boundary evidence, not authority to classify an arbitrarily large untranscribed span.
         # This safety marker is stamped before validation so it cannot merge into the neighboring ad, then
         # re-derived here before generic duration holds choose another reason.
+        # A span mostly inside a Whisper loop has no real transcript to judge it by.
+        loop_verdict = self._loop_verdict(ad)
+        if loop_verdict == 'weak' and decision != Decision.REJECT:
+            self._mark_held(ad, flags, HOLD_REASON_TRANSCRIPT_LOOP)
+            return Decision.REVIEW
+        if loop_verdict == 'no_evidence':
+            # Show speech under a loop: nothing to cut and nothing a reviewer could judge.
+            logger.info(f"Dropping {ad['start']:.1f}-{ad['end']:.1f}s: inside a transcript loop "
+                        f"with no ad evidence")
+            flags.append("ERROR: Inside a transcript loop with no ad evidence")
+            return Decision.REJECT
+
         if (ad.get('detection_stage') == 'vad_gap'
                 and ad.get('vad_gap_requires_review')):
             self._mark_held(ad, flags, HOLD_REASON_LARGE_VAD_GAP)

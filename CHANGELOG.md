@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Fixed
+
+- Whisper repetition loops (a run of 8 or more near-identical short cues, including A, B, A, B loops) are no longer read as transcript evidence. Text-pattern matching and the validator's text checks skip loop cues; stored transcripts keep every cue. A marker that sits mostly inside loops and has no measured evidence or human decision behind it is trimmed to the cues that carry ad language, held with the new reason `transcript_loop` when only a sponsor name sits outside the loops, or rejected when nothing does. Before, a marker over a loop could be cut or kept on text that is not in the audio.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed
