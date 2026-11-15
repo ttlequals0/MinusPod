@@ -17,10 +17,11 @@ from database.fingerprint_matches import fingerprint_member_pattern_ids
 from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.constants import (SHOW_PROMO_CREATED_BY, SHOW_PROMO_DISABLE_REJECTS, is_show_promo_candidate,
                              is_show_promo_category, is_show_promo_pattern,
-                             sanitize_sponsor_label, show_promo_floor_problem)
+                             sanitize_sponsor_label)
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
+from utils.short_asks import show_floor_problem
 from pattern_service import PatternService, compute_pattern_trust
 from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
@@ -859,8 +860,8 @@ def _submit_correction_create(db, slug, episode_id, data):
         # A subscribe ask or promo: a sponsorless, podcast-scoped show pattern,
         # judged by the one floor function the confirm path also uses.
         min_s, max_s = get_pattern_duration_bounds(db)
-        problem = show_promo_floor_problem(
-            category, end - start, len(text_template), min_s, max_s)
+        problem = show_floor_problem(
+            db, slug, category, end - start, len(text_template), min_s, max_s)
         if problem:
             return error_response(
                 f'{SEGMENT_CATEGORY_LABELS[category]} read not learned for this show: {problem}', 400)
@@ -1633,8 +1634,8 @@ def _show_rewrite_floor_problem(db, pattern_id, transcript, adjusted_start, adju
         return None
     min_s, max_s = get_pattern_duration_bounds(db)
     kept = extract_transcript_segment(transcript, adjusted_start, adjusted_end) or ''
-    return show_promo_floor_problem(
-        pattern['category'], adjusted_end - adjusted_start, len(kept), min_s, max_s)
+    return show_floor_problem(
+        db, pattern.get('podcast_id'), pattern['category'], adjusted_end - adjusted_start, len(kept), min_s, max_s)
 
 
 def _maybe_rewrite_pattern_from_adjustment(

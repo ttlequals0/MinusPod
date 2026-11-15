@@ -82,7 +82,7 @@ function SegmentActionsSection({
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Off by default.
+            Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Off by default. Confirmed ones are also learned for that show while this is on.
             Applies to feeds that have not set their own value.
           </p>
         </div>

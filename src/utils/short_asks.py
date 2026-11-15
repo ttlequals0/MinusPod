@@ -1,4 +1,9 @@
 """Short host asks and sponsor thanks (snip_short_asks): flag, floor and sentence-edge helpers."""
+import logging
+
+from utils.constants import LEARNING_SHOW_PROMO_FLOORS, show_promo_floor_problem
+
+logger = logging.getLogger(__name__)
 
 SHORT_ASK_CATEGORIES = ('interaction', 'self_promo', 'sponsor')
 SHORT_ASK_MIN_S = 2.0
@@ -6,6 +11,10 @@ SHORT_ASK_MAX_S = 40.0
 SHORT_ASK_EDGE_CAP_S = 1.5
 SHORT_ASK_TIGHT_BELOW_S = 3.0
 SHORT_ASK_TIGHT_EDGE_CAP_S = 0.5
+# Learn floors (seconds, characters) of a short-ask show pattern; both categories sit at or above SHORT_ASK_MIN_S.
+SHORT_ASK_LEARN_FLOORS = {'interaction': (4, 30), 'self_promo': (4, 30)}
+# Least fuzzy score at which a short-ask show pattern matches a transcript.
+SHORT_ASK_PATTERN_MIN_SCORE = 90.0
 _EPS = 0.05
 _SENTENCE_END = ('.', '?', '!')
 _CLOSERS = '"\')]}”’'
@@ -110,3 +119,38 @@ def _unflag(ad):
     ad.pop('short_ask', None)
     ad.pop('short_ask_origin', None)
     return ad
+
+
+def feed_snips_short_asks(db, slug):
+    """Whether the feed resolves snip_short_asks on; off when it cannot be read."""
+    try:
+        return bool(slug) and db.resolve_feed_bool(slug, 'snip_short_asks', 'snip_short_asks') is True
+    except Exception as e:
+        logger.warning(f"[{slug}] snip_short_asks could not be resolved, treating as off: {e}")
+        return False
+
+
+def learn_floor_problem(category, duration, chars, max_duration):
+    """Why a span cannot become a short-ask show pattern, or None; the configured minimum does not apply."""
+    floor_s, floor_chars = SHORT_ASK_LEARN_FLOORS[category]
+    if duration < floor_s:
+        return f"duration {duration:.0f}s is below the {floor_s}s short-ask floor"
+    if duration > max_duration:
+        return f"duration {duration:.0f}s exceeds the {max_duration}s maximum"
+    if chars < floor_chars:
+        return f"text length {chars} is below the {floor_chars} character short-ask floor"
+    return None
+
+
+def show_floor_problem(db, podcast_id, category, duration, chars, min_duration, max_duration):
+    """show_promo_floor_problem, with the short-ask learn floors in place of its table while the feed is on."""
+    if category in SHORT_ASK_LEARN_FLOORS and feed_snips_short_asks(db, podcast_id):
+        return learn_floor_problem(category, duration, chars, max_duration)
+    return show_promo_floor_problem(category, duration, chars, min_duration, max_duration)
+
+
+def is_short_show_template(category, template):
+    """A show template under its category's PR floor in characters is a short-ask pattern by construction."""
+    if category not in SHORT_ASK_LEARN_FLOORS:
+        return False
+    return len(template or '') < LEARNING_SHOW_PROMO_FLOORS[category][1]

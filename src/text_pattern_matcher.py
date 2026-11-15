@@ -36,7 +36,6 @@ from utils.constants import (
     SHOW_PROMO_CREATED_BY,
     is_show_promo_candidate,
     is_show_promo_pattern,
-    show_promo_floor_problem,
     is_non_brand_name,
     sanitize_sponsor_label,
 )
@@ -45,6 +44,8 @@ from utils.pattern_scope import pattern_passes_scope
 from utils.language import get_pattern_language
 from utils.markers import labels_compatible, member_label
 from utils.pattern_catalog import scoped_catalog
+from utils.short_asks import (SHORT_ASK_PATTERN_MIN_SCORE, feed_snips_short_asks,
+                              is_short_show_template, show_floor_problem)
 from utils.pattern_similarity import similarity, canonicalize_for_dedupe
 from utils.time import overlap_seconds, utc_now_iso
 
@@ -498,6 +499,8 @@ class TextMatch:
     # Content-match end before outro refinement pulled the end in, so an
     # end cue inside the matched text can still bound the ad (#838).
     content_end: float | None = None
+    # A short-ask show pattern matched near-exact text while the feed is on.
+    short_ask: bool = False
 
 
 @dataclass
@@ -793,8 +796,16 @@ class TextPatternMatcher:
         if only_pattern_id is not None:
             applicable_patterns = [p for p in applicable_patterns if p.id == only_pattern_id]
 
+        short_patterns = [p for p in applicable_patterns
+                          if p.is_show_promo and is_short_show_template(p.category, p.text_template)]
+        if short_patterns:
+            applicable_patterns = [p for p in applicable_patterns if p not in short_patterns]
+            if feed_snips_short_asks(self.db, podcast_id):
+                matches.extend(self._find_short_ask_matches(
+                    full_text, segments, segment_map, short_patterns))
+
         if not applicable_patterns:
-            return []
+            return matches
 
         # An auto-learned outro with no advertiser or call to action can be
         # show dialogue accidentally stored after the ad. Keep its intro as
@@ -1071,6 +1082,22 @@ class TextPatternMatcher:
         for i, (start_pos, end_pos) in enumerate(window_bounds):
             score_row(all_similarities[i], start_pos, end_pos,
                       len(window_texts[i]))
+
+    def _find_short_ask_matches(self, full_text, segments, segment_map, patterns):
+        """Near-exact fuzzy matches of short-ask show templates; TF-IDF windows cannot see a 40 character read."""
+        lower = full_text.lower()
+        found = []
+        for pattern in patterns:
+            template = (pattern.text_template or '').lower()
+            cutoff = max(required_fuzzy_score(len(template)), SHORT_ASK_PATTERN_MIN_SCORE)
+            for hit_start, hit_end, score in self._fuzzy_find_all(lower, template, cutoff):
+                start, end = self._char_pos_to_time(hit_start, hit_end, segment_map, segments)
+                found.append(TextMatch(
+                    pattern_id=pattern.id, start=start, end=end, confidence=score / 100,
+                    sponsor=pattern.sponsor, match_type="content", category=pattern.category,
+                    matched_text=full_text[hit_start:hit_end], defined=pattern.is_defined,
+                    show_promo=True, short_ask=True, text_start=start, text_end=end))
+        return found
 
     def _find_phrase_matches(
         self,
@@ -2229,7 +2256,7 @@ class TextPatternMatcher:
                 return None
             ad_text = self._get_text_around_time(learning_segments, start, end)
         min_s, max_s = get_pattern_duration_bounds(self.db)
-        problem = show_promo_floor_problem(category, duration, len(ad_text), min_s, max_s)
+        problem = show_floor_problem(self.db, podcast_id, category, duration, len(ad_text), min_s, max_s)
         if problem:
             logger.warning(f"Skipping {category} pattern creation: {problem}")
             return None

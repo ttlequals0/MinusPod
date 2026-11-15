@@ -2791,6 +2791,9 @@ class AdDetector:
         if (detection_stage == 'text_pattern' and span_estimated
                 and not getattr(match, 'defined', False)):
             entry['has_estimated_pattern_member'] = True
+        if getattr(match, 'short_ask', False):
+            entry['short_ask'] = True
+            stamp_short_ask(entry, True)
         if detection_stage == 'fingerprint':
             entry['fingerprint_match_start'] = match.start
             entry['fingerprint_match_end'] = match.end

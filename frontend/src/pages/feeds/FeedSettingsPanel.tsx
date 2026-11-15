@@ -1624,7 +1624,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <div className="min-w-0">
                   <span className="text-muted-foreground block">Short host asks</span>
                   <span className="text-xs text-muted-foreground/70 block">
-                    Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s).
+                    Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Confirmed ones are also learned for that show while this is on.
                   </span>
                 </div>
                 <div className="flex flex-col items-start sm:items-end gap-1">
