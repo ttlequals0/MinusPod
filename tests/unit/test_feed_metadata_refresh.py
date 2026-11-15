@@ -36,14 +36,14 @@ def test_a_changed_cover_url_is_fetched_rather_than_read_as_cached():
 
     # Exactly what refresh does: store the new URL first, then download.
     mf.db.update_podcast(slug, artwork_url='https://example.com/new.png')
-    with patch.object(storage_mod, 'safe_get',
+    with patch.object(storage_mod, 'get_feed_content_with_agents',
                       side_effect=RuntimeError('fetched')) as get:
         mf.storage.download_artwork(slug, 'https://example.com/new.png',
                                     force=True)
     assert get.called, "force must skip the guard and actually fetch"
 
     # Without force the guard matches the URL against itself and returns early.
-    with patch.object(storage_mod, 'safe_get') as get:
+    with patch.object(storage_mod, 'get_feed_content_with_agents') as get:
         mf.storage.download_artwork(slug, 'https://example.com/new.png')
     assert not get.called
 
@@ -51,7 +51,7 @@ def test_a_changed_cover_url_is_fetched_rather_than_read_as_cached():
 def test_an_unchanged_cover_url_is_not_refetched():
     slug = 'art-same'
     _seed(slug, 'https://example.com/same.png')
-    with patch.object(storage_mod, 'safe_get') as get:
+    with patch.object(storage_mod, 'get_feed_content_with_agents') as get:
         assert mf.storage.download_artwork(
             slug, 'https://example.com/same.png') is True
     assert not get.called

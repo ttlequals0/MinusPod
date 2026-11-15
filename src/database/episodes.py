@@ -9,6 +9,7 @@ from typing import ClassVar
 from database.error_text import redact_error, redact_json_error
 from database.fingerprint_cleanup import delete_matches_for_episodes
 from database.maintenance import _chunked
+from database.marker_refs import replace_marker_refs
 from database.podcasts import RECENTS_MEMBER_FEED_TYPES
 # Shared with the stats mixin so both agree on what counts as processed.
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
@@ -307,6 +308,15 @@ class EpisodeMixin:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def get_episode_artwork_url(self, slug: str, episode_id: str) -> str | None:
+        """The episode's publisher cover URL (one narrow row, no transcript join), or None."""
+        row = self.get_connection().execute(
+            """SELECT e.artwork_url FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)).fetchone()
+        return row['artwork_url'] if row else None
 
     def get_episode_neighbors(self, slug: str, episode_id: str) -> dict[str, dict | None]:
         """Adjacent episodes in the feed's default newest-first order.
@@ -682,7 +692,14 @@ class EpisodeMixin:
                 (pending_review_count, db_episode_id)
             )
 
-        conn.commit()
+        # Refs and markers commit together, so a failed write leaves neither changed
+        try:
+            if ad_markers is not None:
+                replace_marker_refs(conn, db_episode_id, ad_markers)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def save_original_transcript(self, slug: str, episode_id: str, transcript_text: str):
         """Save original (pre-cut) transcript. Write-once: never overwrites an existing value."""

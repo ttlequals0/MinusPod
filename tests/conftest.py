@@ -134,6 +134,17 @@ def temp_db(temp_dir):
 
 
 @pytest.fixture
+def storage(temp_db, tmp_path):
+    """A fresh Storage on the temporary database; the singleton is reset around it."""
+    from storage import Storage
+    Storage._instance = None
+    s = Storage(str(tmp_path))
+    s._artwork_failure_cache.clear()
+    yield s
+    Storage._instance = None
+
+
+@pytest.fixture
 def patch_settings_db(temp_db, monkeypatch):
     """Point get_database at temp_db in every api.settings group module."""
     import api.settings
