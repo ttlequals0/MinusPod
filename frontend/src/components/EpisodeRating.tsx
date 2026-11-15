@@ -7,6 +7,7 @@ import type { EpisodeDetail, EpisodeRating as Rating } from '../api/types';
 import { btnBase, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing, textareaBase } from './fieldStyles';
 import { cardTitle } from './pageStyles';
+import Checkbox from './Checkbox';
 import { DemoDisabled } from './DemoDisabled';
 import { IS_DEMO } from '../demo/flag';
 
@@ -163,16 +164,15 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
       </div>
       {value === 5 && rating?.value !== 5 && (
         <div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={confirmMarkers}
-              disabled={busy}
-              onChange={(e) => setConfirmMarkers(e.target.checked)}
-            />
-            Confirm all cuts and dismiss held ones
-          </label>
-          <p className="text-sm text-muted-foreground">Untick to store a 5-star rating without confirming anything.</p>
+          <Checkbox
+            className="pointer-coarse:min-h-11"
+            checked={confirmMarkers}
+            onChange={setConfirmMarkers}
+            disabled={busy}
+            ariaDescribedBy="episode-rating-confirm-help"
+            label="Confirm all cuts and dismiss held ones"
+          />
+          <p id="episode-rating-confirm-help" className="text-sm text-muted-foreground">Untick to store a 5-star rating without confirming anything.</p>
         </div>
       )}
       {value > 0 && value < 5 && (
