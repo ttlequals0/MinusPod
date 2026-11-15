@@ -19,6 +19,7 @@ import CronScheduleField from './CronScheduleField';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnDestructive, btnDestructiveOutline } from '../../components/buttonStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import ShowSegmentsPanel from './ShowSegmentsPanel';
 
 interface Draft {
   enabled?: boolean;
@@ -252,6 +253,8 @@ function CommunityPatternsSection() {
               </p>
             )}
           </div>
+
+          <ShowSegmentsPanel />
         </div>
       )}
     </CollapsibleSection>

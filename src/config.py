@@ -97,6 +97,9 @@ HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
 HOLD_REASON_NO_TRANSCRIPT_EVIDENCE = 'no_transcript_evidence'
 # An upstream-transcript-differential gap the LLM did not corroborate (2.98.0).
 HOLD_REASON_TRANSCRIPT_DIFFERENTIAL = 'transcript_differential_unreviewed'
+# A show-bound community segment matched where no marker was (suggestion) or disagreed with one.
+HOLD_REASON_SHOW_SEGMENT_SUGGESTION = 'show_segment_suggestion'
+HOLD_REASON_SHOW_SEGMENT_DISAGREEMENT = 'show_segment_disagreement'
 # Candidate-only holds whose rejected text must not seed cross-episode false-positive matching.
 SNIPPET_EXCLUDED_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,

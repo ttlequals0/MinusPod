@@ -223,6 +223,9 @@ class SchemaMixin(DeferredUpgradeMixin):
         'episode_feed_details',
         'episode_snap_stats',
         'deferred_upgrade_steps',
+        'community_segment_entries',
+        'community_segment_events',
+        'community_segment_identity',
     )
 
     def _create_new_tables_only(self, conn):

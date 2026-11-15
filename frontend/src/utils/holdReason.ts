@@ -19,6 +19,8 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
   cue_low_confidence: 'Low-confidence cue',
   no_transcript_evidence: 'No ad language in transcript',
   transcript_differential_unreviewed: 'Upstream transcript omits this span',
+  show_segment_suggestion: 'Show segment suggestion',
+  show_segment_disagreement: 'Show segment disagrees',
 };
 
 // Tooltip text for each hold reason.
@@ -41,4 +43,6 @@ export const HOLD_REASON_TITLES: Record<HoldReason, string> = {
   cue_low_confidence: 'The cue match fell below the cut-confidence threshold',
   no_transcript_evidence: "No sponsor, link, promo code or ad phrase in this span's transcript",
   transcript_differential_unreviewed: 'This span is missing from the upstream transcript, and no other detector confirmed it is an ad.',
+  show_segment_suggestion: "A shared show segment for this feed matched here and nothing else detected it; confirm or reject it",
+  show_segment_disagreement: 'A shared show segment for this feed matched here with a different category or edges',
 };

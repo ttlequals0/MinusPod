@@ -611,3 +611,4 @@ def _find_similar_pattern(db, pattern_data: dict) -> dict | None:
 # the submodule name does not shadow the `status` parameter of json_response /
 # error_response defined above.
 from api import feeds, episodes, local_episodes, history, settings, system, config_transfer, patterns, pattern_cleanup, patterns_audio, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping, failover, youtube
+from api import community_segments  # noqa: E402,F401

@@ -354,6 +354,7 @@ def background_rss_refresh():
     from main_app.feeds import refresh_due_feeds
     from pricing_fetcher import refresh_pricing_if_stale
     from community_sync import community_pattern_sync_tick
+    from community_segments import community_segments_tick
     from db_backup_service import db_backup_tick
     from pattern_cleanup import pattern_cleanup_tick
     from update_checker import update_check_tick
@@ -379,6 +380,7 @@ def background_rss_refresh():
             # Each of these is gated by its own setting and schedule, so it is
             # safe to call on the maintenance cadence.
             _run_tick(community_pattern_sync_tick, 'community_pattern_sync_tick')
+            _run_tick(community_segments_tick, 'community_segments_tick')
             _run_tick(db_backup_tick, 'db_backup_tick')
             _run_tick(pattern_cleanup_tick, 'pattern_cleanup_tick')
             _run_tick(update_check_tick, 'update_check_tick')

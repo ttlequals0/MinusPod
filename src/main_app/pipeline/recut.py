@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import community_segments
 from audio_processor import AudioProcessor
 from cancel import (
     ProcessingCancelled, _check_cancel,
@@ -195,6 +196,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
+    community_segments.enforce_holds(validation_result.ads)
 
     # Force previously-cut markers back to ACCEPT so the gate cuts them again,
     # overriding re-validation holds. A trusted fragment split from a validated cut

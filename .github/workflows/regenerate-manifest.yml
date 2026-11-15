@@ -12,6 +12,7 @@ on:
     paths:
       - 'patterns/community/**.json'
       - '!patterns/community/index.json'  # avoid recursive triggers from our own commits
+      - 'patterns/show-segments/**.json'
   # workflow_dispatch lets us re-run by hand after a transient failure
   # (e.g. the run on 0fa1f48b after #289 hit a pip --require-hashes
   # regression against setuptools and left the manifest stale).

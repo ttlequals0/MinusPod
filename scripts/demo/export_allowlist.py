@@ -68,6 +68,7 @@ _KEPT_ALL = (
     'cue_detections', 'cue_candidate_dismissals', 'podping_hosts',
     'addressing_log', 'pattern_cleanup_suggestions', 'pattern_cleanup_checks',
     'pattern_cleanup_deleted_actions', 'audio_fingerprints', 'failover_events',
+    'community_segment_entries', 'community_segment_events', 'community_segment_identity',
 )
 
 
@@ -135,6 +136,8 @@ PODCAST_REF: dict[str, tuple[str, str]] = {
     'pattern_cleanup_deleted_actions': ('podcast_slug', 'slug'),
     'addressing_log': ('podcast_slug', 'slug'),
     'audio_fingerprint_matches': ('podcast_slug', 'slug'),
+    'community_segment_events': ('podcast_id', 'id'),
+    'community_segment_identity': ('podcast_id', 'id'),
 }
 
 # Table -> (podcast column, episode column, podcast key kind) for rows keyed by
@@ -154,6 +157,7 @@ EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'llm_call_usage': ('podcast_id', 'episode_id', 'id'),
     'systemone_call_diagnostics': ('podcast_id', 'episode_id', 'id'),
     'addressing_log': ('podcast_slug', 'episode_id', 'slug'),
+    'community_segment_events': ('podcast_id', 'episode_id', 'id'),
 }
 
 # Settings classification: manual pass over SETTINGS_REGISTRY, grouped by the

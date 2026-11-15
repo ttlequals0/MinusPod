@@ -943,6 +943,54 @@ TABLE_DDL['systemone_call_diagnostics'] = """CREATE TABLE IF NOT EXISTS systemon
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 )"""
 
+# Show-bound community segments: imported (and locally exported) opaque entries, their per-episode
+# events, and each feed's show identity. Additive; nothing else reads or writes these tables.
+TABLE_DDL['community_segment_entries'] = """CREATE TABLE IF NOT EXISTS community_segment_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    community_id TEXT UNIQUE NOT NULL,
+    origin TEXT NOT NULL CHECK(origin IN ('community', 'local_export')),
+    version INTEGER NOT NULL DEFAULT 1,
+    content_hash TEXT,
+    category TEXT NOT NULL,
+    source_language TEXT,
+    bucket INTEGER NOT NULL,
+    key_kind TEXT NOT NULL,
+    body_json TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'unbound' CHECK(state IN (
+        'unbound', 'candidate', 'validated', 'adopted', 'suspended', 'dormant', 'revoked'
+    )),
+    bound_podcast_id INTEGER REFERENCES podcasts(id) ON DELETE SET NULL,
+    adopted_pattern_id INTEGER,
+    local_pattern_id INTEGER,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    disabled_reason TEXT,
+    disabled_at TEXT,
+    protected_from_sync INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    last_matched_at TEXT
+)"""
+
+TABLE_DDL['community_segment_events'] = """CREATE TABLE IF NOT EXISTS community_segment_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL REFERENCES community_segment_entries(id) ON DELETE CASCADE,
+    podcast_id INTEGER REFERENCES podcasts(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN (
+        'bind', 'corroborate', 'disagree', 'suggest', 'confirm', 'reject', 'strike'
+    )),
+    hold_id TEXT,
+    correction_id INTEGER,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    UNIQUE(entry_id, episode_id, kind, hold_id)
+)"""
+
+TABLE_DDL['community_segment_identity'] = """CREATE TABLE IF NOT EXISTS community_segment_identity (
+    podcast_id INTEGER PRIMARY KEY REFERENCES podcasts(id) ON DELETE CASCADE,
+    origin_podcast_guid TEXT,
+    url_guid TEXT,
+    checked_at TEXT
+)"""
+
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -1173,4 +1221,9 @@ CREATE INDEX IF NOT EXISTS idx_llm_call_usage_logical ON llm_call_usage(logical_
 """ + TABLE_DDL['addressing_log'] + """;
 CREATE INDEX IF NOT EXISTS idx_addressing_log_episode ON addressing_log(episode_id);
 CREATE INDEX IF NOT EXISTS idx_addressing_log_podcast ON addressing_log(podcast_slug);
+
+-- community_segment_*: show-bound community segments (opaque entries, events, show identity).
+""" + TABLE_DDL['community_segment_entries'] + """;
+""" + TABLE_DDL['community_segment_events'] + """;
+""" + TABLE_DDL['community_segment_identity'] + """;
 """

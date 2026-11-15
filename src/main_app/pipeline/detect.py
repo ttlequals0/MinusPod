@@ -34,6 +34,7 @@ from config import (
 )
 
 from database.settings import registry_get_default
+import community_segments
 from description_chapters import TO_END, description_trim_span
 from llm_capabilities import (
     PASS_AD_DETECTION_1, clear_fallback,
@@ -682,6 +683,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
             f"[{slug}:{episode_id}] Description chapter trim: "
             f"{chapter['start']:.1f}s-{chapter['end']:.1f}s ({chapter['reason']})")
 
+    all_ads = community_segments.annotate(db, slug, episode_id, segments, all_ads, episode_duration,
+                                          segment_actions, keep_ads)
     # Validation
     if not all_ads:
         return [], []
@@ -702,6 +705,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
+    community_segments.enforce_holds(validation_result.ads)
 
     audio_logger.info(
         f"[{slug}:{episode_id}] Validation: "

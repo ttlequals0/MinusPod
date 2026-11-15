@@ -613,6 +613,22 @@ Submitting a pattern is a separate action you trigger from the Export dialog and
 
 You retain everything locally. Submission is a copy, not a move.
 
+### Show segments
+
+Sponsor patterns cover reads that name an advertiser. A show's own recurring segments name none: the host's asks and nudges (subscribe, follow, rate, review, share, notifications), the host's own Patreon, merch or newsletter promo, a plug for a sibling show, and the intro, outro and recap. **Include show-bound segments** on the Community patterns card (`PUT /api/v1/community-segments/settings`, off by default) adds them to the same library and the same sync. Imports also need community pattern sync on, and only the categories ticked under **Categories to sync** are imported. Sponsor thank-yous are never show segments: sponsor stays sponsor.
+
+A show-segment entry carries no text and no show name. Its words are hashed with a key that only an instance subscribed to the same show can derive (from the show's `podcast:guid`, or its feed URL), so an entry only binds to your feed when it matches at least two of your feed's own stored transcripts. The show is hidden, not secret: someone with the public list of podcast guids can tell which show an entry is for. Emails, phone numbers, handles, URLs and numbers are replaced before hashing and cannot be recovered.
+
+An imported entry never cuts on its own. While it is a candidate it can only:
+
+- correct a detection of the same kind (an ask detected as interaction, say): its category, its edges within a few seconds, and a small confidence bump;
+- hold a detection it disagrees with (a different kind, or edges that move too far) for your review;
+- raise one held suggestion per episode (at most two per episode across all entries) where nothing was detected.
+
+It never touches a sponsor marker or a marker with real ad evidence. When you confirm one of its suggestions, the show learns its own pattern from your transcript (the same learning as confirming an ask) and the entry steps aside. Three confirms without a local pattern make it validated; a reject suspends a candidate, and three unanswered suggestions pause it until you answer one. Your segment actions decide what happens to a corrected or confirmed segment as usual: with intros set to Mark, an intro stays in the audio and becomes a chapter. Short host asks need **Remove short host asks and sponsor thanks** on for the feed, and intros, outros and recaps need show-segments detection on.
+
+The feed's bound entries are listed by `GET /api/v1/community-segments?feed=<slug>` and can be suspended, reactivated, protected from sync or deleted (`POST /api/v1/community-segments/{id}/suspend|reactivate|protect|unprotect`, `DELETE /api/v1/community-segments/{id}`); **Remove all show segments** deletes every imported entry. `POST /api/v1/community-segments/export` with `{"patternIds": [...]}` turns learned show patterns into entry files for a pull request to `patterns/show-segments/`. A pattern qualifies after at least 5 confirms on 5 episodes over 14 days with no reject, from a public (not private, not local) feed, with no known sponsor named in its text; recaps are not exported yet.
+
 ### Full details
 
 See [`patterns/README.md`](../patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](../patterns/CONTRIBUTING.md) for what happens when you submit a pattern.

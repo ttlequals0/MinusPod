@@ -31,6 +31,7 @@ from utils.community_tags import (  # noqa: E402, F401
     iter_bundle_patterns,
 )
 from utils.time import utc_now_iso  # noqa: E402
+from tools import show_segment_validator  # noqa: E402
 
 
 def _community_dir() -> Path:
@@ -139,7 +140,10 @@ def main() -> int:
             existing_text = target.read_text(encoding='utf-8')
         except OSError as e:
             print(f'WARN: ignoring unreadable {target.name}: {e}', file=sys.stderr)
-    manifest = reuse_published_at(build_manifest(patterns), existing_text)
+    manifest = build_manifest(patterns)
+    if seg_entries := show_segment_validator.index_entries(directory.parent / 'show-segments'):
+        manifest['show_segments'] = seg_entries
+    manifest = reuse_published_at(manifest, existing_text)
     write_manifest(manifest, target)
     print(
         f'Wrote {target.relative_to(_REPO_SRC.parent)} '

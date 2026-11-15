@@ -1,0 +1,52 @@
+name: Show Segment Validation
+
+# Structural checks for show-bound segment entries (patterns/show-segments/). The entries carry no text,
+# so the review is the schema, the size per shape, the allowed categories and the per-show cluster cap.
+# The sponsor validator's file filter (^patterns/community/) does not match this directory.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'patterns/show-segments/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate show segment submissions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: List changed JSON files under patterns/show-segments/
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --diff-filter=AM --name-only "$BASE_SHA" "$HEAD_SHA" > /tmp/changed-raw.txt
+          changed=$(grep -E '^patterns/show-segments/[^/]+\.json$' /tmp/changed-raw.txt | tr '\n' ' ' || true)
+          echo "files=$changed" >> "$GITHUB_OUTPUT"
+          echo "Changed files: $changed"
+
+      - name: Setup Python
+        if: steps.changed.outputs.files != ''
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Run validator
+        # Stdlib only: no pip install.
+        if: steps.changed.outputs.files != ''
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          set -f
+          python -m src.tools.show_segment_validator --pr-files $CHANGED_FILES \
+            --comment-output "$GITHUB_STEP_SUMMARY"

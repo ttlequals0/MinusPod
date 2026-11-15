@@ -9,6 +9,7 @@ const ALL_HOLD_REASONS = [
   'verification_miss', 'verification_kept_conflict', 'differential_uncorroborated',
   'large_vad_gap_extension', 'cue_template_unproven', 'cue_low_confidence',
   'no_transcript_evidence', 'transcript_differential_unreviewed',
+  'show_segment_suggestion', 'show_segment_disagreement',
 ];
 
 describe('hold reason maps', () => {
