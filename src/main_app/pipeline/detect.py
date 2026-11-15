@@ -12,8 +12,8 @@ from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_detector.cue_cut_ads import synthesize_ads_from_cue_matches
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
+from ad_detector.short_ask_clamp import clamp_short_ask
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
-from utils.short_asks import clamp_short_ask
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
     CHAPTER_TRIM_SOURCES, CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
