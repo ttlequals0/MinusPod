@@ -114,6 +114,40 @@ def test_weak_sponsor_mention_in_a_loop_still_holds():
     assert ad['validation']['decision'] == Decision.REVIEW.value
 
 
+def _text_loop(start, n, text):
+    return _cues([(start + i, start + i + 1.0, text) for i in range(n)])
+
+
+def test_ad_language_inside_the_loop_holds_instead_of_rejecting():
+    segs = _speech(0.0, 20) + _text_loop(100.0, 200, 'visit example.com slash offer') + _speech(310.0, 10)
+    ad, = _validate(segs, 100.0, 300.0, detection_stage='transcript_differential', confidence=0.6)
+    assert ad['held_for_review'] and ad['hold_reason'] == HOLD_REASON_TRANSCRIPT_LOOP
+    assert ad['validation']['decision'] == Decision.REVIEW.value
+
+
+def test_sponsor_named_only_inside_the_loop_holds():
+    segs = _speech(0.0, 20) + _text_loop(100.0, 200, 'thanks Acme Widgets') + _speech(310.0, 10)
+    ad, = _validate(segs, 100.0, 300.0, sponsor='Acme Widgets')
+    assert ad['held_for_review'] and ad['hold_reason'] == HOLD_REASON_TRANSCRIPT_LOOP
+    assert ad['validation']['decision'] == Decision.REVIEW.value
+
+
+def test_loop_without_ad_language_and_nothing_outside_is_still_rejected():
+    segs = _speech(0.0, 20) + _text_loop(100.0, 200, 'the weather was mild') + _speech(310.0, 10)
+    ad, = _validate(segs, 100.0, 300.0, detection_stage='transcript_differential', confidence=0.6)
+    assert not ad.get('held_for_review')
+    assert ad['validation']['decision'] == Decision.REJECT.value
+
+
+def test_ad_language_outside_the_loop_still_trims_and_cuts():
+    segs = (_speech(0.0, 10) + _text_loop(30.0, 60, 'visit example.com slash offer') + _speech(90.0, 10)
+            + _read(120.0) + _loop(135.0, 100))
+    ad, = _validate(segs, 30.0, 235.0)
+    assert 90.0 <= ad['start'] <= 120.0 and ad['end'] == 235.0
+    assert not ad.get('held_for_review')
+    assert ad['validation']['decision'] == Decision.ACCEPT.value
+
+
 def test_measured_evidence_is_exempt():
     segs = _speech(0.0, 20) + _loop(100.0, 200) + _speech(310.0, 10)
     ad, = _validate(segs, 100.0, 300.0, detection_stage='fingerprint')

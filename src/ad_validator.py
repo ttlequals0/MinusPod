@@ -529,15 +529,19 @@ class AdValidator:
                     and not measured_evidence(ad))
 
     def _loop_verdict(self, ad: dict) -> str | None:
-        """'weak' when only a sponsor mention outside the loops hints at an ad, 'no_evidence' when
-        nothing does; None when the marker is not loop-dominated or has real text evidence."""
+        """'weak' when a sponsor mention outside the loops, or ad language or a sponsor inside them,
+        hints at an ad; 'no_evidence' when nothing does; None when not loop-dominated or text-backed."""
         if not self._loop_dominated(ad) or self._has_transcript_ad_evidence(ad):
             return None
-        text = ' '.join(self._bounded_text_segments(ad))
         sponsor = ad.get('sponsor')
-        if (sponsor and self._names_sponsor(text, sponsor)) or self._registry_mentions(text):
-            return 'weak'
-        return 'no_evidence'
+        outside = ' '.join(self._bounded_text_segments(ad))
+        kept = {id(s) for s in self._evidence_segments}
+        looped = ' '.join(s.get('text', '') for s in self.segments
+                          if id(s) not in kept and s['end'] > ad['start'] and s['start'] < ad['end'])
+        for text in (outside, looped):
+            if (sponsor and self._names_sponsor(text, sponsor)) or self._registry_mentions(text):
+                return 'weak'
+        return 'weak' if self._cue_has_ad_language(looped) else 'no_evidence'
 
     def _registry_mentions(self, text: str) -> int:
         try:
