@@ -28,7 +28,8 @@ from utils.time import (
 from config import (
     MIN_AD_DURATION, MIN_AD_DURATION_FOR_REMOVAL,
     CORRECTION_MATCH_MIN_COVERAGE,
-    is_known_ad, is_pending_review, resolve_precise_cut_edges, resolve_silence_snap_tunables,
+    is_known_ad, is_pending_review, resolve_cut_edge_pause_drop_db, resolve_precise_cut_edges,
+    resolve_silence_snap_tunables,
     TERMINAL_SNAP_WINDOW_SECONDS,
 )
 
@@ -478,6 +479,7 @@ def _snap_cut_edges_to_words(slug, episode_id, ads_to_remove, all_ads_with_valid
     if not segments or not (silence_spans or audio_path or energy_reader):
         return ads_to_remove
     reader = energy_reader or (ffmpeg_energy_reader(audio_path) if audio_path else None)
+    drop_db = resolve_cut_edge_pause_drop_db()
     tunables = (silence_tunables if silence_tunables is not None
                 else resolve_silence_snap_tunables(db))
     masters = all_ads_with_validation or []
@@ -488,7 +490,7 @@ def _snap_cut_edges_to_words(slug, episode_id, ads_to_remove, all_ads_with_valid
         snap_ad_boundaries_to_silence(
             [updated], silence_spans or [], tunables['max_distance_seconds'],
             tunables['min_duration_seconds'], word_segments=segments, energy_reader=reader,
-            neighbours=[m for m in neighbours if m is not ad], duration=duration)
+            neighbours=[m for m in neighbours if m is not ad], duration=duration, drop_db=drop_db)
         if 'edge_snap' not in updated:
             result.append(ad)
             continue

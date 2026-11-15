@@ -266,6 +266,7 @@ _ALLOW_STAGE_TUNABLES = (
     'chapter_target_seconds', 'chapter_window_seconds', 'chapter_max_boundaries',
     'chapter_min_duration_seconds', 'window_size_seconds',
     'window_overlap_seconds',
+    'cut_edge_pause_drop_db', 'cut_edge_crossfade_ms',
 )
 
 DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(

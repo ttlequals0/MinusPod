@@ -23,7 +23,7 @@ from config import (
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
     resolve_cue_gated_approval,
-    resolve_precise_cut_edges,
+    resolve_edge_crossfade_s, resolve_precise_cut_edges,
 )
 
 from utils.constants import EpisodeStatus
@@ -446,7 +446,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
             audio_output['mp3_stream_copy_enabled'] = False
         local_audio_processor = AudioProcessor(
-            bitrate=bitrate, compression_level=compression_level, **audio_output)
+            bitrate=bitrate, compression_level=compression_level,
+            edge_crossfade_s=resolve_edge_crossfade_s(db), **audio_output)
         original_duration = (local_audio_processor.get_audio_duration(work_path)
                              or (segments[-1]['end'] if segments else 0))
         min_cut_confidence = common.get_min_cut_confidence()

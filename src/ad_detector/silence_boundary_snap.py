@@ -8,8 +8,8 @@ reconstitutes one natural pause.
 Cue snap runs first and is stronger evidence; silence snap skips any edge
 already committed by cue snap. Pure function; no DB, no LLM, no IO.
 
-Word-gap mode (``word_segments=``, precise_cut_edges): an edge moves into the pause beside the nearest
-sentence or word boundary, from the analyzer's spans or ``energy_reader`` frames.
+Word-gap mode (precise_cut_edges): an edge moves into a pause beside a sentence or word boundary, else to the
+quietest frame of its own word gap; near-digital silence (a DAI splice) within 0.5 s wins over word times.
 """
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ import logging
 import math
 import statistics
 
-from config import CUE_MATCH_STAGE, MIN_AD_DURATION_FOR_REMOVAL, MERGE_GAP_SECONDS
-from utils.markers import EDGE_TOLERANCE, finite_number, recorded_member_spans
+from config import CUE_MATCH_STAGE, MIN_AD_DURATION_FOR_REMOVAL, MERGE_GAP_SECONDS, STAGE_TUNABLE_DEFAULTS
+from utils.markers import EDGE_TOLERANCE, finite_number, recorded_member_spans, reviewer_edge_locked
 from utils.short_asks import (SHORT_ASK_EDGE_CAP_S, SHORT_ASK_MIN_S, SHORT_ASK_TIGHT_BELOW_S,
                                SHORT_ASK_TIGHT_EDGE_CAP_S)
 
@@ -91,6 +91,7 @@ def snap_ad_boundaries_to_silence(
     energy_reader=None,
     neighbours: list[dict] | None = None,
     duration: float | None = None,
+    drop_db: float | None = None,
 ) -> None:
     """Mutate ads in place, snapping each start/end to a nearby silence midpoint.
 
@@ -109,7 +110,8 @@ def snap_ad_boundaries_to_silence(
     """
     if word_segments is not None:
         _snap_to_word_gaps(ads, silence_spans, max_distance_s, min_silence_s, word_segments,
-                           energy_reader, neighbours, duration)
+                           energy_reader, neighbours, duration,
+                           SPEECH_DROP_DB if drop_db is None else drop_db)
         return
     if not ads or not silence_spans:
         return
@@ -256,10 +258,23 @@ PAUSE_REACH_S = 0.8
 READ_MARGIN_S = 0.6
 MIN_PAUSE_S = 0.08
 PAUSE_FLOOR_DBFS = -45.0
-SPEECH_DROP_DB = 20.0
+SPEECH_DROP_DB = float(STAGE_TUNABLE_DEFAULTS['cut_edge_pause_drop_db'])
+# The pause rule before cut_edge_pause_drop_db: its moves stay unguarded (drift correction).
+DEEP_DROP_DB = 20.0
 SPEECH_FLOOR_DBFS = -50.0
 PAUSE_MARGIN_S = 0.03
 MAX_MOVE_S = 1.5
+# Quiet room an edge inside a pause keeps on its kept-speech side, so the fade stays in the pause.
+FADE_ROOM_S = 0.25
+# A gap frame must sit this far under the frame at the edge to be worth the move.
+QUIET_FRAME_GAIN_DB = 6.0
+# Fade room recorded for an edge on a quiet frame: a short fade, not a pause.
+QUIET_FRAME_PAUSE_S = 0.05
+# Near-digital silence (a DAI splice) beats the word times: no speech is this quiet. Two whole
+# 10 ms frames is what a 30 ms silence always covers, whatever the frame grid.
+DIGITAL_SILENCE_DBFS = -60.0
+DIGITAL_SILENCE_FRAMES = 2
+DIGITAL_SILENCE_REACH_S = 0.5
 _TERMINALS = ('.', '?', '!')
 
 
@@ -302,12 +317,13 @@ def _transcript_candidate(edge: float, side: str, words: list[dict]) -> float | 
     return None
 
 
-def _find_pauses(frames: list[float], t0: float) -> list[tuple[float, float]]:
-    """(start, end) of every run of quiet frames at least MIN_PAUSE_S long."""
+def _find_pauses(frames: list[float], t0: float,
+                 drop_db: float = SPEECH_DROP_DB) -> list[tuple[float, float]]:
+    """(start, end) of every run of frames ``drop_db`` under the local speech, at least MIN_PAUSE_S long."""
     speech = [f for f in frames if f > SPEECH_FLOOR_DBFS]
     threshold = PAUSE_FLOOR_DBFS
     if speech:
-        threshold = max(PAUSE_FLOOR_DBFS, statistics.median(speech) - SPEECH_DROP_DB)
+        threshold = max(PAUSE_FLOOR_DBFS, statistics.median(speech) - drop_db)
     pauses, run_start = [], None
     for i, level in enumerate([*frames, math.inf]):
         quiet = level <= threshold
@@ -343,17 +359,22 @@ def _span_pauses(lo: float, hi: float, spans, min_silence_s: float):
             and span['end'] - span['start'] >= min_silence_s]
 
 
-def _energy_pauses(lo: float, hi: float, energy_reader):
-    frames = energy_reader(max(0.0, lo), hi) if energy_reader else None
-    return _find_pauses(frames, max(0.0, lo)) if frames else []
-
-
-def _pause_edge(edge: float, side: str, point: float, pauses, max_move_s: float):
-    """(new edge, pause length) in the pause holding the edge or nearest the point, else None."""
+def _pause_edge(edge: float, side: str, point: float, pauses, max_move_s: float,
+                locked: bool = False, gap: tuple[float, float] | None = None):
+    """(new edge, pause length) in the pause holding the edge or nearest the point, else None.
+    An edge in a pause moves in for FADE_ROOM_S within its word ``gap``, unless locked or inside a word."""
     inside = next((p for p in pauses if p[0] <= edge <= p[1]), None)
-    if inside is not None:
-        # Already in a real pause: nothing to improve, and a second run lands here again.
+    if inside is not None and locked:
         return edge, inside[1] - inside[0]
+    if inside is not None:
+        # A second run lands here again: the moved edge has its room.
+        if side == 'start':
+            placed = edge if edge - inside[0] >= FADE_ROOM_S or gap is None else max(
+                edge, min(inside[1] - PAUSE_MARGIN_S, inside[0] + FADE_ROOM_S, gap[1]))
+            return placed, placed - inside[0]
+        placed = edge if inside[1] - edge >= FADE_ROOM_S or gap is None else min(
+            edge, max(inside[0] + PAUSE_MARGIN_S, inside[1] - FADE_ROOM_S, gap[0]))
+        return placed, inside[1] - placed
     near = [p for p in pauses if _distance(p, point) <= PAUSE_REACH_S]
     if near:
         pause = min(near, key=lambda p: (_distance(p, point), p[0] - p[1]))
@@ -363,20 +384,125 @@ def _pause_edge(edge: float, side: str, point: float, pauses, max_move_s: float)
     return None
 
 
-def _snap_word_edge(edge: float, side: str, words: list[dict], *, spans=None,
-                    energy_reader=None, min_silence_s: float = 0.0, max_move_s: float = MAX_MOVE_S):
-    """(new edge, pause length or None, acoustic) for one cut edge; the audio is read only when no span fits."""
+def _digital_silence_edge(edge: float, side: str, frames, t0: float):
+    """(new edge, run length) in the nearest near-digital silence run within reach, placed like a pause, else None."""
+    if not frames:
+        return None
+    at_edge = round((edge - t0) / FRAME_S - 0.5)
+    if 0 <= at_edge < len(frames) and frames[at_edge] <= DIGITAL_SILENCE_DBFS:
+        return None
+    runs, run_start = [], None
+    for i, level in enumerate([*frames, math.inf]):
+        if level <= DIGITAL_SILENCE_DBFS:
+            run_start = i if run_start is None else run_start
+            continue
+        if run_start is not None and i - run_start >= DIGITAL_SILENCE_FRAMES:
+            runs.append((t0 + run_start * FRAME_S, t0 + i * FRAME_S))
+        run_start = None
+    near = [run for run in runs if _distance(run, edge) <= DIGITAL_SILENCE_REACH_S]
+    if not near:
+        return None
+    run = min(near, key=lambda r: _distance(r, edge))
+    middle = (run[0] + run[1]) / 2
+    placed = (max(run[1] - PAUSE_MARGIN_S, middle) if side == 'start'
+              else min(run[0] + PAUSE_MARGIN_S, middle))
+    return round(placed, 3), run[1] - run[0]
+
+
+def _crosses_word(edge: float, placed: float, words: list[dict]) -> bool:
+    """Whether moving the edge to ``placed`` passes a whole word or lands inside one."""
+    lo, hi = sorted((edge, placed))
+    return any((lo - FRAME_S <= w['start'] and w['end'] <= hi + FRAME_S and w['end'] > w['start'])
+               or w['start'] + FRAME_S < placed < w['end'] - FRAME_S for w in words)
+
+
+def _gap_holding(edge: float, words: list[dict]) -> tuple[float, float] | None:
+    """(end of a word, start of the next) around the edge, or None for an edge inside a word."""
+    for left, right in zip(words, words[1:], strict=False):
+        if left['end'] <= edge <= right['start']:
+            return left['end'], right['start']
+    return None
+
+
+def _edge_gap(edge: float, side: str, words: list[dict]) -> tuple[float, float] | None:
+    """The inter-word gap holding the edge, else the one at the nearest word boundary in reach, else None."""
+    held = _gap_holding(edge, words)
+    if held is not None:
+        return held
+    point = _word_gap_point(edge, side, words)
+    for left, right in zip(words, words[1:], strict=False):
+        if point == (right['start'] if side == 'start' else left['end']):
+            return left['end'], right['start']
+    return None
+
+
+def _quiet_gap_frame(edge: float, side: str, words: list[dict], frames, t0: float,
+                     max_move_s: float) -> float | None:
+    """Centre of the quietest 10 ms frame wholly in the edge's own word gap, in reach and at least
+    QUIET_FRAME_GAIN_DB under the edge's frame, or None; a quieter gap past a word would move a word."""
+    if not frames:
+        return None
+    at_edge = round((edge - t0) / FRAME_S - 0.5)
+    gap = _edge_gap(edge, side, words)
+    if gap is None or not 0 <= at_edge < len(frames):
+        return None
+    first = math.ceil((gap[0] - t0) / FRAME_S - 1e-6)
+    last = math.floor((gap[1] - t0) / FRAME_S + 1e-6) - 1
+    best = None
+    for i in range(max(first, 0), min(last, len(frames) - 1) + 1):
+        centre = t0 + (i + 0.5) * FRAME_S
+        if abs(centre - edge) > max_move_s:
+            continue
+        key = (frames[i], abs(centre - edge))
+        if best is None or key < best[0]:
+            best = (key, centre)
+    if best is None or best[0][0] > frames[at_edge] - QUIET_FRAME_GAIN_DB:
+        return None
+    return best[1]
+
+
+def _snap_word_edge(edge: float, side: str, words: list[dict], **kwargs):
+    """(new edge, pause length or None, acoustic) for one cut edge."""
+    return _place_word_edge(edge, side, words, **kwargs)[:3]
+
+
+def _place_word_edge(edge: float, side: str, words: list[dict], *, spans=None,
+                     energy_reader=None, min_silence_s: float = 0.0, max_move_s: float = MAX_MOVE_S,
+                     drop_db: float = SPEECH_DROP_DB, locked: bool = False):
+    """(new edge, pause length or None, acoustic, mode): a pause, else the gap's quiet frame, else a word gap.
+    Near-digital silence wins after the 20 dB pauses; a ``locked`` edge gets no fade room or quiet frame."""
     candidate = _transcript_candidate(edge, side, words)
     point = edge if candidate is None else candidate
     lo = min(edge, point) - PAUSE_REACH_S - READ_MARGIN_S
     hi = max(edge, point) + PAUSE_REACH_S + READ_MARGIN_S
-    placed = (_pause_edge(edge, side, point, _span_pauses(lo, hi, spans, min_silence_s), max_move_s)
-              or _pause_edge(edge, side, point, _energy_pauses(lo, hi, energy_reader), max_move_s))
+    gap = _gap_holding(edge, words)
+    placed = _pause_edge(edge, side, point, _span_pauses(lo, hi, spans, min_silence_s), max_move_s,
+                         locked, gap)
     if placed:
-        return placed[0], placed[1], True
+        return placed[0], placed[1], True, 'pause'
+    t0 = max(0.0, lo)
+    frames = energy_reader(t0, hi) if energy_reader else None
+    # 20 dB pauses move the edge as before, then near-digital silence; a pause only the lower drop_db
+    # finds may be soft speech, so its move must cross no word.
+    deep_db = max(drop_db, DEEP_DROP_DB)
+    placed = _pause_edge(edge, side, point, _find_pauses(frames, t0, deep_db) if frames else [],
+                         max_move_s, locked, gap)
+    if placed:
+        return placed[0], placed[1], True, 'pause'
+    digital = None if locked else _digital_silence_edge(edge, side, frames, t0)
+    if digital is not None:
+        return digital[0], digital[1], True, 'digital_silence'
+    if drop_db < deep_db:
+        placed = _pause_edge(edge, side, point, _find_pauses(frames, t0, drop_db) if frames else [],
+                             max_move_s, locked, gap)
+        if placed and not _crosses_word(edge, placed[0], words):
+            return placed[0], placed[1], True, 'pause'
+    quiet = None if locked else _quiet_gap_frame(edge, side, words, frames, t0, max_move_s)
+    if quiet is not None:
+        return round(quiet, 3), QUIET_FRAME_PAUSE_S, True, 'quiet_frame'
     # No pause in the audio: only a word gap may move the edge, never a sentence start.
     gap = _word_gap_point(edge, side, words)
-    return (edge if gap is None else gap), None, False
+    return (edge if gap is None else gap), None, False, 'word_gap'
 
 
 def _word_snap_skip(ad: dict, side: str, edge: float, duration: float | None) -> str | None:
@@ -432,7 +558,7 @@ def _neighbour_limits(ad: dict, others: list[dict]) -> tuple[float | None, float
 
 
 def _snap_to_word_gaps(ads, silence_spans, max_distance_s, min_silence_s, word_segments,
-                       energy_reader, neighbours, duration) -> None:
+                       energy_reader, neighbours, duration, drop_db=SPEECH_DROP_DB) -> None:
     """Word-gap mode of snap_ad_boundaries_to_silence; records edge_snap and edge_pause_s.
     A cut never shrinks below min(its length, the floor) nor crosses or nears a neighbouring marker."""
     words = _flatten_words(word_segments)
@@ -453,9 +579,10 @@ def _snap_to_word_gaps(ads, silence_spans, max_distance_s, min_silence_s, word_s
         for side, edge in (('start', start), ('end', end)):
             if _word_snap_skip(ad, side, edge, duration):
                 continue
-            new, pause, acoustic = _snap_word_edge(
+            new, pause, acoustic, mode = _place_word_edge(
                 edge, side, words, spans=silence_spans, energy_reader=energy_reader,
-                min_silence_s=min_silence_s, max_move_s=max_move_s)
+                min_silence_s=min_silence_s, max_move_s=max_move_s, drop_db=drop_db,
+                locked=reviewer_edge_locked(ad, side))
             if side == 'start':
                 blocked = prior_end is not None and (
                     new < prior_end or new - prior_end < min(MERGE_GAP_SECONDS, edge - prior_end))
@@ -471,6 +598,8 @@ def _snap_to_word_gaps(ads, silence_spans, max_distance_s, min_silence_s, word_s
             if new != edge:
                 result[side] = new
                 record[side] = {'acoustic': acoustic, 'moved_s': round(new - edge, 3)}
+                if mode in ('quiet_frame', 'digital_silence'):
+                    record[side]['mode'] = mode
             if pause is not None:
                 pauses[side] = round(pause, 3)
         if not record and not pauses:

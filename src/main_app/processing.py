@@ -28,6 +28,7 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW,
     CUE_ONLY_PROVEN_EPISODES,
     count_not_cut, is_pending_review, is_keep_like,
+    resolve_edge_crossfade_s,
     resolve_processing_mode,
     resolve_skip_second_pass,
     resolve_skip_transcription,
@@ -1048,7 +1049,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
                 audio_output['mp3_stream_copy_enabled'] = False
             local_audio_processor = AudioProcessor(
-                bitrate=bitrate, compression_level=compression_level, **audio_output)
+                bitrate=bitrate, compression_level=compression_level,
+                edge_crossfade_s=resolve_edge_crossfade_s(db), **audio_output)
 
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must use

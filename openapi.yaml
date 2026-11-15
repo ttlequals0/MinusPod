@@ -8712,6 +8712,21 @@ paths:
                   minimum: 0
                   maximum: 1770
                   description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
+                cutEdgePauseDropDb:
+                  type: [number, 'null']
+                  minimum: 6
+                  maximum: 40
+                  description: >-
+                    Only with preciseCutEdges. A pause next to a cut edge is a run of 10 ms frames at least this many dB
+                    under the local speech level. Default 15. Null clears the stored value.
+                cutEdgeCrossfadeMs:
+                  type: [number, 'null']
+                  minimum: 0
+                  maximum: 200
+                  description: >-
+                    Only with preciseCutEdges. Length of the equal-power crossfade where kept audio meets kept audio with
+                    no replacement clip between, and the fade shape beside a clip. 0 keeps plain cuts and linear fades.
+                    Default 40. Null clears the stored value.
                 verificationMissHoldMinConfidence:
                   type: number
                   format: float
