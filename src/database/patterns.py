@@ -9,7 +9,7 @@ from config import (
 from database.fingerprint_cleanup import delete_pattern_dependents, delete_pattern_dependents_in
 from database.podcasts import normalize_network_id
 from utils.json_fields import load_json_list
-from utils.markers import parse_ad_markers
+from utils.markers import normalize_sponsor_key, parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
 logger = logging.getLogger(__name__)
@@ -56,13 +56,6 @@ def _pattern_scope_sql(pattern: dict) -> tuple[str, list]:
     if pattern.get('scope') == 'network':
         return f" AND {_NETWORK_SQL}", [pattern.get('network_id')]
     return "", []
-
-
-def _marker_id_like(pattern_id: int) -> tuple[str, list]:
-    """Prefilter on the stored JSON text; the caller still parses the markers. Both separators, spaced and compact."""
-    forms = [f'%"pattern_id": {pattern_id}{end}%' for end in (',', '}')]
-    forms += [f'%"pattern_id":{pattern_id}{end}%' for end in (',', '}')]
-    return "(" + " OR ".join(["ed.ad_markers_json LIKE ?"] * len(forms)) + ")", forms
 
 
 class PatternMixin:
@@ -512,31 +505,57 @@ class PatternMixin:
             (pattern['created_from_episode_id'], *params, limit)).fetchall()
         return [(r['slug'], r['episode_id']) for r in rows]
 
-    def _scoped_retained_episodes(self, pattern: dict, extra_sql: str, extra_params: list,
-                                  limit: int) -> list[tuple[str, str]]:
-        """Newest in-scope episodes that keep their original and meet extra_sql, minus false-positive ones."""
+    def _scoped_retained_episodes(self, pattern: dict, limit: int, ref: tuple[str, list[str]] | None = None,
+                                  need_segments: bool = False) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes minus false-positive ones; ref is (ref_type, values) to require
+        a marker reference, need_segments to skip episodes without original segments."""
         scope_sql, scope_params = _pattern_scope_sql(pattern)
-        rows = self.get_connection().execute(
-            "SELECT p.slug, e.episode_id FROM episodes e "  # noqa: S608
+        params = []
+        source = "episodes e"
+        if ref:
+            ref_type, values = ref
+            source = ("(SELECT DISTINCT episode_pk FROM episode_marker_refs WHERE ref_type = ? "  # noqa: S608
+                      f"AND ref_value IN ({','.join('?' * len(values))})) c "
+                      # Without stats the planner reads whole episode rows instead of this covering index
+                      "JOIN episodes e INDEXED BY idx_episodes_retained_by_id ON e.id = c.episode_pk")
+            params += [ref_type, *values]
+        conn = self.get_connection()
+        rows = conn.execute(
+            f"SELECT p.slug, e.episode_id, e.id FROM {source} "  # noqa: S608
             "JOIN podcasts p ON p.id = e.podcast_id "
-            "JOIN episode_details ed ON ed.episode_id = e.id "
-            f"WHERE e.original_file IS NOT NULL AND {extra_sql}{scope_sql} "
+            f"WHERE e.original_file IS NOT NULL{scope_sql} "
             "AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = ? "
             "AND f.episode_id = e.episode_id AND f.correction_type = 'false_positive' "
             "AND (f.podcast_id IS NULL OR f.podcast_id = e.podcast_id)) "
-            "ORDER BY e.processed_at DESC, e.id DESC LIMIT ?",
-            (*extra_params, *scope_params, pattern['id'], limit)).fetchall()
-        return [(r['slug'], r['episode_id']) for r in rows]
+            "ORDER BY e.processed_at DESC, e.id DESC",
+            (*params, *scope_params, pattern['id']))
+        found = []
+        for row in rows:
+            # Checked per surviving row: as an EXISTS it runs for every candidate before the sort (5 s cold at 17k)
+            if need_segments and not (conn.execute(
+                    "SELECT typeof(original_segments_json) != 'null' FROM episode_details WHERE episode_id = ?",
+                    (row['id'],)).fetchone() or (0,))[0]:
+                continue
+            found.append((row['slug'], row['episode_id']))
+            if len(found) >= limit:
+                break
+        rows.close()
+        return found
 
     def get_pattern_marker_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
         """Newest in-scope retained episodes whose markers name the pattern, minus false-positive ones."""
-        like_sql, like_params = _marker_id_like(pattern['id'])
-        return self._scoped_retained_episodes(pattern, like_sql, like_params, limit)
+        return self._scoped_retained_episodes(pattern, limit, ('pattern', [str(pattern['id'])]))
+
+    def get_pattern_sponsor_episodes(self, pattern: dict, names: list[str], limit: int) -> list[tuple[str, str]]:
+        """Newest in-scope retained episodes with a transcript whose markers name one of the sponsor names."""
+        values = list(dict.fromkeys(normalize_sponsor_key(n) for n in names if n and n.strip()))
+        if not values:
+            return []
+        return self._scoped_retained_episodes(pattern, limit, ('sponsor', values), need_segments=True)
 
     def get_pattern_transcript_episodes(self, pattern: dict, limit: int) -> list[tuple[str, str]]:
         """Newest in-scope retained episodes that keep their original transcript, minus false-positive ones."""
-        return self._scoped_retained_episodes(
-            pattern, "ed.original_segments_json IS NOT NULL", [], limit)
+        return self._scoped_retained_episodes(pattern, limit, need_segments=True)
 
     def get_pattern_corrections(self, pattern_id: int = None, limit: int = 100) -> list[dict]:
         """Get pattern corrections, optionally filtered by pattern_id."""

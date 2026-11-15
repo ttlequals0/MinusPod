@@ -298,6 +298,20 @@ TABLE_DDL['episode_snap_stats'] = """CREATE TABLE IF NOT EXISTS episode_snap_sta
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""
 
+# Pattern ids and sponsor names each episode's markers name, so Add audio lookups skip the large
+# markers column. Every non-null ad_markers_json write must go through save_episode_details
+# (tests/unit/test_marker_writers.py enforces it); the triggers below drop the rows when markers go.
+TABLE_DDL['episode_marker_refs'] = """CREATE TABLE IF NOT EXISTS episode_marker_refs (
+    episode_pk INTEGER NOT NULL,
+    ref_type TEXT NOT NULL CHECK(ref_type IN ('pattern', 'sponsor')),
+    ref_value TEXT NOT NULL,
+    PRIMARY KEY (ref_type, ref_value, episode_pk),
+    FOREIGN KEY (episode_pk) REFERENCES episodes(id) ON DELETE CASCADE
+) WITHOUT ROWID"""
+
+EPISODE_MARKER_REFS_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_episode_marker_refs_episode ON episode_marker_refs(episode_pk)")
+
 # Claim state of the upgrade steps that run in the background after startup.
 TABLE_DDL['deferred_upgrade_steps'] = """CREATE TABLE IF NOT EXISTS deferred_upgrade_steps (
     name TEXT PRIMARY KEY,
@@ -336,6 +350,17 @@ END""",
     'episode_snap_stats_delete': """CREATE TRIGGER episode_snap_stats_delete
 AFTER DELETE ON episode_details BEGIN
     DELETE FROM episode_snap_stats WHERE episode_id = OLD.episode_id;
+END""",
+}
+
+EPISODE_MARKER_REFS_TRIGGERS = {
+    'episode_marker_refs_update': """CREATE TRIGGER episode_marker_refs_update
+AFTER UPDATE OF ad_markers_json ON episode_details WHEN NEW.ad_markers_json IS NULL BEGIN
+    DELETE FROM episode_marker_refs WHERE episode_pk = OLD.episode_id;
+END""",
+    'episode_marker_refs_delete': """CREATE TRIGGER episode_marker_refs_delete
+AFTER DELETE ON episode_details BEGIN
+    DELETE FROM episode_marker_refs WHERE episode_pk = OLD.episode_id;
 END""",
 }
 
@@ -960,6 +985,9 @@ PRAGMA journal_mode = WAL;
 
 """ + TABLE_DDL['episode_snap_stats'] + """;
 
+""" + TABLE_DDL['episode_marker_refs'] + """;
+""" + EPISODE_MARKER_REFS_INDEX_SQL + """;
+
 """ + TABLE_DDL['deferred_upgrade_steps'] + """;
 
 -- settings table (ad detection config, retention)
@@ -1066,6 +1094,10 @@ CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting ON episodes(sb_state) WHERE sb_state IN ('waiting','probing');
 CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_activity_at ON episodes(COALESCE(processed_at, updated_at));
+-- Covering indexes for the Add audio lookups over episodes that keep their original
+CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_processed ON episodes(processed_at, id, podcast_id, episode_id) WHERE original_file IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_id ON episodes(id, podcast_id, processed_at, episode_id) WHERE original_file IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodes_retained_by_feed ON episodes(podcast_id, processed_at, id, episode_id) WHERE original_file IS NOT NULL;
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;

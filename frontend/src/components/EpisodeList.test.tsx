@@ -5,6 +5,22 @@ import EpisodeList from './EpisodeList';
 import type { Episode } from '../api/types';
 
 describe('EpisodeList', () => {
+  it('loads a row cover from the thumbnail address the API gave', () => {
+    const thumb = '/api/v1/feeds/show/episodes/ep7/artwork?size=thumb&v=0123456789ab';
+    const episode = {
+      id: 'ep7', title: 'With cover', published: '2026-09-10T00:00:00Z', status: 'completed',
+      artworkUrl: 'https://cdn.example/c.jpg', artworkThumbUrl: thumb,
+    } as Episode;
+    const { container } = render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(container.querySelector('img')!.getAttribute('src')).toBe(thumb);
+  });
+
+  it('falls back to the feed cover for a row without a thumbnail address', () => {
+    const episode = { id: 'ep8', title: 'No cover', published: '2026-09-10T00:00:00Z', status: 'completed', artworkThumbUrl: null } as Episode;
+    const { container } = render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(container.querySelector('img')!.getAttribute('src')).toBe('/api/v1/feeds/show/artwork');
+  });
+
   it('links a recents row to its source feed and names it', () => {
     const episode = {
       id: 'ep1', title: 'From alpha', published: '2026-09-10T00:00:00Z', status: 'completed',

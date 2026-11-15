@@ -14,7 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thBase, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thCompact, padCompact, tdCompact, tdCompactNum, rowCard } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import SortControls from '../components/SortControls';
 import { ScopeBadge } from '../components/ScopeBadge';
@@ -24,7 +24,7 @@ import { Badge } from '../components/Badge';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
-import { formatDate } from '../utils/format';
+import { formatDateShort, formatDateTime } from '../utils/format';
 import { audioSummaryLabel } from '../utils/patternAudio';
 import {
   SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
@@ -69,7 +69,12 @@ const PATTERN_PARAM_DEFAULTS = {
 };
 
 // Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
-const COLUMN_WIDTHS = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[136px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
+const COLUMN_WIDTHS = ['w-[64px]', 'w-[148px]', '', 'w-[136px]', 'w-[124px]', 'w-[108px]', 'w-[100px]', 'w-[96px]', 'w-[124px]', 'w-[76px]', 'w-[84px]'];
+
+// Short date with the full date and time as its tooltip, `-` when missing.
+function ShortDate({ value }: { value: string | null }) {
+  return <span title={value ? formatDateTime(value) : undefined}>{formatDateShort(value)}</span>;
+}
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -525,8 +530,8 @@ function PatternsPage() {
               <span className={pattern.false_positive_count > 0 ? 'text-destructive' : ''}>
                 False positives: {pattern.false_positive_count}
               </span>
-              <span>Created: {formatDate(pattern.created_at)}</span>
-              <span>Last matched: {formatDate(pattern.last_matched_at)}</span>
+              <span>Created: <ShortDate value={pattern.created_at} /></span>
+              <span>Last matched: <ShortDate value={pattern.last_matched_at} /></span>
             </div>
             <div data-testid={`pattern-card-audio-${pattern.id}`} className="mt-2 text-xs text-muted-foreground">
               Audio: {audioSummaryLabel(pattern.audio)}
@@ -543,7 +548,7 @@ function PatternsPage() {
       {/* Desktop Table Layout */}
       <div className={`hidden xl:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full table-fixed min-w-[1140px]">
+          <table className="w-full table-fixed min-w-[1180px]">
             <colgroup>
               {COLUMN_WIDTHS.map((w, i) => (
                 <col key={i} className={w} />
@@ -551,23 +556,23 @@ function PatternsPage() {
             </colgroup>
             <thead className={tableHead}>
               <tr>
-                <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="scope" label="Scope" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="sponsor" label="Sponsor" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className={`${thBase} px-2 text-left`}>
+                <SortHeader field="id" label="ID" className={padCompact} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="scope" label="Scope" className={padCompact} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="sponsor" label="Sponsor" className={padCompact} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th className={thCompact}>
                   Category
                 </th>
-                <th className={`${thBase} px-2 text-left`}>
+                <th className={thCompact}>
                   Audio
                 </th>
-                <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="false_positive_count" label="False pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="last_matched_at" label="Last matched" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className={`${thBase} px-2 text-left`}>
+                <SortHeader field="confirmation_count" label="Confirmed" align="right" className={`${padCompact} whitespace-nowrap`} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False pos." fullLabel="False positives" align="right" className={`${padCompact} whitespace-nowrap`} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="created_at" label="Created" className={`${padCompact} whitespace-nowrap`} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last matched" className={`${padCompact} whitespace-nowrap`} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th className={thCompact}>
                   Status
                 </th>
-                <th className={`${thBase} px-2 text-left`}>
+                <th className={thCompact}>
                   Actions
                 </th>
               </tr>
@@ -579,10 +584,10 @@ function PatternsPage() {
                   className={`${tableRow} cursor-pointer`}
                   onClick={() => setSelectedPattern(pattern)}
                 >
-                  <td className="px-2 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
+                  <td className={`${tdCompact} whitespace-nowrap text-sm font-mono text-muted-foreground`}>
                     #{pattern.id}
                   </td>
-                  <td className="px-2 py-3 text-sm overflow-hidden">
+                  <td className={`${tdCompact} text-sm overflow-hidden`}>
                     <div className="flex items-center gap-1 flex-wrap">
                       <ScopeBadge pattern={pattern} truncate />
                       <SegmentCategoryBadge category={pattern.category} />
@@ -601,35 +606,36 @@ function PatternsPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-2 py-3 text-sm overflow-hidden">
+                  <td className={`${tdCompact} text-sm overflow-hidden`}>
                     <button
                       type="button"
                       aria-label={`View pattern ${pattern.id}: ${pattern.sponsor || 'Unknown sponsor'}`}
+                      title={pattern.sponsor || undefined}
                       className={`${tableLink} max-w-full text-left text-sm font-medium truncate`}
                       onClick={(e) => { e.stopPropagation(); setSelectedPattern(pattern); }}
                     >
                       {pattern.sponsor || '(Unknown)'}
                     </button>
                     {pattern.text_template && (
-                      <div className="text-xs text-muted-foreground truncate">
+                      <div className="text-xs text-muted-foreground truncate" title={pattern.text_template}>
                         {pattern.text_template.substring(0, 60)}...
                       </div>
                     )}
                   </td>
                   {/* Stops the row click: the select is its own control, not
                       a way into the detail modal. */}
-                  <td className="px-2 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <td className={`${tdCompact} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
                     {categorySelect(pattern, 'w-full min-w-0')}
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                  <td className={`${tdCompact} text-sm text-muted-foreground whitespace-nowrap`}>
                     {audioSummaryLabel(pattern.audio)}
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap">
+                  <td className={tdCompactNum}>
                     <span className="text-sm text-success font-medium">
                       {pattern.confirmation_count}
                     </span>
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap">
+                  <td className={tdCompactNum}>
                     <span className={`text-sm font-medium ${
                       pattern.false_positive_count > 0
                         ? 'text-destructive'
@@ -638,16 +644,16 @@ function PatternsPage() {
                       {pattern.false_positive_count}
                     </span>
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDate(pattern.created_at)}
+                  <td className={`${tdCompact} text-sm text-muted-foreground whitespace-nowrap tabular-nums`}>
+                    <ShortDate value={pattern.created_at} />
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDate(pattern.last_matched_at)}
+                  <td className={`${tdCompact} text-sm text-muted-foreground whitespace-nowrap tabular-nums`}>
+                    <ShortDate value={pattern.last_matched_at} />
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap">
+                  <td className={`${tdCompact} whitespace-nowrap`}>
                     <ActiveBadge active={pattern.is_active} />
                   </td>
-                  <td className="px-2 py-3 whitespace-nowrap text-xs">
+                  <td className={`${tdCompact} whitespace-nowrap text-xs`}>
                     {pattern.source === PATTERN_SOURCE_COMMUNITY && (
                       <DemoDisabled>
                         <button

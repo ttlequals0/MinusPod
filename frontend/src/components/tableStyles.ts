@@ -8,6 +8,11 @@ export const tableHead = 'bg-muted/50';
 export const thBase = 'py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider';
 export const th = `px-4 text-left ${thBase}`;
 export const thRight = `px-4 text-right ${thBase}`;
+// Denser horizontal padding for the 11-column Patterns table (px-3 instead of px-4).
+export const padCompact = 'px-3';
+export const thCompact = `${padCompact} text-left ${thBase}`;
+export const tdCompact = `${padCompact} py-3`;
+export const tdCompactNum = `${tdCompact} whitespace-nowrap text-right tabular-nums`;
 export const tableBody = 'divide-y divide-border';
 export const tableRow = 'hover:bg-muted/50';
 export const td = 'px-4 py-3 text-sm';
