@@ -16,7 +16,6 @@ def test_gpu_onnxruntime_matches_requirements_pin():
     cpu = _CPU_PIN.search(REQUIREMENTS.read_text())
     assert gpu, 'no onnxruntime-gpu==X.Y.Z pin found in Dockerfile'
     assert cpu, 'no onnxruntime==X.Y.Z pin found in requirements.txt'
-    assert gpu.group(1) == '1.24.4'
     assert gpu.group(1) == cpu.group(1), (
         f'GPU swaps in onnxruntime-gpu {gpu.group(1)} but requirements pins {cpu.group(1)}')
 

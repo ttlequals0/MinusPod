@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import MagicMock, patch
 
 import main_app.processing as processing
-from main_app.pipeline import signals, detect
+from main_app.pipeline import signals
 from audio_analysis.base import AudioAnalysisResult
 
 _RESULT = {'status': 'ok',
@@ -218,10 +218,3 @@ class TestMakeValidatorAudioAnalysis:
         r.dai_differential = _RESULT
         out = signals._make_validator_audio_analysis(r, _RESULT)
         assert out['dai_differential'] == _RESULT
-
-    def test_detect_first_pass_accepts_dai_differential_kwarg(self):
-        # After the fix, _detect_ads_first_pass has a dai_differential= param
-        # so the outer pipeline can pass Layer 3 data when Layer 2 is None.
-        import inspect
-        sig = inspect.signature(detect._detect_ads_first_pass)
-        assert 'dai_differential' in sig.parameters

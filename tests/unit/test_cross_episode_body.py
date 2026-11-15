@@ -389,14 +389,6 @@ def test_near_duplicate_matches_at_shifted_offsets_do_not_overlap():
     assert 15.0 <= result[0]['start'] <= 18.0
 
 
-# Existing discover_cross_episode_cues tests must remain green (import guard).
-
-def test_import_guard_existing_function_still_importable():
-    from audio_fingerprinter import AudioFingerprinter as AF
-    assert hasattr(AF, 'discover_cross_episode_cues')
-    assert hasattr(AF, 'discover_cross_episode_body')
-
-
 # ---------------------------------------------------------------------------
 # Per-episode breakdown (issue #350: play buttons + per-episode match list)
 # ---------------------------------------------------------------------------

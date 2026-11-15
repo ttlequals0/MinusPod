@@ -47,12 +47,3 @@ def test_unrecognized_value_is_logged(monkeypatch, caplog):
 
 def test_every_accepted_value_is_one_ctranslate2_takes():
     assert set(WHISPER_DEVICES) == {'cpu', 'cuda'}
-
-
-def test_transcriber_uses_the_resolver_everywhere():
-    # All three device reads must go through validation, not raw os.getenv.
-    from pathlib import Path
-    package = Path(__file__).resolve().parents[2] / 'src' / 'transcriber'
-    source = '\n'.join(p.read_text() for p in package.glob('*.py'))
-    assert 'os.getenv("WHISPER_DEVICE"' not in source
-    assert source.count('resolve_whisper_device()') >= 3

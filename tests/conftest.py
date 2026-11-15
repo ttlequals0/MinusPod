@@ -211,28 +211,6 @@ def sample_transcript():
 
 
 @pytest.fixture
-def short_ad():
-    """Ad that is too short to be valid."""
-    return {
-        'start': 50.0,
-        'end': 55.0,
-        'confidence': 0.80,
-        'reason': 'Quick mention'
-    }
-
-
-@pytest.fixture
-def long_ad():
-    """Ad that exceeds normal duration limits."""
-    return {
-        'start': 100.0,
-        'end': 450.0,
-        'confidence': 0.70,
-        'reason': 'Extended promotional segment'
-    }
-
-
-@pytest.fixture
 def mock_podcast(temp_db):
     """Create a test podcast in the database."""
     slug = 'test-podcast'

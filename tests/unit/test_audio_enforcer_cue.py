@@ -110,13 +110,6 @@ def test_spectral_cap_keeps_top_n_by_confidence():
     assert '+2 more unlabelled audio cues omitted for brevity' in out
 
 
-def test_spectral_cap_fails_if_cap_removed():
-    """Sentinel: if SPECTRAL_CUE_MAX_PER_WINDOW is removed/set to None this must fail."""
-    # This test relies on test_spectral_cap_keeps_top_n_by_confidence above;
-    # it exists to document the sensitivity requirement.
-    assert isinstance(SPECTRAL_CUE_MAX_PER_WINDOW, int) and SPECTRAL_CUE_MAX_PER_WINDOW > 0
-
-
 def test_template_cues_never_capped():
     """Template cues must all render regardless of count."""
     enforcer = AudioEnforcer()

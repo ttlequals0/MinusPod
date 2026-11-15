@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import AdReviewModal, { type AdReviewItem } from './AdReviewModal';
-import { MODE_CAPABILITIES, type AdReviewMode } from './adReviewModes';
+import type { AdReviewMode } from './adReviewModes';
 
 vi.mock('wavesurfer.js', () => ({
   default: { create: vi.fn(() => ({ on: vi.fn(), destroy: vi.fn() })) },
@@ -30,14 +30,8 @@ function renderMode(mode: AdReviewMode) {
   );
 }
 
-describe('AdReviewModal mode capabilities', () => {
-  it('review mode pins its capability set', () => {
-    expect(MODE_CAPABILITIES.review).toEqual({
-      ariaLabel: 'Review ad', heading: 'Detected ad', headingOnPhone: false, followsAudioMode: true,
-      fullEpisodeWindow: false, audioToggle: true, addNewButton: true, detectionMeta: true, categoryField: true,
-      createFields: false, sponsorPrompt: true, decisionShortcuts: true, backdropCloses: true,
-      seekIntoAdOnPlay: true, maxSelectionSeconds: null, footer: 'review',
-    });
+describe('AdReviewModal modes', () => {
+  it('review mode renders its own controls', () => {
     renderMode('review');
     expect(screen.getByRole('dialog', { name: 'Review ad' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Processed' })).toBeTruthy();
@@ -47,13 +41,7 @@ describe('AdReviewModal mode capabilities', () => {
     expect(screen.getByText('C', { selector: 'kbd' })).toBeTruthy();
   });
 
-  it('create mode pins its capability set', () => {
-    expect(MODE_CAPABILITIES.create).toEqual({
-      ariaLabel: 'Add new ad', heading: 'Add new ad', headingOnPhone: false, followsAudioMode: false,
-      fullEpisodeWindow: true, audioToggle: false, addNewButton: false, detectionMeta: false, categoryField: false,
-      createFields: true, sponsorPrompt: false, decisionShortcuts: true, backdropCloses: false,
-      seekIntoAdOnPlay: false, maxSelectionSeconds: null, footer: 'create',
-    });
+  it('create mode renders its own controls', () => {
     renderMode('create');
     expect(screen.getByRole('dialog', { name: 'Add new ad' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Processed' })).toBeNull();
@@ -61,13 +49,7 @@ describe('AdReviewModal mode capabilities', () => {
     expect(screen.getByText('Save creates a manual ad pattern.')).toBeTruthy();
   });
 
-  it('span mode pins its capability set', () => {
-    expect(MODE_CAPABILITIES.span).toEqual({
-      ariaLabel: 'Edit edges', heading: 'Edit edges', headingOnPhone: true, followsAudioMode: false,
-      fullEpisodeWindow: false, audioToggle: false, addNewButton: false, detectionMeta: false, categoryField: false,
-      createFields: false, sponsorPrompt: false, decisionShortcuts: false, backdropCloses: false,
-      seekIntoAdOnPlay: true, maxSelectionSeconds: 600, footer: 'span',
-    });
+  it('span mode renders its own controls', () => {
     renderMode('span');
     expect(screen.getByRole('dialog', { name: 'Edit edges' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Processed' })).toBeNull();

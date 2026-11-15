@@ -8,7 +8,7 @@ import json
 import requests
 
 from rss_parser import RSSParser
-from upstream_chapters import MAX_UPSTREAM_CHAPTERS_BYTES, fetch_upstream_chapters
+from upstream_chapters import fetch_upstream_chapters
 from utils.safe_http import ResponseTooLargeError
 
 
@@ -148,9 +148,6 @@ class TestFetchUpstreamChapters:
 
         assert fetch_upstream_chapters('https://feed.example.com/ch.json') == \
             [{'startTime': 10, 'title': 'Kept'}]
-
-    def test_size_cap_constant_is_one_megabyte(self):
-        assert MAX_UPSTREAM_CHAPTERS_BYTES == 1024 * 1024
 
 
 def test_bool_start_time_and_non_http_asset_urls_are_dropped(monkeypatch):

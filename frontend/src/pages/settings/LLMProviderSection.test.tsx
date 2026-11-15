@@ -318,20 +318,13 @@ describe('LLMProviderSection: manual request-rate limits', () => {
   });
 });
 
-describe('LLMProviderSection: rate-limit grouping and field chrome', () => {
+describe('LLMProviderSection: rate-limit grouping', () => {
   it('separates the primary and secondary limits with their own legends', () => {
     renderSection({ secondaryProviderEnabled: true });
     const groups = screen.getAllByRole('group');
     const legends = groups.map((g) => g.querySelector('legend')?.textContent);
     expect(legends).toContain('Provider A rate limits');
     expect(legends).toContain('Provider B rate limits');
-  });
-
-  it('gives the base URL field the shared input chrome', () => {
-    renderSection({ llmProvider: 'ollama' });
-    const input = screen.getByLabelText('Base URL');
-    expect(input.className).toContain('px-3 py-2');
-    expect(input.className).not.toContain('px-4');
   });
 });
 

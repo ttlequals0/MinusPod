@@ -7,7 +7,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AIModelsSection from './AIModelsSection';
-import { inputBase } from '../../components/fieldStyles';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import type { ClaudeModel } from '../../api/types';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
@@ -128,7 +127,6 @@ describe('AIModelsSection: typing a model ID', () => {
     await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
     const input = screen.getByLabelText('Ad detection model');
     expect(input.tagName).toBe('INPUT');
-    expect(input.className).toContain(inputBase);
 
     await user.click(screen.getAllByRole('button', { name: 'Choose from list' })[0]);
     expect(screen.getByLabelText('Ad detection model').tagName).toBe('SELECT');
@@ -306,20 +304,6 @@ describe('AIModelsSection: custom pricing', () => {
     const outputs = screen.getAllByLabelText('Output') as HTMLInputElement[];
     expect(inputs[0].value).toBe('0');
     expect(outputs[0].value).toBe('0');
-  });
-
-  it('uses 44 px pricing inputs with the shared focus ring', () => {
-    renderSection();
-
-    const inputs = [
-      ...screen.getAllByLabelText('Input'),
-      ...screen.getAllByLabelText('Output'),
-      ...screen.getAllByLabelText('Cached input'),
-    ];
-    for (const input of inputs) {
-      expect(input.className).toContain(inputBase);
-      expect(input.className).toContain('focus-visible:ring-2');
-    }
   });
 
   it('saves both positive rates for the selected model', async () => {

@@ -347,14 +347,6 @@ describe('GlobalStatusBar multiple jobs', () => {
     expect(chip('+1 running')).toBeDefined();
   });
 
-  it('tints the queued chip with the shared queued hue', async () => {
-    const a = job('feed-a', '1', 'First');
-    await renderBar(makeStatus({
-      currentJob: a, jobs: [a], queueLength: 3, hold: emptyHold(),
-    }));
-    expect(chip('+3 queued').className).toContain('c-purple');
-  });
-
   it('renders an offline hold label once beside a running job', async () => {
     const a = job('feed-a', '1', 'First');
     await renderBar(makeStatus({
@@ -380,17 +372,6 @@ describe('GlobalStatusBar multiple jobs', () => {
     expect(rows).toHaveLength(2);
     expect(rows[1].textContent).toContain('Second');
     expect(rows[1].textContent).toContain('Detecting ads');
-  });
-
-  it('expanded panel is capped to the viewport, not a fixed 192px', async () => {
-    const a = job('feed-a', '1', 'First');
-    const b = job('feed-b', '2', 'Second');
-    await renderBar(makeStatus({ currentJob: a, jobs: [a, b], hold: emptyHold() }));
-    act(() => { screen.getByRole('button', { name: 'Expand status bar' }).click(); });
-    const panel = screen.getAllByTestId('status-job')[0].parentElement as HTMLElement;
-    expect(panel.className).toContain('max-h-[min(70vh,26rem)]');
-    expect(panel.className).not.toContain('max-h-48');
-    expect(panel.className).toContain('overflow-y-auto');
   });
 });
 

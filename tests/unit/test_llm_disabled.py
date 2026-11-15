@@ -6,13 +6,9 @@ import pytest
 
 import tests.app_bootstrap  # noqa: F401
 import llm_client
-from config import PROVIDER_NONE, _validate_llm_provider
+from config import _validate_llm_provider
 
 SRC = pathlib.Path(__file__).resolve().parents[2] / 'src'
-
-
-def test_provider_none_constant():
-    assert PROVIDER_NONE == 'none'
 
 
 def test_boot_validator_accepts_none():

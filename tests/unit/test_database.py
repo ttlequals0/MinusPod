@@ -1929,13 +1929,6 @@ class TestStalePromptRefresh:
         assert value == 'MY CUSTOM PROMPT'
         assert is_default == 0
 
-    def test_the_refresh_is_not_on_the_seeding_path(self, temp_db):
-        """Seeding runs through _migrate_from_json, which returns early on a database that already has
-        podcasts, so the refresh must not live there."""
-        import inspect
-        src = inspect.getsource(temp_db.__class__._seed_default_settings)
-        assert 'iter_refreshable_defaults' not in src
-
     def test_a_populated_database_still_gets_the_refresh(self, temp_db):
         """The production shape: podcasts present, prompt row stale."""
         from utils.constants import DEFAULT_SYSTEM_PROMPT

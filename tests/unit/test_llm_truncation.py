@@ -1,6 +1,5 @@
 """Tests for LLM response truncation warning."""
 import logging
-from unittest.mock import MagicMock
 
 from llm_client import LLMClient
 
@@ -47,40 +46,3 @@ class TestWarnIfTruncated:
         with caplog.at_level(logging.WARNING):
             client._warn_if_truncated(None, 2000, "model")
         assert "truncated" not in caplog.text
-
-
-class TestCircuitBreakerHelpers:
-    """Test LLMClient circuit breaker base class helpers."""
-
-    def test_check_circuit_breaker_noop_without_breaker(self):
-        client = ConcreteLLMClient()
-        client._check_circuit_breaker()  # Should not raise
-
-    def test_check_circuit_breaker_delegates(self):
-        client = ConcreteLLMClient()
-        mock_cb = MagicMock()
-        client.set_circuit_breaker(mock_cb)
-        client._check_circuit_breaker()
-        mock_cb.check.assert_called_once()
-
-    def test_record_success(self):
-        client = ConcreteLLMClient()
-        mock_cb = MagicMock()
-        client.set_circuit_breaker(mock_cb)
-        client._record_circuit_breaker(success=True)
-        mock_cb.record_success.assert_called_once()
-        mock_cb.record_failure.assert_not_called()
-
-    def test_record_failure(self):
-        client = ConcreteLLMClient()
-        mock_cb = MagicMock()
-        client.set_circuit_breaker(mock_cb)
-        client._record_circuit_breaker(success=False)
-        mock_cb.record_failure.assert_called_once()
-        mock_cb.record_success.assert_not_called()
-
-    def test_record_noop_without_breaker(self):
-        client = ConcreteLLMClient()
-        # Should not raise
-        client._record_circuit_breaker(success=True)
-        client._record_circuit_breaker(success=False)

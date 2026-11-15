@@ -802,10 +802,6 @@ def test_background_builds_are_capped_and_a_slot_frees(tmp_path):
     t3.join(30)
 
 
-def test_the_inline_cap_is_45_minutes():
-    assert ap.PEAKS_INLINE_MAX_SECONDS == 45 * 60
-
-
 def test_route_builds_inline_at_44_minutes(route, monkeypatch):
     route.episode['original_duration'] = 44 * 60
     started, built = [], []

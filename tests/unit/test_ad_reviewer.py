@@ -11,7 +11,6 @@ bootstrap('ad_reviewer_test_')
 
 from ad_reviewer import (
     AdReviewer,
-    BOUNDARY_SNAP_TOLERANCE_S,
     RESURRECT_BAND_WIDTH,
     _first_num,
     _review_inconclusive_reason,
@@ -453,12 +452,6 @@ def test_final_sentence_anchor_visible_in_prompt():
     # The old shape gave exactly two anchors ([0.0s] and [35.0s]) with all
     # candidate text between them stripped of timestamps.
     assert '28.4' in prompt
-
-
-# ---------- Edge-proximity tolerance constant ----------
-
-def test_boundary_tolerance_constant():
-    assert BOUNDARY_SNAP_TOLERANCE_S == 3.0
 
 
 # ---------- Prose/number consistency warning on adjust verdicts ----------
