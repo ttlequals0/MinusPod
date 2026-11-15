@@ -15169,6 +15169,17 @@ components:
           type: [string, 'null']
           description: Set only when the whole run failed (e.g. rate limited).
 
+    PatternCleanupAudioOutcome:
+      type: object
+      properties:
+        patternId:
+          type: integer
+        stored:
+          type: boolean
+        reason:
+          type: [string, 'null']
+          description: Why no fingerprint was stored; null when one was.
+
     PatternCleanupSuggestion:
       type: object
       properties:
@@ -15258,6 +15269,19 @@ components:
             audioSource:
               type: [object, 'null']
               description: Source episode span of the pattern's fingerprint when it was approved, used to restore audio on undo. Null when it had none.
+            previousAvgDuration:
+              type: [number, 'null']
+              description: Stored average duration in seconds before a trim, restored exactly on undo. Absent on approvals made before it was recorded.
+            audioOutcomes:
+              type: array
+              description: Audio fingerprint outcome per pattern from approving a trim or split.
+              items:
+                $ref: '#/components/schemas/PatternCleanupAudioOutcome'
+            undoAudioOutcomes:
+              type: array
+              description: Audio fingerprint outcome per pattern from undoing a trim.
+              items:
+                $ref: '#/components/schemas/PatternCleanupAudioOutcome'
             after:
               type: object
               description: Post-approval values of fields owned by this change.

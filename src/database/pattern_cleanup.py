@@ -178,6 +178,17 @@ class PatternCleanupMixin:
         if conn is None:
             target.commit()
 
+    def merge_cleanup_suggestion_applied(self, suggestion_id: int, extra: dict) -> None:
+        """Add keys to a suggestion's stored applied data, leaving its status and the other keys alone."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT applied FROM pattern_cleanup_suggestions WHERE id = ?", (suggestion_id,)).fetchone()
+            if row is None:
+                return
+            merged = {**(json.loads(row['applied']) if row['applied'] else {}), **extra}
+            conn.execute("UPDATE pattern_cleanup_suggestions SET applied = ? WHERE id = ?",
+                         (json.dumps(merged), suggestion_id))
+
     def stamp_pattern_cleanup_reviewed(self, pattern_id: int, review_hash: str, conn=None) -> None:
         target = conn or self.get_connection()
         target.execute(

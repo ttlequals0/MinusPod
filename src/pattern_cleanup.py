@@ -1243,15 +1243,24 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
         pattern['id'], review_hash(text, sponsor,
                                   category if category is not None else pattern.get('category')), conn=conn)
     applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text,
-               **_audio_fields(db, conn, pattern['id'])}
+               'previous_avg_duration': pattern.get('avg_duration'),
+               **_audio_fields(db, conn, pattern['id'], pattern.get('text_template'))}
     if sponsor_name:
         applied['sponsor_id'] = sponsor_id
     return applied
 
 
-def _audio_fields(db, conn, pattern_id: int) -> dict:
+def _scaled_duration(pattern: dict, new_text: str) -> float | None:
+    """The stored duration scaled to a shorter template, or None when it should stay as it is."""
+    avg, old_len = pattern.get('avg_duration'), len(pattern.get('text_template') or '')
+    if not isinstance(avg, (int, float)) or avg <= 0 or not 0 < len(new_text) < old_len:
+        return None
+    return avg * len(new_text) / old_len
+
+
+def _audio_fields(db, conn, pattern_id: int, prefer_text: str | None) -> dict:
     """The source a trim or split rebuilds audio from; audio_unresolved marks audio that is on but has no source."""
-    source, wanted = rebuild_audio_source(db, conn, pattern_id)
+    source, wanted = rebuild_audio_source(db, conn, pattern_id, prefer_text=prefer_text)
     return {'audio_source': source, **({'audio_unresolved': True} if wanted and source is None else {})}
 
 
@@ -1321,7 +1330,8 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     return {
         'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
         'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
-        'disabled_reason': disabled_reason, **_audio_fields(db, conn, pattern['id']),
+        'disabled_reason': disabled_reason,
+        **_audio_fields(db, conn, pattern['id'], pattern.get('text_template')),
     }
 
 
@@ -1390,9 +1400,47 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         outcomes = rebuild_pattern_audio(db, source, pattern['id'], applied['text'])
     else:
         outcomes = []
+    if applied.get('text') is not None:
+        _fit_duration(db, pattern, applied, outcomes)
+    if applied.get('new_pattern_ids') or applied.get('text') is not None:
+        _record_audio_outcomes(db, suggestion_id, suggestion['kind'], pattern['id'], applied, outcomes,
+                               'audio_outcomes')
     result = db.get_cleanup_suggestion(suggestion_id)
     result['fingerprint_outcomes'] = outcomes
     return result
+
+
+def _fit_duration(db, pattern: dict, applied: dict, outcomes: list) -> None:
+    """Shorten the stored duration after a trim: to the rebuilt fingerprint's span, else by the text ratio; never up."""
+    current = db.get_ad_pattern_by_id(pattern['id'])
+    previous = applied.get('previous_avg_duration')
+    if not current or current.get('text_template') != applied['text'] or not isinstance(previous, (int, float)) \
+            or previous <= 0:
+        return
+    new = _scaled_duration(pattern, applied['text'])
+    if any(pid == pattern['id'] and result.stored for pid, result in outcomes):
+        fingerprint = db.get_audio_fingerprint(pattern['id'], with_blob=False) or {}
+        start, end = fingerprint.get('source_start'), fingerprint.get('source_end')
+        if start is not None and end is not None and end > start:
+            new = end - start
+    if new is not None and 0 < new < previous:
+        db.update_ad_pattern(pattern['id'], avg_duration=new)
+
+
+def _record_audio_outcomes(db, suggestion_id: int, kind: str, pattern_id: int, applied: dict,
+                           outcomes: list, key: str) -> None:
+    """Log one line for the suggestion and keep its audio outcomes on the stored applied data."""
+    entries = [{'pattern_id': pid, 'stored': result.stored, 'reason': result.skipped_reason}
+               for pid, result in outcomes]
+    if applied.get('audio_unresolved') and not entries:
+        entries = [{'pattern_id': pattern_id, 'stored': False, 'reason': 'original_not_retained'}]
+    summary = ', '.join(f"{e['pattern_id']}={'stored' if e['stored'] else e['reason']}" for e in entries) or 'none'
+    logger.info(f"pattern_cleanup: suggestion {suggestion_id} {kind} on pattern {pattern_id} "
+                f"{key.replace('_', ' ')}: {summary}")
+    try:
+        db.merge_cleanup_suggestion_applied(suggestion_id, {key: entries})
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not store the audio outcomes of suggestion {suggestion_id}: {e}")
 
 
 def reject_suggestion(db, suggestion_id: int) -> dict:
@@ -1489,6 +1537,9 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
                 updates['sponsor_id'] = before.get('sponsor_id')
             if payload.get('category'):
                 updates['category'] = before.get('category')
+            # Approvals made before the duration was recorded leave it alone.
+            if 'previous_avg_duration' in applied:
+                updates['avg_duration'] = applied['previous_avg_duration']
             db._update_ad_pattern_conn(conn, pattern['id'], **updates)
         elif suggestion['kind'] == 'rename':
             expected = applied.get('after')
@@ -1522,6 +1573,9 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
     if suggestion['kind'] != 'split' and applied.get('text') is not None:
         outcomes = _restore_trimmed_audio(
             db, pattern['id'], applied.get('audio_source'), before.get('text_template'))
+    if applied.get('new_pattern_ids') or applied.get('text') is not None:
+        _record_audio_outcomes(db, suggestion_id, suggestion['kind'], pattern['id'], {}, outcomes,
+                               'undo_audio_outcomes')
     result = db.get_cleanup_suggestion(suggestion_id)
     result['fingerprint_outcomes'] = outcomes
     return result
