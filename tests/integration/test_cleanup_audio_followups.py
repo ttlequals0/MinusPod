@@ -384,6 +384,108 @@ def test_listed_suggestions_return_audio_disabled(app_client, fp_feed, stub_fing
     assert item['applied']['audioOutcomes'] == [{'patternId': pid, 'stored': False, 'reason': 'audio_turned_off'}]
 
 
+# G: undo information is recorded before the change, so a crash in between stays undoable
+
+class _Crash(BaseException):
+    """Not an Exception, so the apply code's handlers cannot clean up as they would after a failure."""
+
+
+def _fail_merge(db, monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError('store failed')
+    monkeypatch.setattr(db, 'merge_cleanup_suggestion_applied', boom)
+
+
+def _crash_on(db, monkeypatch, name):
+    def crash(*args, **kwargs):
+        raise _Crash()
+    monkeypatch.setattr(db, name, crash)
+
+
+def test_failed_audio_record_leaves_the_fingerprint_on_and_reports_not_retained(
+        fp_feed, stub_fingerprinting, monkeypatch):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    _fail_merge(fp_feed, monkeypatch)
+    _, result = _trim(fp_feed, pid)
+    assert result['status'] == 'approved'
+    assert fp_feed.get_audio_fingerprint(pid)['enabled'] == 1
+    assert {o[1].skipped_reason for o in result['fingerprint_outcomes']} == {'original_not_retained'}
+    assert 'audio_disabled' not in result['applied']
+
+
+def test_failed_duration_record_leaves_the_duration_alone(
+        fp_feed, fp_original, stub_fingerprinting, monkeypatch):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, avg_duration=92.0)
+    _fail_merge(fp_feed, monkeypatch)
+    _, result = _trim(fp_feed, pid)
+    assert result['status'] == 'approved' and _avg(fp_feed, pid) == 92.0
+
+
+def test_crash_after_the_audio_record_before_the_switch_off_is_undoable(
+        fp_feed, stub_fingerprinting, monkeypatch):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    sid = _suggest(fp_feed, pid, 'trim', {'text': SECOND_TEMPLATE})
+    with monkeypatch.context() as m:
+        _crash_on(fp_feed, m, 'set_fingerprint_enabled')
+        with pytest.raises(_Crash):
+            pattern_cleanup.apply_suggestion(fp_feed, sid)
+    assert fp_feed.get_cleanup_suggestion(sid)['applied']['audio_disabled'] is True
+    assert pattern_cleanup.undo_suggestion(fp_feed, sid)['status'] == 'undone'
+    row = fp_feed.get_audio_fingerprint(pid)
+    assert row['enabled'] == 1 and row['fingerprint'] == OLD
+
+
+def test_crash_after_the_duration_record_before_the_change_is_undoable(
+        fp_feed, fp_original, stub_fingerprinting, monkeypatch):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, avg_duration=92.0)
+    sid = _suggest(fp_feed, pid, 'trim', {'text': SECOND_TEMPLATE})
+    real = fp_feed.update_ad_pattern
+
+    def crash_on_duration(pattern_id, **fields):
+        if 'avg_duration' in fields:
+            raise _Crash()
+        return real(pattern_id, **fields)
+
+    with monkeypatch.context() as m:
+        m.setattr(fp_feed, 'update_ad_pattern', crash_on_duration)
+        with pytest.raises(_Crash):
+            pattern_cleanup.apply_suggestion(fp_feed, sid)
+    assert fp_feed.get_cleanup_suggestion(sid)['applied']['fitted_avg_duration'] == pytest.approx(30.0)
+    assert _avg(fp_feed, pid) == 92.0
+    assert pattern_cleanup.undo_suggestion(fp_feed, sid)['status'] == 'undone'
+    assert _avg(fp_feed, pid) == 92.0
+
+
+def test_failed_switch_off_corrects_the_audio_record(fp_feed, stub_fingerprinting, monkeypatch):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed)
+    monkeypatch.setattr(fp_feed, 'set_fingerprint_enabled', lambda *a, **k: False)
+    sid, result = _trim(fp_feed, pid)
+    assert not result['applied'].get('audio_disabled')
+    assert not fp_feed.get_cleanup_suggestion(sid)['applied'].get('audio_disabled')
+
+
+def test_failed_duration_change_corrects_the_duration_record(
+        fp_feed, fp_original, stub_fingerprinting, monkeypatch):
+    seed_two_sponsor_transcript(fp_feed)
+    pid = _legacy_pattern(fp_feed, avg_duration=92.0)
+    real = fp_feed.update_ad_pattern
+
+    def fail_on_duration(pattern_id, **fields):
+        if 'avg_duration' in fields:
+            raise RuntimeError('write failed')
+        return real(pattern_id, **fields)
+
+    monkeypatch.setattr(fp_feed, 'update_ad_pattern', fail_on_duration)
+    sid, _ = _trim(fp_feed, pid)
+    assert _avg(fp_feed, pid) == 92.0
+    assert fp_feed.get_cleanup_suggestion(sid)['applied'].get('fitted_avg_duration') is None
+
+
 # E: rebuild and the audio detail agree on the creating-episode source
 
 UNLOCATABLE = 'Quantum zebras juggle seventeen purple umbrellas beneath the marble clock tower every Thursday.'

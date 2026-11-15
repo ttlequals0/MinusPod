@@ -1413,18 +1413,30 @@ def _turn_off_stale_audio(db, suggestion_id: int, pattern_id: int, applied: dict
     """Switch off a trim's fingerprint when no source is retained, since it still matches the cut text."""
     try:
         before = db.get_audio_fingerprint(pattern_id)
-        if not before or not before['enabled'] or not db.set_fingerprint_enabled(pattern_id, False):
+        if not before or not before['enabled']:
             return False
-    except Exception as e:
-        logger.warning(f"pattern_cleanup: could not turn off the audio of pattern {pattern_id}: {e}")
-        return False
-    switched = {'audio_disabled': True, 'audio_disabled_digest': _blob_digest(before)}
-    applied.update(switched)
-    try:
+        switched = {'audio_disabled': True, 'audio_disabled_digest': _blob_digest(before)}
+        # Record first: undo only re-enables a fingerprint that is still off with this digest.
         db.merge_cleanup_suggestion_applied(suggestion_id, switched)
     except Exception as e:
-        logger.warning(f"pattern_cleanup: could not store the audio switch of suggestion {suggestion_id}: {e}")
-    return True
+        logger.warning(f"pattern_cleanup: could not record the audio switch of suggestion {suggestion_id}: {e}")
+        return False
+    try:
+        if db.set_fingerprint_enabled(pattern_id, False):
+            applied.update(switched)
+            return True
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not turn off the audio of pattern {pattern_id}: {e}")
+    _clear_record(db, suggestion_id, {'audio_disabled': False, 'audio_disabled_digest': None})
+    return False
+
+
+def _clear_record(db, suggestion_id: int, cleared: dict) -> None:
+    """Best-effort correction of a record whose change did not happen."""
+    try:
+        db.merge_cleanup_suggestion_applied(suggestion_id, cleared)
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not correct the stored record of suggestion {suggestion_id}: {e}")
 
 
 def _restore_stale_audio(db, pattern_id: int, applied: dict) -> None:
@@ -1456,12 +1468,20 @@ def _fit_duration(db, suggestion_id: int, pattern: dict, applied: dict, outcomes
         start, end = fingerprint.get('source_start'), fingerprint.get('source_end')
         if start is not None and end is not None and end > start:
             new = end - start
-    if new is not None and 0 < new < previous:
+    if new is None or not 0 < new < previous:
+        return
+    # Record first: undo restores the duration only while it still equals this value.
+    try:
+        db.merge_cleanup_suggestion_applied(suggestion_id, {'fitted_avg_duration': new})
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not record the fitted duration of suggestion {suggestion_id}, "
+                       f"leaving the duration as it is: {e}")
+        return
+    try:
         db.update_ad_pattern(pattern['id'], avg_duration=new)
-        try:
-            db.merge_cleanup_suggestion_applied(suggestion_id, {'fitted_avg_duration': new})
-        except Exception as e:
-            logger.warning(f"pattern_cleanup: could not store the fitted duration of suggestion {suggestion_id}: {e}")
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not fit the duration of pattern {pattern['id']}: {e}")
+        _clear_record(db, suggestion_id, {'fitted_avg_duration': None})
 
 
 def _record_audio_outcomes(db, suggestion_id: int, kind: str, pattern_id: int, applied: dict,
