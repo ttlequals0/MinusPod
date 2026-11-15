@@ -8,6 +8,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.5] - 2026-11-15
+
+### Fixed
+
+- The pre-roll detector finds the show's opening line in feeds whose title has a subtitle ("Show Name: The Weekly Talk", "Show Name - Daily", "Show Name (Podcast)"). It tries the main title first, then the full title. Before, the show-name match never fired on such feeds and the pre-roll could run past the show's opening line.
+- The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the word-aligned edge that the transcript differential confirmed for that span. Before, it was accepted only on a timed word edge with a pause after it, so the cut could keep the first words of the show.
+
 ## [2.102.2] - 2026-11-13
 
 ### Changed
