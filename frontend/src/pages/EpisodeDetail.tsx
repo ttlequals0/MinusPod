@@ -843,9 +843,11 @@ function EpisodeDetail() {
   // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
   const audioUrl = mediaUrl({ kind: 'audio', url: episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3` });
 
-  const shortAskCount = (episode.adMarkers ?? []).filter((m) => m.short_ask === true).length;
-
-  const renderAdMarkerCard = (segment: AdSegment, index: number) => (
+  const renderAdMarkerCard = (segment: AdSegment, index: number) => {
+    const correction = getAdCorrection(segment.start, segment.end);
+    const result = correctionResultText(correction);
+    const recutPending = correction?.correction_type === 'false_positive';
+    return (
     <div
       key={index}
       className="p-3 bg-secondary/50 rounded-lg"
@@ -949,50 +951,38 @@ function EpisodeDetail() {
             span={{ podcastSlug: slug!, episodeId: episode.id, ...displayedSpan(segment) }}
           />
         )}
-        {(() => {
-          const correction = getAdCorrection(segment.start, segment.end);
-          // The result line below says it in words; the badge would repeat it.
-          if (correction && !correctionResultText(correction)) {
-            return (
-              <span className={`${badgeBase} ${
-                correction.correction_type === 'confirm'
-                  ? tint.success
-                  : correction.correction_type === 'false_positive'
-                  ? tint.warning
-                  : tint.blue
-              }`}>
-                {correctionBadgeLabel(correction)}
-              </span>
-            );
-          }
-          return null;
-        })()}
+        {/* The result line below says it in words; the badge would repeat it. */}
+        {correction && !result && (
+          <span className={`${badgeBase} ${
+            correction.correction_type === 'confirm'
+              ? tint.success
+              : correction.correction_type === 'false_positive'
+              ? tint.warning
+              : tint.blue
+          }`}>
+            {correctionBadgeLabel(correction)}
+          </span>
+        )}
         <span className="ml-auto text-sm text-muted-foreground whitespace-nowrap" title={formatConfidenceTitle(segment)}>
           {formatConfidence(segment)}
         </span>
       </div>
-      {(() => {
-        const correction = getAdCorrection(segment.start, segment.end);
-        const result = correctionResultText(correction);
-        if (!result) return null;
-        const recutPending = correction?.correction_type === 'false_positive';
-        return (
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-            <span data-testid={`ad-result-${index}`} className={recutPending ? 'text-warning' : 'text-success'}>{result}</span>
-            {recutPending && episode.hasOriginalAudio && (
-              <button
-                type="button"
-                onClick={() => handleReprocess('recut')}
-                disabled={reprocessBlocked}
-                title={reprocessBlockedReason ?? 'Recut the audio now so this segment comes back'}
-                className={`${rowActionBtn} ${btnSecondary} ${focusRing}`}
-              >
-                Recut now
-              </button>
-            )}
-          </div>
-        );
-      })()}
+      {result && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span data-testid={`ad-result-${index}`} className={recutPending ? 'text-warning' : 'text-success'}>{result}</span>
+          {recutPending && episode.hasOriginalAudio && (
+            <button
+              type="button"
+              onClick={() => handleReprocess('recut')}
+              disabled={reprocessBlocked}
+              title={reprocessBlockedReason ?? 'Recut the audio now so this segment comes back'}
+              className={`${rowActionBtn} ${btnSecondary} ${focusRing}`}
+            >
+              Recut now
+            </button>
+          )}
+        </div>
+      )}
       {/* Detector's note, labelled "Match:" so reviewer-edited text is not read as a sponsor claim. */}
       {segment.reason && (
         <ExpandableText
@@ -1020,6 +1010,7 @@ function EpisodeDetail() {
       )}
     </div>
   );
+  };
 
   const sbLabel = sponsorBlockLabel(
     episode.sponsorBlock,

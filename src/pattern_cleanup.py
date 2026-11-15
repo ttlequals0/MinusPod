@@ -1405,12 +1405,12 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     return result
 
 
-def _blob_digest(fingerprint: dict | None) -> str | None:
-    return hashlib.sha256(fingerprint['fingerprint']).hexdigest() if fingerprint else None
+def _blob_digest(fingerprint: dict) -> str:
+    return hashlib.sha256(fingerprint['fingerprint']).hexdigest()
 
 
 def _turn_off_stale_audio(db, suggestion_id: int, pattern_id: int, applied: dict) -> bool:
-    """Switch off the fingerprint of a trim with no retained source, since it still matches the cut text; keeps the row."""
+    """Switch off a trim's fingerprint when no source is retained, since it still matches the cut text."""
     try:
         before = db.get_audio_fingerprint(pattern_id)
         if not before or not before['enabled'] or not db.set_fingerprint_enabled(pattern_id, False):
@@ -1418,10 +1418,10 @@ def _turn_off_stale_audio(db, suggestion_id: int, pattern_id: int, applied: dict
     except Exception as e:
         logger.warning(f"pattern_cleanup: could not turn off the audio of pattern {pattern_id}: {e}")
         return False
-    applied.update({'audio_disabled': True, 'audio_disabled_digest': _blob_digest(before)})
+    switched = {'audio_disabled': True, 'audio_disabled_digest': _blob_digest(before)}
+    applied.update(switched)
     try:
-        db.merge_cleanup_suggestion_applied(
-            suggestion_id, {k: applied[k] for k in ('audio_disabled', 'audio_disabled_digest')})
+        db.merge_cleanup_suggestion_applied(suggestion_id, switched)
     except Exception as e:
         logger.warning(f"pattern_cleanup: could not store the audio switch of suggestion {suggestion_id}: {e}")
     return True

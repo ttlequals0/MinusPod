@@ -17547,6 +17547,7 @@ components:
         - span_covers_multiple_patterns
         - span_not_found
         - original_not_retained
+        - audio_turned_off
         - segment_too_short
         - not_distinctive
         - fingerprint_failed
@@ -17559,7 +17560,8 @@ components:
         span_covers_multiple_patterns means the text was split into several patterns and
         this one's own range could not be found. span_not_found means a split or trim
         could not locate the pattern's own text in the source transcript. original_not_retained means the episode
-        keeps no original. segment_too_short means the span is under the minimum ad length.
+        keeps no original. audio_turned_off means a cleanup trim found no retained source, so the old
+        fingerprint was switched off and kept (cleanup approve only). segment_too_short means the span is under the minimum ad length.
         not_distinctive means the span has too little distinctive audio to reach the
         minimum coverage setting, so it could never be matched, and a forced rebuild
         does not bypass it. fingerprint_failed means the audio could not be fingerprinted.

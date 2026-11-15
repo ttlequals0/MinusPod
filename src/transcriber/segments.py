@@ -90,11 +90,20 @@ def loop_coverage(runs: list[tuple[float, float, int]], start: float, end: float
     return sum(max(0.0, min(b, end) - max(a, start)) for a, b, _ in runs) / (end - start)
 
 
+def _in_loop(seg: dict, runs: list[tuple[float, float, int]]) -> bool:
+    return any(a <= seg['start'] and seg['end'] <= b for a, b, _ in runs)
+
+
 def drop_loop_cues(segments: list[dict], runs: list[tuple[float, float, int]]) -> list[dict]:
     """Segments without cues inside a loop run: they are no evidence either way."""
     if not runs:
         return segments
-    return [s for s in segments if not any(a <= s['start'] and s['end'] <= b for a, b, _ in runs)]
+    return [s for s in segments if not _in_loop(s, runs)]
+
+
+def loop_cues(segments: list[dict], runs: list[tuple[float, float, int]]) -> list[dict]:
+    """The cues inside a loop run: the complement of drop_loop_cues."""
+    return [s for s in segments if _in_loop(s, runs)]
 
 
 def should_detect_foreign_language(transcribe_language, detected_lang) -> bool:
