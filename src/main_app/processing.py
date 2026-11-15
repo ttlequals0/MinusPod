@@ -50,6 +50,7 @@ from rate_limit_hold import (
 
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
+from transcriber.segments import find_loop_runs
 import failover
 import run_context
 from reprocess_modes import (
@@ -774,6 +775,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             run_stats['downloaded_duration'] = round(episode_duration, 2)
             run_stats['transcript_segments'] = len(segments)
+            # Found once: detection stage 2 and the validator both skip loop cues.
+            loop_runs = find_loop_runs(segments)
 
             podcast_id = ctx.podcast_id
             opening_exclusion_seconds = resolve_ad_detection_exclude_start_seconds(
@@ -848,6 +851,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         run_stats=run_stats,
                         action_map=segment_actions,
                         transcript_spans=transcript_spans,
+                        loop_runs=loop_runs,
                     )
                 _check_cancel(cancel_event, slug, episode_id)
 
@@ -931,6 +935,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         transcript_spans=transcript_spans,
                         description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                           (podcast_settings or {}).get('description_trim_mode')),
+                        loop_runs=loop_runs,
                     )
 
                 # Late keep partition: _refine_and_validate synthesizes heuristic

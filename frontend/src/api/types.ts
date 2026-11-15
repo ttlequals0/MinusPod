@@ -710,7 +710,8 @@ export interface AdSegment {
     | 'cue_template_unproven'
     | 'cue_low_confidence'
     | 'no_transcript_evidence'
-    | 'transcript_differential_unreviewed';
+    | 'transcript_differential_unreviewed'
+    | 'transcript_loop';
   // Detected span this fragment was carved from when the render removed only part of it.
   carved_from?: { start: number; end: number };
   // Set when a confirm correction matched this held marker (issue #509);

@@ -101,6 +101,7 @@ from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ad
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from text_pattern_matcher import is_defined_pattern
+from transcriber.segments import drop_loop_cues, find_loop_runs
 from text_recurrence import format_recurrence_hint
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
@@ -2295,7 +2296,8 @@ class AdDetector:
                           skip_llm: bool = False,
                           action_map: dict[str, str] | None = None,
                           transcript_spans: list | None = None,
-                          max_window_ad_seconds: float | None = None) -> dict:
+                          max_window_ad_seconds: float | None = None,
+                          loop_runs: list | None = None) -> dict:
         """Process transcript for ad detection using the three-stage pipeline.
 
         Stages: 1) audio fingerprint matching (if audio_path provided), 2) text
@@ -2328,6 +2330,8 @@ class AdDetector:
             action_map: Caller-resolved category actions; resolved once here
                  when None and shared with detect_ads().
             transcript_spans: Upstream transcript gaps from the pipeline stage.
+            loop_runs: Whisper repetition runs of ``segments``, computed once per run by the
+                 caller; found here when None.
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -2434,7 +2438,7 @@ class AdDetector:
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 2: Text pattern matching")
                 text_matches = self.text_pattern_matcher.find_matches(
-                    segments,
+                    drop_loop_cues(segments, find_loop_runs(segments) if loop_runs is None else loop_runs),
                     podcast_id=podcast_id,
                     network_id=network_id,
                     podcast_tags=podcast_tags,
