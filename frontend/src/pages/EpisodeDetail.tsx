@@ -400,8 +400,6 @@ function EpisodeDetail() {
   // Transient banner for a rejected correction or reprocess; the backend's
   // own message is shown verbatim.
   const [correctionError, setCorrectionError] = useState<string | null>(null);
-  // Transient confirmation after a confirm or reject on a cut row.
-  const [correctionNotice, setCorrectionNotice] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
   // Held/rejected row currently open in the standalone waveform editor
@@ -630,10 +628,6 @@ function EpisodeDetail() {
       // matching this reject means the review set just emptied.
       const held = episode?.pendingReviewMarkers ?? [];
       const oa = correction.originalAd;
-      if (oa && (correction.type === 'confirm' || correction.type === 'reject')
-          && episode?.adMarkers?.some((m) => m.start === oa.start && m.end === oa.end)) {
-        setCorrectionNotice(correction.type === 'confirm' ? CONFIRMED_TEXT : NOT_AD_TEXT);
-      }
       if (correction.type === 'reject' && held.length === 1 && oa
           && held[0].start === oa.start && held[0].end === oa.end) {
         setHeldReviewCleared(true);
@@ -649,12 +643,6 @@ function EpisodeDetail() {
       setTimeout(() => setSaveStatus('idle'), 3000);
     },
   });
-
-  useEffect(() => {
-    if (!correctionNotice) return;
-    const timer = setTimeout(() => setCorrectionNotice(null), 8000);
-    return () => clearTimeout(timer);
-  }, [correctionNotice]);
 
   // Handle ad corrections from AdEditor
   const handleCorrection = (correction: AdCorrection) => {
@@ -1155,15 +1143,6 @@ function EpisodeDetail() {
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between gap-3">
           <span>{correctionError}</span>
           <CloseButton onClick={() => setCorrectionError(null)} label="Dismiss" className="shrink-0" />
-        </div>
-      )}
-
-      {correctionNotice && (
-        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] z-50">
-          <div role="status" className="max-w-sm bg-card border border-border rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
-            <span className="flex-1">{correctionNotice}</span>
-            <CloseButton onClick={() => setCorrectionNotice(null)} label="Dismiss" className="shrink-0" />
-          </div>
         </div>
       )}
 

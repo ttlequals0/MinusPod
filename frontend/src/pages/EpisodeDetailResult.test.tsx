@@ -110,12 +110,4 @@ describe('result line after confirm or reject on a cut row', () => {
     await screen.findByText('0:10 - 0:40');
     expect(screen.queryByTestId('ad-result-0')).toBeNull();
   });
-
-  it('raises a toast with the same text when the editor rejects a cut', async () => {
-    renderWith(marker, { transcript: 'hello' });
-    fireEvent.click(await screen.findByRole('button', { name: 'Jump' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'mock reject' }));
-    const toast = await screen.findByRole('status');
-    expect(toast.textContent).toContain('Marked not an ad: the audio comes back at the next recut');
-  });
 });
