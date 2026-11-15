@@ -587,8 +587,16 @@ class TranscriptIndex:
         self.gaps = [(lo, hi) for lo, hi in self.short_gaps if hi - lo >= UNREVIEWABLE_GAP_SECONDS]
 
 
-def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, old: float) -> bool:
-    """Whether an inward edge lands on a timed word edge with a pause past it."""
+def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, old: float,
+                               ad: dict | None = None) -> bool:
+    """Whether an inward edge lands on a timed word edge with a pause past it, or on the
+    word-aligned edge of the span the transcript differential confirmed."""
+    span = (ad or {}).get('transcript_span') or {}
+    aligned = span.get(edge)
+    if (span.get('offset_confirmed') and isinstance(aligned, (int, float))
+            and _edge_matches(aligned, new)
+            and (new > old + EDGE_TOLERANCE if edge == 'start' else new < old - EDGE_TOLERANCE)):
+        return True
     if edge == 'start':
         return _end_edge_supported(index.start, -new, -old)
     return _end_edge_supported(index.end, new, old)
@@ -2053,7 +2061,7 @@ class AdReviewer:
             independent = reviewer_independent_spans(ad, min_conf)
             cap_start = cap_end = None
             if _edge_transcript_supported(index, 'start', clamped_start,
-                                          original_start):
+                                          original_start, ad):
                 floor_start = _supported_edge_floor(
                     ad, independent, 'start', clamped_start, original_start, original_end)
             else:
@@ -2061,7 +2069,7 @@ class AdReviewer:
                     index, independent, 'start', clamped_start, floor_start)
                 floor_start = floor_start if cap_start is None else cap_start
             if _edge_transcript_supported(index, 'end', clamped_end,
-                                          original_end):
+                                          original_end, ad):
                 floor_end = _supported_edge_floor(
                     ad, independent, 'end', clamped_end, original_start, original_end)
             else:

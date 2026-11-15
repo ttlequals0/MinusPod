@@ -646,3 +646,101 @@ def test_indexed_edge_checks_match_the_scan_at_the_exact_tolerance(seed):
                     == _scan_supported(units, words, edge, new, old))
             assert (_speech_capped_floor(index, [], edge, new, floor)
                     == _scan_capped(units, words, [], edge, new, floor))
+
+
+def _dense_words(lo, hi, step=0.5):
+    """Contiguous words with 0.05 s gaps, as in fast produced speech."""
+    count = int((hi - lo) / step)
+    return [{'word': 'w', 'start': lo + i * step, 'end': lo + i * step + step - 0.05}
+            for i in range(count)]
+
+
+def _intro_seam_segments():
+    # The promo's last word ends 121.29 and the show intro follows with no pause.
+    tail = [{'word': 'podcast', 'start': 120.62, 'end': 121.29},
+            {'word': 'welcome', 'start': 121.29, 'end': 122.14}]
+    return [_worded_words(0.0, 120.62, _dense_words(0.0, 120.62)),
+            _worded_words(120.62, 122.14, tail),
+            _worded_words(122.14, 160.0, _dense_words(122.14, 160.0))]
+
+
+def _worded_words(start, end, words):
+    return {'start': start, 'end': end, 'text': 'text', 'words': words}
+
+
+def _seam_marker():
+    return {
+        'start': 0.05, 'end': 157.85, 'confidence': 0.95,
+        'detection_stage': 'dai_differential', 'category': 'cross_promo',
+        'dai_core_spans': [{'start': 4.07, 'end': 157.85}],
+        DAI_PROBE_SPANS: [{'start': 4.57, 'end': 8.57}, {'start': 91.08, 'end': 95.08}],
+        'transcript_span': {'start': 0.05, 'end': 121.29, 'offset_confirmed': True},
+        'merged_distinct_ads': True,
+        'merged_member_spans': [
+            {'start': 0.05, 'end': 121.29, 'stage': 'transcript_differential'},
+            {'start': 0.05, 'end': 122.38, 'stage': 'claude', 'precise_start': True,
+             'precise_end': True}],
+        'merged_protected_start': 0.05, 'merged_protected_end': 122.38,
+    }
+
+
+def test_trim_to_transcript_differential_edge_crosses_unprobed_block_tail():
+    # The audio block ends 157.85 but no probe sits past 95.08; the word-aligned
+    # transcript edge, agreeing with the reviewer, outranks the block's tail.
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _seam_marker(), 0.05, 121.29, 0.05, 157.85, 600, 'slug', 'ep',
+        segments=_intro_seam_segments())
+    assert bounds == pytest.approx((0.05, 121.29))
+
+
+def test_trim_off_transcript_differential_edge_keeps_block_floor():
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _seam_marker(), 0.05, 121.6, 0.05, 157.85, 600, 'slug', 'ep',
+        segments=_intro_seam_segments())
+    assert bounds[1] > 150.0
+
+
+def _clamp(marker, start, end, segments):
+    reviewer = AdReviewer.__new__(AdReviewer)
+    return reviewer._clamp_proposed_bounds(
+        marker, start, end, 0.05, 157.85, 600, 'slug', 'ep', segments=segments)
+
+
+def test_trim_off_unconfirmed_differential_edge_keeps_block_floor():
+    marker = _seam_marker()
+    marker['transcript_span']['offset_confirmed'] = False
+    bounds = _clamp(marker, 0.05, 121.29, _intro_seam_segments())
+    assert bounds[1] > 150.0
+
+
+def test_outward_move_to_differential_edge_is_not_accepted():
+    index = TranscriptIndex(_intro_seam_segments())
+    marker = _seam_marker()
+    # end edge: 121.29 is outward of an original end at 100.0; start edge likewise mirrored
+    assert not _edge_transcript_supported(index, 'end', 121.29, 100.0, marker)
+    marker['transcript_span']['start'] = 100.0
+    assert not _edge_transcript_supported(index, 'start', 100.0, 130.0, marker)
+    assert _edge_transcript_supported(index, 'end', 121.29, 157.85, marker)
+
+
+def test_inward_start_trim_aligned_with_differential_start_is_supported():
+    # mirror of the end case, mid-episode: speech before the span start matched the publisher text.
+    marker = {
+        'start': 200.0, 'end': 300.0, 'confidence': 0.95,
+        'detection_stage': 'dai_differential', 'category': 'sponsor',
+        'dai_core_spans': [{'start': 200.0, 'end': 300.0}],
+        DAI_PROBE_SPANS: [{'start': 280.0, 'end': 284.0}, {'start': 290.0, 'end': 294.0}],
+        'transcript_span': {'start': 236.0, 'end': 300.0, 'offset_confirmed': True},
+    }
+    segs = [_worded_words(0.0, 400.0, _dense_words(0.0, 400.0))]
+
+    def start(m, new):
+        reviewer = AdReviewer.__new__(AdReviewer)
+        return reviewer._clamp_proposed_bounds(
+            m, new, 300.0, 200.0, 300.0, 600, 'slug', 'ep', segments=segs)[0]
+
+    assert start(marker, 236.0) == pytest.approx(236.0)
+    marker['transcript_span']['offset_confirmed'] = False
+    assert start(marker, 236.0) < 230.0

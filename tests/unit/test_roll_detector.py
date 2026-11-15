@@ -1,4 +1,6 @@
 """Unit tests for heuristic pre/post-roll detection."""
+import pytest
+
 from roll_detector import detect_preroll, detect_postroll
 
 
@@ -99,6 +101,24 @@ def test_preroll_short_show_name_is_ignored():
     assert ad["end"] == 20.0
 
 
+SUBTITLED_SEGS = [
+    _seg(0.0, 40.0, "A cold open about gardens and the weather."),
+    _seg(42.1, 47.0, "The Example Brief is a daily show about gardening."),
+    _seg(54.1, 70.0, "Thanks to our sponsors. Go to acme.com slash garden or sign up today."),
+    _seg(70.0, 95.0, "Visit example.com for the new episode."),
+    _seg(105.0, 110.0, "All right, welcome back to the show."),
+]
+SPONSOR_READ = [{"start": 57.0, "end": 95.0}]
+
+
+def test_preroll_show_name_ignores_feed_subtitle():
+    # The host says "The Example Brief", not the feed title with its subtitle.
+    name = "The Example Brief: Gardening News and Analysis"
+    assert detect_preroll(SUBTITLED_SEGS, SPONSOR_READ, podcast_name=name) is None
+    unnamed = detect_preroll(SUBTITLED_SEGS, SPONSOR_READ)
+    assert (unnamed["start"], unnamed["end"]) == (0.0, 105.0)
+
+
 def test_preroll_ad_outside_zone_is_not_an_indicator():
     segs = [_seg(0.0, 10.0, "Sign up now for a discount."),
             _seg(10.0, 20.0, "Welcome back to the show."),
@@ -135,3 +155,27 @@ def test_postroll_uses_last_segment_end_when_no_duration():
     ad = detect_postroll(POSTROLL_SEGS, [])
     assert ad is not None
     assert ad["end"] == 90.0
+
+
+@pytest.mark.parametrize("name", [
+    "The Example Brief: Gardening News and Analysis",
+    "The Example Brief - Gardening News and Analysis",
+    "The Example Brief | Gardening News and Analysis",
+    "The Example Brief (Gardening News and Analysis)",
+])
+def test_preroll_show_name_main_title_before_each_subtitle_separator(name):
+    assert detect_preroll(SUBTITLED_SEGS, SPONSOR_READ, podcast_name=name) is None
+
+
+def test_preroll_short_main_title_falls_back_to_full_title():
+    segs = [
+        _seg(0.0, 40.0, "A daily cold open about gardens."),
+        _seg(42.1, 47.0, "Daily Tech Briefing, with your host Sam."),
+        _seg(54.1, 70.0, "Thanks to our sponsors. Go to acme.com slash garden or sign up today."),
+        _seg(70.0, 95.0, "Visit example.com for the new episode."),
+        _seg(105.0, 110.0, "All right, welcome back to the show."),
+    ]
+    assert detect_preroll(segs, SPONSOR_READ, podcast_name="Daily: Tech Briefing") is None
+    # without the full-title fallback the intro line would not be recognised
+    unnamed = detect_preroll(segs, SPONSOR_READ)
+    assert unnamed is not None and unnamed["end"] > 47.0
