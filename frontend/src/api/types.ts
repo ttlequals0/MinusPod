@@ -1989,7 +1989,7 @@ export interface CleanupStats {
     changed: number;
     legacyReportedReviews: number;
   };
-  actions: Record<'trim' | 'split' | 'rename' | 'retire' | 'flag' | 'category', {
+  actions: Record<'trim' | 'split' | 'rename' | 'retire' | 'flag' | 'category' | 'unnamed_sponsor', {
     proposed: number;
     accepted: number;
     applied: number;

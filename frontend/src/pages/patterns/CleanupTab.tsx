@@ -8,6 +8,7 @@ import {
   type CleanupKind, type CleanupStatus, type FlagPayload, type PatternCleanupSuggestion,
   type RenamePayload, type RetirePayload, type SplitPayload, type TrimPayload,
   type CategoryPayload,
+  type UnnamedSponsorPayload,
 } from '../../api/patternCleanup';
 import { ApiError, getErrorMessage } from '../../api/client';
 import { describePatternAudioOutcome } from '../../api/patterns';
@@ -36,6 +37,7 @@ const KIND_OPTIONS: Array<{ value: KindFilter; label: string }> = [
   { value: 'retire', label: 'Retire' },
   { value: 'flag', label: 'Flag' },
   { value: 'category', label: 'Category' },
+  { value: 'unnamed_sponsor', label: 'Sponsor' },
 ];
 
 const KIND_BADGE: Record<CleanupKind, [string, string]> = {
@@ -45,6 +47,7 @@ const KIND_BADGE: Record<CleanupKind, [string, string]> = {
   retire: ['Retire', tint.neutral],
   flag: ['Flag', tint.warning],
   category: ['Category', tint.blue],
+  unnamed_sponsor: ['Sponsor', tint.primary],
 };
 
 const STATUS_OPTIONS: Array<[CleanupStatus, string]> = [
@@ -196,6 +199,15 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
   category: (s) => {
     const payload = s.payload as CategoryPayload;
     return <CategoryChange from={s.before?.category} to={payload.category} />;
+  },
+  unnamed_sponsor: (s) => {
+    const payload = s.payload as UnnamedSponsorPayload;
+    return (
+      <div className="space-y-1 text-sm">
+        <p className="text-foreground">The sponsor "{payload.sponsor}" does not appear in this pattern's text.</p>
+        <p className="text-muted-foreground">Approving removes the sponsor and keeps the pattern active.</p>
+      </div>
+    );
   },
 };
 
