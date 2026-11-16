@@ -826,6 +826,8 @@ function EpisodeDetail() {
   // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
   const audioUrl = mediaUrl({ kind: 'audio', url: episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3` });
 
+  const shortAskCount = (episode.adMarkers ?? []).filter((m) => m.short_ask === true).length;
+
   const renderAdMarkerCard = (segment: AdSegment, index: number) => {
     const correction = getAdCorrection(segment.start, segment.end);
     const result = correctionResultText(correction);
