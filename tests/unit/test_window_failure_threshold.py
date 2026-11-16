@@ -3,7 +3,7 @@
 When a quarter (default) of a pass's windows fail, the pass returns the same failure envelope as an
 all-windows-failed run, so processing.py fails the episode as retryable instead of publishing with unexamined gaps.
 """
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -211,6 +211,7 @@ class TestCategoryRepairHold:
     def test_a_held_429_during_repair_defers_the_episode(self):
         """call_llm reports a hold through last_error, not by raising."""
         detector = AdDetector(api_key='test-key')
+        detector._llm_client = MagicMock()  # a leaked provider=none cache would make get_llm_client raise
         error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
         with patch('ad_detector.call_llm', return_value=(None, error)):
             (final_ads, _raw, _fw, failure, *_rest) = _run_pass(
@@ -225,6 +226,7 @@ class TestCategoryRepairHold:
         """A manual MinusPod cap must stay manual across the stage boundary,
         with its provider/slot, so the queue defers it and never probes it."""
         detector = AdDetector(api_key='test-key')
+        detector._llm_client = MagicMock()  # a leaked provider=none cache would make get_llm_client raise
         error = ProviderRateLimitedError(
             'manual cap resets in 60s', retry_after_seconds=60.0,
             provider_key='openrouter', credential_slot='secondary', manual=True)
