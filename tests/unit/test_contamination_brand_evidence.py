@@ -50,3 +50,33 @@ def test_multi_word_name_keeps_the_two_mention_rule(temp_db):
 def test_multi_word_name_named_once_is_not_flagged(temp_db):
     temp_db.create_known_sponsor(name='Acme Tools')
     assert _foreign(temp_db, GLOBEX_READ + 'We also saw Acme Tools once.') == []
+
+
+def test_cue_introduced_single_word_name_flags(temp_db):
+    temp_db.create_known_sponsor(name='Wise')
+    text = GLOBEX_READ + 'Support comes from Wise, the smart way to send money. Choose the smart way, Wise.'
+    assert _foreign(temp_db, text) == ['Wise']
+
+
+def test_support_for_phrase_cue_flags(temp_db):
+    temp_db.create_known_sponsor(name='Wise')
+    text = GLOBEX_READ + 'Support for this show comes from the Wise team. Send money with Wise.'
+    assert _foreign(temp_db, text) == ['Wise']
+
+
+def test_and_by_cue_flags(temp_db):
+    temp_db.create_known_sponsor(name='Acme')
+    text = GLOBEX_READ + 'And by Acme. Get the most out of Acme today.'
+    assert _foreign(temp_db, text) == ['Acme']
+
+
+def test_thanks_to_is_not_a_cue(temp_db):
+    temp_db.create_known_sponsor(name='Joe')
+    text = GLOBEX_READ + 'Thanks to Joe for the tip. We asked Joe about it.'
+    assert _foreign(temp_db, text) == []
+
+
+def test_cue_for_another_name_does_not_back_the_word(temp_db):
+    temp_db.create_known_sponsor(name='Wise')
+    text = GLOBEX_READ + 'Sponsored by Initech. The wise women choose wise gear.'
+    assert _foreign(temp_db, text) == []

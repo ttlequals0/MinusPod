@@ -23,7 +23,7 @@ from community_export import (
 from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from sponsor_context import COMMERCIAL_CONTEXT_RE, domain_labels
-from sponsor_service import SponsorService, has_brand_evidence
+from sponsor_service import SponsorService, has_brand_evidence, has_sponsorship_cue
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
@@ -1620,12 +1620,13 @@ class TextPatternMatcher:
 
     @staticmethod
     def _bare_word_without_evidence(row, text):
-        """Whether text names row only through single words that it does not back as a brand."""
+        """Whether text names row only through single words that neither evidence nor a sponsorship cue backs."""
         lowered = text.lower()
         hits = [term for term in [row['name'], *normalize_aliases(row.get('aliases'))]
                 if word_boundary_re([term.lower()]).search(lowered)] if row else []
         return (bool(hits) and all(len(term.split()) == 1 for term in hits)
-                and not any(has_brand_evidence(term, text) for term in hits))
+                and not any(has_brand_evidence(term, text) or has_sponsorship_cue(term, text)
+                            for term in hits))
 
     def _contaminating_brands(self, ad_text: str, sponsor: str,
                               rows: list[dict] = None) -> list[str]:

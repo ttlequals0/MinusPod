@@ -60,3 +60,10 @@ def test_seed_single_word_brand_is_unaffected(temp_db):
     text = ("Shopify powers stores of every size. Start selling with "
             "Shopify and grow with Shopify.")
     assert _learn(temp_db, 'Shopify', text) is not None
+
+
+def test_cue_alone_does_not_create_the_row(temp_db):
+    text = ("Sponsored by Wise. Wise makes sending money simple. "
+            "Wise has no hidden fees, so try Wise today.")
+    assert _learn(temp_db, 'Wise', text) is None
+    assert temp_db.get_known_sponsor_by_name('Wise') is None

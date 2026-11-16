@@ -69,6 +69,19 @@ def has_brand_evidence(name: str, text: str) -> bool:
     return any(key in squash_brand(label) for label in labels)
 
 
+# Sponsorship cues that introduce a brand; "thanks to" is deliberately absent.
+_SPONSOR_CUE = (r"(?:brought\s+to\s+you\s+by|sponsored\s+by|supported\s+by|and\s+by|presented\s+by|"
+                r"is\s+made\s+possible\s+by|support(?:\s+for(?:\s+[\w'-]+){1,6})?\s+comes\s+from)")
+
+
+def has_sponsorship_cue(name: str, text: str) -> bool:
+    """Whether a sponsorship cue directly introduces name ("sponsored by Acme")."""
+    if not name or not text:
+        return False
+    return bool(re.search(rf"\b{_SPONSOR_CUE}[\s,.:;\"'-]*(?:the\s+)?{re.escape(name)}\b",
+                          text, re.IGNORECASE))
+
+
 def _brand_run_words(run: str) -> list[str] | None:
     """Words of `run` with leading filler dropped, or None if it names nothing.
 
