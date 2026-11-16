@@ -44,16 +44,17 @@ def test_backed_guessed_sponsor_keeps_row(temp_db):
     assert temp_db.get_known_sponsor_by_name('Acme') is not None
 
 
-def test_untrusted_unbacked_primary_gets_no_row(temp_db):
+def test_unbacked_primary_gets_no_row_by_default(temp_db):
     segs = [{'text': DAY_TEXT, 'sponsor': 'Day'}]
-    pid, _ = _create(temp_db, segs, 'Day', primary_sponsor_trusted=False)
+    pid, _ = _create(temp_db, segs, 'Day')
     assert pid is not None
     assert _sponsor_id(temp_db, pid) is None
     assert temp_db.get_known_sponsor_by_name('Day') is None
 
 
-def test_trusted_primary_keeps_row(temp_db):
-    pid, _ = _create(temp_db, [{'text': DAY_TEXT, 'sponsor': 'Day'}], 'Day')
+def test_reviewer_typed_primary_keeps_row(temp_db):
+    pid, _ = _create(temp_db, [{'text': DAY_TEXT, 'sponsor': 'Day'}], 'Day',
+                     sponsor_from_reviewer=True)
     assert _sponsor_id(temp_db, pid) is not None
     assert temp_db.get_known_sponsor_by_name('Day') is not None
 
@@ -95,3 +96,9 @@ def test_reviewer_typed_sponsor_creates_pattern_on_confirm(temp_db):
         temp_db, service, SLUG, 'a1b2c3d4e5f6', UNBACKED_ACME_TEXT, original,
         sponsor_override='Acme', **kwargs)
     assert pid is not None
+
+
+def test_primary_with_resolved_id_is_never_checked(temp_db):
+    sid = temp_db.create_known_sponsor('Day')
+    pid, _ = _create(temp_db, [{'text': DAY_TEXT, 'sponsor': 'Day'}], 'Day', primary_sponsor_id=sid)
+    assert _sponsor_id(temp_db, pid) == sid

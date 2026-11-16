@@ -734,7 +734,7 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason,
 def _create_patterns_from_segments(
     db, segments, *, scope, podcast_id_str, network_id, episode_id,
     primary_sponsor, primary_sponsor_id=None, created_by=None,
-    category=None, pattern_service=None, log_context, primary_sponsor_trusted=True,
+    category=None, pattern_service=None, log_context, sponsor_from_reviewer=False,
 ):
     """Create (or dedupe-reuse) one ad_pattern per split_template_text segment.
 
@@ -745,7 +745,7 @@ def _create_patterns_from_segments(
     Segments over MAX_PATTERN_CHARS are skipped with a warning; segments matching an
     existing pattern (find_pattern_by_text) are reused, and `pattern_service` records the match.
     A guessed sponsor the segment text does not back as a brand gets no sponsor row; the same
-    holds for the primary when `primary_sponsor_trusted` is False (not typed by a person).
+    holds for the primary unless `sponsor_from_reviewer` (a person typed it) or `primary_sponsor_id` is set.
 
     Returns (primary_id, all_ids) in segment order; (None, []) if every segment was skipped.
     """
@@ -771,20 +771,16 @@ def _create_patterns_from_segments(
             if pattern_service:
                 pattern_service.record_pattern_match(pid, episode_id)
         else:
-            if is_primary_segment:
-                seg_sponsor = primary_sponsor
-                check = not primary_sponsor_trusted and primary_sponsor_id is None
-            else:
-                seg_sponsor = seg['sponsor']
-                check = True
-            if seg_sponsor and check and matcher.unbacked_new_brand(seg_sponsor, seg_text):
+            seg_sponsor = primary_sponsor if is_primary_segment else seg['sponsor']
+            vouched = is_primary_segment and (
+                sponsor_from_reviewer or primary_sponsor_id is not None)
+            if seg_sponsor and not vouched and matcher.unbacked_new_brand(seg_sponsor, seg_text):
                 logger.info(
                     f"Creating pattern without a sponsor: '{seg_sponsor}' has no brand "
                     f"evidence in its text ({log_context})"
                 )
                 seg_sponsor = None
-                seg_sponsor_id = None
-            elif is_primary_segment and primary_sponsor_id is not None:
+            if is_primary_segment and primary_sponsor_id is not None:
                 seg_sponsor_id = primary_sponsor_id
             else:
                 seg_sponsor_id = (
@@ -892,7 +888,7 @@ def _submit_correction_create(db, slug, episode_id, data):
             network_id=network_id, episode_id=episode_id,
             primary_sponsor=canonical_sponsor_name, primary_sponsor_id=sponsor_id,
             created_by='user',
-            category=category,
+            category=category, sponsor_from_reviewer=True,
             log_context=f"create correction in {slug}/{episode_id}",
         )
 
@@ -1008,6 +1004,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
                 network_id=None, episode_id=episode_id,
                 primary_sponsor=sponsor, created_by='user',
                 pattern_service=pattern_service,
+                sponsor_from_reviewer=bool((override.get('sponsor') or '').strip()),
                 log_context=f"split piece {i + 1} in {slug}/{episode_id}",
             )
             piece_id = ids[0] if ids else None
@@ -1149,7 +1146,7 @@ def _resolve_or_create_pattern_from_text(
         network_id=None, episode_id=episode_id, primary_sponsor=sponsor,
         category=category, pattern_service=pattern_service,
         log_context=f"{label} ad in {slug}/{episode_id}",
-        primary_sponsor_trusted=bool(sponsor_override),
+        sponsor_from_reviewer=bool(sponsor_override),
     )
 
 
