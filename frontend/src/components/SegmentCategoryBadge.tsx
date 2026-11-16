@@ -48,7 +48,7 @@ export function ShortAskBadge() {
   return (
     <span
       className={`${badgeBase} ${tint.warning}`}
-      title="Short host ask or sponsor thanks, cut on sentence edges"
+      title="Short host ask or sponsor thanks, trimmed to sentence edges"
     >
       Short ask
     </span>

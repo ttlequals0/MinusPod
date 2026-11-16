@@ -69,7 +69,6 @@ function SegmentActionsSection({
           </p>
         </div>
 
-        {/* Global default for detecting short host asks and sponsor thanks. */}
         <div className="pt-4 border-t border-border">
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
