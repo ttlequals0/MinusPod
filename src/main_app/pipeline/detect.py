@@ -48,6 +48,7 @@ from llm_client import (
 from utils.correction_guard import usable_confirmed_corrections
 from utils.markers import held_review_window, parse_ad_markers
 from utils.errors import ServiceUnavailableError
+from utils.short_asks import is_clampable_short_ask, unflag
 
 from webhook_service import fire_cue_template_quiet_event
 
@@ -395,7 +396,11 @@ def _clamp_short_asks(ads, segments, masters=None):
         if ad.get('short_ask') is not True:
             continue
         master = cuts._find_master(masters, ad) if masters else None
-        clamp_short_ask(ad, segments)
+        # A merge that outgrew the length cap is no short ask; clamping it would cut it back to the origin.
+        if is_clampable_short_ask(ad):
+            clamp_short_ask(ad, segments)
+        else:
+            unflag(ad)
         if master is None or master is ad:
             continue
         master['start'], master['end'] = ad['start'], ad['end']

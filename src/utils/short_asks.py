@@ -33,19 +33,28 @@ def stamp_short_ask(ad, enabled):
     return ad
 
 
+def _sized_origin(ad):
+    """The LLM origin of a flagged marker whose category and length still fit a short ask, else None."""
+    if ad.get('short_ask') is not True or ad.get('category') not in SHORT_ASK_CATEGORIES:
+        return None
+    origin = origin_of(ad)
+    start, end = ad.get('start'), ad.get('end')
+    if origin is None or not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+        return None
+    return origin if SHORT_ASK_MIN_S - EPS <= end - start <= SHORT_ASK_MAX_S + EPS else None
+
+
+def is_clampable_short_ask(ad):
+    """Whether a flagged marker is still short-ask sized, so the clamp may pull its edges back."""
+    return _sized_origin(ad) is not None
+
+
 def is_short_ask(ad):
     """Whether this marker is a flagged short ask still within its length and edge-move caps."""
-    if ad.get('short_ask') is not True or ad.get('category') not in SHORT_ASK_CATEGORIES:
-        return False
-    origin = origin_of(ad)
-    if origin is None:
-        return False
-    start, end = ad.get('start'), ad.get('end')
-    if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
-        return False
+    origin = _sized_origin(ad)
     cap = SHORT_ASK_EDGE_CAP_S + EPS
-    return (SHORT_ASK_MIN_S - EPS <= end - start <= SHORT_ASK_MAX_S + EPS
-            and abs(start - origin[0]) <= cap and abs(end - origin[1]) <= cap)
+    return (origin is not None
+            and abs(ad['start'] - origin[0]) <= cap and abs(ad['end'] - origin[1]) <= cap)
 
 
 def floor_for(ad, default):
