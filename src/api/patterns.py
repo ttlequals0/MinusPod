@@ -744,8 +744,8 @@ def _create_patterns_from_segments(
     `primary_sponsor_id` if the caller resolved it; others use their own guessed sponsor.
     Segments over MAX_PATTERN_CHARS are skipped with a warning; segments matching an
     existing pattern (find_pattern_by_text) are reused, and `pattern_service` records the match.
-    A guessed sponsor the segment text does not back as a brand gets no sponsor row; the same
-    holds for the primary unless `sponsor_from_reviewer` (a person typed it) or `primary_sponsor_id` is set.
+    A guessed sponsor the segment text does not back as a brand gets no sponsor row. A segment
+    whose sponsor equals the reviewer-typed name, or the primary segment with `primary_sponsor_id`, is vouched.
 
     Returns (primary_id, all_ids) in segment order; (None, []) if every segment was skipped.
     """
