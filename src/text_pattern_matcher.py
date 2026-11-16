@@ -19,11 +19,11 @@ from config import (
 from community_export import (
     count_brand_occurrences, brand_match_candidates,
     declared_sponsor_names_lower, find_foreign_sponsors,
-    first_brand_occurrence, get_sponsor_row_or_stub)
+    first_brand_occurrence, get_sponsor_row_or_stub, normalize_aliases)
 from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from sponsor_context import COMMERCIAL_CONTEXT_RE, domain_labels
-from sponsor_service import SponsorService
+from sponsor_service import SponsorService, has_brand_evidence
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
@@ -32,6 +32,7 @@ from utils.constants import (
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
     LEARNING_SPLIT_DURATION_FACTOR,
+    SEED_SPONSORS,
     is_non_brand_name,
     sanitize_sponsor_label,
 )
@@ -237,6 +238,8 @@ AD_TRANSITION_PHRASES = [
 # Sanity cap on ad text length (~230s at 15 chars/sec); longer implies several ads.
 # Single-ad guard in create_pattern_from_ad and per-segment cap for split_template_text callers.
 MAX_PATTERN_CHARS = 3500
+_SEED_BRAND_NAMES = frozenset(
+    name.lower() for seed in SEED_SPONSORS for name in [seed['name'], *seed['aliases']])
 
 # Near-duplicate threshold for learning dedupe in create_pattern_from_ad.
 # Applies to canonicalized text (see canonicalize_for_dedupe), not raw text.
@@ -1338,6 +1341,17 @@ class TextPatternMatcher:
         """
         return get_sponsor_row_or_stub(self.db, sponsor)
 
+    def _unbacked_new_brand(self, sponsor, text):
+        """Whether sponsor would be a new single-word row that text does not back as a brand."""
+        key = sponsor.strip().lower()
+        if len(key.split()) != 1 or key in _SEED_BRAND_NAMES:
+            return False
+        for row in self.db.get_known_sponsors(active_only=True):
+            if key in {name.lower() for name in
+                       [row['name'], *normalize_aliases(row.get('aliases'))]}:
+                return False
+        return not has_brand_evidence(sponsor, text)
+
     def _brand_bearing_bounds(self, segments, start, end, sponsor_row):
         """Return (first_start, last_end) of the segments overlapping
         [start, end] whose text mentions the sponsor brand as a whole word, or
@@ -1939,6 +1953,14 @@ class TextPatternMatcher:
                     f"likely belongs to a different advertiser"
                 )
                 return None
+
+        # A bare dictionary word read as a brand would become a sponsor row that
+        # later matches ordinary speech.
+        if self._unbacked_new_brand(sponsor, ad_text):
+            logger.warning(
+                f"Rejecting pattern: '{sponsor}' is a new single-word sponsor with no "
+                f"domain or promo code in the text backing it as a brand")
+            return None
 
         # Only a span that passed every validation gate above may credit an
         # existing pattern's confirmation_count, and reuses a near-identical
