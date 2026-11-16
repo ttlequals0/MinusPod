@@ -11,6 +11,7 @@ from api import (
     get_database,
 )
 from config import (
+    HELD_WIDEN_MAX_SECONDS,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -1693,7 +1694,7 @@ def _detection_tuning_writes(db, data):
         ('learningMinConfidenceLong', 'learning_min_confidence_long', 0.5, 1.0),
         ('differentialMeasuredCorrMax', 'differential_measured_corr_max', 0.0, 1.0),
         ('differentialHoldMinSeconds', 'differential_hold_min_seconds', 0.0, 120.0),
-        ('heldWidenSeconds', 'held_widen_seconds', 0.0, 120.0),
+        ('heldWidenSeconds', 'held_widen_seconds', 0.0, HELD_WIDEN_MAX_SECONDS),
     ):
         if field_name not in data:
             continue

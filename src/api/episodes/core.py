@@ -12,6 +12,7 @@ from config import (
     is_keep_like, is_pending_review, resolve_chapters_in_notes,
     title_matches_skip_patterns, description_matches_skip_patterns,
     duration_outside_feed_range, episode_matches_feed_filters,
+    resolve_held_widen_seconds, resolve_max_boundary_shift,
 )
 from api.audio_state import add_pattern_audio_state
 from ad_chapters import refresh_keep_like_markers
@@ -424,10 +425,12 @@ def get_episode(slug, episode_id):
                     and isinstance(c.get('original_bounds'), dict)
                     and isinstance(c['original_bounds'].get('start'), (int, float))
                     and isinstance(c['original_bounds'].get('end'), (int, float))]
+        widen_s = resolve_held_widen_seconds(db)
+        cap = resolve_max_boundary_shift(db)
         for marker in pending_review_markers:
             if not all(isinstance(marker.get(k), (int, float)) for k in ('start', 'end')):
                 continue
-            lo, hi = held_review_window(db, episode, all_markers, marker, fp_spans)
+            lo, hi = held_review_window(episode, all_markers, marker, fp_spans, widen_s, cap)
             marker['allowedBounds'] = {'min': lo, 'max': hi}
 
     # Per-cue detection telemetry (advisory: template matches with score, how

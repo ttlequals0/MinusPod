@@ -8,7 +8,7 @@ from itertools import combinations
 from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
     count_pending_review, is_keep_like, is_pending_review, resolve_max_ad_duration_confirmed,
-    resolve_held_widen_seconds,
+    resolve_held_widen_seconds, resolve_max_boundary_shift,
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
@@ -1140,12 +1140,12 @@ def _resolve_or_create_pattern_from_text(
     )
 
 
-def _held_window_for(db, slug, episode_id, episode, markers, marker, podcast=None):
+def _held_window_for(db, slug, episode_id, episode, markers, marker, widen_s, cap, podcast=None):
     """held_review_window with the episode's false-positive spans looked up."""
     podcast_row = podcast or db.get_podcast_row(slug)
     fp_spans = (db.get_false_positive_corrections(podcast_row['id'], episode_id)
                 if podcast_row else [])
-    return held_review_window(db, episode, markers, marker, fp_spans)
+    return held_review_window(episode, markers, marker, fp_spans, widen_s, cap)
 
 
 def _validate_span_bounds(db, slug, episode_id, adjusted_start, adjusted_end):
@@ -1198,6 +1198,8 @@ def _handle_confirm_correction(
         adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
         # A trim stays inside the held marker's window (held_marker_window); with no held marker, the span +/-0.5 s.
         episode, markers = _load_episode_markers(db, slug, episode_id)
+        widen_s = resolve_held_widen_seconds(db)
+        cap = resolve_max_boundary_shift(db)
         held_marker = None
         for m in markers or []:
             if _matches_held_marker(m, original_start, original_end, 0.5):
@@ -1205,9 +1207,9 @@ def _handle_confirm_correction(
                 break
         if held_marker is not None:
             win_start, win_end = _held_window_for(
-                db, slug, episode_id, episode, markers, held_marker, podcast)
+                db, slug, episode_id, episode, markers, held_marker, widen_s, cap, podcast)
             if usable_reviewer_proposal(
-                    db, held_marker, original_start, original_end) is None:
+                    held_marker, original_start, original_end, cap) is None:
                 p_start = held_marker.get('reviewer_proposed_start')
                 p_end = held_marker.get('reviewer_proposed_end')
                 if (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
@@ -1613,13 +1615,14 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         return bounds_error
     adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
     # Above 0 an adjust approves a held marker at once, so it gets confirm's window; at 0 it waits for the recut.
-    widened = resolve_held_widen_seconds(db) > 0
-    if widened:
+    widen_s = resolve_held_widen_seconds(db)
+    if widen_s > 0:
+        cap = resolve_max_boundary_shift(db)
         episode, markers = _load_episode_markers(db, slug, episode_id)
         for m in markers or []:
             if _matches_held_marker(m, original_start, original_end, 0.5):
                 win_start, win_end = _held_window_for(
-                    db, slug, episode_id, episode, markers, m)
+                    db, slug, episode_id, episode, markers, m, widen_s, cap)
                 if adjusted_start < win_start or adjusted_end > win_end:
                     return error_response(
                         'Adjusted bounds must lie within the reviewed span', 400)
@@ -1683,7 +1686,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     )
 
     # A held marker moves and is approved like confirm+trim; a cut marker is not held and is left alone.
-    if widened:
+    if widen_s > 0:
         _mark_held_marker_approved(
             db, slug, episode_id, original_start, original_end,
             new_start=adjusted_start, new_end=adjusted_end,

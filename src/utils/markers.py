@@ -8,8 +8,7 @@ from itertools import accumulate, pairwise
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
-                    is_keep_like, is_pending_review, repair_segment_category,
-                    resolve_held_widen_seconds, resolve_max_boundary_shift)
+                    is_keep_like, is_pending_review, repair_segment_category)
 from utils.constants import EpisodeStatus
 from utils.time import overlap_ratio
 
@@ -292,7 +291,7 @@ def _proposal_overlaps(p_start, p_end, start, end):
             and p_end > p_start and p_end > start and p_start < end)
 
 
-def usable_reviewer_proposal(db, marker, start, end):
+def usable_reviewer_proposal(marker, start, end, cap):
     """A held marker's reviewer proposal, when it is valid, overlaps the
     detected span, and stays within the reviewer's per-edge shift cap."""
     # A hold stamps the raw proposal, which never passed the reviewer's clamp.
@@ -300,21 +299,20 @@ def usable_reviewer_proposal(db, marker, start, end):
     p_end = marker.get('reviewer_proposed_end')
     if not _proposal_overlaps(p_start, p_end, start, end):
         return None
-    cap = resolve_max_boundary_shift(db)
     if abs(p_start - start) > cap or abs(p_end - end) > cap:
         return None
     return float(p_start), float(p_end)
 
 
-def held_review_window(db, episode, markers, marker, false_positive_spans):
+def held_review_window(episode, markers, marker, false_positive_spans, widen_s, cap):
     """(min, max) a human may set a held marker's edges to, for both the corrections validator and allowedBounds."""
     proposal = usable_reviewer_proposal(
-        db, marker, float(marker['start']), float(marker['end']))
+        marker, float(marker['start']), float(marker['end']), cap)
     return held_marker_window(
         markers, marker, episode.get('original_duration'),
         episode.get('status') == EpisodeStatus.PROCESSED,
         proposal=proposal, blocked_spans=false_positive_spans,
-        widen_s=resolve_held_widen_seconds(db))
+        widen_s=widen_s)
 
 
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None,

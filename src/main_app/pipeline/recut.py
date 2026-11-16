@@ -23,7 +23,7 @@ from config import (
     resolve_transcript_differential,
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
-    resolve_cue_gated_approval, resolve_held_widen_seconds,
+    resolve_cue_gated_approval, resolve_held_widen_seconds, resolve_max_boundary_shift,
 )
 
 from utils.constants import EpisodeStatus
@@ -37,12 +37,13 @@ from main_app.pipeline.shared import (db, storage, audio_processor)
 audio_logger = logging.getLogger('podcast.audio')
 
 
-def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, all_ads):
+def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, all_ads,
+                        widen_s, cap):
     """Why a stored adjustment must not be replayed onto `match`, else None."""
     windows = []
-    if (episode is not None and match.get('held_for_review')
-            and resolve_held_widen_seconds(db) > 0):
-        windows.append(held_review_window(db, episode, all_ads, match, false_positive_spans))
+    if episode is not None and match.get('held_for_review') and widen_s > 0:
+        windows.append(held_review_window(
+            episode, all_ads, match, false_positive_spans, widen_s, cap))
     return correction_skip_reason(
         {'start': n_start, 'end': n_end}, windows)
 
@@ -53,6 +54,8 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads, episode=None,
     the marker, unmatched rows are skipped. With `episode`, legacy rows under 1 s or outside a held window are skipped."""
     podcast = db.get_podcast_row(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
+    widen_s = resolve_held_widen_seconds(db)
+    cap = resolve_max_boundary_shift(db)
     adjusted = set()
     applied = 0
     for c in corrections:  # newest first (ORDER BY id DESC)
@@ -95,7 +98,7 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads, episode=None,
             )
             continue
         reason = _legacy_skip_reason(
-            match, n_start, n_end, episode, false_positive_spans, all_ads)
+            match, n_start, n_end, episode, false_positive_spans, all_ads, widen_s, cap)
         if reason:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Recut: skipped legacy correction "

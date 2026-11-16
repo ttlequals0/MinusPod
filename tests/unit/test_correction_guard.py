@@ -84,7 +84,7 @@ def test_half_second_confirm_is_skipped_in_both_paths(caplog):
     assert confirmed == []
     assert 'skipped legacy correction 620.0-620.2: shorter than 1s' in caplog.text
     reason = recut._legacy_skip_reason(
-        {'start': 600.0, 'end': 630.0}, 620.0, 620.2, None, [], [])
+        {'start': 600.0, 'end': 630.0}, 620.0, 620.2, None, [], [], 0.0, 0)
     assert reason == 'shorter than 1s'
 
 
