@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/d6091622-53ba-4856-985d-7b46c9a8e3f5
 
 ## What it does
 
-A learned pattern is captured straight from a transcript, so it often carries a few words of host banter or show content stitched onto the actual sponsor read, or merges two sponsors read back to back into one pattern. Pattern Cleanup runs an LLM over your learned pattern library and proposes trims, splits, sponsor renames, category corrections, or retirement for patterns that have stopped matching.
+A learned pattern is captured straight from a transcript. It often carries a few words of host banter or show content stitched onto the sponsor read, or merges two sponsors read back to back into one pattern. Pattern Cleanup runs an LLM over your learned pattern library and proposes trims, splits, sponsor renames, category corrections, or retirement for patterns that have stopped matching.
 
 Review suggestions in the Cleanup tab on the Patterns page. An approved change keeps the pattern's prior state, so it can be undone later. Nothing in the pipeline reads a suggestion before you act on it.
 
@@ -39,14 +39,14 @@ Settings > Experiments > Pattern Cleanup has:
 
 - **Enable scheduled cleanup** - turns the cron schedule on or off. Run now works either way.
 - **Schedule** - a 5-field cron expression, interpreted as UTC. Default `0 4 * * 0` (weekly, Sunday 04:00).
-- **Cleanup Provider** / **Cleanup Model** - which credential slot and model review the patterns. Left blank, both inherit the detection stage's slot and model. The UI recommends picking a higher-quality model here than you use for everyday detection: cleanup runs far less often than detection, so the extra cost per call buys more reliable trims and splits.
+- **Cleanup Provider** / **Cleanup Model** - which credential slot and model review the patterns. Left blank, both inherit the detection stage's slot and model. The UI recommends picking a higher-quality model here than you use for everyday detection. Cleanup runs far less often than detection, so the extra cost per call buys more reliable trims and splits.
 - **Patterns per run** - how many patterns one run sends to the model, 1 to 200, default 25. Patterns never reviewed go first, then patterns whose reviews failed. Statistics checks cover all active learned patterns without model calls.
 - **Retire after (days unused)** - how long without a match before cleanup suggests retiring a pattern, 7 to 3650 days, default 90.
 
 Save configuration changes before starting a run. Run now and Force recheck
 all use the saved provider, model, and batch size.
 
-Turning the schedule on never starts a run right away: the next run waits for the first cron slot after that moment and the Last run time is unchanged. **Run now** always starts a run right away, subject to the usual lock (see below).
+Turning the schedule on never starts a run right away. The next run waits for the first cron slot after that moment and the Last run time is unchanged. **Run now** always starts a run right away, subject to the usual lock (see below).
 
 A run starts in a background thread and the API call returns once it is queued. The Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
 
@@ -83,7 +83,7 @@ retained transcript, the model works from the pattern text by itself.
 
 The model's answer goes through a validation gate before anything is stored:
 
-- Any text it proposes keeping must be a close match to a real contiguous slice of the original pattern text (a near-substring, not just similar wording).
+- Any text it proposes keeping must be a close match to a real contiguous slice of the original pattern text (a near-substring; similar wording does not qualify).
 - A trim must remove at least 5 words or 10% of the original. A smaller trim is ignored, but a valid sponsor correction can still become a rename suggestion.
 - A split's pieces must not overlap, and each piece must mention its own sponsor.
 - A trim must keep the recorded sponsor when the original text names it. If the sponsor is absent or unknown, it must retain a name from the sponsor list. A combined trim and sponsor correction can instead use the validated new sponsor in the retained text.

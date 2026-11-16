@@ -272,7 +272,8 @@ def _unnamed_sponsor_suggestion(db, pattern: dict) -> dict | None:
     if (count_brand_occurrences(text, row)
             or has_brand_evidence(name, text, normalize_aliases(row.get('aliases')))):
         return None
-    reason = 'No mention of the sponsor name, its aliases or a matching domain in the text'
+    reason = ('The text does not contain the sponsor name, an alias, '
+              'or a domain or promo code that matches it.')
     return _suggestion('unnamed_sponsor', 1.0, [reason], {'sponsor': name})
 
 
