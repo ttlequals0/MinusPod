@@ -1162,6 +1162,5 @@ def episode_markers(episode: dict | None) -> tuple[list[dict], EpisodeStatus]:
 def own_marker_span(episode: dict | None, pattern_id: int) -> tuple[float, float] | None:
     """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
     markers, status = episode_markers(episode)
-    spans = sorted(span for marker in markers if not is_rejected_marker(marker, status)
-                   for span in marker_pattern_spans(marker, pattern_id))
-    return spans[0] if spans else None
+    return min((span for marker in markers if not is_rejected_marker(marker, status)
+                for span in marker_pattern_spans(marker, pattern_id)), default=None)
