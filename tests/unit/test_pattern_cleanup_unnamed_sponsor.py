@@ -1,9 +1,11 @@
 """Pattern Cleanup's unnamed_sponsor suggestion: sweep, approve, undo, reject and staleness."""
+from unittest.mock import patch
+
 import pytest
 
 import pattern_cleanup
 from pattern_cleanup import SuggestionStateError, apply_suggestion, reject_suggestion, undo_suggestion
-from tests.unit.test_pattern_cleanup_service import _pattern
+from tests.unit.test_pattern_cleanup_service import LIVE, _pattern
 
 TEXT = "Try the Day fresh produce box, order now at example.com slash fresh for twenty percent off."
 
@@ -108,3 +110,56 @@ def test_pending_suggestion_goes_away_once_the_pattern_no_longer_qualifies(temp_
         "SELECT COUNT(*) FROM pattern_cleanup_suggestions "
         "WHERE kind = 'unnamed_sponsor' AND superseded_at IS NOT NULL").fetchone()[0]
     assert superseded == 1
+
+
+def _verdict(**fields):
+    base = {'action': 'keep', 'text': None, 'sponsor': None, 'pieces': [], 'category': None,
+            'contaminated': False, 'contamination_reason': None, 'confidence': 0.9,
+            'reasons': ['model reason']}
+    base.update(fields)
+    return base
+
+
+def _review(db, pattern_id, verdict):
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    with patch.object(pattern_cleanup, 'review_pattern', return_value=verdict):
+        pattern_cleanup._process_pattern(db, None, pattern, 90, LIVE, 'sys')
+
+
+def _all_pending(db, pattern_id):
+    return sorted(s['kind'] for s in db.get_cleanup_suggestions(status='pending')
+                  if s['pattern_id'] == pattern_id)
+
+
+def test_model_rename_replaces_the_unnamed_sponsor_suggestion(temp_db):
+    p = _pattern(temp_db, text=TEXT, sponsor='Acme')
+    _review(temp_db, p['id'], _verdict(action='rename', sponsor='Day'))
+    assert _all_pending(temp_db, p['id']) == ['rename']
+
+
+def test_pending_unnamed_sponsor_is_removed_by_a_later_rename(temp_db):
+    p = _pattern(temp_db, text=TEXT, sponsor='Acme')
+    _sweep(temp_db)
+    assert _all_pending(temp_db, p['id']) == ['unnamed_sponsor']
+    _review(temp_db, p['id'], _verdict(action='rename', sponsor='Day'))
+    assert _all_pending(temp_db, p['id']) == ['rename']
+
+
+def test_sweep_skips_unnamed_sponsor_while_a_rename_is_pending(temp_db):
+    p = _pattern(temp_db, text=TEXT, sponsor='Acme')
+    _review(temp_db, p['id'], _verdict(action='rename', sponsor='Day'))
+    assert (p['id'], 'unnamed_sponsor') not in _sweep(temp_db)
+    assert _all_pending(temp_db, p['id']) == ['rename']
+    [rename] = [s for s in temp_db.get_cleanup_suggestions(status='pending')
+                if s['pattern_id'] == p['id']]
+    reject_suggestion(temp_db, rename['id'])
+    assert (p['id'], 'unnamed_sponsor') in _sweep(temp_db)
+    assert _all_pending(temp_db, p['id']) == ['unnamed_sponsor']
+
+
+def test_trim_without_a_sponsor_keeps_the_unnamed_sponsor_suggestion(temp_db):
+    p = _pattern(temp_db, text=TEXT, sponsor='Acme')
+    _review(temp_db, p['id'], _verdict(action='trim', text='order now at example.com slash fresh'))
+    assert _all_pending(temp_db, p['id']) == ['trim', 'unnamed_sponsor']
+    _sweep(temp_db)
+    assert _all_pending(temp_db, p['id']) == ['trim', 'unnamed_sponsor']

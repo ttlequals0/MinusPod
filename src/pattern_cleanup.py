@@ -801,6 +801,14 @@ def _stats_only_suggestion(suggestion: dict) -> bool:
             and payload.get('recommended') != 'trim')
 
 
+def _sets_sponsor(suggestion: dict) -> bool:
+    """Whether a pending or proposed suggestion sets the pattern's sponsor."""
+    payload = suggestion.get('payload') or {}
+    if suggestion['kind'] == 'split':
+        return any(piece.get('sponsor') for piece in payload.get('pieces') or [])
+    return suggestion['kind'] in ('rename', 'trim', 'flag') and bool(payload.get('sponsor'))
+
+
 def _pending_pattern_suggestions(conn, pattern_id: int) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL",
@@ -898,6 +906,10 @@ def _plan_stats_sweep(pattern: dict, candidates: dict, all_pending: list[dict],
                 _stats_evidence(kind, pattern, proposal['payload'])):
             to_delete.add(existing['id'])
             pending.pop(kind)
+    if any(_sets_sponsor(item) for item in all_pending if item['id'] not in to_delete):
+        if 'unnamed_sponsor' in pending:
+            to_delete.add(pending.pop('unnamed_sponsor')['id'])
+        candidates = {k: v for k, v in candidates.items() if k != 'unnamed_sponsor'}
     flag_merge = _flag_merge_plan(pending.get('flag'), candidates, pattern, acknowledgments)
     to_write = {kind: proposal for kind, proposal in candidates.items()
                if _stats_proposal_needs_write(kind, proposal, pattern, acknowledgments, pending)}
@@ -972,6 +984,13 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
                  if acknowledgments.get(item['kind']) != _stats_evidence(
                      item['kind'], current, item['payload'])]
         suggestions = _suggestions_for(current, stats, verdict)
+        pending = _pending_pattern_suggestions(conn, current['id'])
+        if any(_sets_sponsor(item) for item in suggestions + pending):
+            suggestions = [item for item in suggestions if item['kind'] != 'unnamed_sponsor']
+            for item in pending:
+                if item['kind'] == 'unnamed_sponsor':
+                    conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
+                                 (utc_now_iso(), item['id']))
         before = _before_snapshot(current, context)
         for s in suggestions:
             db.upsert_cleanup_suggestion(run_id, current['id'], s['kind'], s['confidence'],
