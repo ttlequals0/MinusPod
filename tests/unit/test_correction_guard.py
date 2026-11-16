@@ -10,7 +10,7 @@ import pytest
 
 from main_app.pipeline import detect, recut
 from main_app.pipeline.shared import db as shared_db
-from utils.correction_guard import correction_skip_reason
+from utils.correction_guard import correction_skip_reason, usable_confirmed_corrections
 from ad_validator import AdValidator
 
 
@@ -105,6 +105,13 @@ def test_newer_confirm_supersedes_an_older_adjustment():
     adjust = _adjust((120.0, 437.0), (100.0, 500.0))
     assert correction_skip_reason(adjust, newer=[confirm]) == 'superseded by a newer confirm'
     assert correction_skip_reason(confirm, newer=[adjust]) is None
+
+
+def test_newer_confirm_on_an_adjacent_marker_does_not_supersede_an_adjustment():
+    confirm = {'start': 629.0, 'end': 660.0, 'correction_type': 'confirm'}
+    adjust = _adjust((600.0, 630.0), (600.0, 625.0))
+    assert correction_skip_reason(adjust, newer=[confirm]) is None
+    assert usable_confirmed_corrections([confirm, adjust], []) == [confirm, adjust]
 
 
 def test_candidates_clamped_to_one_approved_span_yield_one_marker():

@@ -15,7 +15,7 @@ from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, parse_ad_markers,
                            reject_barriers, reviewer_reject_stands,
                            spans_match)
 
-from utils.correction_guard import correction_skip_reason, id_suffix
+from utils.correction_guard import correction_skip_reason, id_suffix, same_span
 from utils.time import overlap_seconds
 
 from config import (
@@ -67,8 +67,8 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads, episode=None,
             if span.get('start') is not None and span.get('end') is not None:
                 adjusted.update(id(ad) for ad in all_ads
                                 if ad.get('start') is not None and ad.get('end') is not None
-                                and overlap_seconds(span['start'], span['end'],
-                                                    ad['start'], ad['end']) > 0)
+                                and same_span(span['start'], span['end'],
+                                              ad['start'], ad['end']))
             continue
         if c.get('correction_type') != 'boundary_adjustment':
             continue

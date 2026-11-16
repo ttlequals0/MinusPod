@@ -2,7 +2,8 @@
 
 import logging
 
-from utils.time import overlap_seconds
+from config import CORRECTION_MATCH_MIN_COVERAGE
+from utils.time import overlap_ratio, overlap_seconds
 
 logger = logging.getLogger('podcast.audio')
 
@@ -15,6 +16,12 @@ def _approved_span(correction):
     if start is None or end is None:
         return None
     return float(start), float(end)
+
+
+def same_span(start_a, end_a, start_b, end_b):
+    """True when the overlap covers CORRECTION_MATCH_MIN_COVERAGE of each span."""
+    return (overlap_ratio(start_a, end_a, start_b, end_b) >= CORRECTION_MATCH_MIN_COVERAGE
+            and overlap_ratio(start_b, end_b, start_a, end_a) >= CORRECTION_MATCH_MIN_COVERAGE)
 
 
 def id_suffix(correction):
@@ -40,8 +47,7 @@ def correction_skip_reason(correction, held_windows=(), newer=()):
                 if (other.get('correction_type') == 'confirm'
                         and other.get('start') is not None
                         and other.get('end') is not None
-                        and overlap_seconds(c_start, c_end,
-                                            other['start'], other['end']) > 0):
+                        and same_span(c_start, c_end, other['start'], other['end'])):
                     return 'superseded by a newer confirm'
     return None
 
