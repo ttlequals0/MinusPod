@@ -1340,7 +1340,7 @@ class TextPatternMatcher:
         """
         return get_sponsor_row_or_stub(self.db, sponsor)
 
-    def _unbacked_new_brand(self, sponsor, text):
+    def unbacked_new_brand(self, sponsor, text):
         """Whether sponsor would be a new single-word row that text does not back as a brand."""
         if len(sponsor.split()) != 1:
             return False
@@ -1967,7 +1967,7 @@ class TextPatternMatcher:
 
         # A bare dictionary word read as a brand would become a sponsor row that
         # later matches ordinary speech.
-        if self._unbacked_new_brand(sponsor, ad_text):
+        if self.unbacked_new_brand(sponsor, ad_text):
             logger.warning(
                 f"Rejecting pattern: '{sponsor}' is a new single-word sponsor with no "
                 f"domain or promo code in the text backing it as a brand")
@@ -2051,6 +2051,11 @@ class TextPatternMatcher:
             for seg in segments:
                 segment = seg['text']
                 sponsor = seg['sponsor']
+                if sponsor and self.unbacked_new_brand(sponsor, segment):
+                    logger.info(
+                        f"Split of pattern {pattern_id}: '{sponsor}' has no brand "
+                        f"evidence, creating the piece without a sponsor")
+                    sponsor = None
                 intro = _extract_intro_phrase(segment)
                 outro = _extract_outro_phrase(segment)
                 prepared.append({

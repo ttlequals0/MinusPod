@@ -76,9 +76,9 @@ def test_known_short_brand_needs_no_evidence(temp_db):
 
 def test_transcriber_misspelling_of_a_known_brand_needs_no_evidence(temp_db):
     text = "Woop tracks your sleep. Woop shows recovery every morning, so try Woop today."
-    assert TextPatternMatcher(db=temp_db)._unbacked_new_brand('Woop', text) is False
+    assert TextPatternMatcher(db=temp_db).unbacked_new_brand('Woop', text) is False
 
 
 def test_pattern_only_sponsor_needs_no_evidence(temp_db, monkeypatch):
     monkeypatch.setattr(temp_db, 'get_active_pattern_sponsors', lambda: {'wise'})
-    assert TextPatternMatcher(db=temp_db)._unbacked_new_brand('Wise', WISE_NO_EVIDENCE_AD) is False
+    assert TextPatternMatcher(db=temp_db).unbacked_new_brand('Wise', WISE_NO_EVIDENCE_AD) is False

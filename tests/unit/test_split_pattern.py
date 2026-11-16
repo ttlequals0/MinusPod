@@ -171,7 +171,7 @@ def test_overlap_dedupe_fix_preserves_full_leading_phrase(db):
     filler = "word " * 20
     text = (
         f"{filler}this episode is brought to you by Acme, your favorite "
-        f"widget maker with the best prices around town this month. "
+        f"widget maker at acme.com with the best prices around town this month. "
         f"Thanks to Widgetco for also supporting the show this week with "
         f"their new gadget line available everywhere online right now."
     )

@@ -734,7 +734,7 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason,
 def _create_patterns_from_segments(
     db, segments, *, scope, podcast_id_str, network_id, episode_id,
     primary_sponsor, primary_sponsor_id=None, created_by=None,
-    category=None, pattern_service=None, log_context,
+    category=None, pattern_service=None, log_context, primary_sponsor_trusted=True,
 ):
     """Create (or dedupe-reuse) one ad_pattern per split_template_text segment.
 
@@ -744,12 +744,15 @@ def _create_patterns_from_segments(
     `primary_sponsor_id` if the caller resolved it; others use their own guessed sponsor.
     Segments over MAX_PATTERN_CHARS are skipped with a warning; segments matching an
     existing pattern (find_pattern_by_text) are reused, and `pattern_service` records the match.
+    A guessed sponsor the segment text does not back as a brand gets no sponsor row; the same
+    holds for the primary when `primary_sponsor_trusted` is False (not typed by a person).
 
     Returns (primary_id, all_ids) in segment order; (None, []) if every segment was skipped.
     """
     primary_sponsor_lower = primary_sponsor.lower()
     all_ids = []
     primary_id = None
+    matcher = TextPatternMatcher(db=db)
 
     for seg in segments:
         seg_text = seg['text']
@@ -770,12 +773,20 @@ def _create_patterns_from_segments(
         else:
             if is_primary_segment:
                 seg_sponsor = primary_sponsor
-                seg_sponsor_id = (
-                    primary_sponsor_id if primary_sponsor_id is not None
-                    else get_or_create_known_sponsor(db, seg_sponsor)
-                )
+                check = not primary_sponsor_trusted and primary_sponsor_id is None
             else:
                 seg_sponsor = seg['sponsor']
+                check = True
+            if seg_sponsor and check and matcher.unbacked_new_brand(seg_sponsor, seg_text):
+                logger.info(
+                    f"Creating pattern without a sponsor: '{seg_sponsor}' has no brand "
+                    f"evidence in its text ({log_context})"
+                )
+                seg_sponsor = None
+                seg_sponsor_id = None
+            elif is_primary_segment and primary_sponsor_id is not None:
+                seg_sponsor_id = primary_sponsor_id
+            else:
                 seg_sponsor_id = (
                     get_or_create_known_sponsor(db, seg_sponsor) if seg_sponsor else None
                 )
@@ -1137,6 +1148,7 @@ def _resolve_or_create_pattern_from_text(
         network_id=None, episode_id=episode_id, primary_sponsor=sponsor,
         category=category, pattern_service=pattern_service,
         log_context=f"{label} ad in {slug}/{episode_id}",
+        primary_sponsor_trusted=bool(sponsor_override),
     )
 
 
