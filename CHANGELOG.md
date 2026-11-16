@@ -12,11 +12,13 @@ release notes.
 
 ### Changed
 
-- The Needs review filter and its count on Ad Review now cover only markers held for review. Detections the validator left uncut are under Not cut. In the API, `status=needs_review` on `GET /api/v1/detections` and `counts.needsReview` follow the same rule.
+- The Needs review filter and its count on Ad review now cover only markers held for review. Detections the validator left uncut are under Not cut. In the API, `status=needs_review` on `GET /api/v1/detections` and `counts.needsReview` follow the same rule.
 
 ### Fixed
 
 - An ad found in the second pass is now cut when its reviewed span ends exactly where a first-pass cut begins, or begins where one ends. It was held for review as a reviewer contradiction although the two spans only touch. The same applies to a reviewed ad whose edge touches a held neighbour.
+- The Detected ads and Ad review lists could take 10 seconds or more to load on a large database when its data was not in the system's file cache. Loading them read past every episode's transcripts to reach the ad markers. The markers are now also kept in a small table of their own, `episode_detection_markers`. The app fills it on the first load after the upgrade and keeps it in step when markers change. That first load can still be slow once.
+- The Category dropdown in the Patterns table no longer cuts off its label: "Uncategorized" and "Cross-promo" now show in full. The Audio column says "No matches" where it said "No matches yet", and the column widths were rebalanced to fit.
 ## [Unreleased]
 
 ### Fixed

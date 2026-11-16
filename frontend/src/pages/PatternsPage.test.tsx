@@ -370,7 +370,7 @@ describe('PatternsPage audio column', () => {
     const table = await screen.findByRole('table');
     await within(table).findAllByText('Sponsor 1');
     const rows = within(table).getAllByRole('row').slice(1);
-    expect(within(rows[0]).getAllByRole('cell')[4].textContent).toBe('No matches yet');
+    expect(within(rows[0]).getAllByRole('cell')[4].textContent).toBe('No matches');
     expect(within(rows[1]).getAllByRole('cell')[4].textContent).toBe('No audio');
   });
 
