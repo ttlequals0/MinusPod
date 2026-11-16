@@ -10,8 +10,8 @@ from cancel import (
 )
 
 from utils.audio import get_audio_codec
-from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, parse_ad_markers,
-                           reviewer_hold_stands,
+from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, held_review_window,
+                           parse_ad_markers, reviewer_hold_stands,
                            reject_barriers, reviewer_reject_stands,
                            spans_match)
 
@@ -39,7 +39,6 @@ audio_logger = logging.getLogger('podcast.audio')
 
 def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, all_ads):
     """Why a stored adjustment must not be replayed onto `match`, else None."""
-    from api.patterns import held_review_window
     windows = []
     if (episode is not None and match.get('held_for_review')
             and resolve_held_widen_seconds() > 0):

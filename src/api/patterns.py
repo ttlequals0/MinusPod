@@ -8,7 +8,7 @@ from itertools import combinations
 from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
     count_pending_review, is_keep_like, is_pending_review, resolve_max_ad_duration_confirmed,
-    resolve_held_widen_seconds, resolve_max_boundary_shift,
+    resolve_held_widen_seconds,
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
@@ -17,7 +17,8 @@ from database.fingerprint_cleanup import delete_pattern_dependents
 from database.fingerprint_matches import fingerprint_member_pattern_ids
 from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.markers import (
-    clip_merge_spans, find_marker_in_list, held_marker_window, parse_ad_markers)
+    clip_merge_spans, find_marker_in_list, held_review_window, parse_ad_markers,
+    usable_reviewer_proposal)
 from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from utils.constants import EpisodeStatus
@@ -1139,37 +1140,6 @@ def _resolve_or_create_pattern_from_text(
     )
 
 
-def _proposal_overlaps(p_start, p_end, start, end):
-    """True when a numeric proposal span overlaps [start, end]."""
-    return (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
-            and p_end > p_start and p_end > start and p_start < end)
-
-
-def _usable_reviewer_proposal(db, marker, start, end):
-    """A held marker's reviewer proposal, when it is valid, overlaps the
-    detected span, and stays within the reviewer's per-edge shift cap."""
-    # A hold stamps the raw proposal, which never passed the reviewer's clamp.
-    p_start = marker.get('reviewer_proposed_start')
-    p_end = marker.get('reviewer_proposed_end')
-    if not _proposal_overlaps(p_start, p_end, start, end):
-        return None
-    cap = resolve_max_boundary_shift(db)
-    if abs(p_start - start) > cap or abs(p_end - end) > cap:
-        return None
-    return float(p_start), float(p_end)
-
-
-def held_review_window(db, episode, markers, marker, false_positive_spans):
-    """(min, max) a human may set a held marker's edges to, for both the corrections validator and allowedBounds."""
-    proposal = _usable_reviewer_proposal(
-        db, marker, float(marker['start']), float(marker['end']))
-    return held_marker_window(
-        markers, marker, episode.get('original_duration'),
-        episode.get('status') == EpisodeStatus.PROCESSED,
-        proposal=proposal, blocked_spans=false_positive_spans,
-        widen_s=resolve_held_widen_seconds())
-
-
 def _held_window_for(db, slug, episode_id, episode, markers, marker, podcast=None):
     """held_review_window with the episode's false-positive spans looked up."""
     podcast_row = podcast or db.get_podcast_row(slug)
@@ -1236,7 +1206,7 @@ def _handle_confirm_correction(
         if held_marker is not None:
             win_start, win_end = _held_window_for(
                 db, slug, episode_id, episode, markers, held_marker, podcast)
-            if _usable_reviewer_proposal(
+            if usable_reviewer_proposal(
                     db, held_marker, original_start, original_end) is None:
                 p_start = held_marker.get('reviewer_proposed_start')
                 p_end = held_marker.get('reviewer_proposed_end')

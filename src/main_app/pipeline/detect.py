@@ -46,7 +46,7 @@ from llm_client import (
 )
 
 from utils.correction_guard import usable_confirmed_corrections
-from utils.markers import parse_ad_markers
+from utils.markers import held_review_window, parse_ad_markers
 from utils.errors import ServiceUnavailableError
 
 from webhook_service import fire_cue_template_quiet_event
@@ -480,8 +480,6 @@ def _usable_confirmed(slug, episode_id, db, confirmed, false_positive_spans,
     and, with held_widen_seconds set, outside a held marker's window)."""
     if not confirmed:
         return confirmed
-    # Module-level import would be a cycle: api imports the pipeline.
-    from api.patterns import held_review_window
     if episode is None:
         episode = db.get_episode(slug, episode_id) or {}
     markers = parse_ad_markers(episode.get('ad_markers_json')) or []

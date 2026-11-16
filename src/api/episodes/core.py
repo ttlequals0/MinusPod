@@ -19,14 +19,13 @@ from ad_yield import latest_completed_run, low_ad_yield
 from database.error_text import redact_error, redact_json_error
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
 from utils.json_fields import load_json_list
-from utils.markers import parse_ad_markers
+from utils.markers import held_review_window, parse_ad_markers
 from utils.short_asks import is_short_ask
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 import episode_runs
 from api.episodes import common
-from api.patterns import held_review_window
 
 logger = logging.getLogger('podcast.api')
 
