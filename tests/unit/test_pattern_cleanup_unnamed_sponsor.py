@@ -26,15 +26,14 @@ def test_sweep_proposes_for_a_sponsor_absent_from_the_text(temp_db):
     assert suggestion['confidence'] == 1.0
 
 
-@pytest.mark.parametrize('text', [
-    "Try Acme, order now at example.com slash fresh.",
-    "Try Ak, order now at example.com slash fresh.",
-    "Order now at acmewidgets.com slash fresh for twenty percent off.",
+@pytest.mark.parametrize('text, name, aliases', [
+    ("Try Acme, order now at example.com slash fresh.", 'Acme', ['Ak']),
+    ("Try Ak, order now at example.com slash fresh.", 'Acme', ['Ak']),
+    ("Order now at acmewidgets.com slash fresh for twenty percent off.", 'Acme Widgets', None),
 ])
-def test_sweep_skips_a_pattern_whose_text_names_the_sponsor(temp_db, text):
-    name = 'Acme Widgets' if 'widgets' in text else 'Acme'
-    if name == 'Acme':
-        temp_db.create_known_sponsor(name='Acme', aliases=['Ak'])
+def test_sweep_skips_a_pattern_whose_text_names_the_sponsor(temp_db, text, name, aliases):
+    if aliases:
+        temp_db.create_known_sponsor(name=name, aliases=aliases)
     p = _pattern(temp_db, text=text, sponsor=name)
     _sweep(temp_db)
     assert _pending(temp_db, p['id']) == []

@@ -268,6 +268,14 @@ def test_unnamed_sponsor_kind_migration_preserves_every_row(temp_dir):
     assert mconn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='trigger' "
         "AND name='archive_cleanup_actions_on_pattern_delete'").fetchone()
+    fresh_dir = os.path.join(str(temp_dir), 'fresh')
+    os.makedirs(fresh_dir)
+    fresh_conn = _isolated(fresh_dir).get_connection()
+    schema_query = ("SELECT type, name, sql FROM sqlite_master WHERE type IN ('index', 'trigger') "
+                    "AND name LIKE '%cleanup%' ORDER BY type, name")
+    migrated_schema = [tuple(r) for r in mconn.execute(schema_query)]
+    assert len(migrated_schema) >= 4
+    assert migrated_schema == [tuple(r) for r in fresh_conn.execute(schema_query)]
     new_id = migrated.upsert_cleanup_suggestion(
         run_id, pids[0], 'unnamed_sponsor', 1.0, ['r'], {'sponsor': 'Acme'}, {})
     assert new_id > 500

@@ -16,6 +16,10 @@ _PATTERN_SUMMARY_FIELDS = (
     'false_positive_count', 'last_matched_at', 'created_at', 'is_active', 'category')
 
 
+CLEANUP_STATS_KINDS = ('retire', 'flag', 'unnamed_sponsor')
+_STATS_KINDS_SQL = ', '.join(repr(kind) for kind in CLEANUP_STATS_KINDS)
+
+
 def _decode_suggestion(row) -> dict:
     out = dict(row)
     for field in _JSON_FIELDS:
@@ -247,8 +251,9 @@ class PatternCleanupMixin:
 
     def get_cleanup_stat_decisions(self, pattern_id: int, conn=None) -> list[dict]:
         rows = (conn or self.get_connection()).execute(
-            "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? "
-            "AND kind IN ('retire', 'flag', 'unnamed_sponsor') AND status IN ('approved', 'rejected', 'undone') "
+            "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? "  # noqa: S608
+            f"AND kind IN ({_STATS_KINDS_SQL}) "
+            "AND status IN ('approved', 'rejected', 'undone') "
             "ORDER BY id", (pattern_id,)
         ).fetchall()
         return [_decode_suggestion(row) for row in rows]
@@ -258,11 +263,11 @@ class PatternCleanupMixin:
         conn = self.get_connection()
         conn.create_function('cleanup_review_hash', 2, review_hash)
         conn.create_function('cleanup_review_hash', 3, review_hash)
-        pending_model = """EXISTS (
+        pending_model = f"""EXISTS (
             SELECT 1 FROM pattern_cleanup_suggestions s
             WHERE s.pattern_id = ap.id AND s.status = 'pending' AND s.superseded_at IS NULL
               AND (
-                    s.kind NOT IN ('retire', 'flag', 'unnamed_sponsor')
+                    s.kind NOT IN ({_STATS_KINDS_SQL})
                     OR (s.kind = 'flag' AND (
                         COALESCE(json_extract(s.payload, '$.contaminated'), 0) = 1
                         OR json_extract(s.payload, '$.recommended') = 'trim'
@@ -282,7 +287,7 @@ class PatternCleanupMixin:
                         = cleanup_review_hash(ap.text_template, ks.name, ap.category)
                     END
               )
-        )"""
+        )"""  # noqa: S608
         pending_filter = '' if force else ' AND NOT (' + pending_model + ')'
         cursor = conn.execute(
             f"""SELECT ap.*, ks.name AS sponsor, pc.title AS podcast_title,

@@ -601,14 +601,21 @@ TABLE_DDL['pattern_cleanup_deleted_actions'] = """CREATE TABLE IF NOT EXISTS pat
 )"""
 
 # One pending suggestion per (pattern, kind); a later run replaces it.
-PATTERN_CLEANUP_INDEXES = (
+CLEANUP_PATTERN_INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_cleanup_suggestions_pattern "
-    "ON pattern_cleanup_suggestions(pattern_id)",
+    "ON pattern_cleanup_suggestions(pattern_id)")
+CLEANUP_STATUS_INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_cleanup_suggestions_status "
-    "ON pattern_cleanup_suggestions(status, created_at)",
+    "ON pattern_cleanup_suggestions(status, created_at)")
+CLEANUP_PENDING_INDEX = (
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
-    "ON pattern_cleanup_suggestions(pattern_id, kind) WHERE status = 'pending'",
-)
+    "ON pattern_cleanup_suggestions(pattern_id, kind) WHERE status = 'pending'")
+# Pending index as the accounting migration leaves it: superseded rows are excluded.
+CLEANUP_PENDING_ACTIVE_INDEX = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
+    "ON pattern_cleanup_suggestions(pattern_id, kind) "
+    "WHERE status = 'pending' AND superseded_at IS NULL")
+PATTERN_CLEANUP_INDEXES = (CLEANUP_PATTERN_INDEX, CLEANUP_STATUS_INDEX, CLEANUP_PENDING_INDEX)
 
 TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

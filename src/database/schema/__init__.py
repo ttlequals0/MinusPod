@@ -49,6 +49,7 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_MARKER_REFS_INDEX_SQL,
     EPISODE_MARKER_REFS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
+    CLEANUP_PATTERN_INDEX, CLEANUP_PENDING_ACTIVE_INDEX, CLEANUP_STATUS_INDEX,
     FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
 from database.fingerprint_cleanup import delete_matches_for_missing_episodes
@@ -2533,7 +2534,8 @@ class SchemaMixin(DeferredUpgradeMixin):
                 try:
                     conn.execute('BEGIN IMMEDIATE')
                     sequence_row = conn.execute(
-                        "SELECT seq FROM sqlite_sequence WHERE name = 'pattern_cleanup_suggestions'").fetchone()
+                        "SELECT seq FROM sqlite_sequence "
+                        "WHERE name = 'pattern_cleanup_suggestions'").fetchone()
                     previous_sequence = sequence_row['seq'] if sequence_row else 0
                     conn.execute(TABLE_DDL['pattern_cleanup_suggestions'].replace(
                         'IF NOT EXISTS pattern_cleanup_suggestions', 'pattern_cleanup_suggestions_new', 1))
@@ -2547,22 +2549,23 @@ class SchemaMixin(DeferredUpgradeMixin):
                         'ALTER TABLE pattern_cleanup_suggestions_new '
                         'RENAME TO pattern_cleanup_suggestions')
                     rebuilt_sequence = conn.execute(
-                        "SELECT seq FROM sqlite_sequence WHERE name = 'pattern_cleanup_suggestions'").fetchone()
+                        "SELECT seq FROM sqlite_sequence "
+                        "WHERE name = 'pattern_cleanup_suggestions'").fetchone()
                     if rebuilt_sequence:
                         conn.execute(
-                            "UPDATE sqlite_sequence SET seq = ? WHERE name = 'pattern_cleanup_suggestions'",
+                            "UPDATE sqlite_sequence SET seq = ? "
+                            "WHERE name = 'pattern_cleanup_suggestions'",
                             (max(previous_sequence, rebuilt_sequence['seq']),))
                     elif previous_sequence:
                         conn.execute(
-                            "INSERT INTO sqlite_sequence (name, seq) VALUES ('pattern_cleanup_suggestions', ?)",
+                            "INSERT INTO sqlite_sequence (name, seq) "
+                            "VALUES ('pattern_cleanup_suggestions', ?)",
                             (previous_sequence,))
-                    for index_sql in PATTERN_CLEANUP_INDEXES[:2]:
+                    for index_sql in (CLEANUP_PATTERN_INDEX, CLEANUP_STATUS_INDEX,
+                                      CLEANUP_PENDING_ACTIVE_INDEX):
                         conn.execute(index_sql)
-                    conn.execute("DROP INDEX IF EXISTS idx_cleanup_suggestions_pending")
-                    conn.execute("CREATE UNIQUE INDEX idx_cleanup_suggestions_pending "
-                                 "ON pattern_cleanup_suggestions(pattern_id, kind) "
-                                 "WHERE status = 'pending' AND superseded_at IS NULL")
-                    conn.execute('INSERT INTO schema_migrations (name) VALUES (?)', (unnamed_sponsor_gate,))
+                    conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
+                                 (unnamed_sponsor_gate,))
                     conn.commit()
                 except Exception:
                     conn.rollback()
@@ -2570,7 +2573,8 @@ class SchemaMixin(DeferredUpgradeMixin):
                 finally:
                     conn.execute('PRAGMA foreign_keys = ON')
             else:
-                conn.execute('INSERT INTO schema_migrations (name) VALUES (?)', (unnamed_sponsor_gate,))
+                conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
+                             (unnamed_sponsor_gate,))
                 conn.commit()
         conn.execute("""CREATE TRIGGER IF NOT EXISTS archive_cleanup_actions_on_pattern_delete
             BEFORE DELETE ON ad_patterns BEGIN
