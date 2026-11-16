@@ -59,18 +59,19 @@ provider actually called, including failover retries.
 
 ## How suggestions are produced
 
-Each run checks active learned patterns for two conditions without calling the model:
+Each run checks active learned patterns for three conditions without calling the model:
 
 - **Retire**: the pattern has had no match in longer than the configured unused-days window (or never matched), and it is old enough that this isn't just a freshly learned pattern waiting for its first match.
 - **Flag**: the pattern already has a high false-positive rate relative to its confirmations, the same rule that would otherwise just sit in the pattern's stats unexamined.
+- **Unnamed sponsor**: the pattern has a sponsor, but neither its name nor an alias appears in its text, and no domain or promo code in the text backs the name.
 
 A false-positive flag requires at least two false positives and at least as
 many false positives as confirmations. These checks continue after the model
 has reviewed unchanged text and sponsor, and still work when the model is unavailable.
 Rejecting a statistical suggestion acknowledges that evidence: the same
-inactivity period or false-positive count is not proposed again. A new false
+inactivity period, false-positive count, or sponsor and text pairing is not proposed again. A new false
 positive, a new match followed by another unused period, changed pattern text,
-or a changed retirement threshold can produce a new suggestion. Improving
+a changed retirement threshold, or a changed sponsor can produce a new suggestion. Improving
 confirmation counts alone does not repeat a dismissed false-positive flag.
 
 For patterns due for model review, it then asks the model to review the text.
@@ -104,6 +105,7 @@ The sponsor check verifies that the name occurs in the retained text. It cannot 
 | Rename | The sponsor on the pattern doesn't match what's actually read | Re-resolves the sponsor and updates the pattern's sponsor link |
 | Category | The category doesn't match the pattern's content | Updates the pattern category |
 | Retire | The pattern hasn't matched in a long time | Deactivates the pattern with a reason noting how long it went unused |
+| Unnamed sponsor | The pattern's sponsor never appears in its own text | Clears the sponsor link (`sponsor_id` becomes empty). The pattern stays active and keeps matching |
 | Flag | High false-positive rate, or content the model judges contaminated beyond a trim | Deactivates the pattern (or applies a trim, when the model's recommendation is a trim rather than disabling) |
 
 Each card shows the suggestion's confidence and reasons. Statistics-only suggestions are generated without a model call.
@@ -127,7 +129,7 @@ untouched and acknowledges the reviewed version; rejecting an outdated
 suggestion returns a conflict instead of marking newer text reviewed.
 Model reviews are not repeated for unchanged text, sponsor, and category unless you force a recheck.
 
-**Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
+**Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; an unnamed-sponsor suggestion restores the cleared sponsor; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
 
 Undo is refused once a later suggestion has been approved against the same
 pattern. Undo the later approval first. It also refuses to overwrite fields
