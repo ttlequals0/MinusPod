@@ -248,7 +248,7 @@ class PatternCleanupMixin:
     def get_cleanup_stat_decisions(self, pattern_id: int, conn=None) -> list[dict]:
         rows = (conn or self.get_connection()).execute(
             "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? "
-            "AND kind IN ('retire', 'flag') AND status IN ('approved', 'rejected', 'undone') "
+            "AND kind IN ('retire', 'flag', 'unnamed_sponsor') AND status IN ('approved', 'rejected', 'undone') "
             "ORDER BY id", (pattern_id,)
         ).fetchall()
         return [_decode_suggestion(row) for row in rows]
@@ -262,7 +262,7 @@ class PatternCleanupMixin:
             SELECT 1 FROM pattern_cleanup_suggestions s
             WHERE s.pattern_id = ap.id AND s.status = 'pending' AND s.superseded_at IS NULL
               AND (
-                    s.kind NOT IN ('retire', 'flag')
+                    s.kind NOT IN ('retire', 'flag', 'unnamed_sponsor')
                     OR (s.kind = 'flag' AND (
                         COALESCE(json_extract(s.payload, '$.contaminated'), 0) = 1
                         OR json_extract(s.payload, '$.recommended') = 'trim'

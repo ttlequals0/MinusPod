@@ -257,6 +257,15 @@ def test_suggestions_list_filters_by_kind(app_client, podcast):
     assert [s['kind'] for s in body['suggestions']] == ['rename']
 
 
+def test_suggestions_list_filters_by_unnamed_sponsor_kind(app_client, podcast):
+    p = _pattern(podcast, text='Day fresh produce box, order now.', sponsor='Acme')
+    _suggest(podcast, p, kind='unnamed_sponsor', payload={'sponsor': 'Acme'})
+    body = app_client.get('/api/v1/patterns/cleanup/suggestions?kind=unnamed_sponsor').get_json()
+    assert [s['kind'] for s in body['suggestions']] == ['unnamed_sponsor']
+    assert body['suggestions'][0]['payload'] == {'sponsor': 'Acme'}
+    assert app_client.get('/api/v1/patterns/cleanup/suggestions?kind=bogus').status_code == 400
+
+
 def test_suggestions_list_before_id_pages_past_the_cursor(app_client, podcast):
     # The suggestions table is shared across this module's tests, so assert the cursor's
     # effect on these two ids rather than the exact (polluted) list it returns.

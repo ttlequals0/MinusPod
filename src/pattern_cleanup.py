@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
 
+from community_export import count_brand_occurrences, get_sponsor_row_or_stub, normalize_aliases
 from config import SEGMENT_CATEGORIES
 from rapidfuzz import fuzz
 
@@ -36,7 +37,7 @@ from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_has
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
 from sponsor_normalize import get_or_create_known_sponsor, sanitize_sponsor_name
-from sponsor_service import SponsorService
+from sponsor_service import SponsorService, has_brand_evidence
 from text_pattern_matcher import MIN_TEXT_LENGTH
 from utils.constants import names_the_show, sanitize_sponsor_label
 from utils.cron import is_due, is_valid_expression
@@ -68,6 +69,7 @@ TRIM_MIN_FRACTION = 0.10
 # Alignment edges can wobble by a character at word boundaries.
 OVERLAP_TOLERANCE_CHARS = 2
 HIGH_FP_MIN = 2
+_STATS_KINDS = ('retire', 'flag', 'unnamed_sponsor')
 _MODEL_INPUT_FIELDS = (
     'text_template', 'sponsor_id', 'sponsor', 'category', 'intro_variants', 'outro_variants', 'is_active',
 )
@@ -221,6 +223,8 @@ def _matches_snapshot(pattern: dict, snapshot: dict, fields: tuple[str, ...]) ->
 def _suggestion_after_fields(suggestion: dict) -> tuple[str, ...]:
     kind = suggestion['kind']
     payload = suggestion.get('payload') or {}
+    if kind == 'unnamed_sponsor':
+        return ('sponsor_id', 'sponsor')
     if kind == 'rename':
         return ('sponsor_id', 'sponsor', 'category') if payload.get('category') else ('sponsor_id', 'sponsor')
     if kind == 'category':
@@ -258,8 +262,29 @@ def _suggestion(kind: str, confidence: float, reasons: list[str], payload: dict)
     return {'kind': kind, 'confidence': confidence, 'reasons': reasons, 'payload': payload}
 
 
-def stats_suggestions(db, pattern: dict, unused_days: int, now=None) -> list[dict]:
-    """Retire and high-false-positive flags from counters alone (no LLM)."""
+def _unnamed_sponsor_suggestion(db, pattern: dict, sponsor_rows: dict | None) -> dict | None:
+    """A suggestion when the pattern's sponsor, by name, alias or domain evidence, is absent from its text."""
+    name = pattern.get('sponsor')
+    text = pattern.get('text_template') or ''
+    if not name or not text.strip():
+        return None
+    key = name.lower()
+    if sponsor_rows is None:
+        sponsor_rows = {}
+    if key not in sponsor_rows:
+        sponsor_rows[key] = get_sponsor_row_or_stub(db, name)
+    row = sponsor_rows[key]
+    if (count_brand_occurrences(text, row)
+            or has_brand_evidence(name, text, normalize_aliases(row.get('aliases')))):
+        return None
+    return _suggestion('unnamed_sponsor', 1.0, ['No mention of the sponsor name, its aliases or a matching domain in the text'],
+                       {'sponsor': name})
+
+
+def stats_suggestions(db, pattern: dict, unused_days: int, now=None,
+                      sponsor_rows: dict | None = None) -> list[dict]:
+    """Retire, high-false-positive and unnamed-sponsor suggestions from stored data alone (no LLM).
+    `sponsor_rows` caches known-sponsor rows by lowercased name across one sweep."""
     now = now or utc_now()
     cutoff = now - timedelta(days=unused_days)
     out = []
@@ -281,6 +306,9 @@ def stats_suggestions(db, pattern: dict, unused_days: int, now=None) -> list[dic
             'false_positive_count': fp, 'confirmation_count': conf, 'contaminated': False,
             'contamination_reason': None, 'recommended': 'disable',
         }))
+    unnamed = _unnamed_sponsor_suggestion(db, pattern, sponsor_rows)
+    if unnamed is not None:
+        out.append(unnamed)
     return out
 
 
@@ -716,6 +744,10 @@ def _stats_evidence(kind: str, pattern: dict, payload: dict) -> str | None:
         if not isinstance(false_positives, int) or isinstance(false_positives, bool):
             return None
         evidence = {'false_positive_count': false_positives}
+    elif kind == 'unnamed_sponsor':
+        if not isinstance(payload.get('sponsor'), str):
+            return None
+        evidence = {'sponsor': payload['sponsor']}
     else:
         return None
     return stats_evidence_hash(kind, pattern.get('text_template'), pattern.get('sponsor'), evidence)
@@ -745,7 +777,7 @@ def _stats_acknowledgments(db, conn, pattern: dict) -> dict:
 
 def _acknowledge_stats_decision(db, conn, suggestion: dict, pattern: dict) -> None:
     kind = suggestion['kind']
-    if kind not in ('retire', 'flag'):
+    if kind not in _STATS_KINDS:
         return
     before = suggestion.get('before') or {}
     payload = suggestion.get('payload') or {}
@@ -768,7 +800,7 @@ def _decode_pending_rows(rows) -> list[dict]:
 
 
 def _stats_only_suggestion(suggestion: dict) -> bool:
-    if suggestion['kind'] == 'retire':
+    if suggestion['kind'] in ('retire', 'unnamed_sponsor'):
         return True
     payload = suggestion.get('payload') or {}
     return (suggestion['kind'] == 'flag' and not payload.get('contaminated')
@@ -798,10 +830,11 @@ def _is_false_positive_reason(reason: str) -> bool:
 def _run_stats_sweep(db, run_id: int, unused_days: int, segments_cache: dict) -> set[tuple[int, str]]:
     """Persist new statistical evidence independently from model-review eligibility."""
     changed = set()
+    sponsor_rows: dict = {}
     for scanned in db.get_cleanup_stats_rows():
         try:
             db.record_cleanup_check(run_id, scanned, stats_checked=True)
-            changed |= _sweep_one_pattern(db, run_id, scanned, unused_days, segments_cache)
+            changed |= _sweep_one_pattern(db, run_id, scanned, unused_days, segments_cache, sponsor_rows)
         except Exception:
             logger.exception("pattern_cleanup: stats sweep failed for pattern %s", scanned.get('id'))
             db.clear_leaked_transaction(logger, 'pattern cleanup stats sweep')
@@ -859,7 +892,7 @@ def _plan_stats_sweep(pattern: dict, candidates: dict, all_pending: list[dict],
                       acknowledgments: dict) -> tuple[set[int], dict | None, dict]:
     """What the stats sweep would change for `pattern`, without touching the DB: ids to
     delete, a flag-merge plan (or None), and the kinds that need a new or updated write."""
-    pending = {item['kind']: item for item in all_pending if item['kind'] in ('retire', 'flag')}
+    pending = {item['kind']: item for item in all_pending if item['kind'] in _STATS_KINDS}
     to_delete = set()
     for existing in all_pending:
         if not _stats_only_suggestion(existing) and _obsolete_model_version(existing, pattern):
@@ -879,11 +912,11 @@ def _plan_stats_sweep(pattern: dict, candidates: dict, all_pending: list[dict],
 
 
 def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
-                       segments_cache: dict) -> set[tuple[int, str]]:
+                       segments_cache: dict, sponsor_rows: dict | None = None) -> set[tuple[int, str]]:
     """One pattern's share of the stats sweep; a read-only precheck decides whether a
     write transaction (and the transcript lookup it would otherwise hold open) is needed."""
     changed = set()
-    candidates = {item['kind']: item for item in stats_suggestions(db, scanned, unused_days)}
+    candidates = {item['kind']: item for item in stats_suggestions(db, scanned, unused_days, sponsor_rows=sponsor_rows)}
     conn = db.get_connection()
     all_pending = _pending_pattern_suggestions(conn, scanned['id'])
     if not candidates and not all_pending:
@@ -1283,6 +1316,13 @@ def _apply_rename(db, conn, pattern: dict, name: str, category: str | None = Non
     return {'new_pattern_ids': [], 'disabled_pattern_id': None, 'sponsor_id': sponsor_id}
 
 
+def _apply_clear_sponsor(db, conn, pattern: dict) -> dict:
+    db._update_ad_pattern_conn(conn, pattern['id'], sponsor_id=None)
+    db.stamp_pattern_cleanup_reviewed(
+        pattern['id'], review_hash(pattern.get('text_template'), None, pattern.get('category')), conn=conn)
+    return {'new_pattern_ids': [], 'disabled_pattern_id': None, 'sponsor_id': None}
+
+
 def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     new_ids = []
     new_states = []
@@ -1337,6 +1377,8 @@ def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
         return _apply_rename(db, conn, pattern, payload['sponsor'], payload.get('category'))
     if kind == 'split':
         return _apply_split(db, conn, pattern, payload['pieces'])
+    if kind == 'unnamed_sponsor':
+        return _apply_clear_sponsor(db, conn, pattern)
     if kind == 'category':
         category = payload.get('category')
         if category not in SEGMENT_CATEGORIES:
@@ -1599,7 +1641,7 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
                     and isinstance(current, (int, float)) and math.isclose(current, fitted, abs_tol=1e-6)):
                 updates['avg_duration'] = applied['previous_avg_duration']
             db._update_ad_pattern_conn(conn, pattern['id'], **updates)
-        elif suggestion['kind'] == 'rename':
+        elif suggestion['kind'] in ('rename', 'unnamed_sponsor'):
             expected = applied.get('after')
             fields = _suggestion_after_fields(suggestion)
             if not _matches_snapshot(pattern, expected, fields):
