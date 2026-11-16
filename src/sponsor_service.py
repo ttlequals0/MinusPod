@@ -12,6 +12,7 @@ from utils.constants import (
     is_non_brand_name,
     REASON_DESCRIPTION_WORDS,
     REASON_DESCRIPTION_MAX,
+    DOMAIN_TLDS,
     SPONSOR_DOMAIN_TLDS,
     MAX_BRAND_WORDS,
     MAX_SPAN_WORDS,
@@ -39,11 +40,33 @@ _BRAND_RUN_RE = re.compile(
 _DOMAIN_RE = re.compile(
     r'\b([A-Za-z0-9][A-Za-z0-9-]{0,62})\.(?:%s)\b' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)),
     re.IGNORECASE)
+# Label before a TLD in a URL or bare domain ("ventionteams" counts too).
+_URL_BRAND_RE = re.compile(
+    r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)')
+_DOTCOM_RE = re.compile(r'([a-z]+)\s*(?:dot\s*com|\.com)')
+# Written or spoken domain on any spoken TLD; the lookahead keeps "co-founder" out.
+_ANY_TLD_DOMAIN_RE = re.compile(
+    r'([a-z0-9-]+)\s*(?:\.|\s+dot\s+)(?:%s)(?![\w-])' % '|'.join(sorted(DOMAIN_TLDS)))
+_PROMO_CODE_RE = re.compile(
+    r'\b(?:(?:promo|coupon|offer|discount|referral)\s+code|'
+    r'(?:use|enter|with|using)\s+(?:the\s+)?code)\s+(?:is\s+)?([a-z0-9]+)')
 _RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
 _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
 # Parts allowed inside a leading hyphenated descriptor ("Host-read") that is
 # dropped whole; a single non-descriptor part (Full-Circle) keeps the token.
 _HYPHEN_DESCRIPTOR_WORDS = INVALID_SPONSOR_CAPTURE_WORDS | NON_BRAND_WORDS
+
+
+def has_brand_evidence(name: str, text: str) -> bool:
+    """Whether text ties name to a brand: a domain on it, a spoken domain, or a promo code containing it."""
+    key = squash_brand(name or '')
+    if not key or not text:
+        return False
+    lowered = text.lower()
+    labels = [m.group(1) for regex in (_URL_BRAND_RE, _DOTCOM_RE, _ANY_TLD_DOMAIN_RE)
+              for m in regex.finditer(lowered)]
+    labels += [m.group(1) for m in _PROMO_CODE_RE.finditer(lowered)]
+    return any(key in squash_brand(label) for label in labels)
 
 
 def _brand_run_words(run: str) -> list[str] | None:
@@ -407,14 +430,12 @@ class SponsorService:
         # Extract domain names from URLs (e.g., "vention" from "ventionteams.com").
         # is_brand_token, not a length floor: these tokens reach boundary
         # extension as advertisers, where a generic web word moves a cut.
-        url_pattern = r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)'
-        for match in re.finditer(url_pattern, text_lower):
+        for match in _URL_BRAND_RE.finditer(text_lower):
             if is_brand_token(match.group(1)):
                 sponsors.add(match.group(1))
 
         # Also look for explicit "dot com" mentions
-        dotcom_pattern = r'([a-z]+)\s*(?:dot\s*com|\.com)'
-        for match in re.finditer(dotcom_pattern, text_lower):
+        for match in _DOTCOM_RE.finditer(text_lower):
             if is_brand_token(match.group(1)):
                 sponsors.add(match.group(1))
 
