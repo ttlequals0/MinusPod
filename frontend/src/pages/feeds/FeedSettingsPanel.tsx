@@ -1639,7 +1639,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <SegmentedToggle
                     value={feed.snipShortAsks == null ? 'inherit' : feed.snipShortAsks ? 'on' : 'off'}
                     options={[
-                      { value: 'inherit', label: inheritLabel('Use global', settingsReady ? ((settings.snipShortAsks?.value ?? false) ? 'On' : 'Off') : undefined) },
+                      { value: 'inherit', label: 'Inherit' },
                       { value: 'on', label: 'On' },
                       { value: 'off', label: 'Off' },
                     ]}
@@ -1649,6 +1649,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     disabled={updateMutation.isPending}
                     ariaLabel="Remove short host asks and sponsor thanks"
                   />
+                  {feed.snipShortAsks == null && (
+                    <p className="text-xs text-muted-foreground">
+                      {followingGlobalNote(settings?.snipShortAsks?.value ?? false)}
+                    </p>
+                  )}
                 </div>
               </div>
 
