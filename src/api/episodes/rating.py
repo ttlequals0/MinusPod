@@ -57,7 +57,7 @@ def _confirm_cut_markers(db, slug, episode_id) -> int:
 @api.route('/feeds/<slug>/episodes/<episode_id>/rating', methods=['PUT'])
 @log_request
 def put_episode_rating(slug, episode_id):
-    """Rate the episode 1 to 5; notes are kept below 5 and a 5 confirms the cut ads and dismisses held ones."""
+    """Rate 1 to 5; a 5 confirms cut ads and dismisses held ones unless confirm_markers is false."""
     db = get_database()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -67,6 +67,9 @@ def put_episode_rating(slug, episode_id):
         return error_response('rating must be an integer from 1 to 5', 400)
     if notes is not None and not isinstance(notes, str):
         return error_response('notes must be a string or null', 400)
+    confirm = data.get('confirm_markers')
+    if confirm is not None and not isinstance(confirm, bool):
+        return error_response('confirm_markers must be a boolean', 400)
     notes = (notes or '').strip() or None
     if notes and len(notes) > MAX_NOTES_CHARS:
         return error_response(f'notes must be at most {MAX_NOTES_CHARS} characters', 400)
@@ -75,7 +78,7 @@ def put_episode_rating(slug, episode_id):
     if not db.set_episode_rating(slug, episode_id, rating, notes):
         return error_response('Episode not found', 404)
     confirmed = dismissed = 0
-    if rating == 5:
+    if rating == 5 and confirm is not False:
         confirmed = _confirm_cut_markers(db, slug, episode_id)
         dismissed = _dismiss_held_markers(db, slug, episode_id, is_pending_review)
     return json_response({'rating': rating_json(db.get_episode(slug, episode_id)),
