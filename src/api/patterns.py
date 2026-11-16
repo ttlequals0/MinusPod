@@ -1318,12 +1318,10 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
     markers = _load_markers(db, slug, episode_id)
     reviewed_pattern_ids = _reviewed_pattern_ids(
         find_marker_in_list(markers, original_start, original_end) if markers else None, pattern_id)
-    matched_marker = None
-    if markers:
-        for m in markers:
-            if _matches_held_marker(m, original_start, original_end, 0.5):
-                matched_marker = m
-                break
+    # Resolved before the unapprove below restores a trimmed marker's detected bounds.
+    matched_markers = [m for m in markers or []
+                       if _matches_held_marker(m, original_start, original_end, 0.5)]
+    matched_marker = matched_markers[0] if matched_markers else None
 
     source_hold_reason = None
     if matched_marker is not None:
@@ -1358,8 +1356,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
         addressing_mode=addressing_mode,
     )
 
-    _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
-                                 markers=markers)
+    _clear_held_marker_on_reject(db, slug, episode_id, matched_markers, markers)
 
     _reject_fingerprint_matches(
         db, reviewed_pattern_ids, slug, episode_id, original_start, original_end)
@@ -1450,14 +1447,11 @@ def _dismiss_held_markers(db, slug, episode_id, predicate, markers=None) -> int:
     return len(matched)
 
 
-def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
-                                 markers=None):
-    """When the rejected range matches a held marker, demote it to a plain rejected marker
-    and recompute pending_review_count; otherwise the review chip never clears.
-
-    markers, when given, is reused instead of re-fetching episode_details."""
+def _clear_held_marker_on_reject(db, slug, episode_id, matched, markers):
+    """Demote the held markers the reject resolved to plain rejected markers and recompute
+    pending_review_count; otherwise the review chip never clears."""
     _dismiss_held_markers(db, slug, episode_id,
-                          lambda m: _matches_held_marker(m, start, end, tol), markers)
+                          lambda m: any(m is hit for hit in matched), markers)
 
 
 def _unapprove_held_markers_of(db, slug, episode_id, deleted_rows, markers=None, tol=0.5):

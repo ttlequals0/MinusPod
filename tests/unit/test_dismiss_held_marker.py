@@ -95,3 +95,28 @@ def test_dismiss_clears_approved_residue(temp_db):
     pending, rejected, _accepted, _count = _split(temp_db, slug, eid)
     assert len(rejected) == 1
     assert 'approved' not in rejected[0]
+
+
+def _approve_trimmed(temp_db, slug, eid, start, end, new_start, new_end):
+    from api.patterns import _mark_held_marker_approved
+    podcast_id = temp_db.get_podcast_row(slug)['id']
+    temp_db.create_pattern_correction(
+        correction_type='confirm', episode_id=eid, podcast_id=podcast_id,
+        original_bounds={'start': start, 'end': end},
+        corrected_bounds={'start': new_start, 'end': new_end})
+    _mark_held_marker_approved(temp_db, slug, eid, start, end,
+                               new_start=new_start, new_end=new_end)
+
+
+def test_rejecting_a_trim_confirmed_held_marker_dismisses_it(temp_db):
+    from main_app import app
+    slug, eid = _seed(temp_db, [_held(100.0, 200.0)])
+    _approve_trimmed(temp_db, slug, eid, 100.0, 200.0, 120.0, 180.0)
+
+    with app.test_request_context():
+        _handle_reject_correction(temp_db, slug, eid, {'start': 120.0, 'end': 180.0})
+
+    pending, rejected, _accepted, count = _split(temp_db, slug, eid)
+    assert pending == [] and count == 0
+    assert len(rejected) == 1
+    assert (rejected[0]['start'], rejected[0]['end']) == (100.0, 200.0)
