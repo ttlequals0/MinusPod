@@ -58,7 +58,7 @@
     "@vitejs/plugin-react": "^6.2.1",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.13.0",
+    "globals": "^17.14.0",
     "happy-dom": "^21.0.4",
     "minisearch": "^7.2.0",
     "msw": "^3.0.4",
