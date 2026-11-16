@@ -312,6 +312,14 @@ TABLE_DDL['episode_marker_refs'] = """CREATE TABLE IF NOT EXISTS episode_marker_
 EPISODE_MARKER_REFS_INDEX_SQL = (
     "CREATE INDEX IF NOT EXISTS idx_episode_marker_refs_episode ON episode_marker_refs(episode_pk)")
 
+# Markers per episode for the detections list, so that request skips the large TEXT columns.
+# NULL means no usable markers. Filled lazily; the triggers below invalidate it.
+TABLE_DDL['episode_detection_markers'] = """CREATE TABLE IF NOT EXISTS episode_detection_markers (
+    episode_id INTEGER PRIMARY KEY,
+    ad_markers_json TEXT,
+    FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+)"""
+
 # Claim state of the upgrade steps that run in the background after startup.
 TABLE_DDL['deferred_upgrade_steps'] = """CREATE TABLE IF NOT EXISTS deferred_upgrade_steps (
     name TEXT PRIMARY KEY,
@@ -350,6 +358,21 @@ END""",
     'episode_snap_stats_delete': """CREATE TRIGGER episode_snap_stats_delete
 AFTER DELETE ON episode_details BEGIN
     DELETE FROM episode_snap_stats WHERE episode_id = OLD.episode_id;
+END""",
+}
+
+EPISODE_DETECTION_MARKERS_TRIGGERS = {
+    'episode_detection_markers_insert': """CREATE TRIGGER episode_detection_markers_insert
+AFTER INSERT ON episode_details BEGIN
+    DELETE FROM episode_detection_markers WHERE episode_id = NEW.episode_id;
+END""",
+    'episode_detection_markers_update': """CREATE TRIGGER episode_detection_markers_update
+AFTER UPDATE OF episode_id, ad_markers_json ON episode_details BEGIN
+    DELETE FROM episode_detection_markers WHERE episode_id IN (OLD.episode_id, NEW.episode_id);
+END""",
+    'episode_detection_markers_delete': """CREATE TRIGGER episode_detection_markers_delete
+AFTER DELETE ON episode_details BEGIN
+    DELETE FROM episode_detection_markers WHERE episode_id = OLD.episode_id;
 END""",
 }
 
@@ -991,6 +1014,8 @@ PRAGMA journal_mode = WAL;
 """ + TABLE_DDL['episode_feed_details'] + """;
 
 """ + TABLE_DDL['episode_snap_stats'] + """;
+
+""" + TABLE_DDL['episode_detection_markers'] + """;
 
 """ + TABLE_DDL['episode_marker_refs'] + """;
 """ + EPISODE_MARKER_REFS_INDEX_SQL + """;

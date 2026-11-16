@@ -48,7 +48,8 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_MARKER_REFS_INDEX_SQL,
-    EPISODE_MARKER_REFS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
+    EPISODE_DETECTION_MARKERS_TRIGGERS, EPISODE_MARKER_REFS_TRIGGERS,
+    EPISODE_SNAP_STATS_TRIGGERS,
     CLEANUP_PATTERN_INDEX, CLEANUP_PENDING_ACTIVE_INDEX, CLEANUP_STATUS_INDEX,
     FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
@@ -185,6 +186,7 @@ class SchemaMixin(DeferredUpgradeMixin):
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'episode_details'")}
         missing = [ddl for name, ddl in {**EPISODE_FEED_DETAILS_TRIGGERS,
                                          **EPISODE_SNAP_STATS_TRIGGERS,
+                                         **EPISODE_DETECTION_MARKERS_TRIGGERS,
                                          **EPISODE_MARKER_REFS_TRIGGERS}.items()
                    if name not in installed and self._table_exists(conn, 'episode_details')]
         for statement in missing:
@@ -225,6 +227,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         'pattern_cleanup_deleted_actions',
         'episode_feed_details',
         'episode_snap_stats',
+        'episode_detection_markers',
         'episode_marker_refs',
         'deferred_upgrade_steps',
     )

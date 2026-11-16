@@ -45,6 +45,9 @@ NOT_AWAITING_APPROVAL = "approval_pending_at IS NULL"
 # Episodes per discovery write transaction. One spanning a large archive feed
 # held the write lock past other writers' 30s busy_timeout ("database is locked").
 DISCOVERY_UPSERT_CHUNK = 50
+_DETECTION_FILL_BUSY_MS = 1000
+# ad_markers_json values that mean no markers (NULL is handled separately).
+_NO_MARKERS = (None, '', '[]', 'null')
 
 # Preference order when several existing rows fall inside the fuzzy match
 # window: a row with real processing state wins over a bare discovered one.
@@ -1229,23 +1232,58 @@ class EpisodeMixin:
 
     def get_detection_rows(self) -> list[dict]:
         """All episodes that have ad markers, with feed metadata, for the
-        cross-episode ad review endpoint."""
+        cross-episode ad review endpoint.
+
+        Markers come from the episode_detection_markers cache; episodes without a
+        row are read from episode_details (the slow read) and cached best-effort.
+        """
         conn = self.get_connection()
-        cursor = conn.execute('''
-            SELECT e.podcast_id AS podcast_id,
+        rows = [dict(row) for row in conn.execute('''
+            SELECT e.id AS episode_pk, e.podcast_id AS podcast_id,
                    p.slug AS feed_slug, p.title AS feed_title,
                    p.segment_category_actions AS segment_category_actions,
                    e.episode_id, e.title AS episode_title,
                    e.published_at, e.created_at, e.original_file,
                    e.processed_version, e.original_duration,
-                   ed.ad_markers_json
+                   m.ad_markers_json AS ad_markers_json,
+                   m.episode_id IS NOT NULL AS cached
             FROM episodes e
             JOIN podcasts p ON e.podcast_id = p.id
-            JOIN episode_details ed ON ed.episode_id = e.id
-            WHERE ed.ad_markers_json IS NOT NULL
-              AND ed.ad_markers_json NOT IN ('', '[]', 'null')
-        ''')
-        return [dict(row) for row in cursor.fetchall()]
+            LEFT JOIN episode_detection_markers m ON m.episode_id = e.id
+            WHERE EXISTS (SELECT 1 FROM episode_details d WHERE d.episode_id = e.id)
+              AND (m.episode_id IS NULL OR m.ad_markers_json IS NOT NULL)
+        ''').fetchall()]
+        by_pk = {r['episode_pk']: r for r in rows if not r['cached']}
+        texts: dict = {}
+        for chunk in _chunked(list(by_pk)):
+            for r in conn.execute(
+                f"SELECT episode_id, ad_markers_json FROM episode_details "  # noqa: S608
+                f"WHERE episode_id IN ({','.join('?' for _ in chunk)})",
+                chunk,
+            ).fetchall():
+                texts[r['episode_id']] = r['ad_markers_json']
+        for pk, row in by_pk.items():
+            text = texts.get(pk)
+            row['ad_markers_json'] = text if text not in _NO_MARKERS else None
+        self._store_detection_markers(
+            {pk: (texts[pk], by_pk[pk]['ad_markers_json']) for pk in texts if pk in by_pk})
+        return [{k: v for k, v in r.items() if k not in ('episode_pk', 'cached')}
+                for r in rows if r['ad_markers_json'] is not None]
+
+    def _store_detection_markers(self, computed: dict) -> None:
+        """Best-effort cache write of {pk: (source text, usable text or None)}, only if the source is unchanged."""
+        if not computed or self.get_connection().in_transaction:
+            return
+        try:
+            for chunk in _chunked(list(computed.items())):
+                with self.transaction(immediate=True, busy_timeout_ms=_DETECTION_FILL_BUSY_MS) as conn:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO episode_detection_markers (episode_id, ad_markers_json) "
+                        "SELECT d.episode_id, ? FROM episode_details d "
+                        "WHERE d.episode_id = ? AND d.ad_markers_json IS ?",
+                        [(usable, pk, source) for pk, (source, usable) in chunk])
+        except sqlite3.Error as e:
+            logger.info(f"Skipped episode_detection_markers fill: {e}")
 
     def get_processed_episodes_for_feed(self, podcast_id: int) -> list[dict]:
         """Get all processed episodes with files for inclusion in RSS feed."""
