@@ -417,8 +417,7 @@ def get_episode(slug, episode_id):
     # Get corrections for this episode
     corrections = db.get_episode_corrections(episode['podcast_id'], episode_id)
 
-    # What a human may set a held marker's edges to; the corrections API
-    # enforces exactly this window.
+    # What a human may set a held marker's edges to; the corrections API enforces this window.
     if pending_review_markers:
         fp_spans = [c['original_bounds'] for c in corrections
                     if c.get('correction_type') == 'false_positive'

@@ -51,7 +51,7 @@ class TestWindow:
         assert held_marker_window([MARKER], MARKER, 3600.0, True) == (99.5, 140.5)
 
     def test_default_ignores_neighbours_and_episode_edges(self):
-        # Upstream never limited the +/-0.5 s tolerance by a neighbour.
+        # The +/-0.5 s tolerance is never limited by a neighbour.
         near = _cut(140.2, 160.0)
         assert held_marker_window([MARKER, near], MARKER, 140.3, True) == (99.5, 140.5)
 

@@ -2,6 +2,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('session_transfer_test_')
 import pytest
 import config_transfer
+from database import Database
 
 
 def test_session_keys_are_portable():
@@ -43,7 +44,6 @@ def test_empty_env_var_is_unset_for_session_seeding(monkeypatch):
 
 
 def test_held_widen_seconds_exports_and_imports_as_a_number():
-    from database import Database
     assert 'held_widen_seconds' in config_transfer.PORTABLE_SETTINGS
     db = Database()
     db.set_setting('held_widen_seconds', '45.5', is_default=False)

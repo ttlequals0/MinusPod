@@ -1810,10 +1810,8 @@ function EpisodeDetail() {
                           onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
                         />
                       )}
-                      {/* As upstream: gone once the row is decided. When the server
-                          allows a window wider than the reviewed span (held widening
-                          on), an approved-but-uncut row keeps it so the span can still
-                          be changed; a reject always removes it. */}
+                      {/* Gone once decided, unless the server allows a wider window: then an approved
+                          uncut row keeps it so the span can still change. A reject removes it. */}
                       {episode.hasOriginalAudio && ((!correction && !segment.approved)
                         || (isWidenedWindow(segment) && correction?.correction_type !== 'false_positive')) && (
                         <OpenEditorButton

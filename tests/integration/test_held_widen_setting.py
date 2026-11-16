@@ -76,7 +76,7 @@ def _allowed(ref):
     return m['allowedBounds']
 
 
-class TestDefaultMatchesUpstream:
+class TestDefaultWindow:
     def test_confirm_trim_may_only_narrow(self, ref):
         assert _confirm(ref, 990.0, 1100.0).status_code == 400
         assert _confirm(ref, 1000.0, 1101.0).status_code == 400

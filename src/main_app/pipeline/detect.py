@@ -476,8 +476,7 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
 
 def _usable_confirmed(slug, episode_id, db, confirmed, false_positive_spans,
                       episode=None):
-    """Confirmed corrections minus the legacy ones (under a second, superseded,
-    and, with held_widen_seconds set, outside a held marker's window)."""
+    """Confirmed corrections minus legacy ones (under 1 s, superseded, or outside a widened held window)."""
     if not confirmed:
         return confirmed
     if episode is None:

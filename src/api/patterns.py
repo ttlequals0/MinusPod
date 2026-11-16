@@ -1148,7 +1148,7 @@ def _held_window_for(db, slug, episode_id, episode, markers, marker, podcast=Non
     return held_review_window(db, episode, markers, marker, fp_spans)
 
 
-def _validate_span_bounds(db, slug, episode_id, original_ad, adjusted_start, adjusted_end):
+def _validate_span_bounds(db, slug, episode_id, adjusted_start, adjusted_end):
     """Error response for a reversed, tiny or off-episode hand-set span, else None (confirm-trim and adjust)."""
     try:
         start, end = float(adjusted_start), float(adjusted_end)
@@ -1192,7 +1192,7 @@ def _handle_confirm_correction(
     has_trim = adjusted_start is not None
     if has_trim:
         bounds_error = _validate_span_bounds(
-            db, slug, episode_id, original_ad, adjusted_start, adjusted_end)
+            db, slug, episode_id, adjusted_start, adjusted_end)
         if bounds_error:
             return bounds_error
         adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
@@ -1500,8 +1500,7 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
     for m in markers:
         if _matches_held_marker(m, start, end, tol):
             if has_trim:
-                # Keep the first original: a reopened row trimmed again must
-                # still report (and grow back to) the span as first detected.
+                # Keep the first original so a re-trimmed row still reports the span as first detected.
                 if m.get('reviewer_original_start') is None:
                     m['reviewer_original_start'] = m.get('start')
                 if m.get('reviewer_original_end') is None:
@@ -1609,7 +1608,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     if sponsor_error:
         return sponsor_error
     bounds_error = _validate_span_bounds(
-        db, slug, episode_id, original_ad, adjusted_start, adjusted_end)
+        db, slug, episode_id, adjusted_start, adjusted_end)
     if bounds_error:
         return bounds_error
     adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
@@ -1683,8 +1682,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         addressing_mode=addressing_mode,
     )
 
-    # A held marker moves and is approved like confirm+trim; a cut marker does
-    # not match the held predicate and is left alone.
+    # A held marker moves and is approved like confirm+trim; a cut marker is not held and is left alone.
     if widened:
         _mark_held_marker_approved(
             db, slug, episode_id, original_start, original_end,

@@ -49,19 +49,15 @@ def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, al
 
 def _apply_boundary_adjustments(slug, episode_id, all_ads, episode=None,
                                 false_positive_spans=()):
-    """Override ad bounds with the user's boundary_adjustment corrections so a
-    recut cuts the adjusted spans. Newest wins, and a newer confirm settles the
-    marker it covers; unmatched corrections are skipped. With `episode`, a
-    legacy adjustment that is under a second, or (with held_widen_seconds set)
-    outside a held marker's window, is skipped."""
+    """Override ad bounds with boundary_adjustment corrections; newest wins, a newer same-span confirm settles
+    the marker, unmatched rows are skipped. With `episode`, legacy rows under 1 s or outside a held window are skipped."""
     podcast = db.get_podcast_row(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
     adjusted = set()
     applied = 0
     for c in corrections:  # newest first (ORDER BY id DESC)
         if c.get('correction_type') == 'confirm':
-            # A newer confirm already fixed the span its marker now holds; an
-            # older adjustment must not move it back and split it on re-validation.
+            # A newer confirm fixed this span; an older adjustment must not move it back and split it.
             span = c.get('corrected_bounds') or c.get('original_bounds') or {}
             if span.get('start') is not None and span.get('end') is not None:
                 adjusted.update(id(ad) for ad in all_ads

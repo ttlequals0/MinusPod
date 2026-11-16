@@ -53,7 +53,7 @@ def correction_skip_reason(correction, held_windows=(), newer=()):
 
 
 def usable_confirmed_corrections(corrections, markers, window_for=None, label=''):
-    """Newest-first corrections minus the rows correction_skip_reason rejects, with one WARNING per skipped row."""
+    """Newest-first corrections minus the rows correction_skip_reason rejects, with one warning logged per skipped row."""
     kept = []
     for index, correction in enumerate(corrections):
         windows = []
