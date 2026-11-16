@@ -10,6 +10,10 @@ release notes.
 
 ## [2.102.7] - 2026-11-16
 
+### Changed
+
+- The Needs review filter and its count on Ad Review now cover only markers held for review. Detections the validator left uncut are under Not cut. In the API, `status=needs_review` on `GET /api/v1/detections` and `counts.needsReview` follow the same rule.
+
 ### Fixed
 
 - An ad found in the second pass is now cut when its reviewed span ends exactly where a first-pass cut begins, or begins where one ends. It was held for review as a reviewer contradiction although the two spans only touch. The same applies to a reviewed ad whose edge touches a held neighbour.

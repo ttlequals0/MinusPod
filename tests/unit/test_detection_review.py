@@ -212,9 +212,15 @@ class TestSummarize:
 
     def test_keeps_are_not_counted_as_needing_review(self):
         counts = summarize_detections(
-            flatten_detections([_row(markers=[REJECTED, KEPT])], []))
+            flatten_detections([_row(markers=[HELD, KEPT])], []))
         assert counts['needsReview'] == 1
-        assert counts['rejected'] == 2
+        assert counts['rejected'] == 1
+
+    def test_unresolved_rejected_is_not_counted_as_needing_review(self):
+        counts = summarize_detections(
+            flatten_detections([_row(markers=[REJECTED])], []))
+        assert counts['needsReview'] == 0
+        assert counts['rejected'] == 1
 
     def test_empty(self):
         assert summarize_detections([]) == {
@@ -227,15 +233,22 @@ class TestFilter:
     def _items(self):
         return flatten_detections([_row(markers=[ACCEPTED, REJECTED, HELD])], [])
 
-    def test_needs_review_excludes_accepted(self):
+    def test_needs_review_is_held_only(self):
         out = filter_detections(self._items(), status='needs_review')
-        assert {i['status'] for i in out} == {'rejected', 'pending'}
+        assert [i['start'] for i in out] == [200.0]
+        assert {i['status'] for i in out} == {'pending'}
+
+    def test_unresolved_rejected_only_under_rejected_filter(self):
+        items = self._items()
+        assert [i['start'] for i in filter_detections(items, status='rejected')] == [100.0]
+        assert 100.0 not in [i['start'] for i in filter_detections(items, status='needs_review')]
 
     def test_needs_review_excludes_resolved(self):
         corrections = [{'podcast_id': 1, 'episode_id': 'ep-1', 'correction_type': 'confirm',
                         'start': 100.0, 'end': 130.0}]
+        held_confirmed = {**HELD, 'start': 100.0, 'end': 130.0}
         items = flatten_detections(
-            [_row(markers=[REJECTED, HELD])], corrections)
+            [_row(markers=[held_confirmed, HELD])], corrections)
         out = filter_detections(items, status='needs_review')
         assert [i['start'] for i in out] == [200.0]
 
@@ -243,15 +256,15 @@ class TestFilter:
         """A keep is settled by feed policy and the corrections endpoint
         refuses a verdict on it, so listing it as needing review would offer
         a decision nobody can make."""
-        items = flatten_detections([_row(markers=[REJECTED, KEPT])], [])
+        items = flatten_detections([_row(markers=[HELD, KEPT])], [])
         out = filter_detections(items, status='needs_review')
-        assert [i['start'] for i in out] == [100.0]
+        assert [i['start'] for i in out] == [200.0]
 
     def test_needs_review_excludes_category_marks(self):
         """A mark marker is just as settled by feed policy as a keep one."""
-        items = flatten_detections([_row(markers=[REJECTED, MARKED])], [])
+        items = flatten_detections([_row(markers=[HELD, MARKED])], [])
         out = filter_detections(items, status='needs_review')
-        assert [i['start'] for i in out] == [100.0]
+        assert [i['start'] for i in out] == [200.0]
 
     def test_kept_markers_still_listed_under_their_cut_status(self):
         items = flatten_detections([_row(markers=[KEPT])], [])

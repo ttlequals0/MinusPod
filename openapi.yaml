@@ -6809,8 +6809,9 @@ paths:
         - name: status
           in: query
           description: >
-            needs_review returns pending-review and rejected detections
-            that have no matching correction yet.
+            needs_review returns only detections held for review that have
+            no matching correction yet. Detections the validator left uncut
+            are under rejected.
           schema:
             type: string
             enum: [needs_review, pending, rejected, accepted, all]

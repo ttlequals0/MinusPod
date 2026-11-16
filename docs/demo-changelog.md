@@ -10,6 +10,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ### Changed
 
+- The demo's Needs review filter and count cover only held detections, matching the app. Uncut detections are under Not cut.
 - The fixture exporter records pattern-audio metadata and paginated match history from the snapshot. Playback remains unavailable because the demo exports no audio files.
 - Match-history notices in the demo explain that its history does not update.
 - The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
