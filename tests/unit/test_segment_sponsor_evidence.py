@@ -102,3 +102,18 @@ def test_primary_with_resolved_id_is_never_checked(temp_db):
     sid = temp_db.create_known_sponsor('Day')
     pid, _ = _create(temp_db, [{'text': DAY_TEXT, 'sponsor': 'Day'}], 'Day', primary_sponsor_id=sid)
     assert _sponsor_id(temp_db, pid) == sid
+
+
+def test_reviewer_typed_sponsor_absent_from_text_keeps_row(temp_db):
+    pid, _ = _create(temp_db, [{'text': DAY_TEXT, 'sponsor': 'Acme'}], 'Acme',
+                     sponsor_from_reviewer=True)
+    assert _sponsor_id(temp_db, pid) is not None
+    assert temp_db.get_known_sponsor_by_name('Acme') is not None
+
+
+def test_guessed_sponsor_on_other_segment_still_checked_with_reviewer_flag(temp_db):
+    segs = [{'text': ACME_TEXT, 'sponsor': 'Acme'}, {'text': DAY_TEXT, 'sponsor': 'Day'}]
+    _, ids = _create(temp_db, segs, 'Acme', sponsor_from_reviewer=True)
+    assert _sponsor_id(temp_db, ids[0]) is not None
+    assert _sponsor_id(temp_db, ids[1]) is None
+    assert temp_db.get_known_sponsor_by_name('Day') is None

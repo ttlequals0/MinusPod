@@ -261,3 +261,7 @@ class TestSponsorEvidence:
     def test_typed_sponsor_keeps_row(self, app_client, merged):
         sid = self._first_piece_sponsor_id(app_client, merged, [{'sponsor': 'Day'}, {}])
         assert sid is not None
+
+    def test_typed_sponsor_absent_from_piece_text_keeps_row(self, app_client, merged):
+        sid = self._first_piece_sponsor_id(app_client, merged, [{'sponsor': 'Acme'}, {}])
+        assert sid is not None

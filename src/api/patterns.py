@@ -772,8 +772,8 @@ def _create_patterns_from_segments(
                 pattern_service.record_pattern_match(pid, episode_id)
         else:
             seg_sponsor = primary_sponsor if is_primary_segment else seg['sponsor']
-            vouched = is_primary_segment and (
-                sponsor_from_reviewer or primary_sponsor_id is not None)
+            is_reviewer_name = sponsor_from_reviewer and (seg_sponsor or '').lower() == primary_sponsor_lower
+            vouched = is_reviewer_name or (is_primary_segment and primary_sponsor_id is not None)
             if seg_sponsor and not vouched and matcher.unbacked_new_brand(seg_sponsor, seg_text):
                 logger.info(
                     f"Creating pattern without a sponsor: '{seg_sponsor}' has no brand "
