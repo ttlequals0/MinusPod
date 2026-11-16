@@ -385,6 +385,57 @@ class TestFireEvent:
         mock_dispatch.assert_not_called()
 
 
+class TestPodcastAutoProcessField:
+    """podcast.auto_process carries the effective per-podcast value, or null on error."""
+
+    @staticmethod
+    def _fire(captured):
+        webhooks = [{'enabled': True, 'events': [EVENT_EPISODE_PROCESSED],
+                     'url': 'http://x'}]
+        with patch('webhook_service.load_webhooks', return_value=webhooks), \
+             patch('webhook_service._prepare_and_dispatch',
+                   side_effect=lambda wh, ctx: captured.append(ctx)), \
+             patch('email_service.send_event_email'):
+            _fire_event_sync(_make_payload())
+
+    def test_true_when_podcast_follows_global_setting(self, temp_db):
+        temp_db.create_podcast('my-pod', 'https://example.com/feed.xml', title='My Pod')
+        captured = []
+        self._fire(captured)
+        assert captured[0]['podcast']['auto_process'] is True
+
+    def test_false_when_podcast_override_is_off(self, temp_db):
+        temp_db.create_podcast('my-pod', 'https://example.com/feed.xml', title='My Pod')
+        temp_db.update_podcast('my-pod', auto_process_override='false')
+        captured = []
+        self._fire(captured)
+        assert captured[0]['podcast']['auto_process'] is False
+
+    def test_null_and_event_still_sent_when_lookup_fails(self):
+        captured = []
+        with patch('webhook_service.database.Database', side_effect=RuntimeError('db down')):
+            self._fire(captured)
+        assert len(captured) == 1
+        assert captured[0]['podcast']['auto_process'] is None
+        assert captured[0]['podcast']['slug'] == 'my-pod'
+
+    def test_default_payload_context_is_deterministic(self):
+        assert _build_context(_make_payload())['podcast']['auto_process'] is True
+
+    def test_test_delivery_from_real_history_reads_the_podcast_value(self):
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = {
+            'episode_id': 'ep-001', 'podcast_slug': 'my-pod', 'episode_title': 'Episode 1',
+            'processing_duration_seconds': 12.3, 'llm_cost': 0.01, 'ads_detected': 2,
+            'original_duration': 600.0, 'new_duration': 540.0, 'podcast_title': 'My Pod',
+        }
+        mock_db.is_auto_process_enabled_for_podcast.return_value = False
+        with patch('database.Database', return_value=mock_db):
+            context = webhook_service._episode_test_context(EVENT_EPISODE_PROCESSED)
+        assert context['podcast']['slug'] == 'my-pod'
+        assert context['podcast']['auto_process'] is False
+
+
 # ---------------------------------------------------------------------------
 # load_webhooks tests
 # ---------------------------------------------------------------------------

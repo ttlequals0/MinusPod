@@ -100,6 +100,19 @@ class WebhookPayload:
     original_duration: float | None = None
     new_duration: float | None = None
     podcast_name: str | None = None
+    # Effective auto-process value for the podcast; None when it could not be read.
+    # Defaults to True so placeholder sample contexts stay deterministic.
+    auto_process: bool | None = True
+
+
+def _podcast_auto_process(slug: str) -> bool | None:
+    """Effective auto-process value for a podcast (per-podcast override plus the
+    global setting). Never raises: a DB failure must not cost a notification."""
+    try:
+        return database.Database().is_auto_process_enabled_for_podcast(slug)
+    except Exception:
+        logger.debug("Could not read auto-process setting for %s", slug, exc_info=True)
+        return None
 
 
 def _format_duration(seconds):
@@ -215,6 +228,7 @@ _DUMMY_CONTEXT = {
     'podcast': {
         'name': 'Example Podcast',
         'slug': 'example-podcast',
+        'auto_process': True,
     },
     'episode': {
         'id': 'abc123',
@@ -253,6 +267,7 @@ def _build_context(payload: WebhookPayload) -> dict:
         'podcast': {
             'name': payload.podcast_name or payload.slug,
             'slug': payload.slug,
+            'auto_process': payload.auto_process,
         },
         'episode': {
             'id': payload.episode_id,
@@ -426,6 +441,7 @@ def load_webhooks(db=None):
 def _fire_event_sync(payload: WebhookPayload):
     """Synchronous notification dispatch, run in a daemon thread by fire_event.
     Webhooks and email each get the event; one channel failing never blocks the other."""
+    payload.auto_process = _podcast_auto_process(payload.slug)
     context = _build_context(payload)
 
     for wh in load_webhooks():
@@ -705,6 +721,7 @@ def _episode_test_context(event):
                     original_duration=row['original_duration'],
                     new_duration=row['new_duration'],
                     podcast_name=row.get('podcast_title'),
+                    auto_process=_podcast_auto_process(row['podcast_slug']),
                 )
                 return _build_context(payload)
         except Exception:
