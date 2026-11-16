@@ -55,3 +55,7 @@ def test_alias_does_not_count_without_a_domain():
 
 def test_known_misspelling_variant_counts_for_a_new_label():
     assert has_brand_evidence('Woop', 'Track recovery at whoop.com today.') is True
+
+
+def test_a_name_written_as_a_domain_is_evidenced_by_its_label():
+    assert has_brand_evidence('forhers.com', 'Visit forhers.com today.', aliases=['Hers']) is True

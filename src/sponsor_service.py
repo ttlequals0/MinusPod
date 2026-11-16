@@ -87,6 +87,9 @@ _FUZZY_NAME_MIN_CHARS = 5
 BRAND_FUZZY_FLOOR = 85.0
 
 
+_NAME_TLD_RE = re.compile(r'\.(?:%s)$' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)), re.IGNORECASE)
+
+
 def _label_forms(label: str) -> set[str]:
     """A squashed label plus the forms with a leading or trailing filler word removed."""
     base = squash_brand(label)
@@ -100,6 +103,8 @@ def _name_variants(name: str, aliases) -> set[str]:
     canon = canonical_sponsor(name)
     names = [name, *aliases, canon,
              *(k for k, v in SPONSOR_ALIASES.items() if v == canon)]
+    # A row named by its domain ("acme.com") is evidenced by the bare label.
+    names += [_NAME_TLD_RE.sub('', n) for n in names if n and _NAME_TLD_RE.search(n)]
     return {k for k in (squash_brand(n or '') for n in names) if k}
 
 
