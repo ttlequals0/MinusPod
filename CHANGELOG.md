@@ -14,6 +14,16 @@ release notes.
 
 - Episode webhook payloads (Episode Processed, Episode Failed, Episode Awaiting Approval, Episode Pending Review) carry `podcast.auto_process`, a boolean that is `false` when the podcast is processed on demand. It combines the podcast's auto-process override with the global setting, and is `null` if it could not be read; the event is still sent. Custom payload templates can use `{{ podcast.auto_process }}`.
 
+### Changed
+
+- A cut row on the episode page says what your confirm or reject did. A reject reads "Marked not an ad: the audio comes back at the next recut" and offers Recut now. Contributed by no84by. (#1007)
+- The confidence on an episode row shows the model's value and the value after review on hover when the two differ. Contributed by no84by. (#1007)
+- A 5-star rating can be stored without confirming cuts or dismissing held markers. Picking 5 stars shows "Confirm all cuts and dismiss held ones", ticked by default. Untick it to store the rating alone. `PUT /feeds/{slug}/episodes/{episode_id}/rating` accepts `confirm_markers`, and leaving it out behaves as before. Contributed by no84by. (#1007)
+
+### Fixed
+
+- Feed settings name no global value in "Use global" and "Inherit global" labels until the global settings have loaded. A wrong value could show for a moment. Contributed by no84by. (#1007)
+
 ## [2.102.4] - 2026-11-14
 
 ### Changed
