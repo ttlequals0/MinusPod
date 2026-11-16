@@ -276,6 +276,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
+| `podcast.auto_process` | bool/null | Whether the podcast is processed automatically: its per-podcast override combined with the global auto-process setting. `false` means episodes are processed on demand. `null` if the value could not be read. Episode events only. |
 | `episode.id` | string | Episode ID |
 | `episode.title` | string | Episode title |
 | `episode.slug` | string | Feed slug |
@@ -438,7 +439,8 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "timestamp_local": "2026-04-12T00:15:42+00:00",
   "podcast": {
     "name": "My Favorite Podcast",
-    "slug": "my-favorite-podcast"
+    "slug": "my-favorite-podcast",
+    "auto_process": true
   },
   "episode": {
     "id": "a1b2c3d4e5f6",
@@ -468,7 +470,8 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "timestamp_local": "2026-04-12T00:15:42+00:00",
   "podcast": {
     "name": "My Favorite Podcast",
-    "slug": "my-favorite-podcast"
+    "slug": "my-favorite-podcast",
+    "auto_process": true
   },
   "episode": {
     "id": "a1b2c3d4e5f6",

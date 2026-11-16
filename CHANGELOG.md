@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Episode webhook payloads (Episode Processed, Episode Failed, Episode Awaiting Approval, Episode Pending Review) carry `podcast.auto_process`, a boolean that is `false` when the podcast is processed on demand. It combines the podcast's auto-process override with the global setting, and is `null` if it could not be read; the event is still sent. Custom payload templates can use `{{ podcast.auto_process }}`.
+
 ## [2.102.4] - 2026-11-14
 
 ### Changed
