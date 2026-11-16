@@ -82,3 +82,20 @@ class TestWindow:
     def test_widen_value_scales_the_window(self):
         assert held_marker_window(
             [MARKER], MARKER, 3600.0, True, widen_s=10.0) == (89.5, 150.5)
+
+    def test_widened_does_not_cross_a_neighbour_overlapping_the_start(self):
+        assert held_marker_window(
+            [MARKER, _cut(90.0, 110.0)], MARKER, 3600.0, True, widen_s=30.0) == (100.0, 170.5)
+
+    def test_widened_does_not_cross_a_rejected_span_overlapping_the_end(self):
+        assert held_marker_window(
+            [MARKER], MARKER, 3600.0, True, widen_s=30.0,
+            blocked_spans=[{'start': 130.0, 'end': 150.0}]) == (69.5, 140.0)
+
+    def test_widened_does_not_cross_a_neighbour_containing_the_span(self):
+        assert held_marker_window(
+            [MARKER, _cut(80.0, 160.0)], MARKER, 3600.0, True, widen_s=30.0) == (100.0, 140.0)
+
+    def test_widened_ignores_a_neighbour_strictly_inside_the_span(self):
+        assert held_marker_window(
+            [MARKER, _cut(110.0, 120.0)], MARKER, 3600.0, True, widen_s=10.0) == (89.5, 150.5)

@@ -274,10 +274,11 @@ def held_marker_window(markers, marker, episode_duration, default_was_cut,
                 or (other.get('validation') or {}).get('decision') == 'REJECT'):
             blockers.append((o_start, o_end))
     for b_start, b_end in blockers:
-        if b_end <= base_start:
-            lo = max(lo, b_end)
-        elif b_start >= base_end:
-            hi = min(hi, b_start)
+        # A blocker overlapping an edge still stops widening outward past that edge.
+        if b_start < base_start:
+            lo = max(lo, min(b_end, base_start))
+        if b_end > base_end:
+            hi = min(hi, max(b_start, base_end))
 
     lo = max(lo, 0.0)
     if episode_duration and episode_duration > 0:
