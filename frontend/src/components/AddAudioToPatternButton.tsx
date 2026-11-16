@@ -31,7 +31,7 @@ export default function AddAudioToPatternButton({
   if (audioState !== 'none' && !added) return null;
 
   return (
-    <div className={`flex flex-col items-start gap-1 ${className}`}>
+    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${className}`}>
       {!added && (
         <>
           <DemoDisabled>
