@@ -80,3 +80,9 @@ def test_cue_for_another_name_does_not_back_the_word(temp_db):
     temp_db.create_known_sponsor(name='Wise')
     text = GLOBEX_READ + 'Sponsored by Initech. The wise women choose wise gear.'
     assert _foreign(temp_db, text) == []
+
+
+def test_alias_carrying_the_domain_flags_the_row(temp_db):
+    temp_db.create_known_sponsor(name='Wyse', aliases=['Wise'])
+    text = GLOBEX_READ + 'Wyse is next. Wyse sends money, so visit trywise.com today.'
+    assert _foreign(temp_db, text) == ['Wyse']

@@ -1620,11 +1620,12 @@ class TextPatternMatcher:
     def _bare_word_without_evidence(row, text):
         """Whether text names row only through single words that neither evidence nor a sponsorship cue backs."""
         lowered = text.lower()
-        hits = [term for term in [row['name'], *normalize_aliases(row.get('aliases'))]
+        aliases = normalize_aliases(row.get('aliases')) if row else []
+        hits = [term for term in [row['name'], *aliases]
                 if word_boundary_re([term.lower()]).search(lowered)] if row else []
         return (bool(hits) and all(len(term.split()) == 1 for term in hits)
-                and not any(has_brand_evidence(term, text) or has_sponsorship_cue(term, text)
-                            for term in hits))
+                and not has_brand_evidence(row['name'], text, aliases)
+                and not any(has_sponsorship_cue(term, text) for term in hits))
 
     def _contaminating_brands(self, ad_text: str, sponsor: str,
                               rows: list[dict] = None) -> list[str]:

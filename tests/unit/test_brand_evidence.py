@@ -17,6 +17,11 @@ from sponsor_service import has_brand_evidence
     ('Wise', 'Use promo code wise20 for ten percent off.'),
     ('Acme Tools', 'Go to acmetools.com today.'),
     ('Acme Tools', 'Use code acmetools for a discount.'),
+    ('Wise', 'Head to wiseapp.com for a free transfer.'),
+    ('Kachava', 'Go to cachava.com for a free shaker.'),
+    ('Kachava', 'Go to trycachava.com for a free shaker.'),
+    ('Ventionteams', 'Visit ventionteams.com today.'),
+    ('Vercel', 'Deploy at vercell.com today.'),
 ])
 def test_text_ties_the_name_to_a_brand(name, text):
     assert has_brand_evidence(name, text) is True
@@ -29,8 +34,24 @@ def test_text_ties_the_name_to_a_brand(name, text):
     ('Wise', 'Use code ACME at checkout.'),
     ('Wise', 'Wise is great. We love wise.'),
     ('Wise', 'It was a wise day. Com is short for company.'),
+    ('Day', 'Visit today.com for the news.'),
+    ('Day', 'Visit holidaydeals.com for savings.'),
+    ('Wise', 'Visit otherwise.com for the news.'),
+    ('Kachava', 'Go to cadillac.com for a test drive.'),
     ('Wise', ''),
     ('', 'Visit wise.com'),
 ])
 def test_nothing_else_counts(name, text):
     assert has_brand_evidence(name, text) is False
+
+
+def test_alias_in_the_domain_counts():
+    assert has_brand_evidence('Wise Transfers', 'Send money at wise.com today.', aliases=['Wise']) is True
+
+
+def test_alias_does_not_count_without_a_domain():
+    assert has_brand_evidence('Wise Transfers', 'The wise women choose wise gear.', aliases=['Wise']) is False
+
+
+def test_known_misspelling_variant_counts_for_a_new_label():
+    assert has_brand_evidence('Woop', 'Track recovery at whoop.com today.') is True
