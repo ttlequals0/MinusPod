@@ -365,7 +365,7 @@ function GlobalDefaultsSection({
             <span className="text-sm text-muted-foreground">seconds (0 to 120)</span>
           </div>
           <p id="heldWidenSeconds-help" className="mt-2 text-sm text-muted-foreground">
-            0 to 120. At 0, a held ad's edges stay within the reviewed span (plus or minus half a second). A higher value lets you move them that far outside it, stopping at neighbouring ads, and makes Adjust approve the held ad at once. Applies to all feeds.
+            At 0, a held ad's edges stay within the reviewed span (plus or minus half a second). A higher value lets you move them that far outside it, stopping at neighbouring ads, and makes Adjust approve the held ad at once. Applies to all feeds.
           </p>
         </div>
 

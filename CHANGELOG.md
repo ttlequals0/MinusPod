@@ -13,6 +13,7 @@ release notes.
 ### Added
 
 - A new setting, Remove short host asks and sponsor thanks, is off by default and can be set globally or per feed. When it is on, the model may flag a 2 to 40 second subscribe or rating ask, a plug for the host's own work, or a sponsor thank-you with `short_ask`. A flagged marker keeps its normal category and can be as short as 2 seconds. It is cut on sentence edges within 1.5 seconds of the model's edges (0.5 seconds for an ask under 3 seconds). If no sentence edge is that close, the flag is dropped and the usual length floors apply. The episode page shows a Short ask chip on these markers. API: `snipShortAsks` on `PUT /api/v1/settings/ad-detection` and on the feed `PATCH` (true, false or null), and `short_ask` on episode markers. See [Configuration](docs/configuration.md). (#1006)
+- Held for review markers can be widened by hand. A new setting, "Widen held ads by (seconds)" under Settings, Global defaults (`heldWidenSeconds`, 0 to 120, default 0), controls it. The held editor can move a held marker's edges that many seconds past its reviewed span, stopping at decided or kept neighbours and at the episode edges. Above 0, adjusting a held marker also approves it at the adjusted bounds. At 0 the editor works as before. The episode response carries each held marker's window as `allowedBounds`. (#1008)
 
 ### Fixed
 
@@ -24,6 +25,9 @@ release notes.
 - The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the edge the transcript differential confirmed. The cut could keep the first words of the show. Contributed by no84by. (#1004)
 - A Whisper repetition loop is no longer read as transcript. Text-pattern matching and the validator skip runs of 8 or more short, near-identical cues. When a marker is mostly inside loops and has no measured evidence or decision of yours behind it, the text outside the loops decides. Ad language there trims the marker to that read. A sponsor name alone, or ad language in the loop text itself, holds it with the new reason `transcript_loop`. With neither, it is rejected. Contributed by no84by. (#1005)
 - Feed settings name no global value in "Use global" and "Inherit global" labels until the global settings have loaded. A wrong value could show for a moment. Contributed by no84by. (#1007)
+- Recut no longer applies a stored adjustment that is under 1 second or that a newer confirm of the same span replaced. Each skipped adjustment is logged. (#1008)
+- Rejecting a span clears the approval of a held marker whose confirm the reject removed, so the episode no longer reads as confirmed for a span the recut will not cut. (#1008)
+- When several detections clamp to the same approved span, validation keeps one marker for it. (#1008)
 
 ### Changed
 
@@ -34,6 +38,9 @@ release notes.
 - A cut row on the episode page says what your confirm or reject did. A reject reads "Marked not an ad: the audio comes back at the next recut" and offers Recut now. Contributed by no84by. (#1007)
 - The confidence on an episode row shows the model's value and the value after review on hover when the two differ. Contributed by no84by. (#1007)
 - A 5-star rating can be stored without confirming cuts or dismissing held markers. Picking 5 stars shows "Confirm all cuts and dismiss held ones", ticked by default. Untick it to store the rating alone. `PUT /feeds/{slug}/episodes/{episode_id}/rating` accepts `confirm_markers`, and leaving it out behaves as before. Contributed by no84by. (#1007)
+- The held editor shows the allowed range and has a "Save, cut later" button that never starts a recut. The reason a marker is held is shown as text under its badges, and a held marker that overlaps another held marker says so. (#1008)
+- An adjust or a trimmed confirm that is shorter than 1 second, reversed, or outside the episode is refused with a 400. (#1008)
+- The corrections response includes `recut_pending` and the marker's stored state as `marker`. (#1008)
 
 ## [2.102.4] - 2026-11-14
 
