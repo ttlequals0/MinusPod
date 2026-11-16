@@ -1148,7 +1148,7 @@ def _held_window_for(db, slug, episode_id, episode, markers, marker, widen_s, ca
     return held_review_window(episode, markers, marker, fp_spans, widen_s, cap)
 
 
-def _validate_span_bounds(db, slug, episode_id, adjusted_start, adjusted_end):
+def _validate_span_bounds(episode, adjusted_start, adjusted_end):
     """Error response for a reversed, tiny or off-episode hand-set span, else None (confirm-trim and adjust)."""
     try:
         start, end = float(adjusted_start), float(adjusted_end)
@@ -1161,7 +1161,7 @@ def _validate_span_bounds(db, slug, episode_id, adjusted_start, adjusted_end):
     if end - start < MIN_CORRECTION_SPAN_S:
         return error_response(
             f'The adjusted span must be at least {MIN_CORRECTION_SPAN_S:g}s long.', 400)
-    duration = (db.get_episode(slug, episode_id) or {}).get('original_duration')
+    duration = episode.get('original_duration')
     if start < 0 or (isinstance(duration, (int, float)) and duration > 0 and end > duration):
         return error_response('Adjusted bounds must lie within the episode.', 400)
     return None
@@ -1191,13 +1191,12 @@ def _handle_confirm_correction(
             'Both adjusted_start and adjusted_end are required for a trimmed confirm', 400)
     has_trim = adjusted_start is not None
     if has_trim:
-        bounds_error = _validate_span_bounds(
-            db, slug, episode_id, adjusted_start, adjusted_end)
+        episode, markers = _load_episode_markers(db, slug, episode_id)
+        bounds_error = _validate_span_bounds(episode, adjusted_start, adjusted_end)
         if bounds_error:
             return bounds_error
         adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
         # A trim stays inside the held marker's window (held_marker_window); with no held marker, the span +/-0.5 s.
-        episode, markers = _load_episode_markers(db, slug, episode_id)
         widen_s = resolve_held_widen_seconds(db)
         cap = resolve_max_boundary_shift(db)
         held_marker = None
@@ -1603,8 +1602,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     sponsor_override, sponsor_error = _modal_sponsor(data)
     if sponsor_error:
         return sponsor_error
-    bounds_error = _validate_span_bounds(
-        db, slug, episode_id, adjusted_start, adjusted_end)
+    episode, markers = _load_episode_markers(db, slug, episode_id)
+    bounds_error = _validate_span_bounds(episode, adjusted_start, adjusted_end)
     if bounds_error:
         return bounds_error
     adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
@@ -1612,7 +1611,6 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     widen_s = resolve_held_widen_seconds(db)
     if widen_s > 0:
         cap = resolve_max_boundary_shift(db)
-        episode, markers = _load_episode_markers(db, slug, episode_id)
         for m in markers or []:
             if _matches_held_marker(m, original_start, original_end, 0.5):
                 win_start, win_end = _held_window_for(
