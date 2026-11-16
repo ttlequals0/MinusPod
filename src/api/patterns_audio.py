@@ -1,4 +1,5 @@
 """Audio fingerprint routes of a pattern: source resolution and playback."""
+import functools
 import io
 import json
 import logging
@@ -65,12 +66,14 @@ def original_not_retained_response():
                                 'original_not_retained')
 
 
-def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=None, in_scope_only=False):
+def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=None, in_scope_only=False,
+                         creating=None):
     """Pick the playable source of a pattern's audio: (source, None) or (None, error response).
 
     fingerprint is the pattern's stored row when the caller already has it. in_scope_only keeps
     out-of-scope matches out, for a source the fingerprint may be rebuilt from. Without a match, the
-    pattern's creating episode is the last resort, as it is for a rebuild.
+    pattern's creating episode is the last resort, as it is for a rebuild; creating is a callable
+    returning that fallback, for a caller that resolves twice.
     """
     fingerprint = fingerprint or db.get_audio_fingerprint(pattern_id, with_blob=False)
     if fingerprint is None:
@@ -84,7 +87,8 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=Non
         candidates = candidate_spans(db, pattern_id, fingerprint, in_scope_only)
     source = first_retained_source(db, storage, candidates)
     if source is None and match_id is None:
-        source = creating_episode_source(db, storage, db.get_ad_pattern_by_id(pattern_id), pattern_id)
+        source = (creating or (lambda: creating_episode_source(
+            db, storage, db.get_ad_pattern_by_id(pattern_id), pattern_id)))()
     return (source, None) if source else (None, original_not_retained_response())
 
 
@@ -200,10 +204,11 @@ def _add_source(db, storage, pattern_id):
         candidates += [c for c in found if c not in candidates]
     expired = None
     for slug, episode_id in candidates:
-        span = own_marker_span(db.get_episode(slug, episode_id), pattern_id)
+        episode = db.get_episode(slug, episode_id)
+        span = own_marker_span(episode, pattern_id)
         if span is None:
             continue
-        _, err = resolve_retained_original(db, storage, slug, episode_id)
+        _, err = resolve_retained_original(db, storage, slug, episode_id, episode=episode)
         found = {'podcastSlug': slug, 'episodeId': episode_id,
                  'start': span[0], 'end': span[1], 'available': err is None}
         if err is None:
@@ -238,11 +243,15 @@ def build_audio_detail(db, storage, pattern_id):
         detail['builtFrom'] = {'podcastSlug': slug, 'episodeId': episode_id,
                                'start': fingerprint['source_start'], 'end': fingerprint['source_end'],
                                'available': built_err is None}
-    source, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint)
+    # The creating-episode fallback ignores in_scope_only and parses a transcript, so compute it once.
+    creating = functools.cache(lambda: creating_episode_source(
+        db, storage, db.get_ad_pattern_by_id(pattern_id), pattern_id))
+    source, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, creating=creating)
     if source:
         detail['source'] = _span(source)
         detail['available'] = True
-    scoped, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, in_scope_only=True)
+    scoped, _ = resolve_audio_source(
+        db, storage, pattern_id, fingerprint=fingerprint, in_scope_only=True, creating=creating)
     if scoped:
         detail['editSource'] = _span(scoped)
     # Legacy fingerprints have no recorded origin; offer an in-scope match, never a derived span.
