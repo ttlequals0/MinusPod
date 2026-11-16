@@ -12,6 +12,7 @@ from config import (
     is_keep_like, is_pending_review, resolve_chapters_in_notes,
     title_matches_skip_patterns, description_matches_skip_patterns,
     duration_outside_feed_range, episode_matches_feed_filters,
+    resolve_held_widen_seconds, resolve_max_boundary_shift,
 )
 from api.audio_state import add_pattern_audio_state
 from ad_chapters import refresh_keep_like_markers
@@ -19,14 +20,13 @@ from ad_yield import latest_completed_run, low_ad_yield
 from database.error_text import redact_error, redact_json_error
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
 from utils.json_fields import load_json_list
-from utils.markers import parse_ad_markers
+from utils.markers import held_review_window, parse_ad_markers
 from utils.short_asks import is_short_ask
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 import episode_runs
 from api.episodes import common
-from api.patterns import held_review_window
 
 logger = logging.getLogger('podcast.api')
 
@@ -418,18 +418,19 @@ def get_episode(slug, episode_id):
     # Get corrections for this episode
     corrections = db.get_episode_corrections(episode['podcast_id'], episode_id)
 
-    # What a human may set a held marker's edges to; the corrections API
-    # enforces exactly this window.
+    # What a human may set a held marker's edges to; the corrections API enforces this window.
     if pending_review_markers:
         fp_spans = [c['original_bounds'] for c in corrections
                     if c.get('correction_type') == 'false_positive'
                     and isinstance(c.get('original_bounds'), dict)
                     and isinstance(c['original_bounds'].get('start'), (int, float))
                     and isinstance(c['original_bounds'].get('end'), (int, float))]
+        widen_s = resolve_held_widen_seconds(db)
+        cap = resolve_max_boundary_shift(db)
         for marker in pending_review_markers:
             if not all(isinstance(marker.get(k), (int, float)) for k in ('start', 'end')):
                 continue
-            lo, hi = held_review_window(db, episode, all_markers, marker, fp_spans)
+            lo, hi = held_review_window(episode, all_markers, marker, fp_spans, widen_s, cap)
             marker['allowedBounds'] = {'min': lo, 'max': hi}
 
     # Per-cue detection telemetry (advisory: template matches with score, how

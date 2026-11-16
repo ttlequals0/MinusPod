@@ -142,3 +142,15 @@ def test_fingerprint_without_a_recorded_source_and_no_matches(world, app_context
     db.create_audio_fingerprint(pid, b'AQAA', 6.0)
     source, err = resolve_audio_source(db, storage, pid)
     assert source is None and _code(err) == ('original_not_retained', 404)
+
+
+def test_dangling_fingerprint_without_its_pattern_row_is_not_retained(world, app_context):
+    db, storage, pid, _ = world
+    db.create_audio_fingerprint(pid, b'AQAA', 6.0)
+    conn = db.get_connection()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("DELETE FROM ad_patterns WHERE id = ?", (pid,))
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")
+    source, err = resolve_audio_source(db, storage, pid)
+    assert source is None and _code(err) == ('original_not_retained', 404)

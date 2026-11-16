@@ -7,6 +7,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import Database  # noqa: E402
+from database.schema.tables import TABLE_DDL  # noqa: E402
 from pattern_cleanup_hash import review_hash  # noqa: E402
 
 
@@ -203,6 +204,85 @@ def test_category_kind_migration_preserves_deleted_id_high_water_mark(temp_dir):
         run_id, pid, 'trim', 0.9, [], {'text': 'new'}, {})
 
     assert suggestion_id > 900
+
+
+def test_unnamed_sponsor_kind_migration_preserves_every_row(temp_dir):
+    db = _isolated(temp_dir)
+    pids = [_pattern(db, text=f'unnamed sponsor migration row {i}') for i in range(3)]
+    conn = db.get_connection()
+    columns = ('id, run_id, pattern_id, kind, status, confidence, reasons, payload, before, '
+               'applied, created_at, reviewed_at, superseded_at, pattern_scope, podcast_slug')
+    kinds = ('trim', 'split', 'rename', 'retire', 'flag', 'category')
+    statuses = ('pending', 'approved', 'rejected', 'undone')
+    run_id = db.create_cleanup_run(forced=False, trigger='manual')
+    conn.execute('PRAGMA foreign_keys = OFF')
+    conn.execute('BEGIN IMMEDIATE')
+    conn.execute('DROP TRIGGER IF EXISTS archive_cleanup_actions_on_pattern_delete')
+    conn.execute('DROP TABLE pattern_cleanup_suggestions')
+    legacy_ddl = TABLE_DDL['pattern_cleanup_suggestions'].replace(", 'unnamed_sponsor'", '')
+    assert 'unnamed_sponsor' not in legacy_ddl
+    conn.execute(legacy_ddl)
+    conn.execute("CREATE UNIQUE INDEX idx_cleanup_suggestions_pending "
+                 "ON pattern_cleanup_suggestions(pattern_id, kind) "
+                 "WHERE status = 'pending' AND superseded_at IS NULL")
+    rows = []
+    for i, kind in enumerate(kinds):
+        for j, status in enumerate(statuses):
+            pid = pids[(i + j) % len(pids)]
+            superseded = '2026-01-02T03:04:05Z' if status == 'pending' and j == 0 and i % 2 else None
+            slug = f'slug-{i}' if i % 2 else None
+            rows.append((pid, kind, status, 0.5 + i / 10, f'["r{i}{j}"]', f'{{"k": {i}}}',
+                         f'{{"before": {j}}}', f'{{"applied": {j}}}' if status != 'pending' else None,
+                         f'2026-01-0{j + 1}T00:00:00Z', f'2026-02-0{j + 1}T00:00:00Z' if j else None,
+                         superseded, 'podcast' if slug else None, slug))
+    # A second pending row of the same kind is legal only when superseded.
+    for n, row in enumerate(rows, start=1):
+        conn.execute(
+            "INSERT INTO pattern_cleanup_suggestions (id, run_id, pattern_id, kind, status, confidence, "
+            "reasons, payload, before, applied, created_at, reviewed_at, superseded_at, pattern_scope, "
+            "podcast_slug) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (n, run_id, *row))
+    conn.execute("DELETE FROM sqlite_sequence WHERE name = 'pattern_cleanup_suggestions'")
+    conn.execute("INSERT INTO sqlite_sequence (name, seq) VALUES ('pattern_cleanup_suggestions', 500)")
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'pattern_cleanup_unnamed_sponsor_kind'")
+    conn.commit()
+    expected = [tuple(r) for r in conn.execute(
+        f"SELECT {columns} FROM pattern_cleanup_suggestions ORDER BY id"  # noqa: S608
+    ).fetchall()]
+    conn.close()
+    assert len(expected) == len(kinds) * len(statuses)
+
+    migrated = _isolated(temp_dir)
+    mconn = migrated.get_connection()
+    actual = [tuple(r) for r in mconn.execute(
+        f"SELECT {columns} FROM pattern_cleanup_suggestions ORDER BY id"  # noqa: S608
+    ).fetchall()]
+    assert actual == expected
+    sql = mconn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='pattern_cleanup_suggestions'").fetchone()[0]
+    assert "'unnamed_sponsor'" in sql
+    assert mconn.execute('PRAGMA foreign_key_check').fetchall() == []
+    index_sql = mconn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_cleanup_suggestions_pending'"
+    ).fetchone()[0]
+    assert 'superseded_at IS NULL' in index_sql
+    assert mconn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='trigger' "
+        "AND name='archive_cleanup_actions_on_pattern_delete'").fetchone()
+    fresh_dir = os.path.join(str(temp_dir), 'fresh')
+    os.makedirs(fresh_dir)
+    fresh_conn = _isolated(fresh_dir).get_connection()
+    schema_query = ("SELECT type, name, sql FROM sqlite_master WHERE type IN ('index', 'trigger') "
+                    "AND name LIKE '%cleanup%' ORDER BY type, name")
+    migrated_schema = [tuple(r) for r in mconn.execute(schema_query)]
+    assert len(migrated_schema) >= 4
+    assert migrated_schema == [tuple(r) for r in fresh_conn.execute(schema_query)]
+    new_id = migrated.upsert_cleanup_suggestion(
+        run_id, pids[0], 'unnamed_sponsor', 1.0, ['r'], {'sponsor': 'Acme'}, {})
+    assert new_id > 500
+    assert migrated.get_cleanup_suggestion(new_id)['kind'] == 'unnamed_sponsor'
+    again = _isolated(temp_dir)
+    assert again.get_connection().execute(
+        "SELECT COUNT(*) FROM pattern_cleanup_suggestions").fetchone()[0] == len(expected) + 1
 
 
 def test_run_lifecycle(temp_db):

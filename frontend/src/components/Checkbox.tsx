@@ -8,6 +8,7 @@ interface CheckboxProps {
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
+  ariaDescribedBy?: string;
   title?: string;
   /** Text beside the box. Checkbox then renders its own <label>. */
   label?: ReactNode;
@@ -18,7 +19,7 @@ interface CheckboxProps {
 }
 
 function Checkbox({
-  checked, onChange, disabled: ownDisabled, className = '', ariaLabel, title, label,
+  checked, onChange, disabled: ownDisabled, className = '', ariaLabel, ariaDescribedBy, title, label,
   labelClassName = 'text-sm text-foreground', id,
 }: CheckboxProps) {
   const groupDisabled = useGroupDisabled();
@@ -36,6 +37,7 @@ function Checkbox({
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         className="sr-only peer"
       />
       <span className={`h-4 w-4 shrink-0 rounded-sm border-2 transition-colors flex items-center justify-center ${

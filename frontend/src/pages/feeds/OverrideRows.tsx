@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react';
 import { selectBase } from '../../components/fieldStyles';
+import { inheritLabel } from '../../utils/inheritLabel';
 
 export const rowLabel = 'text-muted-foreground whitespace-nowrap sm:w-32 shrink-0';
 export const rowLabelTop = `${rowLabel} sm:pt-1.5`;
@@ -34,7 +35,7 @@ export function GlobalOverrideRow({
           aria-label={ariaLabel}
           aria-describedby={`${id}-help`}
         >
-          <option value="">{globalOn === undefined ? 'Use global' : `Use global (${globalOn ? 'on' : 'off'})`}</option>
+          <option value="">{inheritLabel('Use global', globalOn === undefined ? undefined : globalOn ? 'on' : 'off')}</option>
           <option value="on">On</option>
           <option value="off">Off</option>
         </select>

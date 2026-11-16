@@ -19,11 +19,13 @@ from config import (
 from community_export import (
     count_brand_occurrences, brand_match_candidates,
     declared_sponsor_names_lower, find_foreign_sponsors,
-    first_brand_occurrence, get_sponsor_row_or_stub)
+    first_brand_occurrence, get_sponsor_row_or_stub, normalize_aliases)
 from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from sponsor_context import COMMERCIAL_CONTEXT_RE, domain_labels
-from sponsor_service import SponsorService
+from sponsor_service import (
+    SponsorService, has_brand_evidence, has_sponsorship_cue, is_known_single_word_sponsor,
+    registry_name_set)
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
@@ -1338,6 +1340,16 @@ class TextPatternMatcher:
         """
         return get_sponsor_row_or_stub(self.db, sponsor)
 
+    def unbacked_new_brand(self, sponsor, text):
+        """Whether sponsor would be a new single-word row that text does not back as a brand."""
+        if len(sponsor.split()) != 1:
+            return False
+        if is_known_single_word_sponsor(
+                sponsor, registry_name_set(self.db.get_known_sponsors(active_only=True)),
+                self.db.get_active_pattern_sponsors()):
+            return False
+        return not has_brand_evidence(sponsor, text)
+
     def _brand_bearing_bounds(self, segments, start, end, sponsor_row):
         """Return (first_start, last_end) of the segments overlapping
         [start, end] whose text mentions the sponsor brand as a whole word, or
@@ -1604,6 +1616,17 @@ class TextPatternMatcher:
                 seen.add(name.lower())
         return brands
 
+    @staticmethod
+    def _bare_word_without_evidence(row, text):
+        """Whether text names row only through single words that neither evidence nor a sponsorship cue backs."""
+        lowered = text.lower()
+        aliases = normalize_aliases(row.get('aliases')) if row else []
+        hits = [term for term in [row['name'], *aliases]
+                if word_boundary_re([term.lower()]).search(lowered)] if row else []
+        return (bool(hits) and all(len(term.split()) == 1 for term in hits)
+                and not has_brand_evidence(row['name'], text, aliases)
+                and not any(has_sponsorship_cue(term, text) for term in hits))
+
     def _contaminating_brands(self, ad_text: str, sponsor: str,
                               rows: list[dict] = None) -> list[str]:
         """Registry brands other than `sponsor` that are read inside the span.
@@ -1619,9 +1642,11 @@ class TextPatternMatcher:
 
         # Word-boundary hits, not substring counts: "cramped" is not a Ramp read.
         mentions = brand_mention_offsets(ad_text, rows, self.brand_patterns())
+        by_name = {row['name']: row for row in rows}
         return sorted(
             name for name in find_foreign_sponsors(ad_text, declared, rows)
-            if len(mentions.get(name, ())) >= 2)
+            if len(mentions.get(name, ())) >= 2
+            and not self._bare_word_without_evidence(by_name.get(name), ad_text))
 
     def split_sources(self, marker: dict, sponsor: str = None,
                       rows: list[dict] = None) -> tuple[list[dict], list[float], list[dict]]:
@@ -1807,6 +1832,7 @@ class TextPatternMatcher:
         from_split: bool = False,
         ad_text: str = None,
         brand_rows: list[dict] = None,
+        sponsor_from_reviewer: bool = False,
     ) -> int | None:
         """Create an ad pattern from a detected ad segment; returns its ID, or None if rejected.
 
@@ -1816,6 +1842,7 @@ class TextPatternMatcher:
             category: Segment category (#565) of the source marker; normalized, and
                 None stores NULL (read back as 'sponsor').
             brand_rows: Registry brand rows already resolved by the caller; None looks them up.
+            sponsor_from_reviewer: A person typed the sponsor; skips the brand evidence gate only.
         """
         if not self.db:
             return None
@@ -1940,6 +1967,14 @@ class TextPatternMatcher:
                 )
                 return None
 
+        # A bare dictionary word read as a brand would become a sponsor row that
+        # later matches ordinary speech.
+        if not sponsor_from_reviewer and self.unbacked_new_brand(sponsor, ad_text):
+            logger.warning(
+                f"Rejecting pattern: '{sponsor}' is a new single-word sponsor with no "
+                f"domain or promo code in the text backing it as a brand")
+            return None
+
         # Only a span that passed every validation gate above may credit an
         # existing pattern's confirmation_count, and reuses a near-identical
         # existing pattern instead of inserting a duplicate (#565).
@@ -2018,6 +2053,11 @@ class TextPatternMatcher:
             for seg in segments:
                 segment = seg['text']
                 sponsor = seg['sponsor']
+                if sponsor and self.unbacked_new_brand(sponsor, segment):
+                    logger.info(
+                        f"Split of pattern {pattern_id}: '{sponsor}' has no brand "
+                        f"evidence, creating the piece without a sponsor")
+                    sponsor = None
                 intro = _extract_intro_phrase(segment)
                 outro = _extract_outro_phrase(segment)
                 prepared.append({

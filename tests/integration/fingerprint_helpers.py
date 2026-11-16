@@ -5,6 +5,7 @@ bootstrap('fingerprint_correction_test_', reset_storage=True)
 
 SLUG = 'fingerprint-correction-feed'
 EPISODE = 'a1b2c3d4e5f6'
+OTHER = 'b2c3d4e5f6a1'
 TEMPLATE = 'This episode is brought to you by Acme, the easy way to file your taxes online.'
 
 
@@ -26,12 +27,32 @@ FIRST_READ = TEMPLATE + ' Visit acme.com today.'
 TWO_SPONSORS = FIRST_READ + ' ' + SECOND_TEMPLATE
 
 
-def seed_timed_transcript(db, timed_lines):
+def stamp(sec):
+    return f'{int(sec // 3600):02d}:{int(sec % 3600 // 60):02d}:{sec % 60:06.3f}'
+
+
+def seed_timed_transcript(db, timed_lines, episode_id=EPISODE):
     """Store a transcript from (start, end, text) lines."""
-    def stamp(sec):
-        return f'{int(sec // 3600):02d}:{int(sec % 3600 // 60):02d}:{sec % 60:06.3f}'
-    db.save_original_transcript(SLUG, EPISODE, '\n'.join(
+    db.save_original_transcript(SLUG, episode_id, '\n'.join(
         f'[{stamp(a)} --> {stamp(b)}] {text}' for a, b, text in timed_lines))
+
+
+def retain_original(db, episode_id=EPISODE):
+    """Put a stub original on disk for the episode and record it; returns the path."""
+    from api import get_storage
+    path = get_storage().get_original_path(SLUG, episode_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b'ID3')
+    db.upsert_episode(SLUG, episode_id, original_file=path.name)
+    return path
+
+
+def seed_other_episode(db, lines, retained=True):
+    """A second processed episode with a timed transcript, and a retained original unless retained is False."""
+    db.upsert_episode(slug=SLUG, episode_id=OTHER, original_url='https://example.com/b.mp3',
+                      title='Episode Two', original_duration=300.0, status='processed')
+    seed_timed_transcript(db, lines, OTHER)
+    return retain_original(db, OTHER) if retained else None
 
 
 def seed_two_sponsor_transcript(db, first=(10.0, 40.0), second=(40.0, 70.0)):

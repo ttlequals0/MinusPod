@@ -1,4 +1,4 @@
-/** Held-for-review rows: hold badges, labels and tooltips (A1). */
+/** Held-for-review rows: hold badges, labels and tooltips. */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import EpisodeDetail from './EpisodeDetail';

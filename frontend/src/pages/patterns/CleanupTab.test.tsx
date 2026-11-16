@@ -66,6 +66,7 @@ const ALL_KINDS = [
     contaminationReason: 'Contains show banter', recommended: 'disable',
   }),
   suggestion(6, 'category', { category: 'cross_promo' }),
+  suggestion(7, 'unnamed_sponsor', { sponsor: 'Acme' }),
 ];
 
 function renderTab() {
@@ -166,6 +167,17 @@ describe('CleanupTab', () => {
     expect(within(c).getByText('Trim and rename')).toBeDefined();
     expect(within(c).getByText('Acme Group')).toBeDefined();
     expect(c.querySelector('[data-diff="kept"]')?.textContent).toBe(KEPT);
+  });
+
+  it('renders an unnamed sponsor suggestion', async () => {
+    mockList.mockResolvedValue([suggestion(7, 'unnamed_sponsor', { sponsor: 'Acme' })]);
+    renderTab();
+    const c = await screen.findByTestId('cleanup-suggestion-7');
+    expect(within(c).getByText('Unnamed sponsor')).toBeDefined();
+    expect(within(c).getByText('The sponsor "Acme" does not appear in this pattern\'s text.')).toBeDefined();
+    expect(within(c).getByText('Approving removes the sponsor and keeps the pattern active.')).toBeDefined();
+    expect(within(c).getByRole('button', { name: 'Approve' })).toBeDefined();
+    expect(within(c).getByRole('button', { name: 'Reject' })).toBeDefined();
   });
 
   it('renders category-only and combined category changes', async () => {
@@ -317,6 +329,19 @@ describe('CleanupTab', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('tells the operator when an approval turned the pattern audio off', async () => {
+    mockApprove.mockResolvedValueOnce({
+      ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: false,
+      fingerprintSkippedReason: 'audio_turned_off',
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    expect((await screen.findByRole('status')).textContent)
+      .toBe("The pattern's audio was turned off because no retained episode has it.");
+  });
+
   it('shows no audio notice when the fingerprint was stored or the field is absent', async () => {
     mockApprove.mockResolvedValueOnce({ ...ALL_KINDS[0], id: 1, status: 'approved', fingerprintStored: true });
     renderTab();
@@ -381,8 +406,8 @@ describe('CleanupTab', () => {
     const user = userEvent.setup();
     await screen.findByTestId('cleanup-suggestion-1');
     await user.click(screen.getByLabelText('Select all'));
-    await user.click(screen.getByRole('button', { name: 'Approve selected (6)' }));
-    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith([1, 2, 3, 4, 5, 6], 'approve'));
+    await user.click(screen.getByRole('button', { name: 'Approve selected (7)' }));
+    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith([1, 2, 3, 4, 5, 6, 7], 'approve'));
   });
 
   it('bulk rejects only the checked suggestions', async () => {

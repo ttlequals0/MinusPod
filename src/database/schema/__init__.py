@@ -49,6 +49,7 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_MARKER_REFS_INDEX_SQL,
     EPISODE_MARKER_REFS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
+    CLEANUP_PATTERN_INDEX, CLEANUP_PENDING_ACTIVE_INDEX, CLEANUP_STATUS_INDEX,
     FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
 from database.fingerprint_cleanup import delete_matches_for_missing_episodes
@@ -2518,6 +2519,63 @@ class SchemaMixin(DeferredUpgradeMixin):
                   AND json_extract(before, '$.scope') IN ('podcast', 'network', 'global')""")
             conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
                          (cleanup_accounting_gate,))
+        unnamed_sponsor_gate = 'pattern_cleanup_unnamed_sponsor_kind'
+        if not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?",
+                            (unnamed_sponsor_gate,)).fetchone():
+            sql_row = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' "
+                "AND name = 'pattern_cleanup_suggestions'").fetchone()
+            if sql_row and "'unnamed_sponsor'" not in (sql_row['sql'] or ''):
+                columns = ('id, run_id, pattern_id, kind, status, confidence, reasons, payload, '
+                           'before, applied, created_at, reviewed_at, superseded_at, '
+                           'pattern_scope, podcast_slug')
+                conn.commit()
+                conn.execute('PRAGMA foreign_keys = OFF')
+                try:
+                    conn.execute('BEGIN IMMEDIATE')
+                    sequence_row = conn.execute(
+                        "SELECT seq FROM sqlite_sequence "
+                        "WHERE name = 'pattern_cleanup_suggestions'").fetchone()
+                    previous_sequence = sequence_row['seq'] if sequence_row else 0
+                    conn.execute(TABLE_DDL['pattern_cleanup_suggestions'].replace(
+                        'IF NOT EXISTS pattern_cleanup_suggestions', 'pattern_cleanup_suggestions_new', 1))
+                    conn.execute(
+                        f'INSERT INTO pattern_cleanup_suggestions_new ({columns}) '  # noqa: S608
+                        f'SELECT {columns} FROM pattern_cleanup_suggestions')
+                    # The archive trigger names the old table; it is recreated below.
+                    conn.execute('DROP TRIGGER IF EXISTS archive_cleanup_actions_on_pattern_delete')
+                    conn.execute('DROP TABLE pattern_cleanup_suggestions')
+                    conn.execute(
+                        'ALTER TABLE pattern_cleanup_suggestions_new '
+                        'RENAME TO pattern_cleanup_suggestions')
+                    rebuilt_sequence = conn.execute(
+                        "SELECT seq FROM sqlite_sequence "
+                        "WHERE name = 'pattern_cleanup_suggestions'").fetchone()
+                    if rebuilt_sequence:
+                        conn.execute(
+                            "UPDATE sqlite_sequence SET seq = ? "
+                            "WHERE name = 'pattern_cleanup_suggestions'",
+                            (max(previous_sequence, rebuilt_sequence['seq']),))
+                    elif previous_sequence:
+                        conn.execute(
+                            "INSERT INTO sqlite_sequence (name, seq) "
+                            "VALUES ('pattern_cleanup_suggestions', ?)",
+                            (previous_sequence,))
+                    for index_sql in (CLEANUP_PATTERN_INDEX, CLEANUP_STATUS_INDEX,
+                                      CLEANUP_PENDING_ACTIVE_INDEX):
+                        conn.execute(index_sql)
+                    conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
+                                 (unnamed_sponsor_gate,))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    conn.execute('PRAGMA foreign_keys = ON')
+            else:
+                conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
+                             (unnamed_sponsor_gate,))
+                conn.commit()
         conn.execute("""CREATE TRIGGER IF NOT EXISTS archive_cleanup_actions_on_pattern_delete
             BEFORE DELETE ON ad_patterns BEGIN
                 INSERT INTO pattern_cleanup_deleted_actions

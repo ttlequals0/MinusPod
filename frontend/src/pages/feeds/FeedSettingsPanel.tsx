@@ -41,6 +41,7 @@ const MAX_RETENTION_DAYS = 3650;
 
 type RetentionMode = 'global' | 'archive' | 'custom';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { inheritLabel } from '../../utils/inheritLabel';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
 import { isLlmEnabled } from '../../hooks/useLlmEnabled';
 import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from '../settings/LlmGate';
@@ -195,8 +196,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // so a wrong first value never flashes.
   const settingsReady = settings !== undefined;
   const audioReady = audioSettings !== undefined;
-  const inheritLabel = (prefix: string, value: string, ready: boolean = settingsReady) =>
-    ready ? `${prefix} (${value})` : prefix;
   const followingGlobalNote = (value: boolean) =>
     settingsReady ? `Following the global setting (currently ${value ? 'on' : 'off'}).` : 'Following the global setting.';
 
@@ -974,7 +973,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Low ad yield action"
                   >
-                    <option value="">{inheritLabel('Use global', globalLowAdYieldLabel)}</option>
+                    <option value="">{inheritLabel('Use global', settingsReady ? globalLowAdYieldLabel : undefined)}</option>
                     {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
                       <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
                     ))}
@@ -1176,7 +1175,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     aria-label="Chapters"
                     aria-describedby={llmDisabled ? 'feed-chapters-llm-disabled' : undefined}
                   >
-                    <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>{inheritLabel('Inherit global', inheritedChapterMode)}</option>
+                    <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>{inheritLabel('Inherit global', settingsReady ? inheritedChapterMode : undefined)}</option>
                     <option value="auto" disabled={nativeChapterGenerationBlocked}>Auto</option>
                     <option value="generate" disabled={nativeChapterGenerationBlocked || llmDisabled}>Always generate</option>
                     <option value="off">Off</option>
@@ -1241,7 +1240,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="Chapter list"
                 ariaLabel="Chapters in descriptions"
                 value={feed.chaptersInNotes}
-                globalOn={settingsReady ? !!settings?.chaptersInNotes?.value : undefined}
+                globalOn={settingsReady ? !!settings.chaptersInNotes?.value : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(chaptersInNotes) => updateMutation.mutate({ chaptersInNotes })}
               >
@@ -1253,7 +1252,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="Review links"
                 ariaLabel="Review links in descriptions"
                 value={feed.reviewLinksInNotes}
-                globalOn={settingsReady ? !!settings?.reviewLinksInNotes?.value : undefined}
+                globalOn={settingsReady ? !!settings.reviewLinksInNotes?.value : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(reviewLinksInNotes) => updateMutation.mutate({ reviewLinksInNotes })}
               >
@@ -1321,7 +1320,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="Replacement sound"
                 ariaLabel="Replacement sound"
                 value={feed.audioReplacementSoundOverride == null ? null : feed.audioReplacementSoundOverride ? 'on' : 'off'}
-                globalOn={settingsReady ? settings?.audioReplacementSoundEnabled?.value ?? true : undefined}
+                globalOn={settingsReady ? settings.audioReplacementSoundEnabled?.value ?? true : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(value) => updateMutation.mutate({ audioReplacementSoundOverride: value === null ? null : value === 'on' })}
               >
@@ -1331,7 +1330,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 label="MP3 stream copy"
                 ariaLabel="MP3 stream copy"
                 value={feed.audioMp3StreamCopyOverride == null ? null : feed.audioMp3StreamCopyOverride ? 'on' : 'off'}
-                globalOn={settingsReady ? settings?.audioMp3StreamCopyEnabled?.value ?? false : undefined}
+                globalOn={settingsReady ? settings.audioMp3StreamCopyEnabled?.value ?? false : undefined}
                 disabled={updateMutation.isPending}
                 onChange={(value) => updateMutation.mutate({ audioMp3StreamCopyOverride: value === null ? null : value === 'on' })}
               >
@@ -1432,7 +1431,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                     aria-label="Run log storage"
                   >
-                    <option value="">{inheritLabel('Use global', globalEpisodeLogsLabel)}</option>
+                    <option value="">{inheritLabel('Use global', settingsReady ? globalEpisodeLogsLabel : undefined)}</option>
                     <option value="on">Keep logs</option>
                     <option value="off">Don't keep logs</option>
                   </select>
@@ -1467,7 +1466,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                       aria-label="Retention"
                     >
-                      <option value="global">{inheritLabel('Use global', globalStorageRetentionLabel)}</option>
+                      <option value="global">{inheritLabel('Use global', settingsReady ? globalStorageRetentionLabel : undefined)}</option>
                       <option value="archive">Archive, never delete</option>
                       <option value="custom">Keep for</option>
                     </select>
@@ -1521,7 +1520,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                       aria-label="Keep original audio"
                     >
-                      <option value="">{inheritLabel('Use global', globalKeepOriginalLabel, audioReady)}</option>
+                      <option value="">{inheritLabel('Use global', audioReady ? globalKeepOriginalLabel : undefined)}</option>
                       <option value="on">Keep the uncut copy</option>
                       <option value="off">Discard the uncut copy</option>
                     </select>
@@ -1633,14 +1632,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <div className="min-w-0">
                   <span className="text-muted-foreground block">Short host asks</span>
                   <span className="text-xs text-muted-foreground/70 block">
-                    Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s).
+                    Finds short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Each one follows the action set for its category.
                   </span>
                 </div>
                 <div className="flex flex-col items-start sm:items-end gap-1">
                   <SegmentedToggle
                     value={feed.snipShortAsks == null ? 'inherit' : feed.snipShortAsks ? 'on' : 'off'}
                     options={[
-                      { value: 'inherit', label: settings ? `Use global setting (currently ${(settings.snipShortAsks?.value ?? false) ? 'On' : 'Off'})` : 'Use global setting' },
+                      { value: 'inherit', label: 'Inherit' },
                       { value: 'on', label: 'On' },
                       { value: 'off', label: 'Off' },
                     ]}
@@ -1648,8 +1647,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       snipShortAsks: v === 'inherit' ? null : v === 'on',
                     })}
                     disabled={updateMutation.isPending}
-                    ariaLabel="Remove short host asks and sponsor thanks"
+                    ariaLabel="Detect short host asks and sponsor thanks"
                   />
+                  {feed.snipShortAsks == null && (
+                    <p className="text-xs text-muted-foreground">
+                      {followingGlobalNote(settings?.snipShortAsks?.value ?? false)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1907,7 +1911,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Splice check"
                   >
-                    <option value="">{inheritLabel('Use global', settings?.spliceVetoEnabled?.value === false ? 'off' : 'on')}</option>
+                    <option value="">{inheritLabel('Use global', settingsReady ? (settings.spliceVetoEnabled?.value === false ? 'off' : 'on') : undefined)}</option>
                     <option value="true">Hold cuts without splice evidence</option>
                     <option value="false">Cut without splice evidence</option>
                   </select>
@@ -1951,7 +1955,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
                     aria-label="Verification pass"
                   >
-                    <option value="inherit">{inheritLabel('Inherit global', settings?.skipSecondPass?.value ? 'Skip' : 'Run')}</option>
+                    <option value="inherit">{inheritLabel('Inherit global', settingsReady ? (settings.skipSecondPass?.value ? 'Skip' : 'Run') : undefined)}</option>
                     <option value="run">Run verification</option>
                     <option value="skip">Skip verification</option>
                   </select>
@@ -1985,7 +1989,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       className={`min-w-0 disabled:opacity-50 ${selectBase}`}
                       aria-label="Fetch each episode twice to find inserted ads"
                     >
-                      <option value="inherit">{inheritLabel('Inherit global', settings?.differentialFetchMode?.value ?? 'auto')}</option>
+                      <option value="inherit">{inheritLabel('Inherit global', settingsReady ? (settings.differentialFetchMode?.value ?? 'auto') : undefined)}</option>
                       <option value="auto">Auto (on for dynamic-ad feeds)</option>
                       <option value="on">On</option>
                       <option value="off">Off</option>
@@ -2033,7 +2037,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
                     aria-label="Compare with the publisher transcript"
                   >
-                    <option value="inherit">{inheritLabel('Inherit global', settings?.transcriptDifferentialEnabled?.value === false ? 'Off' : 'On')}</option>
+                    <option value="inherit">{inheritLabel('Inherit global', settingsReady ? (settings.transcriptDifferentialEnabled?.value === false ? 'Off' : 'On') : undefined)}</option>
                     <option value="on">On</option>
                     <option value="off">Off</option>
                   </select>

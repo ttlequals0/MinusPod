@@ -100,13 +100,13 @@ from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
-from sponsor_service import SponsorService
+from sponsor_service import SponsorService, is_known_single_word_sponsor, registry_name_set
 from text_pattern_matcher import is_defined_pattern
 from transcriber.segments import drop_loop_cues, find_loop_runs
 from text_recurrence import format_recurrence_hint
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
-    KNOWN_SHORT_BRANDS, canonical_sponsor, is_brand_token,
+    canonical_sponsor, is_brand_token,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD, LEARNING_MIN_PATTERN_DURATION,
     mentions_advertising,
@@ -1020,23 +1020,11 @@ class AdDetector:
             sponsor_block = ""
         return render_prompt(prompt, sponsor_database=sponsor_block)
 
-    def _podcast_wants_show_segments(self, slug: str) -> bool:
-        """Return whether this podcast opted into intro/outro/recap detection.
-
-        Per-feed value if explicitly set, else the detect_show_segments global
-        default. One DB lookup per detect_ads() call, not per window (same
-        pattern as _build_known_pattern_hint).
-        """
-        if not slug or not self.db:
-            return False
-        try:
-            return self.db.resolve_detect_show_segments(slug)
-        except Exception as e:
-            logger.warning(f"Could not check detect_show_segments for {slug}: {e}")
-            return False
-
     def _podcast_wants(self, slug: str, column: str, setting_key: str) -> bool:
-        """Whether the per-feed bool `column` (else the `setting_key` global) is on; off when unreadable."""
+        """Whether the per-feed bool `column` (else the `setting_key` global) is on; off when unreadable.
+
+        One DB lookup per detect_ads() call, not per window.
+        """
         if not slug or not self.db:
             return False
         try:
@@ -1149,7 +1137,7 @@ class AdDetector:
         the show-segments section so both layer independently.
         """
         prompt = self.get_system_prompt()
-        if self._podcast_wants_show_segments(slug):
+        if self._podcast_wants(slug, 'detect_show_segments', 'detect_show_segments'):
             prompt = f"{prompt}\n\n{SHOW_SEGMENTS_PROMPT_SECTION}"
         if self._podcast_wants(slug, 'snip_short_asks', 'snip_short_asks'):
             prompt = f"{prompt}\n\n{SHORT_ASKS_PROMPT_SECTION}"
@@ -2994,7 +2982,7 @@ class AdDetector:
         return canonical_sponsor(sponsor)
 
     def _sponsor_blocked_by_gates(
-        self, sponsor: str, active_pattern_sponsors: set
+        self, sponsor: str, active_pattern_sponsors: set, registry_names: set
     ) -> bool:
         """Apply Gate A (prefix-of-known) and Gate B (unknown short single word).
 
@@ -3010,17 +2998,10 @@ class AdDetector:
                     return True
 
         # Gate B: reject single short words for unknown sponsors.
-        # "Known" means the sponsor is in the sponsor registry, has an
-        # existing active pattern, or is in the curated short-brand seed.
+        # "Known" is defined once in is_known_single_word_sponsor.
         words = sponsor.strip().split()
         if len(words) == 1 and len(sponsor.strip()) < 6:
-            sponsor_lower = sponsor.strip().lower()
-            is_known = (
-                (self.sponsor_service and self.sponsor_service.find_sponsor_in_text(sponsor))
-                or sponsor_lower in active_pattern_sponsors
-                or sponsor_lower in KNOWN_SHORT_BRANDS
-            )
-            if not is_known:
+            if not is_known_single_word_sponsor(sponsor, registry_names, active_pattern_sponsors):
                 logger.info(f"Skipping pattern for unknown short sponsor: '{sponsor}'")
                 return True
 
@@ -3112,6 +3093,8 @@ class AdDetector:
             active_pattern_sponsors = self.db.get_active_pattern_sponsors() if self.db else set()
         except Exception:
             active_pattern_sponsors = set()
+        registry_names = (registry_name_set(self.sponsor_service.get_sponsors())
+                          if self.sponsor_service else set())
 
         min_piece_s = (
             self.db.get_setting_float('learning_min_pattern_duration', LEARNING_MIN_PATTERN_DURATION)
@@ -3128,7 +3111,7 @@ class AdDetector:
             if not sponsor:
                 continue
 
-            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors):
+            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors, registry_names):
                 continue
 
             if candidate.get('_member_of'):

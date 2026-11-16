@@ -442,8 +442,7 @@ class PatternMixin:
 
     def delete_conflicting_corrections(self, podcast_id: int, episode_id: str, correction_type: str,
                                         bounds_start: float, bounds_end: float) -> int:
-        """Delete conflicting corrections; return how many (see
-        delete_conflicting_correction_rows)."""
+        """Delete conflicting corrections; return how many."""
         return len(self.delete_conflicting_correction_rows(
             podcast_id, episode_id, correction_type, bounds_start, bounds_end))
 

@@ -2,14 +2,21 @@
 import logging
 import math
 
+from rapidfuzz import fuzz
+
 from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
 from storage import PathContainmentError, Storage
 from text_pattern_matcher import split_template_text
+from utils.markers import own_marker_span, usable_span
 from utils.text import extract_timed_spans_in_range
 
 logger = logging.getLogger('podcast.pattern_audio')
 
 RETAINED_MATCH_CANDIDATES = 20
+# Minimum alignment score (0-100) for a template to count as found despite transcription differences
+FUZZY_LOCATE_FLOOR = 88.0
+# Shorter templates score too easily against unrelated text, so they must match exactly
+FUZZY_LOCATE_MIN_CHARS = 40
 
 
 def resolve_retained_original(db, storage, slug, episode_id, episode=None):
@@ -22,11 +29,6 @@ def resolve_retained_original(db, storage, slug, episode_id, episode=None):
     except PathContainmentError:
         return None, 'original_not_retained'
     return (path, None) if path.exists() else (None, 'original_not_retained')
-
-
-def usable_span(start, end):
-    return (isinstance(start, (int, float)) and isinstance(end, (int, float))
-            and math.isfinite(start) and math.isfinite(end) and end > start)
 
 
 def candidate_spans(db, pattern_id, fingerprint, in_scope_only=False, recorded_first=False):
@@ -103,34 +105,62 @@ def _edge_time(spans, words, offsets, i, char_pos, fallback):
     return seg['start'] + frac * (seg['end'] - seg['start'])
 
 
-def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, locate=False):
-    """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
-    # locate: the templates were cut from the span by something other than split_template_text
-    if not locate and (len(pattern_ids) < 2 or not text or len(split_template_text(text)) < 2):
-        return {pid: (start, end) for pid in pattern_ids}
-    spans = extract_timed_spans_in_range(
-        db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
-    words = [' '.join(span['text'].split()) for span in spans]
-    joined = ' '.join(words)
+def _find_text(joined, template, after, fuzzy):
+    """(lo, hi) of template in joined at or after `after`: exact, else a strict fuzzy alignment when allowed."""
+    lo = joined.find(template, after)
+    if lo >= 0:
+        return lo, lo + len(template)
+    if not fuzzy or len(template) > len(joined) - after:
+        return None
+    alignment = fuzz.partial_ratio_alignment(template, joined[after:], score_cutoff=FUZZY_LOCATE_FLOOR)
+    if alignment is None or alignment.dest_end <= alignment.dest_start:
+        return None
+    return after + alignment.dest_start, after + alignment.dest_end
+
+
+def _norm(text):
+    return ' '.join((text or '').split())
+
+
+def _timed_words(db, slug, episode_id, start, end):
+    """(spans, words, joined text, word offsets) of the transcript between start and end."""
+    spans = extract_timed_spans_in_range(db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
+    words = [_norm(span['text']) for span in spans]
     offsets = []
     offset = 0
     for word in words:
         offsets.append(offset)
         offset += len(word) + 1
+    return spans, words, ' '.join(words), offsets
+
+
+def _covered_segments(words, offsets, lo, hi):
+    return [i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < hi]
+
+
+def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, locate=False):
+    """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
+    # locate: the templates were cut from the span by something other than split_template_text
+    if not locate and (len(pattern_ids) < 2 or not text or len(split_template_text(text)) < 2):
+        return {pid: (start, end) for pid in pattern_ids}
+    spans, words, joined, offsets = _timed_words(db, slug, episode_id, start, end)
     found = {}
     patterns = db.get_ad_patterns_by_ids(pattern_ids)
     after = 0
     for pid in pattern_ids:
         pattern = patterns.get(pid) or {}
-        template = ' '.join((pattern.get('text_template') or '').split())
+        template = _norm(pattern.get('text_template'))
         # split children come in text order, so a repeat inside an earlier child is not theirs
-        lo = joined.find(template, after if locate else 0) if template else -1
-        if locate and lo >= 0:
-            after = lo + len(template)
-        covered = [] if lo < 0 else [
-            i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < lo + len(template)]
+        fuzzy = locate and len(template) >= FUZZY_LOCATE_MIN_CHARS
+        where = _find_text(joined, template, after if locate else 0, fuzzy) if template else None
+        if where is None:
+            continue
+        lo, hi = where
+        if locate:
+            after = hi
+        covered = _covered_segments(words, offsets, lo, hi)
         if covered:
-            found[pid] = (lo, lo + len(template), covered[0], covered[-1])
+            found[pid] = (lo, hi, covered[0], covered[-1])
     own = dict.fromkeys(pattern_ids)
     previous_last, previous_end = None, start
     for pid, (lo, hi, first, last) in sorted(found.items(), key=lambda item: item[1][:2]):
@@ -179,18 +209,83 @@ def store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force
 def _usable_fingerprint_row(conn, pattern_id):
     """The pattern's fingerprint row when it is on and its audio was not deleted, else None."""
     return conn.execute(
-        "SELECT af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end "
+        "SELECT ap.id, af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end, "
+        "ap.podcast_id, ap.created_from_episode_id, ap.text_template "
         "FROM audio_fingerprints af JOIN ad_patterns ap ON ap.id = af.pattern_id "
         "WHERE af.pattern_id = ? AND af.enabled = 1 AND ap.audio_removed = 0", (pattern_id,)).fetchone()
 
 
-def rebuild_audio_source(db, conn, pattern_id):
-    """(source, wanted): the recorded source if retained, else a retained in-scope match."""
+def locate_template_span(db, slug, episode_id, template, timed=None):
+    """The whole-segment (start, end) of template verbatim in an episode's transcript, else None; timed is a parsed transcript."""
+    template = _norm(template)
+    if not template:
+        return None
+    spans, words, joined, offsets = timed or _timed_words(db, slug, episode_id, 0, math.inf)
+    where = _find_text(joined, template, 0, False)
+    covered = _covered_segments(words, offsets, *where) if where else []
+    if not covered:
+        return None
+    span = (spans[covered[0]]['start'], spans[covered[-1]]['end'])
+    return span if usable_span(*span) else None
+
+
+def _creating_episode(db, storage, pattern):
+    """The pattern's creating episode with its retained original, else None."""
+    if not pattern:
+        return None
+    slug, episode_id = pattern['podcast_id'], pattern['created_from_episode_id']
+    if not slug or not episode_id:
+        return None
+    episode = db.get_episode(slug, episode_id)
+    path, err = resolve_retained_original(db, storage, slug, episode_id, episode)
+    return None if err else {'slug': slug, 'episode_id': episode_id, 'episode': episode, 'path': path}
+
+
+def _creating_source(created, span):
+    if span is None:
+        return None
+    return {'podcastSlug': created['slug'], 'episodeId': created['episode_id'],
+            'start': span[0], 'end': span[1], 'path': created['path'], 'derived': True}
+
+
+def _located_source(db, created, text):
+    if 'timed' not in created:
+        created['timed'] = _timed_words(db, created['slug'], created['episode_id'], 0, math.inf)
+    return _creating_source(created, locate_template_span(
+        db, created['slug'], created['episode_id'], text, timed=created['timed']))
+
+
+def creating_episode_source(db, storage, pattern, *, created=None, skip_locate=False):
+    """Source in the pattern's creating episode: where its text is, else its own marker; created/skip_locate reuse earlier work."""
+    created = created or _creating_episode(db, storage, pattern)
+    if created is None:
+        return None
+    found = None if skip_locate else _located_source(db, created, pattern['text_template'])
+    return found or _creating_source(created, own_marker_span(created['episode'], pattern['id']))
+
+
+def _same_text(a, b):
+    return _norm(a) == _norm(b)
+
+
+def rebuild_audio_source(db, conn, pattern_id, *, prefer_text=None):
+    """(source, wanted): the recorded source if retained, else an in-scope match, else the creating episode.
+
+    prefer_text is the pre-edit template of a trim or split; its wording came from the creating episode, so that leads.
+    """
     row = _usable_fingerprint_row(conn, pattern_id)
     if row is None:
         return None, False
-    found = first_retained_source(
-        db, Storage(), candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
+    storage = Storage()
+    created = _creating_episode(db, storage, row) if prefer_text else None
+    found = _located_source(db, created, prefer_text) if created else None
+    if found is None:
+        found = first_retained_source(
+            db, storage, candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
+    if found is None and not (prefer_text and created is None):
+        found = creating_episode_source(
+            db, storage, row, created=created,
+            skip_locate=bool(prefer_text) and _same_text(prefer_text, row['text_template']))
     if found is None:
         return None, True
     return {'slug': found['podcastSlug'], 'episode_id': found['episodeId'],
@@ -200,6 +295,11 @@ def rebuild_audio_source(db, conn, pattern_id):
 def unresolved_audio_outcomes(pattern_id):
     """The outcome reported for a pattern whose audio is on but has no retained source to rebuild from."""
     return [(pattern_id, FingerprintStoreResult(False, 'original_not_retained'))]
+
+
+def turned_off_audio_outcomes(pattern_id):
+    """The outcome for a trim with no retained source that switched the old fingerprint off."""
+    return [(pattern_id, FingerprintStoreResult(False, 'audio_turned_off'))]
 
 
 def carry_audio_to_children(db, source, child_ids):

@@ -12,7 +12,7 @@ from database.settings import registry_default, registry_get_default
 
 logger = logging.getLogger('podcast.api')
 
-KNOWN_KINDS = ('trim', 'split', 'rename', 'retire', 'flag', 'category')
+KNOWN_KINDS = ('trim', 'split', 'rename', 'retire', 'flag', 'category', 'unnamed_sponsor')
 KNOWN_STATUSES = ('pending', 'approved', 'rejected', 'undone')
 
 

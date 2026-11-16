@@ -911,7 +911,7 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
 });
 
 describe('FeedSettingsPanel short-asks tri-state control', () => {
-  const NAME = 'Remove short host asks and sponsor thanks';
+  const NAME = 'Detect short host asks and sponsor thanks';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -925,8 +925,9 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
 
     const group = screen.getByRole('radiogroup', { name: NAME });
     await waitFor(() => {
-      expect(within(group).getByRole('radio', { name: 'Use global setting (currently On)' }).getAttribute('aria-checked')).toBe('true');
+      expect(within(group).getByRole('radio', { name: 'Inherit' }).getAttribute('aria-checked')).toBe('true');
     });
+    expect(await within(group.parentElement as HTMLElement).findByText('Following the global setting (currently on).')).toBeDefined();
   });
 
   it('selecting On fires updateFeed with snipShortAsks true', async () => {
@@ -945,7 +946,7 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
     renderPanel(makeFeed({ snipShortAsks: true }));
     const group = screen.getByRole('radiogroup', { name: NAME });
     expect(within(group).getByRole('radio', { name: 'On' }).getAttribute('aria-checked')).toBe('true');
-    await userEvent.click(await within(group).findByRole('radio', { name: 'Use global setting (currently Off)' }));
+    await userEvent.click(await within(group).findByRole('radio', { name: 'Inherit' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { snipShortAsks: null });
   });
 
@@ -954,10 +955,11 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
     mockGetSettings.mockReturnValue(new Promise((r) => { resolve = r; }));
     renderPanel(makeFeed());
     const group = screen.getByRole('radiogroup', { name: NAME });
-    expect(within(group).getByRole('radio', { name: 'Use global setting' })).toBeDefined();
-    expect(within(group).queryByRole('radio', { name: /currently/ })).toBeNull();
+    const holder = group.parentElement as HTMLElement;
+    expect(within(holder).getByText('Following the global setting.')).toBeDefined();
+    expect(within(holder).queryByText(/currently/)).toBeNull();
     resolve({ snipShortAsks: { value: true, isDefault: false } });
-    await within(group).findByRole('radio', { name: 'Use global setting (currently On)' });
+    await within(holder).findByText('Following the global setting (currently on).');
   });
 });
 

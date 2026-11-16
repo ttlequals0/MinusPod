@@ -8,21 +8,54 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
-
-### Added
-
-- Episode webhook payloads (Episode Processed, Episode Failed, Episode Awaiting Approval, Episode Pending Review) carry `podcast.auto_process`, a boolean that is `false` when the podcast is processed on demand. It combines the podcast's auto-process override with the global setting, and is `null` if it could not be read; the event is still sent. Custom payload templates can use `{{ podcast.auto_process }}`.
+## [2.102.6] - 2026-11-16
 
 ### Changed
 
-- A cut row on the episode page says what your confirm or reject did. A reject reads "Marked not an ad: the audio comes back at the next recut" and offers Recut now. Contributed by no84by. (#1007)
-- The confidence on an episode row shows the model's value and the value after review on hover when the two differ. Contributed by no84by. (#1007)
-- A 5-star rating can be stored without confirming cuts or dismissing held markers. Picking 5 stars shows "Confirm all cuts and dismiss held ones", ticked by default. Untick it to store the rating alone. `PUT /feeds/{slug}/episodes/{episode_id}/rating` accepts `confirm_markers`, and leaving it out behaves as before. Contributed by no84by. (#1007)
+- The short host asks setting is now labelled "Detect short host asks and sponsor thanks". Its help text says that each flagged marker follows the action set for its category, so a category set to Keep leaves the ask in the audio. How the setting works has not changed.
+
+## [2.102.5] - 2026-11-16
+
+### Added
+
+- A new setting, Remove short host asks and sponsor thanks, is off by default and can be set globally or per feed. When it is on, the model may flag a 2 to 40 second subscribe or rating ask, a plug for the host's own work, or a sponsor thank-you with `short_ask`. A flagged marker keeps its normal category and can be as short as 2 seconds. It is cut on sentence edges within 1.5 seconds of the model's edges (0.5 seconds for an ask under 3 seconds). If no sentence edge is that close, the flag is dropped and the usual length floors apply. The episode page shows a Short ask chip on these markers. API: `snipShortAsks` on `PUT /api/v1/settings/ad-detection` and on the feed `PATCH` (true, false or null), and `short_ask` on episode markers. See [Configuration](docs/configuration.md). (#1006)
+- Held for review markers can be widened by hand. A new setting, "Widen held ads by (seconds)" under Settings, Global defaults (`heldWidenSeconds`, 0 to 120, default 0), controls it. The held editor can move a held marker's edges that many seconds past its reviewed span, stopping at decided or kept neighbours and at the episode edges. Above 0, adjusting a held marker also approves it at the adjusted bounds. At 0 the editor works as before. The episode response carries each held marker's window as `allowedBounds`. (#1008)
+- Episode webhook payloads (Episode Processed, Episode Failed, Episode Awaiting Approval, Episode Pending Review) carry `podcast.auto_process`, a boolean that is `false` when the podcast is processed on demand. It combines the podcast's auto-process override with the global setting, and is `null` if it could not be read; the event is still sent. Custom payload templates can use `{{ podcast.auto_process }}`. (#1025)
+- Pattern Cleanup suggests removing a sponsor that a pattern's own text never names. The check needs no model call: it looks for the sponsor's name, its aliases, and a domain or promo code that backs the name. Approving clears the sponsor and keeps the pattern active, and Undo restores it. The suggestion kind is `unnamed_sponsor` in the API. (#1023)
 
 ### Fixed
 
+- Approving a cleanup trim or split now updates the audio fingerprint of a pattern whose fingerprint has no recorded source. These fingerprints were stored before the source episode was recorded, and the audio step reported the original as not retained even when it was on disk. The audio is now rebuilt from the episode the pattern was learned from.
+- A cleanup split gives each new pattern its own audio. When the parent's audio came from a match in another episode, the pieces were looked up by exact text in that episode's transcript and none were found.
+- `GET /patterns/{id}/audio` and the audio preview use that same source for such a pattern. They reported no retained original.
+- A blank system prompt no longer sends an empty system message (OpenAI-compatible and Ollama) or an empty `system` parameter (Anthropic). Some gateways reject an empty system block with a 400. Contributed by no84by. (#1003)
+- The pre-roll detector finds the show's opening line in feeds whose title has a subtitle, such as "Show Name: The Weekly Talk". It tries the main title first, then the full title. Contributed by no84by. (#1004)
+- The reviewer's inward trim of a DAI pre-roll is accepted when it lands on the edge the transcript differential confirmed. The cut could keep the first words of the show. Contributed by no84by. (#1004)
+- A Whisper repetition loop is no longer read as transcript. Text-pattern matching and the validator skip runs of 8 or more short, near-identical cues. When a marker is mostly inside loops and has no measured evidence or decision of yours behind it, the text outside the loops decides. Ad language there trims the marker to that read. A sponsor name alone, or ad language in the loop text itself, holds it with the new reason `transcript_loop`. With neither, it is rejected. Contributed by no84by. (#1005)
 - Feed settings name no global value in "Use global" and "Inherit global" labels until the global settings have loaded. A wrong value could show for a moment. Contributed by no84by. (#1007)
+- Recut no longer applies a stored adjustment that is under 1 second or that a newer confirm of the same span replaced. Each skipped adjustment is logged. (#1008)
+- Rejecting a span clears the approval of a held marker whose confirm the reject removed, so the episode no longer reads as confirmed for a span the recut will not cut. (#1008)
+- When several detections clamp to the same approved span, validation keeps one marker for it. (#1008)
+- Automatic learning no longer saves an ordinary word as a sponsor. A new one-word sponsor name is accepted only when the ad text ties it to a brand: a domain, a spoken "dot com", or a promo code that contains the name. A close transcriber spelling of the domain counts. Names already in the sponsor list, the seed list or an active pattern, and a sponsor typed in the review modal, are learned as before. (#1023)
+- A one-word sponsor no longer makes a clean read look like two ads. Pattern learning counts it as a second advertiser only when the text gives it a domain or a promo code, or introduces it with a phrase such as "brought to you by". A read that said "365 day returns" twice was refused as multi-brand when a sponsor named Day existed. (#1023)
+- A guessed one-word sponsor is no longer saved without that evidence. This covers a confirmed span that holds several ads, a split in the review modal with no sponsor typed, and a split from the Patterns page. The piece is saved with no sponsor. (#1023)
+- A sponsor is promoted to a global pattern only from patterns whose own text names it. A wrong label on three shows could produce a global pattern for an unrelated read. (#1023)
+- The check on short one-word sponsor names reads the same list of known sponsors as the one-word rule, so a seeded brand under 6 characters is learned without its own allow-list entry.
+
+### Changed
+
+- The "Source audio expired" note sits beside the Add audio to pattern button, so the button lines up with the other buttons in its row.
+- A cleanup trim shortens the pattern's stored duration: to the length of the rebuilt audio, or in proportion to the shorter text when no audio was rebuilt. Matching uses the stored duration to place a missing edge, so a trimmed pattern could still cut its old, longer span. Undo restores the earlier duration unless later matches have changed it.
+- Each cleanup approval and undo logs what happened to the audio. `GET /patterns/cleanup/suggestions` returns it in `applied.audioOutcomes` and `applied.undoAudioOutcomes`, with `applied.previousAvgDuration` and `applied.fittedAvgDuration` for trims.
+- The manual pattern split picks its audio source the same way as a cleanup split.
+- A cleanup trim turns the pattern's audio off when no retained episode has that audio. The old audio still matched the part the trim removed. Its data and match history are kept, and undo turns it back on unless the audio changed in between. The approval reports `audio_turned_off`, and `applied.audioDisabled` records it.
+- A cut row on the episode page says what your confirm or reject did. A reject reads "Marked not an ad: the audio comes back at the next recut" and offers Recut now. Contributed by no84by. (#1007)
+- The confidence on an episode row shows the model's value and the value after review on hover when the two differ. Contributed by no84by. (#1007)
+- A 5-star rating can be stored without confirming cuts or dismissing held markers. Picking 5 stars shows "Confirm all cuts and dismiss held ones", ticked by default. Untick it to store the rating alone. `PUT /feeds/{slug}/episodes/{episode_id}/rating` accepts `confirm_markers`, and leaving it out behaves as before. Contributed by no84by. (#1007)
+- The held editor shows the allowed range and has a "Save, cut later" button that never starts a recut. The reason a marker is held is shown as text under its badges, and a held marker that overlaps another held marker says so. (#1008)
+- An adjust or a trimmed confirm that is shorter than 1 second, reversed, or outside the episode is refused with a 400. (#1008)
+- The corrections response includes `recut_pending` and the marker's stored state as `marker`. (#1008)
+- Dependency updates: ctranslate2 4.9.0, gunicorn 27.0.1, openai 3.50.0, pytest 9.2.0, soupsieve 4.1, swagger-ui-dist 5.34.1, lucide-react 1.72.0, wavesurfer.js 8.1.0, msw 3.0.5 and globals 17.14.0 (#1013 to #1022). gunicorn 27 answers a request whose `Transfer-Encoding` does not end in `chunked` with a 400.
 
 ## [2.102.4] - 2026-11-14
 

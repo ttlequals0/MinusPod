@@ -12,8 +12,8 @@ from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_detector.cue_cut_ads import synthesize_ads_from_cue_matches
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
+from ad_detector.short_ask_clamp import clamp_short_ask
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
-from utils.short_asks import clamp_short_ask
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
     CHAPTER_TRIM_SOURCES, CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
@@ -46,8 +46,9 @@ from llm_client import (
 )
 
 from utils.correction_guard import usable_confirmed_corrections
-from utils.markers import parse_ad_markers
+from utils.markers import held_review_window, parse_ad_markers
 from utils.errors import ServiceUnavailableError
+from utils.short_asks import is_clampable_short_ask, unflag
 
 from webhook_service import fire_cue_template_quiet_event
 
@@ -395,7 +396,11 @@ def _clamp_short_asks(ads, segments, masters=None):
         if ad.get('short_ask') is not True:
             continue
         master = cuts._find_master(masters, ad) if masters else None
-        clamp_short_ask(ad, segments)
+        # A merge that outgrew the length cap is no short ask; clamping it would cut it back to the origin.
+        if is_clampable_short_ask(ad):
+            clamp_short_ask(ad, segments)
+        else:
+            unflag(ad)
         if master is None or master is ad:
             continue
         master['start'], master['end'] = ad['start'], ad['end']
@@ -476,17 +481,16 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
 
 def _usable_confirmed(slug, episode_id, db, confirmed, false_positive_spans,
                       episode=None):
-    """Confirmed corrections minus the legacy ones (under a second, superseded,
-    and, with held_widen_seconds set, outside a held marker's window)."""
+    """Confirmed corrections minus legacy ones (under 1 s, superseded, or outside a widened held window)."""
     if not confirmed:
         return confirmed
-    # Module-level import would be a cycle: api imports the pipeline.
-    from api.patterns import held_review_window
     if episode is None:
         episode = db.get_episode(slug, episode_id) or {}
     markers = parse_ad_markers(episode.get('ad_markers_json')) or []
-    window_for = None if resolve_held_widen_seconds() <= 0 else (
-        lambda m: held_review_window(db, episode, markers, m, false_positive_spans))
+    widen_s = resolve_held_widen_seconds(db)
+    cap = resolve_max_boundary_shift(db)
+    window_for = None if widen_s <= 0 else (
+        lambda m: held_review_window(episode, markers, m, false_positive_spans, widen_s, cap))
     return usable_confirmed_corrections(
         confirmed, markers, window_for, label=f"[{slug}:{episode_id}] ")
 

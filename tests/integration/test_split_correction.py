@@ -238,3 +238,30 @@ class TestSplitting:
         bounds = [(m['start'], m['end']) for m in _markers(merged)]
         assert (900.0, 930.0) in bounds
         assert len(bounds) == 3
+
+
+DAY_ADS = _vtt(
+    (100.0, 145.0, 'This episode is brought to you by Day. Day has 365 day returns on everything.'),
+    (145.0, 190.0, 'Thanks for listening, see you next week on the show.'),
+)
+
+
+class TestSponsorEvidence:
+    def _first_piece_sponsor_id(self, client, ref, pieces):
+        db = ref['db']
+        db.save_episode_details(ref['slug'], ref['episodeId'], transcript_text=DAY_ADS)
+        resp = _split(client, ref, [145.0], pieces=pieces)
+        assert resp.status_code == 200
+        marker = _markers(ref)[0]
+        return db.get_ad_pattern_by_id(marker['pattern_id'])['sponsor_id']
+
+    def test_guessed_unbacked_sponsor_gets_no_row(self, app_client, merged):
+        assert self._first_piece_sponsor_id(app_client, merged, [{}, {}]) is None
+
+    def test_typed_sponsor_keeps_row(self, app_client, merged):
+        sid = self._first_piece_sponsor_id(app_client, merged, [{'sponsor': 'Day'}, {}])
+        assert sid is not None
+
+    def test_typed_sponsor_absent_from_piece_text_keeps_row(self, app_client, merged):
+        sid = self._first_piece_sponsor_id(app_client, merged, [{'sponsor': 'Acme'}, {}])
+        assert sid is not None

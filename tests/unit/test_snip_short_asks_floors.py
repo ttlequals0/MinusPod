@@ -139,6 +139,15 @@ class TestRefineClamp:
         out = detect._clamp_short_asks([ad], _segs())
         assert out[0]['end'] == 106.0 and out[0]['short_ask'] is True
 
+    def test_a_merged_marker_past_the_length_cap_is_not_clamped_as_a_short_ask(self):
+        ad = _flagged(start=100.0, end=106.0)
+        ad['end'] = 160.0
+        master = dict(ad)
+        out = detect._clamp_short_asks([ad], _segs(), masters=[master])
+        assert (out[0]['start'], out[0]['end']) == (100.0, 160.0)
+        assert 'short_ask' not in out[0] and 'short_ask' not in master
+        assert 'short_ask_origin' not in master
+
     def test_no_sentence_edge_drops_the_flag(self):
         segs = [{'start': 99.0, 'end': 103.0, 'text': 'if you like the show and'},
                 {'start': 103.0, 'end': 108.0, 'text': 'want more then'}]

@@ -4,7 +4,7 @@ import type { SegmentCategory } from '../utils/segmentCategory';
 
 export const patternCleanupQueryKey = ['patternCleanup'] as const;
 
-export type CleanupKind = 'trim' | 'split' | 'rename' | 'retire' | 'flag' | 'category';
+export type CleanupKind = 'trim' | 'split' | 'rename' | 'retire' | 'flag' | 'category' | 'unnamed_sponsor';
 export type CleanupStatus = 'pending' | 'approved' | 'rejected' | 'undone';
 
 export interface PatternCleanupSettings {
@@ -50,6 +50,7 @@ export interface TrimPayload { text: string; sponsor?: string; category?: Segmen
 export interface SplitPayload { pieces: Array<{ text: string; sponsor: string; category?: SegmentCategory }> }
 export interface RenamePayload { sponsor: string; category?: SegmentCategory }
 export interface CategoryPayload { category: SegmentCategory }
+export interface UnnamedSponsorPayload { sponsor: string }
 export interface RetirePayload {
   unusedDays: number;
   lastMatchedAt: string | null;
@@ -99,7 +100,7 @@ export interface PatternCleanupSuggestion extends FingerprintOutcome {
   status: CleanupStatus;
   confidence: number | null;
   reasons: string[];
-  payload: TrimPayload | SplitPayload | RenamePayload | RetirePayload | FlagPayload | CategoryPayload;
+  payload: TrimPayload | SplitPayload | RenamePayload | RetirePayload | FlagPayload | CategoryPayload | UnnamedSponsorPayload;
   before: CleanupBefore | null;
   applied: Record<string, unknown> | null;
   createdAt: string;

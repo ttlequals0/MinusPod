@@ -2101,8 +2101,6 @@ STAGE_TUNABLE_DEFAULTS = {
     # detection window geometry (global, not per-stage)
     'window_size_seconds': WINDOW_SIZE_SECONDS,
     'window_overlap_seconds': WINDOW_OVERLAP_SECONDS,
-    # Seconds each way a held marker's edges may move past the reviewed span; above 0 an adjust also approves.
-    'held_widen_seconds': 0.0,
 }
 
 STAGE_TUNABLE_ENV_VARS = {key: key.upper() for key in STAGE_TUNABLE_DEFAULTS}
@@ -2145,7 +2143,6 @@ STAGE_TUNABLE_RANGES = {
     # envelope the resolver checks against.
     'window_size_seconds': (120, 10800),
     'window_overlap_seconds': (0, 1770),
-    'held_widen_seconds': (0.0, 120.0),
 }
 
 STAGE_TUNABLE_REASONING_LEVELS = {"none", "low", "medium", "high"}
@@ -2170,7 +2167,7 @@ def _coerce_tunable(key: str, raw: Any, source_label: str) -> Any | None:
         return None
 
     range_ = STAGE_TUNABLE_RANGES.get(key)
-    if key.endswith('_temperature') or isinstance(STAGE_TUNABLE_DEFAULTS.get(key), float):
+    if key.endswith('_temperature'):
         try:
             v: Any = float(raw_str)
         except ValueError:
@@ -2297,13 +2294,19 @@ STAGE_TUNABLE_PAYLOAD_KEYS = (
     ('ollamaNumCtx',                   'ollama_num_ctx',                  'ollama_ctx'),
     ('windowSizeSeconds',              'window_size_seconds',             'int'),
     ('windowOverlapSeconds',           'window_overlap_seconds',          'int'),
-    ('heldWidenSeconds',               'held_widen_seconds',              'float'),
 )
 
 
-def resolve_held_widen_seconds(settings: dict | None = None) -> float:
-    """Seconds a human may widen a held marker's edges past the reviewed span."""
-    return float(get_stage_tunable('held_widen_seconds', settings=settings))
+HELD_WIDEN_MAX_SECONDS = 120.0
+
+
+def resolve_held_widen_seconds(db) -> float:
+    """Seconds a human may widen a held marker's edges past the reviewed span; 0.0 on a missing or invalid value."""
+    try:
+        value = float(db.get_setting('held_widen_seconds'))
+    except Exception:
+        return 0.0
+    return value if 0.0 <= value <= HELD_WIDEN_MAX_SECONDS else 0.0
 
 
 def resolve_chapter_geometry(settings: dict | None = None):

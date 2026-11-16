@@ -25,6 +25,9 @@ class SharedSingleton:
             return
         setattr(self._target(), attr, value)
 
+    def __delattr__(self, attr):
+        delattr(self._target(), attr)
+
 
 db = SharedSingleton('db')
 storage = SharedSingleton('storage')

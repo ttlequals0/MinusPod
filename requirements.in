@@ -7,17 +7,17 @@
 
 # Core transcription
 faster-whisper>=1.1.0
-ctranslate2==4.8.5
+ctranslate2==4.9.0
 # Parakeet backend; onnxruntime comes via faster-whisper, GPU image swaps in onnxruntime-gpu
 onnx-asr>=0.12.0
 
 # API and web
 anthropic>=2.6.0
-openai>=3.46.0                  # OpenAI-compatible API (Claude Code wrapper, Ollama)
+openai>=3.50.0                  # OpenAI-compatible API (Claude Code wrapper, Ollama)
 flask>=3.1.3
 flask-compress>=1.26
 flask-limiter>=3.5.0
-gunicorn==26.2.0
+gunicorn==27.0.1
 requests>=2.34.2
 httpx==0.28.1
 
@@ -60,7 +60,7 @@ jaraco.context>=6.1.0
 wheel>=0.48.0
 urllib3>=2.8.0                 # CVE-2026-44431, CVE-2026-44432, CVE-2026-97687, CVE-2026-97688, CVE-2026-97689 (pulled in by requests)
 idna>=3.20                     # CVE-2026-45409 (pulled in by requests)
-soupsieve>=4.0.1               # CVE-2026-85999, CVE-2026-86000 (pulled in by beautifulsoup4)
+soupsieve>=4.1               # CVE-2026-85999, CVE-2026-86000 (pulled in by beautifulsoup4)
 certifi>=2026.10.23            # PYSEC-2026-4320
 anyio>=4.16.0                  # CVE-2026-63374, CVE-2026-64847 (pulled in by anthropic/httpx/openai)
 fsspec>=2026.9.0               # CVE-2026-104851 (pulled in by huggingface-hub)
@@ -71,7 +71,7 @@ werkzeug>=3.1.9                # CVE-2026-102598 (pulled in by flask)
 backports.tarfile>=1.2.0; python_version < "3.12"
 
 # Testing
-pytest>=9.1.1
+pytest>=9.2.0
 pytest-cov>=4.1.0
 pytest-xdist>=3.8.0
 jsonschema>=4.26.0

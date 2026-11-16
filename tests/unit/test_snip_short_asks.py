@@ -1,9 +1,10 @@
 """snip_short_asks: opt-in removal of short host asks and sponsor thanks."""
 import pytest
 
+from ad_detector.short_ask_clamp import clamp_short_ask
 from utils.short_asks import (
     SHORT_ASK_EDGE_CAP_S, SHORT_ASK_MAX_S, SHORT_ASK_MIN_S,
-    clamp_short_ask, floor_for, is_short_ask, stamp_short_ask,
+    floor_for, is_short_ask, stamp_short_ask,
 )
 
 

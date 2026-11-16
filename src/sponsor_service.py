@@ -3,6 +3,8 @@ import re
 import logging
 import threading
 
+from rapidfuzz import fuzz
+
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
     INVALID_SPONSOR_CAPTURE_WORDS,
@@ -12,6 +14,7 @@ from utils.constants import (
     is_non_brand_name,
     REASON_DESCRIPTION_WORDS,
     REASON_DESCRIPTION_MAX,
+    DOMAIN_TLDS,
     SPONSOR_DOMAIN_TLDS,
     MAX_BRAND_WORDS,
     MAX_SPAN_WORDS,
@@ -20,8 +23,11 @@ from utils.constants import (
     mentions_advertising,
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
+    KNOWN_SHORT_BRANDS,
+    canonical_sponsor,
+    SPONSOR_ALIASES,
 )
-from community_export import brand_match_candidates
+from community_export import brand_match_candidates, normalize_aliases
 from utils.text import pattern_offsets, word_boundary_re
 from utils.ttl_cache import TTLCache
 
@@ -39,11 +45,105 @@ _BRAND_RUN_RE = re.compile(
 _DOMAIN_RE = re.compile(
     r'\b([A-Za-z0-9][A-Za-z0-9-]{0,62})\.(?:%s)\b' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)),
     re.IGNORECASE)
+# Label before a TLD in a URL or bare domain ("ventionteams" counts too).
+_URL_BRAND_RE = re.compile(
+    r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)')
+_DOTCOM_RE = re.compile(r'([a-z]+)\s*(?:dot\s*com|\.com)')
+# Written or spoken domain on any spoken TLD; the lookahead keeps "co-founder" out.
+_ANY_TLD_DOMAIN_RE = re.compile(
+    r'([a-z0-9-]+)\s*(?:\.|\s+dot\s+)(?:%s)(?![\w-])' % '|'.join(sorted(DOMAIN_TLDS)))
+_PROMO_CODE_RE = re.compile(
+    r'\b(?:(?:promo|coupon|offer|discount|referral)\s+code|'
+    r'(?:use|enter|with|using)\s+(?:the\s+)?code)\s+(?:is\s+)?([a-z0-9]+)')
 _RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
 _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
 # Parts allowed inside a leading hyphenated descriptor ("Host-read") that is
 # dropped whole; a single non-descriptor part (Full-Circle) keeps the token.
 _HYPHEN_DESCRIPTOR_WORDS = INVALID_SPONSOR_CAPTURE_WORDS | NON_BRAND_WORDS
+
+
+SEED_BRAND_NAMES = frozenset(
+    name.lower() for seed in SEED_SPONSORS for name in [seed['name'], *seed['aliases']])
+
+
+def registry_name_set(rows) -> set[str]:
+    """Lowercase names and aliases of registry rows that can serve as brands."""
+    return {name.lower() for row in rows or [] if not is_non_brand_name(row['name'])
+            for name in [row['name'], *normalize_aliases(row.get('aliases'))]}
+
+
+def is_known_single_word_sponsor(label: str, registry_names, active_pattern_sponsors) -> bool:
+    """Whether a single-word label is an already known sponsor, directly or as a transcriber misspelling."""
+    keys = {label.strip().lower(), (canonical_sponsor(label.strip()) or '').lower()}
+    return any(key in registry_names or key in active_pattern_sponsors
+               or key in KNOWN_SHORT_BRANDS or key in SEED_BRAND_NAMES for key in keys)
+
+
+_LABEL_PREFIXES = ('try', 'get', 'join', 'go', 'use', 'shop', 'my', 'the')
+_LABEL_SUFFIXES = ('app', 'hq', 'teams')
+# Shorter names must equal the label so "day" never rides on "today" or "holidaydeals".
+_EXACT_NAME_MAX_CHARS = 4
+_FUZZY_NAME_MIN_CHARS = 5
+BRAND_FUZZY_FLOOR = 85.0
+
+
+_NAME_TLD_RE = re.compile(r'\.(?:%s)$' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)), re.IGNORECASE)
+
+
+def _label_forms(label: str) -> set[str]:
+    """A squashed label plus the forms with a leading or trailing filler word removed."""
+    base = squash_brand(label)
+    heads = {base} | {base[len(p):] for p in _LABEL_PREFIXES if base.startswith(p)}
+    forms = heads | {h[:-len(x)] for h in heads for x in _LABEL_SUFFIXES if h.endswith(x)}
+    return {f for f in forms if f}
+
+
+def _name_variants(name: str, aliases) -> set[str]:
+    """Squashed name, its aliases and the transcriber spellings that share its canonical name."""
+    canon = canonical_sponsor(name)
+    names = [name, *aliases, canon,
+             *(k for k, v in SPONSOR_ALIASES.items() if v == canon)]
+    # A row named by its domain ("acme.com") is evidenced by the bare label.
+    names += [_NAME_TLD_RE.sub('', n) for n in names if n and _NAME_TLD_RE.search(n)]
+    return {k for k in (squash_brand(n or '') for n in names) if k}
+
+
+def _label_backs_name(key: str, label: str, strip_digits: bool) -> bool:
+    forms = _label_forms(label.rstrip('0123456789') if strip_digits else label)
+    if len(key) <= _EXACT_NAME_MAX_CHARS:
+        return key in forms
+    if key in squash_brand(label):
+        return True
+    return len(key) >= _FUZZY_NAME_MIN_CHARS and any(
+        fuzz.ratio(key, f) >= BRAND_FUZZY_FLOOR for f in forms)
+
+
+def has_brand_evidence(name: str, text: str, aliases=()) -> bool:
+    """Whether text ties name (or an alias) to a brand: a domain on it, a spoken domain, or a promo code."""
+    keys = _name_variants(name, aliases) if name else set()
+    if not keys or not text:
+        return False
+    lowered = text.lower()
+    domains = [m.group(1) for regex in (_URL_BRAND_RE, _DOTCOM_RE, _ANY_TLD_DOMAIN_RE)
+               for m in regex.finditer(lowered)]
+    codes = [m.group(1) for m in _PROMO_CODE_RE.finditer(lowered)]
+    return any(_label_backs_name(key, label, strip_digits)
+               for key in keys
+               for labels, strip_digits in ((domains, False), (codes, True))
+               for label in labels)
+
+
+# Sponsorship cues that introduce a brand; "thanks to" is deliberately absent.
+_SPONSOR_CUE = (r"(?:brought\s+to\s+you\s+by|sponsored\s+by|supported\s+by|and\s+by|presented\s+by|"
+                r"is\s+made\s+possible\s+by|support(?:\s+for(?:\s+[\w'-]+){1,6})?\s+comes\s+from)")
+
+
+def has_sponsorship_cue(name: str, text: str) -> bool:
+    """Whether a sponsorship cue directly introduces name ("sponsored by Acme")."""
+    if not name or not text:
+        return False
+    return bool(re.search(rf"\b{_SPONSOR_CUE}[\s,.:;\"'-]*(?:the\s+)?{re.escape(name)}\b",
+                          text, re.IGNORECASE))
 
 
 def _brand_run_words(run: str) -> list[str] | None:
@@ -407,14 +507,12 @@ class SponsorService:
         # Extract domain names from URLs (e.g., "vention" from "ventionteams.com").
         # is_brand_token, not a length floor: these tokens reach boundary
         # extension as advertisers, where a generic web word moves a cut.
-        url_pattern = r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)'
-        for match in re.finditer(url_pattern, text_lower):
+        for match in _URL_BRAND_RE.finditer(text_lower):
             if is_brand_token(match.group(1)):
                 sponsors.add(match.group(1))
 
         # Also look for explicit "dot com" mentions
-        dotcom_pattern = r'([a-z]+)\s*(?:dot\s*com|\.com)'
-        for match in re.finditer(dotcom_pattern, text_lower):
+        for match in _DOTCOM_RE.finditer(text_lower):
             if is_brand_token(match.group(1)):
                 sponsors.add(match.group(1))
 

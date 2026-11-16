@@ -95,3 +95,52 @@ def test_dismiss_clears_approved_residue(temp_db):
     pending, rejected, _accepted, _count = _split(temp_db, slug, eid)
     assert len(rejected) == 1
     assert 'approved' not in rejected[0]
+
+
+def _approve_trimmed(temp_db, slug, eid, start, end, new_start, new_end):
+    from api.patterns import _mark_held_marker_approved
+    podcast_id = temp_db.get_podcast_row(slug)['id']
+    temp_db.create_pattern_correction(
+        correction_type='confirm', episode_id=eid, podcast_id=podcast_id,
+        original_bounds={'start': start, 'end': end},
+        corrected_bounds={'start': new_start, 'end': new_end})
+    _mark_held_marker_approved(temp_db, slug, eid, start, end,
+                               new_start=new_start, new_end=new_end)
+
+
+def test_rejecting_a_trim_confirmed_held_marker_dismisses_it(temp_db):
+    from main_app import app
+    slug, eid = _seed(temp_db, [_held(100.0, 200.0)])
+    _approve_trimmed(temp_db, slug, eid, 100.0, 200.0, 120.0, 180.0)
+
+    with app.test_request_context():
+        _handle_reject_correction(temp_db, slug, eid, {'start': 120.0, 'end': 180.0})
+
+    pending, rejected, _accepted, count = _split(temp_db, slug, eid)
+    assert pending == [] and count == 0
+    assert len(rejected) == 1
+    assert (rejected[0]['start'], rejected[0]['end']) == (100.0, 200.0)
+
+
+def test_unapproving_a_trim_restores_the_merge_spans(temp_db):
+    import copy
+    from api.patterns import _unapprove_held_markers_of
+    marker = _held(100.0, 200.0)
+    marker.update({
+        'merged_distinct_ads': True,
+        'merged_protected_start': 100.0, 'merged_protected_end': 200.0,
+        'merged_member_spans': [{'start': 100.0, 'end': 150.0, 'stage': 'claude'},
+                                {'start': 150.0, 'end': 200.0, 'stage': 'claude'}],
+        'dai_core_spans': [{'start': 100.0, 'end': 200.0}],
+    })
+    before = copy.deepcopy(marker)
+    slug, eid = _seed(temp_db, [marker])
+    _approve_trimmed(temp_db, slug, eid, 100.0, 200.0, 120.0, 180.0)
+    deleted = [{'corrected_bounds': {'start': 120.0, 'end': 180.0},
+                'original_bounds': {'start': 100.0, 'end': 200.0}}]
+
+    _unapprove_held_markers_of(temp_db, slug, eid, deleted)
+
+    restored = json.loads(temp_db.get_episode(slug, eid)['ad_markers_json'])[0]
+    assert {k: restored.get(k) for k in before} == before
+    assert 'reviewer_original_merge' not in restored

@@ -95,6 +95,7 @@ const {
       retire: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
       flag: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
       category: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+      unnamed_sponsor: { proposed: 2, accepted: 1, applied: 0, reverted: 1 },
     },
     usage: { requests: 2, inputTokens: 10, outputTokens: 5, knownCostUsd: '0.1', unknownUsageRequestCount: 0, unknownCostRequestCount: 0 },
     unattributedUsage: null,
@@ -591,6 +592,7 @@ describe('StatsPage ledger filters', () => {
     for (const [action, label] of Object.entries({
       trim: 'Trims', split: 'Splits', rename: 'Sponsor renames',
       retire: 'Retirements', flag: 'Flags', category: 'Category changes',
+      unnamed_sponsor: 'Sponsor removals',
     })) {
       const card = screen.getByRole('heading', { name: label }).parentElement!;
       const values = card.querySelectorAll('dd');

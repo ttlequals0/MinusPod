@@ -1,4 +1,4 @@
-/** Held-for-review result state, Cut now, footer button and overlap warnings (A4, A7). */
+/** Held-for-review result state, footer button and overlap warnings. */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -212,20 +212,10 @@ describe('Held result state', () => {
     expect(screen.queryByTestId('held-result-1')).toBeNull();
   });
 
-  it('Cut now starts a recut', async () => {
-    const user = userEvent.setup();
-    renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, approved: true }, second] }));
-    await user.click(await screen.findByTestId('recut-now-0'));
-    await waitFor(() =>
-      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
-  });
-
-  it('footer Cut is visible and disabled with nothing confirmed', async () => {
+  it('footer recut button is hidden with nothing confirmed', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second] }));
-    const btn = await screen.findByTestId('apply-approved-recut') as HTMLButtonElement;
-    expect(btn.textContent).toBe('Apply confirmed and recut');
-    expect(btn.disabled).toBe(true);
-    expect(btn.getAttribute('title')).toBe('Confirm at least one held span first.');
+    await screen.findByTestId('held-for-review-section');
+    expect(screen.queryByTestId('apply-approved-recut')).toBeNull();
   });
 
   it('footer Cut is enabled and counts confirmed rows', async () => {
@@ -233,52 +223,6 @@ describe('Held result state', () => {
     const btn = await screen.findByTestId('apply-approved-recut') as HTMLButtonElement;
     expect(btn.textContent).toBe('Apply 1 confirmed and recut');
     expect(btn.disabled).toBe(false);
-  });
-
-  it('banner uses the response marker when present', async () => {
-    const user = userEvent.setup();
-    mockSubmitCorrection.mockResolvedValue({
-      message: 'Correction recorded',
-      recut_pending: true,
-      marker: { start: 130, end: 300, approved: true, was_cut: false, hold_reason: 'reviewer_contradiction' },
-    });
-    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second] }));
-    await user.click(await screen.findByTestId('approve-recut-0'));
-    const banner = await screen.findByTestId('held-saved-banner');
-    expect(banner.textContent).toBe('Saved 2:10 - 5:00. Not cut yet.');
-  });
-
-  it('banner says the span was cut when the response says so', async () => {
-    const user = userEvent.setup();
-    mockSubmitCorrection.mockResolvedValue({
-      marker: { start: 130, end: 300, approved: true, was_cut: true, hold_reason: null },
-    });
-    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second] }));
-    await user.click(await screen.findByTestId('approve-recut-0'));
-    expect((await screen.findByTestId('held-saved-banner')).textContent).toBe('Saved 2:10 - 5:00.');
-  });
-
-  it('banner falls back when the response has no marker', async () => {
-    const user = userEvent.setup();
-    mockSubmitCorrection.mockResolvedValue({ message: 'Correction recorded' });
-    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second] }));
-    await user.click(await screen.findByTestId('approve-recut-0'));
-    expect((await screen.findByTestId('held-saved-banner')).textContent).toBe('Saved. Not cut yet.');
-  });
-
-  it('banner falls back when the response body is empty', async () => {
-    const user = userEvent.setup();
-    mockSubmitCorrection.mockResolvedValue(undefined);
-    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second] }));
-    await user.click(await screen.findByTestId('approve-recut-0'));
-    expect((await screen.findByTestId('held-saved-banner')).textContent).toBe('Saved. Not cut yet.');
-  });
-
-  it('banner says cutting now on a one-tap confirm', async () => {
-    const user = userEvent.setup();
-    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));
-    await user.click(await screen.findByTestId('approve-recut-0'));
-    expect((await screen.findByTestId('held-saved-banner')).textContent).toBe('Saved. Cutting now.');
   });
 
   it('one-tap row button reads Confirm and recut', async () => {
@@ -299,7 +243,7 @@ describe('Held overlap warnings', () => {
     expect(w1.textContent).toContain('Overlaps the held span 1:40 - 6:40.');
   });
 
-  it('same-audio pair shows deciding one decides both and no button', async () => {
+  it('same-audio pair shows deciding one decides both', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [
       { ...heldMarker, start: 840, end: 1230 },
       { ...heldMarker, start: 909, end: 1229 },
@@ -307,8 +251,6 @@ describe('Held overlap warnings', () => {
     const w0 = await screen.findByTestId('overlap-warning-0');
     expect(w0.textContent).toBe('Same audio as the held span 15:09 - 20:29. Deciding one decides both.');
     expect(screen.getByTestId('overlap-warning-1').textContent).toContain('Same audio as the held span 14:00 - 20:30.');
-    expect(screen.queryByTestId('drop-overlap-0')).toBeNull();
-    expect(screen.queryByTestId('drop-overlap-1')).toBeNull();
   });
 
   it('no warning for disjoint rows', async () => {
@@ -327,22 +269,14 @@ describe('Held overlap warnings', () => {
     expect(screen.queryByTestId('overlap-warning-0')).toBeNull();
   });
 
-  it('Leave the other in sends a reject for the other row only', async () => {
-    const user = userEvent.setup();
+  it('shows no button for overlap rows', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [
       { ...heldMarker, start: 100, end: 400 },
       { ...heldMarker, start: 300, end: 700 },
     ] }));
     const section = within(await screen.findByTestId('held-for-review-section'));
-    expect(section.getAllByText('Leave the other in')).toHaveLength(2);
-    await user.click(screen.getByTestId('drop-overlap-0'));
-    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
-    const [, , payload] = mockSubmitCorrection.mock.calls[0] as [
-      string, string, { type: string; original_ad: { start: number; end: number } },
-    ];
-    expect(payload.type).toBe('reject');
-    expect(payload.original_ad.start).toBe(300);
-    expect(payload.original_ad.end).toBe(700);
+    expect(section.queryByText('Leave the other in')).toBeNull();
+    expect(screen.queryByTestId('drop-overlap-0')).toBeNull();
   });
 });
 
@@ -355,11 +289,11 @@ describe('Held row with an adjustment that is not approved (old backend)', () =>
     created_at: '2026-01-01T00:00:00Z',
   };
 
-  it('reads Adjusted with the span and not cut yet, and offers the controls', async () => {
+  it('reads Adjusted with the span and not cut yet, and offers reject', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second], corrections: [adjusted] }));
     const line = await screen.findByTestId('held-result-0');
     expect(line.textContent).toContain('Adjusted to 2:10 - 5:00. Not cut yet.');
-    expect(screen.getByTestId('recut-now-0')).toBeTruthy();
+    expect(screen.queryByTestId('recut-now-0')).toBeNull();
     expect(screen.getByTestId('dismiss-0')).toBeTruthy();
     const row0 = screen.getByTestId('held-for-review-section').querySelectorAll('.space-y-3 > div')[0] as HTMLElement;
     expect(within(row0).getByText('Adjusted')).toBeTruthy();
@@ -393,32 +327,13 @@ describe('Held row explains itself in visible text', () => {
   });
 });
 
-describe('Cut now', () => {
-  it('clears the not-cut-yet banner and result line and shows Cutting now', async () => {
+describe('Apply confirmed and recut', () => {
+  it('starts a recut', async () => {
     const user = userEvent.setup();
-    mockReprocessEpisode.mockReturnValue(new Promise(() => {}));
-    mockSubmitCorrection.mockResolvedValue({ marker: { start: 120, end: 360, approved: true, was_cut: false } });
-    const third = { ...heldMarker, start: 900, end: 1000 };
-    renderDetail(makeEpisode({
-      pendingReviewMarkers: [{ ...heldMarker, start: 10, end: 60, approved: true }, second, third],
-    }));
-    await user.click(await screen.findByTestId('approve-recut-1'));
-    expect((await screen.findByTestId('held-saved-banner')).textContent).toContain('Not cut yet');
-    await user.click(screen.getByTestId('recut-now-0'));
-    await waitFor(() => expect(screen.queryByTestId('held-saved-banner')).toBeNull());
-    const line = screen.getByTestId('held-result-0');
-    expect(line.textContent).toContain('Cutting now');
-    expect(line.textContent).not.toContain('Not cut yet');
-    expect(screen.getByTestId('recut-now-0').textContent).toBe('Cutting now');
-    expect(screen.getByTestId('apply-approved-recut').textContent).toBe('Cutting now');
-  });
-
-  it('the footer cut button does the same', async () => {
-    const user = userEvent.setup();
-    mockReprocessEpisode.mockReturnValue(new Promise(() => {}));
     renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, approved: true }, second] }));
     await user.click(await screen.findByTestId('apply-approved-recut'));
-    await waitFor(() => expect(screen.getByTestId('apply-approved-recut').textContent).toBe('Cutting now'));
-    expect(screen.getByTestId('held-result-0').textContent).not.toContain('Not cut yet');
+    await waitFor(() =>
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
+    expect(screen.queryByTestId('recut-now-0')).toBeNull();
   });
 });

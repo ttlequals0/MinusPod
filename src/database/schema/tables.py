@@ -566,7 +566,7 @@ TABLE_DDL['pattern_cleanup_suggestions'] = """CREATE TABLE IF NOT EXISTS pattern
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
     pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag', 'category')),
+    kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag', 'category', 'unnamed_sponsor')),
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'undone')),
     confidence REAL,
     reasons TEXT NOT NULL DEFAULT '[]',
@@ -601,14 +601,21 @@ TABLE_DDL['pattern_cleanup_deleted_actions'] = """CREATE TABLE IF NOT EXISTS pat
 )"""
 
 # One pending suggestion per (pattern, kind); a later run replaces it.
-PATTERN_CLEANUP_INDEXES = (
+CLEANUP_PATTERN_INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_cleanup_suggestions_pattern "
-    "ON pattern_cleanup_suggestions(pattern_id)",
+    "ON pattern_cleanup_suggestions(pattern_id)")
+CLEANUP_STATUS_INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_cleanup_suggestions_status "
-    "ON pattern_cleanup_suggestions(status, created_at)",
+    "ON pattern_cleanup_suggestions(status, created_at)")
+CLEANUP_PENDING_INDEX = (
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
-    "ON pattern_cleanup_suggestions(pattern_id, kind) WHERE status = 'pending'",
-)
+    "ON pattern_cleanup_suggestions(pattern_id, kind) WHERE status = 'pending'")
+# Pending index as the accounting migration leaves it: superseded rows are excluded.
+CLEANUP_PENDING_ACTIVE_INDEX = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
+    "ON pattern_cleanup_suggestions(pattern_id, kind) "
+    "WHERE status = 'pending' AND superseded_at IS NULL")
+PATTERN_CLEANUP_INDEXES = (CLEANUP_PATTERN_INDEX, CLEANUP_STATUS_INDEX, CLEANUP_PENDING_INDEX)
 
 TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -383,6 +383,8 @@ def _build_settings_payload():
         'differential_measured_corr_max', registry_get_default('differential_measured_corr_max'))
     differential_hold_min_seconds = _db_float(
         'differential_hold_min_seconds', registry_get_default('differential_hold_min_seconds'))
+    held_widen_seconds = _db_float(
+        'held_widen_seconds', registry_get_default('held_widen_seconds'))
 
     audio_bitrate = common._setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
     audio_encoder_compression_level = common._setting_value(
@@ -812,6 +814,7 @@ def _build_settings_payload():
         'learningMaxPatternDuration': _sv('learning_max_pattern_duration', learning_max_pattern_duration),
         'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
+        'heldWidenSeconds': _sv('held_widen_seconds', held_widen_seconds),
         'daiDifferentialOverridesKeep': _sv(
             'dai_differential_overrides_keep', dai_differential_overrides_keep),
         'spliceVetoEnabled': _sv('splice_veto_enabled', splice_veto_enabled),

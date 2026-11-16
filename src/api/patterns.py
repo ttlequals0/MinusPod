@@ -17,7 +17,8 @@ from database.fingerprint_cleanup import delete_pattern_dependents
 from database.fingerprint_matches import fingerprint_member_pattern_ids
 from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.markers import (
-    clip_merge_spans, find_marker_in_list, held_marker_window, parse_ad_markers)
+    clip_merge_spans, find_marker_in_list, held_review_window, parse_ad_markers,
+    restore_merge_spans, stash_merge_spans, usable_reviewer_proposal)
 from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from utils.constants import EpisodeStatus
@@ -334,7 +335,9 @@ def split_pattern(pattern_id):
 
     db = get_database()
     matcher = TextPatternMatcher(db=db)
-    source, audio_wanted = rebuild_audio_source(db, db.get_connection(), pattern_id)
+    before = db.get_ad_pattern_by_id(pattern_id)
+    source, audio_wanted = rebuild_audio_source(
+        db, db.get_connection(), pattern_id, prefer_text=(before or {}).get('text_template'))
     new_ids = matcher.split_pattern(pattern_id)
 
     if not new_ids:
@@ -617,7 +620,7 @@ def merge_patterns():
 # First reason present across a request's patterns wins.
 FINGERPRINT_SKIP_PRECEDENCE = (
     'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns', 'span_not_found',
-    'original_not_retained', 'segment_too_short', 'not_distinctive', 'fingerprint_failed',
+    'original_not_retained', 'audio_turned_off', 'segment_too_short', 'not_distinctive', 'fingerprint_failed',
 )
 
 
@@ -731,7 +734,7 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason,
 def _create_patterns_from_segments(
     db, segments, *, scope, podcast_id_str, network_id, episode_id,
     primary_sponsor, primary_sponsor_id=None, created_by=None,
-    category=None, pattern_service=None, log_context,
+    category=None, pattern_service=None, log_context, sponsor_from_reviewer=False,
 ):
     """Create (or dedupe-reuse) one ad_pattern per split_template_text segment.
 
@@ -741,12 +744,15 @@ def _create_patterns_from_segments(
     `primary_sponsor_id` if the caller resolved it; others use their own guessed sponsor.
     Segments over MAX_PATTERN_CHARS are skipped with a warning; segments matching an
     existing pattern (find_pattern_by_text) are reused, and `pattern_service` records the match.
+    A guessed sponsor the segment text does not back as a brand gets no sponsor row. A segment
+    whose sponsor equals the reviewer-typed name, or the primary segment with `primary_sponsor_id`, is vouched.
 
     Returns (primary_id, all_ids) in segment order; (None, []) if every segment was skipped.
     """
     primary_sponsor_lower = primary_sponsor.lower()
     all_ids = []
     primary_id = None
+    matcher = TextPatternMatcher(db=db)
 
     for seg in segments:
         seg_text = seg['text']
@@ -765,14 +771,18 @@ def _create_patterns_from_segments(
             if pattern_service:
                 pattern_service.record_pattern_match(pid, episode_id)
         else:
-            if is_primary_segment:
-                seg_sponsor = primary_sponsor
-                seg_sponsor_id = (
-                    primary_sponsor_id if primary_sponsor_id is not None
-                    else get_or_create_known_sponsor(db, seg_sponsor)
+            seg_sponsor = primary_sponsor if is_primary_segment else seg['sponsor']
+            is_reviewer_name = sponsor_from_reviewer and (seg_sponsor or '').lower() == primary_sponsor_lower
+            vouched = is_reviewer_name or (is_primary_segment and primary_sponsor_id is not None)
+            if seg_sponsor and not vouched and matcher.unbacked_new_brand(seg_sponsor, seg_text):
+                logger.info(
+                    f"Creating pattern without a sponsor: '{seg_sponsor}' has no brand "
+                    f"evidence in its text ({log_context})"
                 )
+                seg_sponsor = None
+            if is_primary_segment and primary_sponsor_id is not None:
+                seg_sponsor_id = primary_sponsor_id
             else:
-                seg_sponsor = seg['sponsor']
                 seg_sponsor_id = (
                     get_or_create_known_sponsor(db, seg_sponsor) if seg_sponsor else None
                 )
@@ -878,7 +888,7 @@ def _submit_correction_create(db, slug, episode_id, data):
             network_id=network_id, episode_id=episode_id,
             primary_sponsor=canonical_sponsor_name, primary_sponsor_id=sponsor_id,
             created_by='user',
-            category=category,
+            category=category, sponsor_from_reviewer=True,
             log_context=f"create correction in {slug}/{episode_id}",
         )
 
@@ -994,6 +1004,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
                 network_id=None, episode_id=episode_id,
                 primary_sponsor=sponsor, created_by='user',
                 pattern_service=pattern_service,
+                sponsor_from_reviewer=bool((override.get('sponsor') or '').strip()),
                 log_context=f"split piece {i + 1} in {slug}/{episode_id}",
             )
             piece_id = ids[0] if ids else None
@@ -1117,6 +1128,7 @@ def _resolve_or_create_pattern_from_text(
             episode_id=episode_id,
             category=category,
             ad_text=ad_text,
+            sponsor_from_reviewer=bool(sponsor_override),
         )
         if not new_pattern_id:
             logger.info(
@@ -1134,49 +1146,19 @@ def _resolve_or_create_pattern_from_text(
         network_id=None, episode_id=episode_id, primary_sponsor=sponsor,
         category=category, pattern_service=pattern_service,
         log_context=f"{label} ad in {slug}/{episode_id}",
+        sponsor_from_reviewer=bool(sponsor_override),
     )
 
 
-def _proposal_overlaps(p_start, p_end, start, end):
-    """True when a numeric proposal span overlaps [start, end]."""
-    return (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
-            and p_end > p_start and p_end > start and p_start < end)
-
-
-def _usable_reviewer_proposal(db, marker, start, end):
-    """A held marker's reviewer proposal, when it is valid, overlaps the
-    detected span, and stays within the reviewer's per-edge shift cap."""
-    # A hold stamps the raw proposal, which never passed the reviewer's clamp.
-    p_start = marker.get('reviewer_proposed_start')
-    p_end = marker.get('reviewer_proposed_end')
-    if not _proposal_overlaps(p_start, p_end, start, end):
-        return None
-    cap = resolve_max_boundary_shift(db)
-    if abs(p_start - start) > cap or abs(p_end - end) > cap:
-        return None
-    return float(p_start), float(p_end)
-
-
-def held_review_window(db, episode, markers, marker, false_positive_spans):
-    """(min, max) a human may set a held marker's edges to, for both the corrections validator and allowedBounds."""
-    proposal = _usable_reviewer_proposal(
-        db, marker, float(marker['start']), float(marker['end']))
-    return held_marker_window(
-        markers, marker, episode.get('original_duration'),
-        episode.get('status') == EpisodeStatus.PROCESSED,
-        proposal=proposal, blocked_spans=false_positive_spans,
-        widen_s=resolve_held_widen_seconds())
-
-
-def _held_window_for(db, slug, episode_id, episode, markers, marker, podcast=None):
+def _held_window_for(db, slug, episode_id, episode, markers, marker, widen_s, cap, podcast=None):
     """held_review_window with the episode's false-positive spans looked up."""
     podcast_row = podcast or db.get_podcast_row(slug)
     fp_spans = (db.get_false_positive_corrections(podcast_row['id'], episode_id)
                 if podcast_row else [])
-    return held_review_window(db, episode, markers, marker, fp_spans)
+    return held_review_window(episode, markers, marker, fp_spans, widen_s, cap)
 
 
-def _validate_span_bounds(db, slug, episode_id, original_ad, adjusted_start, adjusted_end):
+def _validate_span_bounds(episode, adjusted_start, adjusted_end):
     """Error response for a reversed, tiny or off-episode hand-set span, else None (confirm-trim and adjust)."""
     try:
         start, end = float(adjusted_start), float(adjusted_end)
@@ -1189,7 +1171,7 @@ def _validate_span_bounds(db, slug, episode_id, original_ad, adjusted_start, adj
     if end - start < MIN_CORRECTION_SPAN_S:
         return error_response(
             f'The adjusted span must be at least {MIN_CORRECTION_SPAN_S:g}s long.', 400)
-    duration = (db.get_episode(slug, episode_id) or {}).get('original_duration')
+    duration = episode.get('original_duration')
     if start < 0 or (isinstance(duration, (int, float)) and duration > 0 and end > duration):
         return error_response('Adjusted bounds must lie within the episode.', 400)
     return None
@@ -1219,13 +1201,14 @@ def _handle_confirm_correction(
             'Both adjusted_start and adjusted_end are required for a trimmed confirm', 400)
     has_trim = adjusted_start is not None
     if has_trim:
-        bounds_error = _validate_span_bounds(
-            db, slug, episode_id, original_ad, adjusted_start, adjusted_end)
+        episode, markers = _load_episode_markers(db, slug, episode_id)
+        bounds_error = _validate_span_bounds(episode, adjusted_start, adjusted_end)
         if bounds_error:
             return bounds_error
         adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
         # A trim stays inside the held marker's window (held_marker_window); with no held marker, the span +/-0.5 s.
-        episode, markers = _load_episode_markers(db, slug, episode_id)
+        widen_s = resolve_held_widen_seconds(db)
+        cap = resolve_max_boundary_shift(db)
         held_marker = None
         for m in markers or []:
             if _matches_held_marker(m, original_start, original_end, 0.5):
@@ -1233,9 +1216,9 @@ def _handle_confirm_correction(
                 break
         if held_marker is not None:
             win_start, win_end = _held_window_for(
-                db, slug, episode_id, episode, markers, held_marker, podcast)
-            if _usable_reviewer_proposal(
-                    db, held_marker, original_start, original_end) is None:
+                db, slug, episode_id, episode, markers, held_marker, widen_s, cap, podcast)
+            if usable_reviewer_proposal(
+                    held_marker, original_start, original_end, cap) is None:
                 p_start = held_marker.get('reviewer_proposed_start')
                 p_end = held_marker.get('reviewer_proposed_end')
                 if (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
@@ -1344,12 +1327,10 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
     markers = _load_markers(db, slug, episode_id)
     reviewed_pattern_ids = _reviewed_pattern_ids(
         find_marker_in_list(markers, original_start, original_end) if markers else None, pattern_id)
-    matched_marker = None
-    if markers:
-        for m in markers:
-            if _matches_held_marker(m, original_start, original_end, 0.5):
-                matched_marker = m
-                break
+    # Resolved before the unapprove below restores a trimmed marker's detected bounds.
+    matched_markers = [m for m in markers or []
+                       if _matches_held_marker(m, original_start, original_end, 0.5)]
+    matched_marker = matched_markers[0] if matched_markers else None
 
     source_hold_reason = None
     if matched_marker is not None:
@@ -1384,8 +1365,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
         addressing_mode=addressing_mode,
     )
 
-    _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
-                                 markers=markers)
+    _clear_held_marker_on_reject(db, slug, episode_id, matched_markers, markers)
 
     _reject_fingerprint_matches(
         db, reviewed_pattern_ids, slug, episode_id, original_start, original_end)
@@ -1476,14 +1456,11 @@ def _dismiss_held_markers(db, slug, episode_id, predicate, markers=None) -> int:
     return len(matched)
 
 
-def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
-                                 markers=None):
-    """When the rejected range matches a held marker, demote it to a plain rejected marker
-    and recompute pending_review_count; otherwise the review chip never clears.
-
-    markers, when given, is reused instead of re-fetching episode_details."""
+def _clear_held_marker_on_reject(db, slug, episode_id, matched, markers):
+    """Demote the held markers the reject resolved to plain rejected markers and recompute
+    pending_review_count; otherwise the review chip never clears."""
     _dismiss_held_markers(db, slug, episode_id,
-                          lambda m: _matches_held_marker(m, start, end, tol), markers)
+                          lambda m: any(m is hit for hit in matched), markers)
 
 
 def _unapprove_held_markers_of(db, slug, episode_id, deleted_rows, markers=None, tol=0.5):
@@ -1505,6 +1482,7 @@ def _unapprove_held_markers_of(db, slug, episode_id, deleted_rows, markers=None,
                         m['start'] = m.pop('reviewer_original_start')
                     if m.get('reviewer_original_end') is not None:
                         m['end'] = m.pop('reviewer_original_end')
+                    restore_merge_spans(m)
                     changed = True
     if changed:
         db.save_episode_details(slug, episode_id, ad_markers=markers,
@@ -1528,14 +1506,14 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
     for m in markers:
         if _matches_held_marker(m, start, end, tol):
             if has_trim:
-                # Keep the first original: a reopened row trimmed again must
-                # still report (and grow back to) the span as first detected.
+                # Keep the first original so a re-trimmed row still reports the span as first detected.
                 if m.get('reviewer_original_start') is None:
                     m['reviewer_original_start'] = m.get('start')
                 if m.get('reviewer_original_end') is None:
                     m['reviewer_original_end'] = m.get('end')
                 m['start'] = new_start
                 m['end'] = new_end
+                stash_merge_spans(m)
                 clip_merge_spans(m, new_start, new_end)
             m['approved'] = True
             m['reviewer_moved'] = False
@@ -1636,19 +1614,19 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     sponsor_override, sponsor_error = _modal_sponsor(data)
     if sponsor_error:
         return sponsor_error
-    bounds_error = _validate_span_bounds(
-        db, slug, episode_id, original_ad, adjusted_start, adjusted_end)
+    episode, markers = _load_episode_markers(db, slug, episode_id)
+    bounds_error = _validate_span_bounds(episode, adjusted_start, adjusted_end)
     if bounds_error:
         return bounds_error
     adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
     # Above 0 an adjust approves a held marker at once, so it gets confirm's window; at 0 it waits for the recut.
-    widened = resolve_held_widen_seconds() > 0
-    if widened:
-        episode, markers = _load_episode_markers(db, slug, episode_id)
+    widen_s = resolve_held_widen_seconds(db)
+    if widen_s > 0:
+        cap = resolve_max_boundary_shift(db)
         for m in markers or []:
             if _matches_held_marker(m, original_start, original_end, 0.5):
                 win_start, win_end = _held_window_for(
-                    db, slug, episode_id, episode, markers, m)
+                    db, slug, episode_id, episode, markers, m, widen_s, cap)
                 if adjusted_start < win_start or adjusted_end > win_end:
                     return error_response(
                         'Adjusted bounds must lie within the reviewed span', 400)
@@ -1711,9 +1689,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         addressing_mode=addressing_mode,
     )
 
-    # A held marker moves and is approved like confirm+trim; a cut marker does
-    # not match the held predicate and is left alone.
-    if widened:
+    # A held marker moves and is approved like confirm+trim; a cut marker is not held and is left alone.
+    if widen_s > 0:
         _mark_held_marker_approved(
             db, slug, episode_id, original_start, original_end,
             new_start=adjusted_start, new_end=adjusted_end,

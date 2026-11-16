@@ -41,6 +41,7 @@ import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSor
 const CLEANUP_ACTION_LABELS: Record<string, string> = {
   trim: 'Trims', split: 'Splits', rename: 'Sponsor renames',
   retire: 'Retirements', flag: 'Flags', category: 'Category changes',
+  unnamed_sponsor: 'Sponsor removals',
 };
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';

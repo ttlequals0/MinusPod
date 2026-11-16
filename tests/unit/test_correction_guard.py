@@ -8,16 +8,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import pytest
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('correction_guard_')
+
 from main_app.pipeline import detect, recut
 from main_app.pipeline.shared import db as shared_db
-from utils.correction_guard import correction_skip_reason
+from utils.correction_guard import correction_skip_reason, usable_confirmed_corrections
 from ad_validator import AdValidator
 
 
-@pytest.fixture(autouse=True)
-def _widen_sixty(monkeypatch):
-    """These tests describe the widened window (held_widen_seconds = 60)."""
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+pytestmark = pytest.mark.usefixtures('held_widen_sixty')
 
 
 HELD = {'start': 437.0, 'end': 440.2, 'confidence': 0.9, 'sponsor': 'Acme',
@@ -31,6 +32,9 @@ class FakeDb:
     def __init__(self, confirmed, markers):
         self._confirmed = confirmed
         self._markers = markers
+
+    def get_setting(self, key):
+        return '60' if key == 'held_widen_seconds' else None
 
     def get_podcast_row(self, slug):
         return {'id': 1}
@@ -84,7 +88,7 @@ def test_half_second_confirm_is_skipped_in_both_paths(caplog):
     assert confirmed == []
     assert 'skipped legacy correction 620.0-620.2: shorter than 1s' in caplog.text
     reason = recut._legacy_skip_reason(
-        {'start': 600.0, 'end': 630.0}, 620.0, 620.2, None, [], [])
+        {'start': 600.0, 'end': 630.0}, 620.0, 620.2, None, [], [], 0.0, 0)
     assert reason == 'shorter than 1s'
 
 
@@ -105,6 +109,13 @@ def test_newer_confirm_supersedes_an_older_adjustment():
     adjust = _adjust((120.0, 437.0), (100.0, 500.0))
     assert correction_skip_reason(adjust, newer=[confirm]) == 'superseded by a newer confirm'
     assert correction_skip_reason(confirm, newer=[adjust]) is None
+
+
+def test_newer_confirm_on_an_adjacent_marker_does_not_supersede_an_adjustment():
+    confirm = {'start': 629.0, 'end': 660.0, 'correction_type': 'confirm'}
+    adjust = _adjust((600.0, 630.0), (600.0, 625.0))
+    assert correction_skip_reason(adjust, newer=[confirm]) is None
+    assert usable_confirmed_corrections([confirm, adjust], []) == [confirm, adjust]
 
 
 def test_candidates_clamped_to_one_approved_span_yield_one_marker():

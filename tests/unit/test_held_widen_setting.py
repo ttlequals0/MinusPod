@@ -1,8 +1,9 @@
-"""held_widen_seconds: the hidden tunable that widens a held marker's edit window."""
+"""held_widen_seconds: the global setting that widens a held marker's edit window."""
 
 import pytest
 
 import config
+from database.settings import registry_get_default
 from utils.markers import held_marker_window
 
 MARKER = {'start': 100.0, 'end': 140.0, 'held_for_review': True}
@@ -12,29 +13,37 @@ def _cut(start, end):
     return {'start': start, 'end': end, 'was_cut': True}
 
 
+class _Db:
+    def __init__(self, value=None, fail=False):
+        self.value, self.fail = value, fail
+
+    def get_setting(self, key):
+        assert key == 'held_widen_seconds'
+        if self.fail:
+            raise RuntimeError('db down')
+        return self.value
+
+
 class TestResolver:
-    def test_default_is_zero(self, monkeypatch):
-        monkeypatch.delenv('HELD_WIDEN_SECONDS', raising=False)
-        assert config.STAGE_TUNABLE_DEFAULTS['held_widen_seconds'] == 0.0
-        assert config.resolve_held_widen_seconds() == 0.0
+    def test_default_is_zero(self):
+        assert config.resolve_held_widen_seconds(_Db(None)) == 0.0
 
-    def test_env_supplies_a_float(self, monkeypatch):
-        monkeypatch.setenv('HELD_WIDEN_SECONDS', '45.5')
-        assert config.resolve_held_widen_seconds() == 45.5
+    def test_reads_a_float(self):
+        assert config.resolve_held_widen_seconds(_Db('45.5')) == 45.5
 
-    def test_stored_value_wins_over_env(self, monkeypatch):
-        monkeypatch.setenv('HELD_WIDEN_SECONDS', '30')
-        settings = {'held_widen_seconds': {'value': '60', 'is_default': False}}
-        assert config.get_stage_tunable('held_widen_seconds', settings=settings) == 60.0
+    @pytest.mark.parametrize('bad', ['-1', '121', 'abc', '', 'nan'])
+    def test_out_of_range_or_malformed_is_zero(self, bad):
+        assert config.resolve_held_widen_seconds(_Db(bad)) == 0.0
 
-    @pytest.mark.parametrize('bad', ['-1', '121', 'abc'])
-    def test_out_of_range_or_malformed_falls_back_to_default(self, monkeypatch, bad):
-        monkeypatch.setenv('HELD_WIDEN_SECONDS', bad)
-        assert config.resolve_held_widen_seconds() == 0.0
+    def test_ceiling_is_accepted(self):
+        assert config.resolve_held_widen_seconds(_Db('120')) == 120.0
 
-    def test_ceiling_is_accepted(self, monkeypatch):
-        monkeypatch.setenv('HELD_WIDEN_SECONDS', '120')
-        assert config.resolve_held_widen_seconds() == 120.0
+    def test_a_read_error_fails_closed(self):
+        assert config.resolve_held_widen_seconds(_Db(fail=True)) == 0.0
+
+    def test_is_a_registry_setting_not_a_stage_tunable(self):
+        assert 'held_widen_seconds' not in config.STAGE_TUNABLE_DEFAULTS
+        assert registry_get_default('held_widen_seconds') == 0.0
 
 
 class TestWindow:
@@ -42,7 +51,7 @@ class TestWindow:
         assert held_marker_window([MARKER], MARKER, 3600.0, True) == (99.5, 140.5)
 
     def test_default_ignores_neighbours_and_episode_edges(self):
-        # Upstream never limited the +/-0.5 s tolerance by a neighbour.
+        # The +/-0.5 s tolerance is never limited by a neighbour.
         near = _cut(140.2, 160.0)
         assert held_marker_window([MARKER, near], MARKER, 140.3, True) == (99.5, 140.5)
 
@@ -73,3 +82,20 @@ class TestWindow:
     def test_widen_value_scales_the_window(self):
         assert held_marker_window(
             [MARKER], MARKER, 3600.0, True, widen_s=10.0) == (89.5, 150.5)
+
+    def test_widened_does_not_cross_a_neighbour_overlapping_the_start(self):
+        assert held_marker_window(
+            [MARKER, _cut(90.0, 110.0)], MARKER, 3600.0, True, widen_s=30.0) == (100.0, 170.5)
+
+    def test_widened_does_not_cross_a_rejected_span_overlapping_the_end(self):
+        assert held_marker_window(
+            [MARKER], MARKER, 3600.0, True, widen_s=30.0,
+            blocked_spans=[{'start': 130.0, 'end': 150.0}]) == (69.5, 140.0)
+
+    def test_widened_does_not_cross_a_neighbour_containing_the_span(self):
+        assert held_marker_window(
+            [MARKER, _cut(80.0, 160.0)], MARKER, 3600.0, True, widen_s=30.0) == (100.0, 140.0)
+
+    def test_widened_ignores_a_neighbour_strictly_inside_the_span(self):
+        assert held_marker_window(
+            [MARKER, _cut(110.0, 120.0)], MARKER, 3600.0, True, widen_s=10.0) == (89.5, 150.5)

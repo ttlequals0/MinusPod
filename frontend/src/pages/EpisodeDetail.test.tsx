@@ -858,7 +858,7 @@ describe('Short ask chip and header count', () => {
     await waitFor(() => expect(screen.getByText('Detected ads (3) \u00b7 Short asks (1)')).toBeDefined());
     expect(screen.getAllByText('Short ask')).toHaveLength(1);
     expect(screen.getByText('Short ask').getAttribute('title')).toBe(
-      'Short host ask or sponsor thanks, cut on sentence edges',
+      'Short host ask or sponsor thanks, trimmed to sentence edges',
     );
   });
 

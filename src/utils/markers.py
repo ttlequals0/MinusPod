@@ -1,4 +1,5 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
+import copy
 import hashlib
 import json
 import math
@@ -9,6 +10,7 @@ from itertools import accumulate, pairwise
 from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
                     is_keep_like, is_pending_review, repair_segment_category)
+from utils.constants import EpisodeStatus
 from utils.time import overlap_ratio
 
 
@@ -273,15 +275,46 @@ def held_marker_window(markers, marker, episode_duration, default_was_cut,
                 or (other.get('validation') or {}).get('decision') == 'REJECT'):
             blockers.append((o_start, o_end))
     for b_start, b_end in blockers:
-        if b_end <= base_start:
-            lo = max(lo, b_end)
-        elif b_start >= base_end:
-            hi = min(hi, b_start)
+        # A blocker overlapping an edge still stops widening outward past that edge.
+        if b_start < base_start:
+            lo = max(lo, min(b_end, base_start))
+        if b_end > base_end:
+            hi = min(hi, max(b_start, base_end))
 
     lo = max(lo, 0.0)
     if episode_duration and episode_duration > 0:
         hi = min(hi, float(episode_duration))
     return min(lo, cur_start), max(hi, cur_end)
+
+
+def _proposal_overlaps(p_start, p_end, start, end):
+    """True when a numeric proposal span overlaps [start, end]."""
+    return (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
+            and p_end > p_start and p_end > start and p_start < end)
+
+
+def usable_reviewer_proposal(marker, start, end, cap):
+    """A held marker's reviewer proposal, when it is valid, overlaps the
+    detected span, and stays within the reviewer's per-edge shift cap."""
+    # A hold stamps the raw proposal, which never passed the reviewer's clamp.
+    p_start = marker.get('reviewer_proposed_start')
+    p_end = marker.get('reviewer_proposed_end')
+    if not _proposal_overlaps(p_start, p_end, start, end):
+        return None
+    if abs(p_start - start) > cap or abs(p_end - end) > cap:
+        return None
+    return float(p_start), float(p_end)
+
+
+def held_review_window(episode, markers, marker, false_positive_spans, widen_s, cap):
+    """(min, max) a human may set a held marker's edges to, for both the corrections validator and allowedBounds."""
+    proposal = usable_reviewer_proposal(
+        marker, float(marker['start']), float(marker['end']), cap)
+    return held_marker_window(
+        markers, marker, episode.get('original_duration'),
+        episode.get('status') == EpisodeStatus.PROCESSED,
+        proposal=proposal, blocked_spans=false_positive_spans,
+        widen_s=widen_s)
 
 
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None,
@@ -607,6 +640,29 @@ def clip_merge_spans(marker: dict, lo: float, hi: float) -> None:
                                        if _clip_match(m, lo, hi)]
     _clip_match(marker, lo, hi)
     clip_dai_core_spans(marker, lo, hi)
+
+
+MERGE_SPAN_KEYS = ('merged_protected_start', 'merged_protected_end', MERGED_MEMBER_SPANS,
+                   'fingerprint_match_start', 'fingerprint_match_end',
+                   SILENT_ABSORBED_SPANS, DAI_CORE_SPANS, DAI_PROBE_SPANS)
+REVIEWER_ORIGINAL_MERGE = 'reviewer_original_merge'
+
+
+def stash_merge_spans(marker: dict) -> None:
+    """Keep the merge records as first detected, once, before a trim clips them."""
+    if REVIEWER_ORIGINAL_MERGE not in marker:
+        marker[REVIEWER_ORIGINAL_MERGE] = copy.deepcopy(
+            {key: marker[key] for key in MERGE_SPAN_KEYS if key in marker})
+
+
+def restore_merge_spans(marker: dict) -> None:
+    """Undo clip_merge_spans using the stash, if the marker has one."""
+    saved = marker.pop(REVIEWER_ORIGINAL_MERGE, None)
+    if saved is None:
+        return
+    for key in MERGE_SPAN_KEYS:
+        marker.pop(key, None)
+    marker.update(saved)
 
 
 def member_spans(marker: dict) -> list[dict]:
@@ -1080,3 +1136,56 @@ def collapse_duplicate_markers(markers):
         fold_marker_pair(twin, marker)
         folded += 1
     return (collapsed, folded) if folded else (markers, 0)
+
+
+def usable_span(start, end) -> bool:
+    """Whether start and end are finite numbers with end after start."""
+    return (isinstance(start, (int, float)) and isinstance(end, (int, float))
+            and math.isfinite(start) and math.isfinite(end) and end > start)
+
+
+def displayed_span(marker: dict) -> tuple[float, float] | None:
+    """The span the episode page shows for a marker: the pre-trim range of a reviewer-adjusted one."""
+    start, end = marker.get('start'), marker.get('end')
+    if marker.get('reviewer_verdict') == 'adjust':
+        start, end = marker.get('reviewer_original_start', start), marker.get('reviewer_original_end', end)
+    # A null reviewer-original bound makes the span unusable, so the marker is skipped
+    return (start, end) if usable_span(start, end) else None
+
+
+def is_rejected_marker(marker: dict, episode_status) -> bool:
+    """Whether the episode page files the marker under rejected: REJECT or never cut, and neither held nor kept."""
+    if is_pending_review(marker) or is_keep_like(marker.get('action_applied')):
+        return False
+    was_cut = marker.get('was_cut', episode_status == EpisodeStatus.PROCESSED)
+    return (marker.get('validation') or {}).get('decision') == 'REJECT' or not was_cut
+
+
+def marker_pattern_spans(marker: dict, pattern_id: int) -> list[tuple[float, float]]:
+    """Displayed spans of a marker for the pattern: its own, and each merged member's, clipped to the marker."""
+    outer = displayed_span(marker)
+    if outer is None:
+        return []
+    spans = [outer] if marker.get('pattern_id') == pattern_id else []
+    for member in marker.get(MERGED_MEMBER_SPANS) or []:
+        if isinstance(member, dict) and member.get('pattern_id') == pattern_id:
+            lo, hi = finite_number(member.get('start')), finite_number(member.get('end'))
+            if lo is not None and hi is not None:
+                clipped = (max(outer[0], lo), min(outer[1], hi))
+                if usable_span(*clipped):
+                    spans.append(clipped)
+    return spans
+
+
+def episode_markers(episode: dict | None) -> tuple[list[dict], EpisodeStatus]:
+    """(marker dicts, status) of an episode row."""
+    episode = episode or {}
+    markers = [m for m in parse_ad_markers(episode.get('ad_markers_json')) or [] if isinstance(m, dict)]
+    return markers, EpisodeStatus.from_api(episode.get('status'))
+
+
+def own_marker_span(episode: dict | None, pattern_id: int) -> tuple[float, float] | None:
+    """The earliest displayed span of the pattern's own accepted marker or merged member in an episode, or None."""
+    markers, status = episode_markers(episode)
+    return min((span for marker in markers if not is_rejected_marker(marker, status)
+                for span in marker_pattern_spans(marker, pattern_id)), default=None)

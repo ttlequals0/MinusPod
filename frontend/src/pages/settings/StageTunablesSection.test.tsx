@@ -4,7 +4,6 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import StageTunablesSection from './StageTunablesSection';
 import type { LlmProvider, UpdateSettingsPayload } from '../../api/types';
@@ -215,27 +214,6 @@ describe('StageTunablesSection: per-stage effective provider', () => {
     expect(within(stageCard('Chapter title generation')).getByText('Reasoning effort')).toBeDefined();
     expect(within(stageCard('Verification (ad detection pass 2)')).getByText('Reasoning effort')).toBeDefined();
     expect(within(stageCard('Ad detection (pass 1)')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
-  });
-});
-
-describe('StageTunablesSection: held-for-review widening', () => {
-  it('shows the default of 0 and sends nothing when untouched', () => {
-    render(<Harness />);
-    const input = screen.getByLabelText('Widen held ads by (seconds)') as HTMLInputElement;
-    expect(input.value).toBe('0');
-    expect((screen.getByRole('button', { name: 'Save LLM tunables' }) as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('sends { heldWidenSeconds: 60 } after typing 60 and saving', async () => {
-    let saved: UpdateSettingsPayload | null = null;
-    render(<Harness onSave={(payload) => { saved = payload; }} />);
-    const user = userEvent.setup();
-
-    const input = screen.getByLabelText('Widen held ads by (seconds)');
-    fireEvent.change(input, { target: { value: '60' } });
-    await user.click(screen.getByRole('button', { name: 'Save LLM tunables' }));
-
-    expect(saved).toEqual({ heldWidenSeconds: 60 });
   });
 });
 

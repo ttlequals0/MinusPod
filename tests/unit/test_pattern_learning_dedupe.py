@@ -16,6 +16,7 @@ def _matcher_with_existing(existing):
     m = TextPatternMatcher(db=MagicMock())
     m.db.get_ad_patterns.return_value = [existing]
     m.db.get_known_sponsor_by_name.return_value = None
+    m.db.get_known_sponsors.return_value = [{'name': 'Acme', 'aliases': '[]'}]
     return m
 
 

@@ -1467,7 +1467,7 @@ class StatsMixin:
             unattributed = _cleanup_usage_summary(legacy_rows)
         actions = {}
         changed_patterns = set()
-        for kind in ('trim', 'split', 'rename', 'retire', 'flag', 'category'):
+        for kind in ('trim', 'split', 'rename', 'retire', 'flag', 'category', 'unnamed_sponsor'):
             items = [row for row in suggestions if row['kind'] == kind]
             accepted = [row for row in items if row['status'] in ('approved', 'undone')]
             changed_patterns.update(row['pattern_id'] for row in accepted)

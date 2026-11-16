@@ -101,13 +101,11 @@ class WebhookPayload:
     new_duration: float | None = None
     podcast_name: str | None = None
     # Effective auto-process value for the podcast; None when it could not be read.
-    # Defaults to True so placeholder sample contexts stay deterministic.
-    auto_process: bool | None = True
+    auto_process: bool | None = None
 
 
 def _podcast_auto_process(slug: str) -> bool | None:
-    """Effective auto-process value for a podcast (per-podcast override plus the
-    global setting). Never raises: a DB failure must not cost a notification."""
+    """Effective auto-process value for a podcast; None on a read failure so the event still goes out."""
     try:
         return database.Database().is_auto_process_enabled_for_podcast(slug)
     except Exception:
@@ -130,6 +128,7 @@ def _format_cost(cost):
 
 
 _FAILED_SAMPLE = dict(
+    auto_process=True,
     episode_id='a1b2c3d4e5f6',
     slug='my-favorite-podcast',
     episode_title='Episode 42: The Answer',

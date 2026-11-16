@@ -202,6 +202,8 @@ def _run_deferred_upgrade_safely(clock=time.time):
     except Exception as e:
         refresh_logger.warning(f"Deferred upgrade steps failed with {type(e).__name__}: {e}")
         ok = False
+    finally:
+        run_context.clear_background_thread()
     _UPGRADE_STATE['retry_at'] = None if ok else clock() + UPGRADE_RETRY_SECONDS
 
 

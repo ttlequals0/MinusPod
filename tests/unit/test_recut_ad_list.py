@@ -1775,6 +1775,22 @@ def test_stale_adjustment_does_not_override_a_newer_confirm_or_duplicate_markers
     assert [(a['start'], a['end']) for a in all_ads] == [(150.0, 390.0)]
 
 
+def test_apply_boundary_adjustments_newer_confirm_on_an_adjacent_marker_leaves_it(monkeypatch):
+    ads = [_held(600.0, 630.0), _held(629.0, 660.0, approved=True)]
+    _pin_corrections(monkeypatch, [_confirm_row((629.0, 660.0), (629.0, 660.0)),
+                                   _boundary_adjustment(600.0, 630.0, 600.0, 625.0)])
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
+    assert [(a['start'], a['end']) for a in ads] == [(600.0, 625.0), (629.0, 660.0)]
+
+
+def test_apply_boundary_adjustments_newer_confirm_on_the_same_span_skips_the_adjustment(monkeypatch):
+    ads = [_held(600.0, 630.0, approved=True)]
+    _pin_corrections(monkeypatch, [_confirm_row((600.0, 630.0), (600.0, 630.0)),
+                                   _boundary_adjustment(600.0, 630.0, 600.0, 625.0)])
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
+    assert (ads[0]['start'], ads[0]['end']) == (600.0, 630.0)
+
+
 def test_apply_boundary_adjustments_skips_legacy_span_under_one_second(monkeypatch, caplog):
     ads = [_held(600.0, 630.0)]
     _pin_corrections(monkeypatch, [_boundary_adjustment(600.0, 630.0, 620.0, 620.2)])
@@ -1784,8 +1800,8 @@ def test_apply_boundary_adjustments_skips_legacy_span_under_one_second(monkeypat
     assert 'skipped legacy correction 620.0-620.2:' in caplog.text
 
 
-def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(monkeypatch, caplog):
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(
+        monkeypatch, caplog, held_widen_sixty):
     ads = [_held(120.0, 437.0)]
     _pin_corrections(monkeypatch, [_boundary_adjustment(120.0, 437.0, 20.0, 437.0)])
     caplog.set_level('INFO')
@@ -1794,8 +1810,8 @@ def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(mo
     assert 'skipped legacy correction 20.0-437.0:' in caplog.text
 
 
-def test_apply_boundary_adjustments_applies_a_span_inside_the_held_window(monkeypatch):
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+def test_apply_boundary_adjustments_applies_a_span_inside_the_held_window(
+        monkeypatch, held_widen_sixty):
     ads = [_held(120.0, 437.0)]
     _pin_corrections(monkeypatch, [_boundary_adjustment(120.0, 437.0, 100.0, 480.0)])
     recut._apply_boundary_adjustments('slug', 'ep', ads, episode={'original_duration': 3600.0})

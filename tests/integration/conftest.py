@@ -58,12 +58,8 @@ def fp_feed(app_client):
 @pytest.fixture
 def fp_original(fp_feed):
     """The episode keeps its original audio on disk."""
-    from api import get_storage
-    from tests.integration.fingerprint_helpers import EPISODE, SLUG
-    path = get_storage().get_original_path(SLUG, EPISODE)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b'ID3')
-    fp_feed.upsert_episode(SLUG, EPISODE, original_file=path.name)
+    from tests.integration.fingerprint_helpers import retain_original
+    path = retain_original(fp_feed)
     yield path
     path.unlink(missing_ok=True)
 

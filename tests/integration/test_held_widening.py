@@ -13,10 +13,7 @@ EPISODE = 'd1e2f3a4b5c6'
 DURATION = 9500.0
 
 
-@pytest.fixture(autouse=True)
-def _widen_sixty(monkeypatch):
-    """These tests describe the widened window (held_widen_seconds = 60)."""
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+pytestmark = pytest.mark.usefixtures('held_widen_sixty')
 
 
 def _marker(start, end, **extra):

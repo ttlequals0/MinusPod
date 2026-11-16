@@ -258,6 +258,7 @@ function Settings() {
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [feedItunesBlock, setFeedItunesBlock] = useState(true);
   const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
+  const [heldWidenSeconds, setHeldWidenSeconds] = useState(0);
   const [whatsNewOnUpgrade, setWhatsNewOnUpgrade] = useState(true);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
@@ -920,6 +921,7 @@ function Settings() {
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
     { key: 'feedItunesBlock', kind: 'val', useDefault: true, value: feedItunesBlock, set: setFeedItunesBlock },
     { key: 'requireManualApprovalDefault', kind: 'val', literal: false, value: requireManualApprovalDefault, set: setRequireManualApprovalDefault },
+    { key: 'heldWidenSeconds', kind: 'val', useDefault: true, literal: 0, value: heldWidenSeconds, set: setHeldWidenSeconds },
     { key: 'whatsNewOnUpgrade', kind: 'val', literal: true, value: whatsNewOnUpgrade, set: setWhatsNewOnUpgrade },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
@@ -1363,6 +1365,8 @@ function Settings() {
         onFeedItunesBlockChange={setFeedItunesBlock}
         requireManualApprovalDefault={requireManualApprovalDefault}
         onRequireManualApprovalDefaultChange={setRequireManualApprovalDefault}
+        heldWidenSeconds={heldWidenSeconds}
+        onHeldWidenSecondsChange={setHeldWidenSeconds}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={episodeLogRetentionDays}

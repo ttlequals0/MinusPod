@@ -67,7 +67,7 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping, identical_coverage
 from community_export import brand_match_candidates
 from text_pattern_matcher import AD_TRANSITION_PHRASES, bounded_segment_texts
-from transcriber.segments import LOOP_MIN_COVERAGE, drop_loop_cues, find_loop_runs, loop_coverage
+from transcriber.segments import LOOP_MIN_COVERAGE, drop_loop_cues, find_loop_runs, loop_coverage, loop_cues
 from sponsor_context import (BARE_LINK_RE, BRAND_LINK_RE, COMMERCIAL_CONTEXT_RE, CTA_LINK_RE,
                              SPONSOR_FRAMING_RE, SPONSOR_IS_SPONSOR_RE, SPONSOR_MIN_MENTIONS,
                              SPONSOR_THANKS_RE, VANITY_LINK_RE, description_sponsor_re,
@@ -529,15 +529,18 @@ class AdValidator:
                     and not measured_evidence(ad))
 
     def _loop_verdict(self, ad: dict) -> str | None:
-        """'weak' when only a sponsor mention outside the loops hints at an ad, 'no_evidence' when
-        nothing does; None when the marker is not loop-dominated or has real text evidence."""
+        """'weak' when a sponsor mention outside the loops, or ad language or a sponsor inside them,
+        hints at an ad; 'no_evidence' when nothing does; None when not loop-dominated or text-backed."""
         if not self._loop_dominated(ad) or self._has_transcript_ad_evidence(ad):
             return None
-        text = ' '.join(self._bounded_text_segments(ad))
         sponsor = ad.get('sponsor')
-        if (sponsor and self._names_sponsor(text, sponsor)) or self._registry_mentions(text):
+        outside = ' '.join(self._bounded_text_segments(ad))
+        looped = ' '.join(s.get('text', '') for s in loop_cues(self.segments, self._loop_runs)
+                          if s['end'] > ad['start'] and s['start'] < ad['end'])
+        if any((sponsor and self._names_sponsor(t, sponsor)) or self._registry_mentions(t)
+               for t in (outside, looped)):
             return 'weak'
-        return 'no_evidence'
+        return 'weak' if self._cue_has_ad_language(looped) else 'no_evidence'
 
     def _registry_mentions(self, text: str) -> int:
         try:

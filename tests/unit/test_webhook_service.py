@@ -419,8 +419,12 @@ class TestPodcastAutoProcessField:
         assert captured[0]['podcast']['auto_process'] is None
         assert captured[0]['podcast']['slug'] == 'my-pod'
 
-    def test_default_payload_context_is_deterministic(self):
-        assert _build_context(_make_payload())['podcast']['auto_process'] is True
+    def test_payload_default_is_null_until_looked_up(self):
+        assert _build_context(_make_payload())['podcast']['auto_process'] is None
+
+    def test_failed_test_delivery_placeholder_is_true(self):
+        context = webhook_service._episode_test_context(EVENT_EPISODE_FAILED)
+        assert context['podcast']['auto_process'] is True
 
     def test_test_delivery_from_real_history_reads_the_podcast_value(self):
         mock_db = MagicMock()

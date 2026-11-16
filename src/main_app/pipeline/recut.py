@@ -10,12 +10,12 @@ from cancel import (
 )
 
 from utils.audio import get_audio_codec
-from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, parse_ad_markers,
-                           reviewer_hold_stands,
+from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, held_review_window,
+                           parse_ad_markers, reviewer_hold_stands,
                            reject_barriers, reviewer_reject_stands,
                            spans_match)
 
-from utils.correction_guard import correction_skip_reason, id_suffix
+from utils.correction_guard import correction_skip_reason, id_suffix, same_span
 from utils.time import overlap_seconds
 
 from config import (
@@ -23,7 +23,7 @@ from config import (
     resolve_transcript_differential,
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
-    resolve_cue_gated_approval, resolve_held_widen_seconds,
+    resolve_cue_gated_approval, resolve_held_widen_seconds, resolve_max_boundary_shift,
 )
 
 from utils.constants import EpisodeStatus
@@ -37,38 +37,36 @@ from main_app.pipeline.shared import (db, storage, audio_processor)
 audio_logger = logging.getLogger('podcast.audio')
 
 
-def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, all_ads):
+def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, all_ads,
+                        widen_s, cap):
     """Why a stored adjustment must not be replayed onto `match`, else None."""
-    from api.patterns import held_review_window
     windows = []
-    if (episode is not None and match.get('held_for_review')
-            and resolve_held_widen_seconds() > 0):
-        windows.append(held_review_window(db, episode, all_ads, match, false_positive_spans))
+    if episode is not None and match.get('held_for_review') and widen_s > 0:
+        windows.append(held_review_window(
+            episode, all_ads, match, false_positive_spans, widen_s, cap))
     return correction_skip_reason(
         {'start': n_start, 'end': n_end}, windows)
 
 
 def _apply_boundary_adjustments(slug, episode_id, all_ads, episode=None,
                                 false_positive_spans=()):
-    """Override ad bounds with the user's boundary_adjustment corrections so a
-    recut cuts the adjusted spans. Newest wins, and a newer confirm settles the
-    marker it covers; unmatched corrections are skipped. With `episode`, a
-    legacy adjustment that is under a second, or (with held_widen_seconds set)
-    outside a held marker's window, is skipped."""
+    """Override ad bounds with boundary_adjustment corrections; newest wins, a newer same-span confirm settles
+    the marker, unmatched rows are skipped. With `episode`, legacy rows under 1 s or outside a held window are skipped."""
     podcast = db.get_podcast_row(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
+    widen_s = resolve_held_widen_seconds(db)
+    cap = resolve_max_boundary_shift(db)
     adjusted = set()
     applied = 0
     for c in corrections:  # newest first (ORDER BY id DESC)
         if c.get('correction_type') == 'confirm':
-            # A newer confirm already fixed the span its marker now holds; an
-            # older adjustment must not move it back and split it on re-validation.
+            # A newer confirm fixed this span; an older adjustment must not move it back and split it.
             span = c.get('corrected_bounds') or c.get('original_bounds') or {}
             if span.get('start') is not None and span.get('end') is not None:
                 adjusted.update(id(ad) for ad in all_ads
                                 if ad.get('start') is not None and ad.get('end') is not None
-                                and overlap_seconds(span['start'], span['end'],
-                                                    ad['start'], ad['end']) > 0)
+                                and same_span(span['start'], span['end'],
+                                              ad['start'], ad['end']))
             continue
         if c.get('correction_type') != 'boundary_adjustment':
             continue
@@ -100,7 +98,7 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads, episode=None,
             )
             continue
         reason = _legacy_skip_reason(
-            match, n_start, n_end, episode, false_positive_spans, all_ads)
+            match, n_start, n_end, episode, false_positive_spans, all_ads, widen_s, cap)
         if reason:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Recut: skipped legacy correction "

@@ -1336,7 +1336,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-in to remove short host-spoken asks, self-promotion and sponsor thank-yous (2 to 40 seconds, cut on sentence edges only). true/false override the global snipShortAsks setting for this feed; null falls back to it.
+                  description: Per-feed opt-in to detect short host-spoken asks, self-promotion and sponsor thank-yous (2 to 40 seconds, sentence edges only). Each flagged marker follows the action set for its category. true/false override the global snipShortAsks setting for this feed; null falls back to it.
                 skipSecondPass:
                   type:
                     - boolean
@@ -5731,7 +5731,7 @@ paths:
           schema: { type: string, enum: [pending, approved, rejected, undone] }
         - name: kind
           in: query
-          schema: { type: string, enum: [trim, split, rename, retire, flag, category] }
+          schema: { type: string, enum: [trim, split, rename, retire, flag, category, unnamed_sponsor] }
         - name: limit
           in: query
           schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
@@ -8090,8 +8090,8 @@ paths:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
                 snipShortAsks:
-                  type: boolean
-                  description: Global default for removing short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Overridden by per-feed snipShortAsks when set. Default false.
+                  type: [boolean, 'null']
+                  description: Global default for detecting short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Each flagged marker follows the action set for its category. Overridden by per-feed snipShortAsks when set. null resets it to the default, false. Any other type is a 400.
                 seedSponsorsDetection:
                   type: boolean
                   description: Whether the detection pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
@@ -8775,15 +8775,6 @@ paths:
                   minimum: 0
                   maximum: 1770
                   description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
-                heldWidenSeconds:
-                  type: [number, 'null']
-                  minimum: 0
-                  maximum: 120
-                  description: >-
-                    Seconds a held-for-review marker's edges may be moved past the reviewed span, each way, limited by cut, approved,
-                    kept and rejected neighbours and the episode edges. 0 (default) keeps the reviewed span plus or minus 0.5 s. A
-                    value above 0 also makes an adjust approve the held marker at once and drops a stored adjustment outside that
-                    window when the recut replays it. Null clears the stored value.
                 verificationMissHoldMinConfidence:
                   type: number
                   format: float
@@ -8874,6 +8865,18 @@ paths:
                     hold for review; shorter candidates are dropped. 0
                     disables the floor (default 10).
                   example: 10
+                heldWidenSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 120
+                  description: >-
+                    Seconds a held-for-review marker's edges may be moved past the reviewed span, each way, limited by cut,
+                    approved, kept and rejected neighbours and the episode edges. 0 (default) keeps the reviewed span plus or
+                    minus 0.5 s. A value above 0 also makes an adjust approve the held marker at once and drops a stored
+                    adjustment outside that window when the recut replays it. Global only. Non-numeric or out-of-range values
+                    return 400.
+                  example: 0
             queueManualBoost:
               type: integer
               minimum: 0
@@ -8899,6 +8902,9 @@ paths:
                 properties:
                   message:
                     type: string
+                  snipShortAsks:
+                    type: boolean
+                    description: Stored global value, present only when snipShortAsks was sent.
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -14469,6 +14475,8 @@ components:
               $ref: '#/components/schemas/CleanupActionCounts'
             category:
               $ref: '#/components/schemas/CleanupActionCounts'
+            unnamed_sponsor:
+              $ref: '#/components/schemas/CleanupActionCounts'
           description: Stored action kinds. Rename means a sponsor rename. Composite trim/split/flag actions
             may also change sponsors or categories; these are counted once under their actual kind.
         usage:
@@ -15169,6 +15177,17 @@ components:
           type: [string, 'null']
           description: Set only when the whole run failed (e.g. rate limited).
 
+    PatternCleanupAudioOutcome:
+      type: object
+      properties:
+        patternId:
+          type: integer
+        stored:
+          type: boolean
+        reason:
+          type: [string, 'null']
+          description: Why no fingerprint was stored; null when one was. `audio_turned_off` means a trim found no retained source for the old audio, so that fingerprint was switched off and kept.
+
     PatternCleanupSuggestion:
       type: object
       properties:
@@ -15180,7 +15199,7 @@ components:
           type: integer
         kind:
           type: string
-          enum: [trim, split, rename, retire, flag, category]
+          enum: [trim, split, rename, retire, flag, category, unnamed_sponsor]
         status:
           type: string
           enum: [pending, approved, rejected, undone]
@@ -15199,7 +15218,8 @@ components:
             {pieces: [{text, sponsor, category?}]}; rename {sponsor, category?};
             category {category}; retire {unusedDays, lastMatchedAt,
             confirmationCount}; flag {falsePositiveCount, confirmationCount,
-            contaminated, contaminationReason, recommended, trimText?, sponsor?, category?}.
+            contaminated, contaminationReason, recommended, trimText?, sponsor?, category?};
+            unnamed_sponsor {sponsor}, the current sponsor name.
             Combined text, sponsor, and category edits apply in one approval.
             Categories are sponsor, cross_promo, self_promo, interaction,
             intro, outro, and recap.
@@ -15258,6 +15278,28 @@ components:
             audioSource:
               type: [object, 'null']
               description: Source episode span of the pattern's fingerprint when it was approved, used to restore audio on undo. Null when it had none.
+            previousAvgDuration:
+              type: [number, 'null']
+              description: Stored average duration in seconds before a trim, restored on undo only while the duration still equals fittedAvgDuration. Absent on approvals made before it was recorded.
+            fittedAvgDuration:
+              type: number
+              description: Average duration in seconds the trim wrote. Absent when the trim left the duration unchanged.
+            audioDisabled:
+              type: boolean
+              description: True when this trim found no retained source and switched the pattern's old fingerprint off (reason `audio_turned_off`). Undo switches it back on only while it is still off and unchanged. Absent otherwise.
+            audioDisabledDigest:
+              type: string
+              description: SHA-256 of the fingerprint that was switched off, used by undo to tell it is unchanged.
+            audioOutcomes:
+              type: array
+              description: Audio fingerprint outcome per pattern from approving a trim or split.
+              items:
+                $ref: '#/components/schemas/PatternCleanupAudioOutcome'
+            undoAudioOutcomes:
+              type: array
+              description: Audio fingerprint outcome per pattern from undoing a trim.
+              items:
+                $ref: '#/components/schemas/PatternCleanupAudioOutcome'
             after:
               type: object
               description: Post-approval values of fields owned by this change.
@@ -16042,7 +16084,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Whether this feed removes short host asks and sponsor thanks. Null means use the global snipShortAsks setting. true/false override the global for this feed.
+          description: Whether this feed detects short host asks and sponsor thanks; each flagged marker follows the action set for its category. Null means use the global snipShortAsks setting. true/false override the global for this feed.
         ownEpisodeGuids:
           type:
             - boolean
@@ -17514,6 +17556,7 @@ components:
         - span_covers_multiple_patterns
         - span_not_found
         - original_not_retained
+        - audio_turned_off
         - segment_too_short
         - not_distinctive
         - fingerprint_failed
@@ -17526,7 +17569,8 @@ components:
         span_covers_multiple_patterns means the text was split into several patterns and
         this one's own range could not be found. span_not_found means a split or trim
         could not locate the pattern's own text in the source transcript. original_not_retained means the episode
-        keeps no original. segment_too_short means the span is under the minimum ad length.
+        keeps no original. audio_turned_off means a cleanup trim found no retained source, so the old
+        fingerprint was switched off and kept (cleanup approve only). segment_too_short means the span is under the minimum ad length.
         not_distinctive means the span has too little distinctive audio to reach the
         minimum coverage setting, so it could never be matched, and a forced rebuild
         does not bypass it. fingerprint_failed means the audio could not be fingerprinted.
@@ -17554,6 +17598,9 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
           description: Which detection stage found this ad
           example: first_pass
+        short_ask:
+          type: boolean
+          description: Set on a 2 to 40 second host ask or sponsor thanks flagged while the feed has snipShortAsks on.
         pattern_id:
           type: [integer, 'null']
           description: The ad pattern this marker matched or created, when any.
@@ -18648,6 +18695,17 @@ components:
               format: float
             isDefault:
               type: boolean
+        heldWidenSeconds:
+          type: object
+          description: >-
+            Seconds a held marker's edges may move past the reviewed span, each
+            way. 0 disables widening (default). Range 0 to 120.
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
         positionalPriorEnabled:
           type: object
           properties:
@@ -18892,7 +18950,7 @@ components:
           properties:
             value:
               type: boolean
-              description: Global default for removing short host asks and sponsor thanks (per-feed snipShortAsks overrides when set)
+              description: Global default for detecting short host asks and sponsor thanks (per-feed snipShortAsks overrides when set)
             isDefault:
               type: boolean
         seedSponsorsDetection:

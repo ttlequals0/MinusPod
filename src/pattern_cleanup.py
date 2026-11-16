@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import logging
 import math
@@ -14,10 +15,12 @@ from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
 
+from community_export import count_brand_occurrences, get_sponsor_row_or_stub, normalize_aliases
 from config import SEGMENT_CATEGORIES
 from rapidfuzz import fuzz
 
 from database import Database
+from database.pattern_cleanup import CLEANUP_STATS_KINDS
 from database.settings import registry_default, registry_get_default
 from llm_client import (
     LLMDisabledError, ProviderRateLimitedError, get_effective_provider_from_snapshot, llm_disabled,
@@ -28,13 +31,14 @@ from llm_route import (
     resolved_stage_slot, SLOT_SECONDARY,
 )
 from pattern_audio import (
-    carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio, unresolved_audio_outcomes,
+    carry_audio_to_children, rebuild_audio_source, rebuild_pattern_audio, turned_off_audio_outcomes,
+    unresolved_audio_outcomes,
 )
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
 from sponsor_normalize import get_or_create_known_sponsor, sanitize_sponsor_name
-from sponsor_service import SponsorService
+from sponsor_service import SponsorService, has_brand_evidence
 from text_pattern_matcher import MIN_TEXT_LENGTH
 from utils.constants import names_the_show, sanitize_sponsor_label
 from utils.cron import is_due, is_valid_expression
@@ -219,6 +223,8 @@ def _matches_snapshot(pattern: dict, snapshot: dict, fields: tuple[str, ...]) ->
 def _suggestion_after_fields(suggestion: dict) -> tuple[str, ...]:
     kind = suggestion['kind']
     payload = suggestion.get('payload') or {}
+    if kind == 'unnamed_sponsor':
+        return ('sponsor_id', 'sponsor')
     if kind == 'rename':
         return ('sponsor_id', 'sponsor', 'category') if payload.get('category') else ('sponsor_id', 'sponsor')
     if kind == 'category':
@@ -256,8 +262,23 @@ def _suggestion(kind: str, confidence: float, reasons: list[str], payload: dict)
     return {'kind': kind, 'confidence': confidence, 'reasons': reasons, 'payload': payload}
 
 
+def _unnamed_sponsor_suggestion(db, pattern: dict) -> dict | None:
+    """A suggestion when the pattern's sponsor, by name, alias or domain evidence, is absent from its text."""
+    name = pattern.get('sponsor')
+    text = pattern.get('text_template') or ''
+    if not name or not text.strip():
+        return None
+    row = get_sponsor_row_or_stub(db, name)
+    if (count_brand_occurrences(text, row)
+            or has_brand_evidence(name, text, normalize_aliases(row.get('aliases')))):
+        return None
+    reason = ('The text does not contain the sponsor name, an alias, '
+              'or a domain or promo code that matches it.')
+    return _suggestion('unnamed_sponsor', 1.0, [reason], {'sponsor': name})
+
+
 def stats_suggestions(db, pattern: dict, unused_days: int, now=None) -> list[dict]:
-    """Retire and high-false-positive flags from counters alone (no LLM)."""
+    """Retire, high-false-positive and unnamed-sponsor suggestions from stored data alone (no LLM)."""
     now = now or utc_now()
     cutoff = now - timedelta(days=unused_days)
     out = []
@@ -279,6 +300,9 @@ def stats_suggestions(db, pattern: dict, unused_days: int, now=None) -> list[dic
             'false_positive_count': fp, 'confirmation_count': conf, 'contaminated': False,
             'contamination_reason': None, 'recommended': 'disable',
         }))
+    unnamed = _unnamed_sponsor_suggestion(db, pattern)
+    if unnamed is not None:
+        out.append(unnamed)
     return out
 
 
@@ -714,6 +738,10 @@ def _stats_evidence(kind: str, pattern: dict, payload: dict) -> str | None:
         if not isinstance(false_positives, int) or isinstance(false_positives, bool):
             return None
         evidence = {'false_positive_count': false_positives}
+    elif kind == 'unnamed_sponsor':
+        if not isinstance(payload.get('sponsor'), str):
+            return None
+        evidence = {'sponsor': payload['sponsor']}
     else:
         return None
     return stats_evidence_hash(kind, pattern.get('text_template'), pattern.get('sponsor'), evidence)
@@ -743,7 +771,7 @@ def _stats_acknowledgments(db, conn, pattern: dict) -> dict:
 
 def _acknowledge_stats_decision(db, conn, suggestion: dict, pattern: dict) -> None:
     kind = suggestion['kind']
-    if kind not in ('retire', 'flag'):
+    if kind not in CLEANUP_STATS_KINDS:
         return
     before = suggestion.get('before') or {}
     payload = suggestion.get('payload') or {}
@@ -766,11 +794,19 @@ def _decode_pending_rows(rows) -> list[dict]:
 
 
 def _stats_only_suggestion(suggestion: dict) -> bool:
-    if suggestion['kind'] == 'retire':
+    if suggestion['kind'] in ('retire', 'unnamed_sponsor'):
         return True
     payload = suggestion.get('payload') or {}
     return (suggestion['kind'] == 'flag' and not payload.get('contaminated')
             and payload.get('recommended') != 'trim')
+
+
+def _sets_sponsor(suggestion: dict) -> bool:
+    """Whether a pending or proposed suggestion sets the pattern's sponsor."""
+    payload = suggestion.get('payload') or {}
+    if suggestion['kind'] == 'split':
+        return any(piece.get('sponsor') for piece in payload.get('pieces') or [])
+    return suggestion['kind'] in ('rename', 'trim', 'flag') and bool(payload.get('sponsor'))
 
 
 def _pending_pattern_suggestions(conn, pattern_id: int) -> list[dict]:
@@ -857,7 +893,7 @@ def _plan_stats_sweep(pattern: dict, candidates: dict, all_pending: list[dict],
                       acknowledgments: dict) -> tuple[set[int], dict | None, dict]:
     """What the stats sweep would change for `pattern`, without touching the DB: ids to
     delete, a flag-merge plan (or None), and the kinds that need a new or updated write."""
-    pending = {item['kind']: item for item in all_pending if item['kind'] in ('retire', 'flag')}
+    pending = {item['kind']: item for item in all_pending if item['kind'] in CLEANUP_STATS_KINDS}
     to_delete = set()
     for existing in all_pending:
         if not _stats_only_suggestion(existing) and _obsolete_model_version(existing, pattern):
@@ -870,6 +906,10 @@ def _plan_stats_sweep(pattern: dict, candidates: dict, all_pending: list[dict],
                 _stats_evidence(kind, pattern, proposal['payload'])):
             to_delete.add(existing['id'])
             pending.pop(kind)
+    if any(_sets_sponsor(item) for item in all_pending if item['id'] not in to_delete):
+        if 'unnamed_sponsor' in pending:
+            to_delete.add(pending.pop('unnamed_sponsor')['id'])
+        candidates = {k: v for k, v in candidates.items() if k != 'unnamed_sponsor'}
     flag_merge = _flag_merge_plan(pending.get('flag'), candidates, pattern, acknowledgments)
     to_write = {kind: proposal for kind, proposal in candidates.items()
                if _stats_proposal_needs_write(kind, proposal, pattern, acknowledgments, pending)}
@@ -881,7 +921,8 @@ def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
     """One pattern's share of the stats sweep; a read-only precheck decides whether a
     write transaction (and the transcript lookup it would otherwise hold open) is needed."""
     changed = set()
-    candidates = {item['kind']: item for item in stats_suggestions(db, scanned, unused_days)}
+    candidates = {item['kind']: item
+                  for item in stats_suggestions(db, scanned, unused_days)}
     conn = db.get_connection()
     all_pending = _pending_pattern_suggestions(conn, scanned['id'])
     if not candidates and not all_pending:
@@ -943,6 +984,13 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
                  if acknowledgments.get(item['kind']) != _stats_evidence(
                      item['kind'], current, item['payload'])]
         suggestions = _suggestions_for(current, stats, verdict)
+        pending = _pending_pattern_suggestions(conn, current['id'])
+        if any(_sets_sponsor(item) for item in suggestions + pending):
+            suggestions = [item for item in suggestions if item['kind'] != 'unnamed_sponsor']
+            for item in pending:
+                if item['kind'] == 'unnamed_sponsor':
+                    conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
+                                 (utc_now_iso(), item['id']))
         before = _before_snapshot(current, context)
         for s in suggestions:
             db.upsert_cleanup_suggestion(run_id, current['id'], s['kind'], s['confidence'],
@@ -1243,15 +1291,16 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
         pattern['id'], review_hash(text, sponsor,
                                   category if category is not None else pattern.get('category')), conn=conn)
     applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text,
-               **_audio_fields(db, conn, pattern['id'])}
+               'previous_avg_duration': pattern.get('avg_duration'),
+               **_audio_fields(db, conn, pattern['id'], pattern.get('text_template'))}
     if sponsor_name:
         applied['sponsor_id'] = sponsor_id
     return applied
 
 
-def _audio_fields(db, conn, pattern_id: int) -> dict:
+def _audio_fields(db, conn, pattern_id: int, prefer_text: str | None) -> dict:
     """The source a trim or split rebuilds audio from; audio_unresolved marks audio that is on but has no source."""
-    source, wanted = rebuild_audio_source(db, conn, pattern_id)
+    source, wanted = rebuild_audio_source(db, conn, pattern_id, prefer_text=prefer_text)
     return {'audio_source': source, **({'audio_unresolved': True} if wanted and source is None else {})}
 
 
@@ -1278,6 +1327,13 @@ def _apply_rename(db, conn, pattern: dict, name: str, category: str | None = Non
         pattern['id'], review_hash(pattern.get('text_template'), canonical['name'],
                                    category if category is not None else pattern.get('category')), conn=conn)
     return {'new_pattern_ids': [], 'disabled_pattern_id': None, 'sponsor_id': sponsor_id}
+
+
+def _apply_clear_sponsor(db, conn, pattern: dict) -> dict:
+    db._update_ad_pattern_conn(conn, pattern['id'], sponsor_id=None)
+    db.stamp_pattern_cleanup_reviewed(
+        pattern['id'], review_hash(pattern.get('text_template'), None, pattern.get('category')), conn=conn)
+    return {'new_pattern_ids': [], 'disabled_pattern_id': None, 'sponsor_id': None}
 
 
 def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
@@ -1321,7 +1377,8 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     return {
         'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
         'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
-        'disabled_reason': disabled_reason, **_audio_fields(db, conn, pattern['id']),
+        'disabled_reason': disabled_reason,
+        **_audio_fields(db, conn, pattern['id'], pattern.get('text_template')),
     }
 
 
@@ -1333,6 +1390,8 @@ def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
         return _apply_rename(db, conn, pattern, payload['sponsor'], payload.get('category'))
     if kind == 'split':
         return _apply_split(db, conn, pattern, payload['pieces'])
+    if kind == 'unnamed_sponsor':
+        return _apply_clear_sponsor(db, conn, pattern)
     if kind == 'category':
         category = payload.get('category')
         if category not in SEGMENT_CATEGORIES:
@@ -1384,15 +1443,114 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     source = applied.get('audio_source')
     if applied.get('audio_unresolved'):
         outcomes = unresolved_audio_outcomes(pattern['id'])
+        if suggestion['kind'] != 'split' and _turn_off_stale_audio(db, suggestion_id, pattern['id'], applied):
+            outcomes = turned_off_audio_outcomes(pattern['id'])
     elif applied.get('new_pattern_ids'):
         outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
     elif applied.get('text') is not None:
         outcomes = rebuild_pattern_audio(db, source, pattern['id'], applied['text'])
     else:
         outcomes = []
+    if applied.get('text') is not None:
+        _fit_duration(db, suggestion_id, pattern, applied, outcomes)
+    if _changes_audio(applied):
+        _record_audio_outcomes(db, suggestion_id, suggestion['kind'], pattern['id'],
+                               bool(applied.get('audio_unresolved')), outcomes)
     result = db.get_cleanup_suggestion(suggestion_id)
     result['fingerprint_outcomes'] = outcomes
     return result
+
+
+def _blob_digest(fingerprint: dict) -> str:
+    return hashlib.sha256(fingerprint['fingerprint']).hexdigest()
+
+
+def _merge_applied(db, suggestion_id: int, extra: dict, what: str) -> bool:
+    """Merge extra into the suggestion's stored applied data; log and return False on failure."""
+    try:
+        db.merge_cleanup_suggestion_applied(suggestion_id, extra)
+        return True
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not {what} of suggestion {suggestion_id}: {e}")
+        return False
+
+
+def _turn_off_stale_audio(db, suggestion_id: int, pattern_id: int, applied: dict) -> bool:
+    """Switch off a trim's fingerprint when no source is retained, since it still matches the cut text."""
+    try:
+        before = db.get_audio_fingerprint(pattern_id)
+        if not before or not before['enabled']:
+            return False
+        switched = {'audio_disabled': True, 'audio_disabled_digest': _blob_digest(before)}
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not record the audio switch of suggestion {suggestion_id}: {e}")
+        return False
+    # Record first: undo only re-enables a fingerprint that is still off with this digest.
+    if not _merge_applied(db, suggestion_id, switched, 'record the audio switch'):
+        return False
+    try:
+        if db.set_fingerprint_enabled(pattern_id, False):
+            applied.update(switched)
+            return True
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not turn off the audio of pattern {pattern_id}: {e}")
+    _merge_applied(db, suggestion_id, {'audio_disabled': False, 'audio_disabled_digest': None},
+                   'correct the stored record')
+    return False
+
+
+def _restore_stale_audio(db, pattern_id: int, applied: dict) -> None:
+    """Switch the audio back on only if this trim turned it off and it is still off and unchanged."""
+    try:
+        current = db.get_audio_fingerprint(pattern_id)
+        if (current and not current['enabled']
+                and _blob_digest(current) == applied.get('audio_disabled_digest')):
+            db.set_fingerprint_enabled(pattern_id, True)
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not turn the audio of pattern {pattern_id} back on: {e}")
+
+
+def _changes_audio(applied: dict) -> bool:
+    """Whether the applied suggestion trimmed or split a pattern, so its audio was rebuilt or carried."""
+    return bool(applied.get('new_pattern_ids')) or applied.get('text') is not None
+
+
+def _fit_duration(db, suggestion_id: int, pattern: dict, applied: dict, outcomes: list) -> None:
+    """Shorten the stored duration after a trim: to the rebuilt fingerprint's span, else by the text ratio; never up."""
+    current = db.get_ad_pattern_by_id(pattern['id'])
+    previous = applied.get('previous_avg_duration')
+    if not current or current.get('text_template') != applied['text'] or not isinstance(previous, (int, float)):
+        return
+    old_len = len(pattern.get('text_template') or '')
+    new = previous * len(applied['text']) / old_len if old_len else None
+    if any(pid == pattern['id'] and result.stored for pid, result in outcomes):
+        fingerprint = db.get_audio_fingerprint(pattern['id'], with_blob=False) or {}
+        start, end = fingerprint.get('source_start'), fingerprint.get('source_end')
+        if start is not None and end is not None and end > start:
+            new = end - start
+    if new is None or not 0 < new < previous:
+        return
+    # Record first: undo restores the duration only while it still equals this value.
+    if not _merge_applied(db, suggestion_id, {'fitted_avg_duration': new}, 'record the fitted duration'):
+        return
+    try:
+        db.update_ad_pattern(pattern['id'], avg_duration=new)
+    except Exception as e:
+        logger.warning(f"pattern_cleanup: could not fit the duration of pattern {pattern['id']}: {e}")
+        _merge_applied(db, suggestion_id, {'fitted_avg_duration': None}, 'correct the stored record')
+
+
+def _record_audio_outcomes(db, suggestion_id: int, kind: str, pattern_id: int, unresolved: bool,
+                           outcomes: list, *, undo: bool = False) -> None:
+    """Log one line for the suggestion and keep its audio outcomes on the stored applied data."""
+    key = 'undo_audio_outcomes' if undo else 'audio_outcomes'
+    entries = [{'pattern_id': pid, 'stored': result.stored, 'reason': result.skipped_reason}
+               for pid, result in outcomes]
+    if unresolved and not entries:
+        entries = [{'pattern_id': pattern_id, 'stored': False, 'reason': 'original_not_retained'}]
+    summary = ', '.join(f"{e['pattern_id']}={'stored' if e['stored'] else e['reason']}" for e in entries) or 'none'
+    logger.info(f"pattern_cleanup: suggestion {suggestion_id} {kind} on pattern {pattern_id} {key.replace('_', ' ')}: {summary}")
+    _merge_applied(db, suggestion_id, {key: entries}, 'store the audio outcomes')
 
 
 def reject_suggestion(db, suggestion_id: int) -> dict:
@@ -1489,8 +1647,14 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
                 updates['sponsor_id'] = before.get('sponsor_id')
             if payload.get('category'):
                 updates['category'] = before.get('category')
+            # Restore only a duration the trim itself wrote and nothing has moved since.
+            fitted = applied.get('fitted_avg_duration')
+            current = pattern.get('avg_duration')
+            if (isinstance(fitted, (int, float)) and 'previous_avg_duration' in applied
+                    and isinstance(current, (int, float)) and math.isclose(current, fitted, abs_tol=1e-6)):
+                updates['avg_duration'] = applied['previous_avg_duration']
             db._update_ad_pattern_conn(conn, pattern['id'], **updates)
-        elif suggestion['kind'] == 'rename':
+        elif suggestion['kind'] in ('rename', 'unnamed_sponsor'):
             expected = applied.get('after')
             fields = _suggestion_after_fields(suggestion)
             if not _matches_snapshot(pattern, expected, fields):
@@ -1522,6 +1686,10 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
     if suggestion['kind'] != 'split' and applied.get('text') is not None:
         outcomes = _restore_trimmed_audio(
             db, pattern['id'], applied.get('audio_source'), before.get('text_template'))
+        if applied.get('audio_disabled'):
+            _restore_stale_audio(db, pattern['id'], applied)
+    if _changes_audio(applied):
+        _record_audio_outcomes(db, suggestion_id, suggestion['kind'], pattern['id'], False, outcomes, undo=True)
     result = db.get_cleanup_suggestion(suggestion_id)
     result['fingerprint_outcomes'] = outcomes
     return result

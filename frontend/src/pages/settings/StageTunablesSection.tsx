@@ -128,7 +128,6 @@ const TUNABLE_KEYS: (keyof StageTunables)[] = [
   ...STAGES.flatMap((s) => [s.temperatureKey, s.maxTokensKey, s.budgetKey, s.levelKey]),
   'windowSizeSeconds',
   'windowOverlapSeconds',
-  'heldWidenSeconds',
 ];
 
 // Every key this section edits, in a stable order. Used for diffing the draft
@@ -514,53 +513,6 @@ function WindowConfigBlock({
   );
 }
 
-function HeldWidenBlock({
-  tunables,
-  defaults,
-  draft,
-  setField,
-}: {
-  tunables: StageTunables;
-  defaults: Record<keyof StageTunables, number | string | null>;
-  draft: DraftRecord;
-  setField: (key: string, value: DraftValue) => void;
-}) {
-  const env = readEnvOverride(tunables.heldWidenSeconds);
-  const value = draft.heldWidenSeconds as number | null;
-
-  return (
-    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
-      <div>
-        <h4 className={subHeading}>Held-for-review editing</h4>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          How far past the reviewed span a held ad's edges may be moved by hand.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <NumberFieldRow
-          label="Widen held ads by (seconds)"
-          id="heldWidenSeconds"
-          resetDisabled={value === null}
-          onReset={() => setField('heldWidenSeconds', null)}
-          value={value}
-          fallback={defaults.heldWidenSeconds as number | null}
-          min={0}
-          max={120}
-          step={1}
-          parse={parseFloatField}
-          onChange={(parsed) => setField('heldWidenSeconds', parsed)}
-          help={
-            env
-              ? `Default from ${env}.`
-              : '0 to 120. Default 0: the edges stay within the reviewed span (plus or minus half a second). A higher value lets them reach that far outside it, stopping at neighbouring ads, and makes Adjust approve the held ad at once.'
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
 function ConcurrencyConfigBlock({
   value,
   defaultValue,
@@ -742,12 +694,6 @@ function StageTunablesSection({
         <ConcurrencyConfigBlock
           value={draft[PARALLEL_KEY] as number}
           defaultValue={parallelWindowsDefault}
-          setField={setField}
-        />
-        <HeldWidenBlock
-          tunables={tunables}
-          defaults={defaults}
-          draft={draft}
           setField={setField}
         />
 

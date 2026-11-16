@@ -302,7 +302,7 @@ def test_learned_show_segment_category_correction_preserves_content(
         temp_db, live_route, old_category, new_category):
     text = ('Thanks for listening to the show. We will be back next week '
             'with another conversation and a recap of the stories we covered.')
-    pattern = _pattern(temp_db, text=text, category=old_category)
+    pattern = _pattern(temp_db, text=text, sponsor=None, category=old_category)
     fake, _ = _fake_llm(_reply(category=new_category))
     with patch.object(pattern_cleanup, 'call_llm', fake):
         run_cleanup(temp_db)

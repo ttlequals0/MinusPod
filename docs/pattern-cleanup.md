@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/d6091622-53ba-4856-985d-7b46c9a8e3f5
 
 ## What it does
 
-A learned pattern is captured straight from a transcript, so it often carries a few words of host banter or show content stitched onto the actual sponsor read, or merges two sponsors read back to back into one pattern. Pattern Cleanup runs an LLM over your learned pattern library and proposes trims, splits, sponsor renames, category corrections, or retirement for patterns that have stopped matching.
+A learned pattern is captured straight from a transcript. It often carries a few words of host banter or show content stitched onto the sponsor read, or merges two sponsors read back to back into one pattern. Pattern Cleanup runs an LLM over your learned pattern library and proposes trims, splits, sponsor renames, category corrections, or retirement for patterns that have stopped matching.
 
 Review suggestions in the Cleanup tab on the Patterns page. An approved change keeps the pattern's prior state, so it can be undone later. Nothing in the pipeline reads a suggestion before you act on it.
 
@@ -39,16 +39,16 @@ Settings > Experiments > Pattern Cleanup has:
 
 - **Enable scheduled cleanup** - turns the cron schedule on or off. Run now works either way.
 - **Schedule** - a 5-field cron expression, interpreted as UTC. Default `0 4 * * 0` (weekly, Sunday 04:00).
-- **Cleanup Provider** / **Cleanup Model** - which credential slot and model review the patterns. Left blank, both inherit the detection stage's slot and model. The UI recommends picking a higher-quality model here than you use for everyday detection: cleanup runs far less often than detection, so the extra cost per call buys more reliable trims and splits.
+- **Cleanup Provider** / **Cleanup Model** - which credential slot and model review the patterns. Left blank, both inherit the detection stage's slot and model. The UI recommends picking a higher-quality model here than you use for everyday detection. Cleanup runs far less often than detection, so the extra cost per call buys more reliable trims and splits.
 - **Patterns per run** - how many patterns one run sends to the model, 1 to 200, default 25. Patterns never reviewed go first, then patterns whose reviews failed. Statistics checks cover all active learned patterns without model calls.
 - **Retire after (days unused)** - how long without a match before cleanup suggests retiring a pattern, 7 to 3650 days, default 90.
 
 Save configuration changes before starting a run. Run now and Force recheck
 all use the saved provider, model, and batch size.
 
-Turning the schedule on never starts a run right away: the next run waits for the first cron slot after that moment and the Last run time is unchanged. **Run now** always starts a run right away, subject to the usual lock (see below).
+Turning the schedule on never starts a run right away. The next run waits for the first cron slot after that moment and the Last run time is unchanged. **Run now** always starts a run right away, subject to the usual lock (see below).
 
-A run starts in a background thread and the API call returns as soon as it has been queued; the Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
+A run starts in a background thread and the API call returns once it is queued. The Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
 
 Cleanup follows the selected provider's failover state between model calls.
 Cancelling failover or recovering the original provider takes effect on the
@@ -59,18 +59,19 @@ provider actually called, including failover retries.
 
 ## How suggestions are produced
 
-Each run checks active learned patterns for two conditions without calling the model:
+Each run checks active learned patterns for three conditions without calling the model:
 
-- **Retire**: the pattern has had no match in longer than the configured unused-days window (or never matched), and it is old enough that this isn't just a freshly learned pattern waiting for its first match.
-- **Flag**: the pattern already has a high false-positive rate relative to its confirmations, the same rule that would otherwise just sit in the pattern's stats unexamined.
+- **Retire**: the pattern has had no match in longer than the configured unused-days window (or never matched). It is also old enough that it is not a freshly learned pattern waiting for its first match.
+- **Flag**: the pattern already has a high false-positive rate relative to its confirmations, the same rule that would otherwise sit in the pattern's stats unexamined.
+- **Unnamed sponsor**: the pattern has a sponsor, but neither its name nor an alias appears in its text, and no domain or promo code in the text backs the name.
 
 A false-positive flag requires at least two false positives and at least as
 many false positives as confirmations. These checks continue after the model
 has reviewed unchanged text and sponsor, and still work when the model is unavailable.
 Rejecting a statistical suggestion acknowledges that evidence: the same
-inactivity period or false-positive count is not proposed again. A new false
+inactivity period, false-positive count, or sponsor and text pairing is not proposed again. A new false
 positive, a new match followed by another unused period, changed pattern text,
-or a changed retirement threshold can produce a new suggestion. Improving
+a changed retirement threshold, or a changed sponsor can produce a new suggestion. Improving
 confirmation counts alone does not repeat a dismissed false-positive flag.
 
 For patterns due for model review, it then asks the model to review the text.
@@ -82,7 +83,7 @@ retained transcript, the model works from the pattern text by itself.
 
 The model's answer goes through a validation gate before anything is stored:
 
-- Any text it proposes keeping must be a close match to a real contiguous slice of the original pattern text (a near-substring, not just similar wording).
+- Any text it proposes keeping must be a close match to a real contiguous slice of the original pattern text (a near-substring; similar wording does not qualify).
 - A trim must remove at least 5 words or 10% of the original. A smaller trim is ignored, but a valid sponsor correction can still become a rename suggestion.
 - A split's pieces must not overlap, and each piece must mention its own sponsor.
 - A trim must keep the recorded sponsor when the original text names it. If the sponsor is absent or unknown, it must retain a name from the sponsor list. A combined trim and sponsor correction can instead use the validated new sponsor in the retained text.
@@ -104,6 +105,7 @@ The sponsor check verifies that the name occurs in the retained text. It cannot 
 | Rename | The sponsor on the pattern doesn't match what's actually read | Re-resolves the sponsor and updates the pattern's sponsor link |
 | Category | The category doesn't match the pattern's content | Updates the pattern category |
 | Retire | The pattern hasn't matched in a long time | Deactivates the pattern with a reason noting how long it went unused |
+| Unnamed sponsor | The pattern's sponsor never appears in its own text | Clears the sponsor link (`sponsor_id` becomes empty). The pattern stays active and keeps matching |
 | Flag | High false-positive rate, or content the model judges contaminated beyond a trim | Deactivates the pattern (or applies a trim, when the model's recommendation is a trim rather than disabling) |
 
 Each card shows the suggestion's confidence and reasons. Statistics-only suggestions are generated without a model call.
@@ -127,7 +129,7 @@ untouched and acknowledges the reviewed version; rejecting an outdated
 suggestion returns a conflict instead of marking newer text reviewed.
 Model reviews are not repeated for unchanged text, sponsor, and category unless you force a recheck.
 
-**Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
+**Undo** restores the pattern from that snapshot. A trim or flag-trim restores the text and any sponsor or category fields included in the approval. A rename restores the sponsor and any category changed with it. A category suggestion restores the prior category. An unnamed-sponsor suggestion restores the cleared sponsor. Retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
 
 Undo is refused once a later suggestion has been approved against the same
 pattern. Undo the later approval first. It also refuses to overwrite fields
@@ -212,7 +214,7 @@ optional `before.sourceContext` is the real retained transcript context.
 
 ## Settings reference
 
-All settings are under `PUT /api/v1/settings/pattern-cleanup`; database-only, no environment variable backing.
+All settings are under `PUT /api/v1/settings/pattern-cleanup`; database only, no environment variable backing.
 
 | Payload key | Kind / range | Default |
 |---|---|---|
