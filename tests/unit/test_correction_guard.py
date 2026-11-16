@@ -14,10 +14,7 @@ from utils.correction_guard import correction_skip_reason, usable_confirmed_corr
 from ad_validator import AdValidator
 
 
-@pytest.fixture(autouse=True)
-def _widen_sixty(monkeypatch):
-    """These tests describe the widened window (held_widen_seconds = 60)."""
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+pytestmark = pytest.mark.usefixtures('held_widen_sixty')
 
 
 HELD = {'start': 437.0, 'end': 440.2, 'confidence': 0.9, 'sponsor': 'Acme',
@@ -31,6 +28,9 @@ class FakeDb:
     def __init__(self, confirmed, markers):
         self._confirmed = confirmed
         self._markers = markers
+
+    def get_setting(self, key):
+        return '60' if key == 'held_widen_seconds' else None
 
     def get_podcast_row(self, slug):
         return {'id': 1}

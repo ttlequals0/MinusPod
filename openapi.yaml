@@ -8775,15 +8775,6 @@ paths:
                   minimum: 0
                   maximum: 1770
                   description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
-                heldWidenSeconds:
-                  type: [number, 'null']
-                  minimum: 0
-                  maximum: 120
-                  description: >-
-                    Seconds a held-for-review marker's edges may be moved past the reviewed span, each way, limited by cut, approved,
-                    kept and rejected neighbours and the episode edges. 0 (default) keeps the reviewed span plus or minus 0.5 s. A
-                    value above 0 also makes an adjust approve the held marker at once and drops a stored adjustment outside that
-                    window when the recut replays it. Null clears the stored value.
                 verificationMissHoldMinConfidence:
                   type: number
                   format: float
@@ -8874,6 +8865,18 @@ paths:
                     hold for review; shorter candidates are dropped. 0
                     disables the floor (default 10).
                   example: 10
+                heldWidenSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 120
+                  description: >-
+                    Seconds a held-for-review marker's edges may be moved past the reviewed span, each way, limited by cut,
+                    approved, kept and rejected neighbours and the episode edges. 0 (default) keeps the reviewed span plus or
+                    minus 0.5 s. A value above 0 also makes an adjust approve the held marker at once and drops a stored
+                    adjustment outside that window when the recut replays it. Global only. Non-numeric or out-of-range values
+                    return 400.
+                  example: 0
             queueManualBoost:
               type: integer
               minimum: 0
@@ -18683,6 +18686,17 @@ components:
             Shortest uncorroborated differential candidate that may hold
             for review; shorter candidates are dropped. 0 disables the
             floor (default 10).
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        heldWidenSeconds:
+          type: object
+          description: >-
+            Seconds a held marker's edges may move past the reviewed span, each
+            way. 0 disables widening (default). Range 0 to 120.
           properties:
             value:
               type: number

@@ -260,13 +260,13 @@ _ALLOW_DETECTION_TUNING = (
     'learning_min_confidence_long', 'learning_min_pattern_duration',
     'learning_max_pattern_duration', 'differential_measured_corr_max',
     'dai_differential_overrides_keep', 'splice_veto_enabled',
-    'differential_hold_min_seconds',
+    'differential_hold_min_seconds', 'held_widen_seconds',
 )
 
 _ALLOW_STAGE_TUNABLES = (
     'chapter_target_seconds', 'chapter_window_seconds', 'chapter_max_boundaries',
     'chapter_min_duration_seconds', 'window_size_seconds',
-    'window_overlap_seconds', 'held_widen_seconds',
+    'window_overlap_seconds',
 )
 
 DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(

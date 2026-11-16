@@ -77,10 +77,6 @@ def _allowed(ref):
 
 
 class TestDefaultMatchesUpstream:
-    @pytest.fixture(autouse=True)
-    def _no_widen(self, monkeypatch):
-        monkeypatch.delenv('HELD_WIDEN_SECONDS', raising=False)
-
     def test_confirm_trim_may_only_narrow(self, ref):
         assert _confirm(ref, 990.0, 1100.0).status_code == 400
         assert _confirm(ref, 1000.0, 1101.0).status_code == 400
@@ -125,11 +121,8 @@ class TestDefaultMatchesUpstream:
         assert (ads[0]['start'], ads[0]['end']) == (1000.0, 1100.0)
 
 
+@pytest.mark.usefixtures('held_widen_sixty')
 class TestWidenedBehaviour:
-    @pytest.fixture(autouse=True)
-    def _widen(self, monkeypatch):
-        monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
-
     def test_confirm_trim_may_widen_to_sixty_seconds(self, ref):
         assert _confirm(ref, 940.0, 1160.0).status_code == 200
         assert _confirm(ref, 930.0, 1100.0).status_code == 400

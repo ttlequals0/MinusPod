@@ -1614,7 +1614,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         return bounds_error
     adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
     # Above 0 an adjust approves a held marker at once, so it gets confirm's window; at 0 it waits for the recut.
-    widened = resolve_held_widen_seconds() > 0
+    widened = resolve_held_widen_seconds(db) > 0
     if widened:
         episode, markers = _load_episode_markers(db, slug, episode_id)
         for m in markers or []:

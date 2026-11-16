@@ -40,3 +40,17 @@ def test_empty_env_var_is_unset_for_session_seeding(monkeypatch):
     assert config.resolve_env_backed_default('session_lifetime_hours') == '24'
     assert config.resolve_env_backed_default('session_remember_days') == '30'
     assert config.get_env_backed_int('session_lifetime_hours', settings={}) == 24
+
+
+def test_held_widen_seconds_exports_and_imports_as_a_number():
+    from database import Database
+    assert 'held_widen_seconds' in config_transfer.PORTABLE_SETTINGS
+    db = Database()
+    db.set_setting('held_widen_seconds', '45.5', is_default=False)
+    try:
+        assert config_transfer.export_config(db, '2.0.0')['settings']['held_widen_seconds'] == 45.5
+    finally:
+        db.reset_setting('held_widen_seconds')
+    assert config_transfer.export_config(db, '2.0.0')['settings']['held_widen_seconds'] == 0.0
+    config_transfer._validate_setting_value('held_widen_seconds', 60)
+    assert _import_error('held_widen_seconds', 'wide') == 'held_widen_seconds must be a number'

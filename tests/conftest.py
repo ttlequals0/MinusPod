@@ -37,6 +37,15 @@ def pytest_collection_finish(session):
     _restore_excepthooks()
 
 
+@pytest.fixture
+def held_widen_sixty(monkeypatch):
+    """held_widen_seconds reads 60 on every Database."""
+    real = Database.get_setting
+    monkeypatch.setattr(
+        Database, 'get_setting',
+        lambda self, key: '60' if key == 'held_widen_seconds' else real(self, key))
+
+
 @pytest.fixture(autouse=True)
 def _keep_pytest_excepthooks():
     yield

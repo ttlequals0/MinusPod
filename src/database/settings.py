@@ -1066,6 +1066,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),
+    'held_widen_seconds': SettingSpec(
+        default='0', seeded=True, in_ad_reset=True,
+        payload_key='heldWidenSeconds', payload_kind='float'),
 
     # Notifications
     # IANA zone for timestamp_local in webhook/email payloads: the container TZ

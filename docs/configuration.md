@@ -38,6 +38,8 @@ New feeds use each global choice. A feed set to Inherit continues using that cho
 
 **Require manual approval.** Off by default. Turn it on in Settings > Global Defaults, or set one feed to On in Feed Settings (Inherit follows the global choice). A finished episode then stays out of the served RSS feed, the Recents feed and the audio URL until you approve it. Meanwhile the audio URL answers 503 with `Retry-After: 1800`, and an `Episode Awaiting Approval` event replaces `Episode Processed`. An `Episode Pending Review` event fires alongside either event when the finished episode has detections held for review. Approve from the episode page, the Queue page's Episode review tab, or `POST /api/v1/feeds/{slug}/episodes/{id}/approve`. A recut also approves the episode. Once approved, an episode stays approved through later reprocesses. The API fields are `requireManualApprovalDefault` on `PUT /api/v1/settings/ad-detection` and `requireManualApproval` on `PATCH /api/v1/feeds/{slug}`.
 
+**Widen held ads by (seconds).** 0 to 120, default 0, set in Settings > Global Defaults. At 0, a held ad's edges stay within the reviewed span plus or minus 0.5 seconds, and Adjust only records the new span for the next recut. A higher value lets you move the edges that many seconds past the reviewed span, stopping at cut, approved, kept and rejected neighbours and the episode edges, and makes Adjust approve the held ad at once. It applies to all feeds; there is no per-feed control. The API field is `heldWidenSeconds` on `PUT /api/v1/settings/ad-detection`; a value outside 0 to 120 or a non-number is a 400.
+
 ### Auto-process window
 
 A new episode is auto-queued only if it was published within the auto-process window; older ones stay discovered until you process them. The default is 48 hours and the range is 1 to 720 hours. A feed can set its own window in Feed Settings; leave it empty to inherit the global value. API fields: `autoProcessMaxAgeHours` on `PUT /api/v1/settings/ad-detection` and `autoProcessMaxAgeHoursOverride` (null inherits) on `PATCH /api/v1/feeds/{slug}`.
@@ -191,10 +193,6 @@ Set it to **32768** or higher with the default window settings, and stay within 
 | Ad detection, 600 s window, typical show | 10k to 13k tokens |
 
 At 16384 every chapter call is cut and chapters degrade to a single chapter. A larger context needs more memory for the KV cache, so on memory-constrained hosts the alternative is smaller detection windows (below) and chapter windows.
-
-#### Held marker widening (advanced)
-
-`heldWidenSeconds` (env `HELD_WIDEN_SECONDS`, 0-120 seconds, default 0) sets how far past the reviewed span a held marker's edges may be moved by hand. At 0 the limit is the reviewed span plus or minus 0.5 seconds, as before. A positive value widens it that many seconds each way, stopped by cut, approved, kept and rejected neighbours and the episode edges, and makes an adjust approve the held marker at once. It is an advanced global setting (Settings, LLM tunables) with no per-feed control; the API accepts it on `PUT /api/v1/settings/ad-detection`. At 0, an adjust is only recorded and applied by the recut.
 
 #### Detection window geometry
 

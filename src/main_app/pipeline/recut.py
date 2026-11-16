@@ -41,7 +41,7 @@ def _legacy_skip_reason(match, n_start, n_end, episode, false_positive_spans, al
     """Why a stored adjustment must not be replayed onto `match`, else None."""
     windows = []
     if (episode is not None and match.get('held_for_review')
-            and resolve_held_widen_seconds() > 0):
+            and resolve_held_widen_seconds(db) > 0):
         windows.append(held_review_window(db, episode, all_ads, match, false_positive_spans))
     return correction_skip_reason(
         {'start': n_start, 'end': n_end}, windows)

@@ -483,7 +483,7 @@ def _usable_confirmed(slug, episode_id, db, confirmed, false_positive_spans,
     if episode is None:
         episode = db.get_episode(slug, episode_id) or {}
     markers = parse_ad_markers(episode.get('ad_markers_json')) or []
-    window_for = None if resolve_held_widen_seconds() <= 0 else (
+    window_for = None if resolve_held_widen_seconds(db) <= 0 else (
         lambda m: held_review_window(db, episode, markers, m, false_positive_spans))
     return usable_confirmed_corrections(
         confirmed, markers, window_for, label=f"[{slug}:{episode_id}] ")

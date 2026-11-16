@@ -314,7 +314,7 @@ def held_review_window(db, episode, markers, marker, false_positive_spans):
         markers, marker, episode.get('original_duration'),
         episode.get('status') == EpisodeStatus.PROCESSED,
         proposal=proposal, blocked_spans=false_positive_spans,
-        widen_s=resolve_held_widen_seconds())
+        widen_s=resolve_held_widen_seconds(db))
 
 
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None,

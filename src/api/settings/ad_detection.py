@@ -1693,6 +1693,7 @@ def _detection_tuning_writes(db, data):
         ('learningMinConfidenceLong', 'learning_min_confidence_long', 0.5, 1.0),
         ('differentialMeasuredCorrMax', 'differential_measured_corr_max', 0.0, 1.0),
         ('differentialHoldMinSeconds', 'differential_hold_min_seconds', 0.0, 120.0),
+        ('heldWidenSeconds', 'held_widen_seconds', 0.0, 120.0),
     ):
         if field_name not in data:
             continue

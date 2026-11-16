@@ -79,6 +79,7 @@ SEED_SNAPSHOT = {
     'dai_differential_overrides_keep': 'true',
     'splice_veto_enabled': 'true',
     'differential_hold_min_seconds': '10',
+    'held_widen_seconds': '0',
     'differential_measured_corr_max': '0.60',
     'differential_fetch_mode': 'auto',
     'skip_second_pass': 'false',
@@ -529,7 +530,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 187
+        assert len(payload_keys) == 188
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

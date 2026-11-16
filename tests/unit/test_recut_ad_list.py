@@ -1800,8 +1800,8 @@ def test_apply_boundary_adjustments_skips_legacy_span_under_one_second(monkeypat
     assert 'skipped legacy correction 620.0-620.2:' in caplog.text
 
 
-def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(monkeypatch, caplog):
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(
+        monkeypatch, caplog, held_widen_sixty):
     ads = [_held(120.0, 437.0)]
     _pin_corrections(monkeypatch, [_boundary_adjustment(120.0, 437.0, 20.0, 437.0)])
     caplog.set_level('INFO')
@@ -1810,8 +1810,8 @@ def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(mo
     assert 'skipped legacy correction 20.0-437.0:' in caplog.text
 
 
-def test_apply_boundary_adjustments_applies_a_span_inside_the_held_window(monkeypatch):
-    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+def test_apply_boundary_adjustments_applies_a_span_inside_the_held_window(
+        monkeypatch, held_widen_sixty):
     ads = [_held(120.0, 437.0)]
     _pin_corrections(monkeypatch, [_boundary_adjustment(120.0, 437.0, 100.0, 480.0)])
     recut._apply_boundary_adjustments('slug', 'ep', ads, episode={'original_duration': 3600.0})
