@@ -120,3 +120,27 @@ def test_rejecting_a_trim_confirmed_held_marker_dismisses_it(temp_db):
     assert pending == [] and count == 0
     assert len(rejected) == 1
     assert (rejected[0]['start'], rejected[0]['end']) == (100.0, 200.0)
+
+
+def test_unapproving_a_trim_restores_the_merge_spans(temp_db):
+    import copy
+    from api.patterns import _unapprove_held_markers_of
+    marker = _held(100.0, 200.0)
+    marker.update({
+        'merged_distinct_ads': True,
+        'merged_protected_start': 100.0, 'merged_protected_end': 200.0,
+        'merged_member_spans': [{'start': 100.0, 'end': 150.0, 'stage': 'claude'},
+                                {'start': 150.0, 'end': 200.0, 'stage': 'claude'}],
+        'dai_core_spans': [{'start': 100.0, 'end': 200.0}],
+    })
+    before = copy.deepcopy(marker)
+    slug, eid = _seed(temp_db, [marker])
+    _approve_trimmed(temp_db, slug, eid, 100.0, 200.0, 120.0, 180.0)
+    deleted = [{'corrected_bounds': {'start': 120.0, 'end': 180.0},
+                'original_bounds': {'start': 100.0, 'end': 200.0}}]
+
+    _unapprove_held_markers_of(temp_db, slug, eid, deleted)
+
+    restored = json.loads(temp_db.get_episode(slug, eid)['ad_markers_json'])[0]
+    assert {k: restored.get(k) for k in before} == before
+    assert 'reviewer_original_merge' not in restored

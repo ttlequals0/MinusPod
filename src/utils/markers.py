@@ -1,4 +1,5 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
+import copy
 import hashlib
 import json
 import math
@@ -639,6 +640,29 @@ def clip_merge_spans(marker: dict, lo: float, hi: float) -> None:
                                        if _clip_match(m, lo, hi)]
     _clip_match(marker, lo, hi)
     clip_dai_core_spans(marker, lo, hi)
+
+
+MERGE_SPAN_KEYS = ('merged_protected_start', 'merged_protected_end', MERGED_MEMBER_SPANS,
+                   'fingerprint_match_start', 'fingerprint_match_end',
+                   SILENT_ABSORBED_SPANS, DAI_CORE_SPANS, DAI_PROBE_SPANS)
+REVIEWER_ORIGINAL_MERGE = 'reviewer_original_merge'
+
+
+def stash_merge_spans(marker: dict) -> None:
+    """Keep the merge records as first detected, once, before a trim clips them."""
+    if REVIEWER_ORIGINAL_MERGE not in marker:
+        marker[REVIEWER_ORIGINAL_MERGE] = copy.deepcopy(
+            {key: marker[key] for key in MERGE_SPAN_KEYS if key in marker})
+
+
+def restore_merge_spans(marker: dict) -> None:
+    """Undo clip_merge_spans using the stash, if the marker has one."""
+    saved = marker.pop(REVIEWER_ORIGINAL_MERGE, None)
+    if saved is None:
+        return
+    for key in MERGE_SPAN_KEYS:
+        marker.pop(key, None)
+    marker.update(saved)
 
 
 def member_spans(marker: dict) -> list[dict]:

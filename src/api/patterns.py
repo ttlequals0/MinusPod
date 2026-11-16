@@ -18,7 +18,7 @@ from database.fingerprint_matches import fingerprint_member_pattern_ids
 from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.markers import (
     clip_merge_spans, find_marker_in_list, held_review_window, parse_ad_markers,
-    usable_reviewer_proposal)
+    restore_merge_spans, stash_merge_spans, usable_reviewer_proposal)
 from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from utils.constants import EpisodeStatus
@@ -1472,6 +1472,7 @@ def _unapprove_held_markers_of(db, slug, episode_id, deleted_rows, markers=None,
                         m['start'] = m.pop('reviewer_original_start')
                     if m.get('reviewer_original_end') is not None:
                         m['end'] = m.pop('reviewer_original_end')
+                    restore_merge_spans(m)
                     changed = True
     if changed:
         db.save_episode_details(slug, episode_id, ad_markers=markers,
@@ -1502,6 +1503,7 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                     m['reviewer_original_end'] = m.get('end')
                 m['start'] = new_start
                 m['end'] = new_end
+                stash_merge_spans(m)
                 clip_merge_spans(m, new_start, new_end)
             m['approved'] = True
             m['reviewer_moved'] = False
