@@ -12,7 +12,7 @@ import {
   updateLocalEpisode, uploadLocalEpisodeArtwork, setEpisodesPassthrough,
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
-import { submitCorrection, type CorrectionResult } from '../api/patterns';
+import { submitCorrection } from '../api/patterns';
 import { APPROVAL_INVALIDATE_KEYS, getSettings } from '../api/settings';
 import { LLM_DISABLED_REASON, isLlmDisabledError } from './settings/LlmGate';
 import { isLlmEnabled } from '../hooks/useLlmEnabled';
@@ -421,19 +421,6 @@ function EpisodeDetail() {
   // Rejecting the last held marker clears the review set; the banner that follows
   // offers a re-detect.
   const [heldReviewCleared, setHeldReviewCleared] = useState(false);
-  // One line under the Held for review heading after a confirm: what was saved
-  // and whether it is cut yet. Clears on the next action or after 6 s.
-  const [heldBanner, setHeldBanner] = useState<string | null>(null);
-  const heldBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showHeldBanner = (text: string | null) => {
-    if (heldBannerTimer.current) clearTimeout(heldBannerTimer.current);
-    heldBannerTimer.current = null;
-    setHeldBanner(text);
-    if (text) heldBannerTimer.current = setTimeout(() => setHeldBanner(null), 6000);
-  };
-  useEffect(() => () => {
-    if (heldBannerTimer.current) clearTimeout(heldBannerTimer.current);
-  }, []);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -537,13 +524,6 @@ function EpisodeDetail() {
     reprocessMutation.mutate(mode);
   };
 
-  // Cut now: the not-cut-yet notice goes at once; rows read "Cutting now" while the mutation stays pending.
-  const cuttingNow = reprocessMutation.isPending && reprocessMutation.variables === 'recut';
-  const cutNow = () => {
-    showHeldBanner(null);
-    handleReprocess('recut');
-  };
-
   const regenerateChaptersMutation = useMutation({
     mutationFn: () => regenerateChapters(slug!, episodeId!),
     // Awaited so isPending covers the refetch; the POST only starts the run,
@@ -614,13 +594,12 @@ function EpisodeDetail() {
     onMutate: () => {
       setSaveStatus('saving');
       setCorrectionError(null);
-      showHeldBanner(null);
       // A saved correction can remove the playing row (and its whole section)
       // on refetch, which would leave the windowed preview playing with no
       // visible owner. Stop it up front.
       markerAudition.stop();
     },
-    onSuccess: (data, correction) => {
+    onSuccess: (_data, correction) => {
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
@@ -628,6 +607,10 @@ function EpisodeDetail() {
       // matching this reject means the review set just emptied.
       const held = episode?.pendingReviewMarkers ?? [];
       const oa = correction.originalAd;
+      if (pendingRecutRef.current) {
+        pendingRecutRef.current = false;
+        handleReprocess('recut');
+      }
       if (correction.type === 'reject' && held.length === 1 && oa
           && held[0].start === oa.start && held[0].end === oa.end) {
         setHeldReviewCleared(true);
@@ -1802,15 +1785,6 @@ function EpisodeDetail() {
           <h2 className={`${cardTitle} mb-4`}>
             Held for review ({heldMarkers.length})
           </h2>
-          {heldBanner && (
-            <p
-              role="status"
-              className="mb-3 text-sm text-success"
-              data-testid="held-saved-banner"
-            >
-              {heldBanner}
-            </p>
-          )}
           <div className="space-y-3">
             {heldMarkers.map((segment, index) => {
               const correction = getAdCorrection(segment.start, segment.end);
@@ -1934,55 +1908,25 @@ function EpisodeDetail() {
                     return (
                       <div
                         key={other}
-                        className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-warning"
+                        className="mt-2 text-sm text-warning"
                         data-testid={k === 0 ? `overlap-warning-${index}` : `overlap-warning-${index}-${k}`}
                       >
-                        <span>
-                          {same
-                            ? `Same audio as the held span ${span}. Deciding one decides both.`
-                            : `Overlaps the held span ${span}.`}
-                        </span>
-                        {!same && (
-                          <button
-                            onClick={() => handleCorrection({ type: 'reject', originalAd: toOriginalAd(o) })}
-                            disabled={correctionMutation.isPending || reprocessBlocked}
-                            title="Marks the overlapping span as not an ad so it stays in the audio."
-                            data-testid={k === 0 ? `drop-overlap-${index}` : `drop-overlap-${index}-${k}`}
-                            className={`${rowActionBtn} ${btnSecondary} ${focusRing}`}
-                          >
-                            Leave the other in
-                          </button>
-                        )}
+                        {same
+                          ? `Same audio as the held span ${span}. Deciding one decides both.`
+                          : `Overlaps the held span ${span}.`}
                       </div>
                     );
                   })}
                   {(correction?.correction_type === 'confirm' || correction?.correction_type === 'boundary_adjustment' || segment.approved) && (
-                    <div
-                      className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2"
-                      data-testid={`held-result-${index}`}
-                    >
-                      <p className="text-sm text-muted-foreground flex-1">
-                        {cuttingNow ? 'Cutting now.'
-                          : !segment.approved && correction?.correction_type === 'boundary_adjustment'
-                          ? `Adjusted to ${formatTimestamp(correction.corrected_bounds?.start ?? segment.start)} - ${formatTimestamp(correction.corrected_bounds?.end ?? segment.end)}. Not cut yet.`
-                          : segment.reviewer_original_start != null && segment.reviewer_original_end != null
-                          && (Math.abs(segment.reviewer_original_start - segment.start) > 0.05
-                            || Math.abs(segment.reviewer_original_end - segment.end) > 0.05)
-                          ? `Confirmed ${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)} (was ${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}). Not cut yet.`
-                          : `Confirmed ${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}. Not cut yet.`}
-                      </p>
-                      {episode.hasOriginalAudio && (
-                        <button
-                          onClick={cutNow}
-                          disabled={correctionMutation.isPending || reprocessBlocked}
-                          title="Cut every confirmed span out of the audio now."
-                          data-testid={`recut-now-${index}`}
-                          className={`${rowActionBtn} ${btnPrimary} ${focusRing}`}
-                        >
-                          {cuttingNow ? 'Cutting now' : 'Cut now'}
-                        </button>
-                      )}
-                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground" data-testid={`held-result-${index}`}>
+                      {!segment.approved && correction?.correction_type === 'boundary_adjustment'
+                        ? `Adjusted to ${formatTimestamp(correction.corrected_bounds?.start ?? segment.start)} - ${formatTimestamp(correction.corrected_bounds?.end ?? segment.end)}. Not cut yet.`
+                        : segment.reviewer_original_start != null && segment.reviewer_original_end != null
+                        && (Math.abs(segment.reviewer_original_start - segment.start) > 0.05
+                          || Math.abs(segment.reviewer_original_end - segment.end) > 0.05)
+                        ? `Confirmed ${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)} (was ${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}). Not cut yet.`
+                        : `Confirmed ${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}. Not cut yet.`}
+                    </p>
                   )}
                   {!segment.approved && correction?.correction_type === 'boundary_adjustment' && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-3">
@@ -2059,18 +2003,16 @@ function EpisodeDetail() {
               );
             })}
           </div>
-          {episode.hasOriginalAudio && (
+          {episode.hasOriginalAudio && approvedHeldCount > 0 && (
             <div className="mt-4 pt-4 border-t border-warning/20 flex justify-end">
               <DemoDisabled>
                 <button
-                  onClick={cutNow}
-                  disabled={approvedHeldCount === 0 || correctionMutation.isPending || reprocessBlocked}
-                  title={approvedHeldCount === 0 ? 'Confirm at least one held span first.' : undefined}
+                  onClick={() => handleReprocess('recut')}
+                  disabled={correctionMutation.isPending || reprocessBlocked}
                   data-testid="apply-approved-recut"
                   className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
                 >
-                  {cuttingNow ? 'Cutting now'
-                    : approvedHeldCount > 0 ? `Apply ${approvedHeldCount} confirmed and recut` : 'Apply confirmed and recut'}
+                  {`Apply ${approvedHeldCount} confirmed and recut`}
                 </button>
               </DemoDisabled>
             </div>
