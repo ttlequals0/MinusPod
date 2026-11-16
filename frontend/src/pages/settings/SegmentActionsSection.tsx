@@ -69,20 +69,20 @@ function SegmentActionsSection({
           </p>
         </div>
 
-        {/* Global default for cutting short host asks and sponsor thanks. */}
+        {/* Global default for detecting short host asks and sponsor thanks. */}
         <div className="pt-4 border-t border-border">
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
               checked={snipShortAsks}
               onChange={onSnipShortAsksChange}
-              ariaLabel="Remove short host asks and sponsor thanks"
+              ariaLabel="Detect short host asks and sponsor thanks"
             />
             <span className="text-sm font-medium text-foreground">
-              Remove short host asks and sponsor thanks
+              Detect short host asks and sponsor thanks
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Off by default.
+            Finds short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Each one follows the action set for its category. Off by default.
             Applies to feeds that have not set their own value.
           </p>
         </div>

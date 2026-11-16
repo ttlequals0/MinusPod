@@ -183,7 +183,7 @@ export interface Feed {
   // Also detect intro/outro/recap/housekeeping segments. Null inherits the
   // global detectShowSegments default.
   detectShowSegments?: boolean | null;
-  // Remove short host asks and sponsor thanks. Null inherits the global
+  // Detect short host asks and sponsor thanks. Null inherits the global
   // snipShortAsks default.
   snipShortAsks?: boolean | null;
   // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass

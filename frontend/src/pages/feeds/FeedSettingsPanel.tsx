@@ -1632,7 +1632,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <div className="min-w-0">
                   <span className="text-muted-foreground block">Short host asks</span>
                   <span className="text-xs text-muted-foreground/70 block">
-                    Cut short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s).
+                    Finds short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Each one follows the action set for its category.
                   </span>
                 </div>
                 <div className="flex flex-col items-start sm:items-end gap-1">
@@ -1647,7 +1647,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       snipShortAsks: v === 'inherit' ? null : v === 'on',
                     })}
                     disabled={updateMutation.isPending}
-                    ariaLabel="Remove short host asks and sponsor thanks"
+                    ariaLabel="Detect short host asks and sponsor thanks"
                   />
                   {feed.snipShortAsks == null && (
                     <p className="text-xs text-muted-foreground">

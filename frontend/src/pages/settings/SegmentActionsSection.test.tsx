@@ -94,7 +94,7 @@ describe('SegmentActionsSection: global show-segments default', () => {
 });
 
 describe('SegmentActionsSection: global short-asks default', () => {
-  const NAME = 'Remove short host asks and sponsor thanks';
+  const NAME = 'Detect short host asks and sponsor thanks';
 
   it('renders off by default', () => {
     render(<SegmentActionsHarness onCommit={() => {}} />);

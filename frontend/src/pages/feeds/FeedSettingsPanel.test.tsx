@@ -911,7 +911,7 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
 });
 
 describe('FeedSettingsPanel short-asks tri-state control', () => {
-  const NAME = 'Remove short host asks and sponsor thanks';
+  const NAME = 'Detect short host asks and sponsor thanks';
 
   beforeEach(() => {
     vi.clearAllMocks();
