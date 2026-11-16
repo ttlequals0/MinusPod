@@ -28,6 +28,10 @@ release notes.
 - Recut no longer applies a stored adjustment that is under 1 second or that a newer confirm of the same span replaced. Each skipped adjustment is logged. (#1008)
 - Rejecting a span clears the approval of a held marker whose confirm the reject removed, so the episode no longer reads as confirmed for a span the recut will not cut. (#1008)
 - When several detections clamp to the same approved span, validation keeps one marker for it. (#1008)
+- Automatic learning no longer saves an ordinary word as a sponsor. A new one-word sponsor name is accepted only when the ad text ties it to a brand: a domain, a spoken "dot com", or a promo code that contains the name. A close transcriber spelling of the domain counts. Names already in the sponsor list, the seed list or an active pattern are learned as before. (#1023)
+- A one-word sponsor no longer makes a clean read look like two ads. Pattern learning counts it as a second advertiser only when the text gives it a domain or a promo code, or introduces it with a phrase such as "brought to you by". A read that said "365 day returns" twice was refused as multi-brand when a sponsor named Day existed. (#1023)
+- A sponsor is promoted to a global pattern only from patterns whose own text names it. A wrong label on three shows could produce a global pattern for an unrelated read. (#1023)
+- The check on short one-word sponsor names reads the same list of known sponsors as the one-word rule, so a seeded brand under 6 characters is learned without its own allow-list entry.
 
 ### Changed
 
@@ -41,6 +45,7 @@ release notes.
 - The held editor shows the allowed range and has a "Save, cut later" button that never starts a recut. The reason a marker is held is shown as text under its badges, and a held marker that overlaps another held marker says so. (#1008)
 - An adjust or a trimmed confirm that is shorter than 1 second, reversed, or outside the episode is refused with a 400. (#1008)
 - The corrections response includes `recut_pending` and the marker's stored state as `marker`. (#1008)
+- Dependency updates: ctranslate2 4.9.0, gunicorn 27.0.1, openai 3.50.0, pytest 9.2.0, soupsieve 4.1, swagger-ui-dist 5.34.1, lucide-react 1.72.0, wavesurfer.js 8.1.0, msw 3.0.5 and globals 17.14.0 (#1013 to #1022). gunicorn 27 answers a request whose `Transfer-Encoding` does not end in `chunked` with a 400.
 
 ## [2.102.4] - 2026-11-14
 
