@@ -10,6 +10,10 @@ release notes.
 
 ## [2.102.5] - 2026-11-15
 
+### Added
+
+- A new setting, Remove short host asks and sponsor thanks, is off by default and can be set globally or per feed. When it is on, the model may flag a 2 to 40 second subscribe or rating ask, a plug for the host's own work, or a sponsor thank-you with `short_ask`. A flagged marker keeps its normal category and can be as short as 2 seconds. It is cut on sentence edges within 1.5 seconds of the model's edges (0.5 seconds for an ask under 3 seconds). If no sentence edge is that close, the flag is dropped and the usual length floors apply. The episode page shows a Short ask chip on these markers. API: `snipShortAsks` on `PUT /api/v1/settings/ad-detection` and on the feed `PATCH` (true, false or null), and `short_ask` on episode markers. See [Configuration](docs/configuration.md). (#1006)
+
 ### Fixed
 
 - Approving a cleanup trim or split now updates the audio fingerprint of a pattern whose fingerprint has no recorded source. These fingerprints were stored before the source episode was recorded, and the audio step reported the original as not retained even when it was on disk. The audio is now rebuilt from the episode the pattern was learned from.
