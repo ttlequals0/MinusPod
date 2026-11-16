@@ -1618,6 +1618,15 @@ class TextPatternMatcher:
                 seen.add(name.lower())
         return brands
 
+    @staticmethod
+    def _bare_word_without_evidence(row, text):
+        """Whether text names row only through single words that it does not back as a brand."""
+        lowered = text.lower()
+        hits = [term for term in [row['name'], *normalize_aliases(row.get('aliases'))]
+                if word_boundary_re([term.lower()]).search(lowered)] if row else []
+        return (bool(hits) and all(len(term.split()) == 1 for term in hits)
+                and not any(has_brand_evidence(term, text) for term in hits))
+
     def _contaminating_brands(self, ad_text: str, sponsor: str,
                               rows: list[dict] = None) -> list[str]:
         """Registry brands other than `sponsor` that are read inside the span.
@@ -1633,9 +1642,11 @@ class TextPatternMatcher:
 
         # Word-boundary hits, not substring counts: "cramped" is not a Ramp read.
         mentions = brand_mention_offsets(ad_text, rows, self.brand_patterns())
+        by_name = {row['name']: row for row in rows}
         return sorted(
             name for name in find_foreign_sponsors(ad_text, declared, rows)
-            if len(mentions.get(name, ())) >= 2)
+            if len(mentions.get(name, ())) >= 2
+            and not self._bare_word_without_evidence(by_name.get(name), ad_text))
 
     def split_sources(self, marker: dict, sponsor: str = None,
                       rows: list[dict] = None) -> tuple[list[dict], list[float], list[dict]]:

@@ -136,6 +136,6 @@ class TestForeignBrandMentionsAreCountedOnWordBoundaries:
     def test_two_real_mentions_of_another_brand_still_contaminate(self, db):
         matcher = self._matcher(db)
         text = ("BetterHelp matches you in 24 hours. Ramp cards cut expenses, "
-                "and Ramp is free to try.")
+                "and Ramp is free to try at ramp.com.")
 
         assert matcher._contaminating_brands(text, 'BetterHelp') == ['Ramp']
