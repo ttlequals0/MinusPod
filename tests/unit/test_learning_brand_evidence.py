@@ -67,3 +67,18 @@ def test_cue_alone_does_not_create_the_row(temp_db):
             "Wise has no hidden fees, so try Wise today.")
     assert _learn(temp_db, 'Wise', text) is None
     assert temp_db.get_known_sponsor_by_name('Wise') is None
+
+
+def test_known_short_brand_needs_no_evidence(temp_db):
+    text = "Venmo makes paying friends simple. Open the app, and Venmo does the rest, so try Venmo."
+    assert _learn(temp_db, 'Venmo', text) is not None
+
+
+def test_transcriber_misspelling_of_a_known_brand_needs_no_evidence(temp_db):
+    text = "Woop tracks your sleep. Woop shows recovery every morning, so try Woop today."
+    assert TextPatternMatcher(db=temp_db)._unbacked_new_brand('Woop', text) is False
+
+
+def test_pattern_only_sponsor_needs_no_evidence(temp_db, monkeypatch):
+    monkeypatch.setattr(temp_db, 'get_active_pattern_sponsors', lambda: {'wise'})
+    assert TextPatternMatcher(db=temp_db)._unbacked_new_brand('Wise', WISE_NO_EVIDENCE_AD) is False

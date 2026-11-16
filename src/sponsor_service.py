@@ -21,8 +21,10 @@ from utils.constants import (
     mentions_advertising,
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
+    KNOWN_SHORT_BRANDS,
+    canonical_sponsor,
 )
-from community_export import brand_match_candidates
+from community_export import brand_match_candidates, normalize_aliases
 from utils.text import pattern_offsets, word_boundary_re
 from utils.ttl_cache import TTLCache
 
@@ -55,6 +57,23 @@ _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
 # Parts allowed inside a leading hyphenated descriptor ("Host-read") that is
 # dropped whole; a single non-descriptor part (Full-Circle) keeps the token.
 _HYPHEN_DESCRIPTOR_WORDS = INVALID_SPONSOR_CAPTURE_WORDS | NON_BRAND_WORDS
+
+
+SEED_BRAND_NAMES = frozenset(
+    name.lower() for seed in SEED_SPONSORS for name in [seed['name'], *seed['aliases']])
+
+
+def registry_name_set(rows) -> set[str]:
+    """Lowercase names and aliases of registry rows that can serve as brands."""
+    return {name.lower() for row in rows or [] if not is_non_brand_name(row['name'])
+            for name in [row['name'], *normalize_aliases(row.get('aliases'))]}
+
+
+def is_known_single_word_sponsor(label: str, registry_names, active_pattern_sponsors) -> bool:
+    """Whether a single-word label is an already known sponsor, directly or as a transcriber misspelling."""
+    keys = {label.strip().lower(), (canonical_sponsor(label.strip()) or '').lower()}
+    return any(key in registry_names or key in active_pattern_sponsors
+               or key in KNOWN_SHORT_BRANDS or key in SEED_BRAND_NAMES for key in keys)
 
 
 def has_brand_evidence(name: str, text: str) -> bool:

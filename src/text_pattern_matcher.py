@@ -23,7 +23,9 @@ from community_export import (
 from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from sponsor_context import COMMERCIAL_CONTEXT_RE, domain_labels
-from sponsor_service import SponsorService, has_brand_evidence, has_sponsorship_cue
+from sponsor_service import (
+    SponsorService, has_brand_evidence, has_sponsorship_cue, is_known_single_word_sponsor,
+    registry_name_set)
 from utils.constants import (
     canonical_sponsor,
     INVALID_SPONSOR_VALUES,
@@ -32,7 +34,6 @@ from utils.constants import (
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
     LEARNING_SPLIT_DURATION_FACTOR,
-    SEED_SPONSORS,
     is_non_brand_name,
     sanitize_sponsor_label,
 )
@@ -238,8 +239,6 @@ AD_TRANSITION_PHRASES = [
 # Sanity cap on ad text length (~230s at 15 chars/sec); longer implies several ads.
 # Single-ad guard in create_pattern_from_ad and per-segment cap for split_template_text callers.
 MAX_PATTERN_CHARS = 3500
-_SEED_BRAND_NAMES = frozenset(
-    name.lower() for seed in SEED_SPONSORS for name in [seed['name'], *seed['aliases']])
 
 # Near-duplicate threshold for learning dedupe in create_pattern_from_ad.
 # Applies to canonicalized text (see canonicalize_for_dedupe), not raw text.
@@ -1343,13 +1342,12 @@ class TextPatternMatcher:
 
     def _unbacked_new_brand(self, sponsor, text):
         """Whether sponsor would be a new single-word row that text does not back as a brand."""
-        key = sponsor.strip().lower()
-        if len(key.split()) != 1 or key in _SEED_BRAND_NAMES:
+        if len(sponsor.split()) != 1:
             return False
-        for row in self.db.get_known_sponsors(active_only=True):
-            if key in {name.lower() for name in
-                       [row['name'], *normalize_aliases(row.get('aliases'))]}:
-                return False
+        if is_known_single_word_sponsor(
+                sponsor, registry_name_set(self.db.get_known_sponsors(active_only=True)),
+                self.db.get_active_pattern_sponsors()):
+            return False
         return not has_brand_evidence(sponsor, text)
 
     def _brand_bearing_bounds(self, segments, start, end, sponsor_row):

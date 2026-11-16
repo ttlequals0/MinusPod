@@ -62,7 +62,7 @@ class TestGateBShortSponsor:
         # Real find_sponsor_in_text returns the canonical sponsor name or None.
         # The test ad uses a name not in KNOWN_SHORT_BRANDS so only Gate B
         # via the registry should let it through.
-        detector.sponsor_service.find_sponsor_in_text.return_value = "Foobr"
+        detector.sponsor_service.get_sponsors.return_value = [{"name": "Foobr", "aliases": "[]"}]
         detector.learn_from_detections(
             [_ad("Foobr")], _segments(), podcast_id="podA", episode_id="ep1"
         )
@@ -80,6 +80,26 @@ class TestGateBShortSponsor:
             [_ad("Xero")], _segments(), podcast_id="podA", episode_id="ep1"
         )
         detector.text_pattern_matcher.create_patterns_from_ad.assert_called_once()
+
+    def test_passes_when_sponsor_is_a_registry_alias(self, detector):
+        rows = [{"name": "Acme Foobr Labs", "aliases": '["Foobr"]'}]
+        detector.sponsor_service.get_sponsors.return_value = rows
+        detector.learn_from_detections(
+            [_ad("Foobr")], _segments(), podcast_id="podA", episode_id="ep1"
+        )
+        detector.text_pattern_matcher.create_patterns_from_ad.assert_called_once()
+
+    def test_misspelling_of_a_known_brand_is_known(self, detector):
+        assert detector._sponsor_blocked_by_gates("Woop", set(), frozenset()) is False
+
+    def test_known_short_brand_is_known_without_a_pattern(self, detector):
+        assert detector._sponsor_blocked_by_gates("Venmo", set(), frozenset()) is False
+
+    def test_pattern_only_sponsor_is_known(self, detector):
+        assert detector._sponsor_blocked_by_gates("Foobr", {"foobr"}, frozenset()) is False
+
+    def test_unknown_short_word_stays_blocked(self, detector):
+        assert detector._sponsor_blocked_by_gates("Foobr", set(), frozenset()) is True
 
     def test_long_name_bypasses_gate_b_entirely(self, detector):
         detector.learn_from_detections(
