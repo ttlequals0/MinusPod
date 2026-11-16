@@ -37,7 +37,7 @@ const KIND_OPTIONS: Array<{ value: KindFilter; label: string }> = [
   { value: 'retire', label: 'Retire' },
   { value: 'flag', label: 'Flag' },
   { value: 'category', label: 'Category' },
-  { value: 'unnamed_sponsor', label: 'Sponsor' },
+  { value: 'unnamed_sponsor', label: 'Unnamed sponsor' },
 ];
 
 const KIND_BADGE: Record<CleanupKind, [string, string]> = {
@@ -47,7 +47,7 @@ const KIND_BADGE: Record<CleanupKind, [string, string]> = {
   retire: ['Retire', tint.neutral],
   flag: ['Flag', tint.warning],
   category: ['Category', tint.blue],
-  unnamed_sponsor: ['Sponsor', tint.primary],
+  unnamed_sponsor: ['Unnamed sponsor', tint.primary],
 };
 
 const STATUS_OPTIONS: Array<[CleanupStatus, string]> = [

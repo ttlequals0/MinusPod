@@ -173,7 +173,7 @@ describe('CleanupTab', () => {
     mockList.mockResolvedValue([suggestion(7, 'unnamed_sponsor', { sponsor: 'Acme' })]);
     renderTab();
     const c = await screen.findByTestId('cleanup-suggestion-7');
-    expect(within(c).getByText('Sponsor')).toBeDefined();
+    expect(within(c).getByText('Unnamed sponsor')).toBeDefined();
     expect(within(c).getByText('The sponsor "Acme" does not appear in this pattern\'s text.')).toBeDefined();
     expect(within(c).getByText('Approving removes the sponsor and keeps the pattern active.')).toBeDefined();
     expect(within(c).getByRole('button', { name: 'Approve' })).toBeDefined();
