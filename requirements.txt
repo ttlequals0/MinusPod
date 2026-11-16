@@ -1249,9 +1249,9 @@ onnxruntime==1.24.4 \
     --hash=sha256:e99a48078baaefa2b50fe5836c319499f71f13f76ed32d0211f39109147a49e0 \
     --hash=sha256:fbff2a248940e3398ae78374c5a839e49a2f39079b488bc64439fa0ec327a3e4
     # via faster-whisper
-openai==3.50.0 \
-    --hash=sha256:7002115247cacb167154a3da4c668d074e61014a661d2c1ac02583da24e2ce19 \
-    --hash=sha256:ff094ba851ce512e0682f259e8c5bdc4802c7ef5373f68e7fd261261bb4496f2
+openai==3.51.0 \
+    --hash=sha256:1cc9b80eb0f1dc15fa45fbc122ba2c99b7e5302548060c01db5719fa6181a6a9 \
+    --hash=sha256:802b7e8c6ff8cf4d59a2a163126c10ce472adf0409ac41fdaadd47c9b4ed091a
     # via -r requirements.in
 opentelemetry-api==1.45.2 \
     --hash=sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34 \
