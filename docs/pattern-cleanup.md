@@ -48,7 +48,7 @@ all use the saved provider, model, and batch size.
 
 Turning the schedule on never starts a run right away: the next run waits for the first cron slot after that moment and the Last run time is unchanged. **Run now** always starts a run right away, subject to the usual lock (see below).
 
-A run starts in a background thread and the API call returns as soon as it has been queued; the Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
+A run starts in a background thread and the API call returns once it is queued. The Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
 
 Cleanup follows the selected provider's failover state between model calls.
 Cancelling failover or recovering the original provider takes effect on the
@@ -61,8 +61,8 @@ provider actually called, including failover retries.
 
 Each run checks active learned patterns for three conditions without calling the model:
 
-- **Retire**: the pattern has had no match in longer than the configured unused-days window (or never matched), and it is old enough that this isn't just a freshly learned pattern waiting for its first match.
-- **Flag**: the pattern already has a high false-positive rate relative to its confirmations, the same rule that would otherwise just sit in the pattern's stats unexamined.
+- **Retire**: the pattern has had no match in longer than the configured unused-days window (or never matched). It is also old enough that it is not a freshly learned pattern waiting for its first match.
+- **Flag**: the pattern already has a high false-positive rate relative to its confirmations, the same rule that would otherwise sit in the pattern's stats unexamined.
 - **Unnamed sponsor**: the pattern has a sponsor, but neither its name nor an alias appears in its text, and no domain or promo code in the text backs the name.
 
 A false-positive flag requires at least two false positives and at least as
@@ -129,7 +129,7 @@ untouched and acknowledges the reviewed version; rejecting an outdated
 suggestion returns a conflict instead of marking newer text reviewed.
 Model reviews are not repeated for unchanged text, sponsor, and category unless you force a recheck.
 
-**Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; an unnamed-sponsor suggestion restores the cleared sponsor; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
+**Undo** restores the pattern from that snapshot. A trim or flag-trim restores the text and any sponsor or category fields included in the approval. A rename restores the sponsor and any category changed with it. A category suggestion restores the prior category. An unnamed-sponsor suggestion restores the cleared sponsor. Retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict. If the source episode's original audio has expired, undoing a trim keeps the trimmed fingerprint under the restored text, and the response reports `fingerprintStored` false.
 
 Undo is refused once a later suggestion has been approved against the same
 pattern. Undo the later approval first. It also refuses to overwrite fields
@@ -214,7 +214,7 @@ optional `before.sourceContext` is the real retained transcript context.
 
 ## Settings reference
 
-All settings are under `PUT /api/v1/settings/pattern-cleanup`; database-only, no environment variable backing.
+All settings are under `PUT /api/v1/settings/pattern-cleanup`; database only, no environment variable backing.
 
 | Payload key | Kind / range | Default |
 |---|---|---|
