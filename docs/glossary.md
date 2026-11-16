@@ -269,6 +269,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, keep, or mark). [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
+**Short ask** - A 2 to 40 second host ask (subscribe, rate, the host's own promotion) or sponsor thank-you that the model flags when Detect short host asks and sponsor thanks is on. It keeps its segment category, follows that category's action, and can be as short as 2 seconds. [Configuration > Segment categories](configuration.md#segment-categories)
+
 **Silence snap** - Nudging a cut boundary to the nearest silence so the edit lands between words instead of inside one. [Audio Cues > Silence snap](audio-cues.md#silence-snap)
 
 **Sliding windows** - Long transcripts are fed to the LLM in overlapping chunks so nothing is missed at chunk edges; the Windows column in Processing stats counts these. [How It Works > Sliding Window Processing](how-it-works.md#sliding-window-processing)

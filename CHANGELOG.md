@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.6] - 2026-11-16
+
+### Changed
+
+- The short host asks setting is now labelled "Detect short host asks and sponsor thanks". Its help text says that each flagged marker follows the action set for its category, so a category set to Keep leaves the ask in the audio. How the setting works has not changed.
+
 ## [2.102.5] - 2026-11-16
 
 ### Added

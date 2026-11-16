@@ -1336,7 +1336,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-in to remove short host-spoken asks, self-promotion and sponsor thank-yous (2 to 40 seconds, cut on sentence edges only). true/false override the global snipShortAsks setting for this feed; null falls back to it.
+                  description: Per-feed opt-in to detect short host-spoken asks, self-promotion and sponsor thank-yous (2 to 40 seconds, sentence edges only). Each flagged marker follows the action set for its category. true/false override the global snipShortAsks setting for this feed; null falls back to it.
                 skipSecondPass:
                   type:
                     - boolean
@@ -8091,7 +8091,7 @@ paths:
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
                 snipShortAsks:
                   type: [boolean, 'null']
-                  description: Global default for removing short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Overridden by per-feed snipShortAsks when set. null resets it to the default, false. Any other type is a 400.
+                  description: Global default for detecting short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Each flagged marker follows the action set for its category. Overridden by per-feed snipShortAsks when set. null resets it to the default, false. Any other type is a 400.
                 seedSponsorsDetection:
                   type: boolean
                   description: Whether the detection pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
@@ -16084,7 +16084,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Whether this feed removes short host asks and sponsor thanks. Null means use the global snipShortAsks setting. true/false override the global for this feed.
+          description: Whether this feed detects short host asks and sponsor thanks; each flagged marker follows the action set for its category. Null means use the global snipShortAsks setting. true/false override the global for this feed.
         ownEpisodeGuids:
           type:
             - boolean
@@ -18950,7 +18950,7 @@ components:
           properties:
             value:
               type: boolean
-              description: Global default for removing short host asks and sponsor thanks (per-feed snipShortAsks overrides when set)
+              description: Global default for detecting short host asks and sponsor thanks (per-feed snipShortAsks overrides when set)
             isDefault:
               type: boolean
         seedSponsorsDetection:
