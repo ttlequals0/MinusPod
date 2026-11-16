@@ -118,10 +118,14 @@ def _find_text(joined, template, after, fuzzy):
     return after + alignment.dest_start, after + alignment.dest_end
 
 
+def _norm(text):
+    return ' '.join((text or '').split())
+
+
 def _timed_words(db, slug, episode_id, start, end):
     """(spans, words, joined text, word offsets) of the transcript between start and end."""
     spans = extract_timed_spans_in_range(db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
-    words = [' '.join(span['text'].split()) for span in spans]
+    words = [_norm(span['text']) for span in spans]
     offsets = []
     offset = 0
     for word in words:
@@ -145,7 +149,7 @@ def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, lo
     after = 0
     for pid in pattern_ids:
         pattern = patterns.get(pid) or {}
-        template = ' '.join((pattern.get('text_template') or '').split())
+        template = _norm(pattern.get('text_template'))
         # split children come in text order, so a repeat inside an earlier child is not theirs
         fuzzy = locate and len(template) >= FUZZY_LOCATE_MIN_CHARS
         where = _find_text(joined, template, after if locate else 0, fuzzy) if template else None
@@ -205,18 +209,18 @@ def store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force
 def _usable_fingerprint_row(conn, pattern_id):
     """The pattern's fingerprint row when it is on and its audio was not deleted, else None."""
     return conn.execute(
-        "SELECT af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end, "
+        "SELECT ap.id, af.source_podcast_slug, af.source_episode_id, af.source_start, af.source_end, "
         "ap.podcast_id, ap.created_from_episode_id, ap.text_template "
         "FROM audio_fingerprints af JOIN ad_patterns ap ON ap.id = af.pattern_id "
         "WHERE af.pattern_id = ? AND af.enabled = 1 AND ap.audio_removed = 0", (pattern_id,)).fetchone()
 
 
-def locate_template_span(db, slug, episode_id, template):
-    """The whole-segment (start, end) of template verbatim in an episode's transcript, else None."""
-    template = ' '.join((template or '').split())
+def locate_template_span(db, slug, episode_id, template, timed=None):
+    """The whole-segment (start, end) of template verbatim in an episode's transcript, else None; timed is a parsed transcript."""
+    template = _norm(template)
     if not template:
         return None
-    spans, words, joined, offsets = _timed_words(db, slug, episode_id, 0, math.inf)
+    spans, words, joined, offsets = timed or _timed_words(db, slug, episode_id, 0, math.inf)
     where = _find_text(joined, template, 0, False)
     covered = _covered_segments(words, offsets, *where) if where else []
     if not covered:
@@ -245,20 +249,23 @@ def _creating_source(created, span):
 
 
 def _located_source(db, created, text):
-    return _creating_source(created, locate_template_span(db, created['slug'], created['episode_id'], text))
+    if 'timed' not in created:
+        created['timed'] = _timed_words(db, created['slug'], created['episode_id'], 0, math.inf)
+    return _creating_source(created, locate_template_span(
+        db, created['slug'], created['episode_id'], text, timed=created['timed']))
 
 
-def creating_episode_source(db, storage, pattern, pattern_id, *, created=None, skip_locate=False):
+def creating_episode_source(db, storage, pattern, *, created=None, skip_locate=False):
     """Source in the pattern's creating episode: where its text is, else its own marker; created/skip_locate reuse earlier work."""
     created = created or _creating_episode(db, storage, pattern)
     if created is None:
         return None
     found = None if skip_locate else _located_source(db, created, pattern['text_template'])
-    return found or _creating_source(created, own_marker_span(created['episode'], pattern_id))
+    return found or _creating_source(created, own_marker_span(created['episode'], pattern['id']))
 
 
 def _same_text(a, b):
-    return ' '.join((a or '').split()) == ' '.join((b or '').split())
+    return _norm(a) == _norm(b)
 
 
 def rebuild_audio_source(db, conn, pattern_id, *, prefer_text=None):
@@ -277,7 +284,7 @@ def rebuild_audio_source(db, conn, pattern_id, *, prefer_text=None):
             db, storage, candidate_spans(db, pattern_id, row, in_scope_only=True, recorded_first=True))
     if found is None and not (prefer_text and created is None):
         found = creating_episode_source(
-            db, storage, row, pattern_id, created=created,
+            db, storage, row, created=created,
             skip_locate=bool(prefer_text) and _same_text(prefer_text, row['text_template']))
     if found is None:
         return None, True

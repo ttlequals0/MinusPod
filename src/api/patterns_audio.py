@@ -88,7 +88,7 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=Non
     source = first_retained_source(db, storage, candidates)
     if source is None and match_id is None:
         source = (creating or (lambda: creating_episode_source(
-            db, storage, db.get_ad_pattern_by_id(pattern_id), pattern_id)))()
+            db, storage, db.get_ad_pattern_by_id(pattern_id))))()
     return (source, None) if source else (None, original_not_retained_response())
 
 
@@ -245,7 +245,7 @@ def build_audio_detail(db, storage, pattern_id):
                                'available': built_err is None}
     # The creating-episode fallback ignores in_scope_only and parses a transcript, so compute it once.
     creating = functools.cache(lambda: creating_episode_source(
-        db, storage, db.get_ad_pattern_by_id(pattern_id), pattern_id))
+        db, storage, db.get_ad_pattern_by_id(pattern_id)))
     source, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, creating=creating)
     if source:
         detail['source'] = _span(source)
