@@ -615,24 +615,25 @@ class PatternService:
 
         return result
 
+    def _promotable_sponsor_patterns(self, sponsor: str) -> list[dict]:
+        """Podcast-scoped patterns of sponsor whose own text names it, by name or alias."""
+        row = get_sponsor_row_or_stub(self.db, sponsor)
+        sponsor_lower = sponsor.lower()
+        return [
+            pattern for pattern in self.db.get_ad_patterns(scope='podcast')
+            if (pattern.get('sponsor') or '').lower() == sponsor_lower
+            and count_brand_occurrences(pattern.get('text_template') or '', row) >= 1]
+
     def check_sponsor_global_promotion(self, sponsor: str) -> bool:
         """True if the sponsor appears in 3+ podcasts, warranting global promotion."""
         if not self.db or not sponsor:
             return False
 
         try:
-            # Get all podcast-scoped patterns for this sponsor
-            all_patterns = self.db.get_ad_patterns(scope='podcast')
-            sponsor_lower = sponsor.lower()
-
-            # Count unique podcasts with this sponsor
-            podcasts_with_sponsor = set()
-            for pattern in all_patterns:
-                pattern_sponsor = pattern.get('sponsor', '')
-                if pattern_sponsor and pattern_sponsor.lower() == sponsor_lower:
-                    podcast_id = pattern.get('podcast_id')
-                    if podcast_id:
-                        podcasts_with_sponsor.add(podcast_id)
+            podcasts_with_sponsor = {
+                pattern['podcast_id']
+                for pattern in self._promotable_sponsor_patterns(sponsor)
+                if pattern.get('podcast_id')}
 
             count = len(podcasts_with_sponsor)
             if count >= SPONSOR_GLOBAL_THRESHOLD:
@@ -664,14 +665,7 @@ class PatternService:
                     logger.debug(f"Sponsor '{sponsor}' already has global patterns")
                     return 0
 
-            # Get all podcast-scoped patterns for this sponsor
-            all_patterns = self.db.get_ad_patterns(scope='podcast')
-            patterns_to_promote = []
-
-            for pattern in all_patterns:
-                pattern_sponsor = pattern.get('sponsor', '')
-                if pattern_sponsor and pattern_sponsor.lower() == sponsor_lower:
-                    patterns_to_promote.append(pattern)
+            patterns_to_promote = self._promotable_sponsor_patterns(sponsor)
 
             if not patterns_to_promote:
                 return 0
