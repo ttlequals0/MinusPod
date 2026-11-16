@@ -26,6 +26,8 @@ interface GlobalDefaultsSectionProps {
   onFeedItunesBlockChange: (enabled: boolean) => void;
   requireManualApprovalDefault: boolean;
   onRequireManualApprovalDefaultChange: (enabled: boolean) => void;
+  heldWidenSeconds: number;
+  onHeldWidenSecondsChange: (value: number) => void;
   lowAdYieldAction: LowAdYieldAction;
   onLowAdYieldActionChange: (action: LowAdYieldAction) => void;
   episodeLogRetentionDays: number;
@@ -57,6 +59,8 @@ function GlobalDefaultsSection({
   onOnlyExposeProcessedDefaultChange,
   requireManualApprovalDefault,
   onRequireManualApprovalDefaultChange,
+  heldWidenSeconds,
+  onHeldWidenSecondsChange,
   lowAdYieldAction,
   onLowAdYieldActionChange,
   episodeLogRetentionDays,
@@ -339,6 +343,29 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             New episodes stay out of the served feed until you approve them on the episode page or the Queue's Episode review tab. A recut approves the episode. Per-feed override is available on each feed's settings.
+          </p>
+        </div>
+
+        {/* Widen held ads */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="heldWidenSeconds" className={labelBase}>
+            Widen held ads by (seconds)
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="heldWidenSeconds"
+              value={heldWidenSeconds}
+              min={0}
+              max={120}
+              step={1}
+              fallback={0}
+              ariaDescribedBy="heldWidenSeconds-help"
+              onCommit={onHeldWidenSecondsChange}
+            />
+            <span className="text-sm text-muted-foreground">seconds (0 to 120)</span>
+          </div>
+          <p id="heldWidenSeconds-help" className="mt-2 text-sm text-muted-foreground">
+            0 to 120. At 0, a held ad's edges stay within the reviewed span (plus or minus half a second). A higher value lets you move them that far outside it, stopping at neighbouring ads, and makes Adjust approve the held ad at once. Applies to all feeds.
           </p>
         </div>
 

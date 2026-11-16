@@ -59,6 +59,8 @@ function Harness({ onCommit, overrides }: {
         onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
+        heldWidenSeconds={0}
+        onHeldWidenSecondsChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -103,6 +105,8 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
+        heldWidenSeconds={0}
+        onHeldWidenSecondsChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -243,6 +247,8 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
+        heldWidenSeconds={0}
+        onHeldWidenSecondsChange={() => {}}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={30}
@@ -314,6 +320,8 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
+        heldWidenSeconds={0}
+        onHeldWidenSecondsChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={retentionDays}
@@ -388,6 +396,8 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
+        heldWidenSeconds={0}
+        onHeldWidenSecondsChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -434,6 +444,29 @@ describe('GlobalDefaultsSection: Require manual approval toggle', () => {
     await userEvent.setup().click(toggle);
     expect(onChange).toHaveBeenCalledWith(true);
     expect(screen.getByText(/Episode review tab/)).toBeTruthy();
+  });
+});
+
+describe('GlobalDefaultsSection: Widen held ads', () => {
+  it('sits right after Require manual approval with both effects in the help text', () => {
+    render(<Harness onCommit={() => {}} />);
+    const input = screen.getByLabelText('Widen held ads by (seconds)') as HTMLInputElement;
+    expect(input.value).toBe('0');
+    expect(input.min).toBe('0');
+    expect(input.max).toBe('120');
+    const approval = screen.getByRole('switch', { name: 'Require manual approval' });
+    expect(approval.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/makes Adjust approve the held ad at once\. Applies to all feeds\./)).toBeDefined();
+  });
+
+  it('commits a typed value', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ onHeldWidenSecondsChange: onChange }} />);
+    const user = userEvent.setup();
+    const input = screen.getByLabelText('Widen held ads by (seconds)');
+    await user.clear(input);
+    await user.type(input, '60');
+    expect(onChange).toHaveBeenLastCalledWith(60);
   });
 });
 

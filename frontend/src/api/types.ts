@@ -1047,6 +1047,7 @@ export interface Settings {
   learningMaxPatternDuration: SettingValueNumber;
   differentialMeasuredCorrMax: SettingValueNumber;
   differentialHoldMinSeconds: SettingValueNumber;
+  heldWidenSeconds: SettingValueNumber;
   daiDifferentialOverridesKeep: SettingValueBoolean;
   spliceVetoEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
@@ -1270,6 +1271,7 @@ export interface Settings {
     learningMaxPatternDuration: number;
     differentialMeasuredCorrMax: number;
     differentialHoldMinSeconds: number;
+    heldWidenSeconds: number;
     daiDifferentialOverridesKeep: boolean;
     spliceVetoEnabled: boolean;
   };
@@ -1406,6 +1408,7 @@ export interface UpdateSettingsPayload {
   learningMaxPatternDuration?: number;
   differentialMeasuredCorrMax?: number;
   differentialHoldMinSeconds?: number;
+  heldWidenSeconds?: number;
   daiDifferentialOverridesKeep?: boolean;
   spliceVetoEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
@@ -1506,7 +1509,6 @@ export interface UpdateSettingsPayload {
   ollamaNumCtx?: number | null;
   windowSizeSeconds?: number | null;
   windowOverlapSeconds?: number | null;
-  heldWidenSeconds?: number | null;
   omitTemperature?: boolean;
   llmJsonSchemaEnabled?: boolean;
 }
@@ -1547,7 +1549,6 @@ export interface StageTunables {
   ollamaNumCtx: StageTunableEntry<number | null>;
   windowSizeSeconds: StageTunableEntry<number | null>;
   windowOverlapSeconds: StageTunableEntry<number | null>;
-  heldWidenSeconds: StageTunableEntry<number | null>;
 }
 
 export interface ClaudeModel {
