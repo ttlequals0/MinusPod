@@ -27,7 +27,7 @@ vi.mock('../components/AdEditor', () => ({
   default: () => <div data-testid="ad-editor" />,
 }));
 vi.mock('../components/AdReviewModal', () => ({
-  default: ({ item, onSubmit, onClose, boundsWindow }: {
+  default: ({ item, onSubmit, onClose, boundsWindow, heldContext }: {
     item: {
       start: number;
       end: number;
@@ -38,9 +38,11 @@ vi.mock('../components/AdReviewModal', () => ({
       adjustedStart?: number;
       adjustedEnd?: number;
       category?: string | null;
+      cutLater?: boolean;
     }) => void;
     onClose: () => void;
     boundsWindow?: { min: number; max: number };
+    heldContext?: { reasonLabel: string; approved: boolean };
   }) => (
     <div
       data-testid="ad-review-modal"
@@ -50,9 +52,17 @@ vi.mock('../components/AdReviewModal', () => ({
       data-item-corrected-end={item.correctedBounds?.end ?? ''}
       data-bounds-min={boundsWindow?.min ?? ''}
       data-bounds-max={boundsWindow?.max ?? ''}
+      data-held-label={heldContext?.reasonLabel ?? ''}
+      data-held-approved={heldContext ? String(heldContext.approved) : ''}
     >
       <button data-testid="modal-confirm" onClick={() => onSubmit({ kind: 'confirm' })}>
         confirm
+      </button>
+      <button
+        data-testid="modal-save-cut-later"
+        onClick={() => onSubmit({ kind: 'confirm', cutLater: true })}
+      >
+        save, cut later
       </button>
       <button
         data-testid="modal-adjust"
@@ -283,6 +293,73 @@ describe('Open in editor: held rows', () => {
     expect(payload.adjusted_end).toBe(heldMarker.end + 0.5);
   });
 
+  it('passes the payload allowedBounds as boundsWindow', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, allowedBounds: { min: 60, max: 420.5 } },
+    ] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-bounds-min')).toBe('60');
+    expect(modal.getAttribute('data-bounds-max')).toBe('420.5');
+  });
+
+  it('submits a widened span clamped to the payload allowedBounds', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, allowedBounds: { min: 60, max: 420.5 } },
+    ] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+    adjustBounds.start = 100;
+    adjustBounds.end = 500;
+    await user.click(screen.getByTestId('modal-adjust'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as [
+      string, string, { adjusted_start?: number; adjusted_end?: number },
+    ];
+    expect(payload.adjusted_start).toBe(100);
+    expect(payload.adjusted_end).toBe(420.5);
+  });
+
+  it('shows the server window as is when widening is off (reviewed span +/- 0.5 s)', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, allowedBounds: { min: heldMarker.start - 0.5, max: heldMarker.end + 0.5 } },
+    ] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-bounds-min')).toBe('119.5');
+    expect(modal.getAttribute('data-bounds-max')).toBe('360.5');
+  });
+
+  it('falls back to +/-0.5 s when allowedBounds is absent', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-bounds-min')).toBe('119.5');
+    expect(modal.getAttribute('data-bounds-max')).toBe('360.5');
+  });
+
+  it('tells the editor why the marker is held', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-held-label')).toBe('Reviewer contradiction');
+    expect(modal.getAttribute('data-held-approved')).toBe('false');
+  });
+
   it('maps reject to a reject correction', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));
@@ -339,6 +416,17 @@ describe('Open in editor: held rows', () => {
 
     await waitFor(() =>
       expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
+  });
+
+  it('Save, cut later on the last open held span does not recut', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+    await user.click(screen.getByTestId('modal-save-cut-later'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    expect(mockReprocessEpisode).not.toHaveBeenCalled();
   });
 
   it('close button unmounts the modal without submitting', async () => {
@@ -404,5 +492,64 @@ describe('Open in editor: decided rows', () => {
     await screen.findByTestId('held-for-review-section');
     expect(screen.queryByTestId('open-editor-held-0')).toBeNull();
     expect(screen.queryByTestId('open-editor-rejected-0')).toBeNull();
+  });
+
+  it('keeps the pencil on an approved held row only when the server allows a wider window', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, approved: true, allowedBounds: { min: heldMarker.start - 60, max: heldMarker.end + 60 } },
+    ] }));
+
+    await screen.findByTestId('held-for-review-section');
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('open-editor-held-0'));
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-item-start')).toBe('120');
+    expect(modal.getAttribute('data-held-approved')).toBe('true');
+  });
+
+  it('hides the button on a held row rejected by a correction, even with a wide window', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [
+        { ...heldMarker, allowedBounds: { min: heldMarker.start - 60, max: heldMarker.end + 60 } },
+      ],
+      corrections: [{
+        id: 2,
+        correction_type: 'false_positive' as const,
+        original_bounds: { start: heldMarker.start, end: heldMarker.end },
+        created_at: '2026-01-02T00:00:00Z',
+      }],
+    }));
+
+    await screen.findByTestId('held-for-review-section');
+    expect(screen.queryByTestId('open-editor-held-0')).toBeNull();
+  });
+});
+
+describe('Open in editor: confirm and save, cut later', () => {
+  const second = { ...heldMarker, start: 600, end: 700 };
+
+  it('confirm on a reopened approved span does not recut while another span is open', async () => {
+    const user = userEvent.setup();
+    const wide = { min: heldMarker.start - 60, max: heldMarker.end + 60 };
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, approved: true, allowedBounds: wide }, second,
+    ] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+    await user.click(screen.getByTestId('modal-confirm'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    expect(mockReprocessEpisode).not.toHaveBeenCalled();
+  });
+
+  it('confirm with two held rows left does not recut', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker, second] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+    await user.click(screen.getByTestId('modal-confirm'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    expect(mockReprocessEpisode).not.toHaveBeenCalled();
   });
 });

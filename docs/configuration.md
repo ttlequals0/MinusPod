@@ -192,6 +192,10 @@ Set it to **32768** or higher with the default window settings, and stay within 
 
 At 16384 every chapter call is cut and chapters degrade to a single chapter. A larger context needs more memory for the KV cache, so on memory-constrained hosts the alternative is smaller detection windows (below) and chapter windows.
 
+#### Held marker widening (advanced)
+
+`heldWidenSeconds` (env `HELD_WIDEN_SECONDS`, 0-120 seconds, default 0) sets how far past the reviewed span a held marker's edges may be moved by hand. At 0 the limit is the reviewed span plus or minus 0.5 seconds, as before. A positive value widens it that many seconds each way, stopped by cut, approved, kept and rejected neighbours and the episode edges, and makes an adjust approve the held marker at once. It is an advanced global setting (Settings, LLM tunables) with no per-feed control; the API accepts it on `PUT /api/v1/settings/ad-detection`. At 0, an adjust is only recorded and applied by the recut.
+
 #### Detection window geometry
 
 Long episodes are chunked into overlapping windows before being sent to the detection LLM. These controls are global rather than per-stage, and sit above the per-stage controls:

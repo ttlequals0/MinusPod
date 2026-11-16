@@ -730,6 +730,9 @@ export interface AdSegment {
   // What the resolved segment-action map did with this marker's category.
   // Null when the marker predates the feature or the action never resolved.
   actionApplied?: SegmentAction | null;
+  // Held markers: the widest span the corrections API accepts for a confirm
+  // (the server's own window). Absent on older backends.
+  allowedBounds?: { min: number; max: number };
   // Set by the detector on a 2-40 s host ask or sponsor thanks (snip_short_asks).
   short_ask?: boolean;
 }
@@ -1503,6 +1506,7 @@ export interface UpdateSettingsPayload {
   ollamaNumCtx?: number | null;
   windowSizeSeconds?: number | null;
   windowOverlapSeconds?: number | null;
+  heldWidenSeconds?: number | null;
   omitTemperature?: boolean;
   llmJsonSchemaEnabled?: boolean;
 }
@@ -1543,6 +1547,7 @@ export interface StageTunables {
   ollamaNumCtx: StageTunableEntry<number | null>;
   windowSizeSeconds: StageTunableEntry<number | null>;
   windowOverlapSeconds: StageTunableEntry<number | null>;
+  heldWidenSeconds: StageTunableEntry<number | null>;
 }
 
 export interface ClaudeModel {

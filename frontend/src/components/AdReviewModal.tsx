@@ -76,6 +76,9 @@ export interface AdReviewSubmit {
   sponsor?: string;
   // recategorize only; null clears the category back to uncategorized.
   category?: SegmentCategory | null;
+  // Held editor only: "Save, cut later" asks the host not to chain the
+  // one-tap recut, even when this save completes the review set.
+  cutLater?: boolean;
 }
 
 export interface AdCreateSubmit {
@@ -140,6 +143,9 @@ interface Props {
   // Called after the in-modal Split saves. When absent the modal refreshes
   // queries and triggers the recut itself, then closes.
   onSplitSaved?: (result: { markerCount: number; patternIds: number[] }) => void;
+  // Set when the editor was opened from the Held for review section: the
+  // copy says why the span is held and that saving approves without cutting.
+  heldContext?: { reasonLabel: string; approved: boolean };
 }
 
 // Cap the default visible window: some heuristic detections (notably post-roll) flag dozens of minutes as one
@@ -152,6 +158,24 @@ const WINDOW_STEP_SECONDS = 60;
 // wheel-zoom, the +1m buttons, or by typing far-away timestamps.
 const CONTEXT_SECONDS = 30;
 const MIN_AD_DURATION = 1.0;
+const ADD_AD_HINT = ' To cover more audio, use Add ad.';
+
+// 12.5 to '12.5', 60.0 to '60'.
+// Shown limits round inward to a tenth of a second, so the text never promises more than the server accepts.
+const EDGE_EPS = 1e-6;
+const tenthsIn = (w: { min: number; max: number }) => ({
+  min: Math.ceil((w.min - EDGE_EPS) * 10) / 10,
+  max: Math.floor((w.max + EDGE_EPS) * 10) / 10,
+});
+const formatLimit = (seconds: number) => {
+  const tenths = Math.round(Math.max(0, seconds) * 10);
+  if (tenths % 10 === 0) {
+    const t = tenths / 10;
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  }
+  const t = Math.floor(tenths / 10);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}.${tenths % 10}`;
+};
 
 function CategoryOptions() {
   return (
@@ -176,7 +200,7 @@ function AdReviewModal({
   audioMode = 'original', onAudioModeChange, hasOriginal = true,
   processedAudioUrl, episodeDuration,
   mode = 'review', onCreate, onCreateDone, onAddNew, boundsWindow, onSaveSpan,
-  hideConfirm = false, onSplitSaved,
+  hideConfirm = false, onSplitSaved, heldContext,
 }: Props) {
   const caps = MODE_CAPABILITIES[mode];
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -778,6 +802,14 @@ function AdReviewModal({
     }
   }, [adEnd]);
 
+  // Undo every boundary edit: back to the span the editor opened on.
+  const resetBounds = () => {
+    setAdStart(item.start);
+    setAdEnd(item.end);
+    setStartInput(formatTime(item.start));
+    setEndInput(formatTime(item.end));
+  };
+
   // setWindowCenter recenters so the just-committed pin stays visible when
   // zoomed; cross-field validation (Start < End) is enforced at Save time.
   const commitStartInput = () =>
@@ -811,6 +843,7 @@ function AdReviewModal({
   // Plain const: three primitive comparisons are cheaper than useMemo's
   // dep-tracking overhead, and the string|null result has no referential
   // identity worth preserving for downstream memo consumers.
+  const shown = boundsWindow ? tenthsIn(boundsWindow) : null;
   const boundaryError: string | null =
     adStart < 0
       ? 'Start must be at least 0:00'
@@ -820,9 +853,33 @@ function AdReviewModal({
           ? `Selection must be at least ${MIN_AD_DURATION}s long`
           : caps.maxSelectionSeconds !== null && adEnd - adStart > caps.maxSelectionSeconds
             ? `Selection must be at most ${caps.maxSelectionSeconds}s long`
-          : boundsWindow && (adStart < boundsWindow.min || adEnd > boundsWindow.max)
-            ? `Selection must stay within the detected span (${formatTime(boundsWindow.min)} - ${formatTime(boundsWindow.max)})`
-            : null;
+          : !boundsWindow || (adStart >= boundsWindow.min && adEnd <= boundsWindow.max)
+            ? null
+            : !heldContext
+              ? `Selection must stay within the detected span (${formatTime(boundsWindow.min)} - ${formatTime(boundsWindow.max)})`
+              : adStart < boundsWindow.min
+                ? `Start must be at or after ${formatLimit(shown!.min)}.${ADD_AD_HINT}`
+                : `End must be at or before ${formatLimit(shown!.max)}.${ADD_AD_HINT}`;
+  // Held editor helper line: what saving does and how far the span can grow.
+  let heldHelper = '';
+  if (heldContext) {
+    const g1 = shown ? Math.max(0, Math.floor(item.start - shown.min + EDGE_EPS)) : 0;
+    const g2 = shown ? Math.max(0, Math.floor(shown.max - item.end + EDGE_EPS)) : 0;
+    const notCut = 'not cut until the confirmed spans are cut.';
+    if (boundariesMoved) {
+      heldHelper = `Saving keeps ${formatTime(adStart)} - ${formatTime(adEnd)} (was ${formatTime(item.start)} - ${formatTime(item.end)}). It is ${notCut}`;
+    } else if (g1 >= 1 || g2 >= 1) {
+      const grow = g1 >= 1 && g2 >= 1
+        ? `grow it by up to ${g1} s earlier and ${g2} s later`
+        : g1 >= 1
+          ? `grow it by up to ${g1} s earlier (it cannot grow later)`
+          : `grow it by up to ${g2} s later (it cannot grow earlier)`;
+      heldHelper = `You can shrink this span, or ${grow}. Saving approves it; it is ${notCut}`;
+    } else {
+      heldHelper = `You can shrink this span. To cover more audio, use Add ad. Saving approves it; it is ${notCut}`;
+    }
+    if (heldContext.approved) heldHelper = `Already confirmed, not cut yet. ${heldHelper}`;
+  }
   const inputBorderClass = boundaryError ? 'border-destructive' : '';
 
   // With Confirm hidden (Detected Ads), an unmoved-boundary save would emit
@@ -833,9 +890,10 @@ function AdReviewModal({
   // ad here only produced a 409, so the category picker is the action instead.
   const keptByCategory = isKeepLike(item.actionApplied);
 
-  const handleConfirm = () => {
+  const handleConfirm = (cutLater = false) => {
     // Guards the C shortcut too; the buttons are hidden but the key is not.
     if (confirmInert || keptByCategory) return;
+    const later = cutLater ? { cutLater: true } : {};
     onSubmit(
       boundariesMoved
         ? {
@@ -843,8 +901,9 @@ function AdReviewModal({
             adjustedStart: adStart,
             adjustedEnd: adEnd,
             sponsor: sponsorInput.trim() || undefined,
+            ...later,
           }
-        : { kind: 'confirm', sponsor: sponsorInput.trim() || undefined }
+        : { kind: 'confirm', sponsor: sponsorInput.trim() || undefined, ...later }
     );
   };
 
@@ -902,7 +961,7 @@ function AdReviewModal({
       if (e.key === ',')      { e.preventDefault(); panBack(); return; }
       if (e.key === '.')      { e.preventDefault(); panForward(); return; }
       if (!caps.decisionShortcuts) return;
-      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!IS_DEMO && !boundaryError) handleConfirm(); return; }
+      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!IS_DEMO && !boundaryError) handleConfirm(false); return; }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (!IS_DEMO) handleReject(); return; }
       if (e.key === 's' || e.key === 'S') { e.preventDefault(); onSkip(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -949,7 +1008,7 @@ function AdReviewModal({
         <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className={`${caps.headingOnPhone ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground truncate min-w-0`}>
-              {caps.heading}
+              {mode === 'review' && heldContext ? `Held for review: ${heldContext.reasonLabel}` : caps.heading}
             </h2>
             <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
               {/* Processed / Original toggle. Hidden in create mode (always original). */}
@@ -1288,42 +1347,63 @@ function AdReviewModal({
               commit on blur or Enter; the pin handles update them live during drag. */}
           <div className="mt-3 text-sm text-muted-foreground tabular-nums">
             <span id={selectionLabelId} className={filterLabel}>Selection</span>
-            <div role="group" aria-labelledby={selectionLabelId} className="flex items-center gap-2">
-              <input
-                ref={startInputRef}
-                disabled={lockMultiFields}
-                type="text"
-                inputMode="decimal"
-                value={startInput}
-                aria-label="Selection start time"
-                aria-invalid={boundaryError !== null}
-                aria-describedby={boundaryError ? boundaryErrorId : undefined}
-                onChange={(e) => setStartInput(e.target.value)}
-                onBlur={commitStartInput}
-                onKeyDown={timeInputKeyDown(adStart, setStartInput)}
-                className={`w-24 max-sm:flex-1 max-sm:min-w-0 ${inputBase} text-success font-medium text-center tabular-nums ${inputBorderClass}`}
-              />
-              <span>-</span>
-              <input
-                ref={endInputRef}
-                disabled={lockMultiFields}
-                type="text"
-                inputMode="decimal"
-                value={endInput}
-                aria-label="Selection end time"
-                aria-invalid={boundaryError !== null}
-                aria-describedby={boundaryError ? boundaryErrorId : undefined}
-                onChange={(e) => setEndInput(e.target.value)}
-                onBlur={commitEndInput}
-                onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
-                className={`w-24 max-sm:flex-1 max-sm:min-w-0 ${inputBase} text-destructive font-medium text-center tabular-nums ${inputBorderClass}`}
-              />
-              <span className="text-xs shrink-0">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
+            <div role="group" aria-labelledby={selectionLabelId} className="flex items-end gap-2">
+              <div className="flex flex-col gap-1 max-sm:flex-1 max-sm:min-w-0">
+                <span className="text-xs">Start (m:ss or seconds)</span>
+                <input
+                  ref={startInputRef}
+                  disabled={lockMultiFields}
+                  type="text"
+                  inputMode="decimal"
+                  value={startInput}
+                  aria-label="Selection start time"
+                  aria-invalid={boundaryError !== null}
+                  aria-describedby={boundaryError ? boundaryErrorId : undefined}
+                  onChange={(e) => setStartInput(e.target.value)}
+                  onBlur={commitStartInput}
+                  onKeyDown={timeInputKeyDown(adStart, setStartInput)}
+                  className={`w-24 max-sm:w-full max-sm:min-w-0 ${inputBase} text-success font-medium text-center tabular-nums ${inputBorderClass}`}
+                />
+              </div>
+              <span className="pb-2">-</span>
+              <div className="flex flex-col gap-1 max-sm:flex-1 max-sm:min-w-0">
+                <span className="text-xs">End (m:ss or seconds)</span>
+                <input
+                  ref={endInputRef}
+                  disabled={lockMultiFields}
+                  type="text"
+                  inputMode="decimal"
+                  value={endInput}
+                  aria-label="Selection end time"
+                  aria-invalid={boundaryError !== null}
+                  aria-describedby={boundaryError ? boundaryErrorId : undefined}
+                  onChange={(e) => setEndInput(e.target.value)}
+                  onBlur={commitEndInput}
+                  onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
+                  className={`w-24 max-sm:w-full max-sm:min-w-0 ${inputBase} text-destructive font-medium text-center tabular-nums ${inputBorderClass}`}
+                />
+              </div>
+              <span className="text-xs shrink-0 pb-2">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
             </div>
+            {shown && (
+              <p className="mt-1 text-xs" data-testid="bounds-range">
+                Allowed: {formatLimit(shown.min)} - {formatLimit(shown.max)}
+              </p>
+            )}
             {boundariesMoved && !boundaryError && (
               <p className="mt-1 text-xs text-warning">
                 (originally {formatTime(item.start)} - {formatTime(item.end)})
               </p>
+            )}
+            {mode === 'review' && boundariesMoved && (
+              <button
+                type="button"
+                data-testid="reset-bounds"
+                onClick={resetBounds}
+                className={`mt-1 ${btnBase} ${btnOutline} text-xs`}
+              >
+                Reset to original
+              </button>
             )}
           </div>
           {boundaryError && (
@@ -1613,7 +1693,9 @@ function AdReviewModal({
                 <div className="text-xs text-muted-foreground">
                   {keptByCategory
                     ? 'Left in by its category. Change it above to cut this span.'
-                    : boundariesMoved
+                    : heldContext
+                      ? heldHelper
+                      : boundariesMoved
                       ? 'Confirm will save adjusted boundaries.'
                       : hideConfirm
                         ? 'This ad is already cut. Move a boundary to save an adjustment.'
@@ -1640,9 +1722,20 @@ function AdReviewModal({
                     </button>
                   </DemoDisabled>
                 )}
+                {!keptByCategory && heldContext && (
+                  <DemoDisabled>
+                    <button type="button" onClick={() => handleConfirm(true)}
+                      disabled={boundaryError !== null || confirmInert}
+                      className={`${btnBase} ${btnOutline} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
+                      title={boundaryError
+                        ?? 'Saves this span and does not cut yet. Use Cut now in the section when you are ready.'}>
+                      Save, cut later
+                    </button>
+                  </DemoDisabled>
+                )}
                 {!keptByCategory && (
                   <DemoDisabled>
-                    <button type="button" onClick={handleConfirm}
+                    <button type="button" onClick={() => handleConfirm(false)}
                       disabled={boundaryError !== null || confirmInert}
                       className={`${btnBase} ${btnPrimary} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
                       title={boundaryError

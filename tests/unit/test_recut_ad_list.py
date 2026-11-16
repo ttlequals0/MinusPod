@@ -1740,3 +1740,63 @@ def test_build_recut_keeps_an_uncategorised_echo_marker_held(monkeypatch):
         corrections=_user_corrections('slug', 'ep'))
     assert ads_to_remove == []
     assert all_ads[0]['hold_reason'] == 'no_transcript_evidence'
+
+
+def _held(start, end, **extra):
+    ad = {'start': start, 'end': end, 'confidence': 0.9, 'sponsor': 'Acme',
+          'reason': 'span', 'category': 'sponsor', 'held_for_review': True,
+          'hold_reason': 'transcript_loop'}
+    ad.update(extra)
+    return ad
+
+
+def _confirm_row(orig, corrected):
+    return {'correction_type': 'confirm',
+            'original_bounds': {'start': orig[0], 'end': orig[1]},
+            'corrected_bounds': {'start': corrected[0], 'end': corrected[1]}}
+
+
+def test_stale_adjustment_does_not_override_a_newer_confirm_or_duplicate_markers(monkeypatch):
+    # adjust 120-437 to 100-500, then a confirm trim to 150-390.
+    ads = [_held(150.0, 390.0, approved=True)]
+    _stub_recut_db(monkeypatch, ads, confirmed=[
+        {'start': 120.0, 'end': 437.0, 'correction_type': 'confirm',
+         'confirmed_span': {'start': 150.0, 'end': 390.0}},
+        {'start': 120.0, 'end': 437.0, 'correction_type': 'boundary_adjustment',
+         'confirmed_span': {'start': 100.0, 'end': 500.0}}])
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections',
+        lambda podcast_id, eid: [_confirm_row((120.0, 437.0), (150.0, 390.0)),
+                                 _boundary_adjustment(120.0, 437.0, 100.0, 500.0)])
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80,
+        corrections=_user_corrections('slug', 'ep'))
+    assert [(a['start'], a['end']) for a in ads_to_remove] == [(150.0, 390.0)]
+    assert [(a['start'], a['end']) for a in all_ads] == [(150.0, 390.0)]
+
+
+def test_apply_boundary_adjustments_skips_legacy_span_under_one_second(monkeypatch, caplog):
+    ads = [_held(600.0, 630.0)]
+    _pin_corrections(monkeypatch, [_boundary_adjustment(600.0, 630.0, 620.0, 620.2)])
+    caplog.set_level('INFO')
+    recut._apply_boundary_adjustments('slug', 'ep', ads, episode={'original_duration': 3600.0})
+    assert (ads[0]['start'], ads[0]['end']) == (600.0, 630.0)
+    assert 'skipped legacy correction 620.0-620.2:' in caplog.text
+
+
+def test_apply_boundary_adjustments_skips_legacy_span_outside_the_held_window(monkeypatch, caplog):
+    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+    ads = [_held(120.0, 437.0)]
+    _pin_corrections(monkeypatch, [_boundary_adjustment(120.0, 437.0, 20.0, 437.0)])
+    caplog.set_level('INFO')
+    recut._apply_boundary_adjustments('slug', 'ep', ads, episode={'original_duration': 3600.0})
+    assert (ads[0]['start'], ads[0]['end']) == (120.0, 437.0)
+    assert 'skipped legacy correction 20.0-437.0:' in caplog.text
+
+
+def test_apply_boundary_adjustments_applies_a_span_inside_the_held_window(monkeypatch):
+    monkeypatch.setenv('HELD_WIDEN_SECONDS', '60')
+    ads = [_held(120.0, 437.0)]
+    _pin_corrections(monkeypatch, [_boundary_adjustment(120.0, 437.0, 100.0, 480.0)])
+    recut._apply_boundary_adjustments('slug', 'ep', ads, episode={'original_duration': 3600.0})
+    assert (ads[0]['start'], ads[0]['end']) == (100.0, 480.0)

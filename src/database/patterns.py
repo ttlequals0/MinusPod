@@ -442,10 +442,18 @@ class PatternMixin:
 
     def delete_conflicting_corrections(self, podcast_id: int, episode_id: str, correction_type: str,
                                         bounds_start: float, bounds_end: float) -> int:
+        """Delete conflicting corrections; return how many (see
+        delete_conflicting_correction_rows)."""
+        return len(self.delete_conflicting_correction_rows(
+            podcast_id, episode_id, correction_type, bounds_start, bounds_end))
+
+    def delete_conflicting_correction_rows(self, podcast_id: int, episode_id: str, correction_type: str,
+                                            bounds_start: float, bounds_end: float) -> list[dict]:
         """Delete corrections that conflict with a new correction being submitted.
 
         A confirm or adjustment deletes false_positive corrections for the same
-        bounds; a rejection deletes confirm corrections. Returns deleted row count.
+        bounds; a rejection deletes confirm corrections. Returns the deleted rows
+        as dicts with original_bounds and corrected_bounds (each a dict or None).
         """
         # Determine the conflicting type
         if correction_type in ('confirm', 'boundary_adjustment'):
@@ -453,16 +461,16 @@ class PatternMixin:
         elif correction_type == 'false_positive':
             conflicting_type = 'confirm'
         else:
-            return 0
+            return []
 
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT id, original_bounds FROM pattern_corrections
+            """SELECT id, original_bounds, corrected_bounds FROM pattern_corrections
                WHERE podcast_id = ? AND episode_id = ? AND correction_type = ?""",
             (podcast_id, episode_id, conflicting_type)
         )
 
-        deleted = 0
+        deleted = []
         for row in cursor.fetchall():
             if row['original_bounds']:
                 try:
@@ -480,7 +488,11 @@ class PatternMixin:
                             and overlap / segment_duration >= 0.5
                             and overlap / row_duration >= 0.5):
                         conn.execute("DELETE FROM pattern_corrections WHERE id = ?", (row['id'],))
-                        deleted += 1
+                        deleted.append({
+                            'original_bounds': parsed,
+                            'corrected_bounds': (json.loads(row['corrected_bounds'])
+                                                 if row['corrected_bounds'] else None),
+                        })
                 except (json.JSONDecodeError, KeyError, ValueError):
                     pass
 

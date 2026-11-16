@@ -248,6 +248,7 @@ EXPECTED_AD_RESET_KEYS = {
     'chapter_title_temperature', 'chapter_title_max_tokens',
     'chapter_title_reasoning_budget', 'chapter_title_reasoning_level',
     'ollama_num_ctx', 'window_size_seconds', 'window_overlap_seconds',
+    'held_widen_seconds',
     'verification_miss_hold_min_confidence',
     'verification_miss_autocut_min_confidence',
     'learning_min_confidence', 'learning_min_confidence_long',

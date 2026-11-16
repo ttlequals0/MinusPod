@@ -236,6 +236,54 @@ def find_marker_in_list(markers, start, end, tol: float = BOUNDS_TOLERANCE_S):
     return None
 
 
+HELD_WINDOW_TOLERANCE_S = 0.5
+
+
+def held_marker_window(markers, marker, episode_duration, default_was_cut,
+                       proposal=None, blocked_spans=(), widen_s=0.0):
+    """(min, max) seconds a human may set a held marker's edges to: the span (with a usable reviewer proposal)
+    +/- tolerance, or widened by widen_s; decided, kept or blocked neighbours and the episode stop it."""
+    cur_start, cur_end = float(marker['start']), float(marker['end'])
+    base_start, base_end = cur_start, cur_end
+    if widen_s > 0:
+        for key, pick in (('reviewer_original_start', min), ('reviewer_original_end', max)):
+            value = finite_number(marker.get(key))
+            if value is not None:
+                if key.endswith('start'):
+                    base_start = pick(base_start, value)
+                else:
+                    base_end = pick(base_end, value)
+    lo, hi = base_start - widen_s, base_end + widen_s
+    if proposal is not None:
+        lo, hi = min(lo, proposal[0]), max(hi, proposal[1])
+    lo -= HELD_WINDOW_TOLERANCE_S
+    hi += HELD_WINDOW_TOLERANCE_S
+    if widen_s <= 0:
+        return lo, hi
+
+    blockers = [(b['start'], b['end']) for b in blocked_spans or ()]
+    for other in markers or ():
+        if other is marker:
+            continue
+        o_start, o_end = finite_number(other.get('start')), finite_number(other.get('end'))
+        if o_start is None or o_end is None:
+            continue
+        if (other.get('was_cut', default_was_cut) or other.get('approved')
+                or is_keep_like(other.get('action_applied'))
+                or (other.get('validation') or {}).get('decision') == 'REJECT'):
+            blockers.append((o_start, o_end))
+    for b_start, b_end in blockers:
+        if b_end <= base_start:
+            lo = max(lo, b_end)
+        elif b_start >= base_end:
+            hi = min(hi, b_start)
+
+    lo = max(lo, 0.0)
+    if episode_duration and episode_duration > 0:
+        hi = min(hi, float(episode_duration))
+    return min(lo, cur_start), max(hi, cur_end)
+
+
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None,
                  optional_fields: tuple = ()) -> list[dict]:
     """Well-formed {start, end} spans under `key`, plus extra and present optional fields."""

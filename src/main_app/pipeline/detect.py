@@ -18,7 +18,7 @@ from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
     CHAPTER_TRIM_SOURCES, CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
     title_matches_skip_patterns,
-    resolve_max_boundary_shift,
+    resolve_held_widen_seconds, resolve_max_boundary_shift,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     AUDIO_CUE_SUGGEST_NEAR_MISS_EPISODES,
@@ -45,6 +45,8 @@ from llm_client import (
     ProviderRequestRejectedError,
 )
 
+from utils.correction_guard import usable_confirmed_corrections
+from utils.markers import parse_ad_markers
 from utils.errors import ServiceUnavailableError
 
 from webhook_service import fire_cue_template_quiet_event
@@ -472,7 +474,24 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
             )
 
 
-def _load_user_corrections(slug, episode_id, db):
+def _usable_confirmed(slug, episode_id, db, confirmed, false_positive_spans,
+                      episode=None):
+    """Confirmed corrections minus the legacy ones (under a second, superseded,
+    and, with held_widen_seconds set, outside a held marker's window)."""
+    if not confirmed:
+        return confirmed
+    # Module-level import would be a cycle: api imports the pipeline.
+    from api.patterns import held_review_window
+    if episode is None:
+        episode = db.get_episode(slug, episode_id) or {}
+    markers = parse_ad_markers(episode.get('ad_markers_json')) or []
+    window_for = None if resolve_held_widen_seconds() <= 0 else (
+        lambda m: held_review_window(db, episode, markers, m, false_positive_spans))
+    return usable_confirmed_corrections(
+        confirmed, markers, window_for, label=f"[{slug}:{episode_id}] ")
+
+
+def _load_user_corrections(slug, episode_id, db, episode=None):
     """Load FP and confirmed corrections for the episode and log counts."""
     podcast = db.get_podcast_row(slug)
     podcast_id = podcast['id'] if podcast else None
@@ -483,6 +502,9 @@ def _load_user_corrections(slug, episode_id, db):
 
     confirmed_corrections = db.get_confirmed_corrections(
         podcast_id, episode_id) if podcast_id is not None else []
+    confirmed_corrections = _usable_confirmed(
+        slug, episode_id, db, confirmed_corrections, false_positive_corrections,
+        episode=episode)
     if confirmed_corrections:
         audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(confirmed_corrections)} confirmed corrections")
 

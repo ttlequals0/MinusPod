@@ -1,13 +1,14 @@
 """Pattern routes: /patterns/* endpoints and corrections."""
 import json
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
     count_pending_review, is_keep_like, is_pending_review, resolve_max_ad_duration_confirmed,
-    resolve_max_boundary_shift,
+    resolve_held_widen_seconds, resolve_max_boundary_shift,
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
@@ -15,8 +16,11 @@ from api import preview_cache
 from database.fingerprint_cleanup import delete_pattern_dependents
 from database.fingerprint_matches import fingerprint_member_pattern_ids
 from database.podcasts import MAX_NETWORK_ID_CHARS
-from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
+from utils.markers import (
+    clip_merge_spans, find_marker_in_list, held_marker_window, parse_ad_markers)
+from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
+from utils.constants import EpisodeStatus
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
 from pattern_variants import derive_intro_outro, merge_variants
@@ -1153,6 +1157,44 @@ def _usable_reviewer_proposal(db, marker, start, end):
     return float(p_start), float(p_end)
 
 
+def held_review_window(db, episode, markers, marker, false_positive_spans):
+    """(min, max) a human may set a held marker's edges to, for both the corrections validator and allowedBounds."""
+    proposal = _usable_reviewer_proposal(
+        db, marker, float(marker['start']), float(marker['end']))
+    return held_marker_window(
+        markers, marker, episode.get('original_duration'),
+        episode.get('status') == EpisodeStatus.PROCESSED,
+        proposal=proposal, blocked_spans=false_positive_spans,
+        widen_s=resolve_held_widen_seconds())
+
+
+def _held_window_for(db, slug, episode_id, episode, markers, marker, podcast=None):
+    """held_review_window with the episode's false-positive spans looked up."""
+    podcast_row = podcast or db.get_podcast_row(slug)
+    fp_spans = (db.get_false_positive_corrections(podcast_row['id'], episode_id)
+                if podcast_row else [])
+    return held_review_window(db, episode, markers, marker, fp_spans)
+
+
+def _validate_span_bounds(db, slug, episode_id, original_ad, adjusted_start, adjusted_end):
+    """Error response for a reversed, tiny or off-episode hand-set span, else None (confirm-trim and adjust)."""
+    try:
+        start, end = float(adjusted_start), float(adjusted_end)
+    except (TypeError, ValueError):
+        return error_response('adjusted_start and adjusted_end must be numbers', 400)
+    if not (math.isfinite(start) and math.isfinite(end)):
+        return error_response('adjusted_start and adjusted_end must be numbers', 400)
+    if end <= start:
+        return error_response('adjusted_end must be greater than adjusted_start', 400)
+    if end - start < MIN_CORRECTION_SPAN_S:
+        return error_response(
+            f'The adjusted span must be at least {MIN_CORRECTION_SPAN_S:g}s long.', 400)
+    duration = (db.get_episode(slug, episode_id) or {}).get('original_duration')
+    if start < 0 or (isinstance(duration, (int, float)) and duration > 0 and end > duration):
+        return error_response('Adjusted bounds must lie within the episode.', 400)
+    return None
+
+
 def _handle_confirm_correction(
     db, pattern_service, slug, episode_id, original_ad, data, addressing_mode=None,
     podcast=None, transcript=None,
@@ -1177,38 +1219,35 @@ def _handle_confirm_correction(
             'Both adjusted_start and adjusted_end are required for a trimmed confirm', 400)
     has_trim = adjusted_start is not None
     if has_trim:
-        try:
-            adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
-        except (TypeError, ValueError):
-            return error_response('adjusted_start and adjusted_end must be numbers', 400)
-        if adjusted_end <= adjusted_start:
-            return error_response('adjusted_end must be greater than adjusted_start', 400)
-        # A trim narrows the reviewed span: the detected span alone, or the
-        # envelope of detected and reviewer-proposed bounds when the held
-        # marker carries a reviewer proposal (e.g. reviewer_boundary_conflict).
-        env_start, env_end = original_start, original_end
+        bounds_error = _validate_span_bounds(
+            db, slug, episode_id, original_ad, adjusted_start, adjusted_end)
+        if bounds_error:
+            return bounds_error
+        adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
+        # A trim stays inside the held marker's window (held_marker_window); with no held marker, the span +/-0.5 s.
+        episode, markers = _load_episode_markers(db, slug, episode_id)
         held_marker = None
-        for m in _load_markers(db, slug, episode_id) or []:
+        for m in markers or []:
             if _matches_held_marker(m, original_start, original_end, 0.5):
                 held_marker = m
                 break
         if held_marker is not None:
-            proposal = _usable_reviewer_proposal(
-                db, held_marker, original_start, original_end)
-            if proposal is not None:
-                env_start = min(original_start, proposal[0])
-                env_end = max(original_end, proposal[1])
-            else:
+            win_start, win_end = _held_window_for(
+                db, slug, episode_id, episode, markers, held_marker, podcast)
+            if _usable_reviewer_proposal(
+                    db, held_marker, original_start, original_end) is None:
                 p_start = held_marker.get('reviewer_proposed_start')
                 p_end = held_marker.get('reviewer_proposed_end')
                 if (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
                         and (p_end <= original_start or p_start >= original_end)
-                        and (adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5)):
+                        and (adjusted_start < win_start or adjusted_end > win_end)):
                     return error_response(
                         f'Reviewer trim {p_start:.1f}-{p_end:.1f} does not overlap this '
                         f'held span {original_start:.1f}-{original_end:.1f}; '
                         'confirm or reject the whole span', 400)
-        if adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5:
+        else:
+            win_start, win_end = original_start - 0.5, original_end + 0.5
+        if adjusted_start < win_start or adjusted_end > win_end:
             return error_response('Adjusted bounds must lie within the reviewed span', 400)
     # The span actually confirmed as ad content.
     eff_start = adjusted_start if has_trim else original_start
@@ -1329,9 +1368,10 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
             db.update_ad_pattern(pattern_id, false_positive_count=new_count)
             logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
 
-    deleted = db.delete_conflicting_corrections(db.get_podcast_row(slug)['id'], episode_id, 'false_positive', original_start, original_end)
+    deleted = db.delete_conflicting_correction_rows(db.get_podcast_row(slug)['id'], episode_id, 'false_positive', original_start, original_end)
     if deleted:
-        logger.info(f"Deleted {deleted} conflicting confirm correction(s) for {slug}/{episode_id}")
+        logger.info(f"Deleted {len(deleted)} conflicting confirm correction(s) for {slug}/{episode_id}")
+        _unapprove_held_markers_of(db, slug, episode_id, deleted, markers)
 
     db.create_pattern_correction(
         correction_type='false_positive',
@@ -1446,6 +1486,31 @@ def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
                           lambda m: _matches_held_marker(m, start, end, tol), markers)
 
 
+def _unapprove_held_markers_of(db, slug, episode_id, deleted_rows, markers=None, tol=0.5):
+    """Clear approved, and restore trimmed bounds, on held markers whose confirm the reject path just deleted."""
+    if markers is None:
+        markers = _load_markers(db, slug, episode_id)
+    if not markers:
+        return
+    changed = False
+    for row in deleted_rows:
+        for b in (row.get('corrected_bounds'), row.get('original_bounds')):
+            if not b:
+                continue
+            for m in markers:
+                if m.get('approved') and _matches_held_marker(
+                        m, float(b.get('start', 0)), float(b.get('end', 0)), tol):
+                    m.pop('approved', None)
+                    if m.get('reviewer_original_start') is not None:
+                        m['start'] = m.pop('reviewer_original_start')
+                    if m.get('reviewer_original_end') is not None:
+                        m['end'] = m.pop('reviewer_original_end')
+                    changed = True
+    if changed:
+        db.save_episode_details(slug, episode_id, ad_markers=markers,
+                                pending_review_count=count_pending_review(markers))
+
+
 def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                                new_start=None, new_end=None):
     """Confirm-side mirror of the reject path (#509): mark the matching held marker
@@ -1463,8 +1528,12 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
     for m in markers:
         if _matches_held_marker(m, start, end, tol):
             if has_trim:
-                m['reviewer_original_start'] = m.get('start')
-                m['reviewer_original_end'] = m.get('end')
+                # Keep the first original: a reopened row trimmed again must
+                # still report (and grow back to) the span as first detected.
+                if m.get('reviewer_original_start') is None:
+                    m['reviewer_original_start'] = m.get('start')
+                if m.get('reviewer_original_end') is None:
+                    m['reviewer_original_end'] = m.get('end')
                 m['start'] = new_start
                 m['end'] = new_end
                 clip_merge_spans(m, new_start, new_end)
@@ -1567,6 +1636,23 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     sponsor_override, sponsor_error = _modal_sponsor(data)
     if sponsor_error:
         return sponsor_error
+    bounds_error = _validate_span_bounds(
+        db, slug, episode_id, original_ad, adjusted_start, adjusted_end)
+    if bounds_error:
+        return bounds_error
+    adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
+    # Above 0 an adjust approves a held marker at once, so it gets confirm's window; at 0 it waits for the recut.
+    widened = resolve_held_widen_seconds() > 0
+    if widened:
+        episode, markers = _load_episode_markers(db, slug, episode_id)
+        for m in markers or []:
+            if _matches_held_marker(m, original_start, original_end, 0.5):
+                win_start, win_end = _held_window_for(
+                    db, slug, episode_id, episode, markers, m)
+                if adjusted_start < win_start or adjusted_end > win_end:
+                    return error_response(
+                        'Adjusted bounds must lie within the reviewed span', 400)
+                break
 
     logger.info(f"CORRECTION: type=adjust, episode={slug}/{episode_id}, pattern_id={pattern_id}, "
                 f"original={original_start:.1f}-{original_end:.1f}, adjusted={adjusted_start:.1f}-{adjusted_end:.1f}")
@@ -1625,8 +1711,39 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         addressing_mode=addressing_mode,
     )
 
+    # A held marker moves and is approved like confirm+trim; a cut marker does
+    # not match the held predicate and is left alone.
+    if widened:
+        _mark_held_marker_approved(
+            db, slug, episode_id, original_start, original_end,
+            new_start=adjusted_start, new_end=adjusted_end,
+        )
+
     return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id,
                           **fingerprint_response_fields(outcomes)})
+
+
+def _with_marker_state(db, slug, episode_id, response, spans):
+    """Add recut_pending and the marker's stored state, found at any of spans, to a 2xx correction body."""
+    episode, markers = _load_episode_markers(db, slug, episode_id)
+    marker = None
+    for start, end in spans:
+        marker = find_marker_in_list(markers, start, end, 0.5)
+        if marker is not None:
+            break
+    body = response.get_json(silent=True)
+    if marker is None or not isinstance(body, dict):
+        return response
+    body['recut_pending'] = True
+    body['marker'] = {
+        'start': marker.get('start'),
+        'end': marker.get('end'),
+        'approved': bool(marker.get('approved')),
+        'was_cut': bool(marker.get(
+            'was_cut', episode.get('status') == EpisodeStatus.PROCESSED)),
+        'hold_reason': marker.get('hold_reason') if marker.get('held_for_review') else None,
+    }
+    return json_response(body, response.status_code)
 
 
 @api.route('/episodes/<slug>/<episode_id>/corrections', methods=['POST'])
@@ -1719,6 +1836,13 @@ def submit_correction(slug, episode_id):
     # its chapters. The apply decides which of the two an episode needs.
     if getattr(response, 'status_code', 500) < 400:
         db.mark_episode_pending_recut(slug, episode_id)
+        if correction_type in ('confirm', 'reject', 'adjust', 'recategorize'):
+            spans = [(original_start, original_end)]
+            try:
+                spans.append((float(data['adjusted_start']), float(data['adjusted_end'])))
+            except (KeyError, TypeError, ValueError):
+                pass
+            response = _with_marker_state(db, slug, episode_id, response, spans)
     return response
 
 

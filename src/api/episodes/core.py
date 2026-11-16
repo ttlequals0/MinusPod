@@ -26,6 +26,7 @@ from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 import episode_runs
 from api.episodes import common
+from api.patterns import held_review_window
 
 logger = logging.getLogger('podcast.api')
 
@@ -416,6 +417,20 @@ def get_episode(slug, episode_id):
 
     # Get corrections for this episode
     corrections = db.get_episode_corrections(episode['podcast_id'], episode_id)
+
+    # What a human may set a held marker's edges to; the corrections API
+    # enforces exactly this window.
+    if pending_review_markers:
+        fp_spans = [c['original_bounds'] for c in corrections
+                    if c.get('correction_type') == 'false_positive'
+                    and isinstance(c.get('original_bounds'), dict)
+                    and isinstance(c['original_bounds'].get('start'), (int, float))
+                    and isinstance(c['original_bounds'].get('end'), (int, float))]
+        for marker in pending_review_markers:
+            if not all(isinstance(marker.get(k), (int, float)) for k in ('start', 'end')):
+                continue
+            lo, hi = held_review_window(db, episode, all_markers, marker, fp_spans)
+            marker['allowedBounds'] = {'min': lo, 'max': hi}
 
     # Per-cue detection telemetry (advisory: template matches with score, how
     # detection used each cue, and the user's verdict). Empty for episodes
