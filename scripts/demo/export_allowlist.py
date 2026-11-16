@@ -68,6 +68,7 @@ _KEPT_ALL = (
     'cue_detections', 'cue_candidate_dismissals', 'podping_hosts',
     'addressing_log', 'pattern_cleanup_suggestions', 'pattern_cleanup_checks',
     'pattern_cleanup_deleted_actions', 'audio_fingerprints', 'failover_events',
+    'episode_marker_refs',
 )
 
 
@@ -142,6 +143,7 @@ PODCAST_REF: dict[str, tuple[str, str]] = {
 # episode column is episodes.id).
 EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'episode_details': ('', 'episode_id', ''),
+    'episode_marker_refs': ('', 'episode_pk', ''),
     'pattern_corrections': ('podcast_id', 'episode_id', 'id'),
     'processing_runs': ('podcast_id', 'episode_id', 'id'),
     'episode_downloads': ('podcast_id', 'episode_id', 'id'),
@@ -182,7 +184,8 @@ _ALLOW_GENERAL = (
     'queue_bulk_boost', 'queue_order', 'session_lifetime_hours', 'session_remember_days',
     'podping_enabled', 'only_expose_processed_default',
     'feed_itunes_block', 'require_manual_approval_default',
-    'whats_new_on_upgrade', 'detect_show_segments', 'seed_sponsors_detection',
+    'whats_new_on_upgrade', 'detect_show_segments', 'snip_short_asks',
+    'seed_sponsors_detection',
     'seed_sponsors_verification', 'seed_sponsors_reviewer',
     'seed_sponsors_resurrect', 'text_recurrence_hints', 'ad_addressing_mode',
     'process_new_episodes_first', 'volume_threshold_db',

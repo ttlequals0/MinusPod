@@ -126,7 +126,10 @@ def update_ad_detection_settings():
 
     finish_settings_payload_after_commit(db, changed_stages, previous_calibration)
 
-    return json_response({'message': 'Settings updated'})
+    response = {'message': 'Settings updated'}
+    if 'snipShortAsks' in data:
+        response['snipShortAsks'] = db.get_setting_bool('snip_short_asks')
+    return json_response(response)
 
 
 def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=False):
@@ -738,6 +741,17 @@ def _apply_processing_flags(db, data):
         db.set_setting('detect_show_segments', value, is_default=False)
         logger.info(f"Updated detect-show-segments default to: {value}")
 
+    if 'snipShortAsks' in data:
+        if data['snipShortAsks'] is None:
+            # null resets to the shipped default and marks it as such. The key is
+            # not generally resettable, so write the default row directly.
+            value = registry_default('snip_short_asks')
+            db.set_setting('snip_short_asks', value, is_default=True)
+        else:
+            value = 'true' if data['snipShortAsks'] is True else 'false'
+            db.set_setting('snip_short_asks', value, is_default=False)
+        logger.info(f"Updated snip-short-asks default to: {value}")
+
     if 'textRecurrenceHints' in data:
         value = 'true' if data['textRecurrenceHints'] else 'false'
         db.set_setting('text_recurrence_hints', value, is_default=False)
@@ -1334,6 +1348,14 @@ def _apply_transcribe_chunk_fields(db, data):
     return None
 
 
+def _validate_snip_short_asks_payload(data):
+    # Same contract as the per-feed PATCH (api.feeds._normalize_cue_bool_override).
+    if 'snipShortAsks' in data and data['snipShortAsks'] is not None \
+            and not isinstance(data['snipShortAsks'], bool):
+        return 'snipShortAsks must be true, false, or null', 400
+    return None
+
+
 def validate_settings_payload(
         db, data, *, allow_inactive_tunables=False, prospective_feed_modes=None):
     """Return a payload validation issue without writes, network access, or Flask context."""
@@ -1352,6 +1374,7 @@ def validate_settings_payload(
         _validate_audio_payload,
         _validate_user_agent_payload,
         _validate_podcast_search_provider_payload,
+        _validate_snip_short_asks_payload,
     ):
         issue = validate(data)
         if issue is not None:

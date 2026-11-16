@@ -95,11 +95,14 @@ HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
 HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
 # An LLM span with no category or an audio-only reason whose transcript holds no ad language (#807).
 HOLD_REASON_NO_TRANSCRIPT_EVIDENCE = 'no_transcript_evidence'
+# A marker mostly inside a Whisper repetition loop: the transcript proves nothing there.
+HOLD_REASON_TRANSCRIPT_LOOP = 'transcript_loop'
 # An upstream-transcript-differential gap the LLM did not corroborate (2.98.0).
 HOLD_REASON_TRANSCRIPT_DIFFERENTIAL = 'transcript_differential_unreviewed'
 # Candidate-only holds whose rejected text must not seed cross-episode false-positive matching.
 SNIPPET_EXCLUDED_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+    HOLD_REASON_TRANSCRIPT_LOOP,
 })
 # Stages whose markers count as those holds even after hold_reason was popped.
 SNIPPET_EXCLUDED_STAGE_REASONS = {

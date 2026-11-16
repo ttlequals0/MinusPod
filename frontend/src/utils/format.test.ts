@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHit, formatTimestamp } from './format';
+import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHit, formatTimestamp, formatDateShort } from './format';
 
 describe('formatDurationHoursMinutes', () => {
   it.each([
@@ -89,5 +89,13 @@ describe('formatTimestamp', () => {
     [Infinity, '0:00'],
   ])('formats %s as %s', (s, expected) => {
     expect(formatTimestamp(s)).toBe(expected);
+  });
+});
+
+describe('formatDateShort', () => {
+  it('gives Mon/DD/YY and keeps the missing marker', () => {
+    expect(formatDateShort('2026-11-14T15:30:00')).toBe('Nov/14/26');
+    expect(formatDateShort('2026-09-05T15:30:00')).toBe('Sep/05/26');
+    expect(formatDateShort(null)).toBe('-');
   });
 });

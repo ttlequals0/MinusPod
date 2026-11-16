@@ -486,7 +486,7 @@ type FeedPatchKey =
   | 'keepOriginalAudioOverride' | 'audioReplacementSoundOverride' | 'audioMp3StreamCopyOverride'
   | 'titleSkipPatterns' | 'descriptionSkipPatterns' | 'descriptionTrimPattern'
   | 'descriptionTrimMode' | 'titleSkipAction' | 'minDurationSeconds' | 'maxDurationSeconds'
-  | 'segmentCategoryActions' | 'detectShowSegments' | 'ownEpisodeGuids' | 'skipSecondPass'
+  | 'segmentCategoryActions' | 'detectShowSegments' | 'snipShortAsks' | 'ownEpisodeGuids' | 'skipSecondPass'
   | 'transcriptDifferential';
 
 // title and p20: local feeds only (the backend rejects them on a subscribed feed); author, explicit and

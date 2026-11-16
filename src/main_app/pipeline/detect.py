@@ -13,6 +13,7 @@ from ad_detector.cue_cut_ads import synthesize_ads_from_cue_matches
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
+from utils.short_asks import clamp_short_ask
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
     CHAPTER_TRIM_SOURCES, CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
@@ -50,7 +51,7 @@ from utils.errors import ServiceUnavailableError
 
 from webhook_service import fire_cue_template_quiet_event
 
-from main_app.pipeline import common
+from main_app.pipeline import common, cuts
 from main_app.pipeline.shared import (db, storage, ad_detector, sponsor_service)
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -73,7 +74,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                             force_create_from_pairs=False,
                             strict_pair_roles=False, episode_duration=0.0,
                             run_stats=None, recurrence_spans=None,
-                            action_map=None, transcript_spans=None):
+                            action_map=None, transcript_spans=None, loop_runs=None):
     """Pipeline stage: run first-pass ad detection.
 
     ``keep_content``: None lets the detector resolve the per-feed mode from the
@@ -89,6 +90,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     per window, pass-1 only.
     ``action_map``: the run's resolved category actions, shared with detection.
     ``transcript_spans``: upstream transcript gaps for detector stage 2.6.
+    ``loop_runs``: the run's Whisper repetition runs, found once by the caller.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
@@ -112,6 +114,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         skip_llm=skip_llm,
         action_map=action_map,
         transcript_spans=transcript_spans,
+        loop_runs=loop_runs,
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -385,6 +388,23 @@ def _vad_gap_enabled(db) -> bool:
     return str(value).strip().lower() != 'false'
 
 
+def _clamp_short_asks(ads, segments, masters=None):
+    """Snap flagged short asks to sentence edges within the edge cap, in place; others untouched.
+    Sweeps rebuild cut dicts, so ``masters`` get the result too, or the render would not find them cut."""
+    for ad in ads:
+        if ad.get('short_ask') is not True:
+            continue
+        master = cuts._find_master(masters, ad) if masters else None
+        clamp_short_ask(ad, segments)
+        if master is None or master is ad:
+            continue
+        master['start'], master['end'] = ad['start'], ad['end']
+        for key in ('short_ask', 'short_ask_origin'):
+            if key not in ad:
+                master.pop(key, None)
+    return ads
+
+
 def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=None,
                        podcast_name=None, keep_ads=None):
     """Apply the boundary refinement pipeline. Returns updated list.
@@ -418,7 +438,7 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
             min_content_seconds=min_content,
             false_positive_corrections=false_positive_corrections,
         )
-    return all_ads
+    return _clamp_short_asks(all_ads, segments) if all_ads else all_ads
 
 
 def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
@@ -547,7 +567,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      confirmed_corrections=None, positional_prior=None,
                      splice_veto=True, podcast_id=None, podcast_name=None,
                      cue_only_safety=None, cue_unproven_template_ids=None,
-                     transcript_spans=None):
+                     transcript_spans=None, loop_runs=None):
     """Single construction point for AdValidator; owns the splice-veto settings reads.
 
     - pass 1 passes positional_prior (original-timeline zones);
@@ -587,6 +607,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         cue_unproven_template_ids=cue_unproven_template_ids,
         podcast_name=podcast_name,
         transcript_spans=transcript_spans,
+        loop_runs=loop_runs,
         **splice_kwargs,
     )
 
@@ -649,7 +670,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           audio_analysis=None, podcast_id=None, keep_ads=None,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
-                          corrections, transcript_spans=None, description_trim=None):
+                          corrections, transcript_spans=None, description_trim=None,
+                          loop_runs=None):
     """Pipeline stage: refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are keep-partitioned markers, passed so boundary extension
@@ -703,6 +725,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         cue_only_safety=cue_only_safety,
         cue_unproven_template_ids=cue_unproven_template_ids,
         transcript_spans=transcript_spans,
+        loop_runs=loop_runs,
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)

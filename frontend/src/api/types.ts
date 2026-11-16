@@ -183,6 +183,9 @@ export interface Feed {
   // Also detect intro/outro/recap/housekeeping segments. Null inherits the
   // global detectShowSegments default.
   detectShowSegments?: boolean | null;
+  // Remove short host asks and sponsor thanks. Null inherits the global
+  // snipShortAsks default.
+  snipShortAsks?: boolean | null;
   // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass
   // upstream GUIDs through; new feeds are created with true.
   ownEpisodeGuids?: boolean | null;
@@ -212,6 +215,7 @@ export interface EpisodeSummary {
   status: EpisodeStatusKey;
   jobState?: JobState;
   artworkUrl?: string | null;
+  artworkThumbUrl?: string | null;
   description?: string | null;
   error?: string | null;
   pendingReviewCount?: number;
@@ -271,6 +275,8 @@ export interface Episode {
   durationSkipped?: boolean;
   error?: string | null;
   artworkUrl?: string | null;
+  // Same-origin 256 px cover address for list rows; null when the episode has no cover.
+  artworkThumbUrl?: string | null;
   // Set once on the first successful processing run and never cleared by reprocess (unlike status, which cycles
   // back through pending/processing). The reliable "ever finished processing" signal; null/absent means never.
   processedAt?: string | null;
@@ -707,7 +713,8 @@ export interface AdSegment {
     | 'cue_template_unproven'
     | 'cue_low_confidence'
     | 'no_transcript_evidence'
-    | 'transcript_differential_unreviewed';
+    | 'transcript_differential_unreviewed'
+    | 'transcript_loop';
   // Detected span this fragment was carved from when the render removed only part of it.
   carved_from?: { start: number; end: number };
   // Set when a confirm correction matched this held marker (issue #509);
@@ -726,6 +733,8 @@ export interface AdSegment {
   // Held markers: the widest span the corrections API accepts for a confirm
   // (the server's own window). Absent on older backends.
   allowedBounds?: { min: number; max: number };
+  // Set by the detector on a 2-40 s host ask or sponsor thanks (snip_short_asks).
+  short_ask?: boolean;
 }
 
 export type QueueOrder = 'queued' | 'oldest_first' | 'newest_first';
@@ -949,6 +958,7 @@ export interface Settings {
   requireManualApprovalDefault?: SettingValueBoolean;
   whatsNewOnUpgrade?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
+  snipShortAsks?: SettingValueBoolean;
   textRecurrenceHints: SettingValueBoolean;
   adAddressingMode: SettingValue;
   processNewEpisodesFirst: SettingValueBoolean;
@@ -1151,6 +1161,7 @@ export interface Settings {
     requireManualApprovalDefault?: boolean;
     whatsNewOnUpgrade?: boolean;
     detectShowSegments: boolean;
+    snipShortAsks?: boolean;
     textRecurrenceHints: boolean;
     adAddressingMode: string;
     processNewEpisodesFirst: boolean;
@@ -1310,6 +1321,7 @@ export interface UpdateSettingsPayload {
   requireManualApprovalDefault?: boolean;
   whatsNewOnUpgrade?: boolean;
   detectShowSegments?: boolean;
+  snipShortAsks?: boolean;
   textRecurrenceHints?: boolean;
   adAddressingMode?: string;
   processNewEpisodesFirst?: boolean;

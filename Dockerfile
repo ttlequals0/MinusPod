@@ -198,6 +198,8 @@ ENV HOME=/app/data \
     XDG_CACHE_HOME=/app/data/.cache \
     RETENTION_PERIOD=1440 \
     ORT_LOG_LEVEL=3 \
+    MALLOC_ARENA_MAX=2 \
+    OPENBLAS_NUM_THREADS=1 \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
     NVIDIA_REQUIRE_CUDA="cuda>=12.0" \

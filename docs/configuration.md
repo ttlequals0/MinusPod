@@ -358,6 +358,8 @@ Resolution order: a per-feed override, if set, wins; otherwise the global defaul
 
 Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
+Short host asks have their own switch on the same card, off by default: **Remove short host asks and sponsor thanks** (`snipShortAsks` on `PUT /api/v1/settings/ad-detection`; per feed `snipShortAsks` on `PATCH /api/v1/feeds/{slug}`, `null` inherits). The global `PUT` accepts `true`, `false` or `null` (`null` resets to off), rejects anything else with 400 `snipShortAsks must be true, false, or null`, and echoes the stored value as `snipShortAsks`. When on, the detection, review and resurrect prompts treat spoken subscribe and rating asks, the host's own promotion and sponsor thank-yous as ads, and those markers use a 2 second floor instead of the 7 and 10 second ones. Only spans of 2 to 40 seconds in the interaction, self-promo and sponsor categories qualify; each edge is snapped to a sentence start or end within 1.5 seconds of what the model returned, and a span with no such edge keeps the normal floors. A span under 3 seconds keeps the short floor only when both edges land within 0.5 seconds of a sentence edge. Off, nothing changes.
+
 To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`). It recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 
 ### Queue priority
@@ -776,6 +778,8 @@ Query strings are left out. On a podcast enclosure that is where a signed CDN to
 ### Diagnosing a refusal
 
 When the availability probe draws a 403, MinusPod probes once more with the feed User-Agent. If that string is accepted, the host is gating on the browser identifier: the episode downloads with the feed string and a warning names both strings, so the download User-Agent is the one to change. Try the User-Agent your own browser sends. If both strings draw a 403, the host is blocking regardless of identifier, which is what bot mitigation and rate limits look like. The episode then retries on the normal ladder as `CDN blocked the request (403) with both User-Agents`. A 404 also retries, since a freshly published episode can 404 briefly while its host provisions the media URL.
+
+Podcast and episode artwork fetches do the same: after a 403 with the download User-Agent they retry once with the feed User-Agent, and only a 403 with both counts as one failure.
 
 ## Scheduled Database Backups
 

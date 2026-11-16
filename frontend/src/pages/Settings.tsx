@@ -1384,6 +1384,8 @@ function Settings() {
             tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
           detectShowSegments={settings?.detectShowSegments?.value ?? settings?.defaults?.detectShowSegments ?? false}
           onDetectShowSegmentsChange={(v) => tunableMutation.mutate({ detectShowSegments: v })}
+          snipShortAsks={settings?.snipShortAsks?.value ?? settings?.defaults?.snipShortAsks ?? false}
+          onSnipShortAsksChange={(v) => tunableMutation.mutate({ snipShortAsks: v })}
         />
       </div>
 
