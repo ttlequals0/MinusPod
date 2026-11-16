@@ -8,6 +8,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import pytest
 
+from tests.app_bootstrap import bootstrap
+
+bootstrap('correction_guard_')
+
 from main_app.pipeline import detect, recut
 from main_app.pipeline.shared import db as shared_db
 from utils.correction_guard import correction_skip_reason, usable_confirmed_corrections
