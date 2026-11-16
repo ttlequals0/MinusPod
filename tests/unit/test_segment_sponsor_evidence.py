@@ -1,5 +1,7 @@
 """Guessed segment sponsors need brand evidence before they become sponsor rows."""
-from api.patterns import _create_patterns_from_segments
+from unittest.mock import MagicMock
+
+from api.patterns import _create_patterns_from_segments, _resolve_or_create_pattern_from_text
 from text_pattern_matcher import TextPatternMatcher
 
 SLUG = 'example-podcast'
@@ -10,6 +12,10 @@ DAY_TEXT = (
 ACME_TEXT = (
     "Acme makes sturdy gear. Head to acme.com for ten percent off. "
     "Acme ships fast, so try Acme now."
+)
+UNBACKED_ACME_TEXT = (
+    "Acme makes sturdy gear. Head over and start an order today. "
+    "Acme ships fast, so try Acme today."
 )
 
 
@@ -68,3 +74,24 @@ def test_split_pattern_unbacked_guess_leaves_no_sponsor(temp_db):
     assert _sponsor_id(temp_db, ids[0]) is None
     assert _sponsor_id(temp_db, ids[1]) is not None
     assert temp_db.get_known_sponsor_by_name('Day') is None
+
+
+def test_create_pattern_from_ad_reviewer_flag_skips_only_evidence_gate(temp_db):
+    matcher = TextPatternMatcher(db=temp_db)
+    kwargs = dict(
+        segments=[], start=0.0, end=60.0, sponsor='Acme', scope='podcast',
+        podcast_id=SLUG, episode_id='a1b2c3d4e5f6', ad_text=UNBACKED_ACME_TEXT)
+    assert matcher.create_pattern_from_ad(**kwargs) is None
+    assert matcher.create_pattern_from_ad(**kwargs, sponsor_from_reviewer=True) is not None
+    assert temp_db.get_known_sponsor_by_name('Acme') is not None
+
+
+def test_reviewer_typed_sponsor_creates_pattern_on_confirm(temp_db):
+    temp_db.create_podcast(SLUG, 'https://example.com/feed.xml', 'Example Podcast')
+    service = MagicMock()
+    kwargs = dict(label='confirmed', category=None)
+    original = {'start': 0.0, 'end': 60.0}
+    pid, _ = _resolve_or_create_pattern_from_text(
+        temp_db, service, SLUG, 'a1b2c3d4e5f6', UNBACKED_ACME_TEXT, original,
+        sponsor_override='Acme', **kwargs)
+    assert pid is not None

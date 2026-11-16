@@ -1131,6 +1131,7 @@ def _resolve_or_create_pattern_from_text(
             episode_id=episode_id,
             category=category,
             ad_text=ad_text,
+            sponsor_from_reviewer=bool(sponsor_override),
         )
         if not new_pattern_id:
             logger.info(

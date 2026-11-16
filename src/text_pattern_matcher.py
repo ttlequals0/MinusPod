@@ -1832,6 +1832,7 @@ class TextPatternMatcher:
         from_split: bool = False,
         ad_text: str = None,
         brand_rows: list[dict] = None,
+        sponsor_from_reviewer: bool = False,
     ) -> int | None:
         """Create an ad pattern from a detected ad segment; returns its ID, or None if rejected.
 
@@ -1841,6 +1842,7 @@ class TextPatternMatcher:
             category: Segment category (#565) of the source marker; normalized, and
                 None stores NULL (read back as 'sponsor').
             brand_rows: Registry brand rows already resolved by the caller; None looks them up.
+            sponsor_from_reviewer: A person typed the sponsor; skips the brand evidence gate only.
         """
         if not self.db:
             return None
@@ -1967,7 +1969,7 @@ class TextPatternMatcher:
 
         # A bare dictionary word read as a brand would become a sponsor row that
         # later matches ordinary speech.
-        if self.unbacked_new_brand(sponsor, ad_text):
+        if not sponsor_from_reviewer and self.unbacked_new_brand(sponsor, ad_text):
             logger.warning(
                 f"Rejecting pattern: '{sponsor}' is a new single-word sponsor with no "
                 f"domain or promo code in the text backing it as a brand")
