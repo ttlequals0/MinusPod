@@ -8,6 +8,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.7] - 2026-11-16
+
+### Fixed
+
+- An ad found in the second pass is now cut when its reviewed span ends exactly where a first-pass cut begins, or begins where one ends. It was held for review as a reviewer contradiction although the two spans only touch. The same applies to a reviewed ad whose edge touches a held neighbour.
 ## [Unreleased]
 
 ### Fixed
