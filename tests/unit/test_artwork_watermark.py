@@ -1,5 +1,6 @@
 """Cover-art MinusPod badge overlay (issue #420): compositor, cached variant in Storage, RSS channel image."""
 import io
+import warnings
 
 from PIL import Image
 
@@ -298,6 +299,17 @@ def test_unknown_slug_probe_creates_no_directory():
     assert st.get_watermarked_artwork(slug) is None
     assert st.get_artwork(slug) is None
     assert not (st.podcasts_dir / slug).exists()
+
+
+def test_palette_cover_with_byte_transparency_composites_without_warning():
+    buf = io.BytesIO()
+    img = Image.new('P', (400, 400))
+    img.putpalette([i % 256 for i in range(768)])
+    img.save(buf, 'PNG', transparency=bytes([0, 128, 255, 10]))
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        out = artwork_watermark.composite_watermark(buf.getvalue())
+    assert out is not None and out[:3] == b'\xff\xd8\xff'
 
 
 def test_badge_stays_on_canvas_for_a_wide_cover():

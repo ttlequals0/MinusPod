@@ -153,6 +153,8 @@ def composite_watermark(base_bytes: bytes,
         return None
     try:
         with Image.open(BytesIO(base_bytes)) as base_img:
+            # The JPEG output has no alpha; dropping the key avoids Pillow's byte-transparency warning.
+            base_img.info.pop('transparency', None)
             base = base_img.convert('RGB')
         with Image.open(badge_file) as badge_img:
             waveform = badge_img.convert('RGBA')

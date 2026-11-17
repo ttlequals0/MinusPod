@@ -31,6 +31,8 @@ release notes.
 
 - The Sort control on Ad review and Detected ads no longer takes a full row on tablet-width screens. It sits beside the Reviewer filter there, and still spans the row on phones so its labels are not cut off.
 - A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words. (#1028)
+- Chapter regeneration no longer logs an error with a traceback when a reprocess of the episode or a newer regeneration overtakes it. History still shows that run as failed, with the reason.
+- Adding the cover badge to a palette PNG that has transparency no longer prints a Pillow warning to the log.
 
 ## [2.102.7] - 2026-11-16
 

@@ -34,6 +34,10 @@ from api.episodes import common
 logger = logging.getLogger('podcast.api')
 
 
+class ChaptersSupersededError(RuntimeError):
+    """Another run (a reprocess or a newer regeneration) owns the chapters now."""
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/regenerate-chapters', methods=['POST'])
 @limiter.limit("10 per minute")
 @log_request
@@ -123,6 +127,10 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         # The provider became none after the route was accepted: end as a no-op, not a failed run.
         skipped = True
         logger.debug(f"[{slug}:{episode_id}] Chapter regeneration skipped: the LLM provider is none")
+    except ChaptersSupersededError as exc:
+        # An expected race: keep the failed history row and its token cost, without a traceback.
+        error = str(exc)
+        logger.info(f"[{slug}:{episode_id}] Chapter regeneration superseded: {exc}")
     except Exception as exc:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
         error = truncate(redact_exc(exc), 500) or 'Chapter regeneration failed'
@@ -207,11 +215,11 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     if (current is None or current['status'] == EpisodeStatus.PROCESSING
             or current['processed_version'] != episode.get('processed_version')
             or current['processed_at'] != episode.get('processed_at')):
-        raise RuntimeError(
+        raise ChaptersSupersededError(
             'Episode was reprocessed during chapter regeneration; chapters not saved')
     # This run outlived its claim window and another took the stamp over.
     if current['chapters_regen_started_at'] != stamp:
-        raise RuntimeError(
+        raise ChaptersSupersededError(
             'Chapter regeneration was taken over by a newer run; chapters not saved')
 
     # Markers and cuts are re-read here, not reused from entry: a correction
