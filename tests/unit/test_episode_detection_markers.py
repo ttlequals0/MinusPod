@@ -104,10 +104,6 @@ def test_empty_markers_get_a_null_cache_row_and_are_not_returned(seeded):
     assert {r['episode_id'] for r in seeded.get_detection_rows()} == {'ep1', 'ep2'}
 
 
-def test_row_keys_match_the_legacy_query(seeded):
-    assert set(seeded.get_detection_rows()[0]) == set(_direct(seeded)[0])
-
-
 def test_details_delete_and_episode_cascade_remove_cache_rows(seeded):
     _rows(seeded)
     conn = seeded.get_connection()

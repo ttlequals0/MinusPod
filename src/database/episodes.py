@@ -1245,33 +1245,32 @@ class EpisodeMixin:
                    e.episode_id, e.title AS episode_title,
                    e.published_at, e.created_at, e.original_file,
                    e.processed_version, e.original_duration,
-                   m.ad_markers_json AS ad_markers_json,
-                   m.episode_id IS NOT NULL AS cached
+                   m.ad_markers_json AS ad_markers_json
             FROM episodes e
             JOIN podcasts p ON e.podcast_id = p.id
             LEFT JOIN episode_detection_markers m ON m.episode_id = e.id
             WHERE EXISTS (SELECT 1 FROM episode_details d WHERE d.episode_id = e.id)
               AND (m.episode_id IS NULL OR m.ad_markers_json IS NOT NULL)
         ''').fetchall()]
-        by_pk = {r['episode_pk']: r for r in rows if not r['cached']}
-        texts: dict = {}
-        for chunk in _chunked(list(by_pk)):
+        # The WHERE drops cached rows without markers, so a NULL here is a cache miss.
+        missing = {r['episode_pk']: r for r in rows if r['ad_markers_json'] is None}
+        computed: dict = {}
+        for chunk in _chunked(list(missing)):
             for r in conn.execute(
                 f"SELECT episode_id, ad_markers_json FROM episode_details "  # noqa: S608
                 f"WHERE episode_id IN ({','.join('?' for _ in chunk)})",
                 chunk,
             ).fetchall():
-                texts[r['episode_id']] = r['ad_markers_json']
-        for pk, row in by_pk.items():
-            text = texts.get(pk)
-            row['ad_markers_json'] = text if text not in _NO_MARKERS else None
-        self._store_detection_markers(
-            {pk: (texts[pk], by_pk[pk]['ad_markers_json']) for pk in texts if pk in by_pk})
-        return [{k: v for k, v in r.items() if k not in ('episode_pk', 'cached')}
+                source = r['ad_markers_json']
+                usable = None if source in _NO_MARKERS else source
+                missing[r['episode_id']]['ad_markers_json'] = usable
+                computed[r['episode_id']] = (source, usable)
+        self._store_detection_markers(computed)
+        return [{k: v for k, v in r.items() if k != 'episode_pk'}
                 for r in rows if r['ad_markers_json'] is not None]
 
     def _store_detection_markers(self, computed: dict) -> None:
-        """Best-effort cache write of {pk: (source text, usable text or None)}, only if the source is unchanged."""
+        """Best-effort cache write of {pk: (source, usable)}; skips rows whose source changed."""
         if not computed or self.get_connection().in_transaction:
             return
         try:
