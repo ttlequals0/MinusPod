@@ -8,6 +8,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- An auto-learned text pattern now keeps an outro that ends on the sponsor's name as a sentence of its own, for example a brand sign-off before a slogan. The outro was only kept when it named the sponsor together with an offer phrase or the sponsor's domain, and the offer phrases are English. A read in another language therefore lost its outro, and the pattern fell back to its intro plus the average duration. When a break was shorter than that average, the estimate reached past the ad and the remainder was held for review over show content with `estimated_pattern_bounds`.
+- When a text pattern matched only its intro and the rest of its span was an estimate, the cut ended where the model measured the read, and a break cue right after the read stayed in the audio. Cue snapping runs during detection, while the end is still the estimate with no cue nearby, and the edge the split creates later was never snapped. That edge now snaps the way detection snaps the others, with the feed's snap confidence and window, but only onto a template cue removed with the ad, and never past the estimated span or into a rejected range. The held remainder then starts after the cue.
+
+### Security
+
+- The CI `npm audit` step excepts GHSA-fc5q-39xc-vjpf (picomatch). The advisory covers every release up to 4.0.7, the latest, so there is no version to move to. picomatch enters the tree only through build, lint and test tooling. Every other advisory of high or critical severity still fails the step. Remove the exception once picomatch has a patched release.
+
 ## [2.102.8] - 2026-11-16
 
 ### Changed
@@ -19,6 +30,7 @@ release notes.
 ### Fixed
 
 - The Sort control on Ad review and Detected ads no longer takes a full row on tablet-width screens. It sits beside the Reviewer filter there, and still spans the row on phones so its labels are not cut off.
+- A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words. (#1028)
 
 ## [2.102.7] - 2026-11-16
 
@@ -32,17 +44,6 @@ release notes.
 - An ad found in the second pass is now cut when its reviewed span ends exactly where a first-pass cut begins, or begins where one ends. It was held for review as a reviewer contradiction although the two spans only touch. The same applies to a reviewed ad whose edge touches a held neighbour.
 - The Detected ads and Ad review lists could take 10 seconds or more to load on a large database when its data was not in the system's file cache. Loading them read past every episode's transcripts to reach the ad markers. The markers are now also kept in a small table of their own, `episode_detection_markers`. The app fills it on the first load after the upgrade and keeps it in step when markers change. That first load can still be slow once.
 - The Category dropdown in the Patterns table no longer cuts off its label: "Uncategorized" and "Cross-promo" now show in full. The Audio column says "No matches" where it said "No matches yet", and the column widths were rebalanced to fit.
-## [Unreleased]
-
-### Fixed
-
-- An auto-learned text pattern now keeps an outro that ends on the sponsor's name as a sentence of its own, for example a brand sign-off before a slogan. The outro was only kept when it named the sponsor together with an offer phrase or the sponsor's domain, and the offer phrases are English. A read in another language therefore lost its outro, and the pattern fell back to its intro plus the average duration. When a break was shorter than that average, the estimate reached past the ad and the remainder was held for review over show content with `estimated_pattern_bounds`.
-- A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words.
-- When a text pattern matched only its intro and the rest of its span was an estimate, the cut ended where the model measured the read, and a break cue right after the read stayed in the audio. Cue snapping runs during detection, while the end is still the estimate with no cue nearby, and the edge the split creates later was never snapped. That edge now snaps the way detection snaps the others, with the feed's snap confidence and window, but only onto a template cue removed with the ad, and never past the estimated span or into a rejected range. The held remainder then starts after the cue.
-
-### Security
-
-- The CI `npm audit` step excepts GHSA-fc5q-39xc-vjpf (picomatch). The advisory covers every release up to 4.0.7, the latest, so there is no version to move to. picomatch enters the tree only through build, lint and test tooling. Every other advisory of high or critical severity still fails the step. Remove the exception once picomatch has a patched release.
 
 ## [2.102.6] - 2026-11-16
 
