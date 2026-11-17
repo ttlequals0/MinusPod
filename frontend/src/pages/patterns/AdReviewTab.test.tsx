@@ -208,8 +208,7 @@ describe('AdReviewTab', () => {
     const category = within(row).getByRole('combobox', { name: /^Category for/ });
     expect(within(row).getByRole('button', { name: 'Edit' }).compareDocumentPosition(category)
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const grid = row.firstElementChild as HTMLElement;
-    expect(grid.style.getPropertyValue('--cols').split(' ')).toHaveLength(7);
+    expect(screen.getByTestId('detections-rows').style.getPropertyValue('--cols').split(' ')).toHaveLength(7);
   });
 
   it('names card buttons for a sponsor and a non-ad category marker', async () => {

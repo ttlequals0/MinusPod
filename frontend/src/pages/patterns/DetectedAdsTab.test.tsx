@@ -125,8 +125,7 @@ describe('DetectedAdsTab', () => {
   it('sizes table row tracks without a Confirm column', async () => {
     renderTab();
     await screen.findByText('Time cut');
-    const row = within(screen.getByTestId('detections-rows')).getByTestId('detection-row');
-    expect((row.firstElementChild as HTMLElement).style.getPropertyValue('--cols').split(' ')).toHaveLength(6);
+    expect(screen.getByTestId('detections-rows').style.getPropertyValue('--cols').split(' ')).toHaveLength(6);
   });
 
   it('requests only detections that were cut', async () => {
