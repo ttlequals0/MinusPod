@@ -1243,3 +1243,71 @@ class TestCharPosToTimeWordLevel:
         first = self._segment(start=100.0)
         second = self._segment(start=125.0)
         assert self._convert([first, second], "juliet alpha bravo") == (122.5, 125.0 + 2.5 + 2.0)
+
+
+class TestCharPosToTimeSegmentSeparator:
+    """A match edge on the space between two segments belongs to the segment that holds its words."""
+
+    TOKENS = TestCharPosToTimeWordLevel.TOKENS
+
+    def _segments(self, words=True):
+        make = TestCharPosToTimeWordLevel()._segment
+        return [make(start=100.0, words=words), make(start=125.0, words=words)]
+
+    def _convert(self, segments, start_char, end_char):
+        _, segment_map = TextPatternMatcher._concat_segments(segments)
+        matcher = TextPatternMatcher.__new__(TextPatternMatcher)
+        return matcher._char_pos_to_time(start_char, end_char, segment_map, segments)
+
+    def test_start_on_separator_uses_next_segment_word_time(self):
+        segs = self._segments()
+        full_text, _ = TextPatternMatcher._concat_segments(segs)
+        start_char = full_text.index(" alpha bravo")
+        assert full_text[:start_char].endswith("juliet")
+        assert self._convert(segs, start_char, start_char + len(" alpha bravo")) == (125.0, 129.5)
+
+    def test_start_on_separator_without_words_uses_next_segment_start(self):
+        segs = self._segments(words=False)
+        full_text, _ = TextPatternMatcher._concat_segments(segs)
+        start_char = full_text.index(" alpha bravo")
+        start, _ = self._convert(segs, start_char, start_char + len(" alpha bravo"))
+        assert start == 125.0
+
+    def test_end_on_separator_uses_previous_segment_word_time(self):
+        segs = self._segments()
+        full_text, _ = TextPatternMatcher._concat_segments(segs)
+        start_char = full_text.index("india juliet ")
+        assert self._convert(segs, start_char, start_char + len("india juliet ")) == (120.0, 124.5)
+
+    def test_end_on_separator_without_words_uses_previous_segment_end(self):
+        segs = self._segments(words=False)
+        full_text, _ = TextPatternMatcher._concat_segments(segs)
+        start_char = full_text.index("india juliet ")
+        _, end = self._convert(segs, start_char, start_char + len("india juliet "))
+        assert end == 125.0
+
+    def test_start_on_trailing_punctuation_uses_next_segment(self):
+        segs = self._segments(words=False)
+        segs[0]['text'] += '.'
+        full_text, _ = TextPatternMatcher._concat_segments(segs)
+        start_char = full_text.index(". alpha bravo")
+        start, _ = self._convert(segs, start_char, start_char + len(". alpha bravo"))
+        assert start == 125.0
+
+    def test_intro_one_character_longer_than_the_transcript_stays_inside_the_read(self):
+        """A comma the transcript lacks pushes the alignment onto a separator next to the read."""
+        intro = ("Attention, all companies and other firms. Right now we are looking "
+                 "for customers who want to solve really tricky logistics puzzles.")
+        segs = [
+            {'start': 200.0, 'end': 203.5, 'text': "The market looks set to open lower this Tuesday."},
+            {'start': 212.0, 'end': 220.0, 'text': intro.replace("Attention,", "Attention")},
+            {'start': 220.5, 'end': 226.0, 'text': "Sound like your business? Get in touch."},
+        ]
+        full_text, segment_map = TextPatternMatcher._concat_segments(segs)
+        matcher = _make_bare_matcher()
+        pos, score, matched = matcher._fuzzy_find(
+            full_text.lower(), intro.lower(), required_fuzzy_score(len(intro)))
+        assert score >= required_fuzzy_score(len(intro))
+        assert matched != matched.strip()
+        assert matcher._char_pos_to_time(
+            pos, pos + len(matched), segment_map, segs) == (212.0, 220.0)

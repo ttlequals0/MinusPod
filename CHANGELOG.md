@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words.
+
 ## [2.102.6] - 2026-11-16
 
 ### Changed
