@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.8] - 2026-11-16
+
+### Fixed
+
+- The Sort control on Ad review and Detected ads no longer takes a full row on tablet-width screens. It sits beside the Reviewer filter there, and still spans the row on phones so its labels are not cut off.
+
 ## [2.102.7] - 2026-11-16
 
 ### Changed
