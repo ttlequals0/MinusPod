@@ -12,7 +12,8 @@ release notes.
 
 ### Changed
 
-- On phones, the Ad review and Detected ads cards show Play, Confirm, Not ad, Split and Edit as icon buttons in one row. The category picker sits beside them, or just below when it does not fit. From 640 px wide the buttons keep their text, with the category picker between Not ad and Split.
+- On phones, the Ad review and Detected ads cards show Play, Confirm, Not ad or Keep, Split and Edit as icon buttons in one row. The category picker sits beside them when there is room, shortened with an ellipsis if needed, and below them when there is not. From 640 px wide the buttons keep their text, with the category picker between Not ad and Split.
+- On Ad review, Confirm is now green so it no longer matches Play, and it reads "Confirm" for every category. The category-specific wording stays as its tooltip and screen-reader name.
 
 ### Fixed
 

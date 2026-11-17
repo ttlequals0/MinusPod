@@ -15,6 +15,7 @@ export const btnSecondary = 'bg-secondary text-secondary-foreground hover:bg-sec
 export const btnOutline = btnSecondary;
 export const btnGhost = 'text-muted-foreground hover:text-foreground hover:bg-accent';
 export const btnDestructive = 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
+export const btnSuccess = 'bg-success text-success-foreground hover:bg-success/90';
 
 // 44 x 44 px on coarse pointers at every width (index.css: height floor, base-layer width for .touch-target)
 // and below sm on any pointer; from sm on a fine pointer it has no floor. Never add a min-w-0 from sm.

@@ -197,7 +197,7 @@ describe('AdReviewTab', () => {
     }
   });
 
-  it('puts the category after the icon buttons on a phone, at the button-row width', async () => {
+  it('puts the category after the icon buttons on a phone, beside the buttons, capped at the button-row width', async () => {
     const original = window.matchMedia;
     window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
     try {
@@ -207,7 +207,9 @@ describe('AdReviewTab', () => {
       const buttons = within(within(cards).getByTestId('detection-actions-row')).getAllByRole('button');
       const category = within(cards).getByRole('combobox', { name: /^Category for/ });
       expect(buttons[4].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(category.className).toContain('w-[252px]');
+      expect(category.className).toContain('flex-1');
+      expect(category.title).toBe('Uncategorized');
+      expect((category.parentElement as HTMLElement).style.getPropertyValue('--btn-row')).toBe('252px');
     } finally {
       window.matchMedia = original;
     }
@@ -229,6 +231,12 @@ describe('AdReviewTab', () => {
     expect(names(selfPromo)).toEqual(['Play this ad', 'Confirm self-promo', 'Keep', 'Split', 'Edit']);
     const confirm = within(selfPromo).getByRole('button', { name: 'Confirm self-promo' });
     expect(confirm.getAttribute('title')).toBe('Confirm self-promo');
+    // Not ad is an X; Keep is a different icon so it does not read as a rejection.
+    expect(within(sponsor).getByRole('button', { name: 'Not ad' }).querySelector('svg.lucide-x')).not.toBeNull();
+    const keep = within(selfPromo).getByRole('button', { name: 'Keep' });
+    expect(keep.querySelector('svg.lucide-x')).toBeNull();
+    expect(keep.querySelector('svg.lucide-undo-2')).not.toBeNull();
+    expect(confirm.textContent).toBe('Confirm');
   });
 
   it('Split opens the modal and defers the recut to the Apply bar', async () => {
