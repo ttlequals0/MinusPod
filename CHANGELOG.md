@@ -10,6 +10,10 @@ release notes.
 
 ## [2.102.8] - 2026-11-16
 
+### Changed
+
+- On phones, the Ad review and Detected ads cards show Play, Confirm, Not ad, Split and Edit as icon buttons in one row. The category picker sits beside them, or just below when it does not fit. From 640 px wide the buttons keep their text, with the category picker between Not ad and Split.
+
 ### Fixed
 
 - The Sort control on Ad review and Detected ads no longer takes a full row on tablet-width screens. It sits beside the Reviewer filter there, and still spans the row on phones so its labels are not cut off.

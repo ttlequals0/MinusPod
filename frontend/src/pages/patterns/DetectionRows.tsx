@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from 'react';
+import { Check, Pencil, UnfoldHorizontal, X, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import { DEMO_AUDIO_TOOLTIP, DEMO_WRITE_TOOLTIP } from '../../demo/copy';
 import { IS_DEMO } from '../../demo/flag';
@@ -16,6 +18,7 @@ import { focusRing, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import AddAudioToPatternButton from '../../components/AddAudioToPatternButton';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
@@ -156,15 +159,19 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
   );
 }
 
-// Card buttons grow to fill the row, never wrap their label, and the row wraps instead.
-const cardRowBtn = 'grow whitespace-nowrap max-sm:h-11 leading-tight';
-const cardCategoryClass = 'w-full min-h-[44px] text-left min-w-0';
+// Below sm a card button is a 44px square icon (label stays in the accessible name and title); from sm it is the text button.
+const cardBtn = `${cardActionBtn} max-sm:h-11 max-sm:w-11 max-sm:px-0 leading-tight`;
+const cardCategoryClass = 'min-h-[44px] text-left min-w-0 max-w-full';
+// Select width by phone button count (44px each, 8px gaps): it wraps at the button-row width until "Uncategorized" fits beside it.
+const PHONE_SELECT_WIDTH: Record<number, string> = {
+  1: 'w-48', 2: 'w-48', 3: 'w-48', 4: 'w-[200px] @[400px]:w-48', 5: 'w-[252px] @[452px]:w-48',
+};
 
-function ShortLabel({ full, short }: { full: string; short: string }) {
+function CardLabel({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   return (
     <>
-      <span className="min-[370px]:hidden" aria-hidden="true">{short}</span>
-      <span className="max-[369px]:hidden">{full}</span>
+      <Icon className="w-3.5 h-3.5 sm:hidden" aria-hidden="true" />
+      <span className="max-sm:sr-only">{text}</span>
     </>
   );
 }
@@ -180,29 +187,46 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
   showAddAudio: boolean;
 }) {
   const isCard = variant === 'card';
-  const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
+  const isSm = useMediaQuery('(min-width: 640px)');
+  const btn = isCard ? cardBtn : tableActionBtn;
+  const label = (icon: LucideIcon, text: string) => (isCard ? <CardLabel icon={icon} text={text} /> : text);
+  const cardTitle = (text: string) => (isCard ? text : undefined);
   const undecided = d.resolution === 'unresolved';
   const noAudio = IS_DEMO;
   const play = d.hasOriginalAudio && (
     <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'full' : 'row'}
       disabled={noAudio} title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined} />
   );
-  const categorySelect = actions.onCategory && (
+  // Phones keep the select after every button; from sm it sits between Not ad and Split.
+  const categoryWidth = (count: number) => (isSm ? 'w-48' : PHONE_SELECT_WIDTH[count]);
+  const categorySelect = (count: number) => actions.onCategory && (
     <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy || IS_DEMO}
-      className={isCard ? cardCategoryClass : 'max-w-40'} />
+      className={isCard ? `${cardCategoryClass} ${categoryWidth(count)}` : 'max-w-40'} />
   );
-  const category = IS_DEMO && categorySelect ? (
-    <span className={`inline-flex cursor-not-allowed${isCard ? ' w-full' : ''}`} title={DEMO_WRITE_TOOLTIP}>{categorySelect}</span>
-  ) : categorySelect;
+  const withDemo = (select: ReactNode) => (IS_DEMO && select ? (
+    <span className={`inline-flex cursor-not-allowed${isCard ? ' max-w-full' : ''}`} title={DEMO_WRITE_TOOLTIP}>{select}</span>
+  ) : select);
+  const keyed = (name: string, node: ReactNode) => node && <Fragment key={name}>{node}</Fragment>;
   const edit = (
     <button
       type="button"
       onClick={() => actions.onEdit(d)}
       disabled={actions.busy}
+      title={cardTitle('Edit')}
       className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
     >
-      Edit
+      {label(Pencil, 'Edit')}
     </button>
+  );
+  // A card is a wrapping row; the @container ancestor lets the phone select pick its width from the card width.
+  const cardRow = (buttons: ReactNode[], select: ReactNode, tail?: ReactNode) => (
+    <div className="@container pt-1">
+      <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-2">
+        {isSm ? buttons : <div className="flex gap-2">{buttons}</div>}
+        {select}
+      </div>
+      {tail}
+    </div>
   );
   // Its category resolves to keep or mark, so confirm/reject would record a
   // verdict the cut can never honor (the endpoint 409s them). Edit is the
@@ -210,16 +234,13 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
   if (isKeepLike(d.actionApplied)) {
     const kept = <p className="text-xs text-muted-foreground min-w-0 grow">Left in by its category</p>;
     if (!isCard) {
-      return <div className="flex items-center gap-2">{play}{kept}{category}{edit}</div>;
+      return <div className="flex items-center gap-2">{play}{kept}{withDemo(categorySelect(2))}{edit}</div>;
     }
-    return (
-      <div className="flex flex-col gap-2 pt-1">
-        {category}
-        <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
-          {play}{kept}{edit}
-        </div>
-      </div>
-    );
+    const select = withDemo(categorySelect(play ? 2 : 1));
+    const buttons = isSm
+      ? [keyed('play', play), keyed('cat', select), keyed('edit', edit)]
+      : [keyed('play', play), keyed('edit', edit)];
+    return cardRow(buttons, isSm ? null : select, <div className="mt-2">{kept}</div>);
   }
   const approve = actions.onApprove && undecided && (
     <DemoDisabled>
@@ -228,9 +249,10 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
         onClick={() => actions.onApprove?.(d)}
         disabled={actions.busy}
         aria-label={confirmLabel(d.category)}
+        title={cardTitle(confirmLabel(d.category))}
         className={`${btn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
       >
-        {isCard ? <ShortLabel full={confirmLabel(d.category)} short="Confirm" /> : confirmLabel(d.category)}
+        {label(Check, confirmLabel(d.category))}
       </button>
     </DemoDisabled>
   );
@@ -242,9 +264,10 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
         onClick={() => actions.onDismiss?.(d)}
         disabled={actions.busy}
         aria-label={reject}
+        title={cardTitle(reject)}
         className={`${btn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
       >
-        {isCard ? <ShortLabel full={reject} short={reject === 'Keep' ? 'Keep' : 'Not ad'} /> : reject}
+        {label(X, reject)}
       </button>
     </DemoDisabled>
   );
@@ -255,8 +278,8 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
       audioState={d.patternAudioState}
       hasOriginal={d.hasOriginalAudio}
       span={{ podcastSlug: d.feedSlug, episodeId: d.episodeId, start: d.start, end: d.end }}
-      buttonClassName={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}${isCard ? ' w-full' : ''}`}
-      className={isCard ? 'basis-full' : ''}
+      buttonClassName={`${isCard ? cardActionBtn : tableActionBtn} ${btnOutline} disabled:opacity-50 ${focusRing}${isCard ? ' w-full' : ''}`}
+      className={isCard ? 'mt-2' : ''}
     />
   );
   const split = actions.onSplit && (
@@ -265,31 +288,26 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
         type="button"
         onClick={() => actions.onSplit?.(d)}
         disabled={actions.busy}
+        title={cardTitle('Split')}
         className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
       >
-        Split
+        {label(UnfoldHorizontal, 'Split')}
       </button>
     </DemoDisabled>
   );
 
   if (!isCard) {
     return (
-      <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{category}{split}{addAudio}{edit}</div>
+      <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{withDemo(categorySelect(0))}{split}{addAudio}{edit}</div>
     );
   }
-  // Five controls do not fit one line under 430 px, so Split and Edit take a
-  // second line there. A row without Confirm has four and stays on one line.
-  const tail = approve && dismiss
-    ? <div className="flex gap-1.5 min-[370px]:gap-2 grow max-[429px]:basis-full">{split}{edit}</div>
-    : <>{split}{edit}</>;
-  return (
-    <div className="flex flex-col gap-2 pt-1">
-      {category}
-      <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
-        {play}{approve}{dismiss}{addAudio}{tail}
-      </div>
-    </div>
-  );
+  const phoneCount = [play, approve, dismiss, split, edit].filter(Boolean).length;
+  const select = withDemo(categorySelect(phoneCount));
+  const buttons = isSm
+    ? [keyed('play', play), keyed('approve', approve), keyed('dismiss', dismiss), keyed('cat', select),
+      keyed('split', split), keyed('edit', edit)]
+    : [keyed('play', play), keyed('approve', approve), keyed('dismiss', dismiss), keyed('split', split), keyed('edit', edit)];
+  return cardRow(buttons, isSm ? null : select, addAudio);
 }
 
 interface DetectionRowsProps {

@@ -108,7 +108,7 @@ beforeEach(() => {
 });
 
 describe('DetectedAdsTab', () => {
-  it('lays out the card with the category above one wrapping action row', async () => {
+  it('lays out the card as one wrapping row with the category between Not ad and Split', async () => {
     renderTab();
     await screen.findByText('Time cut');
     const cards = screen.getByTestId('detections-cards');
@@ -116,11 +116,11 @@ describe('DetectedAdsTab', () => {
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
       ['Play this ad', 'Not ad', 'Split', 'Edit']);
-    for (const b of buttons.slice(1)) expect(b.className).toContain('grow');
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
-    expect(row.contains(category)).toBe(false);
-    expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.className).toContain('w-full');
+    expect(row.contains(category)).toBe(true);
+    expect(buttons[1].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.compareDocumentPosition(buttons[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('w-48');
   });
 
   it('requests only detections that were cut', async () => {

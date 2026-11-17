@@ -180,24 +180,55 @@ describe('AdReviewTab', () => {
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
       ['Play this ad', 'Confirm', 'Not ad', 'Split', 'Edit']);
-    // Play is a fixed square; the text buttons grow to fill the row, which wraps.
+    // From sm the row reads Play, Confirm, Not ad, category, Split, Edit and wraps instead of truncating.
     expect(row.className).toContain('flex-wrap');
-    for (const b of buttons.slice(1)) {
-      expect(b.className).toContain('grow');
-      expect(b.className).not.toContain('basis-0');
-    }
-    // Play keeps the 44px floor; the text buttons carry the shared tap-target classes.
-    expect(buttons[0].className).toContain('h-11 w-11');
-    for (const b of buttons.slice(1)) {
-      expect(b.className).toContain('max-sm:h-11');
-      expect(b.className).toContain('whitespace-nowrap');
-    }
-    // The category sits on its own line before the action row, spanning its full width.
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
-    expect(row.contains(category)).toBe(false);
-    expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.className).toContain('w-full');
-    expect(category.parentElement?.className).not.toContain('justify-center');
+    expect(row.contains(category)).toBe(true);
+    expect(buttons[2].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.compareDocumentPosition(buttons[3]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('w-48');
+    // Below sm the buttons are 44px square icons (label in the accessible name and title).
+    for (const b of buttons) {
+      expect(b.className).toMatch(/h-11|max-sm:h-11/);
+      expect(b.className).toMatch(/w-11|max-sm:w-11/);
+    }
+    for (const name of ['Confirm', 'Not ad', 'Split', 'Edit']) {
+      expect(within(row).getByRole('button', { name }).getAttribute('title')).toBe(name);
+    }
+  });
+
+  it('puts the category after the icon buttons on a phone, at the button-row width', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    try {
+      renderTab();
+      await screen.findAllByRole('link', { name: 'Episode One' });
+      const cards = screen.getByTestId('detections-cards');
+      const buttons = within(within(cards).getByTestId('detection-actions-row')).getAllByRole('button');
+      const category = within(cards).getByRole('combobox', { name: /^Category for/ });
+      expect(buttons[4].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(category.className).toContain('w-[252px]');
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it('names card buttons for a sponsor and a non-ad category marker', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [
+        detection({ episodeId: 'sp', episodeTitle: 'Sponsor Episode', category: 'sponsor' }),
+        detection({ episodeId: 'sf', episodeTitle: 'Self Promo Episode', category: 'self_promo' }),
+      ],
+      total: 2, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Sponsor Episode' });
+    const [sponsor, selfPromo] = within(screen.getByTestId('detections-cards')).getAllByTestId('detection-actions-row');
+    const names = (r: HTMLElement) => within(r).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    expect(names(sponsor)).toEqual(['Play this ad', 'Confirm', 'Not ad', 'Split', 'Edit']);
+    expect(names(selfPromo)).toEqual(['Play this ad', 'Confirm self-promo', 'Keep', 'Split', 'Edit']);
+    const confirm = within(selfPromo).getByRole('button', { name: 'Confirm self-promo' });
+    expect(confirm.getAttribute('title')).toBe('Confirm self-promo');
   });
 
   it('Split opens the modal and defers the recut to the Apply bar', async () => {
