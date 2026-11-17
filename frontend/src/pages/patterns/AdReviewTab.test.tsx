@@ -180,13 +180,15 @@ describe('AdReviewTab', () => {
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
       ['Play this ad', 'Confirm', 'Not ad', 'Split', 'Edit']);
-    // From sm the row reads Play, Confirm, Not ad, category, Split, Edit and wraps instead of truncating.
+    // Buttons stay together; the category select comes last in the same wrapping row.
     expect(row.className).toContain('flex-wrap');
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(true);
-    expect(buttons[2].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.compareDocumentPosition(buttons[3]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.className).toContain('w-48');
+    expect(buttons[4].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('flex-1');
+    expect(category.className).toContain('sm:w-48');
+    expect(category.title).toBe('Uncategorized');
+    expect(row.style.getPropertyValue('--btn-row')).toBe('252px');
     // Below sm the buttons are 44px square icons (label in the accessible name and title).
     for (const b of buttons) {
       expect(b.className).toMatch(/h-11|max-sm:h-11/);
@@ -197,22 +199,17 @@ describe('AdReviewTab', () => {
     }
   });
 
-  it('puts the category after the icon buttons on a phone, beside the buttons, capped at the button-row width', async () => {
-    const original = window.matchMedia;
-    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
-    try {
-      renderTab();
-      await screen.findAllByRole('link', { name: 'Episode One' });
-      const cards = screen.getByTestId('detections-cards');
-      const buttons = within(within(cards).getByTestId('detection-actions-row')).getAllByRole('button');
-      const category = within(cards).getByRole('combobox', { name: /^Category for/ });
-      expect(buttons[4].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(category.className).toContain('flex-1');
-      expect(category.title).toBe('Uncategorized');
-      expect((category.parentElement as HTMLElement).style.getPropertyValue('--btn-row')).toBe('252px');
-    } finally {
-      window.matchMedia = original;
-    }
+  it('keeps the row controls in fixed columns with the category last', async () => {
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    const row = within(screen.getByTestId('detections-rows')).getByTestId('detection-row');
+    const names = within(row).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    expect(names).toEqual(['Play this ad', 'Confirm', 'Not ad', 'Split', 'Edit']);
+    const category = within(row).getByRole('combobox', { name: /^Category for/ });
+    expect(within(row).getByRole('button', { name: 'Edit' }).compareDocumentPosition(category)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const grid = row.firstElementChild as HTMLElement;
+    expect(grid.style.getPropertyValue('--cols').split(' ')).toHaveLength(7);
   });
 
   it('names card buttons for a sponsor and a non-ad category marker', async () => {

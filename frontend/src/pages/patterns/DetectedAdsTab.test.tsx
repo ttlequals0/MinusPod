@@ -108,7 +108,7 @@ beforeEach(() => {
 });
 
 describe('DetectedAdsTab', () => {
-  it('lays out the card as one wrapping row with the category between Not ad and Split', async () => {
+  it('lays out the card as one wrapping row with the category after the buttons', async () => {
     renderTab();
     await screen.findByText('Time cut');
     const cards = screen.getByTestId('detections-cards');
@@ -118,9 +118,15 @@ describe('DetectedAdsTab', () => {
       ['Play this ad', 'Not ad', 'Split', 'Edit']);
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(true);
-    expect(buttons[1].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.compareDocumentPosition(buttons[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.className).toContain('w-48');
+    expect(buttons[3].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('sm:w-48');
+  });
+
+  it('sizes table row tracks without a Confirm column', async () => {
+    renderTab();
+    await screen.findByText('Time cut');
+    const row = within(screen.getByTestId('detections-rows')).getByTestId('detection-row');
+    expect((row.firstElementChild as HTMLElement).style.getPropertyValue('--cols').split(' ')).toHaveLength(6);
   });
 
   it('requests only detections that were cut', async () => {

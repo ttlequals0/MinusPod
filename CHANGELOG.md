@@ -12,7 +12,8 @@ release notes.
 
 ### Changed
 
-- On phones, the Ad review and Detected ads cards show Play, Confirm, Not ad or Keep, Split and Edit as icon buttons in one row. The category picker sits beside them when there is room, shortened with an ellipsis if needed, and below them when there is not. From 640 px wide the buttons keep their text, with the category picker between Not ad and Split.
+- On phones, the Ad review and Detected ads cards show Play, Confirm, Not ad or Keep, Split and Edit as icon buttons in one row. The category picker comes last. It sits beside the buttons when there is room, shortened with an ellipsis if needed, and below them when there is not. From 640 px wide the buttons keep their text, in the same order.
+- In the table layout of both lists, the status badge, the buttons and the category picker sit in fixed columns that line up from row to row. From 768 to 1023 px wide the episode title is on its own line above them. The other chips, the "Left in by its category" note and Add audio to pattern moved to the second line.
 - On Ad review, Confirm is now green so it no longer matches Play, and it reads "Confirm" for every category. The category-specific wording stays as its tooltip and screen-reader name.
 
 ### Fixed
