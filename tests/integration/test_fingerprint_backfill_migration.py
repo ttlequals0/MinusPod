@@ -845,3 +845,44 @@ def test_a_real_correction_change_still_recomputes_when_another_has_no_time(seed
     _after_read(monkeypatch, db, lambda: _reject(db, seeded['theirs'], EP2, OTHER, {'start': 20.0, 'end': 70.0}))
     assert db.run_deferred_upgrade_steps()
     assert [r['rejected'] for r in _rows(db, f"pattern_id = {seeded['theirs']} AND episode_id = '{EP2}'")] == [1]
+
+
+def _unknown_world(tmp_path):
+    db = _open(tmp_path)
+    db.create_podcast(SLUG, 'https://example.com/a.xml', 'Example Podcast')
+    pid = db.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template='mine read ' * 8)
+    db.create_audio_fingerprint(pid, b'AQAA', 57.0)
+    unknown = _fp(pid, 100.0, 160.0, merged_protected_start=100.0)
+    markers = [unknown, _fp(pid, 300.0, 360.0), _fp(pid, 500.0, 560.0, merged_stages=['fingerprint', 'claude'])]
+    _put_markers(db, SLUG, EP1, markers, processed_at='2026-10-01T10:00:00Z')
+    return db
+
+
+def test_backfill_stores_null_when_merged_stages_are_unrecorded(tmp_path):
+    db = _unknown_world(tmp_path)
+    db = _restart(tmp_path, db)
+    by_start = {r['match_start']: r['audio_only'] for r in _rows(db)}
+    assert by_start == {101.0: None, 301.0: 1, 501.0: 0}
+
+
+def test_unknown_audio_only_step_flips_only_the_unknown_rows_once(tmp_path):
+    db = _unknown_world(tmp_path)
+    db = _restart(tmp_path, db)
+    conn = db.get_connection()
+    conn.execute("UPDATE audio_fingerprint_matches SET audio_only = 1 WHERE match_start = 101.0")
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (deferred.UNKNOWN_AUDIO_ONLY_GATE,))
+    conn.commit()
+    before = _rows(db)
+    db = _open(tmp_path)
+    db.run_deferred_upgrade_steps()
+    after = _rows(db)
+    assert len(after) == len(before) == 3
+    assert {r['match_start']: r['audio_only'] for r in after} == {101.0: None, 301.0: 1, 501.0: 0}
+    keep = [{k: v for k, v in r.items() if k != 'audio_only'} for r in before]
+    assert [{k: v for k, v in r.items() if k != 'audio_only'} for r in after] == keep
+    assert deferred.UNKNOWN_AUDIO_ONLY_GATE not in db.pending_upgrade_steps()
+    conn = db.get_connection()
+    conn.execute("UPDATE audio_fingerprint_matches SET audio_only = 1")
+    conn.commit()
+    db.run_deferred_upgrade_steps()
+    assert {r['audio_only'] for r in _rows(db)} == {1}

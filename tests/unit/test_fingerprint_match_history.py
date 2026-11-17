@@ -3,6 +3,7 @@ import pytest
 
 from database.fingerprint_cleanup import (
     delete_matches_for_episode, delete_matches_for_patterns, move_matches)
+from database.fingerprint_matches import marker_audio_only
 from tests.fingerprint_match_helpers import get_fingerprint_matches, record_fingerprint_match
 
 
@@ -300,3 +301,23 @@ def test_audio_matching_stats_use_the_date_indexes(temp_db, pattern):
             plans['rejected = 1' in sql] = detail
     assert 'idx_fp_matches_created' in plans[False]
     assert 'idx_fp_matches_rejected_at' in plans[True]
+
+
+_FP = {'start': 1.0, 'end': 9.0, 'detection_stage': 'fingerprint'}
+
+
+@pytest.mark.parametrize('extra,expected', [
+    ({}, True),
+    ({'merged_stages': ['fingerprint', 'llm']}, False),
+    ({'merged_stages': ['fingerprint']}, True),
+    ({'merged_protected_start': 1.0}, None),
+    ({'merged_distinct_ads': True}, None),
+    ({'merged_protected_start': 1.0, 'merged_member_spans': [{'stage': 'fingerprint'}]}, True),
+    ({'merged_protected_start': 1.0,
+      'merged_member_spans': [{'stage': 'fingerprint'}, {'start': 1.0}]}, None),
+    ({'merged_protected_start': 1.0, 'merged_member_spans': []}, None),
+    ({'merged_member_spans': [{'stage': ''}]}, None),
+    ({'detection_stage': 'claude'}, False),
+])
+def test_marker_audio_only_rule(extra, expected):
+    assert marker_audio_only({**_FP, **extra}) is expected

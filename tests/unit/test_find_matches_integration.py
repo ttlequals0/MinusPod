@@ -282,6 +282,17 @@ def test_scan_gets_the_clamped_minimum_ad_length(world, monkeypatch, raw, expect
     assert seen['min_ad_length_s'] == expected
 
 
+@pytest.mark.parametrize('partial,expected', [(True, ', partial)'), (False, '0.80)')])
+def test_match_log_line_marks_partial_matches(world, monkeypatch, caplog, partial, expected):
+    match = FingerprintMatch(pattern_id=1, start=1.0, end=20.0, confidence=0.9, similarity=0.9,
+                             coverage=0.8, partial=partial)
+    monkeypatch.setattr(af, '_scan_fingerprints', lambda *a, **k: ([match], 1))
+    with caplog.at_level('DEBUG', logger='podcast.fingerprint'):
+        world.fp._match_decoded([1, 2, 3], 10.0, [], 60.0, None)
+    line = next(r.getMessage() for r in caplog.records if 'Fingerprint match:' in r.getMessage())
+    assert line.endswith(expected)
+
+
 def test_corrupt_stored_fingerprint_is_skipped(world, caplog):
     pid = world.db.create_ad_pattern(scope='global', text_template='read ' * 12)
     world.db.create_audio_fingerprint(pid, b'EMPTY', 5.0)

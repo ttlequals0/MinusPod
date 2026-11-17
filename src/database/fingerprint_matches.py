@@ -7,7 +7,7 @@ from database.fingerprint_cleanup import delete_matches_for_episode
 from database.maintenance import _chunked
 from database.stats import _date_range_clauses
 from utils.json_fields import load_json_list
-from utils.markers import MERGED_MEMBER_SPANS, finite_number, marker_stages, parse_ad_markers
+from utils.markers import MERGED_MEMBER_SPANS, finite_number, marker_stages, merge_stages_unrecorded, parse_ad_markers
 from utils.pattern_scope import pattern_passes_scope
 from utils.time import ISO_FORMAT, overlap_seconds, parse_iso_utc, utc_now_iso
 
@@ -18,6 +18,7 @@ BACKFILL_GATE = 'backfill_fingerprint_matches_v1'
 # A stored span is taken as a fingerprint's origin only when it is this close to the fingerprint's length.
 SOURCE_LENGTH_RATIO = (0.5, 2.0)
 OUT_OF_SCOPE_LOG_CAP = 50
+UNKNOWN_AUDIO_ONLY_GATE = 'unknown_audio_only_fingerprint_matches_v1'
 
 # A rejection covers a match only when they overlap by more than half the shorter span.
 # _mostly_overlaps is the Python twin of _MOSTLY_OVERLAPS_SQL: the two must agree.
@@ -76,9 +77,23 @@ def _iso_or(value, fallback):
     return moment.strftime(ISO_FORMAT) if moment else fallback
 
 
+def marker_audio_only(marker: dict) -> bool | None:
+    """True when only the fingerprint found the marker, None when a merge hides the stages."""
+    if marker_stages(marker) != ['fingerprint']:
+        return False
+    return None if merge_stages_unrecorded(marker) else True
+
+
+def unknown_audio_only_spans(marker: dict) -> list[tuple]:
+    """(pattern_id, lo, hi) of each usable fingerprint member when a merge hides the marker's stages."""
+    if marker_audio_only(marker) is not None:
+        return []
+    return [(pattern_id, lo, hi) for pattern_id, (lo, hi), _, _ in _planned_members(marker)]
+
+
 def _planned_members(marker: dict) -> list[tuple]:
-    """(pattern_id, (lo, hi), member, audio_only) for each usable fingerprint member of a marker."""
-    audio_only = marker_stages(marker) == ['fingerprint']
+    """(pattern_id, (lo, hi), member, audio_only) for each usable fingerprint member; audio_only may be None."""
+    audio_only = marker_audio_only(marker)
     planned = []
     for member in _fingerprint_members(marker):
         pattern_id = member.get('pattern_id')
@@ -374,20 +389,22 @@ class FingerprintMatchMixin:
                 set(tags_map.get(r['sponsor_id'], [])), **scope)]
         return len(rows), sum(r['has_audio'] for r in rows)
 
-    def _read_stored_match_history(self, after_row_id: int = 0, limit: int | None = None,
-                                   rejections: dict | None = None) -> tuple[list[tuple], int | None, dict]:
-        """Insert rows from stored markers after an episode row id, the last row id read (None if none), the rejections used."""
-        conn = self.get_connection()
-        now = utc_now_iso()
-        planned_episodes = []
-        # Only a marker list that names the fingerprint stage can hold a fingerprint member.
-        rows = conn.execute(
+    def _fingerprint_marker_rows(self, after_row_id: int, limit: int | None) -> list:
+        """Episodes after a row id whose stored markers name the fingerprint stage, the only ones that can hold a member."""
+        return self.get_connection().execute(
             """SELECT e.id AS row_id, e.episode_id, p.slug, e.processed_at, d.ad_markers_json
                FROM episode_details d
                JOIN episodes e ON e.id = d.episode_id
                JOIN podcasts p ON p.id = e.podcast_id
                WHERE e.id > ? AND d.ad_markers_json LIKE '%"fingerprint"%'
                ORDER BY e.id LIMIT ?""", (after_row_id, -1 if limit is None else limit)).fetchall()
+
+    def _read_stored_match_history(self, after_row_id: int = 0, limit: int | None = None,
+                                   rejections: dict | None = None) -> tuple[list[tuple], int | None, dict]:
+        """Insert rows from stored markers after an episode row id, the last row id read (None if none), the rejections used."""
+        now = utc_now_iso()
+        planned_episodes = []
+        rows = self._fingerprint_marker_rows(after_row_id, limit)
         if rejections is None:
             # A page needs only its own episodes' corrections; a whole-table read has no page.
             rejections = self._stored_rejections(None if limit is None else {row['episode_id'] for row in rows})
@@ -413,9 +430,10 @@ class FingerprintMatchMixin:
                     planned, patterns, scopes[slug]):
                 hit = next((span for span in rejections.get((pattern_id, slug, episode_id), ())
                             if _mostly_overlaps(span[0], span[1], lo, hi)), None)
+                stored_audio_only = None if audio_only is None else int(audio_only)
                 # One fallback stamp per page for a correction without a readable time.
                 inserts.append((pattern_id, episode_id, slug, lo, hi, similarity, coverage, int(in_scope),
-                                int(audio_only), int(hit is not None), (hit[2] or now) if hit else None, created_at))
+                                stored_audio_only, int(hit is not None), (hit[2] or now) if hit else None, created_at))
         return inserts, (rows[-1]['row_id'] if rows else None), used
 
     @staticmethod
