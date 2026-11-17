@@ -13,6 +13,7 @@ release notes.
 ### Changed
 
 - The Needs review filter and its count on Ad review now cover only markers held for review. Detections the validator left uncut are under Not cut. In the API, `status=needs_review` on `GET /api/v1/detections` and `counts.needsReview` follow the same rule.
+- Dependency updates: openai 3.51.0 and swagger-ui-dist 5.35.0 (#1016, #1019).
 
 ### Fixed
 
