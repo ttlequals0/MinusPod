@@ -1267,10 +1267,8 @@ class TextPatternMatcher:
         start_time = 0.0
         end_time = 0.0
 
-        # The space _concat_segments appends is mapped to the segment before it,
-        # so a fuzzy alignment that is one character off can begin on the tail of
-        # one segment or end on the head of the next without covering a word
-        # there. Move such an edge to the neighbouring segment that holds its words.
+        # A fuzzy alignment one character off can start or end on a segment
+        # separator; move that edge to the segment that holds its words.
         for seg_start, seg_end, seg_idx in segment_map:
             text = segments[seg_idx].get('text') or ''
             if (seg_start <= start_char < seg_end < end_char

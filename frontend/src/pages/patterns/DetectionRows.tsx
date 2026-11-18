@@ -1,3 +1,5 @@
+import type { CSSProperties, ReactNode } from 'react';
+import { Check, Pencil, UnfoldHorizontal, Undo2, X, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import { DEMO_AUDIO_TOOLTIP, DEMO_WRITE_TOOLTIP } from '../../demo/copy';
 import { IS_DEMO } from '../../demo/flag';
@@ -11,7 +13,7 @@ import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, confirmLabel, isKeepLike, rejectLabel, type SegmentCategory,
 } from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate, formatPercent } from '../../utils/format';
-import { btnPrimary, btnOutline, btnDestructive } from '../../components/buttonStyles';
+import { btnSuccess, btnOutline, btnDestructive } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import AddAudioToPatternButton from '../../components/AddAudioToPatternButton';
@@ -79,13 +81,22 @@ function ReviewerBadge({ d }: { d: ReviewDetection }) {
   return <Chip label="Adjusted" cls={tint.blue} title={title} />;
 }
 
+// Everything beside the status badge: a recorded decision, a reviewer move, and the applied action.
+function SecondaryBadges({ d, showCategory }: { d: ReviewDetection; showCategory: boolean }) {
+  return (
+    <>
+      <ResolutionBadge resolution={d.resolution} />
+      <ReviewerBadge d={d} />
+      {showCategory && <ActionBadge action={d.actionApplied} />}
+    </>
+  );
+}
+
 function DetectionBadges({ d, showCategory }: { d: ReviewDetection; showCategory: boolean }) {
   return (
     <div className="flex gap-1.5 shrink-0">
       <DetectionStatusBadge status={d.status} />
-      <ResolutionBadge resolution={d.resolution} />
-      <ReviewerBadge d={d} />
-      {showCategory && <ActionBadge action={d.actionApplied} />}
+      <SecondaryBadges d={d} showCategory={showCategory} />
     </div>
   );
 }
@@ -131,11 +142,12 @@ interface DetectionRowActions {
   busy: boolean;
 }
 
-function CategorySelect({ d, onCategory, busy, className = '' }: {
+function CategorySelect({ d, onCategory, busy, className = '', title }: {
   d: ReviewDetection;
   onCategory: (d: ReviewDetection, category: SegmentCategory | null) => void;
   busy: boolean;
   className?: string;
+  title?: string;
 }) {
   // The pick shows immediately because the mutation patches the cached list;
   // no local copy to drift out of sync.
@@ -144,6 +156,7 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
       aria-label={`Category for ${d.episodeTitle}`}
       value={(d.category ?? '') as string}
       disabled={busy}
+      title={title}
       onChange={(e) => onCategory(
         d, e.target.value === '' ? null : (e.target.value as SegmentCategory))}
       className={`${selectBase} disabled:opacity-50 ${className}`}
@@ -156,32 +169,79 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
   );
 }
 
-// Card buttons grow to fill the row, never wrap their label, and the row wraps instead.
-const cardRowBtn = 'grow whitespace-nowrap max-sm:h-11 leading-tight';
-const cardCategoryClass = 'w-full min-h-[44px] text-left min-w-0';
+// Below sm a card button is a 44px square icon; from sm it is the text button.
+const cardBtn = `${cardActionBtn} max-sm:h-11 max-sm:w-11 max-sm:px-0 leading-tight`;
+const cardCategoryClass = 'min-h-[44px] text-left min-w-0';
+// Cards: the select fills the space beside the buttons (6rem floor) or wraps, capped at the button-row width (--btn-row, 12rem minimum).
+// From sm it is a fixed 12rem so selects line up from card to card.
+const cardSelectClass = 'flex-1 basis-24 truncate max-w-[max(var(--btn-row),12rem)] sm:flex-none sm:w-48';
 
-function ShortLabel({ full, short }: { full: string; short: string }) {
+// Fixed columns after the title in a table row, in render order. A tab gets a track only for a control it can show, so
+// each control starts at the same x in every row. Button tracks grow to the 44px target on coarse pointers (--tap).
+const slotRem = (rem: number) => `max(${rem}rem,var(--tap,0px))`;
+type RowKey = 'status' | 'play' | 'approve' | 'dismiss' | 'split' | 'edit' | 'category';
+const ROW_COLUMNS: { key: RowKey; width: string; on: (a: DetectionRowActions) => boolean }[] = [
+  { key: 'status', width: '6rem', on: () => true },
+  { key: 'play', width: slotRem(1.75), on: () => true },
+  { key: 'approve', width: slotRem(4.25), on: (a) => !!a.onApprove },
+  { key: 'dismiss', width: slotRem(3.75), on: (a) => !!a.onDismiss },
+  { key: 'split', width: slotRem(3), on: (a) => !!a.onSplit },
+  { key: 'edit', width: slotRem(2.75), on: () => true },
+  { key: 'category', width: '10rem', on: (a) => !!a.onCategory },
+];
+const rowColumns = (actions: DetectionRowActions) => ROW_COLUMNS.filter((c) => c.on(actions));
+const rowTemplate = (actions: DetectionRowActions) => rowColumns(actions).map((c) => c.width).join(' ');
+
+// Card row: w-11 buttons and gap-2, used to size the select that wraps at the button-row width.
+const TAP_PX = 44;
+const GAP_PX = 8;
+const CARD_REJECT_WIDTH = 'sm:w-[4.25rem]';
+const outlineBtn = `${btnOutline} disabled:opacity-50 ${focusRing}`;
+
+function CardLabel({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   return (
     <>
-      <span className="min-[370px]:hidden" aria-hidden="true">{short}</span>
-      <span className="max-[369px]:hidden">{full}</span>
+      <Icon className="w-3.5 h-3.5 sm:hidden" aria-hidden="true" />
+      <span className="max-sm:sr-only">{text}</span>
     </>
   );
 }
 
-// One set of row actions rendered in two densities: compact at the end of
-// the desktop row, touch-sized inside the mobile card footer.
-function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddAudio }: {
+// The row shows d.start to d.end, and that span is what the audio is built from.
+function AddAudio({ d, showAddAudio, buttonClassName, className = '' }: {
+  d: ReviewDetection; showAddAudio: boolean; buttonClassName: string; className?: string;
+}) {
+  if (!(showAddAudio && d.detectionStage === 'text_pattern' && d.patternId != null)) return null;
+  return (
+    <AddAudioToPatternButton
+      patternId={d.patternId}
+      audioState={d.patternAudioState}
+      hasOriginal={d.hasOriginalAudio}
+      span={{ podcastSlug: d.feedSlug, episodeId: d.episodeId, start: d.start, end: d.end }}
+      buttonClassName={buttonClassName}
+      className={className}
+    />
+  );
+}
+
+const KEPT_NOTE = 'Left in by its category';
+
+// Row actions as grid cells in the desktop row, a wrapping touch-sized row in the mobile card.
+function DetectionActions({ d, variant, keepLike, playing, onTogglePlay, actions, showAddAudio }: {
   d: ReviewDetection;
   variant: 'row' | 'card';
+  keepLike: boolean;
   playing: boolean;
   onTogglePlay: () => void;
   actions: DetectionRowActions;
   showAddAudio: boolean;
 }) {
   const isCard = variant === 'card';
-  const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
-  const undecided = d.resolution === 'unresolved';
+  const btn = isCard ? cardBtn : `${tableActionBtn} w-full`;
+  const label = (icon: LucideIcon, text: string) => (isCard ? <CardLabel icon={icon} text={text} /> : text);
+  const cardTitle = (text: string) => (isCard ? text : undefined);
+  // A keep-like category leaves no verdict to record (the endpoint 409s one); Edit's category picker is the way through.
+  const undecided = d.resolution === 'unresolved' && !keepLike;
   const noAudio = IS_DEMO;
   const play = d.hasOriginalAudio && (
     <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'full' : 'row'}
@@ -189,38 +249,23 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
   );
   const categorySelect = actions.onCategory && (
     <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy || IS_DEMO}
-      className={isCard ? cardCategoryClass : 'max-w-40'} />
+      title={isCard ? (d.category ? SEGMENT_CATEGORY_LABELS[d.category as SegmentCategory] : 'Uncategorized') : undefined}
+      className={isCard ? `${cardCategoryClass} ${IS_DEMO ? 'w-full' : cardSelectClass}` : 'w-full'} />
   );
   const category = IS_DEMO && categorySelect ? (
-    <span className={`inline-flex cursor-not-allowed${isCard ? ' w-full' : ''}`} title={DEMO_WRITE_TOOLTIP}>{categorySelect}</span>
+    <span className={`inline-flex cursor-not-allowed ${isCard ? `max-w-full ${cardSelectClass}` : 'w-full'}`} title={DEMO_WRITE_TOOLTIP}>{categorySelect}</span>
   ) : categorySelect;
   const edit = (
     <button
       type="button"
       onClick={() => actions.onEdit(d)}
       disabled={actions.busy}
-      className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
+      title={cardTitle('Edit')}
+      className={`${btn} ${outlineBtn}`}
     >
-      Edit
+      {label(Pencil, 'Edit')}
     </button>
   );
-  // Its category resolves to keep or mark, so confirm/reject would record a
-  // verdict the cut can never honor (the endpoint 409s them). Edit is the
-  // way through: the modal's category picker changes this span's fate.
-  if (isKeepLike(d.actionApplied)) {
-    const kept = <p className="text-xs text-muted-foreground min-w-0 grow">Left in by its category</p>;
-    if (!isCard) {
-      return <div className="flex items-center gap-2">{play}{kept}{category}{edit}</div>;
-    }
-    return (
-      <div className="flex flex-col gap-2 pt-1">
-        {category}
-        <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
-          {play}{kept}{edit}
-        </div>
-      </div>
-    );
-  }
   const approve = actions.onApprove && undecided && (
     <DemoDisabled>
       <button
@@ -228,9 +273,11 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
         onClick={() => actions.onApprove?.(d)}
         disabled={actions.busy}
         aria-label={confirmLabel(d.category)}
-        className={`${btn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+        title={cardTitle(confirmLabel(d.category))}
+        className={`${btn} ${btnSuccess} disabled:opacity-50 ${focusRing}`}
       >
-        {isCard ? <ShortLabel full={confirmLabel(d.category)} short="Confirm" /> : confirmLabel(d.category)}
+        {/* Short visible text; aria-label carries the category-specific name. */}
+        {label(Check, 'Confirm')}
       </button>
     </DemoDisabled>
   );
@@ -242,52 +289,48 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
         onClick={() => actions.onDismiss?.(d)}
         disabled={actions.busy}
         aria-label={reject}
-        className={`${btn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+        title={cardTitle(reject)}
+        className={`${btn} ${isCard ? CARD_REJECT_WIDTH : ''} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
       >
-        {isCard ? <ShortLabel full={reject} short={reject === 'Keep' ? 'Keep' : 'Not ad'} /> : reject}
+        {label(reject === 'Keep' ? Undo2 : X, reject)}
       </button>
     </DemoDisabled>
   );
-  // The row shows d.start to d.end, and that span is what the audio is built from.
-  const addAudio = showAddAudio && d.detectionStage === 'text_pattern' && d.patternId != null && (
-    <AddAudioToPatternButton
-      patternId={d.patternId}
-      audioState={d.patternAudioState}
-      hasOriginal={d.hasOriginalAudio}
-      span={{ podcastSlug: d.feedSlug, episodeId: d.episodeId, start: d.start, end: d.end }}
-      buttonClassName={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}${isCard ? ' w-full' : ''}`}
-      className={isCard ? 'basis-full' : ''}
-    />
-  );
-  const split = actions.onSplit && (
+  const split = actions.onSplit && !keepLike && (
     <DemoDisabled>
       <button
         type="button"
         onClick={() => actions.onSplit?.(d)}
         disabled={actions.busy}
-        className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
+        title={cardTitle('Split')}
+        className={`${btn} ${outlineBtn}`}
       >
-        Split
+        {label(UnfoldHorizontal, 'Split')}
       </button>
     </DemoDisabled>
   );
 
   if (!isCard) {
+    // A control hidden on one row leaves its slot empty; ROW_COLUMNS decides which slots exist.
+    const cells: Partial<Record<RowKey, ReactNode>> = { play, approve, dismiss, split, edit, category };
     return (
-      <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{category}{split}{addAudio}{edit}</div>
+      <>
+        {rowColumns(actions).filter((c) => c.key !== 'status').map((c) => (
+          <div key={c.key} className="flex min-w-0 justify-center">{cells[c.key]}</div>
+        ))}
+      </>
     );
   }
-  // Five controls do not fit one line under 430 px, so Split and Edit take a
-  // second line there. A row without Confirm has four and stays on one line.
-  const tail = approve && dismiss
-    ? <div className="flex gap-1.5 min-[370px]:gap-2 grow max-[429px]:basis-full">{split}{edit}</div>
-    : <>{split}{edit}</>;
+  const buttons = [play, approve, dismiss, split, edit].filter(Boolean);
+  const btnRow = { '--btn-row': `${buttons.length * TAP_PX + (buttons.length - 1) * GAP_PX}px` } as CSSProperties;
   return (
-    <div className="flex flex-col gap-2 pt-1">
-      {category}
-      <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
-        {play}{approve}{dismiss}{addAudio}{tail}
+    <div className="pt-1">
+      <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-2" style={btnRow}>
+        {play}{approve}{dismiss}{split}{edit}{category}
       </div>
+      {keepLike && <p className="mt-2 text-xs text-muted-foreground">{KEPT_NOTE}</p>}
+      <AddAudio d={d} showAddAudio={showAddAudio && !keepLike} className="mt-2"
+        buttonClassName={`${cardActionBtn} ${outlineBtn} w-full`} />
     </div>
   );
 }
@@ -312,41 +355,46 @@ export function DetectionRows({
       {/* Two-line rows flex to any viewport; the old fixed 9-column
           table forced horizontal scroll below its 68rem floor. */}
       <div
-        className="hidden md:block bg-card rounded-lg border border-border divide-y divide-border"
+        className="hidden md:block bg-card rounded-lg border border-border divide-y divide-border [@media(pointer:coarse)]:[--tap:2.75rem]"
         data-testid="detections-rows"
         role="list"
         aria-label="Detections"
+        style={{ '--cols': rowTemplate(actions) } as CSSProperties}
       >
         {detections.map((d, index) => {
           const rowKey = keyOf(d, index);
+          const keepLike = isKeepLike(d.actionApplied);
           return (
             <div key={rowKey} data-testid="detection-row" role="listitem" className="px-4 py-3 hover:bg-accent/50 transition-colors">
-              {/* flex-wrap + the title's min-width floor: when badges and actions cannot fit beside a legible title (font
-                  scaling near the md breakpoint), they wrap below instead of clipping past the card edge. */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              {/* Below lg the title takes its own line over the full width (trailing 1fr track), so the fixed columns
+                  cannot squeeze it. */}
+              <div className="grid grid-cols-[var(--cols)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_var(--cols)] items-center gap-x-2 gap-y-1">
                 <Link
                   to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
                   title={d.episodeTitle}
-                  className={`flex-1 min-w-40 truncate text-sm font-medium text-primary hover:underline ${focusRing}`}
+                  className={`col-span-full lg:col-span-1 min-w-0 truncate text-sm font-medium text-primary hover:underline ${focusRing}`}
                 >
                   {d.episodeTitle}
                 </Link>
-                <DetectionBadges d={d} showCategory={showCategory} />
-                <div className="shrink-0">
-                  <DetectionActions
-                    d={d}
-                    variant="row"
-                    playing={audition.playingKey === rowKey}
-                    onTogglePlay={() => audition.toggle(
-                      rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
-                    actions={actions}
-                    showAddAudio={showAddAudio}
-                  />
+                <div><DetectionStatusBadge status={d.status} /></div>
+                <DetectionActions
+                  d={d}
+                  variant="row"
+                  keepLike={keepLike}
+                  playing={audition.playingKey === rowKey}
+                  onTogglePlay={() => audition.toggle(
+                    rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
+                  actions={actions}
+                  showAddAudio={showAddAudio}
+                />
+                <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span className="min-w-0 max-w-56 truncate" title={d.feedTitle}>{d.feedTitle}</span>
+                  <DetectionMeta d={d} showCategory={showCategory} />
+                  <SecondaryBadges d={d} showCategory={showCategory} />
+                  {keepLike && <span>{KEPT_NOTE}</span>}
+                  <AddAudio d={d} showAddAudio={showAddAudio && !keepLike}
+                    buttonClassName={`${tableActionBtn} ${outlineBtn}`} />
                 </div>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="min-w-0 max-w-56 truncate" title={d.feedTitle}>{d.feedTitle}</span>
-                <DetectionMeta d={d} showCategory={showCategory} />
               </div>
             </div>
           );
@@ -373,6 +421,7 @@ export function DetectionRows({
               <DetectionActions
                 d={d}
                 variant="card"
+                keepLike={isKeepLike(d.actionApplied)}
                 playing={audition.playingKey === rowKey}
                 onTogglePlay={() => audition.toggle(
                   rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}

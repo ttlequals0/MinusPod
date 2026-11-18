@@ -12,8 +12,7 @@ from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            merge_runs, set_reviewer_locks, spans_match, subtract_spans)
 
 from utils.time import (
-    adjust_timestamp, overlap_seconds,
-    ranges_overlap, span_inside_any_cut,
+    adjust_timestamp, overlap_seconds, span_inside_any_cut,
 )
 
 from config import (
@@ -252,9 +251,10 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 if held_ad is not None:
                     ledger.record(held_ad, 'covered')
                 continue
+            # Touching a pass-1 cut edge is not crossing it.
             crosses_cut = adjusted_start is None or any(
-                ranges_overlap(adjusted_start, adjusted_end, cut['start'], cut['end'])
-                              for cut in cuts)
+                overlap_seconds(adjusted_start, adjusted_end, cut['start'], cut['end']) > 0
+                for cut in cuts)
             # An edge clamped onto a protected range touches it without taking its audio.
             crosses_protected = (adjusted_start is not None and any(
                 overlap_seconds(adjusted_start, adjusted_end,
@@ -475,8 +475,8 @@ def _hold_adjustments_crossing_final_holds(processed_ads, original_ads, held_ads
         changed = False
         for processed, original in list(zip(processed_ads, original_ads, strict=False)):
             if not original.get('reviewer_moved') or not any(
-                    ranges_overlap(original['start'], original['end'],
-                                   held['start'], held['end'])
+                    overlap_seconds(original['start'], original['end'],
+                                    held['start'], held['end']) > 0
                     for held in held_ads):
                 continue
             proposed_start, proposed_end = original['start'], original['end']

@@ -298,6 +298,33 @@ def test_pass2_adjust_inside_pass1_cut_without_a_ui_twin_is_covered(monkeypatch)
     assert stats['pass2_outcomes'] == {'covered': 1}
 
 
+def test_pass2_adjust_touching_a_pass1_cut_edge_is_cut_not_held(monkeypatch):
+    original, processed = _pair(6.0, 60.0, 6.0, 60.0)
+    cuts, ui, held = [processed], [original], []
+    verdict = _verdict('adjust', 6.0, 60.0, reasoning=AFFIRMING, adjusted=(0.0, 60.0))
+
+    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
+               pass1_cuts=[{'start': 60.0, 'end': 134.0}])
+
+    assert cuts == [processed]
+    assert held == []
+    assert (processed['start'], processed['end']) == (0.0, 60.0)
+    assert (original['start'], original['end']) == (0.0, 60.0)
+
+
+def test_pass2_adjust_overlapping_a_pass1_cut_is_held(monkeypatch):
+    original, processed = _pair(50.0, 110.0, 50.0, 110.0)
+    cuts, ui, held = [processed], [original], []
+    verdict = _verdict('adjust', 50.0, 110.0, reasoning=AFFIRMING, adjusted=(40.0, 120.0))
+
+    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
+               pass1_cuts=[{'start': 100.0, 'end': 200.0}])
+
+    assert cuts == []
+    assert held == [original]
+    assert original['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
+
+
 def test_pass2_adjust_crossing_protected_range_is_held(monkeypatch):
     original, processed = _pair(250.0, 310.0, 151.0, 211.0)
     cuts, ui, held = [processed], [original], []
@@ -352,6 +379,21 @@ def test_adjustment_hold_reconciliation_repeats_for_hold_chain():
     assert cuts == []
     assert ui == []
     assert held[-2:] == [second_original, first_original]
+
+
+def test_moved_cut_touching_a_sibling_hold_edge_stays_cut():
+    original, processed = _pair(100.0, 200.0, 100.0, 200.0)
+    original.update(reviewer_moved=True, reviewer_original_start=110.0,
+                    reviewer_original_end=200.0)
+    sibling = {'start': 200.0, 'end': 220.0, 'held_for_review': True}
+    held = [sibling]
+    cuts, ui = [processed], [original]
+
+    review._hold_adjustments_crossing_final_holds(cuts, ui, held)
+
+    assert cuts == [processed]
+    assert ui == [original]
+    assert held == [sibling]
 
 
 def _run_real_pass2_review(monkeypatch, proposed, **kwargs):

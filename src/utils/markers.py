@@ -794,6 +794,17 @@ def marker_stages(marker: dict) -> list[str]:
     return list(dict.fromkeys(s for s in candidates if isinstance(s, str) and s))
 
 
+def merge_stages_unrecorded(marker: dict) -> bool:
+    """Whether the marker shows a merge but not which stages merged."""
+    if not any(key in marker for key in _MERGE_BOOKKEEPING_KEYS):
+        return False
+    if isinstance(marker.get(MERGED_STAGES), list):
+        return False
+    spans = marker.get(MERGED_MEMBER_SPANS)
+    return not (isinstance(spans, list) and spans and all(
+        isinstance(m, dict) and isinstance(m.get('stage'), str) and m['stage'] for m in spans))
+
+
 def note_merged_members(target: dict, other: dict) -> None:
     """Record the protected members on any merge, distinct or overlapping.
 

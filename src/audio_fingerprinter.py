@@ -1549,7 +1549,7 @@ class AudioFingerprinter:
         for m in matches:
             logger.debug(
                 f"Fingerprint match: pattern={m.pattern_id} {m.start:.1f}s-{m.end:.1f}s "
-                f"(similarity={m.similarity:.2f}, coverage={m.coverage:.2f})"
+                f"(similarity={m.similarity:.2f}, coverage={m.coverage:.2f}{', partial' if m.partial else ''})"
             )
         elapsed = time.monotonic() - started
         if stop_reason:

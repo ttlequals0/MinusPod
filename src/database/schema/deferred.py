@@ -6,14 +6,17 @@ import time
 import uuid
 
 from database.error_text import redaction_units
-from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
+from database.fingerprint_matches import (
+    BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP, UNKNOWN_AUDIO_ONLY_GATE, unknown_audio_only_spans)
 from database.marker_refs import replace_marker_refs
+from utils.markers import parse_ad_markers
 
 logger = logging.getLogger(__name__)
 
 REDACT_GATE = 'redact_stored_error_text'
 MARKER_REFS_GATE = 'backfill_episode_marker_refs_v1'
-STEP_NAMES = (REDACT_GATE, BACKFILL_GATE, MARKER_REFS_GATE)
+STEP_NAMES = (REDACT_GATE, BACKFILL_GATE, MARKER_REFS_GATE, UNKNOWN_AUDIO_ONLY_GATE)
+SPAN_TOLERANCE_S = 0.001
 STALE_HEARTBEAT_SECONDS = 120.0
 REDACT_PAGE_ROWS = 500
 BACKFILL_PAGE_EPISODES = 100
@@ -121,7 +124,8 @@ class DeferredUpgradeMixin:
 
     def _run_claimed_step(self, name, owner, claim, clock, pause, should_stop) -> None:
         advance = {REDACT_GATE: self._advance_redaction, BACKFILL_GATE: self._advance_backfill,
-                   MARKER_REFS_GATE: self._advance_marker_refs}[name]
+                   MARKER_REFS_GATE: self._advance_marker_refs,
+                   UNKNOWN_AUDIO_ONLY_GATE: self._advance_unknown_audio_only}[name]
         started = clock()
         ctx = {'rows': claim['rows_done'], 'out_of_scope': set()}
         cursor = claim['cursor']
@@ -226,6 +230,34 @@ class DeferredUpgradeMixin:
                 replace_marker_refs(write, row['episode_id'], markers)
             new_cursor = {'after': rows[-1]['episode_id']}
             save(write, new_cursor, len(rows))
+        return new_cursor
+
+    def _advance_unknown_audio_only(self, cursor, save, ctx):
+        """Set audio_only NULL on rows whose marker hides which stages merged; None when no episodes are left."""
+        # Read inside the write transaction so a marker write between read and update cannot be undone
+        with self.transaction(immediate=True) as write:
+            if not write.execute(
+                    "SELECT EXISTS(SELECT 1 FROM audio_fingerprint_matches WHERE audio_only = 1)").fetchone()[0]:
+                return None
+            rows = self._fingerprint_marker_rows(cursor.get('after', 0), BACKFILL_PAGE_EPISODES)
+            if not rows:
+                return None
+            updates = []
+            for row in rows:
+                markers = parse_ad_markers(row['ad_markers_json'])
+                if markers is None:
+                    logger.warning("Skipped unreadable stored markers of episode row %s "
+                                   "in the audio-only correction", row['row_id'])
+                    continue
+                updates += [(row['slug'], row['episode_id'], pattern_id, lo, SPAN_TOLERANCE_S, hi, SPAN_TOLERANCE_S)
+                            for marker in markers for pattern_id, lo, hi in unknown_audio_only_spans(marker)]
+            changed = write.executemany(
+                """UPDATE audio_fingerprint_matches SET audio_only = NULL
+                   WHERE podcast_slug = ? AND episode_id = ? AND pattern_id = ?
+                     AND audio_only = 1 AND ABS(match_start - ?) <= ? AND ABS(match_end - ?) <= ?""",
+                updates).rowcount
+            new_cursor = {'after': rows[-1]['row_id']}
+            save(write, new_cursor, changed)
         return new_cursor
 
     def _advance_backfill(self, cursor, save, ctx):

@@ -46,18 +46,27 @@ def test_default_returns_needs_review_only(app_client, seeded_detections):
     _csrf(app_client)
     body = app_client.get('/api/v1/detections').get_json()
     starts = sorted(d['start'] for d in body['detections'])
-    assert starts == [100.0, 200.0]
-    assert body['total'] == 2
+    assert starts == [200.0]
+    assert body['total'] == 1
     assert body['page'] == 1
     assert body['totalPages'] == 1
     for d in body['detections']:
         assert d['processedUrl'].startswith('/episodes/')
         assert 'processedVersion' not in d
     assert body['counts'] == {
-        'total': 3, 'needsReview': 2, 'pending': 1, 'rejected': 1,
+        'total': 3, 'needsReview': 1, 'pending': 1, 'rejected': 1,
         'accepted': 1, 'confirmed': 0, 'dismissed': 0,
         'pendingByHoldReason': {},
     }
+
+
+def test_unresolved_rejected_is_not_needs_review(app_client, seeded_detections):
+    _csrf(app_client)
+    review = app_client.get('/api/v1/detections?status=needs_review').get_json()
+    assert [d['start'] for d in review['detections']] == [200.0]
+    assert review['counts']['needsReview'] == 1
+    rejected = app_client.get('/api/v1/detections?status=rejected').get_json()
+    assert [d['start'] for d in rejected['detections']] == [100.0]
 
 
 def test_status_all_includes_accepted(app_client, seeded_detections):

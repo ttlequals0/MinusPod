@@ -223,6 +223,15 @@ def test_quota_exhausted_falls_back_to_ytdlp():
     assert episodes[0]['video_id'] == 'vid000000001'
 
 
+def test_api_failure_warning_includes_reason(caplog):
+    caplog.set_level('WARNING', logger='youtube.discovery')
+    with patch.object(discovery, 'safe_get', return_value=_resp(500)), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)):
+        discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert 'DiscoveryError: YouTube Data API error 500' in caplog.text
+    assert 'KEY' not in caplog.text
+
+
 def test_api_404_is_source_not_found():
     with patch.object(discovery, 'safe_get', return_value=_resp(404)):
         with pytest.raises(discovery.SourceNotFound):

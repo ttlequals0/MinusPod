@@ -10,7 +10,7 @@ describe('audioSummaryLabel', () => {
     expect(audioSummaryLabel(summary('none', false, 0, null))).toBe('No audio');
     expect(audioSummaryLabel(summary('off', true, 4, 0.9))).toBe('Audio off');
     expect(audioSummaryLabel(summary('active', false, 0, null))).toBe('No source audio');
-    expect(audioSummaryLabel(summary('active', true, 0, null))).toBe('No matches yet');
+    expect(audioSummaryLabel(summary('active', true, 0, null))).toBe('No matches');
     expect(audioSummaryLabel(summary('active', true, 4, 0.912))).toBe('91% match');
   });
 });

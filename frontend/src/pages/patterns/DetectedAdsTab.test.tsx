@@ -108,7 +108,7 @@ beforeEach(() => {
 });
 
 describe('DetectedAdsTab', () => {
-  it('lays out the card with the category above one wrapping action row', async () => {
+  it('lays out the card as one wrapping row with the category after the buttons', async () => {
     renderTab();
     await screen.findByText('Time cut');
     const cards = screen.getByTestId('detections-cards');
@@ -116,11 +116,16 @@ describe('DetectedAdsTab', () => {
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
       ['Play this ad', 'Not ad', 'Split', 'Edit']);
-    for (const b of buttons.slice(1)) expect(b.className).toContain('grow');
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
-    expect(row.contains(category)).toBe(false);
-    expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.className).toContain('w-full');
+    expect(row.contains(category)).toBe(true);
+    expect(buttons[3].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('sm:w-48');
+  });
+
+  it('sizes table row tracks without a Confirm column', async () => {
+    renderTab();
+    await screen.findByText('Time cut');
+    expect(screen.getByTestId('detections-rows').style.getPropertyValue('--cols').split(' ')).toHaveLength(6);
   });
 
   it('requests only detections that were cut', async () => {

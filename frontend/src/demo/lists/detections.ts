@@ -10,7 +10,7 @@ const CATEGORIES = ['sponsor', 'cross_promo', 'self_promo', 'interaction', 'intr
 const UNSET = 'none';
 const keepLike = (a: string | null) => a === 'keep' || a === 'mark';
 const awaitsDecision = (i: Item) =>
-  (i.status === 'pending' || i.status === 'rejected') && i.resolution === 'unresolved' && !keepLike(i.actionApplied);
+  i.status === 'pending' && i.resolution === 'unresolved' && !keepLike(i.actionApplied);
 
 function summarize(items: Item[]): Omit<DetectionCounts, 'pendingByHoldReason'> {
   const c = { total: items.length, needsReview: 0, pending: 0, rejected: 0, accepted: 0, confirmed: 0, dismissed: 0 };

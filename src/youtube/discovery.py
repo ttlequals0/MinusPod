@@ -179,7 +179,7 @@ def resolve_source(db, source: Source) -> SourceInfo:
         try:
             return _resolve_with_api(key, source, proxy=ytdlp.configured_proxy(db))
         except DiscoveryError as exc:
-            logger.warning(f'YouTube Data API failed ({type(exc).__name__}); resolving with yt-dlp')
+            logger.warning(f'YouTube Data API failed ({type(exc).__name__}: {exc}); resolving with yt-dlp')
     if source.kind == 'video':
         data = _ytdlp_json(watch_url(source.id), ['--no-playlist'], timeout=120)
         return SourceInfo('video', source.id, data.get('title') or source.id, data.get('description') or '',
@@ -284,7 +284,7 @@ def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
             logger.info(f"[{podcast.get('slug')}] Listed {len(episodes)} video(s) via the YouTube Data API")
             return episodes
         except DiscoveryError as exc:
-            logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
+            logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}: {exc}); "
                            "listing with yt-dlp")
     return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
 
@@ -296,7 +296,7 @@ def _list_single_video(db, podcast: dict) -> list[dict]:
         try:
             return _single_video_from_api(key, video_id, proxy=ytdlp.configured_proxy(db))
         except DiscoveryError as exc:
-            logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
+            logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}: {exc}); "
                            "listing with yt-dlp")
     data = _ytdlp_json(watch_url(video_id), ['--no-playlist'], timeout=120)
     duration = float(data['duration']) if data.get('duration') is not None else None

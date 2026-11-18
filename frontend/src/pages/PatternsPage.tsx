@@ -69,7 +69,7 @@ const PATTERN_PARAM_DEFAULTS = {
 };
 
 // Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
-const COLUMN_WIDTHS = ['w-[64px]', 'w-[148px]', '', 'w-[136px]', 'w-[124px]', 'w-[108px]', 'w-[100px]', 'w-[96px]', 'w-[124px]', 'w-[76px]', 'w-[84px]'];
+const COLUMN_WIDTHS = ['w-[64px]', 'w-[148px]', '', 'w-[164px]', 'w-[125px]', 'w-[102px]', 'w-[96px]', 'w-[96px]', 'w-[122px]', 'w-[76px]', 'w-[82px]'];
 
 // Short date with the full date and time as its tooltip, `-` when missing.
 function ShortDate({ value }: { value: string | null }) {
@@ -548,7 +548,7 @@ function PatternsPage() {
       {/* Desktop Table Layout */}
       <div className={`hidden xl:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full table-fixed min-w-[1180px]">
+          <table className="w-full table-fixed min-w-[1195px]">
             <colgroup>
               {COLUMN_WIDTHS.map((w, i) => (
                 <col key={i} className={w} />

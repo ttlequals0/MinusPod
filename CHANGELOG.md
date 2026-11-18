@@ -8,17 +8,48 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.102.9] - 2026-11-18
 
 ### Fixed
 
 - An auto-learned text pattern now keeps an outro that ends on the sponsor's name as a sentence of its own, for example a brand sign-off before a slogan. The outro was only kept when it named the sponsor together with an offer phrase or the sponsor's domain, and the offer phrases are English. A read in another language therefore lost its outro, and the pattern fell back to its intro plus the average duration. When a break was shorter than that average, the estimate reached past the ad and the remainder was held for review over show content with `estimated_pattern_bounds`.
-- A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words.
 - When a text pattern matched only its intro and the rest of its span was an estimate, the cut ended where the model measured the read, and a break cue right after the read stayed in the audio. Cue snapping runs during detection, while the end is still the estimate with no cue nearby, and the edge the split creates later was never snapped. That edge now snaps the way detection snaps the others, with the feed's snap confidence and window, but only onto a template cue removed with the ad, and never past the estimated span or into a rejected range. The held remainder then starts after the cue.
+- Retry ad detection (`POST /feeds/{slug}/episodes/{episode_id}/retry-ad-detection`) now uses the provider chosen for the detection stage. With detection set to the secondary provider, the retry called the primary provider with the secondary provider's model name, and every window failed.
+- When the YouTube Data API fails and MinusPod falls back to yt-dlp, the warning in the log now gives the reason, for example a quota error or an HTTP status. It showed only the error class.
 
 ### Security
 
 - The CI `npm audit` step excepts GHSA-fc5q-39xc-vjpf (picomatch). The advisory covers every release up to 4.0.7, the latest, so there is no version to move to. picomatch enters the tree only through build, lint and test tooling. Every other advisory of high or critical severity still fails the step. Remove the exception once picomatch has a patched release.
+
+## [2.102.8] - 2026-11-16
+
+### Changed
+
+- On phones, the Ad review and Detected ads cards show Play, Confirm, Not ad or Keep, Split and Edit as icon buttons in one row. The category picker comes last. It sits beside the buttons when there is room, shortened with an ellipsis if needed, and below them when there is not. From 640 px wide the buttons keep their text, in the same order.
+- In the table layout of both lists, the status badge, the buttons and the category picker sit in fixed columns that line up from row to row. From 768 to 1023 px wide the episode title is on its own line above them. The other chips, the "Left in by its category" note and Add audio to pattern moved to the second line.
+- On Ad review, Confirm is now green so it no longer matches Play, and it reads "Confirm" for every category. The category-specific wording stays as its tooltip and screen-reader name.
+
+### Fixed
+
+- The Sort control on Ad review and Detected ads no longer takes a full row on tablet-width screens. It sits beside the Reviewer filter there, and still spans the row on phones so its labels are not cut off.
+- A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words. (#1028)
+- Chapter regeneration no longer logs an error with a traceback when a reprocess of the episode or a newer regeneration overtakes it. History still shows that run as failed, with the reason.
+- Adding the cover badge to a palette PNG that has transparency no longer prints a Pillow warning to the log.
+- Audio matching history no longer marks a match "Found by audio only" when the episode's stored marker shows that several detections were merged but not which stages found them. Those matches now carry no badge and `audioOnly` is `null` in the API. A one-time step after the upgrade corrects the rows already stored. It changes only that flag and deletes nothing, so the "found by audio only" count in the stats can drop.
+- The debug log line for a fingerprint match now says `partial` when the match was accepted below the minimum coverage.
+
+## [2.102.7] - 2026-11-16
+
+### Changed
+
+- The Needs review filter and its count on Ad review now cover only markers held for review. Detections the validator left uncut are under Not cut. In the API, `status=needs_review` on `GET /api/v1/detections` and `counts.needsReview` follow the same rule.
+- Dependency updates: openai 3.51.0 and swagger-ui-dist 5.35.0 (#1016, #1019).
+
+### Fixed
+
+- An ad found in the second pass is now cut when its reviewed span ends exactly where a first-pass cut begins, or begins where one ends. It was held for review as a reviewer contradiction although the two spans only touch. The same applies to a reviewed ad whose edge touches a held neighbour.
+- The Detected ads and Ad review lists could take 10 seconds or more to load on a large database when its data was not in the system's file cache. Loading them read past every episode's transcripts to reach the ad markers. The markers are now also kept in a small table of their own, `episode_detection_markers`. The app fills it on the first load after the upgrade and keeps it in step when markers change. That first load can still be slow once.
+- The Category dropdown in the Patterns table no longer cuts off its label: "Uncategorized" and "Cross-promo" now show in full. The Audio column says "No matches" where it said "No matches yet", and the column widths were rebalanced to fit.
 
 ## [2.102.6] - 2026-11-16
 

@@ -7,5 +7,5 @@ export function audioSummaryLabel(audio?: PatternAudioSummary): string {
   if (audio.state === 'off') return 'Audio off';
   if (!audio.available) return 'No source audio';
   if (audio.matchCount > 0 && audio.meanSimilarity != null) return `${formatPercent(audio.meanSimilarity)} match`;
-  return 'No matches yet';
+  return 'No matches';
 }

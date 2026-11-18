@@ -150,12 +150,12 @@ def summarize_cut_detections(items: list[dict]) -> dict:
 
 
 def awaits_decision(item: dict) -> bool:
-    """True when a person still has a decision to make about this detection.
+    """True for a held-for-review detection with no correction recorded.
 
-    Keep and mark markers are settled by feed policy and the corrections endpoint refuses
-    a verdict on them.
+    Validator-rejected (uncut) rows live under the rejected filter. Keep and mark markers
+    are settled by feed policy and the corrections endpoint refuses a verdict on them.
     """
-    return (item['status'] in ('pending', 'rejected')
+    return (item['status'] == 'pending'
             and item['resolution'] == 'unresolved'
             and not is_keep_like(item.get('actionApplied')))
 

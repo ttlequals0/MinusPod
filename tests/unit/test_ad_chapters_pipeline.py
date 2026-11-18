@@ -1,5 +1,6 @@
 """Ad chapters for kept ad segments in the generate, publisher-preserve and regenerate-chapters paths."""
 import json
+import logging
 import shutil
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -655,6 +656,40 @@ def test_regenerate_aborts_when_the_episode_moves_underneath_it(app_client, seed
     row = seeded.get_episode(SLUG, EPISODE_ID)
     assert row['chapters_json'] == before
     assert 'reprocessed during chapter regeneration' in row['chapters_regen_error']
+
+
+NEWER_STAMP = '2099-01-01T00:00:00Z'
+
+
+@pytest.mark.parametrize('sql, params, stamp_after, reason', [
+    ("UPDATE episodes SET status = 'processing' WHERE episode_id = ?", (EPISODE_ID,), None,
+     'reprocessed during chapter regeneration'),
+    ("UPDATE episodes SET chapters_regen_started_at = ? WHERE episode_id = ?",
+     (NEWER_STAMP, EPISODE_ID), NEWER_STAMP, 'taken over by a newer run'),
+], ids=['reprocess', 'newer_run'])
+def test_superseded_regen_job_logs_no_error(seeded, caplog, sql, params, stamp_after, reason):
+    def supersede():
+        conn = seeded.get_connection()
+        conn.execute(sql, params)
+        conn.commit()
+
+    stamp = seeded.claim_chapters_regen(SLUG, EPISODE_ID)
+    with patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('main_app.pipeline.finalize._record_history_row') as record, \
+         patch.object(seeded, 'finish_chapters_regen',
+                      wraps=seeded.finish_chapters_regen) as finish, \
+         caplog.at_level(logging.DEBUG, logger='podcast.api'):
+        generator.return_value.chapters_degraded = False
+        generator.return_value.generate_chapters.side_effect = (
+            lambda *a, **k: supersede() or {'version': '1.2.0', 'chapters': []})
+        from api.episodes.chapters import _regenerate_chapters_job
+        _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
+    assert record.call_args.kwargs['status'] == 'failed'
+    assert reason in record.call_args.kwargs['error_message']
+    assert reason in finish.call_args.kwargs['error']
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
+    assert any('superseded' in r.getMessage() for r in caplog.records)
+    assert seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at'] == stamp_after
 
 
 def test_regenerate_merges_the_markers_as_of_the_save(app_client, seeded):

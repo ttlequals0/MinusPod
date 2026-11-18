@@ -19,12 +19,13 @@ const load = async () => ({ status: 200, body: { detections: items, total: 5, pa
 const body = async (q: string) => (await detectionsHandler(new URL(`http://x/api/v1/detections?${q}`), load))!.body as Body;
 const ids = (b: Body) => b.detections.map((r) => r.id);
 
-test('default status needs_review excludes keep-like and resolved items', async () => {
-  expect(ids(await body(''))).toEqual([2, 3]);
+test('default status needs_review is held only, excluding uncut, keep-like and resolved items', async () => {
+  expect(ids(await body(''))).toEqual([2]);
+  expect(ids(await body('status=rejected'))).toEqual([4, 3]);
 });
 test('counts overview is pre-filter but pendingByHoldReason follows status and feed', async () => {
   const b = await body('status=pending&feed=a&q=zzz');
-  expect(b.counts).toMatchObject({ total: 5, needsReview: 2, pending: 1, rejected: 2, accepted: 2, confirmed: 1, dismissed: 0 });
+  expect(b.counts).toMatchObject({ total: 5, needsReview: 1, pending: 1, rejected: 2, accepted: 2, confirmed: 1, dismissed: 0 });
   expect(b.counts.pendingByHoldReason).toEqual({ low_confidence: 1 });
   expect(b.total).toBe(0);
 });
