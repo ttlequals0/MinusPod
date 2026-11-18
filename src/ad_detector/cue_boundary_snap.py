@@ -107,6 +107,23 @@ def cue_snap_edge_limit(record: dict, edge: str) -> float | None:
     return None if value is None else value + offset
 
 
+def _start_proposal(cue, original_start: float, ad_end: float,
+                    max_shift_s: float) -> float | None:
+    """Proposed start for an accepted start cue, else None."""
+    if cue is None:
+        return None
+    removed = cue_removal_enabled(cue.details)
+    proposed = (max(0.0, cue.start - SNAP_GAP_SECONDS) if removed
+                else cue.end + SNAP_GAP_SECONDS)
+    shift = abs(proposed - original_start)
+    # Removing the cue moves the edge to its far side, so widen the
+    # cap by the cue's own length or a long sting gets rejected (#832).
+    allowed = max_shift_s + removed_cue_cap_allowance(cue.start, cue.end, removed)
+    if proposed < ad_end and 0.01 <= shift <= allowed:
+        return proposed
+    return None
+
+
 def _end_proposal(cue, original_end: float, ad_start: float, content_end,
                   max_shift_s: float):
     """(proposed_end, within_content_span) for an accepted end cue, else None."""
@@ -121,6 +138,38 @@ def _end_proposal(cue, original_end: float, ad_start: float, content_end,
     if proposed > ad_start and shift >= 0.01 and (shift <= allowed or in_span):
         return proposed, in_span
     return None
+
+
+def snap_split_edge(
+    edge: str,
+    value: float,
+    other: float,
+    cues: list,
+    max_boundary_shift_s: float,
+    snap_lead_s: float = DEFAULT_SNAP_LEAD_SECONDS,
+    snap_lag_s: float = DEFAULT_SNAP_LAG_SECONDS,
+    min_confidence: float = MIN_CUE_CONFIDENCE_FOR_SNAP,
+) -> tuple[float, dict] | None:
+    """Snap one edge that a later split created, as detection would have.
+
+    Picks and caps the cue like snap_ad_boundaries_to_cues, but moves the edge
+    only when the picked cue is removed with the ad, so the cut can take in a
+    break cue and never stops short of a kept one. ``other`` is the opposite
+    edge. Returns (new_value, snap record), or None to keep the edge.
+    """
+    cues = [c for c in cues
+            if c.confidence >= min_confidence and is_template_cue(c.details)]
+    if edge == 'start':
+        cue, n = _pick_cue_for_start(cues, value, other, snap_lead_s, snap_lag_s)
+        proposed = _start_proposal(cue, value, other, max_boundary_shift_s)
+    else:
+        cue, n = _pick_cue_for_end(cues, value, other, snap_lead_s, snap_lag_s,
+                                   exclude_ids=set())
+        proposal = _end_proposal(cue, value, other, None, max_boundary_shift_s)
+        proposed = None if proposal is None else proposal[0]
+    if proposed is None or not cue_removal_enabled(cue.details):
+        return None
+    return round(proposed, 3), snap_record(value, proposed, cue, n_candidates=n)
 
 
 def snap_ad_boundaries_to_cues(
@@ -164,31 +213,19 @@ def snap_ad_boundaries_to_cues(
             allow_transition=allow_transition,
         )
         new_start = original_start
-        if start_cue is not None:
-            start_cue_removed = cue_removal_enabled(start_cue.details)
-            proposed_start = (max(0.0, start_cue.start - SNAP_GAP_SECONDS)
-                              if start_cue_removed
-                              else start_cue.end + SNAP_GAP_SECONDS)
-            shift = abs(proposed_start - original_start)
-            # Removing the cue moves the edge to its far side, so widen the
-            # cap by the cue's own length or a long sting gets rejected (#832).
-            allowed_shift = max_boundary_shift_s + removed_cue_cap_allowance(
-                start_cue.start, start_cue.end, start_cue_removed)
-            if (
-                proposed_start < original_end
-                and shift <= allowed_shift
-                and shift >= 0.01
-            ):
-                new_start = round(proposed_start, 3)
-                new_snap['start'] = snap_record(
-                    original_start, proposed_start, start_cue, n_candidates=start_n)
-                used_cue_ids.add(id(start_cue))
-                logger.info(
-                    f"Cue snap (start): {original_start:.3f}s -> {new_start:.3f}s "
-                    f"(delta={new_start - original_start:+.3f}s, "
-                    f"cue={new_snap['start'].get('label') or 'spectral'}, "
-                    f"conf={start_cue.confidence:.2f})"
-                )
+        proposed_start = _start_proposal(start_cue, original_start, original_end,
+                                         max_boundary_shift_s)
+        if proposed_start is not None:
+            new_start = round(proposed_start, 3)
+            new_snap['start'] = snap_record(
+                original_start, proposed_start, start_cue, n_candidates=start_n)
+            used_cue_ids.add(id(start_cue))
+            logger.info(
+                f"Cue snap (start): {original_start:.3f}s -> {new_start:.3f}s "
+                f"(delta={new_start - original_start:+.3f}s, "
+                f"cue={new_snap['start'].get('label') or 'spectral'}, "
+                f"conf={start_cue.confidence:.2f})"
+            )
 
         # --- End edge ---------------------------------------------------
         content_end = ad.get('content_end')

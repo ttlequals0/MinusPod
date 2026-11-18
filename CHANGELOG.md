@@ -13,6 +13,7 @@ release notes.
 ### Fixed
 
 - A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words.
+- When a text pattern matched only its intro and the rest of its span was an estimate, the cut ended where the model measured the read, and a break cue right after the read stayed in the audio. Cue snapping runs during detection, while the end is still the estimate with no cue nearby, and the edge the split creates later was never snapped. That edge now snaps the way detection snaps the others, with the feed's snap confidence and window, but only onto a template cue removed with the ad, and never past the estimated span or into a rejected range. The held remainder then starts after the cue.
 
 ### Security
 
