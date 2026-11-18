@@ -14,6 +14,10 @@ release notes.
 
 - A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words.
 
+### Security
+
+- The CI `npm audit` step excepts GHSA-fc5q-39xc-vjpf (picomatch). The advisory covers every release up to 4.0.7, the latest, so there is no version to move to. picomatch enters the tree only through build, lint and test tooling. Every other advisory of high or critical severity still fails the step. Remove the exception once picomatch has a patched release.
+
 ## [2.102.6] - 2026-11-16
 
 ### Changed
