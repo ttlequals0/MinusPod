@@ -357,6 +357,7 @@ class SchemaMixin(DeferredUpgradeMixin):
             ('ads_removed_secondpass', 'INTEGER DEFAULT 0'),
             ('description', 'TEXT'),
             ('content_encoded', 'TEXT'),
+            ('itunes_summary', 'TEXT'),
             ('reprocess_mode', 'TEXT'),
             ('reprocess_requested_at', 'TEXT'),
             ('published_at', 'TEXT'),
@@ -693,6 +694,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             # case-insensitively; title_skip_action controls served-RSS
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
             ('title_skip_patterns', 'TEXT'),
+            # Title allowlist: when non-empty, a title matching none is skipped.
+            ('title_include_patterns', 'TEXT'),
             # Episode description blacklist (#835): same glob semantics as
             # title_skip_patterns, matched against the plain-text description.
             ('description_skip_patterns', 'TEXT'),

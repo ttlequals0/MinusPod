@@ -392,6 +392,12 @@ The shared **Skipped episodes** choice applies to title, description, and durati
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
 
+### Only include episodes by title
+
+To keep only some episodes instead of growing a skip list, add glob patterns under **Episode filters > Only include episodes by title**. When the list is not empty, an episode whose title matches none of the patterns is skipped as if it matched a skip pattern. The **Skipped episodes** choice and the manual reprocess override apply to it the same way. Skip patterns still apply on top, so a title that matches both lists is skipped. An empty list changes nothing, and an episode with no title is skipped while the list is set. Matching rules are the same as the title blacklist.
+
+API: `titleIncludePatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`. The `titleSkipped` flag on episodes is true when either title rule filters the episode.
+
 ### Skip episodes by description
 
 Add glob patterns under **Episode filters > Skip episodes by description**. Use them for phrases absent from the title, such as *This is a preview*. Matches skip automatic and just-in-time processing, as title matches do.

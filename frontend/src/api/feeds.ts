@@ -484,7 +484,7 @@ type FeedPatchKey =
   | 'processingMode' | 'cueOnlySafety' | 'skipTranscription' | 'maxEpisodes'
   | 'onlyExposeProcessedEpisodes' | 'requireManualApproval' | 'retentionDaysOverride'
   | 'keepOriginalAudioOverride' | 'audioReplacementSoundOverride' | 'audioMp3StreamCopyOverride'
-  | 'titleSkipPatterns' | 'descriptionSkipPatterns' | 'descriptionTrimPattern'
+  | 'titleSkipPatterns' | 'titleIncludePatterns' | 'descriptionSkipPatterns' | 'descriptionTrimPattern'
   | 'descriptionTrimMode' | 'titleSkipAction' | 'minDurationSeconds' | 'maxDurationSeconds'
   | 'segmentCategoryActions' | 'detectShowSegments' | 'snipShortAsks' | 'ownEpisodeGuids' | 'skipSecondPass'
   | 'transcriptDifferential';

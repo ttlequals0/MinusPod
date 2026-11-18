@@ -22,6 +22,14 @@ logger = logging.getLogger(__name__)
 
 # Busy wait for the best-effort cache fill, so a feed read never stalls behind a writer.
 _FEED_FILL_BUSY_MS = 1000
+# Upsert heals for rows that stored itunes:summary as description or a description overflow as content.
+_UPSERT_DESCRIPTION_SQL = """CASE
+                        WHEN COALESCE(episodes.description, '') = '' THEN excluded.description
+                        WHEN episodes.description = excluded.itunes_summary AND COALESCE(excluded.description, '') != ''
+                             AND excluded.description != excluded.itunes_summary THEN excluded.description
+                        ELSE episodes.description END"""
+_UPSERT_CONTENT_HEALS = ("excluded.content_encoded IS NULL AND "
+                         "episodes.content_encoded IN (excluded.itunes_summary, excluded.description)")
 _ERROR_KEYS = frozenset({'error_message', 'chapters_regen_error', 'detection_degraded'})
 _DETAIL_ERROR_JSON = frozenset({'dai_differential_json', 'upstream_transcript_json'})
 
@@ -1290,7 +1298,7 @@ class EpisodeMixin:
         cursor = conn.execute(
             f"""SELECT episode_id, title, description, published_at,
                       new_duration, episode_number, original_url, rss_duration,
-                      processed_version, processed_size_bytes, content_encoded
+                      processed_version, processed_size_bytes, content_encoded, itunes_summary
                FROM episodes
                WHERE podcast_id = ? AND status = 'processed'
                      AND processed_file IS NOT NULL
@@ -1382,6 +1390,7 @@ class EpisodeMixin:
                             "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes, "
                             "p.review_links_in_notes AS source_review_links_in_notes, "
                             "p.title_skip_patterns AS source_title_skip_patterns, "
+                            "p.title_include_patterns AS source_title_include_patterns, "
                             "p.description_skip_patterns AS source_description_skip_patterns, "
                             "p.min_duration_seconds AS source_min_duration_seconds, "
                             "p.max_duration_seconds AS source_max_duration_seconds")
@@ -1867,13 +1876,13 @@ class EpisodeMixin:
             tags_json = ep['_tags_json']
             current = existing_by_id.get(ep['id'])
             conn.execute(
-                """INSERT INTO episodes
+                f"""INSERT INTO episodes
                    (podcast_id, episode_id, original_url, title, description,
                     artwork_url, episode_number, published_at, rss_duration,
                     upstream_chapters_url, upstream_transcript_url,
                     upstream_transcript_type, tags, youtube_video_id, yt_metadata_at,
-                    content_encoded, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                    content_encoded, itunes_summary, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                    ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                     episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                     published_at = COALESCE(excluded.published_at, episodes.published_at),
@@ -1884,11 +1893,15 @@ class EpisodeMixin:
                         THEN excluded.upstream_transcript_type ELSE episodes.upstream_transcript_type END,
                     original_url = COALESCE(episodes.original_url, excluded.original_url),
                     title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
-                    description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
+                    description = {_UPSERT_DESCRIPTION_SQL},
                     artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url),
                     tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END,
                     youtube_video_id = COALESCE(episodes.youtube_video_id, excluded.youtube_video_id),
-                    content_encoded = CASE WHEN COALESCE(episodes.content_encoded, '') = '' THEN excluded.content_encoded ELSE episodes.content_encoded END
+                    content_encoded = CASE
+                        WHEN COALESCE(episodes.content_encoded, '') = '' THEN excluded.content_encoded
+                        WHEN {_UPSERT_CONTENT_HEALS} THEN NULL
+                        ELSE episodes.content_encoded END,
+                    itunes_summary = CASE WHEN COALESCE(episodes.itunes_summary, '') = '' THEN excluded.itunes_summary ELSE episodes.itunes_summary END
                    WHERE episodes.episode_number IS NOT COALESCE(episodes.episode_number, excluded.episode_number)
                       OR episodes.published_at IS NOT COALESCE(episodes.published_at, excluded.published_at)
                       OR episodes.rss_duration IS NOT COALESCE(episodes.rss_duration, excluded.rss_duration)
@@ -1898,11 +1911,13 @@ class EpisodeMixin:
                         THEN excluded.upstream_transcript_type ELSE episodes.upstream_transcript_type END
                       OR episodes.original_url IS NOT COALESCE(episodes.original_url, excluded.original_url)
                       OR episodes.title IS NOT CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END
-                      OR episodes.description IS NOT CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END
+                      OR episodes.description IS NOT {_UPSERT_DESCRIPTION_SQL}
                       OR episodes.artwork_url IS NOT COALESCE(episodes.artwork_url, excluded.artwork_url)
                       OR episodes.tags IS NOT CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END
                       OR episodes.youtube_video_id IS NOT COALESCE(episodes.youtube_video_id, excluded.youtube_video_id)
-                      OR (COALESCE(episodes.content_encoded, '') = '' AND excluded.content_encoded IS NOT NULL)""",
+                      OR (COALESCE(episodes.content_encoded, '') = '' AND excluded.content_encoded IS NOT NULL)
+                      OR ({_UPSERT_CONTENT_HEALS})
+                      OR (COALESCE(episodes.itunes_summary, '') = '' AND excluded.itunes_summary IS NOT NULL)""",  # noqa: S608
                 (
                     podcast_id,
                     ep['id'],
@@ -1922,6 +1937,7 @@ class EpisodeMixin:
                     and not MIDNIGHT_ONLY.match(iso_published)
                     and ep.get('title') not in PLACEHOLDER_TITLES.values() else None,
                     ep.get('content_encoded') or None,
+                    ep.get('itunes_summary') or None,
                 )
             )
             if ep['id'] not in existing_by_id:

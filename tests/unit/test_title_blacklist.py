@@ -12,7 +12,7 @@ _test_data_dir = bootstrap('title_blacklist_test_')
 
 from config import (
     title_matches_skip_patterns, description_matches_skip_patterns,
-    duration_outside_feed_range,
+    duration_outside_feed_range, title_filtered, episode_matches_feed_filters,
 )
 from api.episodes.core import _episode_base_json
 import main_app.feeds as feeds_mod
@@ -65,8 +65,53 @@ class TestTitleMatchesSkipPatterns:
         }
         assert _episode_base_json(
             episode,
-            title_skip_patterns=json.dumps(['weekly sponsor*']),
+            filters={'title_skip_patterns': json.dumps(['weekly sponsor*'])},
         )['titleSkipped']
+
+
+class TestTitleFiltered:
+    INCLUDE = json.dumps(['Show A*', 'Bonus *'])
+
+    def test_include_only_keeps_matching_title(self):
+        assert not title_filtered('Show A Ep 1', None, self.INCLUDE)
+
+    def test_include_only_filters_non_matching_title(self):
+        assert title_filtered('Show B Ep 1', None, self.INCLUDE)
+
+    def test_include_is_case_insensitive(self):
+        assert not title_filtered('SHOW a ep 1', None, self.INCLUDE)
+
+    def test_skip_still_applies_on_top_of_include(self):
+        skip = json.dumps(['*Rerun*'])
+        assert title_filtered('Show A Rerun', skip, self.INCLUDE)
+        assert not title_filtered('Show A Fresh', skip, self.INCLUDE)
+
+    @pytest.mark.parametrize('include', [None, '', json.dumps([]), 'not-json'])
+    def test_empty_or_missing_include_changes_nothing(self, include):
+        assert not title_filtered('Anything', None, include)
+        assert title_filtered('Skip Me', json.dumps(['Skip*']), include)
+
+    @pytest.mark.parametrize('title', [None, ''])
+    def test_missing_title_filtered_when_include_set(self, title):
+        assert title_filtered(title, None, self.INCLUDE)
+
+    def test_missing_title_kept_without_include(self):
+        assert not title_filtered(None, None, None)
+
+    def test_episode_matches_feed_filters_uses_include(self):
+        podcast = {'title_include_patterns': self.INCLUDE}
+        assert episode_matches_feed_filters({'title': 'Other'}, podcast)
+        assert not episode_matches_feed_filters({'title': 'Bonus One'}, podcast)
+
+    def test_episode_base_json_title_skipped_reflects_include(self):
+        episode = {'episode_id': 'e1', 'title': 'Other', 'status': 'discovered',
+                   'created_at': '2026-09-12T00:00:00Z', 'processed_at': None,
+                   'original_duration': None, 'new_duration': None, 'ads_removed': 0}
+        assert _episode_base_json(
+            episode, filters={'title_include_patterns': self.INCLUDE})['titleSkipped']
+        assert not _episode_base_json(
+            {**episode, 'title': 'Show A 1'},
+            filters={'title_include_patterns': self.INCLUDE})['titleSkipped']
 
 
 class TestDescriptionMatchesSkipPatterns:
@@ -124,7 +169,7 @@ class TestDescriptionMatchesSkipPatterns:
         }
         assert _episode_base_json(
             episode,
-            description_skip_patterns=json.dumps(['*this is a preview*']),
+            filters={'description_skip_patterns': json.dumps(['*this is a preview*'])},
         )['descriptionSkipped']
 
 
@@ -189,6 +234,38 @@ class TestRssGateSkipsBlacklistedTitles:
 
         queued = mock_db.queue_episodes_for_processing.call_args.args[1]
         assert [episode['episode_id'] for episode in queued] == ['ep-normal']
+
+
+class TestRssGateIncludeOnlyTitles:
+    @patch('main_app.feeds._build_and_save_served_rss')
+    @patch('main_app.feeds.pattern_service')
+    @patch('main_app.feeds.status_service')
+    @patch('main_app.feeds.storage')
+    @patch('main_app.feeds.rss_parser')
+    @patch('main_app.feeds.db')
+    def test_only_matching_titles_queued(
+            self, mock_db, mock_rss, mock_storage, mock_status,
+            mock_pattern, _build_rss):
+        from datetime import datetime, timezone
+        from email.utils import format_datetime
+
+        recent = format_datetime(datetime.now(timezone.utc))
+        podcast = {
+            'id': 1, 'etag': None, 'last_modified_header': None,
+            'artwork_cached': True,
+            'title_include_patterns': json.dumps(['Show A*']),
+        }
+        _prime_refresh(mock_db, mock_rss, mock_pattern, podcast, [
+            {'id': 'ep-other', 'url': 'https://e.test/a.mp3',
+             'title': 'Other Episode', 'description': '', 'published': recent, 'rss_duration': 120},
+            {'id': 'ep-match', 'url': 'https://e.test/b.mp3',
+             'title': 'Show A Episode', 'description': '', 'published': recent, 'rss_duration': 120},
+        ], {'ep-match'})
+
+        feeds_mod.refresh_rss_feed('show', 'https://example.com/f.xml', force=True)
+
+        queued = mock_db.queue_episodes_for_processing.call_args.args[1]
+        assert [episode['episode_id'] for episode in queued] == ['ep-match']
 
 
 class TestRssGateAutoProcessWindow:
@@ -402,7 +479,7 @@ class TestHideModeFiltersMatchingIds:
 
         result = parser.modify_feed(
             feed_content, "test-pod",
-            hide_title_patterns=json.dumps(['Blacklisted*']))
+            hide_filters={'title_skip_patterns': json.dumps(['Blacklisted*'])})
 
         assert 'Episode A' in result
         assert 'Episode C' in result
@@ -412,7 +489,7 @@ class TestHideModeFiltersMatchingIds:
         parser = RSSParser(base_url="https://podsrv.example.test")
         feed_content = _build_rss_with_titles(['Episode A', 'Blacklisted Episode'])
 
-        result = parser.modify_feed(feed_content, "test-pod", hide_title_patterns=None)
+        result = parser.modify_feed(feed_content, "test-pod", hide_filters=None)
 
         assert 'Episode A' in result
         assert 'Blacklisted Episode' in result
@@ -445,10 +522,41 @@ class TestHideModeFiltersMatchingIds:
 """
         result = parser.modify_feed(
             feed_content, "test-pod",
-            hide_description_patterns=json.dumps(['*This is a preview*']))
+            hide_filters={'description_skip_patterns': json.dumps(['*This is a preview*'])})
 
         assert 'Episode 0' in result
         assert 'Episode 1' not in result
+
+    def test_hide_title_include_patterns_drops_non_matching_entries(self):
+        parser = RSSParser(base_url="https://podsrv.example.test")
+        feed_content = _build_rss_with_titles(['Show A One', 'Other Two', 'Show A Three'])
+
+        result = parser.modify_feed(
+            feed_content, "test-pod",
+            hide_filters={'title_include_patterns': json.dumps(['Show A*'])})
+
+        assert 'Show A One' in result
+        assert 'Show A Three' in result
+        assert 'Other Two' not in result
+
+    def test_hide_title_include_patterns_drops_db_appended_extra_episodes(self):
+        parser = RSSParser(base_url="https://podsrv.example.test")
+        feed_content = _build_rss_with_titles(['Show A One'])
+        extra_episodes = [
+            {'episode_id': 'extra-1', 'title': 'Other Extra',
+             'description': '', 'published_at': '2025-01-01T00:00:00Z',
+             'new_duration': 100.0, 'episode_number': None},
+            {'episode_id': 'extra-2', 'title': 'Show A Extra',
+             'description': '', 'published_at': '2025-01-01T00:00:00Z',
+             'new_duration': 100.0, 'episode_number': None},
+        ]
+
+        result = parser.modify_feed(
+            feed_content, "test-pod", extra_episodes=extra_episodes,
+            hide_filters={'title_include_patterns': json.dumps(['Show A*'])})
+
+        assert 'Show A Extra' in result
+        assert 'Other Extra' not in result
 
     def test_hide_title_patterns_excludes_db_appended_extra_episodes(self):
         parser = RSSParser(base_url="https://podsrv.example.test")
@@ -464,7 +572,7 @@ class TestHideModeFiltersMatchingIds:
 
         result = parser.modify_feed(
             feed_content, "test-pod", extra_episodes=extra_episodes,
-            hide_title_patterns=json.dumps(['Blacklisted*']))
+            hide_filters={'title_skip_patterns': json.dumps(['Blacklisted*'])})
 
         assert 'Kept Extra' in result
         assert 'Blacklisted Extra' not in result
@@ -504,7 +612,7 @@ def test_duration_filter_hides_upstream_and_appended_using_rss_duration():
         'rss_duration': 30, 'episode_number': None,
     }]
     result = parser.modify_feed(content, 'example-podcast', extra_episodes=extras,
-                                hide_min_duration_seconds=60)
+                                hide_filters={'min_duration_seconds': 60})
     assert '<title>Short</title>' not in result
     assert 'Short processed' not in result
     assert '<title>Kept</title>' in result

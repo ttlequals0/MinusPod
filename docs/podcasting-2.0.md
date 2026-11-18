@@ -166,7 +166,8 @@ or unset to follow the global setting).
 
 When a feed keeps its full show notes in `content:encoded`, MinusPod serves
 them as `content:encoded` with the same chapter block and timestamp shift,
-while `description` keeps the feed's short summary.
+while `description` keeps the feed's short summary. An item's `itunes:summary`
+is served unchanged, without the chapter block or the timestamp shift.
 
 ### Review links in episode descriptions
 

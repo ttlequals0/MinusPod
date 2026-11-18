@@ -173,7 +173,7 @@ class TestFeedWithoutChannel:
     def test_atom_feed_parses_episodes_without_transcript_fields(self):
         parser = RSSParser()
         assert parser.find_channel_element(ATOM_FEED) is None
-        assert parser._parse_upstream_transcript_tags(None) == ([], {})
+        assert parser._parse_raw_items(None) == ([], {})
         episodes = parser.extract_episodes(ATOM_FEED)
         assert [e['url'] for e in episodes] == ['https://example.com/one.mp3']
         assert episodes[0]['upstream_transcript_url'] is None

@@ -8,7 +8,7 @@ from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
 from storage import PathContainmentError, Storage
 from text_pattern_matcher import split_template_text
 from utils.markers import own_marker_span, usable_span
-from utils.text import extract_timed_spans_in_range
+from utils.text import collapse_whitespace as _norm, extract_timed_spans_in_range
 
 logger = logging.getLogger('podcast.pattern_audio')
 
@@ -116,10 +116,6 @@ def _find_text(joined, template, after, fuzzy):
     if alignment is None or alignment.dest_end <= alignment.dest_start:
         return None
     return after + alignment.dest_start, after + alignment.dest_end
-
-
-def _norm(text):
-    return ' '.join((text or '').split())
 
 
 def _timed_words(db, slug, episode_id, start, end):

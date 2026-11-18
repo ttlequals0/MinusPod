@@ -110,6 +110,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Episode title blacklist: JSON array of case-insensitive glob patterns.
     -- A matching episode is never queued or JIT-processed.
     title_skip_patterns TEXT,
+    -- Episode title allowlist: JSON array of glob patterns; when set, a title
+    -- matching none of them is filtered like a title skip match.
+    title_include_patterns TEXT,
     -- Episode description blacklist (#835): same glob semantics as
     -- title_skip_patterns, matched against the plain-text description.
     description_skip_patterns TEXT,
@@ -172,6 +175,8 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     description TEXT,
     -- Full show notes from <content:encoded>, served as content:encoded (#969).
     content_encoded TEXT,
+    -- Upstream item-level <itunes:summary>, passed through as itunes:summary.
+    itunes_summary TEXT,
     status TEXT DEFAULT 'pending' CHECK(status IN ('discovered','pending','processing','processed','failed','permanently_failed','deferred')),
     retry_count INTEGER DEFAULT 0,
     processed_file TEXT,

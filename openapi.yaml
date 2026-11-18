@@ -1068,6 +1068,16 @@ paths:
                     maxLength: 200
                   maxItems: 50
                   description: Per-feed episode title blacklist. Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
+                titleIncludePatterns:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  maxItems: 50
+                  description: Per-feed episode title allowlist with the same pattern rules as titleSkipPatterns. When non-empty, an episode whose title matches none of the patterns is skipped exactly like a titleSkipPatterns match; skip patterns still apply on top. Null or an empty array clears the allowlist.
                 descriptionTrimPattern:
                   type: [string, 'null']
                   minLength: 1
@@ -15797,6 +15807,11 @@ components:
           items:
             type: string
           description: Per-feed episode title blacklist, always an array (empty when unset). Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+        titleIncludePatterns:
+          type: array
+          items:
+            type: string
+          description: Per-feed episode title allowlist, always an array (empty when unset). Same pattern rules as titleSkipPatterns. When non-empty, an episode whose title matches none of the patterns is skipped like a title skip match.
         descriptionSkipPatterns:
           type: array
           items:
@@ -16179,7 +16194,7 @@ components:
           description: When a person or a recut approved the episode. Null for episodes that never needed approval.
         titleSkipped:
           type: boolean
-          description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+          description: Whether the episode title is filtered by this feed's title skip or include patterns and is ineligible for the bulk Process action.
         descriptionSkipped:
           type: boolean
           description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
@@ -16300,7 +16315,7 @@ components:
           description: When a person or a recut approved the episode. Null for episodes that never needed approval.
         titleSkipped:
           type: boolean
-          description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+          description: Whether the episode title is filtered by this feed's title skip or include patterns and is ineligible for the bulk Process action.
         descriptionSkipped:
           type: boolean
           description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.

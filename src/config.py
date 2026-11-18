@@ -479,6 +479,13 @@ def title_matches_skip_patterns(title, patterns_json):
     return _matches_skip_patterns(title, patterns_json)
 
 
+def title_filtered(title, skip_json, include_json):
+    """True when the title matches a skip pattern, or matches no pattern of a non-empty include list."""
+    if title_matches_skip_patterns(title, skip_json):
+        return True
+    return bool(_parsed_skip_patterns(include_json)) and not _matches_skip_patterns(title, include_json)
+
+
 def _description_plain_text(description):
     """Description HTML reduced to lowercase-ready plain text for matching."""
     from utils.prompt import strip_html  # lazy: utils imports audio, which imports config
@@ -508,7 +515,8 @@ def duration_outside_feed_range(duration, podcast):
 def episode_matches_feed_filters(episode, podcast):
     """Apply title, description, and RSS-duration exclusions without downloading audio."""
     podcast = podcast or {}
-    return (title_matches_skip_patterns(episode.get('title'), podcast.get('title_skip_patterns'))
+    return (title_filtered(episode.get('title'), podcast.get('title_skip_patterns'),
+                           podcast.get('title_include_patterns'))
             or description_matches_skip_patterns(episode.get('description'), podcast.get('description_skip_patterns'))
             or duration_outside_feed_range(episode.get('rss_duration'), podcast))
 

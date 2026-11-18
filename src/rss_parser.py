@@ -7,6 +7,8 @@ import os
 import re
 import threading
 import time
+from functools import lru_cache
+from typing import NamedTuple
 from audio_processor import get_replacement_duration
 from chapter_notes import compose_item_description
 from review_links import append_review_links
@@ -27,7 +29,7 @@ from defusedxml.ElementTree import fromstring as defused_fromstring
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
-from utils.text import is_timezone_drift, normalize_title_for_match
+from utils.text import collapse_whitespace, is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
@@ -261,6 +263,30 @@ _HTML_VOID_ELEMENTS = frozenset({
 })
 
 _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+_CONTENT_NS = "http://purl.org/rss/1.0/modules/content/"
+
+
+@lru_cache(maxsize=256)
+def _sanitized_collapsed(text) -> str:
+    """Whitespace-collapsed sanitized text, cached so each description is sanitized once."""
+    return collapse_whitespace(_sanitize_feed_html(text))
+
+
+class RawItem(NamedTuple):
+    """One raw <item>: matching keys, transcripts and the first non-blank text elements."""
+    transcripts: list
+    guid: str | None
+    enclosure_url: str | None
+    description: object
+    content: object
+    itunes_summary: object
+
+
+_RAW_ITEM_FIELD_TAGS = {
+    'description': 'description',
+    '{' + _CONTENT_NS + '}encoded': 'content',
+    '{' + _ITUNES_NS + '}summary': 'itunes_summary',
+}
 # Keeps directories from indexing the feed and stops app-side matching to the public show.
 ITUNES_BLOCK_LINE = '<itunes:block>Yes</itunes:block>'
 
@@ -326,7 +352,7 @@ def _best_upstream_transcript_tag(tags):
 
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
-RSS_RENDER_VERSION = 4
+RSS_RENDER_VERSION = 5
 
 
 def item_body_html(raw, *, slug, episode_id, cuts, notes, replacement_duration,
@@ -706,10 +732,8 @@ class RSSParser:
         return unknown
 
     @staticmethod
-    def _parse_upstream_transcript_tags(channel):
-        """Preserve all transcript tags, indexed by item position and unambiguous GUID/URL.
-
-        Returns (positional, by_key); positional holds (transcripts, guid, enclosure_url) tuples."""
+    def _parse_raw_items(channel):
+        """Raw item records (transcripts, guid, enclosure_url, text fields) by position and unambiguous key."""
         positional: list = []
         by_key: dict = {}
         ambiguous_keys: set = set()
@@ -723,8 +747,12 @@ class RSSParser:
             transcripts = []
             guid_text = None
             enclosure_url = None
+            elements = {}
             for elem in item:
                 elem_tag = getattr(elem, 'tag', '')
+                field = _RAW_ITEM_FIELD_TAGS.get(elem_tag)
+                if field and field not in elements and ((elem.text or '').strip() or len(elem)):
+                    elements[field] = elem
                 if elem_tag == 'guid':
                     guid_text = (elem.text or '').strip()
                 elif elem_tag == 'enclosure':
@@ -733,7 +761,9 @@ class RSSParser:
                     url = elem.get('url')
                     if url:
                         transcripts.append((url, elem.get('type') or ''))
-            positional.append((transcripts, guid_text, enclosure_url))
+            record = RawItem(transcripts, guid_text, enclosure_url, elements.get('description'),
+                             elements.get('content'), elements.get('itunes_summary'))
+            positional.append(record)
             for key in (guid_text, enclosure_url):
                 if not key:
                     continue
@@ -743,13 +773,14 @@ class RSSParser:
                     ambiguous_keys.add(key)
                     del by_key[key]
                 else:
-                    by_key[key] = transcripts
+                    by_key[key] = record
         return positional, by_key
 
     @staticmethod
     def _positional_alignment_holds(positional, entries) -> bool:
         """Check raw-item GUIDs and enclosure URLs against feedparser order, not just item count."""
-        for (_, guid_text, enclosure_url), entry in zip(positional, entries, strict=True):
+        for raw, entry in zip(positional, entries, strict=True):
+            guid_text, enclosure_url = raw.guid, raw.enclosure_url
             entry_guid = entry.get('id') or ''
             entry_enclosure = ''
             for enclosure in entry.get('enclosures', []):
@@ -761,6 +792,22 @@ class RSSParser:
             if enclosure_url and entry_enclosure and enclosure_url != entry_enclosure:
                 return False
         return True
+
+    @staticmethod
+    def _match_raw_items(channel, entries) -> list:
+        """RawItem per feedparser entry (None when unmatched), by position else unambiguous guid/enclosure key.
+
+        Position wins because duplicate guids defeat keys; keys cover a count mismatch.
+        """
+        positional, by_key = RSSParser._parse_raw_items(channel)
+        if len(positional) == len(entries) and RSSParser._positional_alignment_holds(positional, entries):
+            return list(positional)
+        records = []
+        for entry in entries:
+            audio_url = next((e.get('href', '') for e in entry.get('enclosures', [])
+                              if 'audio' in e.get('type', '')), '')
+            records.append(by_key.get(entry.get('id', '')) or by_key.get(audio_url))
+        return records
 
     @staticmethod
     def find_channel_element(feed_content):
@@ -1011,12 +1058,9 @@ class RSSParser:
                     watermark_artwork: bool = False,
                     feed_auth_key: str | None = None,
                     own_episode_guids: bool = False,
-                    hide_title_patterns: str | None = None,
+                    hide_filters: dict | None = None,
                     chapter_notes: dict[str, str] | None = None,
                     applied_cuts: dict[str, str] | None = None,
-                    hide_min_duration_seconds: float | None = None,
-                    hide_max_duration_seconds: float | None = None,
-                    hide_description_patterns: str | None = None,
                     review_link_ids: set[str] | None = None,
                     itunes_block: bool = False,
                     podcasting2_flags: dict[str, tuple[bool, bool]] | None = None) -> str:
@@ -1049,10 +1093,8 @@ class RSSParser:
                 singleton is shared across refresh worker threads.
             own_episode_guids: When True, item GUIDs are the MinusPod episode ids
                 (isPermaLink="false") instead of upstream entry ids (#598), matching DB-appended items.
-            hide_title_patterns: JSON array of glob patterns (title_skip_action 'hide'); matching
-                entries, upstream and DB-appended, are dropped from the served feed.
-            hide_description_patterns: Same as hide_title_patterns, matched
-                against the plain-text description instead (#835).
+            hide_filters: Feed filter row (title_skip_action 'hide'); entries it filters, upstream
+                and DB-appended, are dropped from the served feed.
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -1065,7 +1107,7 @@ class RSSParser:
         lines.append(f'<!-- minuspod-rss-render-version:{RSS_RENDER_VERSION} -->')
         lines.append('<rss version="2.0" '
                      'xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
-                     'xmlns:content="http://purl.org/rss/1.0/modules/content/" '
+                     f'xmlns:content="{_CONTENT_NS}" '
                      f'xmlns:podcast="{_PODCAST_NS_CANONICAL}">')
         lines.append('<channel>')
 
@@ -1126,17 +1168,13 @@ class RSSParser:
         # Pocket Casts and other apps may reject very large feeds (>1MB)
         max_episodes = max(1, min(max_episodes, 500))
         entries = feed.entries[:max_episodes]
+        # Matched against the full list: alignment depends on every raw item, not the capped slice.
+        raw_items = self._match_raw_items(channel_elem, feed.entries)
 
         if len(feed.entries) > max_episodes:
             logger.debug(f"[{slug}] Limiting feed from {len(feed.entries)} to {max_episodes} episodes")
 
         # Process each episode from RSS
-        hide_filters = {
-            'title_skip_patterns': hide_title_patterns,
-            'description_skip_patterns': hide_description_patterns,
-            'min_duration_seconds': hide_min_duration_seconds,
-            'max_duration_seconds': hide_max_duration_seconds,
-        }
         included_episode_ids = set()
         review_link_ids = review_link_ids or set()
         processed_meta = {
@@ -1162,7 +1200,7 @@ class RSSParser:
             if pub_dt and title_key:
                 db_title_dates.setdefault(title_key, []).append(pub_dt)
         suppressed_upstream_duplicates = 0
-        for entry in entries:
+        for entry_index, entry in enumerate(entries):
             episode_url = None
             # Find audio URL in enclosures
             for enclosure in entry.get('enclosures', []):
@@ -1178,9 +1216,11 @@ class RSSParser:
             episode_id = self.generate_episode_id(episode_url, entry.get('id'))
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
+            raw_item = raw_items[entry_index]
+            raw_description, itunes_summary = self._resolve_item_text(entry, raw_item)
             if episode_matches_feed_filters({
                     'title': entry.get('title'),
-                    'description': self._get_episode_description(entry),
+                    'description': raw_description,
                     'rss_duration': self._parse_itunes_duration(entry.get('itunes_duration')),
             }, hide_filters):
                 continue
@@ -1194,7 +1234,6 @@ class RSSParser:
             cuts = (applied_cuts or {}).get(episode_id)
             notes = (chapter_notes or {}).get(episode_id)
             has_links = episode_id in review_link_ids
-            raw_description = self._get_episode_description(entry)
             # feedparser sanitized both at parse time; stored notes are sanitized again because rows are served without re-parsing.
             description = item_body_html(
                 raw_description, slug=slug, episode_id=episode_id, cuts=cuts, notes=notes,
@@ -1203,11 +1242,13 @@ class RSSParser:
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
             content_line = content_encoded_line(
-                self._get_episode_content(entry, raw_description), slug=slug,
+                self._resolve_item_content(entry, raw_item, raw_description), slug=slug,
                 episode_id=episode_id, cuts=cuts, notes=notes,
                 replacement_duration=replacement_duration, review_links=has_links)
             if content_line:
                 lines.append(content_line)
+            if itunes_summary.strip():
+                lines.append(f'  <itunes:summary>{self._escape_xml(itunes_summary)}</itunes:summary>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             # Per-feed GUID scheme (#598): our stable episode id matches the
             # DB-appended items; otherwise upstream's id passes through.
@@ -1392,6 +1433,8 @@ class RSSParser:
             replacement_duration=replacement_duration, review_links=review_links)
         if content_line:
             lines.append(content_line)
+        if (ep.get('itunes_summary') or '').strip():
+            lines.append(f'  <itunes:summary>{self._escape_xml(ep["itunes_summary"])}</itunes:summary>')
         size = ep.get('processed_size_bytes')
         length_attr = f' length="{int(size)}"' if size else ''
         lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg"{length_attr} />')
@@ -1454,6 +1497,57 @@ class RSSParser:
             if t.endswith('/html') or t.endswith('xhtml'):
                 return v
         return values[-1][1] if values else ''
+
+    @staticmethod
+    def _same_text(value, *others) -> bool:
+        """Whitespace-insensitive match of value against any other, raw first then sanitized."""
+        target = collapse_whitespace(value)
+        return bool(target) and any(
+            target == collapse_whitespace(o) or target == _sanitized_collapsed(o) for o in others)
+
+    @staticmethod
+    def _elem_text(elem) -> str:
+        """Stripped inner markup of a raw element, '' when absent."""
+        return RSSParser._inner_markup(elem).strip() if elem is not None else ''
+
+    @staticmethod
+    def _resolve_item_text(entry, raw) -> tuple[str, str]:
+        """(description, itunes_summary) for an entry.
+
+        feedparser folds <description> and <itunes:summary> into one summary slot, so with a raw
+        item each comes from its own element. raw is None (Atom, no channel, unmatched) keeps feedparser's view.
+        """
+        description = RSSParser._get_episode_description(entry)
+        if raw is None:
+            return description, ''
+        itunes_summary = RSSParser._elem_text(raw.itunes_summary)
+        raw_description = RSSParser._elem_text(raw.description)
+        if (raw_description and itunes_summary and raw_description != itunes_summary
+                and RSSParser._same_text(entry.get('description') or '', itunes_summary)):
+            description = _sanitize_feed_html(raw_description)
+        return description, itunes_summary
+
+    @staticmethod
+    def _resolve_item_content(entry, raw, description) -> str:
+        """<content:encoded> HTML for an entry, never the itunes:summary or a description overflow."""
+        if raw is None:
+            return RSSParser._get_episode_content(entry, description)
+        raw_content = RSSParser._elem_text(raw.content)
+        raw_description = RSSParser._elem_text(raw.description)
+        itunes_summary = RSSParser._elem_text(raw.itunes_summary)
+        # No description, summary or subtitle: the description fell back to the content.
+        if not raw_content or not (raw_description or itunes_summary
+                                   or (entry.get('subtitle') or '').strip()):
+            return ''
+        if RSSParser._same_text(raw_content, raw_description, description):
+            return ''
+        for item in entry.get('content') or []:
+            kind = str(item.get('type') or '').lower()
+            value = item.get('value') or ''
+            if ((kind.endswith('/html') or kind.endswith('xhtml')) and value.strip()
+                    and not RSSParser._same_text(value, raw_description, itunes_summary)):
+                return value
+        return raw_content
 
     @staticmethod
     def _get_episode_content(entry, description=None) -> str:
@@ -1794,14 +1888,7 @@ class RSSParser:
 
         if channel is None:
             channel = self.find_channel_element(feed_content)
-        transcript_positional, transcript_tags_by_key = \
-            self._parse_upstream_transcript_tags(channel)
-        # Position is the primary match (immune to duplicate guids); the keyed
-        # fallback applies when the raw item count disagrees with feedparser's,
-        # or a count match turns out coincidental (guid/enclosure disagree).
-        transcripts_by_position = (
-            len(transcript_positional) == len(feed.entries)
-            and self._positional_alignment_holds(transcript_positional, feed.entries))
+        raw_items = self._match_raw_items(channel, feed.entries)
 
         episodes = []
         for entry_index, entry in enumerate(feed.entries):
@@ -1846,11 +1933,8 @@ class RSSParser:
                 # best type among this entry's raw-XML tags.
                 upstream_transcript_url = None
                 upstream_transcript_type = None
-                if transcripts_by_position:
-                    transcript_tags = transcript_positional[entry_index][0]
-                else:
-                    transcript_tags = (transcript_tags_by_key.get(entry.get('id', ''))
-                                        or transcript_tags_by_key.get(episode_url))
+                raw_item = raw_items[entry_index]
+                transcript_tags = raw_item.transcripts if raw_item else None
                 if transcript_tags:
                     best = _best_upstream_transcript_tag(transcript_tags)
                     if best:
@@ -1870,14 +1954,16 @@ class RSSParser:
                 except Exception as e:
                     logger.warning(f"Episode iTunes category mapping failed: {e}")
 
-                description = self._get_episode_description(entry)
+                description, itunes_summary = self._resolve_item_text(entry, raw_item)
+                content_encoded = self._resolve_item_content(entry, raw_item, description)
                 episodes.append({
                     'id': self.generate_episode_id(episode_url, entry.get('id', '')),
                     'url': episode_url,
                     'title': entry.get('title', 'Unknown'),
                     'published': entry.get('published', ''),
                     'description': description,
-                    'content_encoded': self._get_episode_content(entry, description),
+                    'content_encoded': content_encoded,
+                    'itunes_summary': itunes_summary,
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
                     'rss_duration': rss_duration,

@@ -8,6 +8,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Feeds have a new episode filter, "Only include episodes by title" (`titleIncludePatterns` on `PATCH /feeds/{slug}`). When the list has patterns, an episode whose title matches none of them is skipped the same way a title skip match is. It is not processed automatically, and the Skipped episodes setting decides whether it stays in the served feed. Skip patterns still apply to the episodes the list lets through. Config export and import carry the list. (#1033)
+
+### Fixed
+
+- An episode with a `<description>` and an `<itunes:summary>` but no `<content:encoded>` was served with the summary text in a `<content:encoded>` tag and without its `<itunes:summary>`. When the summary came before the description in the upstream item, the summary was served as the description and the real description as `<content:encoded>`. Each tag now keeps its own text, and the item's `<itunes:summary>` is passed through. Episodes stored with the wrong text are corrected on the next feed refresh. (#1032)
+- The remove button on a pattern or tag chip was 10 px wide on a touch-screen tablet. It is now 44 by 44 px on every touch device.
+
 ## [2.102.9] - 2026-11-18
 
 ### Fixed

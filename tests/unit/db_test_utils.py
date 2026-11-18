@@ -12,6 +12,24 @@ def _seed(temp_db, slug='origin-test', episode_id='a1b2c3d4e5f6', transcript=Non
     return temp_db.get_podcast_by_slug(slug)['id'], episode_id
 
 
+def assert_column_migrated(db, table, column):
+    """Drop a column, rerun the schema migrations, and assert it returns as NULL with other rows intact."""
+    _seed(db)
+    conn = db.get_connection()
+    cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})") if r[1] != column]
+    keep = ', '.join(cols)
+    conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+    conn.commit()
+    before = conn.execute(f"SELECT {keep} FROM {table}").fetchall()  # noqa: S608
+    assert before
+
+    db._run_schema_migrations()
+
+    assert column in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    assert conn.execute(f"SELECT {keep} FROM {table}").fetchall() == before  # noqa: S608
+    assert {r[0] for r in conn.execute(f"SELECT {column} FROM {table}")} == {None}  # noqa: S608
+
+
 def _rebuild_pre_migration_shape(conn):
     """Rebuild ad_patterns and pattern_corrections in the v2.1.x shape, with seeded sponsors cleared."""
     conn.execute("PRAGMA foreign_keys = OFF")

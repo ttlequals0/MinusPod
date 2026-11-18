@@ -151,12 +151,12 @@ def test_summary_stays_in_description_and_notes_go_to_content_encoded():
     assert '<script' not in content
 
 
-def test_summary_description_and_content_encoded_keep_full_notes():
+def test_description_summary_and_content_encoded_each_keep_their_own_value():
     feed = NOTES_FEED.replace(
         '<content:encoded>', '<description>Plain desc</description>\n<content:encoded>')
     xml = _links_feed([], xml=feed)
-    assert '<description><![CDATA[Short summary' in xml
-    assert 'Plain desc' not in xml
+    assert '<description><![CDATA[Plain desc' in xml
+    assert '<itunes:summary>Short summary</itunes:summary>' in xml
     assert '<content:encoded><![CDATA[<p>05:00 Topic</p>' in xml
 
 

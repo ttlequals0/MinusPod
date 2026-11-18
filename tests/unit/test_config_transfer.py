@@ -597,6 +597,24 @@ def test_description_skip_patterns_survives_export_import_round_trip(temp_db, mo
     assert json.loads(restored['description_skip_patterns']) == ['*This is a preview*']
 
 
+def test_title_include_patterns_survives_export_import_round_trip(temp_db, monkeypatch):
+    db = temp_db
+    db.create_podcast('include-feed', 'https://example.com/feed.xml', 'Show')
+    db.update_podcast('include-feed', title_include_patterns='["Show A*", "Bonus *"]')
+    exported = config_transfer.export_config(db, '2.98.2')
+    feed = next(f for f in exported['feeds'] if f['slug'] == 'include-feed')
+    assert feed['settings']['title_include_patterns'] == ['Show A*', 'Bonus *']
+    db.update_podcast('include-feed', title_include_patterns=None)
+    preview = config_transfer.build_preview(db, exported, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+
+    config_transfer.apply_config(
+        db, exported, 'everything', None, preview['previewToken'])
+
+    restored = db.get_podcast_by_slug('include-feed')
+    assert json.loads(restored['title_include_patterns']) == ['Show A*', 'Bonus *']
+
+
 @pytest.mark.parametrize('secret_key', [
     'openrouter_api_key', 'secondary_provider_api_key', 'whisper_api_key',
     'failover_llm_api_key', 'failover_whisper_api_key', 'podcast_index_api_key',

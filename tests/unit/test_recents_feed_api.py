@@ -155,6 +155,15 @@ def test_episode_list_for_recents_uses_source_title_skip_patterns(client):
     assert body['episodes'][0]['titleSkipped'] is True
 
 
+def test_episode_list_for_recents_uses_source_title_include_patterns(client):
+    db = _seed_alpha_episode(client)
+    db.update_podcast('alpha', title_include_patterns='["nomatch*"]')
+
+    body = client.get(f'/api/v1/feeds/{RECENTS_SLUG}/episodes?limit=10').get_json()
+
+    assert body['episodes'][0]['titleSkipped'] is True
+
+
 def test_other_feeds_cannot_take_the_recents_slug(client):
     resp = client.post('/api/v1/feeds', json={'feedType': 'local', 'title': 'Recents'}, headers=_csrf(client))
     assert resp.status_code == 400

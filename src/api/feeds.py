@@ -449,6 +449,10 @@ def _normalize_title_skip_patterns(value):
     return _normalize_skip_patterns(value, 'titleSkipPatterns')
 
 
+def _normalize_title_include_patterns(value):
+    return _normalize_skip_patterns(value, 'titleIncludePatterns')
+
+
 def _normalize_description_skip_patterns(value):
     return _normalize_skip_patterns(value, 'descriptionSkipPatterns')
 
@@ -942,6 +946,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_skip_patterns(podcast.get('title_skip_patterns')),
+        'titleIncludePatterns': _deserialize_skip_patterns(podcast.get('title_include_patterns')),
         'descriptionSkipPatterns': _deserialize_skip_patterns(podcast.get('description_skip_patterns')),
         'descriptionTrimPattern': podcast.get('description_trim_pattern'),
         'descriptionTrimMode': podcast.get('description_trim_mode') or TO_END,
@@ -1102,8 +1107,7 @@ def _sort_podcasts(podcasts: list[dict], sort_by: str, sort_dir: str) -> list[di
 
 
 def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
-                          title_skip_patterns=None, description_skip_patterns=None,
-                          duration_filters=None) -> dict:
+                          filters=None) -> dict:
     """Bounded per-feed episode projection for the /feeds listing.
 
     Reuses the episode-list serializer so the dashboard matches /feeds/<slug>/episodes.
@@ -1111,9 +1115,7 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
     """
     base = _episode_base_json(
         ep, slug=slug, is_local=is_local, storage=storage,
-        title_skip_patterns=title_skip_patterns,
-        description_skip_patterns=description_skip_patterns,
-        duration_filters=duration_filters)
+        filters=filters)
     description = ep.get('description')
     return {
         'id': base['id'],
@@ -1211,9 +1213,7 @@ def list_feeds():
                 _episode_summary_json(
                     ep, slug=podcast['slug'], is_local=is_local_feed(podcast),
                     storage=storage, job_states=job_states,
-                    title_skip_patterns=podcast.get('title_skip_patterns'),
-                    description_skip_patterns=podcast.get('description_skip_patterns'),
-                    duration_filters=podcast)
+                    filters=podcast)
                 for ep in latest_by_podcast.get(podcast['id'], [])
             ]
         feeds.append(feed_json)
@@ -2219,6 +2219,12 @@ def update_feed(slug):
             return error_response(patterns_err, 400)
         updates['title_skip_patterns'] = patterns_val
 
+    if 'titleIncludePatterns' in data:
+        include_val, include_err = _normalize_title_include_patterns(data['titleIncludePatterns'])
+        if include_err:
+            return error_response(include_err, 400)
+        updates['title_include_patterns'] = include_val
+
     if 'descriptionSkipPatterns' in data:
         desc_patterns_val, desc_patterns_err = _normalize_description_skip_patterns(
             data['descriptionSkipPatterns'])
@@ -2403,6 +2409,7 @@ def update_feed(slug):
                 or 'title_override' in updates or 'description_override' in updates
                 or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
+                or 'title_include_patterns' in updates
                 or 'description_skip_patterns' in updates
                 or 'title_skip_action' in updates
                 or 'min_duration_seconds' in updates or 'max_duration_seconds' in updates

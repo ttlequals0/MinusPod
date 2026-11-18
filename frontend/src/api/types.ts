@@ -166,6 +166,8 @@ export interface Feed {
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];
+  // Per-feed title allowlist: when non-empty, a title matching none is skipped like a title skip match.
+  titleIncludePatterns?: string[];
   // Per-feed episode description blacklist (#835): fnmatch glob patterns matched
   // against the plain-text description. A match is never queued or JIT-processed.
   descriptionSkipPatterns?: string[];
