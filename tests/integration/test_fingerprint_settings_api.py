@@ -129,6 +129,8 @@ def test_config_import_applies_and_validates_the_keys(app_client, monkeypatch):
     from api import get_database
     db = get_database()
     monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_a: [])
+    # The import applies provider settings, which starts a pricing fetch thread.
+    monkeypatch.setattr('api.settings.provider_phases.force_refresh_pricing', lambda: None)
     document = config_transfer.export_config(db, '0.0.0-source')
     document['settings'].update({'fingerprint_min_coverage': 0.8, 'fingerprint_enabled': False})
     preview = config_transfer.build_preview(db, document, 'global')
