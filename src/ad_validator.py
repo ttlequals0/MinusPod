@@ -81,6 +81,8 @@ from utils.short_asks import floor_for
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
+from ad_detector.cue_boundary_snap import snap_split_edge
+from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 
@@ -369,7 +371,8 @@ class AdValidator:
                  max_ad_duration_confirmed: float = MAX_AD_DURATION_CONFIRMED,
                  podcast_name: str = None,
                  transcript_spans: list[dict] = None,
-                 loop_runs: list[tuple[float, float, int]] = None):
+                 loop_runs: list[tuple[float, float, int]] = None,
+                 cue_snap_settings: dict | None = None):
         """Initialize validator.
 
         episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
@@ -385,6 +388,8 @@ class AdValidator:
         above which an ad needs a confirmed sponsor (per feed); max_ad_duration_confirmed the length above which even
         that does not help. transcript_spans are upstream transcript gaps (original timeline). loop_runs are the
         Whisper repetition runs of segments when the caller already computed them; found here when None.
+        cue_snap_settings are the feed's cue snap knobs (snap_split_edge keywords); with them, an edge an
+        estimated-span split creates snaps onto a removed break cue the way detection snaps the others.
         """
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
@@ -410,6 +415,7 @@ class AdValidator:
         self.differential_corr_max = differential_corr_max
         self.sponsor_service = sponsor_service
         self.transcript_spans = transcript_spans or []
+        self.cue_snap_settings = cue_snap_settings
         # A per-feed override or a pair stored before the API cross-check
         # existed can invert the two; confirming a sponsor must never lower
         # an ad's ceiling.
@@ -1794,6 +1800,8 @@ class AdValidator:
                 lo = ad['start']
             if is_template_cue(snaps.get('end')):
                 hi = ad['end']
+            # Detection snapped the estimated edges; the edges this split creates snap here.
+            lo, hi, split_snaps = self._snap_split_edges(ad, lo, hi, barriers)
             if (lo, hi) == (ad['start'], ad['end']):
                 cut = ad
             else:
@@ -1827,11 +1835,56 @@ class AdValidator:
                     f"{ad['end']:.1f}s: cut {lo:.1f}s-{hi:.1f}s, "
                     f"held {', '.join(remainder_spans) or 'none'}{silent_spans}"
                 )
+            if split_snaps:
+                cut['cue_snap'] = {**(cut.get('cue_snap') or {}), **split_snaps}
             cut.pop('has_estimated_pattern_member', None)
             cut.pop('span_estimated', None)
             out.append(cut)
         out.sort(key=lambda a: a['start'])
         return out
+
+    def _snap_split_edges(self, ad: dict, lo: float, hi: float,
+                          barriers: list[tuple[float, float]]) -> tuple[float, float, dict]:
+        """Snap a measured edge inside the estimated span onto a removed break cue beside it.
+
+        Returns (lo, hi, cue_snap records). An edge stays inside the span and never
+        crosses a rejected or user-trimmed range.
+        """
+        cues = self._audio_cue_signals() if self.cue_snap_settings else []
+        records = {}
+        if not cues:
+            return lo, hi, records
+        for edge, value, other, inside in (
+                ('start', lo, hi, lambda v: v >= ad['start']),
+                ('end', hi, lo, lambda v: v <= ad['end'])):
+            if value == ad[edge]:
+                continue
+            snapped = snap_split_edge(edge, value, other, cues, **self.cue_snap_settings)
+            if snapped is None or not inside(snapped[0]):
+                continue
+            a, b = sorted((value, snapped[0]))
+            if any(x < b and y > a for x, y in barriers):
+                continue
+            records[edge] = snapped[1]
+            logger.info(f"Cue snap (split {edge}): {value:.3f}s -> {snapped[0]:.3f}s "
+                        f"(cue={snapped[1].get('label')}, conf={snapped[1]['cue_confidence']:.2f})")
+            if edge == 'start':
+                lo = snapped[0]
+            else:
+                hi = snapped[0]
+        return lo, hi, records
+
+    def _audio_cue_signals(self) -> list[AudioSegmentSignal]:
+        """Stored audio cue signals as the objects the cue snap reads."""
+        cues = []
+        for sig in (self._audio_analysis or {}).get('signals') or []:
+            start, end = finite_number(sig.get('start')), finite_number(sig.get('end'))
+            confidence = finite_number(sig.get('confidence'))
+            if (sig.get('signal_type') == 'audio_cue'
+                    and None not in (start, end, confidence)):
+                cues.append(AudioSegmentSignal(start, end, 'audio_cue', confidence,
+                                               sig.get('details') or {}))
+        return cues
 
     def _measured_extent(self, ad: dict) -> tuple[float, float]:
         """(duration, position) of the ad without the silence it absorbed."""

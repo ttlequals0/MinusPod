@@ -582,6 +582,14 @@ def _build_validator(episode_duration, segments, episode_description, *,
     """
     from ad_validator import AdValidator
     max_ad_duration = resolve_max_ad_duration(db, podcast_id)
+    # Same knobs as the detection snap, for the edges an estimated-span split creates.
+    cue_settings = resolve_feed_cue_settings(db, podcast_id)
+    cue_snap_settings = {
+        'max_boundary_shift_s': resolve_max_boundary_shift(db),
+        'snap_lead_s': cue_settings['snap_lead'],
+        'snap_lag_s': cue_settings['snap_lag'],
+        'min_confidence': cue_settings['snap_confidence'],
+    }
     max_ad_duration_confirmed = resolve_max_ad_duration_confirmed(db)
     splice_kwargs = {}
     if splice_veto:
@@ -612,6 +620,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         podcast_name=podcast_name,
         transcript_spans=transcript_spans,
         loop_runs=loop_runs,
+        cue_snap_settings=cue_snap_settings,
         **splice_kwargs,
     )
 

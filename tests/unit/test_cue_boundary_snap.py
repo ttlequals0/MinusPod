@@ -719,3 +719,20 @@ def test_start_edge_ignores_content_span():
     result = _result_with(_typed_cue(200.0, 203.0, 'start'))
     snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=30.0)
     assert ads[0]['start'] == 240.0
+
+
+def test_build_validator_passes_the_feed_cue_snap_settings():
+    # The validator snaps the edges an estimated-span split creates with the
+    # same per-feed knobs detection used.
+    settings = _base_cue_settings_with_transition(snap_confidence=0.65)
+    with patch('main_app.pipeline.detect.resolve_feed_cue_settings',
+               return_value=settings) as resolve, \
+         patch('main_app.pipeline.detect.resolve_max_boundary_shift', return_value=60):
+        validator = detect._build_validator(
+            600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.85,
+            max_ad_duration_override=None, cue_gate_enabled=False,
+            splice_veto=False, podcast_id=42)
+    assert resolve.call_args.args[1] == 42
+    assert validator.cue_snap_settings == {
+        'max_boundary_shift_s': 60, 'snap_lead_s': 10.0, 'snap_lag_s': 4.0,
+        'min_confidence': 0.65}

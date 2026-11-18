@@ -7,7 +7,9 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_validator import AdValidator, Decision, ValidationResult, user_trimmed_keep_ranges
+from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
 from utils.markers import carve_fragment, learning_bounds, mark_distinct_merge
@@ -2803,6 +2805,75 @@ def test_estimated_split_log_says_none_when_remainders_are_short(caplog):
             if r.message.startswith('Split estimated pattern span')] == [
         'Split estimated pattern span 100.0s-160.0s: '
         'cut 103.0s-157.0s, held none']
+
+
+_SPLIT_SNAP = {'max_boundary_shift_s': 60.0, 'snap_lead_s': 10.0,
+               'snap_lag_s': 4.0, 'min_confidence': 0.65}
+
+
+def _break_cue(start, end, confidence, remove_with_ad=True):
+    return AudioSegmentSignal(start, end, 'audio_cue', confidence, {
+        'source': AUDIO_CUE_SOURCE_TEMPLATE, 'template_id': 1,
+        'label': 'ad-break boundary', 'cue_type': 'ad_break_boundary',
+        'role': 'boundary', 'remove_with_ad': remove_with_ad})
+
+
+def _intro_only_read_between_cues(after_confidence=0.714, after_removed=True):
+    """A measured read merged with an intro-only pattern whose end is an estimate.
+
+    Break cues bracket the read. Detection snaps edges before validation, while
+    the end still sits at the estimate with no cue nearby, so only the start snaps.
+    """
+    ad = {'start': 332.7, 'end': 351.98, 'confidence': 0.99,
+          'reason': 'Acme sponsor read', 'sponsor': 'Acme',
+          'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {
+        'start': 332.7, 'end': 394.32, 'confidence': 1.0,
+        'detection_stage': 'text_pattern', 'span_estimated': True,
+        'text_start': 332.7, 'text_end': 342.46,
+        'has_estimated_pattern_member': True})
+    ad['end'] = 394.32
+    ad['confidence'] = 1.0
+    analysis = AudioAnalysisResult(signals=[
+        _break_cue(329.35, 331.41, 0.799),
+        _break_cue(351.89, 353.95, after_confidence, after_removed)])
+    snap_ad_boundaries_to_cues([ad], analysis, 60.0, snap_lead_s=10.0,
+                               snap_lag_s=4.0, min_confidence=0.65)
+    assert (ad['start'], ad['end']) == (329.3, 394.32)
+    assert set(ad['cue_snap']) == {'start'}
+    return ad, analysis.to_dict()
+
+
+def test_estimated_split_end_snaps_over_removed_break_cue():
+    ad, analysis = _intro_only_read_between_cues()
+    validator = AdValidator(900.0, [], splice_veto_enabled=False,
+                            cue_snap_settings=_SPLIT_SNAP)
+
+    result = validator.validate([ad], audio_analysis=analysis)
+
+    assert _spans(result) == [(329.3, 354.0), (354.0, 394.32)]
+    cut, held = result.ads
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert cut['cue_snap']['end']['cue_start'] == 351.89
+    assert cut['cue_snap']['end']['remove_with_ad'] is True
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+@pytest.mark.parametrize('after_confidence, after_removed, settings', [
+    (0.714, True, None),
+    (0.60, True, _SPLIT_SNAP),
+    (0.714, False, _SPLIT_SNAP),
+])
+def test_estimated_split_end_stays_measured_without_eligible_removed_cue(
+        after_confidence, after_removed, settings):
+    ad, analysis = _intro_only_read_between_cues(after_confidence, after_removed)
+    validator = AdValidator(900.0, [], splice_veto_enabled=False,
+                            cue_snap_settings=settings)
+
+    result = validator.validate([ad], audio_analysis=analysis)
+
+    assert _spans(result) == [(329.3, 351.98), (351.98, 394.32)]
+    assert 'end' not in result.ads[0]['cue_snap']
 
 
 def test_estimated_remainder_hold_log_gets_remainder_suffix(caplog):
