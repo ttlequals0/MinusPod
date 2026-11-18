@@ -155,8 +155,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # npm audit --audit-level=high, minus the advisories excepted in the script.
       - name: Audit
-        run: npm audit --audit-level=high
+        run: node scripts/audit.mjs
 
   ruff:
     name: ruff (lint)
