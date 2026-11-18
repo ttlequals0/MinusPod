@@ -14,6 +14,8 @@ release notes.
 
 - An auto-learned text pattern now keeps an outro that ends on the sponsor's name as a sentence of its own, for example a brand sign-off before a slogan. The outro was only kept when it named the sponsor together with an offer phrase or the sponsor's domain, and the offer phrases are English. A read in another language therefore lost its outro, and the pattern fell back to its intro plus the average duration. When a break was shorter than that average, the estimate reached past the ad and the remainder was held for review over show content with `estimated_pattern_bounds`.
 - When a text pattern matched only its intro and the rest of its span was an estimate, the cut ended where the model measured the read, and a break cue right after the read stayed in the audio. Cue snapping runs during detection, while the end is still the estimate with no cue nearby, and the edge the split creates later was never snapped. That edge now snaps the way detection snaps the others, with the feed's snap confidence and window, but only onto a template cue removed with the ad, and never past the estimated span or into a rejected range. The held remainder then starts after the cue.
+- Retry ad detection (`POST /feeds/{slug}/episodes/{episode_id}/retry-ad-detection`) now uses the provider chosen for the detection stage. With detection set to the secondary provider, the retry called the primary provider with the secondary provider's model name, and every window failed.
+- When the YouTube Data API fails and MinusPod falls back to yt-dlp, the warning in the log now gives the reason, for example a quota error or an HTTP status. It showed only the error class.
 
 ### Security
 

@@ -129,7 +129,7 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         logger.debug(f"[{slug}:{episode_id}] Chapter regeneration skipped: the LLM provider is none")
     except ChaptersSupersededError as exc:
         # An expected race: keep the failed history row and its token cost, without a traceback.
-        error = str(exc)
+        error = truncate(redact_exc(exc), 500)
         logger.info(f"[{slug}:{episode_id}] Chapter regeneration superseded: {exc}")
     except Exception as exc:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")

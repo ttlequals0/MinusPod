@@ -4,12 +4,15 @@ just the feed mode: an episode marked pass-through makes no LLM call.
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR',
                       tempfile.mkdtemp(prefix='passthrough-retry-test-'))
+
+import run_context  # noqa: E402
 
 SLUG = 'passthrough-retry-feed'
 EP = 'aa11bb22cc33'
@@ -69,3 +72,29 @@ class TestRetryAdDetectionPerEpisodeGuard:
         resp = _retry(client)
         # No transcript on this seeded episode, so the mode guard is past.
         assert resp.status_code == 400
+
+
+class TestRetryAdDetectionRoute:
+    def test_run_resolves_detection_to_secondary_slot(self, feed):
+        client, db = feed['client'], feed['db']
+        _authed(client)
+        db.set_setting('claude_model', 'secondary-model-x')
+        db.set_setting('detection_provider', 'secondary')
+        db.set_setting('secondary_provider_enabled', 'true')
+        db.set_setting('secondary_provider', 'openrouter')
+        seen = {}
+
+        def _capture(*args, **kwargs):
+            seen['route'] = run_context.route_for_phase('detection')
+            return {'status': 'success', 'ads': []}
+
+        segments = [{'start': 0.0, 'end': 5.0, 'text': 'hello'}]
+        with patch('api.episodes.runs.get_storage') as storage, \
+                patch('api.episodes.runs.parse_transcript_segments', return_value=segments), \
+                patch('ad_detector.AdDetector.process_transcript', side_effect=_capture):
+            storage.return_value.get_transcript.return_value = 'x'
+            _retry(client)
+        route = seen['route']
+        assert route['credential_slot'] == 'secondary'
+        assert route['provider_key'] == 'openrouter'
+        assert route['configured_model'] == 'secondary-model-x'

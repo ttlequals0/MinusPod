@@ -598,6 +598,11 @@ def retry_ad_detection(slug, episode_id):
 
     ctx = run_context.begin(slug, episode_id)
     try:
+        # Route like a pipeline run so per-stage provider settings apply.
+        from main_app.pipeline.admission import _resolve_route_snapshot
+        route_snapshot = _resolve_route_snapshot()
+        if route_snapshot is not None:
+            ctx.set_route_snapshot(route_snapshot)
         # Parse transcript back into segments
         segments = parse_transcript_segments(transcript)
 
