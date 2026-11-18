@@ -788,7 +788,8 @@ class TextPatternMatcher:
 
     def _outro_has_ad_evidence(self, phrase: str, sponsor: str | None,
                                sponsor_brands: dict | None = None) -> bool:
-        """Whether a clause of phrase names sponsor with an offer or its domain.
+        """Whether a clause of phrase names sponsor with an offer or its domain,
+        or is the sponsor's name alone.
 
         sponsor_brands memoizes each sponsor's matcher for one detection pass.
         """
@@ -800,15 +801,20 @@ class TextPatternMatcher:
             names = brand_match_candidates(self._get_sponsor_row(sponsor))
             sponsor_brands[sponsor] = (word_boundary_re(names),
                                        {squash_brand(name) for name in names})
-        brand, domains = sponsor_brands[sponsor]
+        brand, squashed_names = sponsor_brands[sponsor]
         if brand is None:
             return False
         for clause in _CLAUSE_SPLIT_RE.split(phrase):
             if not brand.search(clause):
                 continue
+            # A sentence that is the brand and nothing else is a sign-off. The
+            # offer wording below is English, so this is what a read in another
+            # language has to show.
+            if squash_brand(clause) in squashed_names:
+                return True
             if COMMERCIAL_CONTEXT_RE.search(clause):
                 return True
-            if any(squash_brand(label) in domains for label in domain_labels(clause)):
+            if any(squash_brand(label) in squashed_names for label in domain_labels(clause)):
                 return True
         return False
 

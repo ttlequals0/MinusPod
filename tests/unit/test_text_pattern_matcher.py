@@ -844,6 +844,42 @@ def test_auto_pattern_outro_needs_sponsor_link_or_offer(temp_db):
         assert matcher._outro_has_ad_evidence(f'Find Acme at acme.{ending}.', 'Acme') is True
 
 
+def test_auto_pattern_outro_accepts_a_brand_sign_off(temp_db):
+    temp_db.create_known_sponsor('Acme Tools')
+    matcher = TextPatternMatcher(db=temp_db)
+    # A read in a language the offer wording does not cover still ends on the brand.
+    assert matcher._outro_has_ad_evidence(
+        'Hör av dig så hjälper vi dig. Acme Tools. Enklare vardag.', 'Acme Tools') is True
+    assert matcher._outro_has_ad_evidence('Thanks for listening. AcmeTools!', 'Acme Tools') is True
+    # The brand inside a sentence is still a passing mention.
+    assert matcher._outro_has_ad_evidence(
+        'Acme Tools shares fell. More after the break.', 'Acme Tools') is False
+    assert matcher._outro_has_ad_evidence(
+        'Vi pratade om Acme Tools. Välkommen tillbaka.', 'Acme Tools') is False
+
+
+def test_auto_pattern_with_brand_sign_off_outro_measures_its_end(temp_db):
+    sponsor_id = temp_db.create_known_sponsor('Acme')
+    intro = 'Hör upp, alla små och stora företag som vill växa i år.'
+    outro = 'Hör av dig så hjälper vi dig. Acme. Enklare vardag.'
+    segments = [
+        {'start': 60.0, 'end': 70.0, 'text': intro},
+        {'start': 70.0, 'end': 80.0, 'text': outro},
+        {'start': 80.0, 'end': 140.0,
+         'text': 'Välkommen tillbaka. Vi fortsätter samtalet om veckans rapporter.'},
+    ]
+    pattern_id = temp_db.create_ad_pattern(
+        scope='global', sponsor_id=sponsor_id, text_template=intro + ' ' + outro,
+        intro_variants=[intro], outro_variants=[outro], duration=60.0)
+    matcher = TextPatternMatcher(db=temp_db)
+
+    matches = matcher.find_matches(segments)
+
+    assert matches
+    assert all(m.pattern_id == pattern_id and not m.span_estimated
+               and m.start == 60.0 and m.end == 80.0 for m in matches)
+
+
 def test_outro_sponsor_lookup_runs_once_per_sponsor_per_pass(temp_db, monkeypatch):
     sponsor_id = temp_db.create_known_sponsor('Acme')
     intro = 'This episode is brought to you by Acme and its new service.'

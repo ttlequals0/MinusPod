@@ -12,6 +12,7 @@ release notes.
 
 ### Fixed
 
+- An auto-learned text pattern now keeps an outro that ends on the sponsor's name as a sentence of its own, for example a brand sign-off before a slogan. The outro was only kept when it named the sponsor together with an offer phrase or the sponsor's domain, and the offer phrases are English. A read in another language therefore lost its outro, and the pattern fell back to its intro plus the average duration. When a break was shorter than that average, the estimate reached past the ad and the remainder was held for review over show content with `estimated_pattern_bounds`.
 - A learned text pattern no longer starts a marker one transcript segment early or ends it one segment late. This happened when the stored intro or outro phrase was a character longer than the transcript's wording, for example a comma that this episode's transcript lacks. The fuzzy alignment then began or ended on the space between two segments, and that space was timed as the segment next to the read. An early start could cut the host's last sentence before a break, or stretch the marker enough to be held with `no_splice_evidence`. Match edges are now timed from the segment that holds the matched words.
 
 ## [2.102.6] - 2026-11-16
