@@ -96,7 +96,7 @@ def test_review_links_off_by_default():
 def test_upstream_processed_item_gets_the_links():
     xml = _links_feed(_processed_extra(UPSTREAM_ID), {UPSTREAM_ID})
     assert f'<p>Notes</p>\n\n<p><a href="{LINK_BASE}{UPSTREAM_ID}">Review in MinusPod</a>' in xml
-    assert f'{LINK_BASE}{UPSTREAM_ID}?rate=5">Rate 5 stars' in xml
+    assert f'{LINK_BASE}{UPSTREAM_ID}?rate=up">Thumbs up' in xml
 
 
 def test_unknown_upstream_item_gets_no_links():
@@ -151,12 +151,12 @@ def test_summary_stays_in_description_and_notes_go_to_content_encoded():
     assert '<script' not in content
 
 
-def test_summary_description_and_content_encoded_keep_full_notes():
+def test_description_summary_and_content_encoded_each_keep_their_own_value():
     feed = NOTES_FEED.replace(
         '<content:encoded>', '<description>Plain desc</description>\n<content:encoded>')
     xml = _links_feed([], xml=feed)
-    assert '<description><![CDATA[Short summary' in xml
-    assert 'Plain desc' not in xml
+    assert '<description><![CDATA[Plain desc' in xml
+    assert '<itunes:summary>Short summary</itunes:summary>' in xml
     assert '<content:encoded><![CDATA[<p>05:00 Topic</p>' in xml
 
 

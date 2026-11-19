@@ -504,6 +504,47 @@ def test_patch_invalid_skip_patterns_rejected(app_client, seeded_feed, patterns,
     assert seeded_feed['db'].get_podcast_by_slug(slug)[column] is None
 
 
+# titleIncludePatterns (episode title allowlist)
+
+def test_get_feed_defaults_title_include_patterns(app_client, seeded_feed):
+    _authed(app_client)
+    body = app_client.get(f"/api/v1/feeds/{seeded_feed['slug']}").get_json()
+    assert body['titleIncludePatterns'] == []
+
+
+def test_patch_sets_and_resets_title_include_patterns(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleIncludePatterns': ['Show A*', 'Bonus *']},
+                            headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['titleIncludePatterns'] == ['Show A*', 'Bonus *']
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_include_patterns'] == \
+        '["Show A*", "Bonus *"]'
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleIncludePatterns': []}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['titleIncludePatterns'] == []
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_include_patterns'] is None
+
+
+@pytest.mark.parametrize('patterns', ['not-a-list', ['x' * 201], [''], ['ok'] * 51])
+def test_patch_invalid_title_include_patterns_rejected(app_client, seeded_feed, patterns):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleIncludePatterns': patterns},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert 'titleIncludePatterns' in resp.get_json()['error']
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_include_patterns'] is None
+
+
 # lowAdYieldAction per-feed override
 
 def test_get_feed_echoes_null_low_ad_yield_action(app_client, seeded_feed):

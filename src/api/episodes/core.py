@@ -10,7 +10,7 @@ from api import (
 import config
 from config import (
     is_keep_like, is_pending_review, resolve_chapters_in_notes,
-    title_matches_skip_patterns, description_matches_skip_patterns,
+    title_filtered, description_matches_skip_patterns,
     duration_outside_feed_range, episode_matches_feed_filters,
     resolve_held_widen_seconds, resolve_max_boundary_shift,
 )
@@ -124,22 +124,13 @@ def list_episodes(slug):
     for ep in episodes:
         source_slug = ep.get('source_slug')
         owner_slug = source_slug or slug
+        filters = _episode_filters(ep, podcast)
         if selection:
-            filters = ({
-                'min_duration_seconds': ep.get('source_min_duration_seconds'),
-                'max_duration_seconds': ep.get('source_max_duration_seconds'),
-            } if source_slug else podcast)
             status_key = EpisodeStatus.to_api(ep['status'])
             episode_list.append({
                 'id': ep['episode_id'], 'status': status_key,
                 'jobState': common._job_state(status_key, job_states.get((owner_slug, ep['episode_id']))),
-                'titleSkipped': title_matches_skip_patterns(
-                    ep.get('title'), ep.get('source_title_skip_patterns')
-                    if source_slug else podcast.get('title_skip_patterns')),
-                'descriptionSkipped': description_matches_skip_patterns(
-                    ep.get('description'), ep.get('source_description_skip_patterns')
-                    if source_slug else podcast.get('description_skip_patterns')),
-                'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), filters),
+                **_filter_flags(ep, filters),
             })
             continue
         item = _episode_base_json(
@@ -147,14 +138,7 @@ def list_episodes(slug):
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
             is_youtube=(ep.get('source_feed_type') == 'youtube') if source_slug else is_youtube,
             storage=storage, local_versions=local_versions,
-            title_skip_patterns=(ep.get('source_title_skip_patterns')
-                                 if source_slug else podcast.get('title_skip_patterns')),
-            description_skip_patterns=(ep.get('source_description_skip_patterns')
-                                       if source_slug else podcast.get('description_skip_patterns')),
-            duration_filters=({
-                'min_duration_seconds': ep.get('source_min_duration_seconds'),
-                'max_duration_seconds': ep.get('source_max_duration_seconds'),
-            } if source_slug else podcast))
+            filters=filters)
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
         item['jobState'] = common._job_state(
@@ -252,9 +236,31 @@ def _sponsorblock_json(ep):
     }
 
 
+_FILTER_KEYS = ('title_skip_patterns', 'title_include_patterns', 'description_skip_patterns',
+                'min_duration_seconds', 'max_duration_seconds')
+
+
+def _episode_filters(ep, podcast):
+    """The feed filter row for an episode: its own podcast, or the source feed's columns on a recents row."""
+    if not ep.get('source_slug'):
+        return podcast
+    return {key: ep.get(f'source_{key}') for key in _FILTER_KEYS}
+
+
+def _filter_flags(ep, filters):
+    """titleSkipped, descriptionSkipped and durationSkipped for an episode under a feed filter row."""
+    filters = filters or {}
+    return {
+        'titleSkipped': title_filtered(ep.get('title'), filters.get('title_skip_patterns'),
+                                       filters.get('title_include_patterns')),
+        'descriptionSkipped': description_matches_skip_patterns(
+            ep.get('description'), filters.get('description_skip_patterns')),
+        'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), filters),
+    }
+
+
 def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, storage=None,
-                       title_skip_patterns=None, description_skip_patterns=None,
-                       duration_filters=None, local_versions=None):
+                       filters=None, local_versions=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for the frontend: 'processed' -> 'completed'; discovered/
@@ -303,11 +309,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
         'awaitingApproval': bool(ep.get('approval_pending_at')),
         'approvalPendingAt': ep.get('approval_pending_at'),
         'approvedAt': ep.get('approved_at'),
-        'titleSkipped': title_matches_skip_patterns(
-            ep.get('title'), title_skip_patterns),
-        'descriptionSkipped': description_matches_skip_patterns(
-            ep.get('description'), description_skip_patterns),
-        'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), duration_filters),
+        **_filter_flags(ep, filters),
         'passthroughEnabled': bool(ep.get('passthrough_enabled')),
         # Stable Process/Reprocess eligibility: a completed episode that is
         # queued again reverts to 'pending', so status alone flips the label.
@@ -391,9 +393,7 @@ def get_episode(slug, episode_id):
 
     base = _episode_base_json(
         episode, slug=slug, is_local=is_local, is_youtube=is_youtube_feed(podcast), storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'),
-        description_skip_patterns=podcast.get('description_skip_patterns'),
-        duration_filters=podcast)
+        filters=podcast)
     if base.get('sponsorBlock') is not None:
         base['sponsorBlock']['submitAllowed'] = common.sponsorblock_block_reason(db, podcast, episode) is None
     # Separate from description: the local-episode editor round-trips that

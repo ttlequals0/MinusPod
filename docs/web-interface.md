@@ -163,9 +163,11 @@ A completed episode plays in a built-in player instead of the browser's native c
 
 ### Episode rating
 
-Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. Five stars also dismisses any ads still held for review on that episode, like pressing Dismiss on each. Nothing is recorded for pattern learning, so a later reprocess may hold the same span again. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay. Opening the episode page with `?rate=5`, which is what the optional **Rate 5 stars** link in feed descriptions does, applies a 5-star rating on load, shows an Undo button and removes the parameter from the address.
+Rate how well MinusPod handled an episode with **Thumbs up** or **Thumbs down** on the episode page, then press Save. A thumbs down is feedback, and you can add a comment of up to 2000 characters. A thumbs up clears any comment and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. A thumbs up also dismisses any ads still held for review on that episode, like pressing Dismiss on each. Nothing is recorded for pattern learning, so a later reprocess may hold the same span again. Untick **Confirm all cuts and dismiss held ones** to store a thumbs up without either. A thumbs down changes no markers. The audio is not changed and no recut is queued. Clearing a rating removes the thumb and the comment; confirmations already recorded stay. Episodes rated with the earlier 1 to 5 star scale show 5 stars as a thumbs up and 1 to 4 stars as a thumbs down, with their notes kept.
 
-A feed's page shows the average rating and how many episodes are rated. Ratings and their notes are part of the diagnostics download, which includes up to 500 rated episodes in the chosen range, with how many segments were cut, kept and held.
+Opening the episode page with `?rate=up` or `?rate=down`, which is what the optional **Thumbs up** and **Thumbs down** links in feed descriptions do, applies that rating on load, shows an Undo button and removes the parameter from the address. `?rate=down` also moves focus to the comment box so you can add a comment and press Save. The older `?rate=5` still works as up, and `?rate=1` to `?rate=4` as down.
+
+Ratings and their notes are part of the diagnostics download, which includes up to 500 rated episodes in the chosen range, with how many segments were cut, kept and held.
 
 ### Episode actions and job state
 
@@ -331,7 +333,7 @@ Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for 
 - **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
 - **Dismiss** - records a rejection and leaves the audio unchanged.
 
-A 5-star rating dismisses every held ad on the episode without recording a rejection pattern.
+A thumbs up rating dismisses every held ad on the episode without recording a rejection pattern.
 
 When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming. Confirming with moved boundaries cuts only the span inside the pins. If the hold came from the ad reviewer proposing a boundary past the detected span, confirming at that position is accepted too, not just a narrower one.
 
@@ -339,7 +341,7 @@ When the ad reviewer proposed a narrower span, the row offers a trimmed confirm 
 
 The episode list shows an amber "N held" chip for any episode with pending held ads. See [Held for Review](how-it-works.md#held-for-review) for what triggers a hold.
 
-A gap the upstream transcript differential found but no other stage backed carries an "Upstream transcript omits this span" chip; an ad another stage found that the differential corroborates instead shows a "Corroborated: transcript" badge. When the stage ran on an episode, its header shows a "Transcript diff: N gaps" pill (or "no gaps", "unreliable", "empty", or "failed"), hovering it for the match percentage. See [Transcript Differential](how-it-works.md#transcript-differential).
+A gap the upstream transcript differential found but no other stage backed carries an "Upstream transcript omits this span" chip; an ad another stage found that the differential corroborates instead shows a "Corroborated: transcript" badge. When the stage ran on an episode, its header shows a "Transcript diff: N gaps" pill (or "no gaps", "unreliable", "empty", or "failed"), hovering it for the match percentage. When pass 2 confirmed only part of a gap, the ad reviewer checks the rest once and releases each piece it confirms; any other piece stays held. See [Transcript Differential](how-it-works.md#transcript-differential).
 
 ### Partial Detection
 

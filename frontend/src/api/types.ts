@@ -60,8 +60,6 @@ export interface Feed {
   // backend's p20_channel_json.
   p20?: Record<string, unknown>;
   episodeCount: number;
-  ratingAverage?: number | null;
-  ratingCount?: number;
   processedCount?: number;
   statusCounts?: EpisodeStatusCounts;
   lastRefreshed?: string;
@@ -166,6 +164,8 @@ export interface Feed {
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];
+  // Per-feed title allowlist: when non-empty, a title matching none is skipped like a title skip match.
+  titleIncludePatterns?: string[];
   // Per-feed episode description blacklist (#835): fnmatch glob patterns matched
   // against the plain-text description. A match is never queued or JIT-processed.
   descriptionSkipPatterns?: string[];
@@ -297,8 +297,10 @@ export interface Episode {
   rating?: EpisodeRating | null;
 }
 
+export type RatingValue = 'up' | 'down';
+
 export interface EpisodeRating {
-  value: 1 | 2 | 3 | 4 | 5;
+  value: RatingValue;
   notes: string | null;
   ratedAt: string;
 }

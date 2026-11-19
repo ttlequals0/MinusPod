@@ -1068,6 +1068,16 @@ paths:
                     maxLength: 200
                   maxItems: 50
                   description: Per-feed episode title blacklist. Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
+                titleIncludePatterns:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  maxItems: 50
+                  description: Per-feed episode title allowlist with the same pattern rules as titleSkipPatterns. When non-empty, an episode whose title matches none of the patterns is skipped exactly like a titleSkipPatterns match; skip patterns still apply on top. Null or an empty array clears the allowlist.
                 descriptionTrimPattern:
                   type: [string, 'null']
                   minLength: 1
@@ -2760,12 +2770,14 @@ paths:
         - Episodes
       summary: Rate an episode
       description: |
-        Stores a 1 to 5 quality rating. Notes are trimmed, limited to 2000
-        characters and kept only below 5. A rating of 5 confirms every cut ad
+        Stores a thumbs rating, "up" or "down". The legacy integers still work:
+        5 means up and 1 to 4 mean down. Notes are trimmed, limited to 2000
+        characters and kept only for down. An up rating confirms every cut ad
         segment through the same path as a confirm correction, without changing
-        the audio or queuing a recut. A 5 also dismisses every held segment
+        the audio or queuing a recut. An up also dismisses every held segment
         without recording a correction. Send confirm_markers false to store the
-        rating without either; omitted behaves as true.
+        rating without either; omitted behaves as true. A down rating changes
+        no markers. Any other rating value is a 400.
       operationId: putEpisodeRating
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -2778,9 +2790,16 @@ paths:
               type: object
               required: [rating]
               properties:
-                rating: { type: integer, minimum: 1, maximum: 5 }
+                rating:
+                  oneOf:
+                    - type: string
+                      enum: [up, down]
+                    - type: integer
+                      minimum: 1
+                      maximum: 5
+                      description: Legacy star value. 5 is up, 1 to 4 are down.
                 notes: { type: [string, 'null'], maxLength: 2000 }
-                confirm_markers: { type: boolean, description: "At 5 stars, false skips confirming cut segments and dismissing held ones. Omitted behaves as true." }
+                confirm_markers: { type: boolean, description: "On an up rating, false skips confirming cut segments and dismissing held ones. Omitted behaves as true." }
       responses:
         '200':
           description: The stored rating, how many cut segments were newly confirmed and how many held segments were dismissed
@@ -8259,7 +8278,7 @@ paths:
                   example: false
                 reviewLinksInNotes:
                   type: boolean
-                  description: Append review and rate links (episode page and a 5-star rating link) to the served description of processed episodes. Feeds can override per feed.
+                  description: Append review and rate links (episode page, thumbs up and thumbs down links) to the served description of processed episodes. Feeds can override per feed.
                   example: false
                 adChaptersEnabled:
                   type: [boolean, string]
@@ -10130,7 +10149,7 @@ paths:
                         slug: { type: string }
                         episodeId: { type: string }
                         title: { type: [string, 'null'] }
-                        rating: { type: integer, minimum: 1, maximum: 5 }
+                        rating: { type: string, enum: [up, down] }
                         notes: { type: [string, 'null'] }
                         ratedAt: { type: string, format: date-time }
                         markers:
@@ -15797,6 +15816,11 @@ components:
           items:
             type: string
           description: Per-feed episode title blacklist, always an array (empty when unset). Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+        titleIncludePatterns:
+          type: array
+          items:
+            type: string
+          description: Per-feed episode title allowlist, always an array (empty when unset). Same pattern rules as titleSkipPatterns. When non-empty, an episode whose title matches none of the patterns is skipped like a title skip match.
         descriptionSkipPatterns:
           type: array
           items:
@@ -15943,12 +15967,6 @@ components:
             - boolean
             - 'null'
           description: Legacy per-feed cross-fetch flag. Use differentialFetchMode for new clients; null selects automatic DAI detection.
-        ratingAverage:
-          type: [number, 'null']
-          description: Average episode quality rating for the feed. Null when no episode is rated. Feed detail only.
-        ratingCount:
-          type: integer
-          description: Number of rated episodes in the feed. Feed detail only.
         daiLikely:
           type: boolean
           description: Hint that this feed likely uses dynamic ad insertion, based on recent enclosure URLs matching known DAI or prefix domains. Returned on the feed detail response.
@@ -16179,7 +16197,7 @@ components:
           description: When a person or a recut approved the episode. Null for episodes that never needed approval.
         titleSkipped:
           type: boolean
-          description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+          description: Whether the episode title is filtered by this feed's title skip or include patterns and is ineligible for the bulk Process action.
         descriptionSkipped:
           type: boolean
           description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
@@ -16300,7 +16318,7 @@ components:
           description: When a person or a recut approved the episode. Null for episodes that never needed approval.
         titleSkipped:
           type: boolean
-          description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+          description: Whether the episode title is filtered by this feed's title skip or include patterns and is ineligible for the bulk Process action.
         descriptionSkipped:
           type: boolean
           description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
@@ -17050,7 +17068,7 @@ components:
     EpisodeRating:
       type: object
       properties:
-        value: { type: integer, minimum: 1, maximum: 5 }
+        value: { type: string, enum: [up, down], description: 'Thumbs rating. Legacy 5-star rows read as up for 5 and down for 1 to 4.' }
         notes: { type: [string, 'null'] }
         ratedAt: { type: string, format: date-time }
 

@@ -516,6 +516,25 @@ describe('FeedSettingsPanel title blacklist controls', () => {
     });
   });
 
+  it('adding an include pattern fires updateFeed with titleIncludePatterns', async () => {
+    renderPanel(makeFeed({ titleIncludePatterns: ['Show A *'] }));
+    expect(screen.getByText('Show A *')).toBeDefined();
+    await userEvent.click(screen.getByRole('button', { name: 'Add include pattern' }));
+    await userEvent.type(screen.getByLabelText('New include pattern'), 'Bonus *');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      titleIncludePatterns: ['Show A *', 'Bonus *'],
+    });
+  });
+
+  it('removing an include pattern fires updateFeed without it', async () => {
+    renderPanel(makeFeed({ titleIncludePatterns: ['Show A *', 'Bonus *'] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Show A *' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      titleIncludePatterns: ['Bonus *'],
+    });
+  });
+
   it('defaults the skip action select to serve_original', () => {
     renderPanel(makeFeed());
     const select = screen.getByRole('combobox', { name: ACTION_SELECT_NAME }) as HTMLSelectElement;

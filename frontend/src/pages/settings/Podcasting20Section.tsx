@@ -234,7 +234,7 @@ function Podcasting20Section({
 
         <ToggleRow checked={reviewLinksInNotes} onChange={onReviewLinksInNotesChange}
           label="Add review links to episode descriptions">
-          Links to the episode page and a one-tap 5-star rating, shown to
+          Links to the episode page and one-tap thumbs up and thumbs down ratings, shown to
           anyone reading the feed. Feeds can override this.
         </ToggleRow>
 

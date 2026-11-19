@@ -19,7 +19,7 @@ describe('EpisodeRating in demo', () => {
   test('disables Save and Clear with the write tooltip', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <EpisodeRating slug="show" episodeId="ep-1" rating={{ value: 3, notes: null, ratedAt: '2026-09-01T00:00:00Z' }} />
+        <EpisodeRating slug="show" episodeId="ep-1" rating={{ value: 'down', notes: null, ratedAt: '2026-09-01T00:00:00Z' }} />
       </QueryClientProvider>,
     );
     for (const name of ['Save', 'Clear']) {
@@ -33,7 +33,7 @@ describe('EpisodeRating in demo', () => {
     const handled = vi.fn();
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <EpisodeRating slug="show" episodeId="ep-1" requestedRating={4} onRequestedRatingHandled={handled} />
+        <EpisodeRating slug="show" episodeId="ep-1" requestedRating="down" onRequestedRatingHandled={handled} />
       </QueryClientProvider>,
     );
     await waitFor(() => expect(handled).toHaveBeenCalled());

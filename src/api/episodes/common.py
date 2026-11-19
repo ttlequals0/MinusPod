@@ -1,6 +1,7 @@
 """Shared episode route helpers: job state, marker parsing and constants."""
 
 from utils.markers import parse_ad_markers
+from utils.rating import rating_label
 from database.podcasts import is_youtube_feed
 from utils.json_fields import load_json_list
 from youtube import settings as yt_settings, sponsorblock
@@ -29,7 +30,7 @@ def rating_json(episode):
     """The episode's quality rating object, or None when unrated."""
     if episode.get('quality_rating') is None:
         return None
-    return {'value': episode['quality_rating'], 'notes': episode.get('quality_notes'),
+    return {'value': rating_label(episode['quality_rating']), 'notes': episode.get('quality_notes'),
             'ratedAt': episode.get('quality_rated_at')}
 
 

@@ -73,6 +73,9 @@ reason `transcript_differential_unreviewed`. It never auto-cuts.
 - If a fingerprint, text pattern, audio cue, or LLM detection covers at least
   half of the gap, the two merge and the held gap marker is released. The
   merged marker spans both and keeps the other detection's stage.
+- When pass 2 confirms only part of a held gap, the ad reviewer looks once at
+  what is left. Each remainder piece it confirms is released and cut with the
+  rest. A piece it rejects, is unsure about or fails to review stays held.
 - The validator also checks every other detection against the gaps. When a
   gap covers at least half of a detection's own length, that detection is
   marked `corroborated_by: transcript_differential` and its confidence rises

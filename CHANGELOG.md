@@ -8,6 +8,25 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.10] - 2026-11-19
+
+### Added
+
+- Feeds have a new episode filter, "Only include episodes by title" (`titleIncludePatterns` on `PATCH /feeds/{slug}`). When the list has patterns, an episode whose title matches none of them is skipped the same way a title skip match is. It is not processed automatically, and the Skipped episodes setting decides whether it stays in the served feed. Skip patterns still apply to the episodes the list lets through. Config export and import carry the list. (#1033)
+
+### Changed
+
+- Episodes are now rated with a thumbs up or a thumbs down instead of 1 to 5 stars. A thumbs up does what 5 stars did: it confirms every cut ad segment and dismisses held ones, unless you untick the option. A thumbs down is feedback with an optional comment and changes no markers. Episodes rated before keep their ratings and notes: 5 stars reads as a thumbs up and 1 to 4 stars as a thumbs down.
+- `PUT /feeds/{slug}/episodes/{episode_id}/rating` takes `rating` as `"up"` or `"down"`, and `rating.value` in responses, episode detail and the diagnostics export is now `"up"` or `"down"`. The old integers still work: 5 is up and 1 to 4 are down. Any other value is a 400.
+- The review links added to episode descriptions are now **Thumbs up** (`?rate=up`) and **Thumbs down** (`?rate=down`) in place of **Rate 5 stars**. The episode page opens a thumbs down with the comment box focused. Links already saved in podcast apps keep working.
+- Removed `ratingAverage` and `ratingCount` from the feed detail response, and the "Rating" line from the feed page.
+
+### Fixed
+
+- When pass 2 confirmed only part of a held upstream-transcript gap, the rest of the gap stayed held even when it was an ad. This happened with two back-to-back spots when pass 2 found only one. The ad reviewer now looks once at what is left and releases each piece it confirms, using the same safety checks as other pass 2 releases. A piece it rejects, is unsure about or fails to review stays held as before. This needs ad review turned on.
+- An episode with a `<description>` and an `<itunes:summary>` but no `<content:encoded>` was served with the summary text in a `<content:encoded>` tag and without its `<itunes:summary>`. When the summary came before the description in the upstream item, the summary was served as the description and the real description as `<content:encoded>`. Each tag now keeps its own text, and the item's `<itunes:summary>` is passed through. Episodes stored with the wrong text are corrected on the next feed refresh. (#1032)
+- The remove button on a pattern or tag chip was 10 px wide on a touch-screen tablet. It is now 44 by 44 px on every touch device.
+
 ## [2.102.9] - 2026-11-18
 
 ### Fixed

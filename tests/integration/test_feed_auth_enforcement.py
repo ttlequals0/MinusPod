@@ -34,7 +34,7 @@ def _png() -> bytes:
 def _cached_rss(slug, key=None):
     suffix = f'?key={key}' if key else ''
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<!-- minuspod-rss-render-version:4 -->
+<!-- minuspod-rss-render-version:5 -->
 <rss version="2.0"><channel><title>T</title>
 <item><enclosure url="{BASE}/episodes/{slug}/abcdefabcdef.mp3{suffix}" type="audio/mpeg" /></item>
 </channel></rss>"""
@@ -376,7 +376,7 @@ def test_serve_rss_repairs_unversioned_cache_with_processed_duration(
         new_duration=2304, original_duration=2641,
         original_url='https://example.com/audio.mp3', title='Example Episode')
     routes_mod.storage.save_rss(slug, _cached_rss(slug).replace(
-        '<!-- minuspod-rss-render-version:4 -->\n', ''))
+        '<!-- minuspod-rss-render-version:5 -->\n', ''))
     feeds_mod.invalidate_feed_cache()
 
     with patch.object(feeds_mod.rss_parser, 'fetch_feed_conditional',

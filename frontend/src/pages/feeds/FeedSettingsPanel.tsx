@@ -1037,6 +1037,18 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               />
 
               <SkipPatternsField
+                label="Only include episodes by title:"
+                patterns={feed.titleIncludePatterns}
+                addButtonAriaLabel="Add include pattern"
+                inputAriaLabel="New include pattern"
+                placeholder="Show A *"
+                hint="When set, episodes whose title matches none of these patterns are skipped. Skip patterns still apply."
+                disabled={updateMutation.isPending}
+                onAdd={(next, callbacks) => updateMutation.mutate({ titleIncludePatterns: next }, callbacks)}
+                onRemove={(next, callbacks) => updateMutation.mutate({ titleIncludePatterns: next }, callbacks)}
+              />
+
+              <SkipPatternsField
                 label="Skip episodes by description:"
                 patterns={feed.descriptionSkipPatterns}
                 addButtonAriaLabel="Add description pattern"
@@ -1256,7 +1268,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 disabled={updateMutation.isPending}
                 onChange={(reviewLinksInNotes) => updateMutation.mutate({ reviewLinksInNotes })}
               >
-                Add a link to the episode page and a 5-star rating link to the
+                Add a link to the episode page and thumbs up and thumbs down links to the
                 description of each processed episode in this feed.
               </GlobalOverrideRow>
 

@@ -6,6 +6,12 @@ from datetime import datetime
 
 from utils.time import parse_timestamp
 
+
+def collapse_whitespace(text) -> str:
+    """Collapse runs of whitespace to single spaces and strip the ends; None becomes ''."""
+    return ' '.join((text or '').split())
+
+
 # A dropped named-zone offset is under 15h and a whole 15-minute step.
 _TIMEZONE_DRIFT_MAX_SECONDS = 15 * 3600
 _TIMEZONE_DRIFT_STEP_SECONDS = 15 * 60

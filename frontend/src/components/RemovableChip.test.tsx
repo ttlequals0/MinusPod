@@ -28,6 +28,8 @@ describe('RemovableChip', () => {
     const button = screen.getByRole('button', { name: 'Remove atc/' });
     expect(button.className).toContain('min-h-11');
     expect(button.className).toContain('-my-3.5');
+    // A bare sm: reset would shrink the target on a coarse-pointer tablet.
+    expect(button.className).not.toMatch(/(^|\s)sm:min-[hw]-0/);
     // break-all splits a short label mid-word when the chip is squeezed.
     expect(screen.getByText('atc/').className).not.toContain('break-all');
   });

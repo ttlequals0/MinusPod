@@ -2664,114 +2664,114 @@ describe('SponsorBlock submission line', () => {
 
 describe('Episode rating', () => {
   beforeEach(() => {
-    mockRateEpisode.mockReset().mockResolvedValue({ rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
+    mockRateEpisode.mockReset().mockResolvedValue({ rating: { value: 'down', notes: 'missed one', ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
     mockClearRating.mockReset().mockResolvedValue(undefined);
   });
 
-  it('saves a rating below 5 with notes', async () => {
+  it('saves a thumbs down with a comment', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode());
     expect(screen.queryByPlaceholderText(/What was wrong/)).toBeNull();
-    await user.click(await screen.findByRole('radio', { name: '3 stars' }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs down' }));
     await user.type(screen.getByPlaceholderText(/What was wrong/), 'missed one');
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 3, 'missed one'));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'down', 'missed one'));
     expect(await screen.findByText('Rating saved.')).not.toBeNull();
   });
 
-  it('drops notes at 5 stars and shows the confirmed count', async () => {
+  it('drops the comment on thumbs up and shows the confirmed count', async () => {
     const user = userEvent.setup();
-    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 4, dismissedMarkers: 0 });
-    renderDetail(makeEpisode({ rating: { value: 3, notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
-    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    mockRateEpisode.mockResolvedValue({ rating: { value: 'up', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 4, dismissedMarkers: 0 });
+    renderDetail(makeEpisode({ rating: { value: 'down', notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs up' }));
     expect(screen.queryByPlaceholderText(/What was wrong/)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'up', null));
     expect(await screen.findByText('Saved. 4 cut segments confirmed.')).not.toBeNull();
   });
 
-  it('shows the confirm option ticked at 5 stars and saves exactly as before', async () => {
+  it('shows the confirm option ticked on thumbs up and saves exactly as before', async () => {
     const user = userEvent.setup();
-    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 2, dismissedMarkers: 0 });
+    mockRateEpisode.mockResolvedValue({ rating: { value: 'up', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 2, dismissedMarkers: 0 });
     renderDetail(makeEpisode({ rating: null }));
     expect(screen.queryByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' })).toBeNull();
-    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs up' }));
     const box = screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }) as HTMLInputElement;
     expect(box.checked).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'up', null));
     expect(await screen.findByText('Saved. 2 cut segments confirmed.')).not.toBeNull();
   });
 
-  it('re-arms the confirm option when the star count changes and hides it for a stored 5', async () => {
+  it('re-arms the confirm option when the thumb changes and hides it for a stored 5', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ rating: null }));
-    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs up' }));
     await user.click(screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }));
-    await user.click(screen.getByRole('radio', { name: '3 stars' }));
-    await user.click(screen.getByRole('radio', { name: '5 stars' }));
+    await user.click(screen.getByRole('radio', { name: 'Thumbs down' }));
+    await user.click(screen.getByRole('radio', { name: 'Thumbs up' }));
     expect((screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('shows no confirm option while the stored rating is already 5', async () => {
-    renderDetail(makeEpisode({ rating: { value: 5, notes: null, ratedAt: '2026-10-30T10:00:00Z' } }));
-    await screen.findByRole('radio', { name: '5 stars' });
+  it('shows no confirm option while the stored rating is already up', async () => {
+    renderDetail(makeEpisode({ rating: { value: 'up', notes: null, ratedAt: '2026-10-30T10:00:00Z' } }));
+    await screen.findByRole('radio', { name: 'Thumbs up' });
     expect(screen.queryByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' })).toBeNull();
   });
 
-  it('stores a 5 without confirming when the box is unticked', async () => {
+  it('stores a thumbs up without confirming when the box is unticked', async () => {
     const user = userEvent.setup();
-    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
+    mockRateEpisode.mockResolvedValue({ rating: { value: 'up', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
     renderDetail(makeEpisode({ rating: null }));
-    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs up' }));
     await user.click(screen.getByRole('checkbox', { name: 'Confirm all cuts and dismiss held ones' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null, false));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'up', null, false));
     expect(await screen.findByText('Rating saved.')).not.toBeNull();
   });
 
-  it('reports dismissed held segments after a 5-star rating', async () => {
+  it('reports dismissed held segments after a thumbs up', async () => {
     const user = userEvent.setup();
-    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 2, dismissedMarkers: 1 });
-    renderDetail(makeEpisode({ rating: { value: 3, notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
-    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    mockRateEpisode.mockResolvedValue({ rating: { value: 'up', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 2, dismissedMarkers: 1 });
+    renderDetail(makeEpisode({ rating: { value: 'down', notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs up' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Saved. 2 cut segments confirmed, 1 held segment dismissed.')).not.toBeNull();
   });
 
   it('omits the zero confirmed count when only held segments were dismissed', async () => {
     const user = userEvent.setup();
-    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 2 });
+    mockRateEpisode.mockResolvedValue({ rating: { value: 'up', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 2 });
     renderDetail(makeEpisode({ rating: null }));
-    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(await screen.findByRole('radio', { name: 'Thumbs up' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Saved. 2 held segments dismissed.')).not.toBeNull();
   });
 
   describe('?rate= from a feed link', () => {
-    const FIVE = { rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 1, dismissedMarkers: 0 };
+    const FIVE = { rating: { value: 'up', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 1, dismissedMarkers: 0 };
 
-    beforeEach(() => { routeSearch.value = 'rate=5'; });
+    beforeEach(() => { routeSearch.value = 'rate=up'; });
     afterEach(() => { routeSearch.value = ''; });
 
     it('applies the rating once with no notes, confirms with Undo and strips the parameter', async () => {
       mockRateEpisode.mockResolvedValue(FIVE);
       renderDetail(makeEpisode({ rating: null }));
-      expect(await screen.findByText('Rated 5 stars from the feed link')).not.toBeNull();
+      expect(await screen.findByText('Rated thumbs up from the feed link')).not.toBeNull();
       expect(mockRateEpisode).toHaveBeenCalledTimes(1);
-      expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null);
+      expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'up', null);
       expect(routeSearch.value).toBe('');
       expect(screen.getByRole('button', { name: 'Undo' })).not.toBeNull();
     });
 
     it('Undo restores the rating the episode had before the link', async () => {
       const user = userEvent.setup();
-      const THREE = { rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-31T11:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 };
+      const THREE = { rating: { value: 'down', notes: 'missed one', ratedAt: '2026-10-31T11:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 };
       mockRateEpisode.mockResolvedValueOnce(FIVE).mockResolvedValueOnce(THREE);
-      renderDetail(makeEpisode({ rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-30T10:00:00Z' } }));
+      renderDetail(makeEpisode({ rating: { value: 'down', notes: 'missed one', ratedAt: '2026-10-30T10:00:00Z' } }));
       await user.click(await screen.findByRole('button', { name: 'Undo' }));
-      await waitFor(() => expect(mockRateEpisode).toHaveBeenLastCalledWith('test-feed', 'ep-1', 3, 'missed one'));
-      expect(await screen.findByText('Restored 3 stars')).not.toBeNull();
+      await waitFor(() => expect(mockRateEpisode).toHaveBeenLastCalledWith('test-feed', 'ep-1', 'down', 'missed one'));
+      expect(await screen.findByText('Restored thumbs down')).not.toBeNull();
       expect(mockClearRating).not.toHaveBeenCalled();
       expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
@@ -2787,8 +2787,8 @@ describe('Episode rating', () => {
     });
 
     it('only reports when the episode already has that rating', async () => {
-      renderDetail(makeEpisode({ rating: { value: 5, notes: null, ratedAt: '2026-10-30T10:00:00Z' } }));
-      expect(await screen.findByText('Already rated 5 stars')).not.toBeNull();
+      renderDetail(makeEpisode({ rating: { value: 'up', notes: null, ratedAt: '2026-10-30T10:00:00Z' } }));
+      expect(await screen.findByText('Already rated thumbs up')).not.toBeNull();
       expect(mockRateEpisode).not.toHaveBeenCalled();
       expect(routeSearch.value).toBe('');
     });
@@ -2797,10 +2797,34 @@ describe('Episode rating', () => {
       renderDetail(makeEpisode({ status: 'processing', rating: null }));
       await screen.findByText('Test Episode');
       expect(mockRateEpisode).not.toHaveBeenCalled();
-      expect(routeSearch.value).toBe('rate=5');
+      expect(routeSearch.value).toBe('rate=up');
     });
 
-    it('ignores a value outside 1 to 5', async () => {
+    it('accepts the legacy 5 as up and 1 to 4 as down', async () => {
+      routeSearch.value = 'rate=5';
+      mockRateEpisode.mockResolvedValue(FIVE);
+      renderDetail(makeEpisode({ rating: null }));
+      await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'up', null));
+    });
+
+    it('applies ?rate=down, focuses the comment box and offers Undo', async () => {
+      routeSearch.value = 'rate=down';
+      mockRateEpisode.mockResolvedValue({ rating: { value: 'down', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
+      renderDetail(makeEpisode({ rating: null }));
+      expect(await screen.findByText('Rated thumbs down from the feed link')).not.toBeNull();
+      expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'down', null);
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByPlaceholderText(/What was wrong/)));
+      expect(screen.getByRole('button', { name: 'Undo' })).not.toBeNull();
+    });
+
+    it('treats legacy ?rate=3 as thumbs down', async () => {
+      routeSearch.value = 'rate=3';
+      mockRateEpisode.mockResolvedValue({ rating: { value: 'down', notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
+      renderDetail(makeEpisode({ rating: null }));
+      await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'down', null));
+    });
+
+    it('ignores an unknown value', async () => {
       routeSearch.value = 'rate=9';
       renderDetail(makeEpisode({ rating: null }));
       await screen.findByText('Not rated yet');
@@ -2808,10 +2832,24 @@ describe('Episode rating', () => {
     });
   });
 
+  it('marks the chosen thumb with aria-checked and moves with the arrow keys', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ rating: null }));
+    const up = await screen.findByRole('radio', { name: 'Thumbs up' });
+    up.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(up.getAttribute('aria-checked')).toBe('true');
+    await user.keyboard('{ArrowRight}');
+    const down = screen.getByRole('radio', { name: 'Thumbs down' });
+    expect(down.getAttribute('aria-checked')).toBe('true');
+    expect(up.getAttribute('aria-checked')).toBe('false');
+    expect(document.activeElement).toBe(down);
+  });
+
   it('shows the current rating and clears it', async () => {
     const user = userEvent.setup();
-    renderDetail(makeEpisode({ rating: { value: 2, notes: 'bad cut', ratedAt: '2026-10-30T10:00:00Z' } }));
-    expect(await screen.findByText('Current rating: 2 of 5')).not.toBeNull();
+    renderDetail(makeEpisode({ rating: { value: 'down', notes: 'bad cut', ratedAt: '2026-10-30T10:00:00Z' } }));
+    expect(await screen.findByText('Current rating: thumbs down')).not.toBeNull();
     expect((screen.getByPlaceholderText(/What was wrong/) as HTMLTextAreaElement).value).toBe('bad cut');
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     await waitFor(() => expect(mockClearRating).toHaveBeenCalledWith('test-feed', 'ep-1'));

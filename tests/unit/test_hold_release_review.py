@@ -30,7 +30,7 @@ from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
 from tests.unit.pipeline_test_utils import stub_clear_fallback
 from tests.unit.pass2_test_utils import (
-    NO_SPLICE, _approval_db, _ctx, _hold, _recut_validate, _release_confirm, _spans,
+    NO_SPLICE, _approval_db, _ctx, _filed_confirms, _hold, _recut_validate, _release_confirm, _spans,
     _user_corrections, _verdict, drive_verification_pass,
 )
 
@@ -706,13 +706,6 @@ def _drive_covering(holds, findings, verdicts, **kwargs):
                                   hold_verdicts=verdicts, **kwargs)
     run.reviewer = seen
     return run
-
-
-def _filed_confirms(monkeypatch, holds):
-    db = _approval_db(monkeypatch)
-    verify._file_corroborated_hold_approvals(
-        's', 'e', holds, corrections=_user_corrections('s', 'e'))
-    return [c.kwargs for c in db.create_pattern_correction.call_args_list]
 
 
 def test_covering_adjust_releases_the_hold_part_and_cuts_the_outside_piece(monkeypatch):

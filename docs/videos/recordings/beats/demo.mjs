@@ -84,7 +84,7 @@ export const BEATS = {
       await sleep(2500); await smoothScroll(p, 360, 2200); await sleep(1200);
       const h = await expandSection(p, /^YouTube/); await smoothScroll(p, await h.evaluate((el) => el.getBoundingClientRect().top - 130), 1400); await sleep(2500);
     } },
-  // Scrolls to the SponsorBlock line, then the Rate this episode card (stars are not clicked).
+  // Scrolls to the SponsorBlock line, then the Rate this episode card (no thumb is clicked).
   ytepisode: { dev: 'laptop', url: ytEp,
     prep: async (p) => { await p.evaluate(() => window.scrollTo(0, 0)); },
     run: async (p) => {

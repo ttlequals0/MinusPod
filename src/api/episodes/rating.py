@@ -1,4 +1,4 @@
-"""Episode quality rating; a 5-star rating confirms every cut ad segment and dismisses held ones."""
+"""Episode thumbs rating; a thumbs up confirms every cut ad segment and dismisses held ones."""
 
 import logging
 
@@ -12,6 +12,7 @@ from config import (
 )
 from pattern_service import PatternService
 from utils.markers import parse_ad_markers, spans_match
+from utils.rating import parse_rating, stored_rating
 
 logger = logging.getLogger('podcast.api')
 
@@ -57,14 +58,15 @@ def _confirm_cut_markers(db, slug, episode_id) -> int:
 @api.route('/feeds/<slug>/episodes/<episode_id>/rating', methods=['PUT'])
 @log_request
 def put_episode_rating(slug, episode_id):
-    """Rate 1 to 5; a 5 confirms cut ads and dismisses held ones unless confirm_markers is false."""
+    """Rate "up" or "down" (legacy 1-5 accepted); up confirms cut ads and dismisses held ones."""
     db = get_database()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return error_response('JSON body required', 400)
     rating, notes = data.get('rating'), data.get('notes')
-    if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
-        return error_response('rating must be an integer from 1 to 5', 400)
+    rating = parse_rating(rating)
+    if rating is None:
+        return error_response('rating must be "up" or "down" (or a legacy integer from 1 to 5)', 400)
     if notes is not None and not isinstance(notes, str):
         return error_response('notes must be a string or null', 400)
     confirm = data.get('confirm_markers')
@@ -73,12 +75,12 @@ def put_episode_rating(slug, episode_id):
     notes = (notes or '').strip() or None
     if notes and len(notes) > MAX_NOTES_CHARS:
         return error_response(f'notes must be at most {MAX_NOTES_CHARS} characters', 400)
-    if rating == 5:
+    if rating == 'up':
         notes = None
-    if not db.set_episode_rating(slug, episode_id, rating, notes):
+    if not db.set_episode_rating(slug, episode_id, stored_rating(rating), notes):
         return error_response('Episode not found', 404)
     confirmed = dismissed = 0
-    if rating == 5 and confirm is not False:
+    if rating == 'up' and confirm is not False:
         confirmed = _confirm_cut_markers(db, slug, episode_id)
         dismissed = _dismiss_held_markers(db, slug, episode_id, is_pending_review)
     return json_response({'rating': rating_json(db.get_episode(slug, episode_id)),

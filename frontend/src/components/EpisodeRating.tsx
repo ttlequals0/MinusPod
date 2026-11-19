@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Star } from 'lucide-react';
+import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { clearEpisodeRating, rateEpisode } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
-import type { EpisodeDetail, EpisodeRating as Rating } from '../api/types';
+import type { EpisodeDetail, EpisodeRating as Rating, RatingValue } from '../api/types';
 import { btnBase, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing, textareaBase } from './fieldStyles';
 import { cardTitle } from './pageStyles';
@@ -11,19 +11,21 @@ import Checkbox from './Checkbox';
 import { DemoDisabled } from './DemoDisabled';
 import { IS_DEMO } from '../demo/flag';
 
-const STARS = [1, 2, 3, 4, 5] as const;
+const CHOICES = [
+  { value: 'up', label: 'Thumbs up', Icon: ThumbsUp },
+  { value: 'down', label: 'Thumbs down', Icon: ThumbsDown },
+] as const;
 const segments = (n: number, kind: string) => `${n} ${kind} ${n === 1 ? 'segment' : 'segments'}`;
 const NOTES_PLACEHOLDER = 'What was wrong? Missed ad, wrong boundary, kept segment, audio glitch...';
 
-const validRequest = (n?: number): n is number => Number.isInteger(n) && n! >= 1 && n! <= 5;
-const stars = (n: number) => `${n} ${n === 1 ? 'star' : 'stars'}`;
+const thumbs = (v: RatingValue) => `thumbs ${v}`;
 
 interface EpisodeRatingProps {
   slug: string;
   episodeId: string;
   rating?: Rating | null;
-  /** 1..5 from a feed link (?rate=N); applied once on mount. */
-  requestedRating?: number;
+  /** From a feed link (?rate=); applied once on mount. */
+  requestedRating?: RatingValue;
   onRequestedRatingHandled?: () => void;
 }
 
@@ -33,20 +35,22 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const scrollToMessage = useRef(false);
   // What the episode had before a feed link rated it, so Undo puts it back.
   const priorRating = useRef<Rating | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+  const focusNotes = useRef(false);
   const queryClient = useQueryClient();
-  const [value, setValue] = useState<number>(rating?.value ?? 0);
+  const [value, setValue] = useState<RatingValue | null>(rating?.value ?? null);
   const [notes, setNotes] = useState(rating?.notes ?? '');
   const [confirmMarkers, setConfirmMarkers] = useState(true);
   // A link asking for the rating already stored needs no request, only the notice.
   const [message, setMessage] = useState<string | null>(() =>
-    validRequest(requestedRating) && requestedRating === rating?.value ? `Already rated ${stars(requestedRating)}` : null);
+    requestedRating && requestedRating === rating?.value ? `Already rated ${thumbs(requestedRating)}` : null);
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState(rating?.ratedAt ?? null);
 
   // Adopt a rating changed elsewhere (refetch) without clobbering an in-progress edit.
   if ((rating?.ratedAt ?? null) !== syncedAt) {
     setSyncedAt(rating?.ratedAt ?? null);
-    setValue(rating?.value ?? 0);
+    setValue(rating?.value ?? null);
     setNotes(rating?.notes ?? '');
   }
 
@@ -56,26 +60,26 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   };
 
   const save = useMutation({
-    mutationFn: ({ count, restoreNotes, confirm }: { count: number; viaLink?: boolean; restoreNotes?: string | null; confirm?: false }) =>
-      rateEpisode(slug, episodeId, count, count < 5 ? (restoreNotes ?? (notes.trim() || null)) : null,
+    mutationFn: ({ choice, restoreNotes, confirm }: { choice: RatingValue; viaLink?: boolean; restoreNotes?: string | null; confirm?: false }) =>
+      rateEpisode(slug, episodeId, choice, choice === 'down' ? (restoreNotes ?? (notes.trim() || null)) : null,
         ...(confirm === undefined ? [] : [confirm])),
     onMutate: () => { setError(null); setMessage(null); },
-    onSuccess: (result, { count, viaLink, restoreNotes, confirm }) => {
-      setValue(count);
+    onSuccess: (result, { choice, viaLink, restoreNotes, confirm }) => {
+      setValue(choice);
       setConfirmMarkers(true);
-      if (count === 5) setNotes('');
+      if (choice === 'up') setNotes('');
       if (restoreNotes !== undefined) {
         setNotes(restoreNotes ?? '');
-        setMessage(`Restored ${stars(count)}`);
+        setMessage(`Restored ${thumbs(choice)}`);
       } else if (viaLink) {
-        setMessage(`Rated ${stars(count)} from the feed link`);
+        setMessage(`Rated ${thumbs(choice)} from the feed link`);
       } else {
         const { confirmedMarkers: confirmed, dismissedMarkers: dismissed } = result;
         const parts = [
           ...(confirmed || !dismissed ? [`${segments(confirmed, 'cut')} confirmed`] : []),
           ...(dismissed ? [`${segments(dismissed, 'held')} dismissed`] : []),
         ];
-        setMessage(count === 5 && confirm !== false ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
+        setMessage(choice === 'up' && confirm !== false ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
       }
       setRating(result.rating);
     },
@@ -86,7 +90,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
     mutationFn: () => clearEpisodeRating(slug, episodeId),
     onMutate: () => { setError(null); setMessage(null); },
     onSuccess: () => {
-      setValue(0);
+      setValue(null);
       setNotes('');
       setMessage('Rating cleared.');
       setRating(null);
@@ -95,17 +99,25 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   });
 
   useEffect(() => {
-    if (requestHandled.current || !validRequest(requestedRating)) return;
+    if (requestHandled.current || !requestedRating) return;
     requestHandled.current = true;
     if (!IS_DEMO && requestedRating !== rating?.value) {
       priorRating.current = rating ?? null;
-      save.mutate({ count: requestedRating, viaLink: true });
+      save.mutate({ choice: requestedRating, viaLink: true });
     }
+    focusNotes.current = requestedRating === 'down';
     scrollToMessage.current = true;
     onRequestedRatingHandled?.();
   }, [requestedRating, rating, save, onRequestedRatingHandled]);
 
-  // The confirmation renders below the stars, so scroll once it exists.
+  // A ?rate=down link lands the listener in the comment box once it is rendered.
+  useEffect(() => {
+    if (!focusNotes.current || value !== 'down' || !notesRef.current) return;
+    focusNotes.current = false;
+    notesRef.current.focus();
+  }, [value]);
+
+  // The confirmation renders below the buttons, so scroll once it exists.
   useEffect(() => {
     if (!scrollToMessage.current || !message) return;
     scrollToMessage.current = false;
@@ -115,22 +127,22 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const undoable = save.isSuccess && !!save.variables?.viaLink && !clear.isSuccess && !clear.isPending;
   const undo = () => {
     const prior = priorRating.current;
-    if (prior?.value) save.mutate({ count: prior.value, restoreNotes: prior.notes ?? null });
+    if (prior) save.mutate({ choice: prior.value, restoreNotes: prior.notes ?? null });
     else clear.mutate();
   };
   const busy = save.isPending || clear.isPending;
-  const dirty = value !== (rating?.value ?? 0) || (value < 5 && notes.trim() !== (rating?.notes ?? ''));
+  const dirty = value !== (rating?.value ?? null) || (value === 'down' && notes.trim() !== (rating?.notes ?? ''));
 
-  // Choosing a star count re-arms the confirm option, so an earlier untick never carries over.
-  const pick = (n: number) => { setValue(n); setConfirmMarkers(true); };
+  // Choosing a thumb re-arms the confirm option, so an earlier untick never carries over.
+  const pick = (v: RatingValue) => { setValue(v); setConfirmMarkers(true); };
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    const step = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
     if (!step) return;
     e.preventDefault();
-    const next = Math.min(5, Math.max(1, (value || (step > 0 ? 0 : 6)) + step));
-    pick(next);
-    (e.currentTarget.parentElement?.children[next - 1] as HTMLElement | undefined)?.focus();
+    const next = value === null ? (step > 0 ? 0 : 1) : (step > 0 ? 1 : 0);
+    pick(CHOICES[next].value);
+    (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
   };
 
   return (
@@ -138,31 +150,34 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h2 id="episode-rating-title" className={cardTitle}>Rate this episode</h2>
         <p className="text-sm text-muted-foreground">
-          {rating ? `Current rating: ${rating.value} of 5` : 'Not rated yet'}
+          {rating ? `Current rating: ${thumbs(rating.value)}` : 'Not rated yet'}
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        5 stars confirms every cut segment in this episode and dismisses any held ones. Anything lower is kept as feedback.
+        Thumbs up confirms every cut segment in this episode and dismisses any held ones. Thumbs down is kept as feedback, with an optional comment.
       </p>
-      <div role="radiogroup" aria-labelledby="episode-rating-title" className="flex items-center gap-1">
-        {STARS.map((n) => (
-          <button
-            key={n}
-            type="button"
-            role="radio"
-            aria-checked={value === n}
-            aria-label={`${n} ${n === 1 ? 'star' : 'stars'}`}
-            tabIndex={value === n || (value === 0 && n === 1) ? 0 : -1}
-            disabled={busy}
-            onClick={() => pick(n)}
-            onKeyDown={onKeyDown}
-            className={`${touchTarget} sm:min-h-9 sm:pointer-fine:min-w-9 rounded text-warning ${focusRing}`}
-          >
-            <Star className="w-7 h-7" fill={n <= value ? 'currentColor' : 'none'} aria-hidden="true" />
-          </button>
-        ))}
+      <div role="radiogroup" aria-labelledby="episode-rating-title" className="flex flex-wrap items-center gap-2">
+        {CHOICES.map(({ value: v, label, Icon }) => {
+          const selected = value === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected || (value === null && v === 'up') ? 0 : -1}
+              disabled={busy}
+              onClick={() => pick(v)}
+              onKeyDown={onKeyDown}
+              className={`${touchTarget} sm:min-h-9 sm:pointer-fine:min-w-9 gap-2 px-3 rounded border text-sm transition-colors disabled:opacity-50 ${focusRing} ${selected ? 'border-primary bg-accent font-medium text-accent-foreground' : 'border-input text-muted-foreground hover:bg-accent hover:text-foreground'}`}
+            >
+              <Icon className="w-5 h-5" fill={selected ? 'currentColor' : 'none'} aria-hidden="true" />
+              {label}
+            </button>
+          );
+        })}
       </div>
-      {value === 5 && rating?.value !== 5 && (
+      {value === 'up' && rating?.value !== 'up' && (
         <div>
           <Checkbox
             className="pointer-coarse:min-h-11"
@@ -172,13 +187,14 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
             ariaDescribedBy="episode-rating-confirm-help"
             label="Confirm all cuts and dismiss held ones"
           />
-          <p id="episode-rating-confirm-help" className="text-sm text-muted-foreground">Untick to store a 5-star rating without confirming anything.</p>
+          <p id="episode-rating-confirm-help" className="text-sm text-muted-foreground">Untick to store a thumbs up without confirming anything.</p>
         </div>
       )}
-      {value > 0 && value < 5 && (
+      {value === 'down' && (
         <div>
-          <label htmlFor="episode-rating-notes" className="sr-only">Rating notes</label>
+          <label htmlFor="episode-rating-notes" className="sr-only">Comment</label>
           <textarea
+            ref={notesRef}
             id="episode-rating-notes"
             rows={3}
             className={`${textareaBase} w-full`}
@@ -195,8 +211,8 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
           <button
             type="button"
             className={`${btnBase} ${btnPrimary}`}
-            disabled={value === 0 || !dirty || busy}
-            onClick={() => save.mutate({ count: value, confirm: value === 5 && !confirmMarkers ? false : undefined })}
+            disabled={!value || !dirty || busy}
+            onClick={() => value && save.mutate({ choice: value, confirm: value === 'up' && !confirmMarkers ? false : undefined })}
           >
             {save.isPending ? 'Saving...' : 'Save'}
           </button>

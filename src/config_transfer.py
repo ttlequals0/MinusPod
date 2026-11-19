@@ -160,7 +160,8 @@ FEED_COLUMNS = (
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'snip_short_asks',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
-    'queue_priority', 'queue_order', 'title_skip_patterns', 'description_skip_patterns',
+    'queue_priority', 'queue_order', 'title_skip_patterns', 'title_include_patterns',
+    'description_skip_patterns',
     'description_trim_pattern', 'description_trim_mode',
     'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
@@ -172,8 +173,8 @@ FEED_COLUMNS = (
 YOUTUBE_SOURCE_RE = re.compile(r'youtube://(playlist|channel|video)/[A-Za-z0-9_-]+')
 YOUTUBE_ID_RE = re.compile(r'[A-Za-z0-9_-]+')
 FEED_JSON_COLUMNS = frozenset({
-    'segment_category_actions', 'title_skip_patterns', 'description_skip_patterns',
-    'user_tags', 'categories', 'p20_channel_json',
+    'segment_category_actions', 'title_skip_patterns', 'title_include_patterns',
+    'description_skip_patterns', 'user_tags', 'categories', 'p20_channel_json',
 })
 FEED_BOOL_COLUMNS = frozenset({
     'own_episode_guids', 'silence_snap_enabled', 'transition_snap_enabled',
@@ -1079,7 +1080,7 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if error:
                 raise ConfigTransferError(error)
         elif key in FEED_JSON_COLUMNS and key not in (
-                'title_skip_patterns', 'description_skip_patterns',
+                'title_skip_patterns', 'title_include_patterns', 'description_skip_patterns',
                 'segment_category_actions') and value is not None:
             value = _canonical_json(value) if not isinstance(value, str) else value
         elif key in FEED_BOOL_COLUMNS and value is not None:
@@ -1131,6 +1132,10 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError(error)
         elif key == 'title_skip_patterns':
             value, error = feed_api._normalize_title_skip_patterns(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'title_include_patterns':
+            value, error = feed_api._normalize_title_include_patterns(value)
             if error:
                 raise ConfigTransferError(error)
         elif key == 'description_skip_patterns':
@@ -1355,7 +1360,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
         'max_episodes', 'only_expose_processed_episodes', 'title_override',
         'description_override',
         'require_manual_approval',
-        'source_url', 'own_episode_guids', 'title_skip_patterns',
+        'source_url', 'own_episode_guids', 'title_skip_patterns', 'title_include_patterns',
         'description_skip_patterns',
         'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
         'title', 'author', 'explicit', 'categories',

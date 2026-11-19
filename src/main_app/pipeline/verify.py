@@ -1055,6 +1055,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     covered=[*v_ads_for_ui, *(orig for _proc, orig in hold_overlaps)],
                     ledger=ledger)
                 v_corroborated_count += released
+                v_corroborated_count += review._review_hold_remainders(
+                    ctx, pass1_held_markers or [], original_segments,
+                    current_protection(), segment_actions=segment_actions,
+                    min_cut_confidence=min_cut_confidence,
+                    reviewed=hold_release_candidates)
                 hold_overlaps.extend(outside_pairs)
                 fragments = _gate_hold_split_fragments(
                     slug, episode_id, hold_overlaps, current_protection(),

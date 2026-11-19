@@ -370,8 +370,7 @@ def upload_local_episode(slug):
     # when artwork was just saved, while a later GET shows it.
     response = _episode_base_json(
         episode, slug=slug, is_local=True, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'),
-        description_skip_patterns=podcast.get('description_skip_patterns'))
+        filters=podcast)
     response['episodeNumber'] = episode.get('episode_number')
     response['seasonNumber'] = episode.get('season_number')
     response['queued'] = queued
@@ -412,8 +411,7 @@ def patch_local_episode(slug, episode_id):
     # local-artwork fallback never runs and artworkUrl is null even with a cached cover.
     response = _episode_base_json(
         updated, slug=slug, is_local=True, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'),
-        description_skip_patterns=podcast.get('description_skip_patterns'))
+        filters=podcast)
     response['episodeNumber'] = updated.get('episode_number')
     response['seasonNumber'] = updated.get('season_number')
     return json_response(response, 200)
