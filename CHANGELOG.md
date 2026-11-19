@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up.
+
 ## [2.102.10] - 2026-11-19
 
 ### Added
