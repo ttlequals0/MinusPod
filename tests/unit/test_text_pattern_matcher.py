@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from unittest.mock import MagicMock
 
+from rapidfuzz import fuzz
+
 from text_pattern_matcher import (
     _split_sentences, _extract_intro_phrase, _extract_outro_phrase,
     TextPatternMatcher, AdPattern, TextMatch, MAX_MATCH_DURATION,
@@ -1342,12 +1344,13 @@ class TestCharPosToTimeSegmentSeparator:
         ]
         full_text, segment_map = TextPatternMatcher._concat_segments(segs)
         matcher = _make_bare_matcher()
-        pos, score, matched = matcher._fuzzy_find(
-            full_text.lower(), intro.lower(), required_fuzzy_score(len(intro)))
-        assert score >= required_fuzzy_score(len(intro))
+        # The raw window, before _fuzzy_find tightens its edges.
+        align = fuzz.partial_ratio_alignment(
+            intro.lower(), full_text.lower(), score_cutoff=required_fuzzy_score(len(intro)))
+        matched = full_text[align.dest_start:align.dest_end]
         assert matched != matched.strip()
         assert matcher._char_pos_to_time(
-            pos, pos + len(matched), segment_map, segs) == (212.0, 220.0)
+            align.dest_start, align.dest_end, segment_map, segs) == (212.0, 220.0)
 
     def test_outro_ending_before_the_last_segment_is_not_snapped_as_terminal(self):
         """An end timed from the sign-off after the read would reach EOF and let the terminal snap move the start."""
@@ -1362,11 +1365,11 @@ class TestCharPosToTimeSegmentSeparator:
         ]
         full_text, segment_map = TextPatternMatcher._concat_segments(segs)
         matcher = _make_bare_matcher()
-        pos, score, matched = matcher._fuzzy_find(
-            full_text.lower(), outro.lower(), required_fuzzy_score(len(outro)))
-        assert score >= required_fuzzy_score(len(outro))
-        assert matched.endswith(' ')
-        start, end = matcher._char_pos_to_time(pos, pos + len(matched), segment_map, segs)
+        # The raw window, before _fuzzy_find tightens its edges.
+        align = fuzz.partial_ratio_alignment(
+            outro.lower(), full_text.lower(), score_cutoff=required_fuzzy_score(len(outro)))
+        assert full_text[align.dest_start:align.dest_end].endswith(' ')
+        start, end = matcher._char_pos_to_time(align.dest_start, align.dest_end, segment_map, segs)
         assert (start, end) == (3580.0, 3592.0)
 
         # A deep silence in the untranscribed gap before the read: a safe snap target for a terminal marker.
@@ -1384,3 +1387,64 @@ class TestCharPosToTimeSegmentSeparator:
         snapped = snap(end)
         assert snapped['start'] == 3580.0
         assert 'terminal_snap' not in snapped
+
+
+class TestFuzzyWindowTightening:
+    """A stored phrase longer than the text it matches must not take characters from the segment next to it."""
+
+    INTRO = ("Attention, all companies and other firms. Yes, right now we are looking "
+             "for customers who want to solve really tricky logistics puzzles.")
+
+    def _segments(self):
+        spoken = self.INTRO.replace("Attention,", "Attention").replace("firms.", "firms").rstrip(".")
+        return [
+            # The first word starts a hair before its segment, so word times are not used here.
+            {'start': 197.4, 'end': 202.9, 'text': "More on the market open in the morning show today at 8.15",
+             'words': [{'word': ' More', 'start': 197.38, 'end': 198.3}]},
+            {'start': 215.5, 'end': 225.7, 'text': spoken},
+            {'start': 225.7, 'end': 227.4, 'text': "Does that sound like your business?"},
+        ]
+
+    def _find(self):
+        segs = self._segments()
+        full_text, segment_map = TextPatternMatcher._concat_segments(segs)
+        intro = self.INTRO.lower()
+        return segs, full_text.lower(), segment_map, intro, required_fuzzy_score(len(intro))
+
+    def test_raw_window_starts_in_the_segment_before(self):
+        """The condition the other tests depend on: surplus characters at the head of the window."""
+        _, text, segment_map, intro, cutoff = self._find()
+        align = fuzz.partial_ratio_alignment(intro, text, score_cutoff=cutoff)
+        assert text[align.dest_start:align.dest_end].startswith("5 attention")
+        assert align.dest_start < segment_map[1][0]
+
+    def test_fuzzy_find_returns_the_spoken_text_only(self):
+        segs, text, segment_map, intro, cutoff = self._find()
+        pos, score, matched = _make_bare_matcher()._fuzzy_find(text, intro, cutoff)
+        assert score >= cutoff
+        assert pos == segment_map[1][0]
+        assert matched == segs[1]['text'].lower()
+
+    def test_fuzzy_find_all_returns_the_spoken_text_only(self):
+        segs, text, segment_map, intro, cutoff = self._find()
+        hits = _make_bare_matcher()._fuzzy_find_all(text, intro, cutoff)
+        start = segment_map[1][0]
+        assert [(lo, hi) for lo, hi, _ in hits] == [(start, start + len(segs[1]['text']))]
+
+    def test_intro_time_is_the_read_not_the_sentence_before(self):
+        segs, text, segment_map, intro, cutoff = self._find()
+        matcher = _make_bare_matcher()
+        pos, _, matched = matcher._fuzzy_find(text, intro, cutoff)
+        assert matcher._phrase_start_time(0, pos, matched, segment_map, segs) == 215.5
+
+    def test_exact_match_keeps_its_window(self):
+        text = "one two three attention all companies and other firms four five six"
+        phrase = "attention all companies and other firms"
+        pos, score, matched = _make_bare_matcher()._fuzzy_find(text, phrase, 90)
+        assert (pos, score, matched) == (text.index(phrase), 100.0, phrase)
+
+    def test_misheard_word_at_the_edge_stays_in_the_match(self):
+        text = "one two three attention all companies and other forms four five six"
+        phrase = "attention all companies and other firms"
+        pos, _, matched = _make_bare_matcher()._fuzzy_find(text, phrase, 90)
+        assert (pos, matched) == (text.index("attention"), "attention all companies and other forms")

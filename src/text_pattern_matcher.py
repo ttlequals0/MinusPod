@@ -100,6 +100,25 @@ def _word_time(aligned, offset, want_end):
     return None
 
 
+def _tighten_window(phrase: str, text: str, start: int, end: int) -> tuple[int, int]:
+    """Drop the characters at either edge of text[start:end] that the phrase does not account for.
+
+    partial_ratio_alignment slides a window as long as the phrase. A phrase stored with
+    punctuation the transcript lacks is longer than the text it matches, so the window runs
+    a few characters into the segment before or after it. An edge character is dropped while
+    that raises the similarity, which a character the phrase matched never does.
+    """
+    best = fuzz.ratio(phrase, text[start:end])
+    for step in (1, -1):
+        while end - start > 1:
+            lo, hi = (start + 1, end) if step == 1 else (start, end - 1)
+            score = fuzz.ratio(phrase, text[lo:hi])
+            if score <= best:
+                break
+            start, end, best = lo, hi, score
+    return start, end
+
+
 def _segments_for_pattern_learning(segments, start, end):
     """Use timed words where available and decline ambiguous boundary text."""
     clipped = []
@@ -1120,7 +1139,8 @@ class TextPatternMatcher:
             )
             if not align:
                 return 0, 0, ''
-            return align.dest_start, align.score, text[align.dest_start:align.dest_end]
+            start, end = _tighten_window(pattern, text, align.dest_start, align.dest_end)
+            return start, align.score, text[start:end]
 
         except Exception:
             return 0, 0, ''
@@ -1141,9 +1161,8 @@ class TextPatternMatcher:
                 )
                 if not align:
                     continue
-                hits.append(
-                    (offset + align.dest_start, offset + align.dest_end, align.score)
-                )
+                start, end = _tighten_window(phrase, sub, align.dest_start, align.dest_end)
+                hits.append((offset + start, offset + end, align.score))
                 work.append((offset, sub[:align.dest_start]))
                 work.append((offset + align.dest_end, sub[align.dest_end:]))
         except Exception:
