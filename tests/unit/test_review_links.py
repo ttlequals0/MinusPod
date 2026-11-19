@@ -32,7 +32,8 @@ def test_block_has_review_and_rate_links(ui_base):
     block = format_review_links('show', 'ep1')
     url = 'https://app.example.com/ui/feeds/show/episodes/ep1'
     assert block == (f'<p><a href="{url}">Review in MinusPod</a> | '
-                     f'<a href="{url}?rate=5">Rate 5 stars</a></p>')
+                     f'<a href="{url}?rate=up">Thumbs up</a> | '
+                     f'<a href="{url}?rate=down">Thumbs down</a></p>')
 
 
 def test_url_is_html_escaped():

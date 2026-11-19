@@ -266,7 +266,7 @@ _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 _CONTENT_NS = "http://purl.org/rss/1.0/modules/content/"
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=32)
 def _sanitized_collapsed(text) -> str:
     """Whitespace-collapsed sanitized text, cached so each description is sanitized once."""
     return collapse_whitespace(_sanitize_feed_html(text))
@@ -1547,7 +1547,7 @@ class RSSParser:
             if ((kind.endswith('/html') or kind.endswith('xhtml')) and value.strip()
                     and not RSSParser._same_text(value, raw_description, itunes_summary)):
                 return value
-        return raw_content
+        return _sanitize_feed_html(raw_content)
 
     @staticmethod
     def _get_episode_content(entry, description=None) -> str:

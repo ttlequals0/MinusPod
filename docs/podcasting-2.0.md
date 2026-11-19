@@ -175,9 +175,11 @@ To jump from a podcast app to an episode in MinusPod, turn on **Add review
 links to episode descriptions** under Settings > Transcripts & Chapters
 (`reviewLinksInNotes`, off by default). The description of every episode
 MinusPod has seen then ends with two links: **Review in MinusPod** opens the
-episode page, and **Rate 5 stars** opens it with `?rate=5`, which applies a
-5-star rating as soon as the page loads, confirms it with an Undo button and
-removes the parameter from the address bar. The links are added as soon as
+episode page, **Thumbs up** opens it with `?rate=up` and **Thumbs down** with
+`?rate=down`. Either applies that rating as soon as the page loads, confirms it
+with an Undo button and removes the parameter from the address bar. Thumbs down
+also moves focus to the comment box. Links saved in an app from earlier
+versions, `?rate=5` and `?rate=1` to `?rate=4`, still work as up and down. The links are added as soon as
 MinusPod has the episode, including while it is still processing, because some
 apps store show notes the first time they see an episode and never refresh
 them. Items the upstream feed lists but MinusPod has not discovered yet get no

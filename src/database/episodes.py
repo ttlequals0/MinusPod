@@ -535,14 +535,6 @@ class EpisodeMixin:
         conn.commit()
         return True
 
-    def get_feed_rating_summary(self, slug: str) -> tuple[float | None, int]:
-        """(average, count) of the quality ratings across one feed's episodes."""
-        row = self.get_connection().execute(
-            """SELECT AVG(e.quality_rating) AS average, COUNT(e.quality_rating) AS n
-               FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
-               WHERE p.slug = ? AND e.quality_rating IS NOT NULL""", (slug,)).fetchone()
-        return (row['average'], row['n']) if row['n'] else (None, 0)
-
     def get_rated_episodes(self, start_iso: str, end_iso: str, limit: int) -> list[dict]:
         """Episodes rated inside [start_iso, end_iso], newest rating first."""
         rows = self.get_connection().execute(

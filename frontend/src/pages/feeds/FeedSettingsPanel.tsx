@@ -1268,7 +1268,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 disabled={updateMutation.isPending}
                 onChange={(reviewLinksInNotes) => updateMutation.mutate({ reviewLinksInNotes })}
               >
-                Add a link to the episode page and a 5-star rating link to the
+                Add a link to the episode page and thumbs up and thumbs down links to the
                 description of each processed episode in this feed.
               </GlobalOverrideRow>
 

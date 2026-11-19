@@ -41,6 +41,7 @@ from db_backup_service import backup_now, BackupInProgressError
 from diagnostic_log import export as export_diagnostics, _parse_time
 from utils.http import safe_url_for_log
 from utils.markers import parse_ad_markers
+from utils.rating import rating_label
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.api')
@@ -600,7 +601,7 @@ def _episode_ratings(db, start, end) -> list[dict]:
     rows = db.get_rated_episodes(start.strftime(ISO_FORMAT), end.strftime(ISO_FORMAT), EXPORT_RATING_LIMIT)
     return [{
         'slug': row['slug'], 'episodeId': row['episode_id'], 'title': row['title'],
-        'rating': row['quality_rating'], 'notes': row['quality_notes'], 'ratedAt': row['quality_rated_at'],
+        'rating': rating_label(row['quality_rating']), 'notes': row['quality_notes'], 'ratedAt': row['quality_rated_at'],
         'markers': _marker_counts(parse_ad_markers(row['ad_markers_json'])),
     } for row in rows]
 

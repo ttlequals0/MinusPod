@@ -58,13 +58,13 @@ export const BEATS = {
         if (route.request().method() === 'DELETE') { st.rating = null; return route.fulfill({ status: 204 }); }
         if (route.request().method() !== 'PUT') return route.fallback();
         const { rating, notes } = route.request().postDataJSON();
-        st.rating = { value: rating, notes: rating < 5 ? notes ?? null : null, ratedAt: NOW() };
+        st.rating = { value: rating, notes: rating === 'down' ? notes ?? null : null, ratedAt: NOW() };
         return reply(route, { rating: st.rating, confirmedMarkers: 1, dismissedMarkers: 0 });
       });
     },
     prep: (p) => jumpTo(p, p.getByRole('heading', { name: 'Rate this episode' }), 300),
     run: async (p) => {
-      await sleep(1200); await p.getByRole('radio', { name: '5 stars' }).click(); await sleep(1200);
+      await sleep(1200); await p.getByRole('radio', { name: 'Thumbs up' }).click(); await sleep(1200);
       await p.getByRole('button', { name: 'Save', exact: true }).click();
       await p.getByText(/^Saved\./).waitFor({ timeout: 10000 }); await sleep(3200);
     } },

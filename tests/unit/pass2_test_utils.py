@@ -61,6 +61,14 @@ def _approval_db(monkeypatch, confirmed=None):
     return db
 
 
+def _filed_confirms(monkeypatch, holds):
+    """Confirm corrections _file_corroborated_hold_approvals files for holds, as kwargs."""
+    db = _approval_db(monkeypatch)
+    verify._file_corroborated_hold_approvals(
+        's', 'e', holds, corrections=_user_corrections('s', 'e'))
+    return [c.kwargs for c in db.create_pattern_correction.call_args_list]
+
+
 def _verdict(kind, start, end, adjusted=None, reasoning='Sponsor read for Acme',
              pool='accepted', **kwargs):
     return ReviewVerdict(

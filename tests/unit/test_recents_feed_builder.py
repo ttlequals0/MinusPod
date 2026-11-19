@@ -111,7 +111,7 @@ def test_review_links_follow_the_global_setting_and_use_the_source_slug(recents)
     mf.db.set_setting('review_links_in_notes', 'true', is_default=False)
     xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
     assert '/ui/feeds/alpha/episodes/aaaaaaaaaaa2">Review in MinusPod' in xml
-    assert '/ui/feeds/beta/episodes/s01e01?rate=5' in xml
+    assert '/ui/feeds/beta/episodes/s01e01?rate=up' in xml
 
 
 @pytest.mark.parametrize('global_value,override,alpha_linked', [

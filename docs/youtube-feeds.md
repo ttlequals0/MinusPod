@@ -184,7 +184,7 @@ A segment is listed when all of these hold:
 - The segment has evidence beyond the LLM, such as a verified span, a reviewer confirmation, a fingerprint or pattern match, or your own confirmation.
 - The segment is not held for review.
 
-Each row shows its evidence. Giving the episode 5 stars confirms every cut segment, so they all qualify afterwards.
+Each row shows its evidence. A thumbs up on the episode confirms every cut segment, so they all qualify afterwards.
 
 MinusPod records the outcome of each segment on the episode: submitted, duplicate, rejected, rate limited or error. Submitted and duplicate segments are shown greyed out and cannot be sent again. A rejected, rate limited or failed segment can be sent again. The user ID is never logged.
 

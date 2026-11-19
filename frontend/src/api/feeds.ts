@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, RatingValue, ProcessingMode } from './types';
 import { apiUrl } from '../urlPrefix';
 import { mediaUrl } from '../utils/mediaUrl';
 import { IS_DEMO } from '../demo/flag';
@@ -811,7 +811,7 @@ export async function submitSponsorBlock(
 }
 
 export async function rateEpisode(
-  slug: string, episodeId: string, rating: number, notes: string | null, confirmMarkers?: boolean,
+  slug: string, episodeId: string, rating: RatingValue, notes: string | null, confirmMarkers?: boolean,
 ): Promise<{ rating: EpisodeRating; confirmedMarkers: number; dismissedMarkers: number }> {
   return apiRequest(`/feeds/${slug}/episodes/${episodeId}/rating`, { method: 'PUT', body: { rating, notes, confirm_markers: confirmMarkers } });
 }

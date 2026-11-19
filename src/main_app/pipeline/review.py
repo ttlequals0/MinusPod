@@ -17,7 +17,7 @@ from utils.time import (
 
 from config import (
     MIN_AD_DURATION, HOLD_REASON_REVIEWER_CONTRADICTION,
-    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
 )
 
 from llm_capabilities import (
@@ -381,6 +381,28 @@ def _outside_candidates(pieces, pass1_cuts, covered, ledger):
     return pairs
 
 
+def _review_held_spans(ctx, subs, original_segments, protection, segment_actions,
+                       min_cut_confidence):
+    """One pass-2 reviewer call over original-time subspans of holds."""
+    reviewer = _build_reviewer(db, ad_detector)
+    episode_meta = _build_episode_meta(
+        ctx.slug, ctx.episode_id, ctx.podcast_id, ctx.podcast_name,
+        ctx.episode_title, ctx.podcast_description, ctx.episode_description,
+        effective_category_actions=segment_actions,
+        hard_barriers=protection.hard_orig, min_cut_confidence=min_cut_confidence,
+        protected_spans=protection.hard_labelled,
+        detection_notes=ctx.detection_notes)
+    return reviewer.review(
+        accepted_ads=subs,
+        resurrection_eligible=[],
+        segments=original_segments or [],
+        episode_meta=episode_meta,
+        pass_num=2,
+        pass_model=ad_detector.get_verification_model(),
+        pass_provider=ad_detector.get_verification_provider(),
+    )
+
+
 def _review_hold_release_candidates(ctx, candidates, original_segments,
                                     protection, segment_actions=None,
                                     min_cut_confidence=None, pass1_cuts=None,
@@ -390,23 +412,9 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         return 0, []
     ledger = ledger or Pass2Ledger()
     pass1_cuts = pass1_cuts or []
-    reviewer = _build_reviewer(db, ad_detector)
-    episode_meta = _build_episode_meta(
-        ctx.slug, ctx.episode_id, ctx.podcast_id, ctx.podcast_name,
-        ctx.episode_title, ctx.podcast_description, ctx.episode_description,
-        effective_category_actions=segment_actions,
-        hard_barriers=protection.hard_orig, min_cut_confidence=min_cut_confidence,
-        protected_spans=protection.hard_labelled,
-        detection_notes=ctx.detection_notes)
-    result = reviewer.review(
-        accepted_ads=[orig_sub for orig_sub, _hold in candidates],
-        resurrection_eligible=[],
-        segments=original_segments or [],
-        episode_meta=episode_meta,
-        pass_num=2,
-        pass_model=ad_detector.get_verification_model(),
-        pass_provider=ad_detector.get_verification_provider(),
-    )
+    result = _review_held_spans(
+        ctx, [orig_sub for orig_sub, _hold in candidates], original_segments,
+        protection, segment_actions, min_cut_confidence)
     by_key = {(sub['start'], sub['end']): (sub, hold) for sub, hold in candidates}
     released = 0
     released_by_hold = {}
@@ -466,6 +474,70 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
             f"[{ctx.slug}:{ctx.episode_id}] Outside-hold parts sent as pass-2 "
             f"candidates: {sent or 'none'}")
     return released, outside_pairs
+
+
+def _hold_released_spans(hold):
+    """Copies of the spans pass 2 released from a hold."""
+    spans = hold.get('pass2_released_spans') or [hold.get('pass2_corroborated_span')]
+    return [dict(s) for s in spans if s]
+
+
+def _hold_remainder_candidates(holds, reviewed=()):
+    """(original_sub, hold) for each unreviewed piece a pass-2 release left of a transcript-gap hold."""
+    candidates = []
+    for hold in holds:
+        if (hold.get('hold_reason') != HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
+                or not hold.get('pass2_corroborated')):
+            continue
+        released = _hold_released_spans(hold)
+        if not released:
+            continue
+        judged = [(sub['start'], sub['end']) for sub, owner in reviewed if owner is hold]
+        left = subtract_spans([(hold['start'], hold['end'])],
+                              [(s['start'], s['end']) for s in released] + judged)
+        for a, b in left:
+            if b - a >= MIN_AD_DURATION:
+                sub = carve_fragment(hold, a, b)
+                sub['held_for_review'] = True
+                candidates.append((sub, hold))
+    return candidates
+
+
+def _review_hold_remainders(ctx, holds, original_segments, protection,
+                            segment_actions=None, min_cut_confidence=None, reviewed=()):
+    """Review once what pass 2 left of partly released transcript-gap holds; returns holds changed."""
+    candidates = _hold_remainder_candidates(holds, reviewed)
+    if not candidates or not _ad_review_enabled(db):
+        return 0
+    result = _review_held_spans(
+        ctx, [sub for sub, _hold in candidates], original_segments, protection,
+        segment_actions, min_cut_confidence)
+    by_key = {(sub['start'], sub['end']): (sub, hold) for sub, hold in candidates}
+    changed = set()
+    for v in result.verdicts:
+        sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
+        if hold is None:
+            continue
+        released = _released_span(v, sub, hold, protection.barriers_orig(exclude=[hold]))
+        lo, hi = ((max(released[0]['start'], sub['start']), min(released[0]['end'], sub['end']))
+                  if released else (0.0, 0.0))
+        if hi - lo < MIN_AD_DURATION:
+            audio_logger.info(
+                f"[{ctx.slug}:{ctx.episode_id}] Review of remainder {sub['start']:.1f}s-"
+                f"{sub['end']:.1f}s of hold {hold['start']:.1f}s-{hold['end']:.1f}s "
+                f"returned {v.verdict}; it stays held. Reason: "
+                f"{v.reasoning or 'none given'}")
+            continue
+        hold['pass2_released_spans'] = sorted(
+            [*_hold_released_spans(hold), {'start': lo, 'end': hi}], key=lambda s: s['start'])
+        if id(hold) not in changed:
+            hold.setdefault('validation', {}).setdefault('flags', []).append(
+                'INFO: Hold remainder confirmed by review')
+            changed.add(id(hold))
+        audio_logger.info(
+            f"[{ctx.slug}:{ctx.episode_id}] Hold remainder confirmed by review: released "
+            f"{lo:.1f}s-{hi:.1f}s of hold {hold['start']:.1f}s-{hold['end']:.1f}s")
+    return len(changed)
 
 
 def _hold_adjustments_crossing_final_holds(processed_ads, original_ads, held_ads):

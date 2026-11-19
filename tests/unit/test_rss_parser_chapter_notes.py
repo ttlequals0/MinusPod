@@ -96,7 +96,7 @@ def test_review_links_off_by_default():
 def test_upstream_processed_item_gets_the_links():
     xml = _links_feed(_processed_extra(UPSTREAM_ID), {UPSTREAM_ID})
     assert f'<p>Notes</p>\n\n<p><a href="{LINK_BASE}{UPSTREAM_ID}">Review in MinusPod</a>' in xml
-    assert f'{LINK_BASE}{UPSTREAM_ID}?rate=5">Rate 5 stars' in xml
+    assert f'{LINK_BASE}{UPSTREAM_ID}?rate=up">Thumbs up' in xml
 
 
 def test_unknown_upstream_item_gets_no_links():

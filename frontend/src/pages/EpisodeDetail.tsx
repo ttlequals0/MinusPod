@@ -30,6 +30,7 @@ import { getYouTubeSettings } from '../api/youtube';
 import StatusBadge from '../components/StatusBadge';
 import CloseButton from '../components/CloseButton';
 import EpisodeRating from '../components/EpisodeRating';
+import { parseRateParam } from '../utils/rating';
 import SponsorBlockSubmit from '../components/SponsorBlockSubmit';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
@@ -377,7 +378,7 @@ function blockedRunReason(jobState?: JobState): string {
 
 const downloadChip = btnBase;
 
-// ?rate=N from a feed description link; stripped once applied.
+// ?rate=up|down (or legacy 1-5) from a feed description link; stripped once applied.
 const URL_PARAM_DEFAULTS = { rate: '' };
 
 // The span a marker row shows: the pre-trim range for reviewer-adjusted markers.
@@ -1644,7 +1645,7 @@ function EpisodeDetail() {
             slug={slug}
             episodeId={episodeId}
             rating={episode.rating}
-            requestedRating={Number(urlParams.read('rate')) || undefined}
+            requestedRating={parseRateParam(urlParams.read('rate'))}
             onRequestedRatingHandled={clearRateParam}
           />
           {episode.sponsorBlock?.submitAllowed && (
