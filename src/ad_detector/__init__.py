@@ -1460,6 +1460,13 @@ class AdDetector:
             f"[{slug}:{episode_id}] {window_label} found {len(valid_window_ads)} ads"
         )
 
+        transcript_excerpt = '\n'.join(
+            # Use a timestamp-based transcript excerpt for consistency with
+            # `valid_window_ads` which are always timestamp-based.
+            transcript_lines if addressing_mode == 'timestamps'
+            else self._format_transcript_lines(window_segments, 'timestamps')
+        )
+
         return WindowResult(
             window_idx=window_idx,
             window_start=window_start,
@@ -1468,7 +1475,7 @@ class AdDetector:
             raw_response=raw_block,
             failed=False,
             last_error=None,
-            transcript_excerpt='\n'.join(transcript_lines),
+            transcript_excerpt=transcript_excerpt,
             addressing_mode=addressing_mode,
             compliant=compliant,
             ads_proposed=ads_proposed,
