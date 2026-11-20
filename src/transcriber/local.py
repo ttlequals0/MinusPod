@@ -17,6 +17,7 @@ from utils.gpu import clear_gpu_memory, get_gpu_device_name, get_gpu_memory_info
 import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
 from config import (
+    LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_PARAKEET,
     WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN,
@@ -145,8 +146,11 @@ def unload_whisper_if_idle() -> bool:
     """Unload the local model once no decode is active and none ran for the configured idle seconds."""
     if not (WhisperModelSingleton.is_loaded() or ParakeetModelSingleton.is_loaded()):
         return False
-    # Unlocked pre-checks keep the per-pass call off the DB and the admission permits; the locked path re-validates.
+    # Unlocked pre-checks keep most passes off the DB and the admission permits; the locked path re-validates.
     if _local_decode_count > 0:
+        return False
+    # The stored idle time is clamped to this minimum, so a shorter gap never needs the setting.
+    if time.monotonic() - _last_local_decode_at < LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN:
         return False
     idle_seconds = settings.local_model_idle_unload_seconds()
     if time.monotonic() - _last_local_decode_at < idle_seconds:
