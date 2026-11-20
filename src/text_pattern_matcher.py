@@ -1178,26 +1178,30 @@ class TextPatternMatcher:
                 yield lower, required_fuzzy_score(len(lower))
 
     def _scan_for_boundary(self, full_text, segment_map, segments, variants,
-                           search_start, search_end, extract_time):
-        """Scan a text region for a known phrase variant using fuzzy matching."""
+                           search_start, search_end, extract_time, anchor_at_start):
+        """Time of the phrase variant occurrence nearest the anchor end of a text region, or None.
+
+        Nearest means the first start when the anchor is the region start and the last end
+        otherwise; the aligner's single pick can be a farther repeat, which stretches the span.
+        """
         if not variants:
             return None
 
-        best_time = None
-        best_score = 0
         search_region = full_text[search_start:search_end]
-
+        hits = []
         for phrase_lower, required_score in self._eligible_phrases(variants):
-            pos, score, matched = self._fuzzy_find(
-                search_region, phrase_lower, required_score
-            )
-            if score >= required_score and score > best_score:
-                time = extract_time(search_start, pos, matched, segment_map, segments)
-                if time is not None:
-                    best_time = time
-                    best_score = score
+            hits.extend(self._fuzzy_find_all(search_region, phrase_lower, required_score))
 
-        return best_time
+        if anchor_at_start:
+            hits.sort(key=lambda h: (h[0], -h[2]))
+        else:
+            hits.sort(key=lambda h: (-h[1], -h[2]))
+
+        for start, end, _ in hits:
+            time = extract_time(search_start, start, search_region[start:end], segment_map, segments)
+            if time is not None:
+                return time
+        return None
 
     def _phrase_end_time(self, region_start, pos, matched, seg_map, segs):
         """End time of the segment holding the end of a matched phrase."""
@@ -1241,7 +1245,7 @@ class TextPatternMatcher:
         search_end = min(search_from_pos + MAX_SCAN_CHARS, len(full_text))
         return self._scan_for_boundary(
             full_text, segment_map, segments, pattern.outro_variants,
-            search_from_pos, search_end, self._phrase_end_time
+            search_from_pos, search_end, self._phrase_end_time, anchor_at_start=True
         )
 
     def _scan_for_intro(self, full_text, segment_map, segments, pattern, search_to_pos):
@@ -1249,7 +1253,7 @@ class TextPatternMatcher:
         search_start = max(0, search_to_pos - MAX_SCAN_CHARS)
         return self._scan_for_boundary(
             full_text, segment_map, segments, pattern.intro_variants,
-            search_start, search_to_pos, self._phrase_start_time
+            search_start, search_to_pos, self._phrase_start_time, anchor_at_start=False
         )
 
     def _estimate_end_from_duration(self, pattern, start_time):
