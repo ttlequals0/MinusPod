@@ -146,6 +146,7 @@ SEED_SNAPSHOT = {
     'transcribe_concurrent_chunks': '4',
     'whisper_api_timeout_seconds': '600',
     'transcribe_max_chunk_seconds': '600',
+    'local_model_idle_unload_seconds': '300',
     'whisper_pool_enabled': 'false',
     'whisper_pool_max_requests': '4',
     'whisper_pool_max_episodes': '1',
@@ -207,7 +208,7 @@ EXPECTED_AD_RESET_KEYS = {
     'audio_encoder_compression_level',
     'audio_normalize_enabled', 'audio_normalize_intensity',
     'audio_replacement_sound_enabled', 'audio_mp3_stream_copy_enabled',
-    'whisper_api_timeout_seconds',
+    'whisper_api_timeout_seconds', 'local_model_idle_unload_seconds',
     'transcribe_max_chunk_seconds', 'transcribe_concurrent_chunks',
     'transcribe_chunk_overlap_seconds',
     'whisper_pool_enabled', 'whisper_pool_max_requests', 'whisper_pool_max_episodes',
@@ -412,6 +413,7 @@ class TestResetSetting:
             'silence_snap_noise_db': '-50.0',
             'pricing_source_mode': 'auto',
             'transcribe_max_chunk_seconds': '600',
+            'local_model_idle_unload_seconds': '300',
         }
         for key, value in expected.items():
             temp_db.set_setting(key, 'customized', is_default=False)
@@ -496,6 +498,7 @@ class TestGetDefaults:
             'maxRssBytes': 209715200,
             'maxAudioDownloadMb': 500,
             'transcribeMaxChunkSeconds': 600,
+            'localModelIdleUnloadSeconds': 300,
             'transcribeConcurrentChunks': 4,
             'transcribeChunkOverlapSeconds': 30,
             'llmProvider': 'anthropic',
@@ -530,7 +533,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 188
+        assert len(payload_keys) == 189
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

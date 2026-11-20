@@ -1000,6 +1000,7 @@ export interface Settings {
   localUploadMaxMb: SettingValueNumber;
   adDetectionParallelWindows: SettingValueNumber;
   adReviewerParallelAds: SettingValueNumber;
+  localModelIdleUnloadSeconds: SettingValueNumber;
   transcribeMaxChunkSeconds: SettingValueNumber;
   transcribeConcurrentChunks: SettingValueNumber;
   transcribeChunkOverlapSeconds: SettingValueNumber;
@@ -1219,6 +1220,7 @@ export interface Settings {
     secondaryProviderTokensPerMin: number;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
+    localModelIdleUnloadSeconds: number;
     transcribeMaxChunkSeconds: number;
     transcribeConcurrentChunks: number;
     transcribeChunkOverlapSeconds: number;
@@ -1361,6 +1363,7 @@ export interface UpdateSettingsPayload {
   localUploadMaxMb?: number;
   adDetectionParallelWindows?: number;
   adReviewerParallelAds?: number;
+  localModelIdleUnloadSeconds?: number;
   transcribeMaxChunkSeconds?: number;
   transcribeConcurrentChunks?: number;
   transcribeChunkOverlapSeconds?: number;

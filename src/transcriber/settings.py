@@ -18,6 +18,9 @@ from config import (
     HTTP_TIMEOUT_WHISPER,
     WHISPER_API_TIMEOUT_MIN,
     WHISPER_API_TIMEOUT_MAX,
+    LOCAL_MODEL_IDLE_UNLOAD_SECONDS_DEFAULT,
+    LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN,
+    LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MAX,
     coerce_bool_setting,
     get_env_backed_int, MAX_AUDIO_DOWNLOAD_MB_MIN, MAX_AUDIO_DOWNLOAD_MB_ADVISORY,
 )
@@ -231,6 +234,14 @@ def _get_chunk_settings() -> dict[str, int]:
         max(1, defaults['max_chunk_seconds'] - 1),
     )
     return defaults
+
+
+def local_model_idle_unload_seconds() -> int:
+    """Configured idle seconds before the local model unloads, clamped to the API range."""
+    value = database.Database().get_setting_int(
+        'local_model_idle_unload_seconds', LOCAL_MODEL_IDLE_UNLOAD_SECONDS_DEFAULT)
+    return min(LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MAX,
+               max(LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN, value))
 
 
 def _log_prefix() -> str:

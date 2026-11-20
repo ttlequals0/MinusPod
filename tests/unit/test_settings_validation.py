@@ -1981,6 +1981,42 @@ class TestWhisperApiTimeoutSetting:
         assert resp.status_code == 400
 
 
+class TestLocalModelIdleUnloadSetting:
+    """Issue #1041: how long the local model stays on the GPU after its last decode."""
+
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def test_get_returns_default(self, client):
+        body = json.loads(client.get('/api/v1/settings').data)
+        assert body['localModelIdleUnloadSeconds']['value'] == 300
+
+    def test_bounds_are_accepted(self, client):
+        for ok in (10, 3600):
+            assert self._put(client, {'localModelIdleUnloadSeconds': ok}).status_code == 200
+            assert database.Database().get_setting('local_model_idle_unload_seconds') == str(ok)
+
+    def test_out_of_range_is_rejected(self, client):
+        for bad in (9, 3601):
+            resp = self._put(client, {'localModelIdleUnloadSeconds': bad})
+            assert resp.status_code == 400
+            assert 'between 10 and 3600' in json.loads(resp.data)['error']
+
+    def test_a_non_integer_is_rejected(self, client):
+        for bad in ('soon', None, 'x1'):
+            resp = self._put(client, {'localModelIdleUnloadSeconds': bad})
+            assert resp.status_code == 400
+            assert 'must be an integer' in json.loads(resp.data)['error']
+
+    def test_reset_restores_default(self, client):
+        self._put(client, {'localModelIdleUnloadSeconds': 600})
+        assert database.Database().reset_setting('local_model_idle_unload_seconds') is True
+        body = json.loads(client.get('/api/v1/settings').data)
+        assert body['localModelIdleUnloadSeconds']['value'] == 300
+
+
 class TestLowAdYieldAction:
     """Global low-ad-yield action: exposed on GET, validated on PUT."""
 

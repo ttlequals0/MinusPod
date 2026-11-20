@@ -17,7 +17,6 @@ from utils.gpu import clear_gpu_memory, get_gpu_device_name, get_gpu_memory_info
 import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
 from config import (
-    LOCAL_MODEL_IDLE_UNLOAD_SECONDS,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_PARAKEET,
     WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN,
@@ -143,13 +142,24 @@ def _unload_local_models() -> bool:
 
 
 def unload_whisper_if_idle() -> bool:
-    """Unload the local model once no decode is active and none ran for LOCAL_MODEL_IDLE_UNLOAD_SECONDS."""
+    """Unload the local model once no decode is active and none ran for the configured idle seconds."""
+    if not (WhisperModelSingleton.is_loaded() or ParakeetModelSingleton.is_loaded()):
+        return False
+    # Unlocked pre-checks keep the per-pass call off the DB and the admission permits; the locked path re-validates.
+    if _local_decode_count > 0:
+        return False
+    idle_seconds = settings.local_model_idle_unload_seconds()
+    if time.monotonic() - _last_local_decode_at < idle_seconds:
+        return False
     with _idle_local_probe() as free:
         if not free:
             return False
-        if time.monotonic() - _last_local_decode_at < LOCAL_MODEL_IDLE_UNLOAD_SECONDS:
+        if time.monotonic() - _last_local_decode_at < idle_seconds:
             return False
-        return _unload_local_models()
+        unloaded = _unload_local_models()
+    if unloaded:
+        logger.info(f"Local model idle for {idle_seconds}s; unloaded the local transcription model")
+    return unloaded
 
 
 # Last local transcription outcome, kept at module scope so

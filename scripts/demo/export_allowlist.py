@@ -316,7 +316,7 @@ DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     'processing_soft_timeout_seconds', 'processing_hard_timeout_seconds',
     'jit_blocked_user_agents', 'podping_nodes', 'pricing_source_mode',
     # Transcription and Whisper backend wiring
-    'whisper_api_timeout_seconds', 'transcribe_concurrent_chunks',
+    'whisper_api_timeout_seconds', 'local_model_idle_unload_seconds', 'transcribe_concurrent_chunks',
     'whisper_pool_enabled', 'whisper_pool_max_requests',
     'whisper_pool_max_episodes', 'whisper_backend', 'whisper_api_model',
     'whisper_compute_type',

@@ -34,6 +34,7 @@ from config import (
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX, LOCAL_UPLOAD_MAX_MB_DEFAULT,
+    LOCAL_MODEL_IDLE_UNLOAD_SECONDS_DEFAULT,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED, MAX_AD_DURATION_WINDOW,
     REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT,
@@ -706,6 +707,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='600', seeded=True, in_ad_reset=True,
         reset_factory=lambda: os.environ.get('WHISPER_API_TIMEOUT', '600'),
         payload_key='whisperApiTimeoutSeconds', payload_kind='int'),
+    'local_model_idle_unload_seconds': SettingSpec(
+        default=str(LOCAL_MODEL_IDLE_UNLOAD_SECONDS_DEFAULT), seeded=True, in_ad_reset=True,
+        payload_key='localModelIdleUnloadSeconds', payload_kind='int'),
     'transcribe_max_chunk_seconds': SettingSpec(
         default='600', seeded=True, in_ad_reset=True,
         reset_factory=lambda: os.environ.get('TRANSCRIBE_MAX_CHUNK_SECONDS', '600'),
