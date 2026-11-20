@@ -389,7 +389,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                 os.unlink(audio_path)
             except OSError:
                 pass
-    # Outside the try: a settle failure must not mark a served episode failed.
+    # Outside the try so a failed settle cannot reach the failure handler.
     if settle_watch:
         sponsorblock.settle_passthrough(slug, episode_id, episode_data)
     return True
