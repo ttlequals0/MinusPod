@@ -16,8 +16,8 @@ release notes.
 
 ### Changed
 
-- A feed that fails to refresh because of an upstream error now logs one warning with the feed's host and the cause, then an info line that names the feed. It used to log two errors, the second without a cause. The refresh is tried again on the next cycle.
-- An episode failure that will be retried is logged as a warning. It is an error only when the failure is permanent or the retries are used up.
+- A feed that fails to refresh because of an upstream error now logs one warning with the feed's host and the cause. An info line then names the feed. It used to log two errors, the second without a cause. The refresh is tried again on the next cycle.
+- When an episode fails on an upstream or network error and will be retried, the failure is logged as a warning. Any other failure is still an error, and so is one that is permanent or out of retries.
 - The feed refresh failure webhook sends the feed's host in `feed_url`, without the path.
 - Reworked the Category Repair prompt to always use timestamps, remove overly-specific and negative instructions, document the exact output format, and other improvements to make it more precise.
 
@@ -26,10 +26,12 @@ release notes.
 - A YouTube feed or episode set to pass-through fetched the video's watch page and failed with "Downloaded file is not playable audio". It now downloads the audio with yt-dlp, like every other YouTube episode. (#1037)
 - System One could drop a real ad as suspected content when the ad ran two minutes or longer and its sponsor was not in the sponsor list. Its ads carry a transcript excerpt as their reason, and that check looked for a sponsor name or ad wording in the reason. System One's own verdict now counts as the evidence. Low-confidence ads are still rejected, and the review holds still apply.
 - Logs showed the full address of a feed on every refresh and on a failed fetch. A premium feed keeps the subscriber's token in that address. Refresh and fetch failure lines now show only the host.
+- On a YouTube feed, a failure to save the SponsorBlock watch state after an episode was published marked the episode failed, and it was processed again. The episode now stays published and the failure is logged.
 - A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up. (#1035)
 - When an ad's outro phrase occurred more than once after its intro, a text pattern could pair the intro with a later occurrence, and the ad then covered everything up to it. The same could happen backwards, from an outro to an earlier intro. The pair is now the nearest occurrence that meets the phrase's score cutoff. (#1038)
 - In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category. (#1042)
 - In the ad editor, the confirm and reject buttons were still offered after you picked a category the feed keeps or marks, although a recut leaves that segment in whichever one you press. They are now hidden as soon as the picked category is kept for the feed, and Skip reads "Next" or "Done", because the category is already saved. Opened from a held or rejected row on the episode page, the editor now starts on the segment's own category instead of Uncategorized, and hides the buttons on a segment that is left in, where pressing them ended in an error. (#1042)
+- A segment can be cut by a pattern, or because its audio differs between fetches, even when the feed keeps its category. In the ad editor such a segment now keeps its confirm and reject buttons. The C and R keys also stayed active on a segment whose buttons were hidden. They are now off with the buttons.
 - The Category Repair prompt was modified to work with segment-ID addressing mode. Prior to this change, the segments to repair used timestamps but the provided transcript excerpt contained segment ids, making it impossible for the LLM to correctly match the segments to the transcript (#1039).
 
 ## [2.102.10] - 2026-11-19
