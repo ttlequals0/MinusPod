@@ -207,20 +207,24 @@ def merge_marks(yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segmen
 
 
 def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
-    """Persist the SponsorBlock watch state once the episode is published."""
-    prior = (episode_data or {}).get('sb_state')
-    if run.markers:
-        state = 'done'
-    elif run.mode == 'passthrough':
-        state = 'exhausted'
-    elif prior in ('llm', 'exhausted'):
-        state = prior
-    else:
-        state = 'llm'
-    db.update_episode_sponsorblock(
-        slug, episode_id, sb_state=state, sb_next_check_at=None, sb_last_error=None,
-        sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)
-    _cache_thumbnail(slug, episode_id, (episode_data or {}).get('artwork_url'))
+    """Persist the SponsorBlock watch state once the episode is published; never raises."""
+    try:
+        prior = (episode_data or {}).get('sb_state')
+        if run.markers:
+            state = 'done'
+        elif run.mode == 'passthrough':
+            state = 'exhausted'
+        elif prior in ('llm', 'exhausted'):
+            state = prior
+        else:
+            state = 'llm'
+        db.update_episode_sponsorblock(
+            slug, episode_id, sb_state=state, sb_next_check_at=None, sb_last_error=None,
+            sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)
+        _cache_thumbnail(slug, episode_id, (episode_data or {}).get('artwork_url'))
+    except Exception as exc:
+        # The episode is already served; a failed settle must not mark it failed.
+        audio_logger.warning(f"[{slug}:{episode_id}] Could not save SponsorBlock watch state: {exc}")
 
 
 def settle_passthrough(slug, episode_id, episode_data=None):

@@ -495,6 +495,14 @@ def test_after_success_thumbnail_failure_does_not_propagate():
     storage.download_episode_artwork.assert_called_once()
 
 
+def test_after_success_db_failure_logs_a_warning_and_does_not_raise(caplog):
+    with patch.object(processing, 'db') as db, caplog.at_level('WARNING', logger='podcast.audio'):
+        db.update_episode_sponsorblock.side_effect = RuntimeError('database is locked')
+        sb_stage.after_success('yt-feed', 'ep1', _yt_run('sponsorblock', MARKERS), {})
+    rec = [r for r in caplog.records if r.levelname == 'WARNING']
+    assert len(rec) == 1 and 'yt-feed:ep1' in rec[0].getMessage() and 'database is locked' in rec[0].getMessage()
+
+
 def _deferred(**kw):
     with patch.object(processing.failure, '_handle_processing_failure') as handled:
         ok, *_ = _run([], llm_fallback=False, **kw)
@@ -673,7 +681,7 @@ def test_acquire_proceeds_when_reachable():
 
 
 def _passthrough_youtube(tmp_path, *, podcast=PODCAST, episode_data=None, url='https://www.youtube.com/watch?v=vid000000001',
-                         download_error=None, preacquired_audio=None):
+                         download_error=None, preacquired_audio=None, settle_error=None):
     """Run recut._passthrough_episode for a feed with the yt-dlp download stubbed."""
     audio = tmp_path / 'vid.mp3'
     audio.write_bytes(b'ID3')
@@ -681,7 +689,7 @@ def _passthrough_youtube(tmp_path, *, podcast=PODCAST, episode_data=None, url='h
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         p(processing, 'db')
-        p(sb_stage, 'db')
+        sb_db = p(sb_stage, 'db')
         p(processing, 'status_service')
         p(sb_stage, 'storage').get_original_path.return_value = None
         p(recut, 'storage').get_original_path.return_value = None
@@ -696,7 +704,14 @@ def _passthrough_youtube(tmp_path, *, podcast=PODCAST, episode_data=None, url='h
         fin = p(finalize_stage, '_finalize_episode')
         p(recut.shutil, 'move')
         handled = p(recut.failure, '_handle_processing_failure')
-        settle = p(sb_stage, 'after_success')
+        if settle_error:
+            def fail_on_settle(*a, **k):
+                if 'sb_state' in k:
+                    raise settle_error
+            sb_db.update_episode_sponsorblock.side_effect = fail_on_settle
+            settle = None
+        else:
+            settle = p(sb_stage, 'after_success')
         ok = recut._passthrough_episode('yt-feed', 'ep1', url, 'Ep', 'YT', None, None, None, 0.0,
                                         episode_data or {'processed_version': 0}, podcast=podcast,
                                         preacquired_audio=preacquired_audio)
@@ -741,6 +756,12 @@ def test_youtube_passthrough_success_settles_the_watch_state(tmp_path):
     r.settle.assert_called_once()
     run = r.settle.call_args.args[2]
     assert run.mode == 'passthrough' and run.markers == []
+
+
+def test_youtube_passthrough_settle_failure_does_not_fail_a_served_episode(tmp_path):
+    r = _passthrough_youtube(tmp_path, settle_error=RuntimeError('database is locked'))
+    assert r.ok is True
+    r.handled.assert_not_called()
 
 
 def test_youtube_passthrough_with_preacquired_audio_leaves_settling_to_the_caller(tmp_path):
