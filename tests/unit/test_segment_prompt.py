@@ -327,13 +327,27 @@ class TestCategoryRepairPromptAndParsing:
         fake_transcript = '[10.0-40.0] hello world'
         (system, prompt) = format_category_repair_prompt(fake_transcript, missing)
         expected_segments = [
-            {"segment_id": 0, "start_s": 10.0, "end_s": 40.0, "start_text": "@{from(start_s)}", "end_text": "x", "reason": "test ad"},
-            {"segment_id": 2, "start_s": 90.0, "end_s": 95.0, "start_text": "@{from(start_s)}", "end_text": "x", "reason": "test ad"}
+            {"segment_id": 0, "start_s": 10.0, "end_s": 40.0, "end_text": "x", "reason": "test ad"},
+            {"segment_id": 2, "start_s": 90.0, "end_s": 95.0, "end_text": "x", "reason": "test ad"}
         ]
         assert "outro: the show's closing credits" in system
         assert "<!--" not in system
         assert f'\n```transcript-with-timestamps\n{fake_transcript}\n```' in prompt
         assert f'\n```json\n{json.dumps(expected_segments)}\n```' in prompt
+
+    def test_format_prompt_omits_missing_texts_and_reason(self):
+        ad = {'start': 1.0, 'end': 2.0, 'reason': None}
+        (_, prompt) = format_category_repair_prompt('t', [(0, ad), (1, dict(ad, reason=''))])
+        expected = [{"segment_id": 0, "start_s": 1.0, "end_s": 2.0},
+                    {"segment_id": 1, "start_s": 1.0, "end_s": 2.0}]
+        assert f'```json\n{json.dumps(expected)}\n```' in prompt
+        assert '@{' not in prompt
+
+    def test_system_prompt_output_example_is_plain_json(self):
+        (system, _) = format_category_repair_prompt('t', [])
+        assert '//' not in system
+        example = system[system.index('{\n  "categories"'):system.rindex('}') + 1]
+        assert json.loads(example)['categories'][0]['segment_id'] == 0
 
     def test_parse_bare_array_shape(self):
         resolved = parse_category_repair_response(
@@ -515,6 +529,38 @@ class TestCategoryRepairEndToEnd:
 
         assert repaired == 0
         assert fake.calls == []
+
+
+class TestRepairTimestampExcerptIsLazy:
+    SEGS = [{'start': 10.0, 'end': 20.0, 'text': 'hello there', 'sid': 0}]
+
+    def _detector(self, fake):
+        detector = AdDetector(api_key='test-key')
+        detector.db = _FakeDb(detect_show_segments=False, segment_actions=_all_remove_map())
+        detector._llm_client = fake
+        return detector
+
+    def _repair(self, detector, ads):
+        return detector._repair_window_categories(
+            ads=ads, transcript_excerpt='', window_segments=self.SEGS, model='model',
+            llm_timeout=60, max_retries=1, slug='s', episode_id='e',
+            window_label='Window 1')
+
+    def test_nothing_missing_never_formats(self):
+        fake = _FakeCategoryRepairClient(content='[]')
+        detector = self._detector(fake)
+        with patch.object(AdDetector, '_format_transcript_lines') as fmt:
+            self._repair(detector, [_fake_ad(10.0, 20.0, category='sponsor')])
+        fmt.assert_not_called()
+        assert fake.calls == []
+
+    def test_missing_formats_timestamp_excerpt_for_the_prompt(self):
+        fake = _FakeCategoryRepairClient(content='[{"segment_id": 0, "category": "sponsor"}]')
+        detector = self._detector(fake)
+        ads = [_fake_ad(10.0, 20.0)]
+        self._repair(detector, ads)
+        assert '[10.0-20.0] hello there' in fake.calls[0]['messages'][0]['content']
+        assert ads[0]['category'] == 'sponsor'
 
 
 class TestCategoryRepairStructuredOutputSelection:
