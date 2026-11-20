@@ -32,7 +32,7 @@ MinusPod has three transcription backends. Pick one with `WHISPER_BACKEND` or in
 
 Every backend runs without a GPU.
 
-A local model, from either local backend, unloads once no local transcription has run for the idle time set in Settings > Transcription ("Unload idle model after", 10 to 3600 seconds, default 300). The timer does not wait for the queue to empty, so the GPU memory is freed even while an episode is still in detection or rendering. The model loads again on the next transcription. The dispatcher checks every 5 seconds while an episode is processing and every 30 seconds while the queue is empty, so the unload can land that much after the configured time.
+A local model, from either local backend, unloads after sitting idle for the time set in Settings > Transcription ("Unload idle model after", 10 to 3600 seconds, default 300). The timer does not wait for the queue to empty, so the GPU memory is freed even while an episode is still in detection or rendering. The model loads again on the next transcription. The dispatcher checks every 5 seconds while an episode is processing and every 30 seconds while the queue is empty. The unload can come that much later than the configured time.
 
 ## Choosing between Whisper and Parakeet
 
