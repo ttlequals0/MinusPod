@@ -160,7 +160,6 @@ from .prompts import (
     parse_id_ads_from_response,
     resolve_segment_id_ads,
     extract_json_ads_array,
-    CATEGORY_REPAIR_SYSTEM_PROMPT,
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
     AD_DETECTION_JSON_SCHEMA,
@@ -1876,7 +1875,7 @@ class AdDetector:
         if not missing:
             return 0
 
-        prompt = format_category_repair_prompt(transcript_excerpt, missing)
+        (system_prompt, prompt)=format_category_repair_prompt(transcript_excerpt, missing)
         phase = _phase_for_pass(pass_name)
         live = live_route_params(phase, model, llm_timeout, max_retries)
         provider, credential_slot, model = live.provider, live.credential_slot, live.model
@@ -1885,7 +1884,7 @@ class AdDetector:
         response, error = call_llm(
             llm_client=self._client_for_pass(pass_name, live.route),
             model=model,
-            system_prompt=CATEGORY_REPAIR_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             prompt=prompt,
             llm_timeout=llm_timeout,
             max_retries=max_retries,

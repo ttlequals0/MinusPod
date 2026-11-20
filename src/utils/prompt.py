@@ -141,6 +141,48 @@ def format_detection_notes_block(notes: str|None) -> str:
         f"guidance above when they apply):\n{notes}\n\n"
     )
 
+def indent_text(text: str, indent: str|int,
+                indent_empty: bool = False,
+                skip_first: bool = False) -> str:
+    """Indent each line of the given text with the specified indent string.
+    When indent_empty is False, empty lines, including trailing newline, are NOT
+    indented.
+    When skip_first is True, the first line of the text is not indented.
+    """
+    if not indent:
+        return text
+    if isinstance(indent, int):
+        indent = ' ' * indent
+    if not text:
+        return "" if not indent_empty or skip_first else indent
+    pattern = r'(^|\n)' if not skip_first else r'(\n)'
+    if not indent_empty:
+        pattern += r'(?!\n|$)'
+    return re.sub(pattern, rf'\1{indent}', text)
+
+def _clean_line(line: str, replace_with: str = ' ') -> str:
+    """Remove control characters and trim the line."""
+    return re.sub(r'[\x00-\x1f]+', replace_with, line).strip() if line else ""
+
+def format_prompt_code_block(code: str, language: str = "text", fence_char: str = "`", indent: int = 0) -> str:
+    """Format a block of text as a markdown code block. Supports nested code blocks.
+    Language is trimmed, code is not.
+    Returned string ends with a new line.
+    """
+    if len(fence_char) != 1:
+        raise ValueError("fence_char must be a single character")
+    language = _clean_line(language, replace_with='-') if language else ""
+    fence = fence_char * 3
+    if fence in code:
+        # MAY contain a nested code block.
+        # find the longest sequence of fence_char at the beginning of a line 
+        # (up to 3 leading spaces) then use a fence 1 longer than that.
+        max_fence_len = 2
+        for nested_fence in re.findall(rf'^\s{{,3}}({re.escape(fence_char)}{{3,}})', code, flags=re.MULTILINE):
+            max_fence_len = max(max_fence_len, len(nested_fence))
+        fence = fence_char * (max_fence_len + 1)
+    return indent_text(f"{fence}{language}\n{code}\n{fence}\n", indent)
+
 def strip_comments_from_prompt(prompt: str|None) -> str:
     """Remove HTML-style comments from the prompt, following markdown conventions.
 
@@ -165,3 +207,19 @@ def strip_comments_from_prompt(prompt: str|None) -> str:
                r'|^([ ]{4,}<!--.*?-->)' # keep literal single-line comment
                r'|<!--.*?-->') # single-line comment (dot does NOT match newlines)
     return re.sub(pattern, r'\1\2', prompt, flags=re.MULTILINE)
+
+
+def finalize_prompt(prompt: str) -> str:
+    """Finalize the prompt string by removing unnecessary whitespace and
+    redundant newlines.
+    """
+    prompt = prompt.strip() if prompt else ""
+    if not prompt:
+        return ""
+
+    # remove trailing whitespace from all lines
+    prompt = re.sub(r"[ \t]+\r?\n", "\n", prompt)
+    # Collapse 3 or more consecutive newlines into two
+    prompt = re.sub(r"(?:\r?\n){3,}", "\n\n", prompt)
+
+    return prompt

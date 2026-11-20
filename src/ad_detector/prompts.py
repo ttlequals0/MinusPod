@@ -15,6 +15,7 @@ from sponsor_context import (SPONSOR_MIN_MENTIONS, framed_sponsor_names, registr
 from sponsor_service import SponsorService
 from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
+    finalize_prompt, format_prompt_code_block,
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
 from utils.text import truncate
@@ -789,9 +790,14 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
 # ads a window's detection found but left uncategorized, rather than relying on
 # prompt wording alone.
 
-CATEGORY_REPAIR_SYSTEM_PROMPT = """You are assigning a category to podcast segments that were already identified in a prior pass. Do NOT detect new segments and do NOT change any start or end time -- only choose one category per segment listed in the user message.
+CATEGORY_REPAIR_SYSTEM_PROMPT = """
+You are a JSON API for assigning categories to podcast segments.
 
-Respond with ONLY valid JSON: an array of {"index": INTEGER, "category": STRING}, one entry per segment listed, using exactly one of:
+## Task
+You will be provided a transcript excerpt and a list of segments contained within it. You must use the transcript context to assign a best-fit category to EACH of the provided podcast segments.
+
+### Categories
+<!-- These should match the categories definitions in the DETECTION prompt -->
 - sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad
 - cross_promo: a produced segment promoting a different show, inserted by the platform or network
 - self_promo: a produced or inserted segment where the show promotes its own other content (another show, Patreon, merch, mailing list)
@@ -800,7 +806,26 @@ Respond with ONLY valid JSON: an array of {"index": INTEGER, "category": STRING}
 - outro: the show's closing credits, sign-off, or theme music
 - recap: a produced "coming up" preview, headline bumper, or "listen to this next" segment
 
-Every listed segment MUST get exactly one category from that list. Do not add, remove, or reorder segments. No markdown, no explanation, just the JSON array."""
+## Output Format
+Return ONLY a valid, compact JSON object with no Markdown wrappers or commentary:
+
+{
+  "categories": [ // Array of categorized segments, one per provided segment
+    {
+      "segment_id": 0, // The id of the provided segment
+      "category": "sponsor" // The best-fit category for the segment
+    }
+  ]
+}
+"""
+
+CATEGORY_REPAIR_USER_PROMPT = """
+**Transcript Excerpt** (format: `[start_s - end_s] Text`)
+{transcript}
+
+**Segments to Categorize**
+{segments}
+"""
 
 # Input schema for the forced-tool-call path (see llm_capabilities.supports_json_schema).
 # Wrapped under "categories" because Anthropic tool input must be a JSON object;
@@ -813,10 +838,10 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "index": {"type": "integer"},
+                    "segment_id": {"type": "integer"},
                     "category": {"type": "string", "enum": list(SEGMENT_CATEGORIES)},
                 },
-                "required": ["index", "category"],
+                "required": ["segment_id", "category"],
             },
         },
     },
@@ -937,8 +962,10 @@ CATEGORY_REPAIR_MAX_TOKENS = 1024
 
 
 def format_category_repair_prompt(transcript_excerpt: str,
-                                   missing: list[tuple[int, dict]]) -> str:
-    """Build the user prompt for the category repair call.
+                                  missing: list[tuple[int, dict]]) -> tuple[str, str]:
+    """Build the system and user prompt for the category repair call.
+
+    The transcript and missing segments must be timestamp-based.
 
     ``missing`` is an iterable of (index, ad_dict) pairs; index is the ad's
     position in the window's full ad list, carried through unchanged so the
@@ -946,18 +973,26 @@ def format_category_repair_prompt(transcript_excerpt: str,
     """
     segments = [
         {
-            "index": i,
-            "start": ad.get('start'),
-            "end": ad.get('end'),
-            "reason": ad.get('reason') or '',
-            "end_text": ad.get('end_text') or '',
+            "segment_id": i, # label as an 'id' to avoid confusion
+            # adjust start/end times to match the transcript timestamp precision
+            "start_s": round(float(ad.get('start')), 1), # assumed to be valid number
+            "end_s": round(float(ad.get('end')), 1), # assumed to be valid number
+            "start_text": ad.get('start_text') or '@{from(start_s)}',
+            "end_text": ad.get('end_text') or '@{upto(end_s)}',
+            "reason": ad.get('reason'),
         }
         for i, ad in missing
     ]
-    return (
-        f"Transcript excerpt for this window:\n{transcript_excerpt}\n\n"
-        f"Segments needing a category:\n{json.dumps(segments)}"
+    system_prompt = finalize_prompt(
+        strip_comments_from_prompt(CATEGORY_REPAIR_SYSTEM_PROMPT)
     )
+    user_prompt = finalize_prompt(
+        strip_comments_from_prompt(CATEGORY_REPAIR_USER_PROMPT).format(
+            transcript=format_prompt_code_block(transcript_excerpt, language='transcript-with-timestamps'),
+            segments=format_prompt_code_block(json.dumps(segments), language='json')
+        )
+    )
+    return (system_prompt, user_prompt)
 
 
 def _repair_index(value):
@@ -1029,7 +1064,7 @@ def parse_category_repair_response(response_text: str) -> dict[int, str]:
     for entry in data:
         if not isinstance(entry, dict):
             continue
-        idx = _repair_index(entry.get('index'))
+        idx = _repair_index(entry.get('segment_id', entry.get('index')))
         category = _repair_category(entry.get('category'))
         if idx is None or category is None:
             rejected.append(entry)

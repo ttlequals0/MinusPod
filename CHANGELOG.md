@@ -10,6 +10,9 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+- Reworked the Category Repair prompt to always use timestamps, remove overly-specific and negative instructions, document the exact output format, and other improvements to make it more precise.
+
 ### Fixed
 
 - A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up.

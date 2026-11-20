@@ -2,11 +2,14 @@
 import sqlite3
 from unittest.mock import MagicMock
 
+import pytest
 
 from ad_detector import get_static_system_prompt
 from utils.prompt import (
     SPONSOR_DATABASE_HEADER,
+    format_prompt_code_block,
     format_sponsor_block,
+    indent_text,
     render_prompt,
 )
 from database import (
@@ -16,7 +19,81 @@ from database import (
     DEFAULT_VERIFICATION_PROMPT,
 )
 
+class TestIndentText:
+    def test_empty_string(self):
+        assert indent_text("", 0) == ""
+        assert indent_text("", "") == ""
+        assert indent_text("", 2) == ""
+        assert indent_text("", "  ") == ""
 
+    def test_indent_text_with_integer_indent(self):
+        assert indent_text("line1", 2) == "  line1"
+        assert indent_text("line1\nline2", 2) == "  line1\n  line2"
+        assert indent_text("line1\nline2\n", 2) == "  line1\n  line2\n"
+
+    def test_indent_text_with_string_indent(self):
+        assert indent_text("line1", "  ") == "  line1"
+        assert indent_text("line1\nline2", "  ") == "  line1\n  line2"
+        assert indent_text("line1\nline2\n", "  ") == "  line1\n  line2\n"
+
+    def test_indent_empty_lines(self):
+        assert indent_text("", "  ", indent_empty=True) == "  "
+        assert indent_text("\n\n", "  ", indent_empty=True) == "  \n  \n  "
+
+    def test_skip_first_line(self):
+        assert indent_text("Line1\nLine2\n", "  ", skip_first=True) == "Line1\n  Line2\n"
+        assert indent_text("", "  ", skip_first=True, indent_empty=True) == ""
+        assert indent_text("\n\n", "  ", skip_first=True, indent_empty=True) == "\n  \n  "
+
+class TestFormatPromptCodeBlock:
+    def test_basics(self):
+        assert format_prompt_code_block('') == '```text\n\n```\n'
+        assert format_prompt_code_block('print("Hello")') == '```text\nprint("Hello")\n```\n'
+
+    def test_preserves_whitespace(self):
+        assert format_prompt_code_block('  print("Hello")\n  exit 1') == \
+            '```text\n  print("Hello")\n  exit 1\n```\n'
+
+    def test_with_language(self):
+        assert format_prompt_code_block('foo', language='') == '```\nfoo\n```\n'
+        assert format_prompt_code_block('', language='sh') == '```sh\n\n```\n'
+        assert format_prompt_code_block('print("Hello")', language='sh') == \
+            '```sh\nprint("Hello")\n```\n'
+        assert format_prompt_code_block('', language='foo\t\nbar') == '```foo-bar\n\n```\n'
+
+    def test_with_indent(self):
+        assert format_prompt_code_block('print("Hello")', indent=2) == \
+            "  ```text\n  print(\"Hello\")\n  ```\n"
+
+    def test_with_fence_char(self):
+        assert format_prompt_code_block('print("Hello")', fence_char='~') == \
+            "~~~text\nprint(\"Hello\")\n~~~\n"
+
+    def test_with_nested_code_block(self):
+        markdown = (
+            'Example:\n'
+            '~~~sh\n'
+            'print("Hello")\n'
+            '~~~'
+        )
+        text = format_prompt_code_block(markdown, language='markdown', 
+                                       fence_char='~', indent=2)
+        assert text == (
+            '  ~~~~markdown\n'
+            '  Example:\n'
+            '  ~~~sh\n'
+            '  print("Hello")\n'
+            '  ~~~\n'
+            '  ~~~~\n'
+        )
+
+    def test_invalid_fence_char_raises(self):
+        with pytest.raises(ValueError):
+            format_prompt_code_block("code", fence_char='')
+        with pytest.raises(ValueError):
+            format_prompt_code_block("code", fence_char='aa')
+
+        
 def test_render_prompt_substitutes_single_brace_placeholders():
     out = render_prompt('Hello {name}', name='world')
     assert out == 'Hello world'
