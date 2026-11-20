@@ -81,24 +81,16 @@ def _fetch_retained_captions(slug, episode_id, video_id, language):
         shutil.rmtree(os.path.dirname(path), ignore_errors=True)
 
 
-def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode) -> YouTubeRun:
-    """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
-    resolved = yt_settings.resolve_feed(db, podcast)
+def _record_video_id(slug, episode_id, episode_url, episode_data) -> str:
     video_id = metadata.video_id_of(episode_data, episode_url)
     if not video_id:
         raise Exception('YouTube episode has no video id')
     db.update_episode_sponsorblock(slug, episode_id, youtube_video_id=video_id)
-    language = (podcast or {}).get('language_override')
-    want_captions = resolved.captions_as_transcript and (
-        reprocess_mode in FORCE_TRANSCRIBE_MODES or not storage.get_transcript(slug, episode_id))
+    return video_id
 
-    manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
-    exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
-    forced = manual or exhausted
-    if not forced and sponsorblock.is_unreachable(db):
-        gap = timedelta(minutes=resolved.probe_interval_minutes)
-        raise SponsorBlockDeferred('SponsorBlock is unreachable', (utc_now() + gap).isoformat())
 
+def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language):
+    """Working mp3 and caption segments: the retained original if present, else a yt-dlp download."""
     original = storage.get_original_path(slug, episode_id)
     segments = []
     if original and os.path.exists(original):
@@ -126,6 +118,33 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
                 segments = captions.load_segments(result.captions_path)
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+    return audio_path, segments
+
+
+def acquire_passthrough_audio(slug, episode_id, episode_url, podcast, episode_data) -> str:
+    """Audio for a pass-through run: no captions, no SponsorBlock lookup, never defers."""
+    video_id = _record_video_id(slug, episode_id, episode_url, episode_data)
+    audio_path, _ = acquire_audio(slug, episode_id, video_id, episode_data, False,
+                                  (podcast or {}).get('language_override'))
+    return audio_path
+
+
+def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode) -> YouTubeRun:
+    """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
+    resolved = yt_settings.resolve_feed(db, podcast)
+    video_id = _record_video_id(slug, episode_id, episode_url, episode_data)
+    language = (podcast or {}).get('language_override')
+    want_captions = resolved.captions_as_transcript and (
+        reprocess_mode in FORCE_TRANSCRIBE_MODES or not storage.get_transcript(slug, episode_id))
+
+    manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
+    exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
+    forced = manual or exhausted
+    if not forced and sponsorblock.is_unreachable(db):
+        gap = timedelta(minutes=resolved.probe_interval_minutes)
+        raise SponsorBlockDeferred('SponsorBlock is unreachable', (utc_now() + gap).isoformat())
+
+    audio_path, segments = acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language)
     try:
         duration = audio_processor.get_audio_duration(audio_path)
         with common._measure_run_stage('sponsorblock'):
@@ -202,6 +221,12 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
         slug, episode_id, sb_state=state, sb_next_check_at=None, sb_last_error=None,
         sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)
     _cache_thumbnail(slug, episode_id, (episode_data or {}).get('artwork_url'))
+
+
+def settle_passthrough(slug, episode_id, episode_data=None):
+    """Persist the watch state of a pass-through episode that skipped the SponsorBlock lookup."""
+    run = YouTubeRun(audio_path='', segments=[], markers=[], note=None, mode='passthrough', resolved=None)
+    after_success(slug, episode_id, run, episode_data)
 
 
 def _cache_thumbnail(slug, episode_id, artwork_url):
