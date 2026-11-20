@@ -19,7 +19,7 @@ release notes.
 - A feed that fails to refresh because of an upstream error now logs one warning with the feed's host and the cause. An info line then names the feed. It used to log two errors, the second without a cause. The refresh is tried again on the next cycle.
 - When an episode fails on an upstream or network error and will be retried, the failure is logged as a warning. Any other failure is still an error, and so is one that is permanent or out of retries.
 - The feed refresh failure webhook sends the feed's host in `feed_url`, without the path.
-- Reworked the Category Repair prompt to always use timestamps, remove overly-specific and negative instructions, document the exact output format, and other improvements to make it more precise.
+- The category repair prompt was rewritten. It always uses timestamps, drops the overly specific and negative instructions, and spells out the exact output format. The comments are gone from its JSON example, because a model could copy them into its answer and make it invalid. (#1040)
 
 ### Fixed
 
@@ -32,7 +32,7 @@ release notes.
 - In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category. (#1042)
 - In the ad editor, the confirm and reject buttons were still offered after you picked a category the feed keeps or marks, although a recut leaves that segment in whichever one you press. They are now hidden as soon as the picked category is kept for the feed, and Skip reads "Next" or "Done", because the category is already saved. Opened from a held or rejected row on the episode page, the editor now starts on the segment's own category instead of Uncategorized, and hides the buttons on a segment that is left in, where pressing them ended in an error. (#1042)
 - A segment can be cut by a pattern, or because its audio differs between fetches, even when the feed keeps its category. In the ad editor such a segment now keeps its confirm and reject buttons. The C and R keys also stayed active on a segment whose buttons were hidden. They are now off with the buttons.
-- The Category Repair prompt was modified to work with segment-ID addressing mode. Prior to this change, the segments to repair used timestamps but the provided transcript excerpt contained segment ids, making it impossible for the LLM to correctly match the segments to the transcript (#1039).
+- In segment-ID addressing mode, category repair sent its segments with timestamps but the transcript excerpt with segment IDs. The model could not match the two. The excerpt now uses timestamps as well. (#1039, #1040)
 
 ## [2.102.10] - 2026-11-19
 
