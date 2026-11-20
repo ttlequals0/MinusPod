@@ -460,7 +460,7 @@ Settings > YouTube configures [YouTube feeds](youtube-feeds.md). The feature is 
 |---|---|---|---|
 | Enable YouTube feeds (`enabled`) | off | on or off | Master switch for lookup, listing and the SponsorBlock watcher |
 | YouTube Data API key (`apiKey`) | none | string | Optional. Write-only; the API reports `apiKeyConfigured` |
-| Processing delay (`processDelayMinutes`) | 60 | 0 to 1440 minutes | Wait after discovery before the first SponsorBlock check |
+| Processing delay (`processDelayMinutes`) | 60 | 0 to 1440 minutes | Wait after the video's publish time before the first SponsorBlock check |
 | SponsorBlock probe attempts (`sbProbeAttempts`) | 6 | 0 to 48 | Lookups before the fallback or watch window |
 | Probe interval (`sbProbeIntervalMinutes`) | 30 | 5 to 1440 minutes | Gap between probes |
 | Watch interval (`sbWatchIntervalHours`) | 6 | 1 to 48 hours | Gap between checks in the watch window |

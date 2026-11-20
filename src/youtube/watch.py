@@ -17,9 +17,9 @@ IN_FLIGHT = ('pending', 'processing')
 RETRY_SOON = sponsorblock.RETRY_SOON
 
 
-def schedule_new_episode(db, slug, episode_id, resolved) -> bool:
-    """First sighting of a video (no SponsorBlock state yet): wait out the processing delay before the first SponsorBlock check."""
-    due = utc_now() + timedelta(minutes=resolved.process_delay_minutes)
+def schedule_new_episode(db, slug, episode_id, resolved, published) -> bool:
+    """First sighting of a video (no SponsorBlock state yet): the processing delay counts from its publish time."""
+    due = max(utc_now(), published + timedelta(minutes=resolved.process_delay_minutes))
     return db.schedule_sponsorblock_wait(slug, episode_id, due.isoformat())
 
 

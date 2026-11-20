@@ -270,7 +270,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                 if episode_matches_feed_filters(ep, podcast):
                     refresh_logger.info(f"[{slug}] Skipping video matched by feed filters: {ep.get('title')}")
                     continue
-                if yt_watch.schedule_new_episode(db, slug, ep['id'], resolved):
+                if yt_watch.schedule_new_episode(db, slug, ep['id'], resolved, published):
                     scheduled += 1
         if scheduled:
             refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")
