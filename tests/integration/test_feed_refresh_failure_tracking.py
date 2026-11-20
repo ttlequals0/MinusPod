@@ -76,6 +76,15 @@ class TestRecordHelpers:
         assert p['refresh_failure_count'] == FEED_REFRESH_FAILURE_ALERT_THRESHOLD + 1
         assert p['last_refresh_error'] == 'connection refused'
 
+    def test_alert_payload_url_is_host_only(self, seeded_feed, alert_recorder):
+        from main_app import feeds as feeds_mod
+        slug, db = seeded_feed['slug'], seeded_feed['db']
+        db.update_podcast(slug, source_url='https://feeds.example.com/premium/SUBTOKEN?k=Q')
+
+        _fail_n_times(feeds_mod, db, slug, FEED_REFRESH_FAILURE_ALERT_THRESHOLD)
+
+        assert alert_recorder[0]['feed_url'] == 'https://feeds.example.com'
+
     def test_rapid_retries_count_once(self, seeded_feed, alert_recorder):
         """Back-to-back failures (client-poll-driven refreshes during a
         blip) must not walk the counter to the alert threshold."""
