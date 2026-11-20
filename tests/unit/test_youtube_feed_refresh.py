@@ -7,12 +7,13 @@ from tests.app_bootstrap import bootstrap
 bootstrap('youtube_feed_refresh_test_')
 
 import main_app.feeds as feeds_mod
+from utils.time import parse_iso_utc
 from youtube import discovery
 from youtube.feed import rebuild_youtube_feed
 
 
-def _recent(hours=1):
-    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+def _recent(hours=1, minutes=0):
+    return (datetime.now(timezone.utc) - timedelta(hours=hours, minutes=minutes)).isoformat()
 
 
 def _episode(video_id, published=None, title=None):
@@ -51,6 +52,35 @@ def test_youtube_refresh_discovers_and_defers_to_sponsorblock_watch():
         assert ep['sb_next_check_at'] is not None
         assert not any(q['episode_id'] == 'vid000000001' for q in db.get_pending_queued_episodes())
         rebuild.assert_called_once()
+    finally:
+        db.delete_podcast(slug)
+
+
+def _due_offset(db, slug, ep):
+    return parse_iso_utc(db.get_episode(slug, ep['id'])['sb_next_check_at']) - datetime.now(timezone.utc)
+
+
+def test_old_video_is_checked_now_not_after_the_delay():
+    db = feeds_mod.db
+    slug = 'yt-delay-old'
+    _make_feed(slug)
+    try:
+        ep = _episode('vid000000005', published=_recent(hours=24))
+        _refresh(slug, [ep])
+        assert db.get_episode(slug, ep['id'])['sb_state'] == 'waiting'
+        assert _due_offset(db, slug, ep) < timedelta(minutes=1)
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_delay_counts_from_publish_time():
+    db = feeds_mod.db
+    slug = 'yt-delay-fresh'
+    _make_feed(slug)
+    try:
+        ep = _episode('vid000000006', published=_recent(hours=0, minutes=5))
+        _refresh(slug, [ep])
+        assert timedelta(minutes=9) < _due_offset(db, slug, ep) < timedelta(minutes=11)
     finally:
         db.delete_podcast(slug)
 
