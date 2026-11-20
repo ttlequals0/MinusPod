@@ -56,6 +56,14 @@ def test_setting_not_read_when_nothing_is_loaded(monkeypatch):
     read.assert_not_called()
 
 
+def test_setting_not_read_within_the_minimum_idle_time(loaded, monkeypatch):
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 2)
+    read = MagicMock(return_value=300)
+    monkeypatch.setattr(transcriber_mod.local.settings, 'local_model_idle_unload_seconds', read)
+    assert unload_whisper_if_idle() is False
+    read.assert_not_called()
+
+
 def test_recent_decode_keeps_the_model_loaded(loaded, monkeypatch):
     state, unload = loaded
     monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 10)
