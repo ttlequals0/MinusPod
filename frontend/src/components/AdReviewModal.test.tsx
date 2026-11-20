@@ -477,6 +477,82 @@ describe('AdReviewModal with a category the feed keeps', () => {
   });
 });
 
+describe('AdReviewModal marker cut despite a kept category', () => {
+  const KEEP_ALL_BUT_SPONSOR = {
+    sponsor: 'remove', cross_promo: 'keep', self_promo: 'keep', interaction: 'keep',
+    intro: 'keep', outro: 'keep', recap: 'keep',
+  };
+  const KEPT_NOTE = 'Left in by its category. Change it above to cut this span.';
+  const OVERRIDDEN = { ...ITEM, category: 'cross_promo' as const, actionApplied: 'remove' };
+
+  beforeEach(() => {
+    mockGetSettings.mockResolvedValue({ segmentCategoryActions: { value: KEEP_ALL_BUT_SPONSOR } });
+  });
+
+  // Let the settings and feed queries resolve so the category actions are in play.
+  const settled = async () => {
+    await waitFor(() => expect(mockGetSettings).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  };
+
+  it('keeps Confirm and Reject while the category is unchanged', async () => {
+    renderModal({ item: OVERRIDDEN, hasNext: true });
+    await settled();
+    expect(await screen.findByRole('button', { name: /^Confirm/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Keep/ })).toBeTruthy();
+    expect(screen.queryByText(KEPT_NOTE)).toBeNull();
+    expect(screen.getByRole('button', { name: /Skip/ })).toBeTruthy();
+  });
+
+  it('keeps the C and R hotkeys live for a beeped marker', async () => {
+    const { onSubmit } = renderModal({ item: { ...OVERRIDDEN, actionApplied: 'beep' } });
+    await settled();
+    const user = userEvent.setup();
+    await user.keyboard('r');
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'reject' });
+  });
+
+  it('hides the buttons again once another kept category is picked', async () => {
+    renderModal({ item: OVERRIDDEN });
+    await settled();
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Segment category'), 'intro');
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull());
+    expect(screen.getByText(KEPT_NOTE)).toBeTruthy();
+  });
+
+  it('keeps the buttons when a cut category is picked', async () => {
+    renderModal({ item: OVERRIDDEN });
+    await settled();
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Segment category'), 'sponsor');
+    expect(await screen.findByRole('button', { name: /^Confirm/ })).toBeTruthy();
+    expect(screen.queryByText(KEPT_NOTE)).toBeNull();
+  });
+
+  it('still hides the buttons on a marker stamped keep', async () => {
+    renderModal({ item: { ...OVERRIDDEN, actionApplied: 'keep' } });
+    await settled();
+    expect(screen.getByText(KEPT_NOTE)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull();
+  });
+
+  it('mutes C and R once the feed actions load and keep the unstamped category', async () => {
+    const { onSubmit } = renderModal({ item: { ...ITEM, category: 'cross_promo' } });
+    await settled();
+    const user = userEvent.setup();
+    await user.keyboard('r');
+    await user.keyboard('c');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('still hides the buttons on an unstamped marker in a kept category', async () => {
+    renderModal({ item: { ...ITEM, category: 'cross_promo' } });
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull());
+    expect(screen.getByText(KEPT_NOTE)).toBeTruthy();
+  });
+});
+
 describe('AdReviewModal set-edge-at-playhead buttons', () => {
   it('offers both edges at a tappable size, since zoomed pins are undraggable on a phone', () => {
     renderModal();
