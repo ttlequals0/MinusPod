@@ -77,6 +77,18 @@ export function isKeepLike(action?: string | null): boolean {
   return action === 'keep' || action === 'mark';
 }
 
+// The action a marker's category resolves to. Mirrors normalize_segment_category
+// in src/config.py: an unset or unknown category resolves as sponsor. Null when
+// the feed's actions are not known yet.
+export function resolveCategoryAction(
+  category: string | null | undefined,
+  actions: Partial<Record<SegmentCategory, SegmentAction>> | null | undefined,
+): SegmentAction | null {
+  if (!actions) return null;
+  const known = category && category in SEGMENT_CATEGORY_LABELS ? (category as SegmentCategory) : 'sponsor';
+  return actions[known] ?? null;
+}
+
 // Filter value for markers no detection stage classified. Not a member of
 // SegmentCategory: unset is the absence of a category, not a category. Matches
 // detection_review.UNSET_CATEGORY on the backend.
