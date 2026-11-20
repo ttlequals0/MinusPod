@@ -160,7 +160,6 @@ from .prompts import (
     parse_id_ads_from_response,
     resolve_segment_id_ads,
     extract_json_ads_array,
-    CATEGORY_REPAIR_SYSTEM_PROMPT,
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
     AD_DETECTION_JSON_SCHEMA,
@@ -1460,6 +1459,13 @@ class AdDetector:
             f"[{slug}:{episode_id}] {window_label} found {len(valid_window_ads)} ads"
         )
 
+        transcript_excerpt = '\n'.join(
+            # Use a timestamp-based transcript excerpt for consistency with
+            # `valid_window_ads` which are always timestamp-based.
+            transcript_lines if addressing_mode == 'timestamps'
+            else self._format_transcript_lines(window_segments, 'timestamps')
+        )
+
         return WindowResult(
             window_idx=window_idx,
             window_start=window_start,
@@ -1468,7 +1474,7 @@ class AdDetector:
             raw_response=raw_block,
             failed=False,
             last_error=None,
-            transcript_excerpt='\n'.join(transcript_lines),
+            transcript_excerpt=transcript_excerpt,
             addressing_mode=addressing_mode,
             compliant=compliant,
             ads_proposed=ads_proposed,
@@ -1869,7 +1875,7 @@ class AdDetector:
         if not missing:
             return 0
 
-        prompt = format_category_repair_prompt(transcript_excerpt, missing)
+        (system_prompt, prompt)=format_category_repair_prompt(transcript_excerpt, missing)
         phase = _phase_for_pass(pass_name)
         live = live_route_params(phase, model, llm_timeout, max_retries)
         provider, credential_slot, model = live.provider, live.credential_slot, live.model
@@ -1878,7 +1884,7 @@ class AdDetector:
         response, error = call_llm(
             llm_client=self._client_for_pass(pass_name, live.route),
             model=model,
-            system_prompt=CATEGORY_REPAIR_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             prompt=prompt,
             llm_timeout=llm_timeout,
             max_retries=max_retries,

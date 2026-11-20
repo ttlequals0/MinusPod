@@ -323,32 +323,43 @@ class TestCategoryRepairPromptAndParsing:
     """Pure-function tests for the repair call's prompt/response helpers."""
 
     def test_format_prompt_includes_transcript_and_missing_indices(self):
-        missing = [(0, _fake_ad(10.0, 40.0)), (2, _fake_ad(90.0, 95.0))]
-        prompt = format_category_repair_prompt('[10.0s] hello world', missing)
-        assert '[10.0s] hello world' in prompt
-        assert '"index": 0' in prompt
-        assert '"index": 2' in prompt
+        missing = [(0, _fake_ad(10.01, 39.99)), (2, _fake_ad(90.0, 95.0))]
+        fake_transcript = '[10.0-40.0] hello world'
+        (system, prompt) = format_category_repair_prompt(fake_transcript, missing)
+        expected_segments = [
+            {"segment_id": 0, "start_s": 10.0, "end_s": 40.0, "start_text": "@{from(start_s)}", "end_text": "x", "reason": "test ad"},
+            {"segment_id": 2, "start_s": 90.0, "end_s": 95.0, "start_text": "@{from(start_s)}", "end_text": "x", "reason": "test ad"}
+        ]
+        assert "outro: the show's closing credits" in system
+        assert "<!--" not in system
+        assert f'\n```transcript-with-timestamps\n{fake_transcript}\n```' in prompt
+        assert f'\n```json\n{json.dumps(expected_segments)}\n```' in prompt
 
     def test_parse_bare_array_shape(self):
         resolved = parse_category_repair_response(
-            json.dumps([{"index": 0, "category": "sponsor"},
-                        {"index": 1, "category": "intro"}]))
+            json.dumps([{"segment_id": 0, "category": "sponsor"},
+                        {"segment_id": 1, "category": "intro"}]))
         assert resolved == {0: 'sponsor', 1: 'intro'}
 
     def test_parse_wrapped_object_shape_from_tool_use_path(self):
         resolved = parse_category_repair_response(
-            json.dumps({"categories": [{"index": 0, "category": "outro"}]}))
+            json.dumps({"categories": [{"segment_id": 0, "category": "outro"}]}))
         assert resolved == {0: 'outro'}
 
     def test_parse_rejects_unknown_category(self):
         resolved = parse_category_repair_response(
-            json.dumps([{"index": 0, "category": "advertisement"}]))
+            json.dumps([{"segment_id": 0, "category": "advertisement"}]))
         assert resolved == {}
 
     def test_parse_rejects_bool_index(self):
         resolved = parse_category_repair_response(
-            json.dumps([{"index": True, "category": "sponsor"}]))
+            json.dumps([{"segment_id": True, "category": "sponsor"}]))
         assert resolved == {}
+
+    def test_parse_accepts_index_key(self):
+        resolved = parse_category_repair_response(
+            json.dumps({"categories": [{"index": 123, "category": "outro"}]}))
+        assert resolved == {123: 'outro'}
 
     def test_parse_malformed_json_returns_empty_dict(self):
         assert parse_category_repair_response('not json at all') == {}

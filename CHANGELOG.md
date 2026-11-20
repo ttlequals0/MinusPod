@@ -10,12 +10,16 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+- Reworked the Category Repair prompt to always use timestamps, remove overly-specific and negative instructions, document the exact output format, and other improvements to make it more precise.
+
 ### Fixed
 
 - A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up.
 - When an ad's outro phrase occurred more than once after its intro, a text pattern could pair the intro with a later occurrence, and the ad then covered everything up to it. The same could happen backwards, from an outro to an earlier intro. The pair is now the nearest occurrence that meets the phrase's score cutoff.
 - In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category.
 - In the ad editor, the confirm and reject buttons were still offered after you picked a category the feed keeps or marks, although a recut leaves that segment in whichever one you press. They are now hidden as soon as the picked category is kept for the feed, and Skip reads "Next" or "Done", because the category is already saved. Opened from a held or rejected row on the episode page, the editor now starts on the segment's own category instead of Uncategorized, and hides the buttons on a segment that is left in, where pressing them ended in an error.
+- The Category Repair prompt was modified to work with segment-ID addressing mode. Prior to this change, the segments to repair used timestamps but the provided transcript excerpt contained segment ids, making it impossible for the LLM to correctly match the segments to the transcript (#1039).
 
 ## [2.102.10] - 2026-11-19
 
