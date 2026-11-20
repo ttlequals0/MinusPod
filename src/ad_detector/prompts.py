@@ -810,13 +810,13 @@ You will be provided a transcript excerpt and a list of segments contained withi
 - recap: a produced "coming up" preview, headline bumper, or "listen to this next" segment
 
 ## Output Format
-Return ONLY a valid, compact JSON object with no Markdown wrappers or commentary:
+Return ONLY a valid, compact JSON object with no Markdown wrappers or commentary. "categories" holds one entry per provided segment, "segment_id" is the id of the provided segment, and "category" is its best-fit category:
 
 {
-  "categories": [ // Array of categorized segments, one per provided segment
+  "categories": [
     {
-      "segment_id": 0, // The id of the provided segment
-      "category": "sponsor" // The best-fit category for the segment
+      "segment_id": 0,
+      "category": "sponsor"
     }
   ]
 }
@@ -974,18 +974,16 @@ def format_category_repair_prompt(transcript_excerpt: str,
     position in the window's full ad list, carried through unchanged so the
     response merges back onto the right ad.
     """
-    segments = [
-        {
-            "segment_id": i, # label as an 'id' to avoid confusion
-            # adjust start/end times to match the transcript timestamp precision
-            "start_s": round(float(ad.get('start')), 1), # assumed to be valid number
-            "end_s": round(float(ad.get('end')), 1), # assumed to be valid number
-            "start_text": ad.get('start_text') or '@{from(start_s)}',
-            "end_text": ad.get('end_text') or '@{upto(end_s)}',
-            "reason": ad.get('reason'),
-        }
-        for i, ad in missing
-    ]
+    # Round to the transcript's timestamp precision; omit absent keys rather than send placeholders.
+    segments = []
+    for i, ad in missing:
+        seg = {"segment_id": i,
+               "start_s": round(float(ad.get('start')), 1),
+               "end_s": round(float(ad.get('end')), 1)}
+        for key in ('start_text', 'end_text', 'reason'):
+            if ad.get(key):
+                seg[key] = ad[key]
+        segments.append(seg)
     system_prompt = finalize_prompt(
         strip_comments_from_prompt(CATEGORY_REPAIR_SYSTEM_PROMPT)
     )
@@ -995,7 +993,7 @@ def format_category_repair_prompt(transcript_excerpt: str,
             segments=format_prompt_code_block(json.dumps(segments), language='json')
         )
     )
-    return (system_prompt, user_prompt)
+    return system_prompt, user_prompt
 
 
 def _repair_index(value):
