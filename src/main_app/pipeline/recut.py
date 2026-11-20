@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 from audio_processor import AudioProcessor
+from database.podcasts import is_youtube_feed
 from cancel import (
     ProcessingCancelled, _check_cancel,
 )
@@ -30,7 +31,7 @@ from utils.constants import EpisodeStatus
 
 from main_app.pipeline import (
     common, transcribe, detect, cuts, keep_rules, verify, publish, finalize, failure,
-    passthrough_assets,
+    passthrough_assets, sponsorblock,
 )
 from main_app.pipeline.shared import (db, storage, audio_processor)
 
@@ -285,6 +286,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
     archive/relay while the served feed URL stays stable, so turning processing
     back on later needs no change in the podcast app."""
     audio_path = preacquired_audio
+    settle_watch = is_youtube_feed(podcast) and preacquired_audio is None
     run_stats = {'mode': 'passthrough'}
     download_outcome = {}
     try:
@@ -311,6 +313,9 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")
+        elif is_youtube_feed(podcast):
+            audio_path = sponsorblock.acquire_passthrough_audio(
+                slug, episode_id, episode_url, podcast, episode_data)
         else:
             audio_path = transcribe._download_episode_audio(
                 episode_url, podcast=podcast, outcome=download_outcome)
@@ -370,7 +375,6 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                            run_stats=run_stats,
                            hold_for_approval=hold_for_approval, podcast_row=podcast)
         common._publish_status('complete_job', slug, episode_id)
-        return True
 
     except ProcessingCancelled:
         raise
@@ -385,6 +389,10 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                 os.unlink(audio_path)
             except OSError:
                 pass
+    # Outside the try: a settle failure must not mark a served episode failed.
+    if settle_watch:
+        sponsorblock.settle_passthrough(slug, episode_id, episode_data)
+    return True
 
 
 def _restore_saved_markers(slug, episode_id, episode_data):
