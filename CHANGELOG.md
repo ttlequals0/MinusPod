@@ -10,11 +10,22 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- A setting for how long the local transcription model stays on the GPU after its last transcription (Settings, Transcription, 10 to 3600 seconds, default 300). The model is now unloaded after that time even while an episode is still in detection or rendering. Other services on a shared GPU get the memory back sooner. It loads again on the next transcription. (#1041)
+
 ### Changed
+
+- A feed that fails to refresh because of an upstream error now logs one warning with the feed's host and the cause, then an info line that names the feed. It used to log two errors, the second without a cause. The refresh is tried again on the next cycle.
+- An episode failure that will be retried is logged as a warning. It is an error only when the failure is permanent or the retries are used up.
+- The feed refresh failure webhook sends the feed's host in `feed_url`, without the path.
 - Reworked the Category Repair prompt to always use timestamps, remove overly-specific and negative instructions, document the exact output format, and other improvements to make it more precise.
 
 ### Fixed
 
+- A YouTube feed or episode set to pass-through fetched the video's watch page and failed with "Downloaded file is not playable audio". It now downloads the audio with yt-dlp, like every other YouTube episode. (#1037)
+- System One could drop a real ad as suspected content when the ad ran two minutes or longer and its sponsor was not in the sponsor list. Its ads carry a transcript excerpt as their reason, and that check looked for a sponsor name or ad wording in the reason. System One's own verdict now counts as the evidence. Low-confidence ads are still rejected, and the review holds still apply.
+- Logs showed the full address of a feed on every refresh and on a failed fetch. A premium feed keeps the subscriber's token in that address. Refresh and fetch failure lines now show only the host.
 - A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up. (#1035)
 - When an ad's outro phrase occurred more than once after its intro, a text pattern could pair the intro with a later occurrence, and the ad then covered everything up to it. The same could happen backwards, from an outro to an earlier intro. The pair is now the nearest occurrence that meets the phrase's score cutoff. (#1038)
 - In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category. (#1042)
