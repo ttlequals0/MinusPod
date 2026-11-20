@@ -1357,6 +1357,8 @@ class AdDetector:
         # a parseable ads array, valid empty included. See compliance_meta in
         # parse_ads_from_response.
         dropped_invalid_ref = 0
+        # The adapter stamps its own diagnostics, so this holds whichever provider answered after failover.
+        classifier_confirmed = (getattr(response, 'diagnostics', None) or {}).get('provider') == 'systemone'
         if addressing_mode == 'segment_ids':
             id_ads, used_ids = parse_id_ads_from_response(
                 response_text, slug, episode_id,
@@ -1366,7 +1368,8 @@ class AdDetector:
                 window_ads = resolve_segment_id_ads(
                     id_ads, window_segments, slug, episode_id,
                     sponsor_service=self.sponsor_service,
-                    episode_sponsors=episode_sponsors)
+                    episode_sponsors=episode_sponsors,
+                    classifier_confirmed=classifier_confirmed)
                 # Everything resolve_segment_id_ads discarded referenced a segment
                 # id absent from this window: the hallucination this mode exists to
                 # catch, so count it rather than lose it in the yield number.
@@ -1380,7 +1383,8 @@ class AdDetector:
                     response_text, slug, episode_id,
                     sponsor_service=self.sponsor_service,
                     episode_sponsors=episode_sponsors,
-                    segments=window_segments)
+                    segments=window_segments,
+                    classifier_confirmed=classifier_confirmed)
                 ads_proposed = len(window_ads)
                 if validate_timestamps:
                     window_ads = validate_ad_timestamps(
@@ -1392,7 +1396,8 @@ class AdDetector:
                 sponsor_service=self.sponsor_service,
                 compliance_meta=compliance_meta,
                 episode_sponsors=episode_sponsors,
-                segments=window_segments)
+                segments=window_segments,
+                classifier_confirmed=classifier_confirmed)
             compliant = not compliance_meta['extraction_failed']
             ads_proposed = len(window_ads)
             if validate_timestamps:
