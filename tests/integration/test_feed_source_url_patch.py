@@ -5,8 +5,10 @@ PATCH /feeds/{slug} accepts sourceUrl: the server fetches and parses the new URL
 refresh."""
 import logging
 import os
+import re
 import sys
 import tempfile
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -250,6 +252,8 @@ def test_refresh_logs_host_at_info_without_path_or_query(app_client, seeded_feed
     lines = [rec.message for rec in caplog.records
              if 'Starting RSS refresh from:' in rec.message]
     assert lines, 'expected an INFO-level refresh log line'
-    assert lines[0].endswith('https://example.com')
+    shown = urlsplit(re.search(r'https?://\S+', lines[0]).group(0))
+    assert (shown.scheme, shown.hostname) == ('https', 'example.com')
+    assert shown.path in ('', '/') and shown.query == ''
     assert 'feed.xml' not in lines[0]
     assert 'SECRET' not in lines[0]
