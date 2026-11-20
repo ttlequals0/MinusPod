@@ -158,7 +158,7 @@ describe('DetectedAdsTab', () => {
   it('offers no Confirm action, since these ads were already cut', async () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull();
     expect(screen.queryAllByRole('button', { name: 'Not ad' })).not.toHaveLength(0);
     expect(screen.queryAllByRole('button', { name: 'Edit' })).not.toHaveLength(0);
   });

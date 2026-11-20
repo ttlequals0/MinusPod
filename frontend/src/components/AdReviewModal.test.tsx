@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdReviewModal, { type AdReviewItem } from './AdReviewModal';
 
 const mockReprocess = vi.fn();
+const mockGetFeed = vi.fn();
+const mockGetSettings = vi.fn();
 
 vi.mock('wavesurfer.js', () => ({
   default: { create: vi.fn(() => ({ on: vi.fn(), destroy: vi.fn() })) },
@@ -32,6 +34,11 @@ vi.mock('../api/sponsors', () => ({
 vi.mock('../api/feeds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/feeds')>()),
   reprocessEpisode: (...a: unknown[]) => mockReprocess(...a),
+  getFeed: (...a: unknown[]) => mockGetFeed(...a),
+}));
+vi.mock('../api/settings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/settings')>()),
+  getSettings: (...a: unknown[]) => mockGetSettings(...a),
 }));
 type MockRun = { start: number; end: number; text: string };
 
@@ -148,6 +155,9 @@ beforeEach(() => {
   peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
   peaksState.retry.mockClear();
   mockReprocess.mockResolvedValue({});
+  // No feed override and no global setting: every category resolves to remove.
+  mockGetFeed.mockResolvedValue({ segmentCategoryActions: null });
+  mockGetSettings.mockResolvedValue({ segmentCategoryActions: { value: {} } });
 });
 
 describe('AdReviewModal category hint', () => {
@@ -369,6 +379,100 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     await user.keyboard('r');
     await user.keyboard('c');
     expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
+  });
+});
+
+describe('AdReviewModal footer labels follow the category', () => {
+  it('names a sponsor or uncategorized span as an ad', () => {
+    renderModal();
+    expect(screen.getByRole('button', { name: /Not ad/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Confirm/ }).getAttribute('title')).toBe('Confirm (C)');
+  });
+
+  it('names the category of a non-ad span instead of calling it an ad', () => {
+    renderModal({ item: { ...ITEM, category: 'intro' } });
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Keep/ }).getAttribute('title')).toBe('Keep (R)');
+    expect(screen.getByRole('button', { name: /^Confirm/ }).getAttribute('title')).toBe('Confirm intro (C)');
+  });
+
+  it('follows a category picked in the modal', async () => {
+    const { onSubmit } = renderModal({ hasNext: true });
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Segment category'), 'self_promo');
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'recategorize', category: 'self_promo' });
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Keep & next/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Confirm self-promo & next/ })).toBeTruthy();
+  });
+});
+
+describe('AdReviewModal with a category the feed keeps', () => {
+  const KEEP_ALL_BUT_SPONSOR = {
+    sponsor: 'remove', cross_promo: 'keep', self_promo: 'keep', interaction: 'keep',
+    intro: 'keep', outro: 'keep', recap: 'keep',
+  };
+  const KEPT_NOTE = 'Left in by its category. Change it above to cut this span.';
+
+  beforeEach(() => {
+    mockGetSettings.mockResolvedValue({ segmentCategoryActions: { value: KEEP_ALL_BUT_SPONSOR } });
+  });
+
+  it('drops both verdict buttons once the picked category is kept, and Skip becomes Next', async () => {
+    const { onSubmit } = renderModal({ hasNext: true });
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Segment category'), 'intro');
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull());
+    expect(screen.queryByRole('button', { name: /Keep|Not ad/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Skip/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy();
+    expect(screen.getByText(KEPT_NOTE)).toBeTruthy();
+    // The category change is the only thing submitted; C and R are muted.
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard('c');
+    await user.keyboard('r');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'recategorize', category: 'intro' });
+  });
+
+  it('says Done when there is no next ad', async () => {
+    const { onSkip } = renderModal();
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Segment category'), 'outro');
+    await user.click(await screen.findByRole('button', { name: 'Done' }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the verdict buttons for a sponsor', async () => {
+    renderModal({ item: { ...ITEM, category: 'sponsor' } });
+    await waitFor(() => expect(mockGetSettings).toHaveBeenCalled());
+    expect(await screen.findByRole('button', { name: /Not ad/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Confirm/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Skip/ })).toBeTruthy();
+  });
+
+  it('lets a feed override bring the buttons back', async () => {
+    mockGetFeed.mockResolvedValue({ segmentCategoryActions: { intro: 'remove' } });
+    renderModal();
+    const user = userEvent.setup();
+    const select = screen.getByLabelText('Segment category');
+    // Outro is kept, which also proves the actions have loaded.
+    await user.selectOptions(select, 'outro');
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull());
+    await user.selectOptions(select, 'intro');
+    expect(screen.getByRole('button', { name: /^Confirm/ }).getAttribute('title')).toBe('Confirm intro (C)');
+    expect(screen.getByRole('button', { name: /Keep/ })).toBeTruthy();
+  });
+
+  it('tells a marker stamped keep to recut once its picked category is cut', async () => {
+    renderModal({ item: { ...ITEM, category: 'outro', actionApplied: 'keep' } });
+    const user = userEvent.setup();
+    expect(screen.getByText(KEPT_NOTE)).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText('Segment category'), 'sponsor');
+    expect(await screen.findByText('This category is not left in. Recut the episode to apply it.')).toBeTruthy();
+    // The server still refuses a verdict until that recut restamps the marker.
+    expect(screen.queryByRole('button', { name: /^Confirm/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
   });
 });

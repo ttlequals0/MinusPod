@@ -2,6 +2,7 @@ import { formatPercent } from '../utils/format';
 import { mediaUrl } from '../utils/mediaUrl';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useDraftClose } from '../hooks/useDraftClose';
+import { useFeedSegmentActions } from '../hooks/useFeedSegmentActions';
 import { isTopDialog, useEscape, useFocusTrap } from './Modal';
 import SpanEditorFooter from './SpanEditorFooter';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -38,8 +39,10 @@ import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
   SEGMENT_CATEGORY_LABELS,
+  confirmLabel,
   isKeepLike,
   rejectLabel,
+  resolveCategoryAction,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
@@ -331,6 +334,7 @@ function AdReviewModal({
   // prop only catches up when the list refetches.
   const [reviewCategory, setReviewCategory] = useState<SegmentCategory | ''>(
     (item.category ?? '') as SegmentCategory | '');
+  const segmentActions = useFeedSegmentActions(caps.categoryField ? item.podcastSlug : null);
   const [reasonInput, setReasonInput] = useState('');
   // 'audio' uses the waveform + pins, 'text' uses transcript selection.
   // adStart/adEnd are shared across modes so toggling preserves work.
@@ -888,7 +892,17 @@ function AdReviewModal({
   // A keep or mark marker's fate is decided by its category, and the
   // corrections endpoint refuses a verdict on one. Offering Save and Not an
   // ad here only produced a 409, so the category picker is the action instead.
-  const keptByCategory = isKeepLike(item.actionApplied);
+  const verdictRefused = isKeepLike(item.actionApplied);
+  // A recut sorts markers by their category's action before it reads any
+  // verdict, so once the picked category is kept for this feed neither button
+  // changes the audio. The stamp above only catches up at that recut.
+  const pickedAction = resolveCategoryAction(reviewCategory, segmentActions);
+  const keptByPick = isKeepLike(pickedAction);
+  const keptByCategory = verdictRefused || keptByPick;
+  // The review footer names the category picked above, not the create-mode
+  // field, so an intro or a self-promo is not confirmed or rejected as an ad.
+  const confirmText = confirmLabel(reviewCategory);
+  const rejectText = rejectLabel(reviewCategory);
 
   const handleConfirm = (cutLater = false) => {
     // Guards the C shortcut too; the buttons are hidden but the key is not.
@@ -1691,8 +1705,10 @@ function AdReviewModal({
                   Split
                 </button>
                 <div className="text-xs text-muted-foreground">
-                  {keptByCategory
+                  {keptByPick || (verdictRefused && pickedAction === null)
                     ? 'Left in by its category. Change it above to cut this span.'
+                    : verdictRefused
+                    ? 'This category is not left in. Recut the episode to apply it.'
                     : heldContext
                       ? heldHelper
                       : boundariesMoved
@@ -1708,17 +1724,24 @@ function AdReviewModal({
               <div className="flex items-stretch gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button type="button" onClick={onSkip}
                   className={`${btnBase} ${btnOutline} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
-                  title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
-                  <span className="sm:hidden">Skip</span>
-                  <span className="hidden sm:inline">{hasNext ? 'Skip & next' : 'Skip'}</span>
+                  title={keptByCategory
+                    ? (hasNext ? 'Go to the next ad (S)' : 'Done (S)')
+                    : (hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)')}>
+                  {/* With no verdict to give, a category change is already saved: nothing is skipped. */}
+                  {keptByCategory ? (hasNext ? 'Next' : 'Done') : (
+                    <>
+                      <span className="sm:hidden">Skip</span>
+                      <span className="hidden sm:inline">{hasNext ? 'Skip & next' : 'Skip'}</span>
+                    </>
+                  )}
                 </button>
                 {!keptByCategory && (
                   <DemoDisabled>
                     <button type="button" onClick={handleReject}
                       className={`${btnBase} ${btnDestructive} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
-                      title={`${rejectLabel(categoryInput)} (R)`}>
-                      <span className="sm:hidden">{rejectLabel(categoryInput)}</span>
-                      <span className="hidden sm:inline">{hasNext ? `${rejectLabel(categoryInput)} & next` : rejectLabel(categoryInput)}</span>
+                      title={`${rejectText} (R)`}>
+                      <span className="sm:hidden">{rejectText}</span>
+                      <span className="hidden sm:inline">{hasNext ? `${rejectText} & next` : rejectText}</span>
                     </button>
                   </DemoDisabled>
                 )}
@@ -1741,9 +1764,9 @@ function AdReviewModal({
                       title={boundaryError
                         ?? (confirmInert
                           ? 'Already cut. Move a boundary to save an adjustment.'
-                          : 'Confirm (C)')}>
+                          : `${confirmText} (C)`)}>
                       <span className="sm:hidden">Confirm</span>
-                      <span className="hidden sm:inline">{hasNext ? 'Confirm & next' : 'Confirm'}</span>
+                      <span className="hidden sm:inline">{hasNext ? `${confirmText} & next` : confirmText}</span>
                     </button>
                   </DemoDisabled>
                 )}

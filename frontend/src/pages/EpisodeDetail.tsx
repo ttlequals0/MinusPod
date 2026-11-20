@@ -1692,6 +1692,8 @@ function EpisodeDetail() {
                 proposalOverlaps(seg)
                   ? { start: seg.reviewer_proposed_start, end: seg.reviewer_proposed_end }
                   : null,
+              category: seg.category ?? null,
+              actionApplied: seg.actionApplied ?? null,
             }}
             audioMode="original"
             hasOriginal={!!episode.hasOriginalAudio}
