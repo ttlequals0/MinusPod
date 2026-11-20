@@ -237,10 +237,10 @@ def test_zero_episode_feed_accepted(app_client, seeded_feed, _auth,
     assert r.status_code == 200
 
 
-def test_refresh_logs_url_at_info_without_query(app_client, seeded_feed, _auth,
+def test_refresh_logs_host_at_info_without_path_or_query(app_client, seeded_feed, _auth,
                                                 monkeypatch, caplog):
-    """The refresh log line must be INFO-visible and must not leak query
-    strings (private-feed tokens live there)."""
+    """The refresh log line is INFO-visible and holds the host only: private-feed
+    tokens live in the path or the query."""
     from main_app.feeds import refresh_rss_feed
     monkeypatch.setattr('main_app.feeds.rss_parser.fetch_feed_conditional',
                         lambda url, etag=None, last_modified=None: (None, None, None))
@@ -250,5 +250,6 @@ def test_refresh_logs_url_at_info_without_query(app_client, seeded_feed, _auth,
     lines = [rec.message for rec in caplog.records
              if 'Starting RSS refresh from:' in rec.message]
     assert lines, 'expected an INFO-level refresh log line'
-    assert 'https://example.com/feed.xml' in lines[0]
+    assert lines[0].endswith('https://example.com')
+    assert 'feed.xml' not in lines[0]
     assert 'SECRET' not in lines[0]

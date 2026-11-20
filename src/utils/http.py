@@ -22,6 +22,9 @@ _NAMED_QUERY_RE = re.compile(rf'\?[^{_HSPACE}?=&/]+=')
 # Only a run of these at the very end of a token survives a query redaction.
 _CLOSING = "\"'`])}>,.;:!"
 _REDACTED = '<redacted>'
+_URL_RE = re.compile(r'https?://[^\s\'"<>)]+')
+# urllib3 retry errors quote the request path alone: "with url: /path?query".
+_PATH_ONLY_URL_RE = re.compile(r'(url: )/[^\s\'")]*')
 _LAST_SPACE_RE = re.compile(rf'.*[{_HSPACE}]', re.DOTALL)
 _SPACE_RE = re.compile(rf'[{_HSPACE}]')
 # Already redacted text may also be cut at a line break.
@@ -139,6 +142,12 @@ def redact_exc(exc, limit: int | None = None) -> str:
     """redact_log_text of str(exc), cut to limit characters when given."""
     text = redact_log_text(str(exc))
     return text if limit is None else text[:limit]
+
+
+def redact_exc_urls(exc, limit: int | None = None) -> str:
+    """redact_exc with every URL cut to scheme and host and a bare "url: /path" dropped."""
+    text = _URL_RE.sub(lambda m: safe_url_for_log(m.group(0)), str(exc))
+    return redact_exc(_PATH_ONLY_URL_RE.sub(r'\1<path>', text), limit)
 
 
 def _elide(head_text: str, tail_text: str, total: int, limit: int) -> str:

@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 import requests
 
 from config import HTTP_MAX_REDIRECTS_API, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
+from utils.http import safe_url_for_log
 from utils.pinned_transport import PinnedHTTPAdapter
 from utils.url import SSRFError, validate_base_url, validate_url
 
@@ -128,7 +129,7 @@ def _validate_for_tier(url: str, trust: URLTrust) -> None:
 
 def _reject_https_downgrade(original: str, target: str) -> None:
     if urlparse(original).scheme.lower() == 'https' and urlparse(target).scheme.lower() != 'https':
-        raise SSRFError(f"HTTPS -> HTTP redirect blocked: {target}")
+        raise SSRFError(f"HTTPS -> HTTP redirect blocked: {safe_url_for_log(target)}")
 
 
 class _RevalidatingSession(requests.Session):

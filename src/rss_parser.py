@@ -33,7 +33,7 @@ from utils.text import collapse_whitespace, is_timezone_drift, normalize_title_f
 from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
-from utils.http import safe_url_for_log
+from utils.http import redact_exc_urls, safe_url_for_log
 from utils.safe_http import (
     IncompleteResponseError, ResponseTooLargeError, URLTrust,
     read_response_capped, safe_get,
@@ -69,7 +69,7 @@ def _read_capped_feed_body(response, url, breaker, probe_token) -> bytes | None:
         return None
     except IncompleteResponseError as e:
         logger.warning("feed_body_truncated: url=%s err=%s",
-                       safe_url_for_log(url), e)
+                       safe_url_for_log(url), redact_exc_urls(e))
         breaker.record_failure(token=probe_token)
         return None
     finally:
@@ -442,7 +442,7 @@ class RSSParser:
         try:
             probe_token = breaker.check()
         except CircuitBreakerOpen as e:
-            logger.debug(f"RSS fetch skipped: {e}")
+            logger.debug(f"RSS fetch skipped: {redact_exc_urls(e)}")
             return None
 
         try:
@@ -475,7 +475,7 @@ class RSSParser:
                 response.close()
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={safe_url_for_log(url)})")
+            logger.warning(f"SSRF blocked in fetch_feed: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
@@ -483,7 +483,7 @@ class RSSParser:
             _mark_gzip_broken(url)
             logger.warning(
                 "Gzip decompression failed, retrying without compression: "
-                "url=%s err=%s", safe_url_for_log(url), e)
+                "url=%s err=%s", safe_url_for_log(url), redact_exc_urls(e))
             try:
                 response = safe_get(
                     url,
@@ -510,11 +510,12 @@ class RSSParser:
                 breaker.record_success(token=probe_token)
                 return body.decode('utf-8', errors='replace')
             except (requests.RequestException, SSRFError) as retry_e:
-                logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
+                logger.warning(
+                    f"Failed to fetch RSS feed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None
         except requests.RequestException as e:
-            logger.error(f"Failed to fetch RSS feed: {e}")
+            logger.warning(f"Failed to fetch RSS feed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None
 
@@ -540,7 +541,7 @@ class RSSParser:
         try:
             probe_token = breaker.check()
         except CircuitBreakerOpen as e:
-            logger.debug(f"RSS conditional fetch skipped: {e}")
+            logger.debug(f"RSS conditional fetch skipped: {redact_exc_urls(e)}")
             return None, None, None
 
         try:
@@ -582,7 +583,7 @@ class RSSParser:
 
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={safe_url_for_log(url)})")
+            logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None, None, None
 
         except requests.exceptions.ContentDecodingError as e:
@@ -590,7 +591,7 @@ class RSSParser:
             _mark_gzip_broken(url)
             logger.warning(
                 "Gzip decompression failed, retrying: url=%s err=%s",
-                safe_url_for_log(url), e)
+                safe_url_for_log(url), redact_exc_urls(e))
             try:
                 response = safe_get(
                     url,
@@ -623,12 +624,14 @@ class RSSParser:
                     new_etag,
                     new_last_modified,
                 )
-            except (SSRFError, requests.RequestException):
+            except (SSRFError, requests.RequestException) as retry_e:
+                logger.warning(
+                    f"Conditional fetch failed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None, None, None
 
         except requests.RequestException as e:
-            logger.error(f"Conditional fetch failed: {e}")
+            logger.warning(f"Conditional fetch failed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None, None, None
 
