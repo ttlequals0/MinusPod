@@ -1132,7 +1132,8 @@ def _resolve_or_create_pattern_from_text(
         )
         if not new_pattern_id:
             logger.info(
-                f"No pattern created for {label} ad in {slug}/{episode_id}: "
+                f"No pattern created for {label} ad in {slug}/{episode_id} "
+                f"({original_ad.get('start')}-{original_ad.get('end')}): "
                 f"the span did not pass the learning gates (see warning above)"
             )
             return None, []
