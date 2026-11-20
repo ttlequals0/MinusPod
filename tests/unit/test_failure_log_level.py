@@ -1,4 +1,4 @@
-"""A retryable not-yet-published enclosure logs at WARNING; real failures stay at ERROR."""
+"""A retry scheduled for a recognized upstream failure logs at WARNING; everything else stays at ERROR."""
 import logging
 import unittest
 from unittest.mock import patch
@@ -52,8 +52,17 @@ class TestFailureLogLevel(unittest.TestCase):
         self.assertEqual(levels, [logging.ERROR])
 
     def test_a_real_failure_is_an_error(self):
+        levels = self._failed_levels(RuntimeError('unexpected state'))
+        self.assertEqual(levels, [logging.ERROR])
+
+    def test_a_permanent_failure_is_an_error(self):
         levels = self._failed_levels(ModelNotConfiguredError('no model'))
         self.assertEqual(levels, [logging.ERROR])
+
+    def test_an_auth_outage_is_an_error(self):
+        error = requests.HTTPError('502 Bad Gateway')
+        error.auth_cause = True
+        self.assertEqual(self._failed_levels(error), [logging.ERROR])
 
 
 if __name__ == '__main__':
