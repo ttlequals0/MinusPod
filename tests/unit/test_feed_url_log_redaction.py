@@ -1,7 +1,9 @@
 """Feed URLs carry the subscriber token in the path: no log record may hold it, and one
 upstream failure is one actionable WARNING with the cause."""
 import logging
+import re
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 import pytest
 import requests
@@ -18,6 +20,15 @@ from utils.url import SSRFError
 TOKEN = 'TOKENabc123' * 8
 URL = f'https://feeds.example.com/content/{TOKEN}?auth=QSECRET'
 HTTP_ERROR = requests.HTTPError(f'502 Server Error: Bad Gateway for url: {URL}')
+
+
+def _host_only_urls(text):
+    """Assert every URL in text is scheme and host only; return the parsed URLs."""
+    parsed = [urlsplit(u.rstrip(".,;:)'\"")) for u in re.findall(r'https?://\S+', text)]
+    for p in parsed:
+        assert p.hostname == 'feeds.example.com'
+        assert p.path in ('', '/') and p.query == ''
+    return parsed
 
 
 def _text(caplog):
@@ -49,7 +60,7 @@ def test_refresh_logs_never_hold_path_or_query(caplog):
     text = _text(caplog)
     assert TOKEN not in text
     assert 'QSECRET' not in text
-    assert 'feeds.example.com' in text
+    assert _host_only_urls(text)
 
 
 def test_refresh_start_line_is_scheme_and_host_only(caplog):
@@ -68,7 +79,7 @@ def test_refresh_failure_is_one_warning_with_cause_and_one_info(caplog):
     assert loud[0].levelno == logging.WARNING
     msg = loud[0].getMessage()
     assert '502 Server Error: Bad Gateway' in msg
-    assert 'https://feeds.example.com' in msg
+    assert _host_only_urls(msg)
     assert any(r.levelno == logging.INFO and r.getMessage() ==
                '[example-podcast] Feed refresh failed; will retry next refresh'
                for r in caplog.records)
@@ -87,7 +98,7 @@ def test_failure_is_one_warning_hiding_path_and_query(caplog, method):
     text = _text(caplog)
     assert TOKEN not in text and 'QSECRET' not in text
     assert '502 Server Error: Bad Gateway' in text
-    assert 'https://feeds.example.com' in text
+    assert _host_only_urls(text)
 
 
 @pytest.mark.parametrize('method', METHODS)
@@ -128,5 +139,5 @@ def test_https_downgrade_error_keeps_host_only():
     from utils.safe_http import _reject_https_downgrade
     with pytest.raises(SSRFError) as exc:
         _reject_https_downgrade('https://a.example.com/x', f'http://feeds.example.com/p/{TOKEN}?k=QSECRET')
-    assert 'feeds.example.com' in str(exc.value)
+    assert _host_only_urls(str(exc.value))
     assert TOKEN not in str(exc.value) and 'QSECRET' not in str(exc.value)
