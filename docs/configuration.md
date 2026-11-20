@@ -706,7 +706,7 @@ Outside the window no new run starts. That covers automatic processing, Reproces
 
 Approving or rejecting a held ad still works outside the window, because it recuts the retained original without starting a processing run. The operator pause on new processing comes first: while it is on, nothing starts even inside the window.
 
-While the window is closed and nothing is running, the local transcription model is unloaded once it has been idle for 300 seconds, the same idle timeout described in [Transcription](transcription.md).
+While the window is closed and nothing is running, the local transcription model is unloaded once it has been idle for the configured idle time (default 300 seconds), the same idle timeout described in [Transcription](transcription.md).
 
 When episodes are waiting, the Queue page shows a Queue hold box that says processing is outside its schedule and when it resumes. A waiting row reads "Held: outside the processing schedule. Resumes" followed by the time. The status bar shows "Outside schedule until" and the same time.
 

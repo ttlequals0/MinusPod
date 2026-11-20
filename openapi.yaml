@@ -7799,6 +7799,16 @@ paths:
                     raise it or lower transcribeMaxChunkSeconds. A proxy in front
                     of the backend may cut the request sooner than this value.
                   example: 600
+                localModelIdleUnloadSeconds:
+                  type: integer
+                  minimum: 10
+                  maximum: 3600
+                  description: |
+                    Seconds without a local transcription before the local model is
+                    unloaded from the GPU (issue #1041). Applies even while episodes
+                    are still in other stages; the model reloads on the next
+                    transcription. Takes effect without a restart.
+                  example: 300
                 transcribeMaxChunkSeconds:
                   type: integer
                   minimum: 1
@@ -18276,6 +18286,14 @@ components:
             value:
               type: integer
               description: Seconds to wait for each remote transcription request.
+            isDefault:
+              type: boolean
+        localModelIdleUnloadSeconds:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Seconds without a local transcription before the local model is unloaded.
             isDefault:
               type: boolean
         transcribeMaxChunkSeconds:

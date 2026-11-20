@@ -1,5 +1,6 @@
-"""The local model unloads only after the queue has stayed idle for LOCAL_MODEL_IDLE_UNLOAD_SECONDS."""
+"""The local model unloads once no decode ran for the configured idle seconds, even while runs are active."""
 import time
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,8 +11,7 @@ _test_data_dir = bootstrap('whisper_idle_unload_test_')
 from main_app import background, db
 import transcriber as transcriber_mod
 from processing_queue import ProcessingQueue, set_processing_paused
-from transcriber import Transcriber
-from transcriber.local import WhisperModelSingleton, unload_whisper_if_idle
+from transcriber.local import ParakeetModelSingleton, WhisperModelSingleton, unload_whisper_if_idle
 from whisper_pool import WhisperPool
 
 SLUG = 'idle-unload-feed'
@@ -45,6 +45,15 @@ def test_idle_unload_skips_while_a_transcription_holds_the_gpu(loaded, stale):
         assert unload_whisper_if_idle() is True
     unload.assert_called_once()
     assert unload_whisper_if_idle() is False
+
+
+def test_setting_not_read_when_nothing_is_loaded(monkeypatch):
+    monkeypatch.setattr(WhisperModelSingleton, 'is_loaded', classmethod(lambda cls: False))
+    monkeypatch.setattr(ParakeetModelSingleton, 'is_loaded', classmethod(lambda cls: False))
+    read = MagicMock(return_value=300)
+    monkeypatch.setattr(transcriber_mod.local.settings, 'local_model_idle_unload_seconds', read)
+    assert unload_whisper_if_idle() is False
+    read.assert_not_called()
 
 
 def test_recent_decode_keeps_the_model_loaded(loaded, monkeypatch):
@@ -104,17 +113,14 @@ def _one_pass(real_unload=False):
                                 'max_requests': 4, 'max_episodes': 1})
     with patch.object(background, 'shutdown_event', stop), \
          patch.object(background, 'get_pool', lambda: pool), \
-         patch.object(background, 'unload_whisper_if_idle', idle), \
+         patch.object(transcriber_mod.local, 'unload_whisper_if_idle', idle), \
          patch.object(background, '_run_claimed_episode', claim):
         background.background_queue_processor()
     return idle
 
 
-def test_idle_queue_unloads_whisper(feed, caplog):
-    with caplog.at_level('INFO'):
-        idle = _one_pass()
-    idle.assert_called_once()
-    assert 'Processing queue idle for 300s; unloaded the local transcription model' in caplog.text
+def test_idle_check_runs_each_pass(feed):
+    _one_pass().assert_called_once()
 
 
 def test_idle_branch_unloads_only_after_the_timer(feed, loaded, monkeypatch, caplog):
@@ -131,41 +137,114 @@ def test_idle_branch_unloads_only_after_the_timer(feed, loaded, monkeypatch, cap
     assert 'unloaded the local transcription model' in caplog.text
 
 
-def test_no_idle_unload_while_a_run_is_active(feed):
+def test_idle_check_runs_while_a_run_is_active(feed):
     run_id = ProcessingQueue().acquire(SLUG, 'ep0', limit=99)
     try:
         idle = _one_pass()
     finally:
         ProcessingQueue().release(run_id)
-    idle.assert_not_called()
+    idle.assert_called_once()
 
 
-def test_no_idle_unload_on_a_pass_that_claims_a_job(feed):
-    db.upsert_episode(SLUG, 'ep1', title='E1', original_url='https://example.com/e.mp3')
-    db.upsert_episode_for_processing(SLUG, 'ep1', 'https://example.com/e.mp3', title='E1')
-    idle = _one_pass()
-    idle.assert_not_called()
+def _set_idle_seconds(value):
+    db.set_setting('local_model_idle_unload_seconds', str(value), is_default=False)
 
 
-def test_chunked_body_keeps_the_model_loaded_after_success(loaded, monkeypatch):
-    state, unload = loaded
-    t = Transcriber.__new__(Transcriber)
-    t.get_audio_duration = MagicMock(return_value=3600.0)
-    t.transcribe = MagicMock(return_value=[{'start': 0.0, 'end': 1.0, 'text': 'hi', 'words': []}])
-    monkeypatch.setattr(transcriber_mod.segments, 'filter_hallucinations', lambda segs: segs)
+@pytest.fixture
+def idle_setting():
+    yield _set_idle_seconds
+    db.reset_setting('local_model_idle_unload_seconds')
 
-    def extract(*args, **kwargs):
-        import tempfile
-        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-        handle.close()
-        return handle.name
 
-    with patch('transcriber.chunking.calculate_optimal_chunk_duration', return_value=(1800.0, 'test')), \
-            patch('transcriber.chunking.extract_audio_chunk', side_effect=extract), \
-            patch('transcriber.settings._get_whisper_settings', return_value={'backend': 'local'}), \
-            patch('transcriber.clear_gpu_memory'), \
-            patch.object(WhisperModelSingleton, 'get_batched_pipeline', return_value=MagicMock()):
-        result = t.transcribe_chunked('/tmp/input.mp3')
-    assert result
+def test_unload_fires_after_configured_seconds_with_active_run(feed, loaded, idle_setting, monkeypatch):
+    state, _unload = loaded
+    idle_setting(60)
+    run_id = ProcessingQueue().acquire(SLUG, 'ep0', limit=99)
+    try:
+        monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 30)
+        assert unload_whisper_if_idle() is False
+        assert state['loaded'] is True
+        monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 61)
+        assert unload_whisper_if_idle() is True
+        assert state['loaded'] is False
+    finally:
+        ProcessingQueue().release(run_id)
+
+
+def test_no_unload_while_a_decode_is_active(loaded, idle_setting, monkeypatch):
+    _state, unload = loaded
+    idle_setting(10)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 500)
+    with transcriber_mod.local._local_decode_activity():
+        assert unload_whisper_if_idle() is False
     unload.assert_not_called()
-    assert state['loaded'] is True
+
+
+def test_changed_setting_applies_without_restart(loaded, idle_setting, monkeypatch):
+    state, _unload = loaded
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 100)
+    assert unload_whisper_if_idle() is False
+    idle_setting(90)
+    assert unload_whisper_if_idle() is True
+    assert state['loaded'] is False
+
+
+@pytest.mark.parametrize('stored,idle_for,unloads', [(1, 5, False), (99999, 3601, True)])
+def test_out_of_range_stored_value_is_clamped(loaded, idle_setting, monkeypatch, stored, idle_for, unloads):
+    idle_setting(stored)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - idle_for)
+    assert unload_whisper_if_idle() is unloads
+
+
+@pytest.mark.parametrize('configured,seconds', [(None, 300), (45, 45)])
+def test_unload_log_reports_the_configured_seconds(loaded, idle_setting, monkeypatch, caplog,
+                                                   configured, seconds):
+    if configured:
+        idle_setting(configured)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - seconds - 1)
+    with caplog.at_level('INFO'):
+        assert unload_whisper_if_idle() is True
+    assert f'Local model idle for {seconds}s; unloaded the local transcription model' in caplog.text
+
+
+def test_setting_not_read_while_a_decode_is_active(loaded, monkeypatch):
+    read = MagicMock(return_value=300)
+    monkeypatch.setattr(transcriber_mod.local.settings, 'local_model_idle_unload_seconds', read)
+    with transcriber_mod.local._local_decode_activity():
+        assert unload_whisper_if_idle() is False
+    read.assert_not_called()
+
+
+def test_single_slot_run_in_flight_is_joined_promptly_with_idle_checks(feed, monkeypatch):
+    monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.02)
+    release = threading.Event()
+    worker = threading.Thread(target=lambda: release.wait(5))
+    claims = iter([{'id': 1}])
+    finished = threading.Event()
+    alive_at_check = []
+
+    def claim(queued, running):
+        worker.start()
+        running.add(worker)
+        return 'started'
+
+    def idle():
+        alive_at_check.append(worker.is_alive())
+        if len(alive_at_check) >= 3:
+            release.set()
+            worker.join()
+            finished.set()
+        return False
+
+    stop = MagicMock()
+    stop.is_set.side_effect = finished.is_set
+    pool = WhisperPool(lambda: {'enabled': False, 'backend': 'openai-api',
+                                'max_requests': 4, 'max_episodes': 1})
+    with patch.object(background, 'shutdown_event', stop), \
+         patch.object(background, 'get_pool', lambda: pool), \
+         patch.object(background.db, 'claim_next_queued_episode', lambda **kw: next(claims, None)), \
+         patch.object(transcriber_mod.local, 'unload_whisper_if_idle', idle), \
+         patch.object(background, '_run_claimed_episode', claim):
+        background.background_queue_processor()
+    assert True in alive_at_check
+    stop.wait.assert_not_called()
