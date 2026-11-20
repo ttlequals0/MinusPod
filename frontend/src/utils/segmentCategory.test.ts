@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { confirmLabel, rejectLabel } from './segmentCategory';
+import { confirmLabel, rejectLabel, resolveCategoryAction } from './segmentCategory';
 
 describe('confirmLabel', () => {
   it('calls a sponsor or uncategorized marker an ad', () => {
@@ -37,5 +37,25 @@ describe('rejectLabel', () => {
 
   it('falls back to Not ad for a category the frontend does not know', () => {
     expect(rejectLabel('something_new')).toBe('Not ad');
+  });
+});
+
+describe('resolveCategoryAction', () => {
+  const actions = { sponsor: 'remove', intro: 'keep', recap: 'mark' } as const;
+
+  it('looks a known category up in the feed actions', () => {
+    expect(resolveCategoryAction('intro', actions)).toBe('keep');
+    expect(resolveCategoryAction('recap', actions)).toBe('mark');
+  });
+
+  it('resolves an unset or unknown category as sponsor', () => {
+    expect(resolveCategoryAction(null, actions)).toBe('remove');
+    expect(resolveCategoryAction('', actions)).toBe('remove');
+    expect(resolveCategoryAction('something_new', actions)).toBe('remove');
+  });
+
+  it('is null while the actions are unknown', () => {
+    expect(resolveCategoryAction('intro', null)).toBeNull();
+    expect(resolveCategoryAction('outro', actions)).toBeNull();
   });
 });

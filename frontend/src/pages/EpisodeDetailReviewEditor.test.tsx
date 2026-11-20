@@ -32,6 +32,8 @@ vi.mock('../components/AdReviewModal', () => ({
       start: number;
       end: number;
       correctedBounds: { start: number; end: number } | null;
+      category?: string | null;
+      actionApplied?: string | null;
     };
     onSubmit: (s: {
       kind: 'confirm' | 'reject' | 'adjust' | 'recategorize';
@@ -50,6 +52,8 @@ vi.mock('../components/AdReviewModal', () => ({
       data-item-end={item.end}
       data-item-corrected-start={item.correctedBounds?.start ?? ''}
       data-item-corrected-end={item.correctedBounds?.end ?? ''}
+      data-item-category={item.category ?? ''}
+      data-item-action={item.actionApplied ?? ''}
       data-bounds-min={boundsWindow?.min ?? ''}
       data-bounds-max={boundsWindow?.max ?? ''}
       data-held-label={heldContext?.reasonLabel ?? ''}
@@ -230,6 +234,19 @@ describe('Open in editor: held rows', () => {
     expect(modal.getAttribute('data-item-corrected-end')).toBe('300');
     expect(modal.getAttribute('data-bounds-min')).toBe('119.5');
     expect(modal.getAttribute('data-bounds-max')).toBe('360.5');
+  });
+
+  it('passes the marker category and applied action, so the editor starts on them', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{ ...heldMarker, category: 'self_promo', actionApplied: 'remove' }],
+    }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-item-category')).toBe('self_promo');
+    expect(modal.getAttribute('data-item-action')).toBe('remove');
   });
 
   it('leaves correctedBounds null when the marker has no reviewer proposals', async () => {

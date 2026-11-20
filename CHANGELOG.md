@@ -13,6 +13,8 @@ release notes.
 ### Fixed
 
 - A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up.
+- In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category.
+- In the ad editor, the confirm and reject buttons were still offered after you picked a category the feed keeps or marks, although a recut leaves that segment in whichever one you press. They are now hidden as soon as the picked category is kept for the feed, and Skip reads "Next" or "Done", because the category is already saved. Opened from a held or rejected row on the episode page, the editor now starts on the segment's own category instead of Uncategorized, and hides the buttons on a segment that is left in, where pressing them ended in an error.
 
 ## [2.102.10] - 2026-11-19
 
