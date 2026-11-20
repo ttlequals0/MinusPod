@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.12] - 2026-11-20
+
+### Fixed
+
+- On a YouTube feed, the processing delay before the first SponsorBlock check was counted from when MinusPod discovered the video. A newly added feed waited the full delay even for videos published days earlier. The delay now counts from the video's publish time.
+
 ## [2.102.11] - 2026-11-20
 
 ### Added
