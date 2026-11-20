@@ -208,8 +208,8 @@ class TestScanForBoundary:
             outro_variants=["visit our website today"],
             sponsor="test", scope="podcast",
         )
-        # Mock _fuzzy_find to return a match at position 10
-        matcher._fuzzy_find = MagicMock(return_value=(10, 95, 'visit our website today'))
+        # Mock _fuzzy_find_all to return a match at position 10
+        matcher._fuzzy_find_all = MagicMock(return_value=[(10, 33, 95)])
         # Mock _char_pos_to_time to return known times
         matcher._char_pos_to_time = MagicMock(return_value=(50.0, 55.0))
 
@@ -217,7 +217,7 @@ class TestScanForBoundary:
         result = matcher._scan_for_outro(full_text, {}, [], pattern, 0)
 
         assert result == 55.0
-        matcher._fuzzy_find.assert_called_once()
+        matcher._fuzzy_find_all.assert_called_once()
         matcher._char_pos_to_time.assert_called_once()
 
     def test_scan_for_intro_returns_start_time(self):
@@ -227,7 +227,7 @@ class TestScanForBoundary:
             intro_variants=["brought to you by testco"],
             outro_variants=[], sponsor="test", scope="podcast",
         )
-        matcher._fuzzy_find = MagicMock(return_value=(5, 95, 'brought to you by testco'))
+        matcher._fuzzy_find_all = MagicMock(return_value=[(5, 29, 95)])
         matcher._char_pos_to_time = MagicMock(return_value=(30.0, 35.0))
 
         full_text = "a" * 200
@@ -252,11 +252,11 @@ class TestScanForBoundary:
             outro_variants=["short"],  # < 10 chars, should be skipped
             sponsor="test", scope="podcast",
         )
-        matcher._fuzzy_find = MagicMock()
+        matcher._fuzzy_find_all = MagicMock()
 
         result = matcher._scan_for_outro("a" * 200, {}, [], pattern, 0)
         assert result is None
-        matcher._fuzzy_find.assert_not_called()
+        matcher._fuzzy_find_all.assert_not_called()
 
     def test_scan_for_boundary_low_score_rejected(self):
         matcher = self._make_matcher()
@@ -265,11 +265,12 @@ class TestScanForBoundary:
             outro_variants=["a long enough outro phrase here"],
             sponsor="test", scope="podcast",
         )
-        # Score below FUZZY_THRESHOLD * 100 (75)
-        matcher._fuzzy_find = MagicMock(return_value=(10, 50, ''))
+        # Text far below the cutoff yields no hit, so no time is looked up
+        matcher._char_pos_to_time = MagicMock(return_value=(50.0, 55.0))
 
         result = matcher._scan_for_outro("a" * 200, {}, [], pattern, 0)
         assert result is None
+        matcher._char_pos_to_time.assert_not_called()
 
 
 class TestEstimateDuration:
@@ -1448,3 +1449,136 @@ class TestFuzzyWindowTightening:
         phrase = "attention all companies and other firms"
         pos, _, matched = _make_bare_matcher()._fuzzy_find(text, phrase, 90)
         assert (pos, matched) == (text.index("attention"), "attention all companies and other forms")
+
+
+class TestPairedScanNearestOccurrence:
+    """The paired scan takes the occurrence nearest the anchor, not the one the aligner happens to return."""
+
+    INTRO = "Welcome back, everyone. Today we are talking about our friends at Acme Widgets, makers of fine widgets."
+    OUTRO = "That is all for Acme Widgets. Visit acmewidgets.example today and use code SAVE, thanks for listening."
+    OTHER_INTRO = "And before we go on, a quick word about gardening gloves from a company that makes them well"
+    OTHER_OUTRO = "Thanks again to our friends at Acme Widgets, use the code SAVE at checkout for ten percent off."
+
+    # The outro is read twice after the intro and both reads meet the cutoff. rapidfuzz returns
+    # the second one; a one-character shift of the scan start moves its pick between the two.
+    # "thing" stands in for a misheard word in a read.
+    TWO_OUTROS = [
+        (0.0, 25.0, "and then we also discussed the new bakery that opened downtown last week"),
+        (25.0, 37.0, "Right."),
+        (37.0, 54.0, "thing back, everyone. Today we are talking about our friends at Acme Widgets, makers of fine widgets."),
+        (54.0, 66.0, "That is all for Acme Widgets. Visit acmewidgets.example today and use code SAVE, thanks for thing"),
+        (66.0, 83.0, "Right."),
+        (83.0, 95.0, "Use the code"),
+        (95.0, 103.0, "Use the code"),
+        (103.0, 120.0, "Use the code"),
+        (120.0, 132.0, "and then we also discussed the new bakery that opened downtown last week"),
+        (132.0, 140.0, "That is all for Acme Widgets Visit acmewidgetsexample today and use code SAVE thanks for listening"),
+        (140.0, 145.0, "Use the code"),
+    ]
+
+    # Both reads of the intro are garbled in one word; the later one is nearer the outro.
+    TWO_INTROS = [
+        (0.0, 25.0, "ok then"),
+        (25.0, 42.0, "Right."),
+        (42.0, 44.0, "Thanks again to our friends at Acme Widgets use the code SAVE at checkout for ten percent off"),
+        (44.0, 56.0, "And before we go on, a thing word about gardening gloves from a company that makes them well"),
+        (56.0, 61.0, "And before we go on, thing quick word about gardening gloves from a company that makes them well"),
+        (61.0, 63.0, "Use the code"),
+        (63.0, 65.0, "Welcome back everyone Today we thing talking about our friends at Acme Widgets makers of fine widgets"),
+        (65.0, 73.0, "Some filler talk about gardening and the weather in the spring season"),
+        (73.0, 78.0, "and then we also discussed the new bakery that opened downtown last week"),
+        (78.0, 80.0, "see you at six"),
+        (80.0, 82.0, "and then we also discussed the new bakery that opened downtown last week"),
+        (82.0, 90.0, "Right."),
+        (90.0, 102.0, "Thanks again to our friends at Acme Widgets use the code SAVE at checkout for ten percent off"),
+    ]
+
+    @staticmethod
+    def _build(rows):
+        segs = [{'start': s, 'end': e, 'text': t} for s, e, t in rows]
+        full_text, segment_map = TextPatternMatcher._concat_segments(segs)
+        return segs, full_text.lower(), segment_map
+
+    @staticmethod
+    def _pattern(intro, outro):
+        return AdPattern(
+            id=1, text_template="", intro_variants=[intro], outro_variants=[outro],
+            sponsor="Acme Widgets", scope="global",
+        )
+
+    def _outro_scan(self, rows, intro=None, outro=None):
+        """Scan for the outro from where the first read of the intro ends."""
+        segs, text, segment_map = self._build(rows)
+        intro, outro = intro or self.INTRO, outro or self.OUTRO
+        matcher = _make_bare_matcher()
+        pos, _, matched = matcher._fuzzy_find(text, intro.lower(), required_fuzzy_score(len(intro)))
+        assert matched
+        return matcher._scan_for_outro(
+            text, segment_map, segs, self._pattern(intro, outro), pos + len(matched)
+        )
+
+    def _intro_scan(self, rows, outro_segment, intro=None):
+        """Scan for the intro back from the start of the segment holding the outro."""
+        segs, text, segment_map = self._build(rows)
+        intro = intro or self.OTHER_INTRO
+        return _make_bare_matcher()._scan_for_intro(
+            text, segment_map, segs, self._pattern(intro, self.OTHER_OUTRO),
+            segment_map[outro_segment][0],
+        )
+
+    def test_layout_makes_the_aligner_return_the_farther_outro(self):
+        """The condition the other tests depend on: two windows meet the cutoff and the aligner picks the later."""
+        segs, text, segment_map = self._build(self.TWO_OUTROS)
+        outro = self.OUTRO.lower()
+        start = _make_bare_matcher()._fuzzy_find(text, self.INTRO.lower(), 0)[0]
+        intro_end = start + len(segs[2]['text']) + 1
+        region = text[intro_end:]
+        align = fuzz.partial_ratio_alignment(outro, region, score_cutoff=required_fuzzy_score(len(outro)))
+        hits = _make_bare_matcher()._fuzzy_find_all(region, outro, required_fuzzy_score(len(outro)))
+        assert len(hits) == 2
+        assert align.dest_start + intro_end > segment_map[8][0]
+
+    def test_outro_scan_returns_the_first_outro_when_it_occurs_twice(self):
+        assert self._outro_scan(self.TWO_OUTROS) == 66.0
+
+    def test_outro_scan_prefers_the_nearer_occurrence_over_a_higher_score(self):
+        rows = [
+            (0.0, 10.0, "thing back, everyone. Today we are talking about our friends at Acme Widgets, makers of fine widgets."),
+            (10.0, 20.0, "That is all for Acme Widgets. Visit acmewidgets.example today and use code SAVE, thanks for thing"),
+            (20.0, 30.0, "Right."),
+            (30.0, 40.0, "Use the code"),
+            (40.0, 50.0, "and then we also discussed the new bakery that opened downtown last week"),
+            (50.0, 60.0, "That is all for Acme Widgets Visit acmewidgetsexample today and use code SAVE thanks for listening"),
+        ]
+        assert self._outro_scan(rows) == 20.0
+
+    def test_intro_scan_returns_the_later_intro_when_it_occurs_twice(self):
+        assert self._intro_scan(self.TWO_INTROS, outro_segment=12) == 56.0
+
+    def test_single_occurrence_keeps_its_time(self):
+        rows = self.TWO_OUTROS[:9]
+        assert self._outro_scan(rows) == 66.0
+        rows = self.TWO_INTROS[:4] + self.TWO_INTROS[5:]
+        assert self._intro_scan(rows, outro_segment=11) == 44.0
+
+    def test_a_nearer_text_below_the_cutoff_is_ignored(self):
+        near = "That is all for our friends. Visit the store this week and enjoy the sale, thanks for watching."
+        assert fuzz.partial_ratio(self.OUTRO.lower(), near.lower()) < required_fuzzy_score(len(self.OUTRO))
+        rows = [
+            (0.0, 10.0, self.INTRO),
+            (10.0, 20.0, near),
+            (20.0, 30.0, "Use the code"),
+            (30.0, 40.0, "Thanks for listening, that is all for Acme Widgets. Visit acmewidgets.example today and use code SAVE, thanks for listening."),
+        ]
+        assert self._outro_scan(rows) == 40.0
+
+    def test_no_occurrence_returns_none(self):
+        rows = [(0.0, 10.0, self.INTRO), (10.0, 20.0, "Use the code")]
+        assert self._outro_scan(rows) is None
+
+    def test_match_ends_at_the_first_outro(self):
+        segs, text, segment_map = self._build(self.TWO_OUTROS)
+        pattern = self._pattern(self.INTRO, self.OUTRO)
+        matches = _make_bare_matcher()._find_phrase_matches(text, segs, segment_map, [pattern])
+        intro_matches = [m for m in matches if m.match_type == "intro"]
+        assert [(m.start, m.end, m.span_estimated) for m in intro_matches] == [(37.0, 66.0, False)]
