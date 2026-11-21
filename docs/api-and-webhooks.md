@@ -160,7 +160,7 @@ Key endpoints:
 - `POST /api/v1/settings/rate-limit-hold/reset` - Clear every active rate-limit hold without disabling the hold feature
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
-- `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template
+- `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template. Optional `contentType` (default `application/json`): a `text/*` type previews values unescaped, any other type previews them JSON-escaped
 - `GET/PUT /api/v1/settings/notifications/email` - Email notification settings
 - `POST /api/v1/settings/notifications/email/test` - Send a test email
 
@@ -267,7 +267,7 @@ The Test result lists each event's `delivered` status and `templateFallback` fla
 
 ### Template Variables
 
-Custom payload templates are Jinja2 strings rendered against these variables:
+Custom payload templates are Jinja2 strings rendered against these variables. For JSON payloads, interpolated string values are JSON-escaped automatically, so `"{{ episode.title }}"` is safe inside quotes; `{{ value | tojson }}` also works and is not escaped twice.
 
 | Variable | Type | Description |
 |---|---|---|

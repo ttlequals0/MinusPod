@@ -121,6 +121,35 @@ class TestBlockedHosts:
             check_resolved_ip(address, allow_private=allow_private)
 
 
+class TestCheckResolvedIpTiers:
+    @pytest.mark.parametrize('address', [
+        '100.64.0.1', '100.100.100.200', '100.127.255.254', '192.0.0.1', '198.18.0.1',
+    ])
+    def test_strict_tier_rejects_non_global(self, address):
+        from utils.url import check_resolved_ip
+
+        with pytest.raises(SSRFError):
+            check_resolved_ip(address, allow_private=False)
+
+    @pytest.mark.parametrize('address', ['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'])
+    def test_strict_tier_accepts_public(self, address):
+        from utils.url import check_resolved_ip
+
+        check_resolved_ip(address, allow_private=False)
+
+    @pytest.mark.parametrize('address', ['100.64.0.1', '10.0.0.1', '127.0.0.1'])
+    def test_operator_tier_accepts_private_and_shared(self, address):
+        from utils.url import check_resolved_ip
+
+        check_resolved_ip(address, allow_private=True)
+
+    def test_operator_tier_rejects_metadata(self):
+        from utils.url import check_resolved_ip
+
+        with pytest.raises(SSRFError):
+            check_resolved_ip('169.254.169.254', allow_private=True)
+
+
 class TestBlockedPorts:
     """Non-standard ports must be blocked."""
 

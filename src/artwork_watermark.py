@@ -9,6 +9,7 @@ black art, issue #514). Shapes render supersampled and are LANCZOS-downscaled fo
 import hashlib
 import logging
 import os
+import warnings
 from io import BytesIO
 from pathlib import Path
 
@@ -100,6 +101,23 @@ def cover_badge_salt(position: str | None = DEFAULT_BADGE_POSITION) -> str:
     return f"{BADGE_REVISION}:{badge_fingerprint()}:{normalize_badge_position(position)}"
 
 
+# Covers declaring more pixels than this are never decoded (thumbnails and badge alike).
+COVER_MAX_DECODE_PIXELS = 8192 * 8192
+# Longest side the badge is composited at; bounds the supersampled badge canvases.
+BADGE_COVER_MAX_SIDE = 3000
+
+
+class CoverTooLargeError(ValueError):
+    """A cover declares more pixels than the decode cap, so it is not decoded."""
+
+
+def check_decode_cap(img: Image.Image, cap: int = COVER_MAX_DECODE_PIXELS) -> None:
+    """Raise CoverTooLargeError when the opened (not yet decoded) image exceeds the pixel cap."""
+    width, height = img.size
+    if width * height > cap:
+        raise CoverTooLargeError(f"{width}x{height} exceeds the decode cap")
+
+
 # Shape drawing is not antialiased in PIL; render the badge at this factor and
 # LANCZOS-downscale so the ring and chip corners come out smooth.
 SUPERSAMPLE = 4
@@ -152,10 +170,16 @@ def composite_watermark(base_bytes: bytes,
         logger.warning("watermark_badge_missing")
         return None
     try:
-        with Image.open(BytesIO(base_bytes)) as base_img:
-            # The JPEG output has no alpha; dropping the key avoids Pillow's byte-transparency warning.
-            base_img.info.pop('transparency', None)
-            base = base_img.convert('RGB')
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(BytesIO(base_bytes)) as base_img:
+                check_decode_cap(base_img)
+                # The JPEG output has no alpha; dropping the key avoids Pillow's byte-transparency warning.
+                base_img.info.pop('transparency', None)
+                if base_img.format == 'JPEG':
+                    base_img.draft('RGB', (BADGE_COVER_MAX_SIDE, BADGE_COVER_MAX_SIDE))
+                base_img.thumbnail((BADGE_COVER_MAX_SIDE, BADGE_COVER_MAX_SIDE), Image.LANCZOS)
+                base = base_img.convert('RGB')
         with Image.open(badge_file) as badge_img:
             waveform = badge_img.convert('RGBA')
 

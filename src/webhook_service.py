@@ -8,7 +8,8 @@ import threading
 import time
 from dataclasses import dataclass
 
-from jinja2 import TemplateError
+from jinja2 import TemplateError, pass_eval_context
+from jinja2.filters import do_tojson
 from jinja2.sandbox import SandboxedEnvironment
 
 from config import FAILOVER_API_TARGET_NAMES, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
@@ -63,7 +64,25 @@ _EPISODE_EVENTS = frozenset((
 # Maps the API-facing failover target names to webhook/email payload values,
 # kept local to avoid importing failover (which imports this module).
 
+class _JsonLiteral(str):
+    """Output of tojson, the only value the JSON environment leaves unescaped."""
+
+
+@pass_eval_context
+def _json_literal_tojson(eval_ctx, value, indent=None):
+    return _JsonLiteral(do_tojson(eval_ctx, value, indent))
+
+
+def _json_escape_value(value):
+    """Escape a string for placement inside a JSON string literal; tojson output passes through."""
+    if isinstance(value, str) and not isinstance(value, _JsonLiteral):
+        return json.dumps(value, ensure_ascii=False)[1:-1]
+    return value
+
+
 _sandbox_env = SandboxedEnvironment()
+_json_sandbox_env = SandboxedEnvironment(finalize=_json_escape_value)
+_json_sandbox_env.filters['tojson'] = _json_literal_tojson
 
 
 def get_notification_timezone(db=None) -> str:
@@ -287,10 +306,23 @@ def _build_context(payload: WebhookPayload) -> dict:
     }
 
 
-def _render_template(template_str, context):
-    """Render a Jinja2 template in a sandboxed environment."""
-    template = _sandbox_env.from_string(template_str)
+def _render_template(template_str, context, json_escape=False):
+    """Render a Jinja2 template in a sandboxed environment, JSON-escaping values when asked."""
+    env = _json_sandbox_env if json_escape else _sandbox_env
+    template = env.from_string(template_str)
     return template.render(**context)
+
+
+def _render_payload(template_str, context, content_type):
+    """Render for a non-text type with values JSON-escaped when that yields valid JSON, else plain."""
+    if not _is_text_content_type(content_type):
+        try:
+            escaped = _render_template(template_str, context, json_escape=True)
+            json.loads(escaped)
+            return escaped
+        except ValueError:
+            pass
+    return _render_template(template_str, context)
 
 
 def _is_text_content_type(content_type):
@@ -342,11 +374,12 @@ def _render_body(webhook_config, context):
     if not template_str:
         return json.dumps(dict(context)), False
 
+    content_type = webhook_config.get('contentType', 'application/json')
     try:
-        return _render_template(template_str, context), False
+        return _render_payload(template_str, context, content_type), False
     except TemplateError as exc:
         # Keep alert delivery when an episode-only template fails to render.
-        if _is_text_content_type(webhook_config.get('contentType', 'application/json')):
+        if _is_text_content_type(content_type):
             fallback_kind, body_str = 'plain-text line', _plain_text_fallback(context)
         else:
             fallback_kind, body_str = 'JSON payload', json.dumps(dict(context))
@@ -688,14 +721,14 @@ def fire_cue_template_quiet_event(slug, podcast_name, template_id, template_labe
                              dedup_key=f"cue-quiet:{slug}:{template_id}")
 
 
-def render_template_preview(template_string):
+def render_template_preview(template_string, content_type='application/json'):
     """Render a Jinja2 template with dummy data for validation/preview.
 
     Raises jinja2.TemplateError on invalid templates so callers can surface it.
     """
     context = dict(_DUMMY_CONTEXT)
     context.update(_timestamp_fields())
-    return _render_template(template_string, context)
+    return _render_payload(template_string, context, content_type)
 
 
 def _episode_test_context(event):

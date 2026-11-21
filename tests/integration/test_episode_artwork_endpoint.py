@@ -216,7 +216,9 @@ def test_an_oversized_cover_is_never_decoded_and_is_not_refetched(client, monkey
     storage = storage_module.Storage()
     storage._cover_thumb_warned.clear()
     if pixel_cap:
-        monkeypatch.setattr(storage_module, 'COVER_MAX_DECODE_PIXELS', pixel_cap)
+        real_cap_check = storage_module.check_decode_cap
+        monkeypatch.setattr(storage_module, 'check_decode_cap',
+                            lambda img: real_cap_check(img, pixel_cap))
     with _fetching(storage, data=image, mime='image/png' if pixel_cap is None else 'image/jpeg') as fetch:
         with patch.object(Image.Image, 'load', side_effect=AssertionError('decoded')) as load, \
                 patch.object(storage_module, 'make_cover_thumbnail',

@@ -10,7 +10,24 @@ release notes.
 
 ## [Unreleased]
 
+### Security
+
+- Forwarded headers such as `X-Forwarded-For` are now honored only when the connecting peer is a trusted proxy. With `MINUSPOD_TRUSTED_PROXY_COUNT` set, a client that reached the app directly could choose its own address. It could then pass as loopback during first-run setup, skip the setup token and avoid the login rate limit. The new `MINUSPOD_TRUSTED_PROXIES` variable takes a comma-separated list of IPs or CIDRs and defaults to loopback and private ranges. First-run setup without a token now needs a direct loopback connection with no forwarding headers.
+- A feed whose whole body was a URL or a file path could make the feed parser fetch that URL or open that file, outside the outbound request checks. The body is now always parsed as feed content.
+- A crafted ID3 chapter table of contents could take exponential time to process and stall the processing queue. Each table is now visited once.
+- A Recents subscriber key could fetch audio, transcripts, chapters and artwork for episodes outside the Recents item limit. Its access now matches the feed.
+- Requests for unknown episode ids each triggered a fetch of the upstream feed. After a miss, lookups for ids the upstream feed did not list skip the fetch for 60 seconds.
+- Podping node URLs are now checked when saved, and cloud metadata and link-local addresses are refused. Requests to nodes check each redirect the same way as other operator-configured URLs.
+- A crafted `itunes:duration` or `itunes:episode` value in an upstream feed could add elements to the served feed. Both are now written as whole numbers, so a clock value such as `1:02:03` is served as `3723`, and anything else is dropped.
+- URLs taken from feed content must now resolve to a public address. Shared address space (`100.64.0.0/10`) was allowed before. URLs an operator configures are not affected.
+- With the cover badge on, a very large cover could use hundreds of megabytes of memory, and a cover that failed to decode was decoded again on every request. Covers above 8192 by 8192 pixels are now served without the badge, and the badge is drawn at no more than 3000 pixels on the longest side. A failed cover is tried once until the artwork or badge changes.
+- In a webhook payload template that produces JSON, an episode or podcast title containing a quote could add fields to the signed body. Text values are now JSON-escaped, and existing templates need no change. `POST /api/v1/settings/webhooks/validate-template` accepts an optional `contentType` so the preview matches what is sent.
+- A config export now replaces hosts in shared address space (`100.64.0.0/10`) with the private-host placeholder, as it does for other private addresses.
+
 ### Fixed
+
+- Automatic sponsor pattern promotion recreated a global pattern after it had been disabled. A disabled global pattern now stays disabled.
+- Promoted and merged patterns lost their category and were treated as sponsor patterns, so a cross-promo or self-promo pattern set to keep could start cutting. The category now carries over, and patterns with different categories are not promoted or merged together.
 
 - When two chapter boundaries started less than a minute apart, chapter generation kept the first and dropped the second. A short promo or transition could replace the topic that followed it and leave a long stretch without a topic chapter. It now keeps the later boundary.
 

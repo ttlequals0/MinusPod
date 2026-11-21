@@ -2,6 +2,7 @@
 import json
 import threading
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -56,6 +57,25 @@ def test_accepts_local_and_private_rpc_nodes():
         'http://localhost:8090', 'https://127.0.0.1:8091',
         'http://192.168.1.4:8092', 'https://[::1]:8093',
     ]
+
+
+def test_rejects_metadata_and_link_local_nodes():
+    for node in ('http://169.254.169.254', 'http://169.254.169.254/latest', 'https://[fe80::1]:8090'):
+        with pytest.raises(ValueError, match='not allowed'):
+            normalize_podping_nodes([node], check_hosts=True)
+
+
+def test_get_podping_nodes_does_no_host_check_on_read():
+    db = FakeDb({PODPING_NODE_SETTING: json.dumps(['http://169.254.169.254'])})
+    with patch('podping_listener.validate_base_url') as check, \
+            patch('utils.url.socket.getaddrinfo') as dns:
+        assert get_podping_nodes(db) == ['http://169.254.169.254']
+    check.assert_not_called()
+    dns.assert_not_called()
+
+
+def test_accepts_private_lan_node():
+    assert normalize_podping_nodes(['http://192.168.1.10:8090'], check_hosts=True) == ['http://192.168.1.10:8090']
 
 
 @pytest.mark.parametrize('nodes', [

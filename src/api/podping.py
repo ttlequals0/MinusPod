@@ -32,7 +32,7 @@ def update_podping_node_settings():
     if not isinstance(payload, dict) or 'nodes' not in payload:
         return json_response({'error': 'nodes must be a list of HTTP(S) URLs'}, 400)
     try:
-        nodes = normalize_podping_nodes(payload['nodes'])
+        nodes = normalize_podping_nodes(payload['nodes'], check_hosts=True)
     except ValueError as exc:
         return error_response(str(exc), 400)
     db = get_database()

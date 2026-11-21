@@ -1,6 +1,5 @@
 """REST API for MinusPod web UI."""
 import logging
-import ipaddress
 import math
 import os
 import re
@@ -18,6 +17,7 @@ from api.auth_state import (
     AUTH_HOOK_EXEMPT_ENDPOINTS, note_missing_auth, password_is_set, resolve_auth,
 )
 from api.csrf import validate as csrf_validate
+from utils.trusted_proxy import direct_peer, parse_peer
 from llm_client import LLMDisabledError
 from utils.validation import is_dangerous_slug, nullable_bool
 from utils.http import client_ip, redact_feed_credentials, redact_log_text
@@ -122,11 +122,11 @@ def _is_public_artwork_request(path, method):
 def _remote_setup_allowed():
     if os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() != 'true':
         return True
-    try:
-        if ipaddress.ip_address(request.remote_addr or '').is_loopback:
-            return True
-    except ValueError:
-        pass
+    peer = direct_peer(request.environ)
+    forwarded = 'X-Forwarded-For' in request.headers or 'Forwarded' in request.headers
+    parsed = parse_peer(peer)
+    if not forwarded and parsed is not None and parsed.is_loopback:
+        return True
     expected = os.environ.get('MINUSPOD_SETUP_TOKEN', '')
     supplied = request.headers.get('X-MinusPod-Setup-Token', '')
     try:

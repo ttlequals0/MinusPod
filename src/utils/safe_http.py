@@ -164,6 +164,16 @@ class _RevalidatingSession(requests.Session):
                 prepared_request.headers.pop(header, None)
 
 
+def new_revalidating_session(
+    trust: URLTrust, max_redirects: int = HTTP_MAX_REDIRECTS_API,
+) -> requests.Session:
+    """Long-lived keep-alive session with per-hop revalidation and connect-time pinning.
+
+    Pass it to ``safe_post(session=...)``; the caller closes it.
+    """
+    return _RevalidatingSession(trust, max_redirects)
+
+
 def safe_get(
     url: str,
     trust: URLTrust,
@@ -269,14 +279,19 @@ def safe_post(
     files=None,
     headers: dict | None = None,
     stream: bool = False,
+    session: requests.Session | None = None,
 ) -> requests.Response:
     """POST ``url`` via a session that revalidates every redirect hop.
 
     Same per-hop trust-tier revalidation as ``safe_get``. Raises ``SSRFError``
     on rejected URLs. With ``stream=True`` the caller closes the response.
+    A caller-supplied ``session`` (from new_revalidating_session) is reused and
+    never closed here.
     """
     _validate_for_tier(url, trust)
-    session = _RevalidatingSession(trust, max_redirects)
+    owned = session is None
+    if owned:
+        session = _RevalidatingSession(trust, max_redirects)
     try:
         return session.post(
             url,
@@ -288,5 +303,5 @@ def safe_post(
             stream=stream,
         )
     finally:
-        if not stream:
+        if owned and not stream:
             session.close()

@@ -11118,6 +11118,10 @@ paths:
                 template:
                   type: string
                   description: The payload template string to validate
+                contentType:
+                  type: string
+                  default: application/json
+                  description: The webhook's content type. A text/* type previews values unescaped; any other type previews them JSON-escaped.
       responses:
         '200':
           description: Validation result

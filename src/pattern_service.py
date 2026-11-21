@@ -424,8 +424,15 @@ class PatternService:
                 )
                 return None
 
+            categories = {p.get('category') for p in patterns}
+            if len(categories) > 1:
+                logger.debug(
+                    f"Skipping merge of patterns {pattern_ids}: mixed categories {categories}")
+                return None
+
             merged_id = self.db.create_ad_pattern(
                 scope=target_scope,
+                category=categories.pop(),
                 text_template=best_template,
                 sponsor_id=merged_sponsor_id,
                 network_id=network_id,
@@ -655,8 +662,8 @@ class PatternService:
             return 0
 
         try:
-            # Check if this sponsor already has global patterns
-            global_patterns = self.db.get_ad_patterns(scope='global')
+            # Include disabled globals so an operator-disabled pattern is not recreated
+            global_patterns = self.db.get_ad_patterns(scope='global', active_only=False)
             sponsor_lower = sponsor.lower()
 
             for pattern in global_patterns:
@@ -670,6 +677,12 @@ class PatternService:
             if not patterns_to_promote:
                 return 0
 
+            categories = {p.get('category') for p in patterns_to_promote}
+            if len(categories) > 1:
+                logger.debug(
+                    f"Skipping promotion of sponsor '{sponsor}': mixed categories {categories}")
+                return 0
+
             # Find the pattern with highest confirmation count to use as template
             best_pattern = max(
                 patterns_to_promote,
@@ -680,6 +693,7 @@ class PatternService:
             sponsor_id = get_or_create_known_sponsor(self.db, sponsor)
             global_id = self.db.create_ad_pattern(
                 scope='global',
+                category=categories.pop(),
                 text_template=best_pattern.get('text_template'),
                 sponsor_id=sponsor_id,
                 intro_variants=best_pattern.get('intro_variants', []),

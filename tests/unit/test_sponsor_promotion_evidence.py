@@ -64,3 +64,39 @@ def test_an_alias_in_the_text_counts(temp_db, service):
         _podcast_pattern(temp_db, sponsor_id, f'show-{index}',
                          'Acme makes sturdy gear. Try Acme today, no code needed. ' + str(index))
     assert service.check_sponsor_global_promotion('Acme Tools') is True
+
+
+def _categorized_three(db, categories):
+    sponsor_id = db.create_known_sponsor(name='Before')
+    for index, category in enumerate(categories):
+        pattern_id = _podcast_pattern(db, sponsor_id, f'show-{index}', READ + f' Take {index}.')
+        db.update_ad_pattern(pattern_id, category=category)
+
+
+def test_disabled_global_pattern_is_not_recreated(temp_db, service):
+    _three(temp_db, [READ, READ + ' Again.', READ + ' More.'])
+    assert service.auto_promote_sponsor_patterns('Before') == 1
+    [global_pattern] = temp_db.get_ad_patterns(scope='global')
+    temp_db.update_ad_pattern(global_pattern['id'], is_active=False)
+    assert service.auto_promote_sponsor_patterns('Before') == 0
+    assert len(temp_db.get_ad_patterns(scope='global', active_only=False)) == 1
+
+
+def test_shared_category_carries_to_global_pattern(temp_db, service):
+    _categorized_three(temp_db, ['cross_promo'] * 3)
+    assert service.auto_promote_sponsor_patterns('Before') == 1
+    [promoted] = temp_db.get_ad_patterns(scope='global')
+    assert promoted['category'] == 'cross_promo'
+
+
+def test_mixed_categories_are_not_promoted(temp_db, service):
+    _categorized_three(temp_db, ['cross_promo', 'cross_promo', 'self_promo'])
+    assert service.auto_promote_sponsor_patterns('Before') == 0
+    assert temp_db.get_ad_patterns(scope='global') == []
+
+
+def test_uncategorized_patterns_promote_without_category(temp_db, service):
+    _three(temp_db, [READ, READ + ' Again.', READ + ' More.'])
+    assert service.auto_promote_sponsor_patterns('Before') == 1
+    [promoted] = temp_db.get_ad_patterns(scope='global')
+    assert 'category' not in promoted

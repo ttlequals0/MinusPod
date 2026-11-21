@@ -882,7 +882,7 @@ def _normalize_import_settings(settings, db=None):
             'provider_budget_display_currency'].upper()
     if 'podping_nodes' in normalized:
         try:
-            normalized['podping_nodes'] = normalize_podping_nodes(normalized['podping_nodes'])
+            normalized['podping_nodes'] = normalize_podping_nodes(normalized['podping_nodes'], check_hosts=True)
         except ValueError as exc:
             raise ConfigTransferError(f'podping_nodes is invalid: {exc}') from None
     return normalized
