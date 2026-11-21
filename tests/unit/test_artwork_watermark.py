@@ -322,3 +322,52 @@ def test_badge_stays_on_canvas_for_a_wide_cover():
         img = _Image.open(io.BytesIO(out)).convert('L')
         dark = sum(1 for p in img.getdata() if p < 100)
         assert dark > 0, f"badge invisible at {position}"
+
+
+# --- decode cap, bounded work, failure memo -------------------------------
+
+def test_composite_rejects_cover_over_pixel_cap(monkeypatch):
+    big = Image.new('L', (9000, 9000), 128)
+    buf = io.BytesIO()
+    big.save(buf, 'PNG', compress_level=9)
+    assert len(buf.getvalue()) < 200_000
+    built = []
+    monkeypatch.setattr(artwork_watermark, '_build_badge',
+                        lambda *a: built.append(a) or (_ for _ in ()).throw(AssertionError))
+    assert artwork_watermark.composite_watermark(buf.getvalue()) is None
+    assert not built
+
+
+def test_composite_downscales_large_cover_before_badge(monkeypatch):
+    sides = []
+    real = artwork_watermark._build_badge
+
+    def spy(chip_side, waveform):
+        sides.append(chip_side)
+        return real(chip_side, waveform)
+
+    monkeypatch.setattr(artwork_watermark, '_build_badge', spy)
+    out = artwork_watermark.composite_watermark(_png(size=(4000, 4000)))
+    assert out is not None
+    cap = artwork_watermark.BADGE_COVER_MAX_SIDE
+    assert sides == [int(cap * artwork_watermark.BADGE_SCALE)]
+    assert max(Image.open(io.BytesIO(out)).size) <= cap
+
+
+def test_failed_composite_is_remembered_until_artwork_changes(monkeypatch):
+    slug = 'wm-failure-memo'
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    st.save_artwork(slug, _png()[:100], 'image/png', 'https://example.com/art.png')
+    calls = []
+    real = storage_mod.composite_watermark
+    monkeypatch.setattr(storage_mod, 'composite_watermark',
+                        lambda *a: calls.append(1) or real(*a))
+    for _ in range(3):
+        assert st.get_watermarked_artwork(slug) is None
+    assert len(calls) == 1
+
+    st.save_artwork(slug, _png(), 'image/png', 'https://example.com/art2.png')
+    assert slug not in st._watermark_failures
+    assert st.get_watermarked_artwork(slug) is not None
+    assert len(calls) == 2
+    assert (st.get_podcast_dir(slug) / 'artwork-minuspod.jpg').exists()

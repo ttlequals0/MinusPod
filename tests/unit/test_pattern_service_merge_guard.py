@@ -91,3 +91,38 @@ def test_merge_allowed_when_all_brands_are_declared_sponsor(db):
     merged = db.get_ad_pattern_by_id(merged_id)
     assert merged is not None
     assert merged['scope'] == 'network'
+
+
+def _seed_categorized(db, sponsor_id, text, category):
+    pattern_id = _seed_pattern(db, sponsor_id, text)
+    db.update_ad_pattern(pattern_id, category=category)
+    return pattern_id
+
+
+def test_merge_keeps_shared_category(db):
+    ag1_id = _seed_sponsor(db, 'AG1')
+    p1 = _seed_categorized(db, ag1_id, 'AG1 has a special offer for listeners.', 'cross_promo')
+    p2 = _seed_categorized(db, ag1_id, 'Drink AG1 every morning for free.', 'cross_promo')
+
+    merged_id = PatternService(db=db).merge_similar_patterns([p1, p2])
+
+    assert db.get_ad_pattern_by_id(merged_id)['category'] == 'cross_promo'
+
+
+def test_merge_skips_mixed_categories(db):
+    ag1_id = _seed_sponsor(db, 'AG1')
+    p1 = _seed_categorized(db, ag1_id, 'AG1 has a special offer for listeners.', 'cross_promo')
+    p2 = _seed_categorized(db, ag1_id, 'Drink AG1 every morning for free.', 'self_promo')
+
+    assert PatternService(db=db).merge_similar_patterns([p1, p2]) is None
+    assert db.get_ad_pattern_by_id(p1)['is_active'] in (1, True)
+
+
+def test_merge_without_categories_stays_uncategorized(db):
+    ag1_id = _seed_sponsor(db, 'AG1')
+    p1 = _seed_pattern(db, ag1_id, 'AG1 has a special offer for listeners.')
+    p2 = _seed_pattern(db, ag1_id, 'Drink AG1 every morning for free.')
+
+    merged_id = PatternService(db=db).merge_similar_patterns([p1, p2])
+
+    assert 'category' not in db.get_ad_pattern_by_id(merged_id)

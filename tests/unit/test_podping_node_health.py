@@ -10,6 +10,8 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap(
     'podping_node_health_test_', passphrase='podping-node-health-test-passphrase')
 
+from utils.safe_http import URLTrust
+from utils.url import SSRFError
 from podping_listener import (
     PodpingListener,
     PODPING_NODES,
@@ -267,7 +269,7 @@ class TestNodeHealthSummary:
         db = FakeDb()
         response = MagicMock(status_code=200)
         response.json.return_value = {'result': {'ok': True}}
-        with patch('podping_listener.requests.Session.post', return_value=response):
+        with patch('podping_listener.safe_post', return_value=response):
             listener = PodpingListener(db=db, sleep=lambda s: None)
             listener._call_rpc('some_method', [])
 
@@ -278,26 +280,68 @@ class TestNodeHealthSummary:
     def test_default_rpc_reuses_one_session(self):
         response = MagicMock(status_code=200)
         response.json.return_value = {'result': {}}
-        with patch('podping_listener.requests.Session') as session_cls:
-            session_cls.return_value.post.return_value = response
+        with patch('podping_listener.new_revalidating_session') as make, \
+                patch('podping_listener.safe_post', return_value=response) as post:
             listener = PodpingListener(db=None, sleep=lambda s: None)
             for _ in range(3):
                 listener._default_rpc('some_method', [])
-        session_cls.assert_called_once()
-        assert session_cls.return_value.post.call_count == 3
-        listener.close()
-        session_cls.return_value.close.assert_called_once()
+            make.assert_called_once_with(URLTrust.OPERATOR_CONFIGURED)
+            assert all(c.kwargs['session'] is make.return_value for c in post.call_args_list)
+            listener.close()
+        make.return_value.close.assert_called_once()
 
     def test_injected_rpc_opens_no_session(self):
-        with patch('podping_listener.requests.Session') as session_cls:
+        with patch('podping_listener.new_revalidating_session') as make:
             listener = PodpingListener(rpc=lambda m, p: {}, db=None, sleep=lambda s: None)
             listener.close()
-        session_cls.assert_not_called()
+        make.assert_not_called()
+
+    def test_shared_session_validates_and_pins_each_node(self):
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"result": {}}'
+        listener = PodpingListener(db=None, sleep=lambda s: None)
+        listener.nodes = ['http://node-a.example', 'http://node-b.example']
+        seen = []
+
+        def fake_validate(url):
+            seen.append(('validate', url))
+
+        def fake_send(self_adapter, request, **kw):
+            seen.append(('send', request.url))
+            return response
+
+        with patch('utils.safe_http.validate_base_url', fake_validate), \
+                patch('utils.pinned_transport.PinnedHTTPAdapter.send', fake_send):
+            for index in (0, 1):
+                listener.node_index = index
+                listener._default_rpc('some_method', [])
+        listener.close()
+        assert ('validate', 'http://node-b.example') in seen
+        assert ('send', 'http://node-b.example/') in seen
+
+    def test_default_rpc_uses_operator_tier_safe_post(self):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {'result': {}}
+        with patch('podping_listener.safe_post', return_value=response) as post:
+            listener = PodpingListener(db=None, sleep=lambda s: None)
+            listener._default_rpc('some_method', [])
+        assert post.call_args.args == (PODPING_NODES[0], URLTrust.OPERATOR_CONFIGURED)
+
+    def test_blocked_node_is_reported_as_unreachable(self):
+        db = FakeDb()
+        with patch('podping_listener.safe_post', side_effect=SSRFError('Blocked cloud metadata IP')):
+            listener = PodpingListener(db=db, sleep=lambda s: None, rand=lambda lo, hi: 0)
+            assert listener._call_rpc('some_method', []) is None
+
+        summary = get_node_health_summary(db)[0]
+        assert summary['consecutiveFailures'] == 1
+        assert summary['outcome'] == 'unreachable'
 
     def test_non_200_response_records_its_status(self):
         db = FakeDb()
         response = MagicMock(status_code=503)
-        with patch('podping_listener.requests.Session.post', return_value=response):
+        with patch('podping_listener.safe_post', return_value=response):
             listener = PodpingListener(db=db, sleep=lambda s: None,
                                        rand=lambda lo, hi: 0)
             listener._call_rpc('some_method', [])
@@ -310,7 +354,7 @@ class TestNodeHealthSummary:
         db = FakeDb()
         response = MagicMock(status_code=200)
         response.json.return_value = {'error': 'invalid'}
-        with patch('podping_listener.requests.Session.post', return_value=response):
+        with patch('podping_listener.safe_post', return_value=response):
             listener = PodpingListener(db=db, sleep=lambda s: None,
                                        rand=lambda lo, hi: 0)
             listener._call_rpc('some_method', [])

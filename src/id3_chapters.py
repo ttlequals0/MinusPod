@@ -324,12 +324,17 @@ def remap_tag(tag, cuts, replacement_duration, new_duration):
 
 
 def _replace_chapters(tag, kept, tocs, generated=()):
+    dead = set()
+
     def preserve_toc(identifier):
         if identifier in kept:
             return True
+        if identifier in dead:
+            return False
         frame, position, children, cursor = tocs[identifier]
         surviving = [child for child in children if child in kept or (child in tocs and preserve_toc(child))]
         if not surviving:
+            dead.add(identifier)
             return False
         _, content = frame.content(tag.version)
         payload = content[:position + 1] + bytes([len(surviving)]) + b''.join(child + b'\0' for child in surviving) + content[cursor:]

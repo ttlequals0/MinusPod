@@ -116,7 +116,7 @@ def _is_private_host(hostname: str) -> bool:
     if '.' not in hostname:
         return True
     try:
-        return ipaddress.ip_address(hostname).is_private
+        return not ipaddress.ip_address(hostname).is_global
     except ValueError:
         return False
 

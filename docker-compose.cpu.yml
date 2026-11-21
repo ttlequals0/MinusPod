@@ -121,6 +121,9 @@ services:
       # 0 (default) = no proxy. 1 = one proxy (Cloudflare, nginx, Traefik).
       # See README "Client IP for login lockout".
       - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
+      # Comma-separated IPs/CIDRs allowed to send X-Forwarded-For. Empty =
+      # loopback and private ranges. Set to your proxy's address when known.
+      - MINUSPOD_TRUSTED_PROXIES=${MINUSPOD_TRUSTED_PROXIES:-}
 
       # Optional sub-path hosting, e.g. /minuspod. BASE_URL must include it.
       # - MINUSPOD_URL_PREFIX=${MINUSPOD_URL_PREFIX:-}

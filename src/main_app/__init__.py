@@ -13,6 +13,7 @@ import time
 import uuid
 from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
+from utils.trusted_proxy import PeerGatedProxyFix, parse_trusted_networks
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
 # SingleLineFormatter stays importable from main_app for its test.
@@ -483,13 +484,17 @@ app = Flask(__name__)
 # MINUSPOD_TRUSTED_PROXY_COUNT=1 (most single-proxy setups) or higher.
 _trusted_proxy_hops = int(os.environ.get('MINUSPOD_TRUSTED_PROXY_COUNT', '0') or 0)
 if _trusted_proxy_hops > 0:
-    from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(
-        app.wsgi_app,
-        x_for=_trusted_proxy_hops,
-        x_proto=_trusted_proxy_hops,
-        x_host=_trusted_proxy_hops,
+    # Forwarded headers are honored only from a trusted socket peer.
+    _trusted_proxies_raw = os.environ.get('MINUSPOD_TRUSTED_PROXIES', '')
+    app.wsgi_app = PeerGatedProxyFix(
+        app.wsgi_app, _trusted_proxy_hops, parse_trusted_networks(_trusted_proxies_raw),
     )
+    if not _trusted_proxies_raw.strip():
+        audio_logger.warning(
+            "MINUSPOD_TRUSTED_PROXIES is not set; trusting forwarded headers from "
+            "loopback and private addresses. Set it to your proxy's address and "
+            "bind the published port to loopback (MINUSPOD_BIND_ADDRESS=127.0.0.1)."
+        )
     # Log without formatting the raw env-derived value; an operator who
     # wants the exact hop count can read MINUSPOD_TRUSTED_PROXY_COUNT. This
     # keeps CodeQL's py/clear-text-logging-sensitive-data heuristic quiet.

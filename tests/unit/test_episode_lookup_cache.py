@@ -10,7 +10,9 @@ _test_data_dir = bootstrap('episode_lookup_cache_test_', reset_storage=True)
 
 from main_app import routes  # noqa: E402
 from main_app.shared_state import (  # noqa: E402
+    LOOKUP_MISS_THROTTLE_SECONDS,
     episode_lookup_cache,
+    lookup_miss_cache,
     invalidate_episode_lookup_cache,
 )
 
@@ -22,8 +24,10 @@ FEED_MAP = {SLUG: {'in': 'https://example.com/feed.xml'}}
 @pytest.fixture(autouse=True)
 def clear_cache():
     episode_lookup_cache.invalidate()
+    lookup_miss_cache.invalidate()
     yield
     episode_lookup_cache.invalidate()
+    lookup_miss_cache.invalidate()
 
 
 def _upstream_episode():
@@ -107,12 +111,69 @@ def test_the_database_fallback_is_cached_too():
     get_ep.assert_called_once()
 
 
-def test_a_miss_is_not_cached():
-    # Nothing found means nothing to remember, and caching it would pin a
-    # 404 for the whole TTL while the feed is mid-publish.
+def test_a_miss_is_not_cached_but_refetches_only_after_the_throttle():
+    # The miss itself is never cached (a feed mid-publish must not 404 for the
+    # whole TTL), but unknown ids cannot force a refetch inside the throttle.
     fetch, parse, extract = _patch_upstream(episodes=[])
+    clock = [1000.0]
     with fetch as fetch_mock, parse, extract, \
-            patch.object(routes.db, 'get_episode', return_value=None):
+            patch.object(routes.db, 'get_episode', return_value=None), \
+            patch('lookup_cache.time.time', side_effect=lambda: clock[0]):
         assert routes._lookup_episode(SLUG, EPISODE_ID, FEED_MAP) == (None, None)
+        assert fetch_mock.call_count == 1
+        clock[0] += LOOKUP_MISS_THROTTLE_SECONDS + 1
         assert routes._lookup_episode(SLUG, EPISODE_ID, FEED_MAP) == (None, None)
     assert fetch_mock.call_count == 2
+
+
+def test_unknown_ids_under_one_slug_fetch_upstream_once():
+    fetch, parse, extract = _patch_upstream()
+    clock = [1000.0]
+    with fetch as fetch_mock, parse, extract, \
+            patch.object(routes.db, 'get_episode', return_value=None), \
+            patch('lookup_cache.time.time', side_effect=lambda: clock[0]):
+        for i in range(5):
+            assert routes._lookup_episode(SLUG, f'unknown{i:06d}', FEED_MAP) == (None, None)
+        assert fetch_mock.call_count == 1
+
+        # The throttle is per slug.
+        other_map = {'other-feed': {'in': 'https://example.com/other.xml'}}
+        routes._lookup_episode('other-feed', 'unknown999999', other_map)
+        assert fetch_mock.call_count == 2
+
+        # An id the feed does list is still found while throttled (cached by the first fetch).
+        assert routes._lookup_episode(SLUG, EPISODE_ID, FEED_MAP)[0]['id'] == EPISODE_ID
+        assert fetch_mock.call_count == 2
+
+
+def test_first_lookup_of_a_listed_id_is_found_and_rows_bypass_the_throttle():
+    fetch, parse, extract = _patch_upstream()
+    row = {'original_url': 'https://example.com/db.mp3', 'podcast_title': 'Example Show'}
+    with fetch as fetch_mock, parse, extract, \
+            patch.object(routes.db, 'get_episode', return_value=None):
+        assert routes._lookup_episode(SLUG, EPISODE_ID, FEED_MAP)[0]['id'] == EPISODE_ID
+        routes._lookup_episode(SLUG, 'unknown000001', FEED_MAP)
+        count = fetch_mock.call_count
+    with fetch as fetch_mock, parse, extract, \
+            patch.object(routes.db, 'get_episode', return_value=row):
+        episode, _ = routes._lookup_episode(SLUG, 'dbrow0000001', FEED_MAP)
+    assert episode['url'] == 'https://example.com/db.mp3'
+    assert count == 2
+    assert fetch_mock.call_count == 1
+
+
+def test_listed_id_without_a_row_is_found_inside_the_miss_window():
+    other = dict(_upstream_episode(), id='b2c3d4e5f6a1', url='https://example.com/b.mp3')
+    fetch, parse, extract = _patch_upstream(episodes=[other])
+    clock = [1000.0]
+    with fetch as fetch_mock, parse, extract, \
+            patch.object(routes.db, 'get_episode', return_value=None), \
+            patch('lookup_cache.time.time', side_effect=lambda: clock[0]):
+        assert routes._lookup_episode(SLUG, 'unknown000001', FEED_MAP) == (None, None)
+        assert fetch_mock.call_count == 1
+        episode_lookup_cache.invalidate()
+        found, _ = routes._lookup_episode(SLUG, 'b2c3d4e5f6a1', FEED_MAP)
+        assert found['url'] == 'https://example.com/b.mp3'
+        assert fetch_mock.call_count == 2
+        assert routes._lookup_episode(SLUG, 'unknown000002', FEED_MAP) == (None, None)
+        assert fetch_mock.call_count == 2

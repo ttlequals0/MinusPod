@@ -2,6 +2,7 @@
 import feedparser
 import logging
 import hashlib
+import io
 import math
 import os
 import re
@@ -417,6 +418,8 @@ def effective_channel_text(override, source, *, sanitize=False):
     return _sanitize_feed_html(text) if sanitize else text
 
 
+
+
 class RSSParser:
     def __init__(self, base_url: str = None):
         self._explicit_base_url = base_url
@@ -664,7 +667,8 @@ class RSSParser:
                 )
                 return None
 
-            feed = feedparser.parse(feed_content)
+            # A file-like object stops feedparser treating the body as a URL or path to open.
+            feed = feedparser.parse(io.BytesIO(header_bytes))
             if feed.bozo:
                 # Named: a malformed body correlates with the gzip retry above,
                 # and without the feed there is no way to tie the two together.
@@ -1282,9 +1286,9 @@ class RSSParser:
             if processed_duration is not None and math.isfinite(processed_duration) and processed_duration > 0:
                 lines.append(f'  <itunes:duration>{int(processed_duration)}</itunes:duration>')
             elif 'itunes_duration' in entry:
-                duration = entry.itunes_duration
-                if duration and str(duration).strip():
-                    lines.append(f'  <itunes:duration>{duration}</itunes:duration>')
+                rss_seconds = self._parse_itunes_duration(entry.itunes_duration)
+                if rss_seconds is not None:
+                    lines.append(f'  <itunes:duration>{int(rss_seconds)}</itunes:duration>')
 
             if 'itunes_explicit' in entry:
                 explicit = entry.itunes_explicit
@@ -1293,8 +1297,11 @@ class RSSParser:
 
             # Episode number (itunes:episode)
             if hasattr(entry, 'itunes_episode'):
-                ep_num = entry.itunes_episode
-                if ep_num and str(ep_num).strip():
+                try:
+                    ep_num = int(str(entry.itunes_episode or '').strip())
+                except ValueError:
+                    ep_num = -1
+                if ep_num >= 0:
                     lines.append(f'  <itunes:episode>{ep_num}</itunes:episode>')
 
             # Episode artwork (itunes:image)
@@ -1446,8 +1453,12 @@ class RSSParser:
             lines.append(f'  <pubDate>{self._format_rfc2822(ep["published_at"])}</pubDate>')
         if ep.get('new_duration'):
             lines.append(f'  <itunes:duration>{int(ep["new_duration"])}</itunes:duration>')
-        if ep.get('episode_number'):
-            lines.append(f'  <itunes:episode>{ep["episode_number"]}</itunes:episode>')
+        try:
+            episode_number = int(ep.get('episode_number') or 0)
+        except (TypeError, ValueError):
+            episode_number = 0
+        if episode_number > 0:
+            lines.append(f'  <itunes:episode>{episode_number}</itunes:episode>')
         self._append_podcasting2_tags(lines, slug, ep_id, storage, feed_auth_key,
                                       **self._flags_for(podcasting2_flags, ep_id))
         lines.append('</item>')

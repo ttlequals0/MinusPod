@@ -12,6 +12,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('settings_test_', passphrase='settings-validation-test-passphrase')
 
 import database
+import webhook_service
 from api.settings import ad_detection, provider_phases
 from main_app import app
 from rate_limit_hold import (
@@ -408,6 +409,29 @@ class TestWebhookUrlValidation:
             content_type='application/json',
         )
         assert response.status_code == 400
+
+
+class TestWebhookTemplatePreviewContentType:
+    TEMPLATE = '{"t": "{{ episode.title }}"}'
+
+    @staticmethod
+    def _preview(client, **extra):
+        with patch.dict(webhook_service._DUMMY_CONTEXT['episode'], {'title': 'a "b"'}):
+            response = client.post(
+                '/api/v1/settings/webhooks/validate-template',
+                json={'template': TestWebhookTemplatePreviewContentType.TEMPLATE, **extra},
+            )
+        assert response.status_code == 200, response.data
+        return response.get_json()
+
+    def test_text_content_type_previews_the_raw_value(self, client):
+        data = self._preview(client, contentType='text/plain')
+        assert data['valid'] is True
+        assert data['preview'] == '{"t": "a "b""}'
+
+    def test_default_content_type_previews_the_escaped_value(self, client):
+        data = self._preview(client)
+        assert json.loads(data['preview']) == {'t': 'a "b"'}
 
 
 class TestWebhookTestEndpointMessage:
