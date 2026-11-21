@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- When two chapter boundaries started less than a minute apart, chapter generation kept the first and dropped the second. A short promo or transition could replace the topic that followed it and leave a long stretch without a topic chapter. It now keeps the later boundary.
+
 ## [2.102.12] - 2026-11-20
 
 ### Fixed

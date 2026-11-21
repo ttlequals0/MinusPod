@@ -841,6 +841,9 @@ class ChaptersGenerator:
         for ch in chapters:
             if not deduplicated or ch['startTime'] - deduplicated[-1]['startTime'] >= MIN_DEDUP_WINDOW:
                 deduplicated.append(ch)
+            elif len(deduplicated) > 1:
+                # A sub-minute chapter is usually a promo or transition; keep the topic after it.
+                deduplicated[-1] = ch
         chapters = deduplicated
 
         chapters = self._enforce_min_duration(
