@@ -24,7 +24,7 @@ describe('sponsorBlockLabel', () => {
 
   it('omits the maximum without probeAttempts and formats relative times', () => {
     expect(sponsorBlockLabel({ ...base, state: 'waiting', attempts: 1, nextCheckAt: '2026-10-29T11:00:00Z' }, undefined, now))
-      .toBe('Waiting for SponsorBlock, attempt 1, next check in now');
+      .toBe('Waiting for SponsorBlock, attempt 1, next check now');
     expect(sponsorBlockLabel({ ...base, state: 'watching', nextCheckAt: '2026-10-31T12:00:00Z' }, undefined, now))
       .toBe('Watching SponsorBlock, next check in 2 days');
   });

@@ -8,7 +8,8 @@ import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import ProcessingJobProgress from './ProcessingJobProgress';
 import { failoverSourceLabel, failoverTargetLabel } from '../api/failover';
-import type { ProcessingScheduleStatus, ProcessingStatus } from '../api/status';
+import type { ProcessingScheduleStatus, ProcessingStatus, WaitingEpisode } from '../api/status';
+import { sponsorBlockLabel } from '../utils/sponsorBlock';
 import { formatElapsed } from '../utils/format';
 import { focusRing } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
@@ -46,6 +47,8 @@ interface OfflineService {
   // null until the maintenance tick has probed once.
   reachable: boolean | null;
   checkedAt: string | null;
+  // sponsorblock entry only: up to three waiting episodes, soonest check first.
+  waiting?: WaitingEpisode[];
 }
 
 interface QueueHold {
@@ -86,6 +89,33 @@ function countLabel(n: number, noun: string): string {
 /** Clock time without seconds: the precision is noise on a wait of minutes. */
 function formatClock(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+/** Lines for a reachable SponsorBlock gate: one per listed episode, a tail for the rest. [] for any other service. */
+function sponsorBlockLines(svc: OfflineService): string[] {
+  if (svc.service !== 'sponsorblock' || svc.reachable === false || svc.held === 0) return [];
+  const waiting = svc.waiting ?? [];
+  const lines = waiting.map((ep) => {
+    const label = sponsorBlockLabel({ ...ep, segmentCount: 0, note: null, lastError: null });
+    return ep.title ? `"${ep.title}": ${label}.` : `${label}.`;
+  });
+  if (waiting.length === 0) lines.push(`${countLabel(svc.held, 'episode')} waiting on SponsorBlock.`);
+  else if (svc.held > waiting.length) lines.push(`And ${svc.held - waiting.length} more waiting on SponsorBlock.`);
+  lines[lines.length - 1] += ' Others keep processing.';
+  return lines;
+}
+
+/** The service-centered line, used when the gate lists no episodes. */
+function serviceLine(svc: OfflineService): string {
+  if (svc.service === 'sponsorblock' && svc.reachable === false) {
+    const tried = svc.checkedAt ? `, last tried ${formatClock(svc.checkedAt)}` : '';
+    return `SponsorBlock unreachable${tried}. ${countLabel(svc.held, 'episode')} waiting. Others keep processing.`;
+  }
+  const state = svc.reachable === false ? 'unreachable'
+    : svc.reachable === true ? 'reachable at last check'
+    : 'not checked yet';
+  const checked = svc.checkedAt ? `, last checked ${formatClock(svc.checkedAt)}` : '';
+  return `${serviceLabel(svc.service)} ${state}. ${countLabel(svc.held, 'episode')} waiting${checked}. Others keep processing.`;
 }
 
 /** "in 12m" / "in 2h 5m", or null once the time has passed. */
@@ -452,19 +482,14 @@ function GlobalStatusBar() {
                     {rateLimitText(hold)} Queued episodes wait in place.
                   </li>
                 )}
-                {hold?.offlineServices.map((svc) => (
-                  <li key={svc.service} className="text-xs text-foreground">
-                    {serviceLabel(svc.service)}{' '}
-                    {svc.reachable === false ? 'unreachable'
-                      : svc.reachable === true ? 'reachable at last check'
-                      : 'not checked yet'}.{' '}
-                    {countLabel(svc.held, 'episode')} waiting
-                    {svc.checkedAt
-                      ? `, last checked ${formatClock(svc.checkedAt)}`
-                      : ''}
-                    . Others keep processing.
-                  </li>
-                ))}
+                {hold?.offlineServices.flatMap((svc) => {
+                  const lines = sponsorBlockLines(svc);
+                  return (lines.length > 0 ? lines : [serviceLine(svc)]).map((line, i) => (
+                    <li key={`${svc.service}-${i}`} className="text-xs text-foreground break-words">
+                      {line}
+                    </li>
+                  ));
+                })}
               </ul>
             </div>
           )}

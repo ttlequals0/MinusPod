@@ -21151,6 +21151,32 @@ components:
                   - string
                   - 'null'
                 format: date-time
+              waiting:
+                type: array
+                maxItems: 3
+                description: |
+                  Present on the sponsorblock entry only. Up to three episodes
+                  waiting on SponsorBlock, soonest next check first; held is
+                  the full count. Empty while SponsorBlock is unreachable.
+                items:
+                  type: object
+                  properties:
+                    slug:
+                      type: string
+                    episodeId:
+                      type: string
+                    title:
+                      type: string
+                    state:
+                      type: string
+                      enum: [waiting, probing]
+                    nextCheckAt:
+                      type:
+                        - string
+                        - 'null'
+                      format: date-time
+                    attempts:
+                      type: integer
 
     WhisperPoolSnapshot:
       type: object
