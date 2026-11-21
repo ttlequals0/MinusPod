@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+
+- The status bar now names each episode held for SponsorBlock segments and when it will be checked next, instead of the time of the last SponsorBlock service check. Up to three are listed, with a count of the rest.
+
 ## [2.102.13] - 2026-11-21
 
 ### Security
