@@ -18,7 +18,9 @@ import requests
 from database.error_text import redact_error
 from database.podcasts import has_upstream_audio
 from utils.http import redact_exc
+from utils.safe_http import URLTrust, new_revalidating_session, safe_post
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
+from utils.url import SSRFError, validate_base_url
 
 logger = logging.getLogger('podcast.podping')
 
@@ -69,7 +71,7 @@ ACTIVE_CONNECTION_STALE_SECONDS = 90
 MONITOR_HEARTBEAT_SECONDS = 15
 NODE_CHECK_LEASE_SECONDS = 60
 
-def normalize_podping_nodes(nodes) -> list[str]:
+def normalize_podping_nodes(nodes, *, check_hosts=False) -> list[str]:
     if not isinstance(nodes, list) or not 1 <= len(nodes) <= MAX_PODPING_NODES:
         raise ValueError(f'Provide between 1 and {MAX_PODPING_NODES} node URLs.')
     normalized = []
@@ -93,6 +95,11 @@ def normalize_podping_nodes(nodes) -> list[str]:
                 or not hostname or parsed.username is not None or parsed.password is not None
                 or parsed.query or parsed.fragment):
             raise ValueError('Each node must be an HTTP(S) URL without credentials, query, or fragment.')
+        if check_hosts:
+            try:
+                validate_base_url(value)
+            except SSRFError as exc:
+                raise ValueError(f'Node URL is not allowed: {exc}') from exc
         canonical = urlunparse((
             parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip('/'),
             parsed.params, '', ''))
@@ -395,9 +402,9 @@ class PodpingListener:
         unwrapped 'result' payload (dict or list depending on method)."""
         url = self.nodes[self.node_index]
         if self._session is None:
-            self._session = requests.Session()
-        response = self._session.post(
-            url,
+            self._session = new_revalidating_session(URLTrust.OPERATOR_CONFIGURED)
+        response = safe_post(
+            url, URLTrust.OPERATOR_CONFIGURED, session=self._session,
             json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
             timeout=10,
         )
@@ -411,8 +418,8 @@ class PodpingListener:
         return payload['result']
 
     def _probe_request(self, node, method, params):
-        response = requests.post(
-            node,
+        response = safe_post(
+            node, URLTrust.OPERATOR_CONFIGURED,
             json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
             timeout=NODE_HEALTH_PROBE_TIMEOUT_SECONDS,
         )

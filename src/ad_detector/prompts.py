@@ -425,7 +425,8 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                    episode_id: str = None, sponsor_service=None,
                    episode_sponsors: EpisodeSponsors | None = None,
-                   segments: list[dict] | None = None) -> dict | None:
+                   segments: list[dict] | None = None,
+                   classifier_confirmed: bool = False) -> dict | None:
     """Post-parse normalization shared by the timestamp-mode and segment-id-mode
     parsers: degenerate-range rejection, is_ad/classification filters, sponsor
     name + reason/description extraction, confidence normalization, the
@@ -522,7 +523,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     has_ad_language = mentions_advertising(reason)
     # Checked only when cheaper evidence is missing: the registry scan is costly.
     has_known_sponsor = False
-    if not has_sponsor_field and not has_ad_language:
+    if not has_sponsor_field and not has_ad_language and not classifier_confirmed:
         # Untruncated pieces, so a sponsor past the reason's length cap still counts.
         raw_description = (_as_text(ad.get('description'))
                            if description_key != 'description' else '')
@@ -534,7 +535,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     # A truncated reason can omit the sponsor the span transcript names.
     found_in_span = (
         not has_sponsor_field and not has_known_sponsor and not has_ad_language
-        and segments is not None and duration >= CONTENT_DURATION_THRESHOLD
+        and not classifier_confirmed and segments is not None and duration >= CONTENT_DURATION_THRESHOLD
         and norm_conf >= LOW_CONFIDENCE
         and _span_names_sponsor(segments, start, end, episode_sponsors, sponsor_service))
     has_known_sponsor = has_known_sponsor or found_in_span
@@ -548,23 +549,22 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                 f"reason: {reason[:100] if reason else 'None'}"
             )
             return None
-        # No positive ad evidence: apply duration gate
-        # Short segments (<CONTENT_DURATION_THRESHOLD) get benefit of doubt
-        # Long segments are almost certainly content descriptions
-        if duration >= CONTENT_DURATION_THRESHOLD:
-            logger.info(
-                f"[{slug}:{episode_id}] Rejecting suspected content: "
-                f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
-                f"no sponsor identified in reason: {reason[:100] if reason else 'None'}"
-            )
-            return None
-        # For shorter segments without evidence, log warning but allow through
-        if duration >= LOW_EVIDENCE_WARN_THRESHOLD:
-            logger.warning(
-                f"[{slug}:{episode_id}] Low-confidence ad (no sponsor found): "
-                f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
-                f"reason: {reason[:100] if reason else 'None'}"
-            )
+        # A confirming classifier's verdict replaces the duration gate; low-confidence rejection above still applies.
+        if not classifier_confirmed:
+            # No positive ad evidence: short segments get benefit of doubt, long ones are likely content.
+            if duration >= CONTENT_DURATION_THRESHOLD:
+                logger.info(
+                    f"[{slug}:{episode_id}] Rejecting suspected content: "
+                    f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
+                    f"no sponsor identified in reason: {reason[:100] if reason else 'None'}"
+                )
+                return None
+            if duration >= LOW_EVIDENCE_WARN_THRESHOLD:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Low-confidence ad (no sponsor found): "
+                    f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
+                    f"reason: {reason[:100] if reason else 'None'}"
+                )
 
     span_note = ' (sponsor found in span transcript)' if found_in_span else ''
     logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}{span_note}")
@@ -596,7 +596,8 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                               sponsor_service=None,
                               compliance_meta: dict | None = None,
                               episode_sponsors: EpisodeSponsors | None = None,
-                              segments: list[dict] | None = None) -> list[dict]:
+                              segments: list[dict] | None = None,
+                              classifier_confirmed: bool = False) -> list[dict]:
     """Parse ad segments from Claude's JSON response.
 
     ``compliance_meta``: optional out-param dict (like ``run_stats`` elsewhere).
@@ -660,7 +661,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     end = parse_timestamp(end_val)
                     ad_entry = _normalize_ad(
                         ad, start, end, slug, episode_id, sponsor_service,
-                        episode_sponsors, segments)
+                        episode_sponsors, segments, classifier_confirmed=classifier_confirmed)
                     if ad_entry is not None:
                         valid_ads.append(ad_entry)
                 except ValueError as e:
@@ -746,7 +747,8 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
 def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
                             slug: str = None, episode_id: str = None,
                             sponsor_service=None,
-                            episode_sponsors: EpisodeSponsors | None = None) -> list[dict]:
+                            episode_sponsors: EpisodeSponsors | None = None,
+                            classifier_confirmed: bool = False) -> list[dict]:
     """Map start_id/end_id to exact segment start/end seconds, then normalize
     via ``_normalize_ad`` like ``parse_ads_from_response`` does (confidence,
     sponsor extraction, degenerate-range rejection, evidence gate, category
@@ -771,7 +773,8 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
         end = seg_hi['end']
         try:
             ad_entry = _normalize_ad(raw, start, end, slug, episode_id,
-                                     sponsor_service, episode_sponsors, window_segments)
+                                     sponsor_service, episode_sponsors, window_segments,
+                                     classifier_confirmed=classifier_confirmed)
         except (ValueError, TypeError) as e:
             logger.warning(
                 f"[{slug}:{episode_id}] Skipping ad with invalid field "
@@ -807,13 +810,13 @@ You will be provided a transcript excerpt and a list of segments contained withi
 - recap: a produced "coming up" preview, headline bumper, or "listen to this next" segment
 
 ## Output Format
-Return ONLY a valid, compact JSON object with no Markdown wrappers or commentary:
+Return ONLY a valid, compact JSON object with no Markdown wrappers or commentary. "categories" holds one entry per provided segment, "segment_id" is the id of the provided segment, and "category" is its best-fit category:
 
 {
-  "categories": [ // Array of categorized segments, one per provided segment
+  "categories": [
     {
-      "segment_id": 0, // The id of the provided segment
-      "category": "sponsor" // The best-fit category for the segment
+      "segment_id": 0,
+      "category": "sponsor"
     }
   ]
 }
@@ -971,18 +974,16 @@ def format_category_repair_prompt(transcript_excerpt: str,
     position in the window's full ad list, carried through unchanged so the
     response merges back onto the right ad.
     """
-    segments = [
-        {
-            "segment_id": i, # label as an 'id' to avoid confusion
-            # adjust start/end times to match the transcript timestamp precision
-            "start_s": round(float(ad.get('start')), 1), # assumed to be valid number
-            "end_s": round(float(ad.get('end')), 1), # assumed to be valid number
-            "start_text": ad.get('start_text') or '@{from(start_s)}',
-            "end_text": ad.get('end_text') or '@{upto(end_s)}',
-            "reason": ad.get('reason'),
-        }
-        for i, ad in missing
-    ]
+    # Round to the transcript's timestamp precision; omit absent keys rather than send placeholders.
+    segments = []
+    for i, ad in missing:
+        seg = {"segment_id": i,
+               "start_s": round(float(ad.get('start')), 1),
+               "end_s": round(float(ad.get('end')), 1)}
+        for key in ('start_text', 'end_text', 'reason'):
+            if ad.get(key):
+                seg[key] = ad[key]
+        segments.append(seg)
     system_prompt = finalize_prompt(
         strip_comments_from_prompt(CATEGORY_REPAIR_SYSTEM_PROMPT)
     )
@@ -992,7 +993,7 @@ def format_category_repair_prompt(transcript_excerpt: str,
             segments=format_prompt_code_block(json.dumps(segments), language='json')
         )
     )
-    return (system_prompt, user_prompt)
+    return system_prompt, user_prompt
 
 
 def _repair_index(value):

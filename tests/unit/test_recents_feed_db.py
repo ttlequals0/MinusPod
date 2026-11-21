@@ -68,6 +68,18 @@ def test_membership_uses_publish_date_not_processing_time():
     assert rows[1]['source_title_skip_patterns'] == json.dumps(['s01*'])
 
 
+def test_recent_membership_honors_item_limit():
+    db = _db()
+    _seed_source('alpha')
+    _seed_episode('alpha', 'aaaaaaaaaaa1', '2026-09-10T00:00:00Z')
+    _seed_episode('alpha', 'aaaaaaaaaaa2', '2026-09-11T00:00:00Z')
+    since = '2026-09-05'
+    assert db.is_recent_processed_episode('alpha', 'aaaaaaaaaaa2', since, limit=1) is True
+    assert db.is_recent_processed_episode('alpha', 'aaaaaaaaaaa1', since, limit=1) is False
+    assert db.is_recent_processed_episode('alpha', 'aaaaaaaaaaa1', since, limit=2) is True
+    assert db.is_recent_processed_episode('alpha', 'aaaaaaaaaaa1', since) is True
+
+
 def test_membership_paginates_and_never_includes_a_recents_row():
     db = _db()
     _seed_source('gamma')

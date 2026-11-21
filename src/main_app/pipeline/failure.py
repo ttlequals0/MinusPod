@@ -222,7 +222,11 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # An enclosure not published yet that will be retried is expected, not an error.
     will_retry_audio = (isinstance(error, AudioNotReadyError)
                         and new_status == EpisodeStatus.FAILED.value)
-    audio_logger.log(logging.WARNING if will_retry_audio else logging.ERROR,
+    # Only a recognized upstream condition is expected; auth outages need an operator, unknown errors may be bugs.
+    will_retry = will_retry_audio or (
+        transient and not auth_outage and new_status == EpisodeStatus.FAILED.value
+        and common.is_known_upstream_error(error))
+    audio_logger.log(logging.WARNING if will_retry else logging.ERROR,
                      f"[{slug}:{episode_id}] Failed: {error_text} ({processing_time:.1f}s)")
 
     db.upsert_episode(slug, episode_id, status=new_status,

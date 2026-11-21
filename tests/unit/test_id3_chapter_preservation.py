@@ -2,6 +2,7 @@ import re
 import shutil
 import struct
 import subprocess
+import threading
 import zlib
 from pathlib import Path
 
@@ -111,6 +112,35 @@ def test_duplicate_ids_and_cycle_are_rejected(tmp_path):
     loop = Frame(b'CTOC', b'\0\0', b'loop\0\x03\x01loop\0')
     with pytest.raises(ChapterTagError, match='Cyclic'):
         chapter_frames(Tag(4, 0, 0, b'', (loop,)))
+
+
+def _toc(name, children):
+    body = name + b'\0\0' + bytes([len(children)]) + b''.join(c + b'\0' for c in children)
+    return Frame(b'CTOC', b'\0\0', body)
+
+
+def test_diamond_toc_graph_is_walked_linearly():
+    levels = 28
+    names = [[b'l%d-%d' % (level, side) for side in (0, 1)] for level in range(levels)]
+    frames = [_toc(name, names[level + 1] if level + 1 < levels else [])
+              for level in range(levels) for name in names[level]]
+    frames.append(Frame(b'CHAP', b'\0\0', b'ch\0' + struct.pack('>IIII', 0, 1000, 0xffffffff, 0xffffffff)))
+    tag = Tag(4, 0, 0, b'', tuple(frames))
+    result = []
+    worker = threading.Thread(target=lambda: result.append(remap_tag(tag, [], 0, 10)), daemon=True)
+    worker.start()
+    worker.join(2)
+    assert not worker.is_alive()
+    assert [f.name for f in result[0].frames] == [b'CHAP']
+
+
+def test_nested_toc_survives_unchanged_when_chapter_kept():
+    chap = Frame(b'CHAP', b'\0\0', b'ch\0' + struct.pack('>IIII', 0, 1000, 0xffffffff, 0xffffffff))
+    inner, outer = _toc(b'inner', [b'ch']), _toc(b'outer', [b'inner'])
+    result = remap_tag(Tag(4, 0, 0, b'', (outer, inner, chap)), [], 0, 10)
+    assert {f.name for f in result.frames} == {b'CHAP', b'CTOC'}
+    assert len(result.frames) == 3
+    assert inner in result.frames and outer in result.frames
 
 
 def _five_bytes(value):

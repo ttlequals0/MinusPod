@@ -357,6 +357,90 @@ class TestPrepareAndDispatchPayload:
         assert body == b'TEST Episode Processed'
 
 
+class TestJsonTemplateEscaping:
+    TEMPLATE = '{"title": "{{ episode.title }}", "message": "{{ podcast.name }}"}'
+
+    @staticmethod
+    def _send(config, context):
+        with patch('webhook_service.safe_post') as mock_post:
+            mock_post.return_value = MagicMock(status_code=200)
+            _prepare_and_dispatch({'url': 'https://hook.example.com', **config}, context)
+        kwargs = mock_post.call_args.kwargs
+        return kwargs['data'], kwargs['headers']
+
+    @staticmethod
+    def _ctx(title):
+        return {'event': 'Episode Processed', 'episode': {'title': title},
+                'podcast': {'name': 'Example Podcast'}}
+
+    def test_quote_injection_cannot_add_fields(self):
+        title = 'x", "priority": 5, "click": "https://example.com/", "t2": "'
+        body, _ = self._send({'payloadTemplate': self.TEMPLATE}, self._ctx(title))
+        parsed = json.loads(body)
+        assert set(parsed) == {'title', 'message'}
+        assert parsed['title'] == title
+
+    def test_quote_and_newline_round_trip(self):
+        title = 'say "hi"\nline two \\ end'
+        body, _ = self._send({'payloadTemplate': self.TEMPLATE}, self._ctx(title))
+        assert json.loads(body)['title'] == title
+
+    def test_tojson_not_double_escaped(self):
+        title = 'a "quoted" title\n'
+        config = {'payloadTemplate': '{"title": {{ episode.title | tojson }}}'}
+        body, _ = self._send(config, self._ctx(title))
+        assert json.loads(body) == {'title': title}
+
+    def test_safe_filter_does_not_bypass_json_escaping(self):
+        title = 'a "quoted" title\n'
+        config = {'payloadTemplate': '{"title": "{{ episode.title | safe }}"}'}
+        body, _ = self._send(config, self._ctx(title))
+        assert json.loads(body) == {'title': title}
+
+    def test_tojson_output_is_unchanged(self):
+        title = 'a <b> & "quoted"'
+        config = {'payloadTemplate': '{"title": {{ episode.title | tojson }}}'}
+        body, _ = self._send(config, self._ctx(title))
+        assert body == b'{"title": "a \\u003cb\\u003e \\u0026 \\"quoted\\""}'
+
+    def test_text_plain_rendered_unescaped(self):
+        config = {'payloadTemplate': '{{ episode.title }}', 'contentType': 'text/plain'}
+        body, _ = self._send(config, self._ctx('say "hi"'))
+        assert body == b'say "hi"'
+
+    def test_template_invalid_json_sent_as_rendered(self):
+        config = {'payloadTemplate': '{"a": }'}
+        body, _ = self._send(config, self._ctx('x'))
+        assert body == b'{"a": }'
+        assert webhook_service._render_body(
+            {'url': 'https://hook.example.com', **config}, self._ctx('x'))[1] is False
+
+    def test_if_wrapped_json_template_escaped(self):
+        config = {'payloadTemplate': '{% if episode %}' + self.TEMPLATE + '{% endif %}'}
+        body, _ = self._send(config, self._ctx('a "b"'))
+        assert json.loads(body)['title'] == 'a "b"'
+
+    def test_plain_text_template_default_content_type_renders_raw(self):
+        config = {'payloadTemplate': 'Done: {{ episode.title }}'}
+        body, _ = self._send(config, self._ctx('say "hi"'))
+        assert body == b'Done: say "hi"'
+        assert webhook_service._render_body(
+            {'url': 'https://hook.example.com', **config}, self._ctx('x'))[1] is False
+
+    def test_preview_escapes_json_template(self):
+        with patch.dict(webhook_service._DUMMY_CONTEXT['episode'], {'title': 'a "b"'}):
+            out = render_template_preview('{"t": "{{ episode.title }}"}')
+        assert json.loads(out) == {'t': 'a "b"'}
+
+    def test_signature_covers_final_body(self):
+        import hashlib
+        import hmac
+        body, headers = self._send(
+            {'payloadTemplate': self.TEMPLATE, 'secret': 'mysecret'}, self._ctx('a "b"'))
+        expected = hmac.new(b'mysecret', body, hashlib.sha256).hexdigest()
+        assert headers['X-MinusPod-Signature'] == f'sha256={expected}'
+
+
 # ---------------------------------------------------------------------------
 # Event validation tests
 # ---------------------------------------------------------------------------

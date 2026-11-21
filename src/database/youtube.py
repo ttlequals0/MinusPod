@@ -67,6 +67,17 @@ class YouTubeMixin:
             "SELECT COUNT(*) FROM episodes WHERE sb_state IN ('waiting', 'probing')").fetchone()
         return row[0]
 
+    def get_sponsorblock_waiting(self, limit: int = 3) -> list[dict]:
+        """Episodes waiting on SponsorBlock, soonest next check first (never-scheduled last)."""
+        cursor = self.get_connection().execute(
+            """SELECT p.slug, e.episode_id, COALESCE(e.title, '') AS title, e.sb_state, e.sb_next_check_at,
+                      COALESCE(e.sb_attempts, 0) AS sb_attempts
+               FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
+               WHERE e.sb_state IN ('waiting', 'probing')
+               ORDER BY e.sb_next_check_at IS NULL, e.sb_next_check_at ASC, e.id ASC LIMIT ?""",
+            (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
     def get_due_sponsorblock_episodes(self, now_iso: str, limit: int = 50) -> list[dict]:
         cursor = self.get_connection().execute(
             """SELECT e.id, e.episode_id, e.title, e.original_url, e.published_at, e.description,

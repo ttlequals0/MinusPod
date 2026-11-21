@@ -177,6 +177,12 @@ def test_settings_section_masks_lan_ip_as_private_host():
     assert result == {'settings': {'ollamaBaseUrl': 'http://<private-host>/v1'}}
 
 
+def test_shared_address_space_host_is_masked_as_private_host():
+    doc = {'feeds': [{'sourceFeedUrl': 'http://100.64.0.1:9000/feed.xml'}]}
+    result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))
+    assert result == {'feeds': [{'sourceFeedUrl': 'http://<private-host>'}]}
+
+
 def test_settings_section_masks_unknown_public_host_as_private_host():
     doc = {'settings': {'llmApiUrl': 'https://llm.example.org/v1'}}
     result = redact_config(doc, instance_hosts=frozenset({'feeds.example.com'}))

@@ -1166,7 +1166,8 @@ def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
 
         # 5. Start background processing (non-blocking)
         from main_app.processing import start_background_processing
-        logger.info(f"[{slug}:{episode_id}] Starting {mode} reprocess (async)")
+        label = mode if mode == 'reprocess' else f'{mode} reprocess'
+        logger.info(f"[{slug}:{episode_id}] Starting {label} (async)")
 
         started, reason = start_background_processing(
             slug, episode_id, episode_url, episode_title,

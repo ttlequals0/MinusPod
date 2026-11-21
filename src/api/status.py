@@ -62,10 +62,18 @@ def _offline_service_view(db, service: str, held: int, show_when_down: bool) -> 
         reachable, checked_at = get_probe_state(db, service)
     if not held and not (show_when_down and reachable is False):
         return None
-    return {
+    view = {
         'service': service, 'held': held,
         'reachable': reachable, 'checkedAt': checked_at,
     }
+    if service == DEFER_SERVICE_SPONSORBLOCK:
+        rows = db.get_sponsorblock_waiting(limit=3) if held and reachable is not False else []
+        view['waiting'] = [
+            {'slug': r['slug'], 'episodeId': r['episode_id'], 'title': r['title'],
+             'state': r['sb_state'], 'nextCheckAt': r['sb_next_check_at'], 'attempts': r['sb_attempts']}
+            for r in rows
+        ]
+    return view
 
 
 def _offline_service_views(db) -> list[dict]:

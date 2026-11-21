@@ -1676,10 +1676,12 @@ CHUNK_DEFAULT_DURATION_SECONDS = 1800  # Default if memory detection fails (30 m
 # API backend chunk duration (10 min = ~19MB WAV, under 25MB OpenAI API limit)
 API_CHUNK_DURATION_SECONDS = 600
 
-# Whisper backend identifiers
-# Seconds the queue must stay empty before the local transcription model is unloaded.
-LOCAL_MODEL_IDLE_UNLOAD_SECONDS = 300
+# Seconds without a local decode before the model is unloaded; the runtime setting overrides the default.
+LOCAL_MODEL_IDLE_UNLOAD_SECONDS_DEFAULT = 300
+LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN = 10
+LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MAX = 3600
 
+# Whisper backend identifiers
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
 WHISPER_BACKEND_PARAKEET = 'parakeet'

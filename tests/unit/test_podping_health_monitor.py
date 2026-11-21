@@ -5,10 +5,14 @@ import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('podping_health_monitor_test_')
 
+from utils.safe_http import URLTrust
+from utils.url import SSRFError
 from podping_listener import (
     ACTIVE_CONNECTION_SETTING,
     DEGRADED_SETTING,
@@ -368,9 +372,21 @@ def test_probe_validates_head_and_block_rpc_shapes():
     block.json.return_value = {'result': {'transactions': []}}
     listener = PodpingListener(db=FakeDb())
     try:
-        with patch('podping_listener.requests.post', side_effect=[head, block]) as post:
+        with patch('podping_listener.safe_post', side_effect=[head, block]) as post:
             assert listener._default_node_probe(PODPING_NODES[0]) == (
                 200, 'healthy', None)
         assert post.call_args_list[1].kwargs['json']['params'] == [100]
+        assert all(c.args[1] is URLTrust.OPERATOR_CONFIGURED for c in post.call_args_list)
     finally:
         listener.close()
+
+
+def test_probe_propagates_blocked_node_for_unreachable_report():
+    listener = PodpingListener(db=FakeDb())
+    try:
+        with patch('podping_listener.safe_post', side_effect=SSRFError('Blocked link-local IP')):
+            with pytest.raises(SSRFError):
+                listener._default_node_probe('http://169.254.169.254')
+    finally:
+        listener.close()
+

@@ -8,9 +8,10 @@ import pytest
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('schedule_gates_test_')
-from main_app import background, db
+from main_app import db
 from main_app.pipeline.admission import admission_explanation
 from main_app.processing import start_background_processing
+from transcriber import local as transcriber_local
 from processing_queue import ProcessingQueue, set_processing_paused
 import processing_schedule as ps
 from tests.unit.test_queue_dispatcher import _pool, _queue, _run_dispatcher, SLUG
@@ -76,25 +77,24 @@ def test_dispatcher_resumes_when_the_window_opens(clock, monkeypatch):
 def test_dispatcher_unloads_the_idle_model_while_held(clock, monkeypatch, caplog):
     _queue(1)
     unload = MagicMock(return_value=True)
-    monkeypatch.setattr(background, 'unload_whisper_if_idle', unload)
+    monkeypatch.setattr(transcriber_local, 'unload_whisper_if_idle', unload)
     with caplog.at_level('INFO'):
         _run_dispatcher(monkeypatch, lambda: _pool(False, 1), timeout=0.5)
     unload.assert_called()
     assert 'Outside the processing schedule' in caplog.text
-    assert 'unloaded the local transcription model' in caplog.text
     assert db.count_pending_queued_episodes() == 1
 
 
-def test_dispatcher_keeps_the_model_while_a_run_is_active(clock, monkeypatch):
+def test_dispatcher_checks_the_idle_model_while_a_run_is_active(clock, monkeypatch):
     _queue(1)
     unload = MagicMock(return_value=True)
-    monkeypatch.setattr(background, 'unload_whisper_if_idle', unload)
+    monkeypatch.setattr(transcriber_local, 'unload_whisper_if_idle', unload)
     run_id = ProcessingQueue().acquire(SLUG, 'busy', limit=99)
     try:
         _run_dispatcher(monkeypatch, lambda: _pool(False, 1), timeout=0.5)
     finally:
         ProcessingQueue().release(run_id)
-    unload.assert_not_called()
+    unload.assert_called()
 
 
 def test_operator_pause_also_unloads_the_idle_model(clock, monkeypatch):
@@ -102,7 +102,7 @@ def test_operator_pause_also_unloads_the_idle_model(clock, monkeypatch):
     set_processing_paused(True, db)
     _queue(1)
     unload = MagicMock(return_value=True)
-    monkeypatch.setattr(background, 'unload_whisper_if_idle', unload)
+    monkeypatch.setattr(transcriber_local, 'unload_whisper_if_idle', unload)
     try:
         _run_dispatcher(monkeypatch, lambda: _pool(False, 1), timeout=0.5)
     finally:

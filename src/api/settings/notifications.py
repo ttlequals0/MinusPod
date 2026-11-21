@@ -140,8 +140,12 @@ def validate_webhook_template():
     if not data or 'template' not in data:
         return error_response('template is required', 400)
 
+    content_type = data.get('contentType')
+    if not isinstance(content_type, str) or not content_type.strip():
+        content_type = 'application/json'
+
     try:
-        preview = render_template_preview(data['template'])
+        preview = render_template_preview(data['template'], content_type)
         return json_response({
             'valid': True,
             'preview': preview,

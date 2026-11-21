@@ -146,7 +146,7 @@ Key endpoints:
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
-- `PUT /api/v1/settings/ad-detection` - Update ad detection config. `llmProvider` accepts `none` to run episodes with the model-free detectors only (no key, base URL or model needed; saved keys and models are kept); `secondaryProvider` and `failoverLlmProvider` reject it. Includes a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override. The audio fingerprinting fields are `fingerprintEnabled` (boolean) and the numbers `fingerprintMatchStrictness` (0.65 to 0.95, default 0.65), `fingerprintMinCoverage` (0.1 to 1, default 0.5), `fingerprintGapToleranceS` (0 to 15 seconds, default 3.5) and `fingerprintMinAdLengthS` (3 to 30 seconds, default 5). A value outside its range, a string, a boolean in place of a number, or NaN or Infinity is a 400 that names the field and its range, and nothing in the request is saved. `GET /api/v1/settings` returns each as `{value, isDefault}` with the defaults in `defaults`, `POST /api/v1/settings/ad-detection/reset` restores them, and config export and import carry them. They work the same when `llmProvider` is `none`. A change affects later runs and re-detection and never re-fingerprints stored ads. `queueOrder` (`queued`, `oldest_first`, `newest_first`) sets the default processing order of queued episodes within one priority. `snipShortAsks` (`true`, `false` or `null`; `null` resets to the default, off) turns on detection of short host asks and sponsor thanks (each flagged marker follows its category's action), and the response echoes it when sent. Markers it flags carry `short_ask: true` in episode detail. `heldWidenSeconds` (0 to 120 seconds, default 0) widens how far past the reviewed span a held ad's edges may be moved and makes an adjust approve the held ad at once; it is global, returned by `GET /api/v1/settings` as `{value, isDefault}`, and a value outside the range or a non-number is a 400.
+- `PUT /api/v1/settings/ad-detection` - Update ad detection config. `llmProvider` accepts `none` to run episodes with the model-free detectors only (no key, base URL or model needed; saved keys and models are kept); `secondaryProvider` and `failoverLlmProvider` reject it. Includes a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override. The audio fingerprinting fields are `fingerprintEnabled` (boolean) and the numbers `fingerprintMatchStrictness` (0.65 to 0.95, default 0.65), `fingerprintMinCoverage` (0.1 to 1, default 0.5), `fingerprintGapToleranceS` (0 to 15 seconds, default 3.5) and `fingerprintMinAdLengthS` (3 to 30 seconds, default 5). A value outside its range, a string, a boolean in place of a number, or NaN or Infinity is a 400 that names the field and its range, and nothing in the request is saved. `GET /api/v1/settings` returns each as `{value, isDefault}` with the defaults in `defaults`, `POST /api/v1/settings/ad-detection/reset` restores them, and config export and import carry them. They work the same when `llmProvider` is `none`. A change affects later runs and re-detection and never re-fingerprints stored ads. `queueOrder` (`queued`, `oldest_first`, `newest_first`) sets the default processing order of queued episodes within one priority. `snipShortAsks` (`true`, `false` or `null`; `null` resets to the default, off) turns on detection of short host asks and sponsor thanks (each flagged marker follows its category's action), and the response echoes it when sent. Markers it flags carry `short_ask: true` in episode detail. `localModelIdleUnloadSeconds` (integer, 10 to 3600 seconds, default 300) sets how long the local transcription model stays on the GPU after its last transcription. It applies without a restart and is returned by `GET /api/v1/settings` as `{value, isDefault}`. A value outside the range or a non-integer is a 400. `heldWidenSeconds` (0 to 120 seconds, default 0) widens how far past the reviewed span a held ad's edges may be moved and makes an adjust approve the held ad at once; it is global, returned by `GET /api/v1/settings` as `{value, isDefault}`, and a value outside the range or a non-number is a 400.
 - `GET /api/v1/settings/models` - List available AI models from current provider (empty while the provider is `none`). Optional `?slot=` picks the credential slot to probe: `primary` (default), `secondary`, `failover`, or the `a`/`b` aliases for primary/secondary.
 - `POST /api/v1/settings/models/refresh` - Force refresh model list from provider (the primary slot returns an empty list while the provider is `none`). Optional JSON body `{"slot": "primary" | "secondary" | "failover" | "a" | "b"}` picks the credential slot (default primary).
 - `GET /api/v1/failover` - Current state, probe results, policy, and recent events for every failover target. See [Failover](failover.md#manual-control).
@@ -160,7 +160,7 @@ Key endpoints:
 - `POST /api/v1/settings/rate-limit-hold/reset` - Clear every active rate-limit hold without disabling the hold feature
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
-- `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template
+- `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template. Optional `contentType` (default `application/json`): a `text/*` type previews values unescaped, any other type previews them JSON-escaped
 - `GET/PUT /api/v1/settings/notifications/email` - Email notification settings
 - `POST /api/v1/settings/notifications/email/test` - Send a test email
 
@@ -205,7 +205,7 @@ Key endpoints:
 }
 ```
 
-`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. `offlineServices` also carries a `sponsorblock` entry while YouTube feeds are on and the SponsorBlock API is unreachable or YouTube episodes are waiting on it; its `held` counts those episodes and it is not part of `offlineHeld`. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. `offlineServices` also carries a `sponsorblock` entry while YouTube feeds are on and the SponsorBlock API is unreachable or YouTube episodes are waiting on it; its `held` counts those episodes and it is not part of `offlineHeld`. That entry also carries `waiting`, up to three of those episodes (`slug`, `episodeId`, `title`, `state`, `nextCheckAt`, `attempts`), soonest next check first. It is empty while SponsorBlock is unreachable. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
 
 Both frames also carry `processingSchedule`: `{"enabled": true, "open": false, "nextChangeAt": "2026-01-01T22:00:00Z"}`. While `open` is false the queue holds new starts (a queued entry's `admission.reason` is `outside_schedule` and `resumesAt` is `nextChangeAt`). `nextChangeAt` is null when the schedule is disabled or never closes.
 
@@ -267,7 +267,7 @@ The Test result lists each event's `delivered` status and `templateFallback` fla
 
 ### Template Variables
 
-Custom payload templates are Jinja2 strings rendered against these variables:
+Custom payload templates are Jinja2 strings rendered against these variables. For JSON payloads, interpolated string values are JSON-escaped automatically, so `"{{ episode.title }}"` is safe inside quotes; `{{ value | tojson }}` also works and is not escaped twice.
 
 | Variable | Type | Description |
 |---|---|---|
@@ -340,7 +340,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `slug` | string | Feed slug |
 | `podcast_name` | string | Podcast title (falls back to the slug) |
-| `feed_url` | string | Upstream feed URL, with any credentials stripped |
+| `feed_url` | string | Upstream feed scheme and host only; path, query and credentials are dropped |
 | `error_message` | string | Error from the most recent fetch attempt |
 | `failure_count` | int | Consecutive failed refreshes when the alert fired |
 
@@ -545,7 +545,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "timestamp_local": "2026-04-12T00:15:42+00:00",
   "slug": "my-podcast",
   "podcast_name": "My Podcast",
-  "feed_url": "https://feeds.example.com/my-podcast",
+  "feed_url": "https://feeds.example.com",
   "error_message": "HTTP 522 from upstream",
   "failure_count": 3
 }

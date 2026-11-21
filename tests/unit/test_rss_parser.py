@@ -5,6 +5,7 @@ import logging
 
 
 import defusedxml
+import pytest
 defusedxml.defuse_stdlib()
 
 from rss_parser import RSSParser
@@ -154,3 +155,31 @@ class TestMalformedFeedIsAttributable:
         warnings = [r.getMessage() for r in caplog.records
                     if 'RSS parse warning' in r.getMessage()]
         assert warnings and 'source=unknown' in warnings[0]
+
+
+@pytest.mark.parametrize('body', ['http://127.0.0.1:9/x.rss', 'file:///etc/hostname', 'TMPFILE'])
+def test_parse_feed_never_fetches_or_opens_string_body(body, tmp_path):
+    from unittest import mock
+
+    secret = tmp_path / 'feed.xml'
+    secret.write_text('<rss version="2.0"><channel><title>Leaked</title></channel></rss>')
+    if body == 'TMPFILE':
+        body = str(secret)
+
+    with mock.patch('urllib.request.OpenerDirector.open') as opener, \
+            mock.patch('urllib.request.urlopen') as urlopen:
+        feed = RSSParser().parse_feed(body)
+
+    opener.assert_not_called()
+    urlopen.assert_not_called()
+    assert feed is None or (not feed.feed.get('title') and not feed.entries)
+
+
+def test_parse_feed_still_parses_normal_document():
+    xml = ('<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
+           '<title>Example Feed</title><item><title>Ep</title></item></channel></rss>')
+
+    feed = RSSParser().parse_feed(xml)
+
+    assert feed.feed.title == 'Example Feed'
+    assert len(feed.entries) == 1

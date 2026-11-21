@@ -1,12 +1,15 @@
-"""A retryable not-yet-published enclosure logs at WARNING; real failures stay at ERROR."""
+"""A retry scheduled for a recognized upstream failure logs at WARNING; everything else stays at ERROR."""
 import logging
 import unittest
 from unittest.mock import patch
+
+import requests
 
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('failure_log_level_')
 import main_app.processing as processing  # noqa: E402
+from config import ModelNotConfiguredError
 from main_app.pipeline import common, finalize, failure
 from main_app.pipeline.transcribe import AudioNotReadyError
 
@@ -39,9 +42,27 @@ class TestFailureLogLevel(unittest.TestCase):
             retry_count=failure.MAX_EPISODE_RETRIES - 1)
         self.assertEqual(levels, [logging.ERROR])
 
-    def test_a_real_failure_is_an_error(self):
-        levels = self._failed_levels(RuntimeError('detection blew up'))
+    def test_scheduled_transient_retry_warns(self):
+        error = requests.HTTPError('404 Client Error: Not Found for url: https://cdn.example.com/media.mp3')
+        self.assertEqual(self._failed_levels(error), [logging.WARNING])
+
+    def test_transient_failure_on_the_last_attempt_is_an_error(self):
+        error = requests.HTTPError('404 Client Error: Not Found for url: https://cdn.example.com/media.mp3')
+        levels = self._failed_levels(error, retry_count=failure.MAX_EPISODE_RETRIES - 1)
         self.assertEqual(levels, [logging.ERROR])
+
+    def test_a_real_failure_is_an_error(self):
+        levels = self._failed_levels(RuntimeError('unexpected state'))
+        self.assertEqual(levels, [logging.ERROR])
+
+    def test_a_permanent_failure_is_an_error(self):
+        levels = self._failed_levels(ModelNotConfiguredError('no model'))
+        self.assertEqual(levels, [logging.ERROR])
+
+    def test_an_auth_outage_is_an_error(self):
+        error = requests.HTTPError('502 Bad Gateway')
+        error.auth_cause = True
+        self.assertEqual(self._failed_levels(error), [logging.ERROR])
 
 
 if __name__ == '__main__':

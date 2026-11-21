@@ -253,7 +253,7 @@ def test_recents_subscriber_key_allows_only_current_recents_episode_assets(
         title='Later item', status='processed', processed_file='later.mp3',
         published_at='2026-09-11T00:00:00Z',
     )
-    db.update_podcast(RECENTS_SLUG, max_episodes=1)
+    db.update_podcast(RECENTS_SLUG, max_episodes=2)
     cached = _cached_rss(source_slug, KEY).replace('abcdefabcdef', episode_id)
     cached = cached.replace(
         '</channel>', f'<image><url>{BASE}/{RECENTS_SLUG}/cover-minuspod.jpg?key={KEY}'
@@ -281,6 +281,37 @@ def test_recents_subscriber_key_allows_only_current_recents_episode_assets(
     assert client.get(f'/{source_slug}?key={scoped}').status_code == 401
     assert db.revoke_feed_subscriber_key(RECENTS_SLUG, scoped.split('.', 1)[0])
     assert client.get(f'/recents?key={scoped}').status_code == 401
+
+
+def test_recents_key_asset_access_follows_item_limit(
+        client, db, recents_subscriber_feed):
+    _set_auth(db, True)
+    source_slug = 'recents-source'
+    _seed_feed(db, source_slug, key=KEY)
+    db.create_podcast(RECENTS_SLUG, 'recents://', 'Recents', feed_type='recents')
+    db.get_connection().execute(
+        "UPDATE podcasts SET created_at = '2026-09-01T00:00:00Z' WHERE slug = ?",
+        (RECENTS_SLUG,),
+    )
+    db.get_connection().commit()
+    for ep_id, published in (('abcdef123401', '2026-09-10T00:00:00Z'),
+                             ('abcdef123402', '2026-09-11T00:00:00Z')):
+        db.upsert_episode(
+            source_slug, ep_id, original_url=f'https://example.com/{ep_id}.mp3',
+            title=ep_id, status='processed', processed_file=f'{ep_id}.mp3',
+            published_at=published,
+        )
+    scoped = db.create_feed_subscriber_key(RECENTS_SLUG, 'Phone')['token']
+    older = f'/episodes/{source_slug}/abcdef123401.vtt?key={scoped}'
+    newer = f'/episodes/{source_slug}/abcdef123402.vtt?key={scoped}'
+
+    db.update_podcast(RECENTS_SLUG, max_episodes=1)
+    assert client.get(newer).status_code != 401
+    assert client.get(older).status_code == 401
+
+    db.update_podcast(RECENTS_SLUG, max_episodes=2)
+    assert client.get(newer).status_code != 401
+    assert client.get(older).status_code != 401
 
 
 def test_mp3_with_valid_key_reaches_handler(client, db):

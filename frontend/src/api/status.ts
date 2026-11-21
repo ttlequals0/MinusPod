@@ -1,5 +1,15 @@
 import { apiRequest } from './client';
 
+/** An episode held by the SponsorBlock gate, as listed on the sponsorblock offline service. */
+export interface WaitingEpisode {
+  slug: string;
+  episodeId: string;
+  title: string;
+  state: 'waiting' | 'probing';
+  nextCheckAt: string | null;
+  attempts: number;
+}
+
 export interface ProcessingScheduleStatus {
   enabled: boolean;
   open: boolean;
@@ -26,6 +36,7 @@ export interface ProcessingStatus {
       service: string;
       held: number;
       reachable: boolean | null;
+      waiting?: WaitingEpisode[];
     }>;
   };
   // Weekly processing window; absent on older builds.

@@ -68,6 +68,10 @@ EPISODE_LOOKUP_TTL_SECONDS = 15 * 60
 # the cap must hold a full library (feeds x feed length), not one page.
 episode_lookup_cache = TTLCache(EPISODE_LOOKUP_TTL_SECONDS, max_size=8192)
 
+# Slugs whose upstream fetch recently missed; unknown ids skip the refetch while an entry lives.
+LOOKUP_MISS_THROTTLE_SECONDS = 60
+lookup_miss_cache = TTLCache(LOOKUP_MISS_THROTTLE_SECONDS, max_size=1024)
+
 
 def episode_lookup_key(slug: str, episode_id: str) -> str:
     """Cache key for one episode. Namespaced by slug so a feed can drop all

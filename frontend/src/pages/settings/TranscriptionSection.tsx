@@ -33,6 +33,8 @@ interface TranscriptionSectionProps {
   onWhisperLanguageChange: (language: string) => void;
   whisperComputeType: string;
   onWhisperComputeTypeChange: (computeType: string) => void;
+  localModelIdleUnloadSeconds: number;
+  onLocalModelIdleUnloadSecondsChange: (value: number) => void;
   transcribeMaxChunkSeconds: number;
   onTranscribeMaxChunkSecondsChange: (value: number) => void;
   transcribeConcurrentChunks: number;
@@ -83,6 +85,8 @@ function TranscriptionSection({
   onWhisperLanguageChange,
   whisperComputeType,
   onWhisperComputeTypeChange,
+  localModelIdleUnloadSeconds,
+  onLocalModelIdleUnloadSecondsChange,
   transcribeMaxChunkSeconds,
   onTranscribeMaxChunkSecondsChange,
   transcribeConcurrentChunks,
@@ -427,6 +431,27 @@ function TranscriptionSection({
             </select>
             <p id="whisperComputeType-help" className="mt-1 text-sm text-muted-foreground">
               Older GPUs (Pascal, Maxwell) cannot run float16. On init failure the server retries int8_float16, then int8, then float32 automatically. See the README &quot;GPU Compute Type&quot; section for a per-GPU table.
+            </p>
+          </div>
+        )}
+
+        {(whisperBackend === WHISPER_BACKENDS.LOCAL || whisperBackend === WHISPER_BACKENDS.PARAKEET) && (
+          <div className="pt-2 border-t border-border">
+            <label htmlFor="localModelIdleUnloadSeconds" className={labelBase}>
+              Unload idle model after (seconds)
+            </label>
+            <NumberInput
+              id="localModelIdleUnloadSeconds"
+              value={localModelIdleUnloadSeconds}
+              min={10}
+              max={3600}
+              fallback={300}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={onLocalModelIdleUnloadSecondsChange}
+              ariaDescribedBy="localModelIdleUnloadSeconds-help"
+            />
+            <p id="localModelIdleUnloadSeconds-help" className="mt-1 text-sm text-muted-foreground">
+              Frees GPU memory once no local transcription has run for this long, even while other stages of an episode are still working. The model loads again on the next transcription. Default 300.
             </p>
           </div>
         )}

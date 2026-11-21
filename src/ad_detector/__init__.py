@@ -246,10 +246,10 @@ class WindowResult(NamedTuple):
     raw_response: str | None
     failed: bool
     last_error: Exception | None
-    # Joined transcript_lines for this window, used by the category repair
-    # pass to send context without rebuilding it. Left at the default ''
-    # by failed windows and callers that don't populate it.
+    # Timestamp-format excerpt for category repair. Only set in timestamps mode;
+    # segment_ids windows carry window_segments and format it if a repair runs.
     transcript_excerpt: str = ''
+    window_segments: list[dict] | None = None
     # Addressing-mode compliance stats (random A/B tracking). ``addressing_mode``
     # is the effective mode this window rendered under; ``compliant`` is None when
     # excluded from the stats (LLM call failed, or the worker doesn't track it).
@@ -1357,6 +1357,8 @@ class AdDetector:
         # a parseable ads array, valid empty included. See compliance_meta in
         # parse_ads_from_response.
         dropped_invalid_ref = 0
+        # The adapter stamps its own diagnostics, so this holds whichever provider answered after failover.
+        classifier_confirmed = (getattr(response, 'diagnostics', None) or {}).get('provider') == 'systemone'
         if addressing_mode == 'segment_ids':
             id_ads, used_ids = parse_id_ads_from_response(
                 response_text, slug, episode_id,
@@ -1366,7 +1368,8 @@ class AdDetector:
                 window_ads = resolve_segment_id_ads(
                     id_ads, window_segments, slug, episode_id,
                     sponsor_service=self.sponsor_service,
-                    episode_sponsors=episode_sponsors)
+                    episode_sponsors=episode_sponsors,
+                    classifier_confirmed=classifier_confirmed)
                 # Everything resolve_segment_id_ads discarded referenced a segment
                 # id absent from this window: the hallucination this mode exists to
                 # catch, so count it rather than lose it in the yield number.
@@ -1380,7 +1383,8 @@ class AdDetector:
                     response_text, slug, episode_id,
                     sponsor_service=self.sponsor_service,
                     episode_sponsors=episode_sponsors,
-                    segments=window_segments)
+                    segments=window_segments,
+                    classifier_confirmed=classifier_confirmed)
                 ads_proposed = len(window_ads)
                 if validate_timestamps:
                     window_ads = validate_ad_timestamps(
@@ -1392,7 +1396,8 @@ class AdDetector:
                 sponsor_service=self.sponsor_service,
                 compliance_meta=compliance_meta,
                 episode_sponsors=episode_sponsors,
-                segments=window_segments)
+                segments=window_segments,
+                classifier_confirmed=classifier_confirmed)
             compliant = not compliance_meta['extraction_failed']
             ads_proposed = len(window_ads)
             if validate_timestamps:
@@ -1459,13 +1464,6 @@ class AdDetector:
             f"[{slug}:{episode_id}] {window_label} found {len(valid_window_ads)} ads"
         )
 
-        transcript_excerpt = '\n'.join(
-            # Use a timestamp-based transcript excerpt for consistency with
-            # `valid_window_ads` which are always timestamp-based.
-            transcript_lines if addressing_mode == 'timestamps'
-            else self._format_transcript_lines(window_segments, 'timestamps')
-        )
-
         return WindowResult(
             window_idx=window_idx,
             window_start=window_start,
@@ -1474,7 +1472,8 @@ class AdDetector:
             raw_response=raw_block,
             failed=False,
             last_error=None,
-            transcript_excerpt=transcript_excerpt,
+            transcript_excerpt='\n'.join(transcript_lines) if addressing_mode == 'timestamps' else '',
+            window_segments=window_segments,
             addressing_mode=addressing_mode,
             compliant=compliant,
             ads_proposed=ads_proposed,
@@ -1757,6 +1756,7 @@ class AdDetector:
                     category_repaired += self._repair_window_categories(
                         ads=result.ads,
                         transcript_excerpt=result.transcript_excerpt,
+                        window_segments=result.window_segments,
                         model=model,
                         llm_timeout=llm_timeout,
                         max_retries=max_retries,
@@ -1863,7 +1863,8 @@ class AdDetector:
 
     def _repair_window_categories(self, *, ads, transcript_excerpt, model,
                                    llm_timeout, max_retries, slug, episode_id,
-                                   window_label, pass_name=PASS_AD_DETECTION_1):
+                                   window_label, pass_name=PASS_AD_DETECTION_1,
+                                   window_segments=None):
         """One follow-up LLM call asking only for categories on ``ads`` missing one
         (prompt wording alone left most detections category-less on real episodes).
 
@@ -1875,7 +1876,10 @@ class AdDetector:
         if not missing:
             return 0
 
-        (system_prompt, prompt)=format_category_repair_prompt(transcript_excerpt, missing)
+        if not transcript_excerpt and window_segments:
+            transcript_excerpt = '\n'.join(
+                self._format_transcript_lines(window_segments, 'timestamps'))
+        system_prompt, prompt = format_category_repair_prompt(transcript_excerpt, missing)
         phase = _phase_for_pass(pass_name)
         live = live_route_params(phase, model, llm_timeout, max_retries)
         provider, credential_slot, model = live.provider, live.credential_slot, live.model

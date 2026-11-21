@@ -4,10 +4,10 @@ function relativeTime(iso: string | null, now: number): string {
   const ms = iso ? Date.parse(iso) - now : 0;
   const minutes = Math.round(ms / 60000);
   if (!(minutes > 0)) return 'now';
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return `in ${minutes} min`;
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} h`;
-  return `${Math.round(hours / 24)} days`;
+  if (hours < 48) return `in ${hours} h`;
+  return `in ${Math.round(hours / 24)} days`;
 }
 
 export function sponsorBlockSubmitLabel(sb: Episode['sponsorBlock'] | undefined): string | null {
@@ -21,8 +21,10 @@ export function sponsorBlockSubmitLabel(sb: Episode['sponsorBlock'] | undefined)
   return `Already on SponsorBlock: ${n(count('duplicate'))}`;
 }
 
+type SponsorBlockInfo = NonNullable<Episode['sponsorBlock']>;
+
 export function sponsorBlockLabel(
-  sb: Episode['sponsorBlock'] | undefined,
+  sb: Pick<SponsorBlockInfo, 'state' | 'attempts' | 'nextCheckAt' | 'segmentCount' | 'note' | 'lastError'> | null | undefined,
   probeAttempts?: number,
   now: number = Date.now(),
 ): string | null {
@@ -35,10 +37,10 @@ export function sponsorBlockLabel(
         label = 'Waiting for SponsorBlock, queued';
         break;
       }
-      label = `Waiting for SponsorBlock, attempt ${sb.attempts}${probeAttempts != null ? ` of ${probeAttempts}` : ''}, next check in ${relativeTime(sb.nextCheckAt, now)}`;
+      label = `Waiting for SponsorBlock, attempt ${sb.attempts}${probeAttempts != null ? ` of ${probeAttempts}` : ''}, next check ${relativeTime(sb.nextCheckAt, now)}`;
       break;
     case 'watching':
-      label = `Watching SponsorBlock, next check in ${relativeTime(sb.nextCheckAt, now)}`;
+      label = `Watching SponsorBlock, next check ${relativeTime(sb.nextCheckAt, now)}`;
       break;
     case 'done':
       label = `SponsorBlock: ${sb.segmentCount} segment${sb.segmentCount === 1 ? '' : 's'}`;

@@ -2,6 +2,7 @@
 import feedparser
 import logging
 import hashlib
+import io
 import math
 import os
 import re
@@ -33,7 +34,7 @@ from utils.text import collapse_whitespace, is_timezone_drift, normalize_title_f
 from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
-from utils.http import safe_url_for_log
+from utils.http import redact_exc_urls, safe_url_for_log
 from utils.safe_http import (
     IncompleteResponseError, ResponseTooLargeError, URLTrust,
     read_response_capped, safe_get,
@@ -69,7 +70,7 @@ def _read_capped_feed_body(response, url, breaker, probe_token) -> bytes | None:
         return None
     except IncompleteResponseError as e:
         logger.warning("feed_body_truncated: url=%s err=%s",
-                       safe_url_for_log(url), e)
+                       safe_url_for_log(url), redact_exc_urls(e))
         breaker.record_failure(token=probe_token)
         return None
     finally:
@@ -417,6 +418,8 @@ def effective_channel_text(override, source, *, sanitize=False):
     return _sanitize_feed_html(text) if sanitize else text
 
 
+
+
 class RSSParser:
     def __init__(self, base_url: str = None):
         self._explicit_base_url = base_url
@@ -442,7 +445,7 @@ class RSSParser:
         try:
             probe_token = breaker.check()
         except CircuitBreakerOpen as e:
-            logger.debug(f"RSS fetch skipped: {e}")
+            logger.debug(f"RSS fetch skipped: {redact_exc_urls(e)}")
             return None
 
         try:
@@ -475,7 +478,7 @@ class RSSParser:
                 response.close()
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={safe_url_for_log(url)})")
+            logger.warning(f"SSRF blocked in fetch_feed: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
@@ -483,7 +486,7 @@ class RSSParser:
             _mark_gzip_broken(url)
             logger.warning(
                 "Gzip decompression failed, retrying without compression: "
-                "url=%s err=%s", safe_url_for_log(url), e)
+                "url=%s err=%s", safe_url_for_log(url), redact_exc_urls(e))
             try:
                 response = safe_get(
                     url,
@@ -510,11 +513,12 @@ class RSSParser:
                 breaker.record_success(token=probe_token)
                 return body.decode('utf-8', errors='replace')
             except (requests.RequestException, SSRFError) as retry_e:
-                logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
+                logger.warning(
+                    f"Failed to fetch RSS feed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None
         except requests.RequestException as e:
-            logger.error(f"Failed to fetch RSS feed: {e}")
+            logger.warning(f"Failed to fetch RSS feed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None
 
@@ -540,7 +544,7 @@ class RSSParser:
         try:
             probe_token = breaker.check()
         except CircuitBreakerOpen as e:
-            logger.debug(f"RSS conditional fetch skipped: {e}")
+            logger.debug(f"RSS conditional fetch skipped: {redact_exc_urls(e)}")
             return None, None, None
 
         try:
@@ -582,7 +586,7 @@ class RSSParser:
 
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={safe_url_for_log(url)})")
+            logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None, None, None
 
         except requests.exceptions.ContentDecodingError as e:
@@ -590,7 +594,7 @@ class RSSParser:
             _mark_gzip_broken(url)
             logger.warning(
                 "Gzip decompression failed, retrying: url=%s err=%s",
-                safe_url_for_log(url), e)
+                safe_url_for_log(url), redact_exc_urls(e))
             try:
                 response = safe_get(
                     url,
@@ -623,12 +627,14 @@ class RSSParser:
                     new_etag,
                     new_last_modified,
                 )
-            except (SSRFError, requests.RequestException):
+            except (SSRFError, requests.RequestException) as retry_e:
+                logger.warning(
+                    f"Conditional fetch failed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None, None, None
 
         except requests.RequestException as e:
-            logger.error(f"Conditional fetch failed: {e}")
+            logger.warning(f"Conditional fetch failed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None, None, None
 
@@ -661,7 +667,8 @@ class RSSParser:
                 )
                 return None
 
-            feed = feedparser.parse(feed_content)
+            # A file-like object stops feedparser treating the body as a URL or path to open.
+            feed = feedparser.parse(io.BytesIO(header_bytes))
             if feed.bozo:
                 # Named: a malformed body correlates with the gzip retry above,
                 # and without the feed there is no way to tie the two together.
@@ -1279,9 +1286,9 @@ class RSSParser:
             if processed_duration is not None and math.isfinite(processed_duration) and processed_duration > 0:
                 lines.append(f'  <itunes:duration>{int(processed_duration)}</itunes:duration>')
             elif 'itunes_duration' in entry:
-                duration = entry.itunes_duration
-                if duration and str(duration).strip():
-                    lines.append(f'  <itunes:duration>{duration}</itunes:duration>')
+                rss_seconds = self._parse_itunes_duration(entry.itunes_duration)
+                if rss_seconds is not None:
+                    lines.append(f'  <itunes:duration>{int(rss_seconds)}</itunes:duration>')
 
             if 'itunes_explicit' in entry:
                 explicit = entry.itunes_explicit
@@ -1290,8 +1297,11 @@ class RSSParser:
 
             # Episode number (itunes:episode)
             if hasattr(entry, 'itunes_episode'):
-                ep_num = entry.itunes_episode
-                if ep_num and str(ep_num).strip():
+                try:
+                    ep_num = int(str(entry.itunes_episode or '').strip())
+                except ValueError:
+                    ep_num = -1
+                if ep_num >= 0:
                     lines.append(f'  <itunes:episode>{ep_num}</itunes:episode>')
 
             # Episode artwork (itunes:image)
@@ -1443,8 +1453,12 @@ class RSSParser:
             lines.append(f'  <pubDate>{self._format_rfc2822(ep["published_at"])}</pubDate>')
         if ep.get('new_duration'):
             lines.append(f'  <itunes:duration>{int(ep["new_duration"])}</itunes:duration>')
-        if ep.get('episode_number'):
-            lines.append(f'  <itunes:episode>{ep["episode_number"]}</itunes:episode>')
+        try:
+            episode_number = int(ep.get('episode_number') or 0)
+        except (TypeError, ValueError):
+            episode_number = 0
+        if episode_number > 0:
+            lines.append(f'  <itunes:episode>{episode_number}</itunes:episode>')
         self._append_podcasting2_tags(lines, slug, ep_id, storage, feed_auth_key,
                                       **self._flags_for(podcasting2_flags, ep_id))
         lines.append('</item>')
