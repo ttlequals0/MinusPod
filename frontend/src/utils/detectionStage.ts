@@ -16,6 +16,7 @@ export type DetectionStage =
   | 'dai_differential'
   | 'transcript_differential'
   | 'description_chapter'
+  | 'episode_repeat'
   | 'sponsorblock';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
@@ -78,6 +79,10 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   description_chapter: {
     label: 'Description chapter',
     className: tint.warning,
+  },
+  episode_repeat: {
+    label: 'Repeat',
+    className: tint.blue,
   },
   sponsorblock: {
     label: 'SponsorBlock',

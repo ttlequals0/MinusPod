@@ -72,7 +72,7 @@ STATS_API = {
     'windows': {'total': 7, 'failed': 0},
     'verificationWindows': None,
     'stageHits': {'fingerprint': 0, 'textPattern': 3, 'differential': 11, 'llm': 11,
-                  'transcriptDifferential': 0},
+                  'transcriptDifferential': 0, 'episodeRepeat': 0},
     'detected': 12,
     'markers': {'cut': 6, 'held': 4, 'notCut': 5},
     'verificationAdsCut': 1,

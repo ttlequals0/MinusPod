@@ -641,6 +641,14 @@ FINGERPRINT_SETTING_RANGES = {
     'fingerprint_min_ad_length_s': (FINGERPRINT_MIN_AD_LENGTH_S, 3.0, 30.0),
 }
 
+# In-episode twin search: another copy of a cut ad in the same episode
+REPEAT_STAGE = 'episode_repeat'
+REPEAT_MIN_SOURCE_S = 10.0           # Shorter spans are jingles and stingers, not produced spots
+REPEAT_MAX_SOURCE_S = 180.0          # Longer spans are host reads or whole breaks, which never repeat verbatim
+REPEAT_MIN_COVERAGE = 0.70           # Share of the source a twin must reproduce; partial overlaps measure under 0.5
+REPEAT_MIN_SIMILARITY = 0.85         # Bit similarity over the matched run; real twins measure 0.93 to 0.97
+REPEAT_MAX_OVERLAP_S = 1.0           # A twin may touch a known marker by this much and still count as new
+
 # ============================================================
 # Ad Boundary Extension (content-based)
 # ============================================================

@@ -9,6 +9,11 @@ describe('StageBadge', () => {
     expect(screen.getByText('Transcript diff').className).toContain(tint.teal);
   });
 
+  it('labels in-episode repeat markers', () => {
+    render(<StageBadge stage="episode_repeat" />);
+    expect(screen.getByText('Repeat').className).toContain(tint.blue);
+  });
+
   it('falls back to the raw stage name', () => {
     render(<StageBadge stage="some_future_stage" />);
     expect(screen.getByText('some_future_stage')).toBeTruthy();
