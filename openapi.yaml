@@ -5813,7 +5813,10 @@ paths:
         '409':
           description: >-
             The suggestion or its pattern does not allow this action
-            (error: invalid_transition)
+            (error: invalid_transition). When the pattern changed, was
+            disabled or was deleted since the suggestion was made, the
+            suggestion is cleared from the pending list and the error is
+            stale_suggestion
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -5825,8 +5828,9 @@ paths:
       summary: Reject a pattern cleanup suggestion
       description: >-
         Leaves the pattern alone and acknowledges the reviewed version and
-        statistical evidence. Returns a conflict when the pattern changed
-        after the suggestion was made; unseen newer text is not marked reviewed.
+        statistical evidence. Works even when the pattern changed or was deleted
+        after the suggestion was made; in that case nothing is acknowledged, so
+        the newer text is still reviewed by the next run.
       operationId: rejectPatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -5928,7 +5932,7 @@ paths:
                       properties:
                         id: { type: integer }
                         status: { type: string, enum: [approved, rejected] }
-                        error: { type: string, enum: [not_found, invalid_transition] }
+                        error: { type: string, enum: [not_found, invalid_transition, stale_suggestion] }
                         fingerprintStored:
                           type: boolean
                           description: Approve only. Whether a split or trim stored an audio fingerprint. Absent when no audio was involved.
@@ -17257,6 +17261,9 @@ components:
                   type: integer
                 transcriptDifferential:
                   type: integer
+                episodeRepeat:
+                  type: integer
+                  description: Markers added because another copy of a cut ad repeats in the same episode. Counted after validation.
                 llm:
                   type: integer
             detected:
@@ -17630,7 +17637,7 @@ components:
           description: Sponsor or advertiser name extracted from the ad
         detection_stage:
           type: string
-          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
+          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter, episode_repeat]
           description: Which detection stage found this ad
           example: first_pass
         short_ask:

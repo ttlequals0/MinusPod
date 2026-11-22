@@ -107,6 +107,16 @@ class PatternCleanupMixin:
             target.commit()
         return cursor.rowcount
 
+    def supersede_cleanup_suggestion(self, suggestion_id: int, conn=None) -> None:
+        """Hide one pending suggestion that can no longer be applied."""
+        target = conn or self.get_connection()
+        target.execute(
+            "UPDATE pattern_cleanup_suggestions SET superseded_at = ? "
+            "WHERE id = ? AND status = 'pending' AND superseded_at IS NULL",
+            (utc_now_iso(), suggestion_id))
+        if conn is None:
+            target.commit()
+
     def get_approved_cleanup_suggestions(self, pattern_id: int, conn=None) -> list[dict]:
         rows = (conn or self.get_connection()).execute(
             "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'approved'",

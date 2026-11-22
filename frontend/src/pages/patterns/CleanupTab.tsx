@@ -68,6 +68,9 @@ const PAGE_SIZE = 200;
 
 function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): string {
   if (err instanceof ApiError && err.status === 409) {
+    if (err.message === 'stale_suggestion') {
+      return 'This suggestion is out of date because the pattern changed, so it was removed. Run cleanup again for a fresh one.';
+    }
     return action === 'undo'
       ? 'Undo is unavailable because the pattern changed, a later approval remains, or the saved state is incomplete.'
       : 'This suggestion cannot be applied: the pattern changed or the suggestion was already handled.';
@@ -380,7 +383,7 @@ export default function CleanupTab() {
       setAudioNotice(describePatternAudioOutcome(result));
       refresh();
     },
-    onError: (err, { action }) => setMessage(actionError(err, action)),
+    onError: (err, { action }) => { setMessage(actionError(err, action)); refresh(); },
   });
 
   const bulk = useMutation({
