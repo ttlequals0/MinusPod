@@ -8,6 +8,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- When an ad is detected, the rest of that episode's audio is now searched for other copies of the same spot, and those are removed too. A copy carries the `detection_stage` value `episode_repeat`, shows a "Repeat" stage badge and is counted in `stageHits.episodeRepeat`. The search uses the audio fingerprint, so it does not run when fingerprint matching is turned off. It also does not run in processing modes that skip the LLM, such as cue-only.
+
+### Fixed
+
+- The cross-fetch comparison checked only the start of each segment. It could report two downloads of an episode as identical when the second was missing audio partway through one. Such a segment is now marked unknown, so it no longer counts as evidence that the audio is show content.
+- A pattern cleanup suggestion whose pattern had changed since the suggestion was made could be neither approved nor rejected, and it stayed in the pending list. Approving one now removes it and says why, Reject always works, and each cleanup run clears suggestions left on disabled patterns. (#1045)
+- With YouTube captions turned on, a failed caption download such as an HTTP 429 failed the whole episode. The audio is now downloaded again without captions and the episode carries on as if the video had none. (#1043, #1044)
+
 ## [2.102.14] - 2026-11-21
 
 ### Changed
