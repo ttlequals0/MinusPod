@@ -21,7 +21,7 @@ from config import HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
 from user_agent import download_user_agent
 from utils.http import redact_exc, safe_url_for_log
-from utils.markers import DAI_PROBE_REF_S, dai_probe_window, merge_runs
+from utils.markers import DAI_PROBE_LEAD_S, DAI_PROBE_REF_S, dai_probe_window, merge_runs
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -224,6 +224,26 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
     return float(np.max(ncc))
 
 
+def _tail_matches(run_pcm: np.ndarray, ref_pcm: np.ndarray, end: float,
+                  head_end: float, offset: float) -> bool:
+    """True unless the block tail fails to match at the head's offset (material missing mid-block).
+
+    A head probe alone cannot see run material the refetch dropped after the head: the tail and the next block
+    sit at a shifted offset while the head still matches. A block too short to hold a tail window clear of
+    the head cannot hide a shift past the search radius and passes.
+    """
+    tail_t = end - DAI_PROBE_LEAD_S - XCORR_REF_S
+    if tail_t < head_end:
+        return True
+    prepared = _prepare_template(run_pcm, tail_t, XCORR_REF_S)
+    if prepared is None:
+        return True
+    # No window means the refetch ends before this tail: that material is missing, not unmeasurable.
+    corr = _block_correlation(run_pcm, ref_pcm, tail_t, offset, ref_s=XCORR_REF_S,
+                              search_s=XCORR_SEARCH_S * 2, prepared=prepared)
+    return corr is not None and corr >= XCORR_MIN_CORR
+
+
 def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
                  end: float, offsets: list, *, allow_retry: bool = False):
     """Measure one silence-delimited run block against the refetch.
@@ -237,6 +257,9 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     silencedetect missed a mark on the refetch) would otherwise mislabel identical audio as differential.
     Chain-matched blocks carry their own exact offset and are never retried: a low score there is a real
     difference, not drift.
+
+    An unmatched block that passes on its head must also match on its tail at the same offset; otherwise the
+    refetch dropped material mid-block and the block is 'unknown', never 'identical'.
     """
     block_len = end - start
     if block_len < MIN_REGION_S:
@@ -262,6 +285,9 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
         logger.debug('Unmatched block %.1f-%.1fs: best offset %+.2fs of %s, '
                      'corr %.3f', start, end, best_offset,
                      [round(o, 2) for o in offsets], corr)
+    if corr >= XCORR_MIN_CORR and allow_retry and not _tail_matches(
+            run_pcm, ref_pcm, end, run_t + ref_s, best_offset):
+        return 'unknown', None
     kind = 'identical' if corr >= XCORR_MIN_CORR else 'differential'
     return kind, corr
 
