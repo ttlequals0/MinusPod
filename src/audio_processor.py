@@ -604,7 +604,7 @@ class AudioProcessor:
             # Scale timeout: 5 min base + 5 sec per minute of audio
             # e.g. 30-min episode = 450s, 107-min = 835s, 180-min = 1200s
             ffmpeg_timeout = FFMPEG_LONG_TIMEOUT + int(total_duration / 12)
-            logger.debug(f"FFMPEG timeout: {ffmpeg_timeout}s for {total_duration:.0f}s audio")
+            logger.debug(f"FFmpeg time budget: {ffmpeg_timeout}s for {total_duration:.0f}s audio")
             # Use capture_output without text=True to get raw bytes
             # FFMPEG can output non-UTF-8 characters (progress bars, special chars)
             # which would cause UnicodeDecodeError if we used text=True

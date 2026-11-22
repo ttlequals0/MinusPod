@@ -21,6 +21,7 @@ from llm_route import LiveRoute, Route  # noqa: E402
 from pattern_cleanup import (  # noqa: E402
     LOCK_FILENAME,
     CleanupInProgressError,
+    SuggestionStaleError,
     SuggestionStateError,
     apply_suggestion,
     pattern_cleanup_tick,
@@ -1413,7 +1414,7 @@ def test_apply_refuses_when_pattern_changed(temp_db):
     temp_db.update_ad_pattern(p['id'], text_template='edited by hand ' + AD)
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
 
 
 def test_apply_refuses_when_sponsor_changed(temp_db):
@@ -1422,17 +1423,23 @@ def test_apply_refuses_when_sponsor_changed(temp_db):
     temp_db.update_ad_pattern(p['id'], sponsor_id=temp_db.create_known_sponsor(name='Globex'))
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
 
 
-@pytest.mark.parametrize('action', [apply_suggestion, reject_suggestion])
-def test_sponsor_rename_invalidates_pending_suggestion(temp_db, action):
+def test_sponsor_rename_makes_apply_stale(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
     temp_db.update_known_sponsor(p['sponsor_id'], name='Acme Corporation')
-    with pytest.raises(SuggestionStateError):
-        action(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    with pytest.raises(SuggestionStaleError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] is None
+
+
+def test_sponsor_rename_still_allows_reject(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_known_sponsor(p['sponsor_id'], name='Acme Corporation')
+    assert reject_suggestion(temp_db, sid)['status'] == 'rejected'
     assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] is None
 
 
@@ -1442,7 +1449,7 @@ def test_apply_trim_refuses_when_variants_changed(temp_db):
     temp_db.update_ad_pattern(p['id'], intro_variants=['manual intro'])
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
 
 
 def test_apply_twice_refused(temp_db):
@@ -1571,7 +1578,7 @@ def test_apply_retire_refuses_when_matched_again_since_the_suggestion(temp_db):
     temp_db.update_ad_pattern(p['id'], last_matched_at=_iso(utc_now()))
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
 
 
 def test_apply_retire_refuses_when_disabled_reason_changed(temp_db):
@@ -1581,7 +1588,7 @@ def test_apply_retire_refuses_when_disabled_reason_changed(temp_db):
     temp_db.update_ad_pattern(p['id'], disabled_reason='manual note')
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
 
 
 def test_apply_flag_refuses_when_confirmation_count_changed(temp_db):
@@ -1592,7 +1599,7 @@ def test_apply_flag_refuses_when_confirmation_count_changed(temp_db):
     temp_db.update_ad_pattern(p['id'], confirmation_count=1)
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
 
 
 def test_apply_split_supersedes_other_pending_suggestions(temp_db):
@@ -1679,27 +1686,23 @@ def test_reject_stamps_pattern(temp_db):
         reject_suggestion(temp_db, sid)
 
 
-def test_reject_stale_trim_leaves_status_and_review_stamp_unchanged(temp_db):
+def test_reject_stale_trim_clears_it_without_stamping_the_pattern(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
     temp_db.update_ad_pattern(p['id'], text_template='manual edit ' + p['text_template'])
     current = temp_db.get_ad_pattern_by_id(p['id'])
-    with pytest.raises(SuggestionStateError):
-        reject_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert reject_suggestion(temp_db, sid)['status'] == 'rejected'
     assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] == current[
         'cleanup_reviewed_hash']
 
 
-def test_reject_trim_refuses_when_category_changed_since_suggestion(temp_db):
+def test_reject_trim_clears_it_when_category_changed_since_suggestion(temp_db):
     p = _pattern(temp_db, category='sponsor')
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
     temp_db.update_ad_pattern(p['id'], category='cross_promo')
 
-    with pytest.raises(SuggestionStateError):
-        reject_suggestion(temp_db, sid)
+    assert reject_suggestion(temp_db, sid)['status'] == 'rejected'
 
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
     assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'cross_promo'
 
 
@@ -1716,10 +1719,10 @@ def test_apply_text_suggestion_refuses_category_changed_since_snapshot(
     sid = _suggest(temp_db, p, kind, payload)
     temp_db.update_ad_pattern(p['id'], category='self_promo')
 
-    with pytest.raises(SuggestionStateError):
+    with pytest.raises(SuggestionStaleError):
         apply_suggestion(temp_db, sid)
 
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(sid) is None
     assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'self_promo'
 
 
@@ -1738,13 +1741,40 @@ def test_legacy_snapshot_without_category_does_not_change_manual_category(temp_d
     assert current['category'] == 'self_promo'
 
 
-def test_reject_stale_trim_with_variant_edit_leaves_suggestion_pending(temp_db):
+def test_reject_stale_trim_with_variant_edit_clears_it(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
     temp_db.update_ad_pattern(p['id'], intro_variants=['manual intro'])
-    with pytest.raises(SuggestionStateError):
-        reject_suggestion(temp_db, sid)
-    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert reject_suggestion(temp_db, sid)['status'] == 'rejected'
+
+
+def test_apply_stale_trim_clears_it_from_the_pending_list(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(p['id'], intro_variants=['manual intro'])
+    with pytest.raises(SuggestionStaleError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestions(status='pending') == []
+    assert temp_db.get_ad_pattern_by_id(p['id'])['text_template'] == p['text_template']
+
+
+def test_apply_on_disabled_pattern_clears_it(temp_db):
+    off = _pattern(temp_db)
+    sid = _suggest(temp_db, off, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(off['id'], is_active=0)
+    with pytest.raises(SuggestionStaleError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_pending_counts()['total'] == 0
+
+
+def test_run_clears_pending_suggestions_on_disabled_patterns(temp_db, live_route):
+    off = _pattern(temp_db, text=AD2, sponsor='Widgetco')
+    _suggest(temp_db, off, 'trim', {'text': AD2})
+    temp_db.update_ad_pattern(off['id'], is_active=0)
+    fake, _ = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    assert temp_db.get_cleanup_pending_counts()['total'] == 0
 
 
 def test_reject_flag_after_confirmation_count_changed_succeeds(temp_db):

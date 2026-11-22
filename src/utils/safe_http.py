@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 import requests
 
 from config import HTTP_MAX_REDIRECTS_API, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
+from utils.http import safe_url_for_log
 from utils.pinned_transport import PinnedHTTPAdapter
 from utils.url import SSRFError, validate_base_url, validate_url
 
@@ -128,7 +129,7 @@ def _validate_for_tier(url: str, trust: URLTrust) -> None:
 
 def _reject_https_downgrade(original: str, target: str) -> None:
     if urlparse(original).scheme.lower() == 'https' and urlparse(target).scheme.lower() != 'https':
-        raise SSRFError(f"HTTPS -> HTTP redirect blocked: {target}")
+        raise SSRFError(f"HTTPS -> HTTP redirect blocked: {safe_url_for_log(target)}")
 
 
 class _RevalidatingSession(requests.Session):
@@ -161,6 +162,16 @@ class _RevalidatingSession(requests.Session):
         if original_host and urlparse(target).hostname != original_host:
             for header in ('x-api-key', 'api-key', 'x-goog-api-key'):
                 prepared_request.headers.pop(header, None)
+
+
+def new_revalidating_session(
+    trust: URLTrust, max_redirects: int = HTTP_MAX_REDIRECTS_API,
+) -> requests.Session:
+    """Long-lived keep-alive session with per-hop revalidation and connect-time pinning.
+
+    Pass it to ``safe_post(session=...)``; the caller closes it.
+    """
+    return _RevalidatingSession(trust, max_redirects)
 
 
 def safe_get(
@@ -268,14 +279,19 @@ def safe_post(
     files=None,
     headers: dict | None = None,
     stream: bool = False,
+    session: requests.Session | None = None,
 ) -> requests.Response:
     """POST ``url`` via a session that revalidates every redirect hop.
 
     Same per-hop trust-tier revalidation as ``safe_get``. Raises ``SSRFError``
     on rejected URLs. With ``stream=True`` the caller closes the response.
+    A caller-supplied ``session`` (from new_revalidating_session) is reused and
+    never closed here.
     """
     _validate_for_tier(url, trust)
-    session = _RevalidatingSession(trust, max_redirects)
+    owned = session is None
+    if owned:
+        session = _RevalidatingSession(trust, max_redirects)
     try:
         return session.post(
             url,
@@ -287,5 +303,5 @@ def safe_post(
             stream=stream,
         )
     finally:
-        if not stream:
+        if owned and not stream:
             session.close()

@@ -8,18 +8,82 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.102.15] - 2026-11-22
+
+### Added
+
+- When an ad is detected, the rest of that episode's audio is now searched for other copies of the same spot, and those are removed too. A copy carries the `detection_stage` value `episode_repeat`, shows a "Repeat" stage badge and is counted in `stageHits.episodeRepeat`. The search uses the audio fingerprint, so it does not run when fingerprint matching is turned off. It also does not run in processing modes that skip the LLM, such as cue-only.
 
 ### Changed
-- Reworked the Category Repair prompt to always use timestamps, remove overly-specific and negative instructions, document the exact output format, and other improvements to make it more precise.
+
+- The "Pass 2" stage badge is now amber and "Cue pair" is teal. Both were the same purple as the category badge next to them.
 
 ### Fixed
 
-- A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up.
-- When an ad's outro phrase occurred more than once after its intro, a text pattern could pair the intro with a later occurrence, and the ad then covered everything up to it. The same could happen backwards, from an outro to an earlier intro. The pair is now the nearest occurrence that meets the phrase's score cutoff.
-- In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category.
-- In the ad editor, the confirm and reject buttons were still offered after you picked a category the feed keeps or marks, although a recut leaves that segment in whichever one you press. They are now hidden as soon as the picked category is kept for the feed, and Skip reads "Next" or "Done", because the category is already saved. Opened from a held or rejected row on the episode page, the editor now starts on the segment's own category instead of Uncategorized, and hides the buttons on a segment that is left in, where pressing them ended in an error.
-- The Category Repair prompt was modified to work with segment-ID addressing mode. Prior to this change, the segments to repair used timestamps but the provided transcript excerpt contained segment ids, making it impossible for the LLM to correctly match the segments to the transcript (#1039).
+- The cross-fetch comparison checked only the start of each segment. It could report two downloads of an episode as identical when the second was missing audio partway through one. Such a segment is now marked unknown, so it no longer counts as evidence that the audio is show content.
+- A pattern cleanup suggestion whose pattern had changed since the suggestion was made could be neither approved nor rejected, and it stayed in the pending list. Approving one now removes it and says why, Reject always works, and each cleanup run clears suggestions left on disabled patterns. (#1045)
+- With YouTube captions turned on, a failed caption download such as an HTTP 429 failed the whole episode. The audio is now downloaded again without captions and the episode carries on as if the video had none. (#1043, #1044)
+
+## [2.102.14] - 2026-11-21
+
+### Changed
+
+- The status bar now names each episode held for SponsorBlock segments and when it will be checked next, instead of the time of the last SponsorBlock service check. Up to three are listed, with a count of the rest.
+
+## [2.102.13] - 2026-11-21
+
+### Security
+
+- Forwarded headers such as `X-Forwarded-For` are now honored only when the connecting peer is a trusted proxy. With `MINUSPOD_TRUSTED_PROXY_COUNT` set, a client that reached the app directly could choose its own address. It could then pass as loopback during first-run setup, skip the setup token and avoid the login rate limit. The new `MINUSPOD_TRUSTED_PROXIES` variable takes a comma-separated list of IPs or CIDRs and defaults to loopback and private ranges. First-run setup without a token now needs a direct loopback connection with no forwarding headers.
+- A feed whose whole body was a URL or a file path could make the feed parser fetch that URL or open that file, outside the outbound request checks. The body is now always parsed as feed content.
+- A crafted ID3 chapter table of contents could take exponential time to process and stall the processing queue. Each table is now visited once.
+- A Recents subscriber key could fetch audio, transcripts, chapters and artwork for episodes outside the Recents item limit. Its access now matches the feed.
+- Requests for unknown episode ids each triggered a fetch of the upstream feed. After a miss, lookups for ids the upstream feed did not list skip the fetch for 60 seconds.
+- Podping node URLs are now checked when saved, and cloud metadata and link-local addresses are refused. Requests to nodes check each redirect the same way as other operator-configured URLs.
+- A crafted `itunes:duration` or `itunes:episode` value in an upstream feed could add elements to the served feed. Both are now written as whole numbers, so a clock value such as `1:02:03` is served as `3723`, and anything else is dropped.
+- URLs taken from feed content must now resolve to a public address. Shared address space (`100.64.0.0/10`) was allowed before. URLs an operator configures are not affected.
+- With the cover badge on, a very large cover could use hundreds of megabytes of memory, and a cover that failed to decode was decoded again on every request. Covers above 8192 by 8192 pixels are now served without the badge, and the badge is drawn at no more than 3000 pixels on the longest side. A failed cover is tried once until the artwork or badge changes.
+- In a webhook payload template that produces JSON, an episode or podcast title containing a quote could add fields to the signed body. Text values are now JSON-escaped, and existing templates need no change. `POST /api/v1/settings/webhooks/validate-template` accepts an optional `contentType` so the preview matches what is sent.
+- A config export now replaces hosts in shared address space (`100.64.0.0/10`) with the private-host placeholder, as it does for other private addresses.
+
+### Fixed
+
+- Automatic sponsor pattern promotion recreated a global pattern after it had been disabled. A disabled global pattern now stays disabled.
+- Promoted and merged patterns lost their category and were treated as sponsor patterns, so a cross-promo or self-promo pattern set to keep could start cutting. The category now carries over, and patterns with different categories are not promoted or merged together.
+
+- When two chapter boundaries started less than a minute apart, chapter generation kept the first and dropped the second. A short promo or transition could replace the topic that followed it and leave a long stretch without a topic chapter. It now keeps the later boundary.
+
+## [2.102.12] - 2026-11-20
+
+### Fixed
+
+- On a YouTube feed, the processing delay before the first SponsorBlock check was counted from when MinusPod discovered the video. A newly added feed waited the full delay even for videos published days earlier. The delay now counts from the video's publish time.
+
+## [2.102.11] - 2026-11-20
+
+### Added
+
+- A setting for how long the local transcription model stays on the GPU after its last transcription (Settings, Transcription, 10 to 3600 seconds, default 300). The model is now unloaded after that time even while an episode is still in detection or rendering. Other services on a shared GPU get the memory back sooner. It loads again on the next transcription. (#1041)
+
+### Changed
+
+- A feed that fails to refresh because of an upstream error now logs one warning with the feed's host and the cause. An info line then names the feed. It used to log two errors, the second without a cause. The refresh is tried again on the next cycle.
+- When an episode fails on an upstream or network error and will be retried, the failure is logged as a warning. Any other failure is still an error, and so is one that is permanent or out of retries.
+- The feed refresh failure webhook sends the feed's host in `feed_url`, without the path.
+- The category repair prompt was rewritten. It always uses timestamps, drops the overly specific and negative instructions, and spells out the exact output format. The comments are gone from its JSON example, because a model could copy them into its answer and make it invalid. (#1040)
+
+### Fixed
+
+- A YouTube feed or episode set to pass-through fetched the video's watch page and failed with "Downloaded file is not playable audio". It now downloads the audio with yt-dlp, like every other YouTube episode. (#1037)
+- System One could drop a real ad as suspected content when the ad ran two minutes or longer and its sponsor was not in the sponsor list. Its ads carry a transcript excerpt as their reason, and that check looked for a sponsor name or ad wording in the reason. System One's own verdict now counts as the evidence. Low-confidence ads are still rejected, and the review holds still apply.
+- Logs showed the full address of a feed on every refresh and on a failed fetch. A premium feed keeps the subscriber's token in that address. Refresh and fetch failure lines now show only the host.
+- On a YouTube feed, a failure to save the SponsorBlock watch state after an episode was published marked the episode failed, and it was processed again. The episode now stays published and the failure is logged.
+- A text pattern could start an ad in the sentence before the read, or end it in the sentence after. This happened when the stored intro or outro phrase had punctuation that the transcript lacked. The fuzzy match is as long as the stored phrase, so it took a few characters from the segment next to the read, and the edge was timed from that segment. The match is now narrowed to the text the phrase accounts for before its times are looked up. (#1035)
+- When an ad's outro phrase occurred more than once after its intro, a text pattern could pair the intro with a later occurrence, and the ad then covered everything up to it. The same could happen backwards, from an outro to an earlier intro. The pair is now the nearest occurrence that meets the phrase's score cutoff. (#1038)
+- In the ad editor, the reject button always read "Not ad" and the confirm button always read "Confirm", whatever category the segment had. An intro or a self-promo was offered as an ad to reject. The buttons now follow the category shown in the editor, as they do on the episode page: an intro gets "Confirm intro" and "Keep". They change as soon as you pick another category. (#1042)
+- In the ad editor, the confirm and reject buttons were still offered after you picked a category the feed keeps or marks, although a recut leaves that segment in whichever one you press. They are now hidden as soon as the picked category is kept for the feed, and Skip reads "Next" or "Done", because the category is already saved. Opened from a held or rejected row on the episode page, the editor now starts on the segment's own category instead of Uncategorized, and hides the buttons on a segment that is left in, where pressing them ended in an error. (#1042)
+- A segment can be cut by a pattern, or because its audio differs between fetches, even when the feed keeps its category. In the ad editor such a segment now keeps its confirm and reject buttons. The C and R keys also stayed active on a segment whose buttons were hidden. They are now off with the buttons.
+- In segment-ID addressing mode, category repair sent its segments with timestamps but the transcript excerpt with segment IDs. The model could not match the two. The excerpt now uses timestamps as well. (#1039, #1040)
 
 ## [2.102.10] - 2026-11-19
 

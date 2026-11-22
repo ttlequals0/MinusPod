@@ -458,6 +458,34 @@ class _FailingClient:
         raise self.error
 
 
+class TestBoundaryDedupKeepsLater:
+    """Boundaries closer than MIN_DEDUP_WINDOW keep the later one, never the intro."""
+
+    def _run(self, times):
+        gen, _ = _make_generator_with_stub()
+        boundaries = [{'original_time': t, 'title': f'Topic {t}'} for t in times]
+        with patch.object(gen, '_detect_boundaries_windowed', return_value=boundaries), \
+             patch('chapters_generator.call_llm', return_value=(_StubResponse(''), None)):
+            result = gen.generate_chapters(
+                segments=_long_episode_segments(3600), podcast_name='Show', episode_title='Episode')
+        return {c['startTime']: c['title'] for c in result['chapters']}
+
+    def test_later_topic_replaces_short_promo(self):
+        out = self._run([350, 1905, 1964, 2603])
+        assert out[1964] == 'Topic 1964'
+        assert 1905 not in out
+
+    def test_boundary_inside_intro_window_is_dropped(self):
+        out = self._run([30])
+        assert 30 not in out
+        assert min(out) == 1
+
+    def test_chain_keeps_only_last(self):
+        out = self._run([1000, 1050, 1100])
+        assert 1100 in out
+        assert 1000 not in out and 1050 not in out
+
+
 class TestSharedLLMCallPath:
     """Chapter LLM calls must go through utils.llm_call (retries + error
     classification) and degrade gracefully when every retry fails."""

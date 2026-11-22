@@ -156,7 +156,7 @@ describe('GlobalStatusBar queue holds', () => {
       screen.getByRole('button', { name: 'Expand status bar' }).click();
     });
     const detail = holdRow('SponsorBlock');
-    expect(detail.textContent).toContain('SponsorBlock unreachable.');
+    expect(detail.textContent).toMatch(/^SponsorBlock unreachable, last tried \d{1,2}:\d{2}/);
     expect(detail.textContent).toContain('2 episodes waiting');
     expect(detail.textContent).toContain('Others keep processing.');
   });
@@ -178,7 +178,7 @@ describe('GlobalStatusBar queue holds', () => {
       screen.getByRole('button', { name: 'Expand status bar' }).click();
     });
     const detail = holdRow('SponsorBlock');
-    expect(detail.textContent).toContain('SponsorBlock unreachable.');
+    expect(detail.textContent).toMatch(/^SponsorBlock unreachable, last tried \d{1,2}:\d{2}/);
     expect(detail.textContent).toContain('2 episodes waiting');
   });
 
@@ -196,6 +196,64 @@ describe('GlobalStatusBar queue holds', () => {
     expect(screen.getByText('3 episodes waiting on SponsorBlock')).toBeDefined();
     expect(screen.queryByText(/unreachable/)).toBeNull();
     expect(screen.queryByText('Queue paused')).toBeNull();
+  });
+
+  describe('SponsorBlock waiting episodes', () => {
+    const future = () => new Date(Date.now() + 20 * 60 * 1000).toISOString();
+    const ep = (n: number, extra = {}) => ({
+      slug: 'example-podcast', episodeId: `a1b2c3d4e5f${n}`, title: `Episode ${n}`,
+      state: 'waiting', nextCheckAt: future(), attempts: 0, ...extra,
+    });
+    const open = async (sb: Record<string, unknown>) => {
+      await renderBar(makeStatus({
+        hold: emptyHold({
+          offlineServices: [{ service: 'sponsorblock', reachable: true, checkedAt: null, ...sb }],
+        }),
+      }));
+      act(() => {
+        screen.getByRole('button', { name: 'Expand status bar' }).click();
+      });
+    };
+
+    it('describes one waiting episode with the shared SponsorBlock label', async () => {
+      await open({ held: 1, waiting: [ep(1, { attempts: 2 })] });
+      expect(holdRow('Episode 1').textContent)
+        .toBe('"Episode 1": Waiting for SponsorBlock, attempt 2, next check in 20 min. Others keep processing.');
+      expect(screen.queryByText(/last checked/)).toBeNull();
+    });
+
+    it('adds a tail line when more episodes are held than listed', async () => {
+      await open({ held: 5, waiting: [ep(1), ep(2), ep(3)] });
+      expect(holdRow('Episode 3').textContent).not.toContain('Others keep processing');
+      expect(holdRow('And 2 more waiting on SponsorBlock.').textContent)
+        .toBe('And 2 more waiting on SponsorBlock. Others keep processing.');
+    });
+
+    it('says queued when there is no next check time', async () => {
+      await open({ held: 1, waiting: [ep(1, { nextCheckAt: null })] });
+      expect(holdRow('Episode 1').textContent)
+        .toBe('"Episode 1": Waiting for SponsorBlock, queued. Others keep processing.');
+    });
+
+    it('drops the quoted title when an episode has none', async () => {
+      await open({ held: 1, waiting: [ep(1, { title: '', nextCheckAt: null })] });
+      expect(holdRow('Waiting for SponsorBlock, queued.').textContent)
+        .toBe('Waiting for SponsorBlock, queued. Others keep processing.');
+    });
+
+    it('counts held episodes when the list is empty, without the probe wording', async () => {
+      await open({ held: 2, waiting: [], checkedAt: new Date().toISOString() });
+      expect(holdRow('2 episodes waiting on SponsorBlock.').textContent)
+        .toBe('2 episodes waiting on SponsorBlock. Others keep processing.');
+      expect(screen.queryByText(/reachable at last check|last checked/)).toBeNull();
+    });
+
+    it('keeps service wording when SponsorBlock is unreachable', async () => {
+      await open({ held: 1, reachable: false, checkedAt: new Date().toISOString(), waiting: [ep(1)] });
+      const row = holdRow('SponsorBlock unreachable, last tried');
+      expect(row.textContent).toMatch(/\. 1 episode waiting\. Others keep processing\.$/);
+      expect(screen.queryByText(/Episode 1/)).toBeNull();
+    });
   });
 
   it('shows the reset time once expanded', async () => {

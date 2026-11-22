@@ -137,6 +137,10 @@ class SuggestionStateError(Exception):
     """The suggestion's status or its pattern does not allow the action."""
 
 
+class SuggestionStaleError(SuggestionStateError):
+    """The pattern changed or is gone, so the suggestion was cleared instead of applied."""
+
+
 def _clamped_int(db, key: str, bounds: tuple[int, int]) -> int:
     lo, hi = bounds
     return max(lo, min(hi, db.get_setting_int(key, registry_get_default(key))))
@@ -682,7 +686,7 @@ def _record_failure(db, pattern: dict) -> None:
         with db.transaction(immediate=True) as conn:
             current = _pattern_on(conn, pattern['id'])
             if current is not None:
-                _supersede_obsolete_model_pending(conn, current)
+                _supersede_obsolete_model_pending(db, conn, current)
                 if (_same_model_input(pattern, current)
                         and _same_review_metadata(pattern, current)):
                     _record_invalid(db, current, conn)
@@ -816,12 +820,11 @@ def _pending_pattern_suggestions(conn, pattern_id: int) -> list[dict]:
     return _decode_pending_rows(rows)
 
 
-def _supersede_obsolete_model_pending(conn, pattern: dict) -> None:
+def _supersede_obsolete_model_pending(db, conn, pattern: dict) -> None:
     for suggestion in _pending_pattern_suggestions(conn, pattern['id']):
         if (not _stats_only_suggestion(suggestion)
                 and _obsolete_model_version(suggestion, pattern)):
-            conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
-                         (utc_now_iso(), suggestion['id']))
+            db.supersede_cleanup_suggestion(suggestion['id'], conn=conn)
 
 
 def _is_false_positive_reason(reason: str) -> bool:
@@ -944,8 +947,7 @@ def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
         all_pending = _pending_pattern_suggestions(conn, current['id'])
         to_delete, flag_merge, to_write = _plan_stats_sweep(current, candidates, all_pending, acknowledgments)
         for suggestion_id in to_delete:
-            conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
-                         (utc_now_iso(), suggestion_id))
+            db.supersede_cleanup_suggestion(suggestion_id, conn=conn)
         if flag_merge is not None:
             before = _before_snapshot(current, flag_merge['source_context'])
             db.upsert_cleanup_suggestion(
@@ -974,11 +976,11 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
         if current is None:
             return set(), True
         if not _same_model_input(pattern, current):
-            _supersede_obsolete_model_pending(conn, current)
+            _supersede_obsolete_model_pending(db, conn, current)
             return set(), True
         if not _same_review_metadata(pattern, current):
             return set(), True
-        _supersede_obsolete_model_pending(conn, current)
+        _supersede_obsolete_model_pending(db, conn, current)
         acknowledgments = db.get_cleanup_stats_reviewed(current['id'], conn=conn) or {}
         stats = [item for item in stats_suggestions(db, current, unused_days)
                  if acknowledgments.get(item['kind']) != _stats_evidence(
@@ -989,8 +991,7 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
             suggestions = [item for item in suggestions if item['kind'] != 'unnamed_sponsor']
             for item in pending:
                 if item['kind'] == 'unnamed_sponsor':
-                    conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
-                                 (utc_now_iso(), item['id']))
+                    db.supersede_cleanup_suggestion(item['id'], conn=conn)
         before = _before_snapshot(current, context)
         for s in suggestions:
             db.upsert_cleanup_suggestion(run_id, current['id'], s['kind'], s['confidence'],
@@ -1112,6 +1113,7 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
         unused_days = _clamped_int(db, 'pattern_cleanup_unused_days', UNUSED_DAYS_RANGE)
         segments_cache: dict = {}
         suggestion_keys.update(_run_stats_sweep(db, run_id, unused_days, segments_cache))
+        db.supersede_orphaned_cleanup_suggestions()
         if original_route is None:
             original_route = resolve_route(PHASE)
         original_live = live_route_from(original_route)
@@ -1416,28 +1418,40 @@ def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
     raise SuggestionStateError(f'unknown suggestion kind {kind!r}')
 
 
+def _is_stale(pattern: dict | None, suggestion: dict, fields: tuple[str, ...],
+              need_active: bool = False) -> bool:
+    return (pattern is None
+            or (need_active and not pattern['is_active'])
+            or not _matches_snapshot(pattern, suggestion['before'] or {}, fields))
+
+
+def _apply_in_transaction(db, conn, suggestion: dict, pattern: dict) -> dict:
+    applied = _apply_kind(db, conn, suggestion['kind'], pattern, suggestion['payload'] or {})
+    applied['after'] = _snapshot_fields(
+        _pattern_on(conn, pattern['id']), _suggestion_after_fields(suggestion))
+    applied['applied_at'] = utc_now_iso()
+    # Orders approvals on one pattern so undo can refuse out of order.
+    applied['applied_seq'] = time.time_ns()
+    _acknowledge_stats_decision(db, conn, suggestion, pattern)
+    db.set_cleanup_suggestion_status(suggestion['id'], 'approved', applied=applied, conn=conn)
+    db.supersede_pending(pattern['id'], conn=conn)
+    return applied
+
+
 def apply_suggestion(db, suggestion_id: int) -> dict:
-    """Approve: apply the change in one transaction. Returns the updated suggestion."""
+    """Approve: apply the change in one transaction. A stale suggestion is cleared and refused."""
     with db.transaction(immediate=True) as conn:
         suggestion = _load(db, conn, suggestion_id, 'pending')
         pattern = _pattern_on(conn, suggestion['pattern_id'])
-        if pattern is None:
-            raise SuggestionStateError('the pattern no longer exists')
-        if not pattern['is_active']:
-            raise SuggestionStateError('the pattern is disabled')
-        before = suggestion['before'] or {}
-        check_fields = _suggestion_stale_fields(suggestion)
-        if not _matches_snapshot(pattern, before, check_fields):
-            raise SuggestionStateError('the pattern changed after this suggestion was made')
-        applied = _apply_kind(db, conn, suggestion['kind'], pattern, suggestion['payload'] or {})
-        applied['after'] = _snapshot_fields(
-            _pattern_on(conn, pattern['id']), _suggestion_after_fields(suggestion))
-        applied['applied_at'] = utc_now_iso()
-        # Orders approvals on one pattern so undo can refuse out of order.
-        applied['applied_seq'] = time.time_ns()
-        _acknowledge_stats_decision(db, conn, suggestion, pattern)
-        db.set_cleanup_suggestion_status(suggestion_id, 'approved', applied=applied, conn=conn)
-        db.supersede_pending(pattern['id'], conn=conn)
+        stale = _is_stale(pattern, suggestion, _suggestion_stale_fields(suggestion), need_active=True)
+        applied = None
+        if stale:
+            db.supersede_cleanup_suggestion(suggestion_id, conn=conn)
+        else:
+            applied = _apply_in_transaction(db, conn, suggestion, pattern)
+    # Raised after the block so the supersede commits.
+    if applied is None:
+        raise SuggestionStaleError()
     invalidate_pattern_catalog_scope()
     # Decoding audio stays out of the write transaction.
     source = applied.get('audio_source')
@@ -1554,18 +1568,15 @@ def _record_audio_outcomes(db, suggestion_id: int, kind: str, pattern_id: int, u
 
 
 def reject_suggestion(db, suggestion_id: int) -> dict:
-    """Reject: leave the pattern alone and mark it reviewed."""
+    """Reject: leave the pattern alone. A stale suggestion is still cleared, but stamps nothing."""
     with db.transaction(immediate=True) as conn:
         suggestion = _load(db, conn, suggestion_id, 'pending')
         pattern = _pattern_on(conn, suggestion['pattern_id'])
-        if pattern is not None:
-            before = suggestion['before'] or {}
-            check_fields = _reject_stale_fields(suggestion)
-            if not _matches_snapshot(pattern, before, check_fields):
-                raise SuggestionStateError('the pattern changed after this suggestion was made')
+        fresh = not _is_stale(pattern, suggestion, _reject_stale_fields(suggestion))
+        if fresh:
             _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'rejected', conn=conn)
-        if pattern is not None:
+        if fresh:
             db.stamp_pattern_cleanup_reviewed(
                 pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor'),
                                            pattern.get('category')),

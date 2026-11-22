@@ -98,7 +98,7 @@ A playlist feed reads the whole playlist, sorts it by publish date, and keeps th
 
 A YouTube episode does not process the moment it is discovered. MinusPod gives the SponsorBlock community time to mark it first.
 
-1. **Delay.** After discovery the episode waits **Processing delay (minutes)** (default 60, range 0 to 1440; 0 means as soon as discovered).
+1. **Delay.** The episode waits **Processing delay (minutes)** (default 60, range 0 to 1440) counted from the video's publish time; 0 means as soon as discovered. A video already older than the delay is checked on the next watcher pass. Without a Data API key a listing can carry only the upload date, and the delay then counts from midnight UTC on that date.
 2. **Probe loop.** MinusPod asks SponsorBlock for marks up to **SponsorBlock probe attempts** times (default 6, range 0 to 48), **Probe interval (minutes)** apart (default 30, range 5 to 1440). The first attempt that finds marks queues the episode.
 3. **No marks after the last probe.** If **Fall back to the LLM pipeline when no marks appear** is on (default), the episode is queued for the normal LLM pipeline. If it is off, the episode enters the watch window and keeps waiting.
 4. **Watch window.** Every **Watch interval (hours)** (default 6, range 1 to 48) MinusPod checks again. When marks appear the episode is queued. If none appear by the **Watch ceiling (days)** (default 7, range 1 to 60), measured from the publish date, the episode is processed with the LLM pipeline.

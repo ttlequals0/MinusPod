@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 
 import numpy as np
@@ -42,8 +42,12 @@ from config import (
     AUDIO_CUE_XEP_BODY_MIN_DURATION,
     FINGERPRINT_TIMEOUT_FACTOR,
     FINGERPRINT_SETTING_RANGES,
+    REPEAT_MIN_COVERAGE,
+    REPEAT_MIN_SIMILARITY,
+    REPEAT_MAX_OVERLAP_S,
 )
 from utils.pattern_scope import pattern_passes_scope
+from utils.time import overlap_seconds
 
 logger = logging.getLogger('podcast.fingerprint')
 
@@ -451,6 +455,8 @@ class FingerprintMatch:
     partial: bool = False
     # Span in seconds the match passed its gates on, before any clipping
     candidate_span: tuple[float, float] | None = None
+    # Episode time of the pattern's first point at this alignment (may fall outside the episode)
+    origin_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -892,7 +898,7 @@ def _resolve_overlaps(candidates, fps, window, min_points):
                                  confidence=similarity, sponsor=m.sponsor, category=m.category,
                                  similarity=similarity, coverage=n_good / cand.pat_len,
                                  contrast_margin=m.contrast_margin, clipped_remainder=True,
-                                 candidate_span=m.candidate_span, partial=m.partial)
+                                 candidate_span=m.candidate_span, origin_s=m.origin_s, partial=m.partial)
         spans.append((lo, hi))
         accepted.append(m)
     accepted.sort(key=lambda m: m.start)
@@ -952,7 +958,7 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
                 pattern_id=pattern_id, start=lo / fps, end=hi / fps,
                 confidence=similarity, sponsor=sponsor, category=category,
                 similarity=similarity, coverage=coverage, contrast_margin=margin,
-                candidate_span=(lo / fps, hi / fps),
+                candidate_span=(lo / fps, hi / fps), origin_s=(al.ep_base - al.pat_base) / fps,
                 partial=_under_coverage(n_good, len(pat_arr), min_coverage)), al, len(pat_arr)))
     return _resolve_overlaps(candidates, fps, window, min_ad_length_s * fps), measured
 
@@ -969,6 +975,43 @@ def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         ep_ints, ep_duration, patterns, strictness=strictness, min_coverage=min_coverage,
         gap_tolerance_s=gap_tolerance_s, min_ad_length_s=min_ad_length_s,
         should_continue=should_continue)[0]
+
+
+def find_episode_repeats(ep_ints, ep_duration, spans, blocked, *, strictness, gap_tolerance_s,
+                         min_coverage=REPEAT_MIN_COVERAGE, min_similarity=REPEAT_MIN_SIMILARITY,
+                         min_ad_length_s=DEFAULT_MIN_AD_LENGTH_S):
+    """Other copies of each (start_s, end_s) span in the episode, as [(span_index, match)] with the whole span projected.
+
+    A match must reach min_coverage at min_similarity and overlap no ``blocked`` span by more than REPEAT_MAX_OVERLAP_S.
+    """
+    if len(ep_ints) == 0 or ep_duration <= 0:
+        return []
+    fps = len(ep_ints) / ep_duration
+    patterns = []
+    for i, (lo, hi) in enumerate(spans):
+        pat = ep_ints[int(round(lo * fps)):int(round(hi * fps))]
+        if len(pat):
+            patterns.append((i, pat, hi - lo, None, None))
+    matches = match_fingerprints(
+        ep_ints, ep_duration, patterns, strictness=strictness,
+        min_coverage=min_coverage, gap_tolerance_s=gap_tolerance_s, min_ad_length_s=min_ad_length_s)
+    found = []
+    for m in sorted(matches, key=lambda m: -m.similarity):
+        if m.coverage < min_coverage or m.similarity < min_similarity:
+            continue
+        lo, hi = spans[m.pattern_id]
+        # The matched run can stop short of the copy's edges; the source's own length does not
+        raw_start = m.origin_s + lo - int(round(lo * fps)) / fps
+        start = min(max(raw_start, 0.0), ep_duration)
+        end = min(max(raw_start + hi - lo, 0.0), ep_duration)
+        if end - start < min_ad_length_s:
+            continue
+        m = replace(m, start=start, end=end)
+        taken = [*blocked, *((f.start, f.end) for _i, f in found)]
+        if any(overlap_seconds(m.start, m.end, a, b) > REPEAT_MAX_OVERLAP_S for a, b in taken):
+            continue
+        found.append((m.pattern_id, m))
+    return found
 
 
 def fingerprint_coverage_ceiling(ints):
@@ -1198,6 +1241,25 @@ class AudioFingerprinter:
             return None
 
     def _generate_full_fingerprint(
+        self, audio_path: str, timeout: int = FPCALC_TIMEOUT_FULL, *, quiet: bool = False
+    ) -> tuple[list[int], float] | None:
+        """Whole-file fingerprint, reusing the previous one when the same unchanged file is asked for again."""
+        try:
+            stat = os.stat(audio_path)
+            key = (os.path.abspath(audio_path), stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            return self._run_full_fingerprint(audio_path, timeout, quiet=quiet)
+        return self._full_fp_cache().get_or_compute(
+            key,
+            lambda: self._run_full_fingerprint(audio_path, timeout, quiet=quiet),
+            keep=lambda result: result is not None,
+        )
+
+    def _full_fp_cache(self):
+        """Per-instance one-entry cache, created lazily so __new__-built instances work."""
+        return self.__dict__.setdefault('_full_fp', _PatternCache(1))
+
+    def _run_full_fingerprint(
         self, audio_path: str, timeout: int = FPCALC_TIMEOUT_FULL, *, quiet: bool = False
     ) -> tuple[list[int], float] | None:
         """Generate raw fingerprint for entire audio file in one fpcalc call.
@@ -1477,6 +1539,26 @@ class AudioFingerprinter:
             return 0
         raw_ints, fp_duration = full_fp
         return _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity)
+
+    def find_in_episode_repeats(self, audio_path, spans, blocked, duration):
+        """Other copies of each span in the episode; empty when fingerprinting is off or fails."""
+        if not self.is_available() or not spans:
+            return []
+        if self.db and not self.db.get_setting_bool('fingerprint_enabled', True):
+            return []
+        duration = duration if duration and duration > 0 else self._get_audio_duration(audio_path)
+        full_fp = self._generate_full_fingerprint(
+            audio_path, timeout=self._full_fingerprint_timeout(duration), quiet=True)
+        if full_fp is None:
+            logger.warning("Full-file fingerprint failed, skipping the in-episode repeat search")
+            return []
+        raw_ints, fp_duration = full_fp
+        strictness, min_coverage, gap_tolerance_s = self._matching_settings()
+        return find_episode_repeats(
+            raw_ints, fp_duration or duration, spans, blocked,
+            strictness=strictness, gap_tolerance_s=gap_tolerance_s,
+            min_coverage=max(min_coverage, REPEAT_MIN_COVERAGE),
+            min_ad_length_s=clamped_fingerprint_setting(self.db, 'fingerprint_min_ad_length_s'))
 
     def _decode_known_fingerprints(
         self,

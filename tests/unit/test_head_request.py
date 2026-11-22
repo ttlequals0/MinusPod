@@ -33,6 +33,30 @@ def feed_map():
     }
 
 
+class TestHeadUnknownIdsThrottled:
+    @patch('main_app.routes.rss_parser')
+    @patch('main_app.routes.has_upstream_audio', return_value=True)
+    @patch('main_app.routes.db')
+    @patch('main_app.routes.get_feed_map')
+    def test_unknown_ids_fetch_upstream_once(
+        self, mock_feed_map, mock_db, _upstream, mock_rss, client, feed_map,
+    ):
+        from main_app.shared_state import episode_lookup_cache, lookup_miss_cache
+        episode_lookup_cache.invalidate()
+        lookup_miss_cache.invalidate()
+        mock_feed_map.return_value = feed_map
+        mock_db.get_episode.return_value = None
+        mock_rss.fetch_feed.return_value = '<rss></rss>'
+        mock_rss.extract_episodes.return_value = []
+
+        codes = [client.head(f'/episodes/test-pod/a1b2c3d4e5{i:02x}.mp3').status_code
+                 for i in range(5)]
+
+        assert codes == [404] * 5
+        assert mock_rss.fetch_feed.call_count == 1
+        lookup_miss_cache.invalidate()
+
+
 class TestHeadRequestDoesNotProcess:
     """HEAD requests on unprocessed episodes must not trigger processing."""
 
@@ -187,10 +211,12 @@ class TestLookupEpisode:
     def _clear_lookup_cache(self):
         # _lookup_episode caches every episode of a fetched feed, so a hit
         # from an earlier test would mask the fetch behavior under test.
-        from main_app.shared_state import episode_lookup_cache
+        from main_app.shared_state import episode_lookup_cache, lookup_miss_cache
         episode_lookup_cache.invalidate()
+        lookup_miss_cache.invalidate()
         yield
         episode_lookup_cache.invalidate()
+        lookup_miss_cache.invalidate()
 
     @patch('main_app.routes.rss_parser')
     def test_returns_episode_and_podcast_name(self, mock_rss):

@@ -79,7 +79,7 @@ refresh_logger = logging.getLogger('podcast.refresh')
 
 # Import shared warn-dedup set so routes and processing share one instance
 from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
-from main_app.shared_state import episode_lookup_cache, episode_lookup_key
+from main_app.shared_state import episode_lookup_cache, episode_lookup_key, lookup_miss_cache
 # Singletons are created in main_app/__init__.py before it imports this module
 # (`from main_app.routes import register_routes`), so a module-level import is
 # safe. Replaces the positional tuple from _get_components().
@@ -231,7 +231,8 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     Hits are cached for EPISODE_LOOKUP_TTL_SECONDS: a podcast client HEADs every
     unprocessed episode on each refresh, and each would otherwise refetch and
     reparse the whole upstream feed. Misses are not cached, or a feed caught
-    mid-publish would 404 for the full TTL.
+    mid-publish would 404 for the full TTL. After an upstream miss the slug is
+    throttled for LOOKUP_MISS_THROTTLE_SECONDS: ids with no row skip the refetch.
     """
     cache_key = episode_lookup_key(slug, episode_id)
     cached = episode_lookup_cache.get(cache_key)
@@ -241,7 +242,15 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     # Local feeds have no upstream (source_url is the local://<slug> sentinel),
     # so go straight to the DB fallback below; this also avoids an SSRF-blocked
     # fetch_feed call on every lookup.
+    episode = episode_row
+    missed_ids = lookup_miss_cache.get(slug)
+    if missed_ids is not None:
+        episode = episode or db.get_episode(slug, episode_id)
+        if not episode and episode_id not in missed_ids:
+            return None, None
+
     podcast = db.get_podcast_by_slug(slug)
+    upstream_ids = set()
     # An unknown row keeps the historical fetch; local, recents and YouTube rows have no RSS to fetch.
     original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'], podcast=podcast)
                      if has_upstream_audio(podcast) else None)
@@ -257,6 +266,7 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
         for ep in episodes:
             episode_lookup_cache.set(
                 episode_lookup_key(slug, ep['id']), (ep, podcast_name))
+            upstream_ids.add(ep['id'])
             if ep['id'] == episode_id:
                 found = ep
         if found is not None:
@@ -264,7 +274,7 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
 
     # Fallback: episode not in upstream RSS (dropped off due to age/cap).
     # Use the original_url stored in the database from discovery.
-    episode = episode_row or db.get_episode(slug, episode_id)
+    episode = episode or db.get_episode(slug, episode_id)
     if episode and episode.get('original_url'):
         result = ({
             'id': episode_id,
@@ -281,6 +291,8 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
             episode_lookup_cache.set(cache_key, result)
         return result
 
+    if original_feed and not episode:
+        lookup_miss_cache.set(slug, frozenset(upstream_ids))
     return None, None
 
 

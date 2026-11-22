@@ -27,6 +27,7 @@ from config import (
     PROCESSING_MODE_CUE_ONLY,
     CUE_ONLY_SAFETY_HOLD_NEW,
     CUE_ONLY_PROVEN_EPISODES,
+    REPEAT_STAGE,
     count_not_cut, is_pending_review, is_keep_like,
     resolve_processing_mode,
     resolve_skip_second_pass,
@@ -937,6 +938,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                           (podcast_settings or {}).get('description_trim_mode')),
                         loop_runs=loop_runs,
                     )
+
+                run_stats['stage_hits']['episode_repeat'] = sum(
+                    1 for ad in all_ads_with_validation if ad.get('detection_stage') == REPEAT_STAGE)
 
                 # Late keep partition: _refine_and_validate synthesizes heuristic
                 # pre/post-roll and VAD-gap markers after the early partition, so a

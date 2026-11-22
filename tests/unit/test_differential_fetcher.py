@@ -512,6 +512,27 @@ def test_drift_retry_reprobes_the_best_candidate(monkeypatch):
     assert (kind, corr) == ('identical', 0.9)
 
 
+def _interior_cut_pair():
+    # Run block B is B1+B2 with no silence between; the refetch keeps only B1, so B's head matches at offset 0
+    # while its tail (and the next block) sit 40s earlier.
+    seg = _blocks([('a', 7, 51, 220.0), ('b1', 10, 52, 330.0), ('b2', 40, 53, None),
+                   ('c', 9, 54, 440.0)])
+    sil = ('sil', 0.4)
+    run = _assemble([seg['a'], sil, np.concatenate([seg['b1'], seg['b2']]), sil, seg['c']])
+    ref = _assemble([seg['a'], sil, seg['b1'], sil, seg['c']])
+    return run, ref
+
+
+def test_interior_cut_in_unmatched_block_is_not_identical():
+    (run_pcm, run_marks), (ref_pcm, ref_marks) = _interior_cut_pair()
+
+    result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
+
+    assert [r['kind'] for r in result['regions']] == ['identical', 'unknown', 'identical']
+    assert df.identical_coverage(result, run_marks[1], run_marks[2]) == 0.0
+    assert next(r for r in result['regions'] if r['start_s'] <= 20.0 <= r['end_s'])['corr'] is None
+
+
 def _region(start, end, kind='identical', corr=1.0):
     return {'start_s': start, 'end_s': end, 'kind': kind, 'corr': corr}
 

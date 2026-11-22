@@ -28,6 +28,7 @@ function renderSection(
     providersState: null, onProviderKeySave: noop, onProviderKeyClear: noop, onProviderKeyTest: noop,
     onConnectionTest: noop, whisperLanguage: 'en', onWhisperLanguageChange: noop,
     whisperComputeType: 'auto', onWhisperComputeTypeChange: noop,
+    localModelIdleUnloadSeconds: 300, onLocalModelIdleUnloadSecondsChange: noop,
     transcribeMaxChunkSeconds: 600, onTranscribeMaxChunkSecondsChange: noop,
     transcribeConcurrentChunks: 4, onTranscribeConcurrentChunksChange: noop,
     transcribeChunkOverlapSeconds: 30, onTranscribeChunkOverlapSecondsChange: noop,
@@ -227,5 +228,31 @@ describe('TranscriptionSection parakeet backend', () => {
     expect(screen.queryByLabelText('API base URL')).toBeNull();
     expect(screen.queryByLabelText('GPU compute type')).toBeNull();
     expect(screen.getByText(/The model downloads into the data directory on first use/)).toBeDefined();
+  });
+});
+
+describe('TranscriptionSection idle unload', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('commits a new value for the local backends', () => {
+    const onChange = vi.fn();
+    renderSection({ whisperBackend: 'local', localModelIdleUnloadSeconds: 300, onLocalModelIdleUnloadSecondsChange: onChange });
+    const input = screen.getByLabelText('Unload idle model after (seconds)') as HTMLInputElement;
+    expect(input.value).toBe('300');
+    expect(input.getAttribute('aria-describedby')).toBe('localModelIdleUnloadSeconds-help');
+    expect(document.getElementById('localModelIdleUnloadSeconds-help')?.textContent).toMatch(/Default 300\.$/);
+    fireEvent.change(input, { target: { value: '60' } });
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledWith(60);
+  });
+
+  it('shows for parakeet and hides for the remote API', () => {
+    const { unmount } = renderSection({ whisperBackend: 'parakeet' });
+    expect(screen.getByLabelText('Unload idle model after (seconds)')).toBeDefined();
+    unmount();
+    renderSection({ whisperBackend: 'openai-api' });
+    expect(screen.queryByLabelText('Unload idle model after (seconds)')).toBeNull();
   });
 });

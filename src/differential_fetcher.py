@@ -21,7 +21,7 @@ from config import HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
 from user_agent import download_user_agent
 from utils.http import redact_exc, safe_url_for_log
-from utils.markers import DAI_PROBE_REF_S, dai_probe_window, merge_runs
+from utils.markers import DAI_PROBE_LEAD_S, DAI_PROBE_REF_S, dai_probe_window, merge_runs
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -224,6 +224,23 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
     return float(np.max(ncc))
 
 
+def _tail_matches(run_pcm: np.ndarray, ref_pcm: np.ndarray, end: float,
+                  head_end: float, offset: float) -> bool:
+    """True unless the block tail fails to match at the head's offset (material dropped mid-block).
+
+    A head probe cannot see material dropped after the head; a block too short for a tail window passes."""
+    tail_t = end - DAI_PROBE_LEAD_S - XCORR_REF_S
+    if tail_t < head_end:
+        return True
+    prepared = _prepare_template(run_pcm, tail_t, XCORR_REF_S)
+    if prepared is None:
+        return True
+    # No window means the refetch ends before this tail: that material is missing, not unmeasurable.
+    corr = _block_correlation(run_pcm, ref_pcm, tail_t, offset, ref_s=XCORR_REF_S,
+                              search_s=XCORR_SEARCH_S * 2, prepared=prepared)
+    return corr is not None and corr >= XCORR_MIN_CORR
+
+
 def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
                  end: float, offsets: list, *, allow_retry: bool = False):
     """Measure one silence-delimited run block against the refetch.
@@ -262,6 +279,9 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
         logger.debug('Unmatched block %.1f-%.1fs: best offset %+.2fs of %s, '
                      'corr %.3f', start, end, best_offset,
                      [round(o, 2) for o in offsets], corr)
+    if corr >= XCORR_MIN_CORR and allow_retry and not _tail_matches(
+            run_pcm, ref_pcm, end, run_t + ref_s, best_offset):
+        return 'unknown', None
     kind = 'identical' if corr >= XCORR_MIN_CORR else 'differential'
     return kind, corr
 

@@ -47,7 +47,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 | `BASE_URL` | Public URL embedded in generated RSS feeds |
 | `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys and downloadable backups at rest. Store it separately from the backup. |
 
-Behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (higher for multi-hop chains); see [Client IP for login lockout](security-and-storage.md#client-ip-for-login-lockout).
+Behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (higher for multi-hop chains); see [Client IP for login lockout](security-and-storage.md#client-ip-for-login-lockout). Set `MINUSPOD_TRUSTED_PROXIES` to the proxy's address (default: loopback and private ranges), and set `MINUSPOD_BIND_ADDRESS=127.0.0.1` when the proxy is the only entry point.
 
 ## Sub-path hosting
 

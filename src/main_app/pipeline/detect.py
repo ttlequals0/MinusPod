@@ -27,6 +27,8 @@ from config import (
     resolve_silence_snap_tunables,
     resolve_max_ad_duration,
     resolve_max_ad_duration_confirmed,
+    REPEAT_STAGE, REPEAT_MIN_SOURCE_S, REPEAT_MAX_SOURCE_S,
+    is_keep_like, normalize_segment_category,
     VETO_MIN_CUT_SECONDS,
     resolve_splice_veto_enabled,
     ModelNotConfiguredError,
@@ -49,6 +51,7 @@ from utils.correction_guard import usable_confirmed_corrections
 from utils.markers import held_review_window, parse_ad_markers
 from utils.errors import ServiceUnavailableError
 from utils.short_asks import is_clampable_short_ask, unflag
+from utils.time import format_duration
 
 from webhook_service import fire_cue_template_quiet_event
 
@@ -676,6 +679,61 @@ def reconcile_description_chapter(all_ads, description, episode_duration, descri
     return sorted(result, key=lambda ad: ad['start'])
 
 
+def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration,
+                          segment_actions):
+    """Unvalidated markers for other copies of the spots about to be cut; never raises."""
+    sources = [ad for ad in ads_to_remove
+               if not ad.get('held_for_review')
+               and REPEAT_MIN_SOURCE_S <= ad['end'] - ad['start'] <= REPEAT_MAX_SOURCE_S
+               and not is_keep_like((segment_actions or {}).get(normalize_segment_category(ad.get('category'))))]
+    if not sources or not audio_path:
+        return []
+    spans = [(ad['start'], ad['end']) for ad in sources]
+    blocked = spans + [(ad['start'], ad['end']) for ad in known_ads]
+    try:
+        found = ad_detector.audio_fingerprinter.find_in_episode_repeats(
+            audio_path, spans, blocked, episode_duration)
+    except Exception as e:
+        audio_logger.warning(f"[{slug}:{episode_id}] In-episode repeat search skipped: {e}")
+        return []
+    twins = []
+    for index, match in found:
+        source = sources[index]
+        twin = {
+            'start': match.start, 'end': match.end, 'confidence': match.similarity,
+            'reason': (f"Repeats the ad at {format_duration(source['start'])} "
+                       f"(audio similarity {match.similarity:.2f}, coverage {match.coverage:.2f})"),
+            'sponsor': source.get('sponsor'), 'detection_stage': REPEAT_STAGE,
+        }
+        if source.get('category'):
+            twin['category'] = source['category']
+        twins.append(twin)
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Ad at {source['start']:.1f}s-{source['end']:.1f}s repeats at "
+            f"{match.start:.1f}s-{match.end:.1f}s (similarity {match.similarity:.2f}, "
+            f"coverage {match.coverage:.2f})")
+    return twins
+
+
+def _validate_repeat_twins(slug, episode_id, validator, ads_to_remove, validated_ads, keep_ads, segments,
+                           audio_path, episode_duration, segment_actions, min_cut_confidence, *, db,
+                           false_positive_corrections, podcast_name, audio_analysis, cue_gate_enabled):
+    """Find, refine, validate and gate in-episode repeats; (cuts, validated twins, low_confidence, rejected)."""
+    known_ads = [*validated_ads, *(keep_ads or [])]
+    twins = _find_episode_repeats(
+        slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration, segment_actions)
+    if not twins:
+        return [], [], 0, 0
+    # Same edge refinement as other markers; known_ads act as barriers so a twin stays out of them.
+    twins = _refine_boundaries(
+        twins, segments, db=db, false_positive_corrections=false_positive_corrections,
+        podcast_name=podcast_name, keep_ads=known_ads)
+    twin_result = validator.validate(twins, audio_analysis=audio_analysis, actions_map=segment_actions)
+    twin_cuts, twin_low_confidence = _gate_validation_by_confidence(
+        slug, episode_id, twin_result.ads, min_cut_confidence, cue_gate_enabled=cue_gate_enabled)
+    return twin_cuts, twin_result.ads, twin_low_confidence, twin_result.rejected
+
+
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
@@ -691,7 +749,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     treats them as barriers though they left ``all_ads``.
     ``cue_only_safety``/``cue_unproven_template_ids`` pass to the validator (None
     outside cue_only runs). ``apply_heuristic_rolls`` is False under cue_only,
-    where cuts must come only from cue and pattern-DB evidence. ``segment_actions``
+    where cuts must come only from cue and pattern-DB evidence; it also skips the
+    in-episode repeat search. ``segment_actions``
     is the resolved category -> action map, so the validator's merge never folds
     ads whose categories resolve to different actions.
 
@@ -757,6 +816,21 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     )
 
     all_ads_with_validation = validation_result.ads
+
+    # Like heuristic rolls, the repeat search adds cuts beyond cue and pattern evidence.
+    twin_cuts, twin_ads, twin_low_confidence, twin_rejected = _validate_repeat_twins(
+        slug, episode_id, validator, ads_to_remove, all_ads_with_validation, keep_ads,
+        segments, audio_path, episode_duration, segment_actions, min_cut_confidence,
+        db=db, false_positive_corrections=false_positive_corrections, podcast_name=podcast_name,
+        audio_analysis=audio_analysis, cue_gate_enabled=cue_gate_enabled,
+    ) if apply_heuristic_rolls else ([], [], 0, 0)
+    if twin_ads:
+        ads_to_remove = sorted([*ads_to_remove, *twin_cuts], key=lambda ad: ad['start'])
+        all_ads_with_validation = sorted(
+            [*all_ads_with_validation, *twin_ads], key=lambda ad: ad['start'])
+        low_confidence_count += twin_low_confidence
+        validation_result.rejected += twin_rejected
+
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
     rejected_count = validation_result.rejected

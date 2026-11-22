@@ -22,7 +22,7 @@ from llm_client import (
 import run_context
 from transcriber import CDN_REFUSED_PREFIX
 from utils.errors import (
-    AudioTooLargeError,
+    AudioNotReadyError, AudioTooLargeError,
     LocalTranscriptionUnavailableError, ModelLoadError, ServiceUnavailableError,
     TranscriptionRejectedError,
 )
@@ -94,6 +94,23 @@ def resolve_audio_encode_settings() -> tuple[str, str]:
     if compression_level not in ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS:
         compression_level = 'default'
     return bitrate, compression_level
+
+
+_CDN_TRANSIENT_PATTERNS = (
+    'cdn not ready', 'cdn timeout', 'cdn server error', 'cdn check failed', 'cdn blocked',
+)
+
+
+def is_known_upstream_error(error: Exception) -> bool:
+    """Whether an error is a recognized upstream or network condition, not a fall-through to the default."""
+    return (
+        isinstance(error, (
+            AudioNotReadyError, ServiceUnavailableError, ProviderRateLimitedError, ModelLoadError,
+            requests.RequestException, ConnectionError, TimeoutError,
+        ))
+        or is_retryable_error(error)
+        or any(pattern in str(error).lower() for pattern in _CDN_TRANSIENT_PATTERNS)
+    )
 
 
 def is_transient_error(error: Exception) -> bool:
@@ -179,11 +196,7 @@ def is_transient_error(error: Exception) -> bool:
 
     # CDN errors are transient. A refusal of one User-Agent is not, and is
     # matched below; a 403 that ignores the identifier is a block that lifts.
-    transient_patterns = [
-        'cdn not ready', 'cdn timeout', 'cdn server error', 'cdn check failed',
-        'cdn blocked',
-    ]
-    if any(pattern in error_msg for pattern in transient_patterns):
+    if any(pattern in error_msg for pattern in _CDN_TRANSIENT_PATTERNS):
         return True
 
     # Permanent content/auth errors. 404 / "not found" is deliberately absent:

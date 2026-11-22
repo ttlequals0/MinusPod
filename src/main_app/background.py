@@ -15,7 +15,7 @@ import run_log
 from config import (
     resolve_download_history_retention_days,
     DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
-    FEED_REFRESH_OUTAGE_MIN_FEEDS, LOCAL_MODEL_IDLE_UNLOAD_SECONDS, MAX_EPISODE_RETRIES,
+    FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
     PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
     resolve_episode_log_retention_days, resolve_processing_mode,
     resolve_skip_transcription, episode_matches_feed_filters,
@@ -26,8 +26,8 @@ from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
+from transcriber import local as transcriber_local
 from transcriber.settings import active_whisper_settings
-from transcriber.local import unload_whisper_if_idle
 from whisper_pool import get_pool
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
@@ -716,14 +716,6 @@ def _maybe_checkpoint_wal(registry) -> None:
             result['logPages'], result['checkpointedPages'], result['durationMs'])
 
 
-def _unload_model_if_idle(registry) -> None:
-    """Free the GPU when no run is active and the local model sat unused."""
-    if registry.slot_count() == 0 and unload_whisper_if_idle():
-        refresh_logger.info(
-            f"Processing queue idle for {LOCAL_MODEL_IDLE_UNLOAD_SECONDS}s; "
-            "unloaded the local transcription model")
-
-
 def background_queue_processor():
     """Dispatcher: keep up to the pool's max_episodes claimed rows running."""
     from processing_queue import ProcessingQueue, is_processing_paused
@@ -750,6 +742,8 @@ def background_queue_processor():
                 if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
                     last_maintenance = time.monotonic()
                     _run_maintenance_tick(registry)
+
+                transcriber_local.unload_whisper_if_idle()
 
                 # Provider health probe (#806): own interval, independent of the
                 # maintenance cadence above.
@@ -808,7 +802,6 @@ def background_queue_processor():
                     if message != held_message:
                         refresh_logger.info(message)
                     held_message = message
-                    _unload_model_if_idle(registry)
                     shutdown_event.wait(timeout=IDLE_WAIT_SECONDS)
                     continue
                 held_message = None
@@ -844,9 +837,6 @@ def background_queue_processor():
                     shutdown_event.wait(timeout=backoff)
                     backoff = min(backoff * 2, 300)  # Max 5 minutes
                 elif not claimed_any:
-                    # An empty queue with no active run must not keep Whisper on the GPU.
-                    if nothing_to_claim:
-                        _unload_model_if_idle(registry)
                     # No queued episodes, wait before checking again. Under a hold
                     # an empty claim means the scan just scored every pending row,
                     # so wait longer than the idle tick before repeating it.
@@ -855,10 +845,12 @@ def background_queue_processor():
                     else:
                         shutdown_event.wait(timeout=IDLE_WAIT_SECONDS if pool.active else 30)
                 elif limit == 1 and running:
-                    # Inactive pool with a run in flight: wait for it as before.
-                    # A gate-skipped claim adds nothing to `running`, so there is
-                    # nothing to join; the next pass claims again immediately.
-                    next(iter(running)).join()
+                    # Inactive pool with a run in flight: wait for it, running the idle check
+                    # between timed joins. A gate-skipped claim leaves `running` empty.
+                    run = next(iter(running))
+                    while run.is_alive():
+                        run.join(timeout=IDLE_WAIT_SECONDS)
+                        transcriber_local.unload_whisper_if_idle()
 
             except Exception as e:
                 refresh_logger.error(f"Queue processor error: {e}")

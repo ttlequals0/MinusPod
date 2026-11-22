@@ -26,7 +26,7 @@ from chapter_notes import chapter_notes_for
 # Module imports: both builders import main_app, so their names may not exist yet when this loads.
 import local_feed_builder
 import recents_feed
-from utils.http import safe_url_for_log
+from utils.http import redact_exc_urls, safe_url_for_log
 from utils.retry import calculate_backoff
 from utils.time import parse_iso_utc, utc_now_iso
 from youtube import settings as yt_settings
@@ -110,8 +110,7 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
             sent = webhook_service.fire_feed_refresh_failed_event(
                 slug=slug,
                 podcast_name=podcast.get('title') or slug,
-                feed_url=safe_url_for_log(podcast.get('source_url') or '',
-                                          keep_path=True),
+                feed_url=safe_url_for_log(podcast.get('source_url') or ''),
                 error_message=error_message,
                 failure_count=count,
             )
@@ -271,7 +270,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                 if episode_matches_feed_filters(ep, podcast):
                     refresh_logger.info(f"[{slug}] Skipping video matched by feed filters: {ep.get('title')}")
                     continue
-                if yt_watch.schedule_new_episode(db, slug, ep['id'], resolved):
+                if yt_watch.schedule_new_episode(db, slug, ep['id'], resolved, published):
                     scheduled += 1
         if scheduled:
             refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")
@@ -343,11 +342,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         # Track feed refresh in status service
         status_service.start_feed_refresh(slug, podcast_name)
 
-        # INFO so the pulled URL is visible in default logs for troubleshooting
-        # upstream fetch failures (#484). Query string is deliberately dropped:
-        # private-feed tokens live there.
+        # Host only: premium feed URLs carry the subscriber token in the path.
         refresh_logger.info(
-            f"[{slug}] Starting RSS refresh from: {safe_url_for_log(feed_url, keep_path=True)}")
+            f"[{slug}] Starting RSS refresh from: {safe_url_for_log(feed_url)}")
 
         # Fetch original RSS with conditional GET (ETag/Last-Modified)
         # Skip conditional GET if force=True (cache was deleted, need full content)
@@ -410,7 +407,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                 )
 
         if not feed_content:
-            refresh_logger.error(f"[{slug}] Failed to fetch RSS feed")
+            refresh_logger.info(f"[{slug}] Feed refresh failed; will retry next refresh")
             if record_failure:
                 _record_refresh_failure(
                     slug, 'Failed to fetch RSS feed (unreachable, invalid '
@@ -593,7 +590,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                         existing_id = title_date_map.get((ep.get('title'), iso_published))
                         if existing_id and existing_id != ep['id']:
                             refresh_logger.debug(
-                                f"[{slug}] Episode ID updated: {existing_id} -> {ep['id']}, "
+                                f"[{slug}] Episode kept under stored ID {existing_id} "
+                                f"(feed now lists {ep['id']}), not auto-queued, "
                                 f"title: {ep.get('title')}"
                             )
                             continue  # Skip - episode already exists with different ID
@@ -907,7 +905,7 @@ def rebuild_served_rss(slug, podcast=None):
         _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
         return True
     except Exception as e:
-        refresh_logger.warning(f"[{slug}] served RSS rebuild failed: {e}")
+        refresh_logger.warning(f"[{slug}] served RSS rebuild failed: {redact_exc_urls(e)}")
         return False
 
 
@@ -937,7 +935,7 @@ def refresh_feed_artwork(slug, podcast=None):
             if feed_content:
                 candidates = rss_parser.extract_podcast_artwork_url(feed_content)
         except Exception as e:
-            refresh_logger.warning(f"[{slug}] artwork candidate fetch failed: {e}")
+            refresh_logger.warning(f"[{slug}] artwork candidate fetch failed: {redact_exc_urls(e)}")
         if not candidates and podcast.get('artwork_url'):
             candidates = [podcast['artwork_url']]
         # force, because the guard reads the same URL off the row and would always

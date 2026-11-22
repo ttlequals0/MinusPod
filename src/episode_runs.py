@@ -46,6 +46,7 @@ def run_stats_to_api(stats):
             'differential': stage_hits.get('differential', 0),
             'llm': stage_hits.get('llm', 0),
             'transcriptDifferential': stage_hits.get('transcript_differential', 0),
+            'episodeRepeat': stage_hits.get('episode_repeat', 0),
         } if stage_hits else None,
         'detected': stats.get('detected'),
         'markers': {

@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -494,6 +495,14 @@ def test_after_success_thumbnail_failure_does_not_propagate():
     storage.download_episode_artwork.assert_called_once()
 
 
+def test_after_success_db_failure_logs_a_warning_and_does_not_raise(caplog):
+    with patch.object(processing, 'db') as db, caplog.at_level('WARNING', logger='podcast.audio'):
+        db.update_episode_sponsorblock.side_effect = RuntimeError('database is locked')
+        sb_stage.after_success('yt-feed', 'ep1', _yt_run('sponsorblock', MARKERS), {})
+    rec = [r for r in caplog.records if r.levelname == 'WARNING']
+    assert len(rec) == 1 and 'yt-feed:ep1' in rec[0].getMessage() and 'database is locked' in rec[0].getMessage()
+
+
 def _deferred(**kw):
     with patch.object(processing.failure, '_handle_processing_failure') as handled:
         ok, *_ = _run([], llm_fallback=False, **kw)
@@ -669,3 +678,108 @@ def test_acquire_proceeds_when_reachable():
     download, outcome = _acquire(False, episode_data={'sb_state': 'probing'})
     assert isinstance(outcome, _Stop)
     download.assert_called_once()
+
+
+def _passthrough_youtube(tmp_path, *, podcast=PODCAST, episode_data=None, url='https://www.youtube.com/watch?v=vid000000001',
+                         download_error=None, preacquired_audio=None, settle_error=None):
+    """Run recut._passthrough_episode for a feed with the yt-dlp download stubbed."""
+    audio = tmp_path / 'vid.mp3'
+    audio.write_bytes(b'ID3')
+    dl = MagicMock(audio_path=str(audio), info={'id': 'vid000000001'}, captions_path=None)
+    with ExitStack() as stack:
+        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+        p(processing, 'db')
+        sb_db = p(sb_stage, 'db')
+        p(processing, 'status_service')
+        p(sb_stage, 'storage').get_original_path.return_value = None
+        p(recut, 'storage').get_original_path.return_value = None
+        p(sb_stage.common, '_publish_status')
+        p(recut.common, '_publish_status')
+        p(recut.common, '_require_publication_owner')
+        ytdl = p(sb_stage.download, 'download', return_value=dl, side_effect=download_error)
+        http = p(transcribe, '_download_episode_audio', return_value=str(audio))
+        p(recut.audio_processor, 'get_audio_duration', return_value=60.0)
+        p(recut, 'get_audio_codec', return_value='mp3')
+        p(recut.passthrough_assets, 'import_upstream_assets', return_value={})
+        fin = p(finalize_stage, '_finalize_episode')
+        p(recut.shutil, 'move')
+        handled = p(recut.failure, '_handle_processing_failure')
+        if settle_error:
+            def fail_on_settle(*a, **k):
+                if 'sb_state' in k:
+                    raise settle_error
+            sb_db.update_episode_sponsorblock.side_effect = fail_on_settle
+            settle = None
+        else:
+            settle = p(sb_stage, 'after_success')
+        ok = recut._passthrough_episode('yt-feed', 'ep1', url, 'Ep', 'YT', None, None, None, 0.0,
+                                        episode_data or {'processed_version': 0}, podcast=podcast,
+                                        preacquired_audio=preacquired_audio)
+    return SimpleNamespace(ok=ok, ytdl=ytdl, http=http, fin=fin, handled=handled, settle=settle)
+
+
+def test_youtube_passthrough_downloads_through_ytdlp_not_the_watch_page(tmp_path):
+    r = _passthrough_youtube(tmp_path, podcast=dict(PODCAST, passthrough_enabled=1))
+    assert r.ok is True
+    r.ytdl.assert_called_once()
+    assert r.ytdl.call_args.kwargs['want_captions'] is False
+    r.http.assert_not_called()
+    r.fin.assert_called_once()
+
+
+def test_youtube_passthrough_per_episode_override_downloads_through_ytdlp(tmp_path):
+    r = _passthrough_youtube(tmp_path, episode_data={'processed_version': 0, 'passthrough_enabled': 1})
+    assert r.ok is True
+    r.ytdl.assert_called_once()
+    r.http.assert_not_called()
+
+
+def test_non_youtube_passthrough_still_uses_the_enclosure_download(tmp_path):
+    podcast = dict(PODCAST, feed_type='rss')
+    r = _passthrough_youtube(tmp_path, podcast=podcast, url='https://example.com/ep1.mp3')
+    assert r.ok is True
+    r.ytdl.assert_not_called()
+    r.http.assert_called_once()
+    r.settle.assert_not_called()
+
+
+def test_youtube_passthrough_download_failure_is_handled_not_raised(tmp_path):
+    r = _passthrough_youtube(tmp_path, download_error=sb_stage.download.DownloadError('boom'))
+    assert r.ok is False
+    r.handled.assert_called_once()
+    r.settle.assert_not_called()
+
+
+def test_youtube_passthrough_success_settles_the_watch_state(tmp_path):
+    r = _passthrough_youtube(tmp_path)
+    assert r.ok is True
+    r.settle.assert_called_once()
+    run = r.settle.call_args.args[2]
+    assert run.mode == 'passthrough' and run.markers == []
+
+
+def test_youtube_passthrough_settle_failure_does_not_fail_a_served_episode(tmp_path):
+    r = _passthrough_youtube(tmp_path, settle_error=RuntimeError('database is locked'))
+    assert r.ok is True
+    r.handled.assert_not_called()
+
+
+def test_youtube_passthrough_with_preacquired_audio_leaves_settling_to_the_caller(tmp_path):
+    r = _passthrough_youtube(tmp_path, preacquired_audio=str(tmp_path / 'vid.mp3'))
+    assert r.ok is True
+    r.ytdl.assert_not_called()
+    r.settle.assert_not_called()
+
+
+def test_youtube_passthrough_settles_exactly_once_through_process_episode():
+    with patch.object(processing, 'db') as db, \
+         patch.object(processing, 'start_episode_token_tracking'), \
+         patch.object(recut, '_passthrough_episode', return_value=True) as pt, \
+         patch.object(sb_stage, 'acquire', return_value=sb_stage.YouTubeRun('/a.mp3', [], [], None, 'passthrough', None)), \
+         patch.object(sb_stage, 'after_success') as after:
+        db.get_episode.return_value = {}
+        db.get_podcast_by_slug.return_value = PODCAST
+        db.get_podcast_row.return_value = PODCAST
+        assert processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001') is True
+    assert pt.call_args.kwargs['preacquired_audio'] == '/a.mp3'
+    after.assert_called_once()

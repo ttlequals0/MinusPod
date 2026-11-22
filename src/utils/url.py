@@ -48,7 +48,8 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
     """Per-IP SSRF policy shared by pre-validation and the pinned connect.
 
     Cloud metadata and link-local addresses are blocked at every tier;
-    loopback/private/multicast/reserved are allowed only when allow_private.
+    loopback/private/multicast/reserved and any non-global address are allowed
+    only when allow_private.
     """
     try:
         addr = ipaddress.ip_address(ip_str)
@@ -70,6 +71,9 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
         raise SSRFError(f"Blocked private IP: {ip_str}")
     if addr.is_reserved:
         raise SSRFError(f"Blocked reserved IP: {ip_str}")
+    # Catches ranges is_private misses, e.g. 100.64.0.0/10 shared address space
+    if not addr.is_global:
+        raise SSRFError(f"Blocked non-global IP: {ip_str}")
 
 
 def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tuple]:

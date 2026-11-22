@@ -16,8 +16,10 @@ export type DetectionStage =
   | 'dai_differential'
   | 'transcript_differential'
   | 'description_chapter'
+  | 'episode_repeat'
   | 'sponsorblock';
 
+// Purple is the category badge that sits beside every stage badge, so no stage uses it.
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
     label: 'Pass 1',
@@ -41,7 +43,7 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   },
   verification: {
     label: 'Pass 2',
-    className: tint.purple,
+    className: tint.warning,
   },
   manual: {
     label: 'Manual',
@@ -49,7 +51,7 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   },
   cue_pair: {
     label: 'Cue pair',
-    className: tint.purple,
+    className: tint.teal,
   },
   keep_content: {
     label: 'Keep-content',
@@ -78,6 +80,10 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   description_chapter: {
     label: 'Description chapter',
     className: tint.warning,
+  },
+  episode_repeat: {
+    label: 'Repeat',
+    className: tint.destructive,
   },
   sponsorblock: {
     label: 'SponsorBlock',

@@ -21,6 +21,7 @@ from config import (
     get_env_backed_int, MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX,
 )
 from artwork_watermark import (
+    CoverTooLargeError, check_decode_cap,
     composite_watermark, cover_badge_salt, badge_path, normalize_badge_position,
 )
 from user_agent import download_user_agent, feed_user_agent
@@ -90,7 +91,6 @@ _ARTWORK_EXTENSIONS = (
 _EPISODE_ARTWORK_DIR = "episode-artwork"
 _THUMB_STEM_SUFFIX = ".thumb"
 COVER_THUMB_MAX_SIDE = 256
-COVER_MAX_DECODE_PIXELS = 8192 * 8192
 _COVER_LOCK_STRIPES = 16
 _EPISODE_ARTWORK_TOUCH_SECONDS = 86400
 # Eviction scans a directory at most this often; the cap may be exceeded briefly between scans.
@@ -114,22 +114,16 @@ def is_chapter_image_filename(value: str) -> bool:
     return bool(_CHAPTER_IMAGE_NAME_RE.fullmatch(value))
 
 
-class CoverTooLargeError(ValueError):
-    """A cover declares more pixels than the decode cap, so no thumbnail is made from it."""
-
-
 def make_cover_thumbnail(data: bytes) -> tuple[bytes, str]:
     """Downscale a cover to 256 px on its longest side, never upscaled; (bytes, mime).
 
-    Raises CoverTooLargeError before decoding past COVER_MAX_DECODE_PIXELS or on a decompression bomb.
+    Raises CoverTooLargeError before decoding past the decode cap or on a decompression bomb.
     """
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
             with Image.open(BytesIO(data)) as img:
-                width, height = img.size
-                if width * height > COVER_MAX_DECODE_PIXELS:
-                    raise CoverTooLargeError(f"{width}x{height} exceeds the decode cap")
+                check_decode_cap(img)
                 if img.format == 'JPEG':
                     img.draft('RGB', (COVER_THUMB_MAX_SIDE, COVER_THUMB_MAX_SIDE))
                 img.thumbnail((COVER_THUMB_MAX_SIDE, COVER_THUMB_MAX_SIDE), Image.LANCZOS)
@@ -255,6 +249,9 @@ class Storage:
         self._evict_last_scan: dict[str, float] = {}
         # Striped so concurrent rows of one shared cover fetch it once.
         self._cover_locks = tuple(threading.Lock() for _ in range(_COVER_LOCK_STRIPES))
+
+        # slug -> (source mtime_ns, badge salt) of a cover that failed to composite.
+        self._watermark_failures: dict[str, tuple] = {}
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -1178,6 +1175,7 @@ class Storage:
         Called on a new source cover and on artwork refresh, so badge or toggle changes apply."""
         variant_path = self.get_podcast_dir(slug) / _WATERMARK_VARIANT
         variant_path.unlink(missing_ok=True)
+        self._watermark_failures.pop(slug, None)
 
     def _badge_position(self) -> str:
         """Configured badge corner (issue #600). Folded into the salt so a
@@ -1192,34 +1190,54 @@ class Storage:
         if not podcast_dir:
             return None
         variant_path = podcast_dir / _WATERMARK_VARIANT
+        position = self._badge_position()
+        cached = self._read_watermark_variant(slug, podcast_dir, variant_path)
+        if cached:
+            return cached, 'image/jpeg'
+        with self._cover_lock(f"watermark\n{slug}"):
+            cached = self._read_watermark_variant(slug, podcast_dir, variant_path)
+            if cached:
+                return cached, 'image/jpeg'
 
-        if variant_path.exists() and not self._watermark_variant_stale(
-                podcast_dir, variant_path):
+            found = self.artwork_file(slug)
+            if not found:
+                return None
             try:
-                with open(variant_path, 'rb') as f:
-                    return f.read(), 'image/jpeg'
+                failure_key = (found[0].stat().st_mtime_ns, cover_badge_salt(position))
+            except OSError:
+                return None
+            if self._watermark_failures.get(slug) == failure_key:
+                return None
+            try:
+                source = found[0].read_bytes()
+            except OSError:
+                return None
+            composited = composite_watermark(source, position)
+            if not composited:
+                self._watermark_failures[slug] = failure_key
+                return None
+
+            try:
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False,
+                                                 dir=podcast_dir, suffix='.tmp') as tmp:
+                    tmp.write(composited)
+                    tmp_path = tmp.name
+                os.replace(tmp_path, variant_path)
+                (podcast_dir / _WATERMARK_SALT).write_text(cover_badge_salt(position))
+            except OSError as e:
+                logger.warning(f"[{slug}] failed caching watermark: {e}")
+
+            return composited, 'image/jpeg'
+
+    def _read_watermark_variant(self, slug: str, podcast_dir: Path,
+                                variant_path: Path) -> bytes | None:
+        """Cached badge variant bytes when present and fresh, else None."""
+        if variant_path.exists() and not self._watermark_variant_stale(podcast_dir, variant_path):
+            try:
+                return variant_path.read_bytes()
             except OSError as e:
                 logger.warning(f"[{slug}] failed reading watermark cache: {e}")
-
-        source = self.get_artwork(slug)
-        if not source:
-            return None
-        position = self._badge_position()
-        composited = composite_watermark(source[0], position)
-        if not composited:
-            return None
-
-        try:
-            with tempfile.NamedTemporaryFile(mode='wb', delete=False,
-                                             dir=podcast_dir, suffix='.tmp') as tmp:
-                tmp.write(composited)
-                tmp_path = tmp.name
-            os.replace(tmp_path, variant_path)
-            (podcast_dir / _WATERMARK_SALT).write_text(cover_badge_salt(position))
-        except OSError as e:
-            logger.warning(f"[{slug}] failed caching watermark: {e}")
-
-        return composited, 'image/jpeg'
+        return None
 
     def artwork_version(self, slug: str) -> str | None:
         """Short content-addressed token to cache-bust the badged cover-art URL.

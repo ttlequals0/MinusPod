@@ -455,6 +455,8 @@ def _build_settings_payload():
         'learning_max_pattern_duration', registry_get_default('learning_max_pattern_duration'))
     whisper_api_timeout_seconds = _db_int(
         'whisper_api_timeout_seconds', registry_get_default('whisper_api_timeout_seconds'))
+    local_model_idle_unload_seconds = _db_int(
+        'local_model_idle_unload_seconds', registry_get_default('local_model_idle_unload_seconds'))
     transcribe_max_chunk_seconds = _db_int(
         'transcribe_max_chunk_seconds', registry_get_default('transcribe_max_chunk_seconds'))
     transcribe_concurrent_chunks = _db_int(
@@ -836,6 +838,7 @@ def _build_settings_payload():
         'maxAudioDownloadMb': _sv('max_audio_download_mb', max_audio_download_mb),
         'localUploadMaxMb': _sv('local_upload_max_mb', _int_setting('local_upload_max_mb')),
         'whisperApiTimeoutSeconds': _sv('whisper_api_timeout_seconds', whisper_api_timeout_seconds),
+        'localModelIdleUnloadSeconds': _sv('local_model_idle_unload_seconds', local_model_idle_unload_seconds),
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
         'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),

@@ -118,7 +118,7 @@ interface SuggestionQuery {
   beforeId?: number;
 }
 
-type BulkResult = ({ id: number; status: CleanupStatus } & FingerprintOutcome) | { id: number; error: 'not_found' | 'invalid_transition' };
+type BulkResult = ({ id: number; status: CleanupStatus } & FingerprintOutcome) | { id: number; error: 'not_found' | 'invalid_transition' | 'stale_suggestion' };
 
 export async function getPatternCleanupStatus(): Promise<PatternCleanupStatus> {
   return apiRequest<PatternCleanupStatus>('/patterns/cleanup');

@@ -1427,13 +1427,14 @@ class EpisodeMixin:
         return rows
 
     def is_recent_processed_episode(self, source_slug: str, episode_id: str,
-                                    since: str) -> bool:
-        """Return whether an episode is eligible for Recents."""
-        conn = self.get_connection()
-        return bool(conn.execute(
-            f"SELECT 1 {self._RECENTS_WHERE} AND p.slug = ? AND e.episode_id = ?",
-            (since, source_slug, episode_id),
-        ).fetchone())
+                                    since: str, limit: int | None = None) -> bool:
+        """Whether an episode is in the Recents set: eligible and, with limit, within the top
+        `limit` rows in the order get_recent_processed_episodes renders them."""
+        inner = (f"SELECT p.slug AS slug, e.episode_id AS episode_id {self._RECENTS_WHERE} "
+                 "ORDER BY e.published_at DESC, e.id DESC LIMIT ?")  # LIMIT -1 is unlimited
+        query = f"SELECT 1 FROM ({inner}) WHERE slug = ? AND episode_id = ?"  # noqa: S608
+        params = [since, limit or -1, source_slug, episode_id]
+        return bool(self.get_connection().execute(query, params).fetchone())
 
     def get_feed_render_details(self, podcast_id: int) -> tuple[
             dict[str, str], dict[str, str], dict[str, tuple[bool, bool]]]:

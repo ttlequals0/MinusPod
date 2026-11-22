@@ -174,6 +174,8 @@ def _resolve_suggestion_action(fn, suggestion_id):
         suggestion = fn(db, suggestion_id)
     except pattern_cleanup.SuggestionNotFoundError:
         return error_response('suggestion not found', 404)
+    except pattern_cleanup.SuggestionStaleError:
+        return error_response('stale_suggestion', 409)
     except pattern_cleanup.SuggestionStateError:
         return error_response('invalid_transition', 409)
     return json_response(_suggestion_view(suggestion))
@@ -220,6 +222,8 @@ def bulk_cleanup_suggestions():
                             **fingerprint_response_fields(suggestion.get('fingerprint_outcomes') or [])})
         except pattern_cleanup.SuggestionNotFoundError:
             results.append({'id': sid, 'error': 'not_found'})
+        except pattern_cleanup.SuggestionStaleError:
+            results.append({'id': sid, 'error': 'stale_suggestion'})
         except pattern_cleanup.SuggestionStateError:
             results.append({'id': sid, 'error': 'invalid_transition'})
     return json_response({'results': results})

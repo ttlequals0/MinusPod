@@ -211,6 +211,36 @@ def test_setup_token_gate_reads_the_password_itself(hookless_client, db, monkeyp
     assert not db.get_setting('app_password')
 
 
+@pytest.fixture
+def first_run_gate(db, monkeypatch):
+    db.set_setting('app_password', '')
+    monkeypatch.setenv('MINUSPOD_REQUIRE_AUTH', 'true')
+    monkeypatch.delenv('MINUSPOD_SETUP_TOKEN', raising=False)
+
+
+@pytest.mark.parametrize('peer, headers, status', [
+    ('203.0.113.10', {'X-Forwarded-For': '127.0.0.1'}, 403),
+    ('127.0.0.1', {'X-Forwarded-For': '203.0.113.10'}, 403),
+    ('127.0.0.1', {'Forwarded': 'for=203.0.113.10'}, 403),
+    ('127.0.0.1', {}, None),
+    ('::ffff:127.0.0.1', {}, None),
+    ('::ffff:203.0.113.5', {}, 403),
+])
+def test_setup_loopback_exemption_needs_a_direct_loopback_peer(hookless_client, first_run_gate, peer, headers, status):
+    resp = hookless_client.put('/api/v1/auth/password', json={'newPassword': PW},
+                               headers=headers, environ_base={'REMOTE_ADDR': peer})
+    # None: the gate passes and the hookless app then fails later, so only 403 is asserted absent
+    assert (resp.status_code == 403) == (status == 403)
+
+
+def test_setup_uses_the_direct_socket_peer(hookless_client, first_run_gate):
+    resp = hookless_client.put(
+        '/api/v1/auth/password', json={'newPassword': PW},
+        environ_base={'REMOTE_ADDR': '127.0.0.1',
+                      'minuspod.direct_peer': '203.0.113.10'})
+    assert resp.status_code == 403
+
+
 def test_config_import_response_uses_the_new_session_length(client, db, clock):
     db.set_setting('session_lifetime_hours', '24', is_default=True)
     db.set_setting('session_remember_days', '30', is_default=True)

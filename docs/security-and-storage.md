@@ -40,6 +40,7 @@ The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.rem
 - Docker with published ports and no reverse proxy: `remote_addr` is the Docker bridge gateway; lockout will not fire. A startup WARN surfaces this. Deploy behind a proxy or switch to `network_mode: host`.
 - Behind Cloudflare, nginx, Traefik, or cloudflared: set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Cloudflare sets `X-Forwarded-For` automatically.
 - Multi-proxy chain (e.g., Cloudflare -> nginx -> MinusPod): set the count to the number of proxies you actually trust. Setting it too high lets an attacker spoof their client IP by prepending entries to `X-Forwarded-For`.
+- Forwarded headers are honored only when the connecting peer is a trusted proxy: `MINUSPOD_TRUSTED_PROXIES` (comma-separated IPs or CIDRs), defaulting to loopback and private ranges. When a proxy or tunnel is the only entry point, set `MINUSPOD_TRUSTED_PROXIES` to its address. Also set `MINUSPOD_BIND_ADDRESS=127.0.0.1`, or remove the published host port, so clients cannot reach the app directly. First-run setup without a token is allowed only from a direct loopback connection with no forwarding headers.
 
 **What happens if you leave `MINUSPOD_TRUSTED_PROXY_COUNT=0` on a proxy-fronted deployment:**
 

@@ -371,6 +371,27 @@ def _run_window(detector, *, addressing_mode, response_text='',
         )
 
 
+class TestWindowTimestampExcerpt:
+    """The timestamp excerpt for category repair is built lazily, not per window."""
+
+    def test_segment_ids_window_formats_only_once_and_carries_segments(self):
+        detector = AdDetector(api_key='test-key')
+        window = _window(with_sid=True)
+        with patch.object(AdDetector, '_format_transcript_lines',
+                          wraps=detector._format_transcript_lines) as fmt:
+            result = _run_window(
+                detector, addressing_mode='segment_ids', window=window,
+                response_text='[]')
+        assert [c.args[1] for c in fmt.call_args_list] == ['segment_ids']
+        assert result.transcript_excerpt == ''
+        assert result.window_segments is window['segments']
+
+    def test_timestamps_window_keeps_precomputed_excerpt(self):
+        detector = AdDetector(api_key='test-key')
+        result = _run_window(detector, addressing_mode='timestamps', response_text='[]')
+        assert result.transcript_excerpt == '[0.0-1.0] hello'
+
+
 class TestWindowCompliance:
     """WindowResult.compliant per _process_single_window: segment_ids uses used_ids; timestamps uses a
     successfully parsed ads array (a valid empty one counts); an LLM-failed window is None."""

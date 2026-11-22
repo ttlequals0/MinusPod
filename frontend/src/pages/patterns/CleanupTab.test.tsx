@@ -389,6 +389,27 @@ describe('CleanupTab', () => {
       .toBeDefined();
   });
 
+  it('explains a stale suggestion that the server cleared', async () => {
+    mockApprove.mockRejectedValue(new ApiError('stale_suggestion', 409));
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText(/out of date because the pattern changed/)).toBeDefined();
+    await waitFor(() => expect(mockList.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('does not refetch the list when an action fails with a server error', async () => {
+    mockApprove.mockRejectedValue(new ApiError('boom', 500));
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    const before = mockList.mock.calls.length;
+    await user.click(within(card(1)).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('boom')).toBeDefined();
+    expect(mockList.mock.calls.length).toBe(before);
+  });
+
   it('explains a refused undo', async () => {
     mockList.mockResolvedValue([suggestion(1, 'trim', { text: KEPT }, { status: 'approved' })]);
     mockUndo.mockRejectedValue(new ApiError('invalid_transition', 409));

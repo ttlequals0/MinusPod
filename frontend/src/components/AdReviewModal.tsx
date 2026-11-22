@@ -897,7 +897,11 @@ function AdReviewModal({
   // verdict, so once the picked category is kept for this feed neither button
   // changes the audio. The stamp above only catches up at that recut.
   const pickedAction = resolveCategoryAction(reviewCategory, segmentActions);
-  const keptByPick = isKeepLike(pickedAction);
+  // A pattern or a differential cuts a marker whatever its category says, and
+  // stamps it remove or beep, so until the category is changed the stamp wins.
+  const stampedCut = item.actionApplied === 'remove' || item.actionApplied === 'beep';
+  const categoryUnchanged = (item.category ?? '') === reviewCategory;
+  const keptByPick = isKeepLike(pickedAction) && !(stampedCut && categoryUnchanged);
   const keptByCategory = verdictRefused || keptByPick;
   // The review footer names the category picked above, not the create-mode
   // field, so an intro or a self-promo is not confirmed or rejected as an ad.
@@ -989,7 +993,7 @@ function AdReviewModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose, sponsorInput, adStart, adEnd, item.start, item.end, showSplit, multiSubmitting]);
+  }, [onClose, sponsorInput, adStart, adEnd, item.start, item.end, showSplit, multiSubmitting, keptByCategory, confirmInert]);
 
   // Style helpers: explicit hover treatments so buttons visibly highlight on mouseover.
 

@@ -366,6 +366,7 @@ function Settings() {
   });
   const [whisperLanguage, setWhisperLanguage] = useState('');
   const [whisperComputeType, setWhisperComputeType] = useState('');
+  const [localModelIdleUnloadSeconds, setLocalModelIdleUnloadSeconds] = useState(300);
   const [transcribeMaxChunkSeconds, setTranscribeMaxChunkSeconds] = useState(600);
   const [transcribeConcurrentChunks, setTranscribeConcurrentChunks] = useState(4);
   const [transcribeChunkOverlapSeconds, setTranscribeChunkOverlapSeconds] = useState(30);
@@ -895,6 +896,7 @@ function Settings() {
     { key: 'whisperApiModel', kind: 'str', useDefault: true, value: whisperApiConfig.model, obj: 'whisperApi', prop: 'model' },
     { key: 'whisperLanguage', kind: 'str', useDefault: true, value: whisperLanguage, set: setWhisperLanguage },
     { key: 'whisperComputeType', kind: 'str', useDefault: true, value: whisperComputeType, set: setWhisperComputeType },
+    { key: 'localModelIdleUnloadSeconds', kind: 'val', useDefault: true, literal: 300, value: localModelIdleUnloadSeconds, set: setLocalModelIdleUnloadSeconds },
     { key: 'transcribeMaxChunkSeconds', kind: 'val', useDefault: true, literal: 600, value: transcribeMaxChunkSeconds, set: setTranscribeMaxChunkSeconds },
     { key: 'transcribeConcurrentChunks', kind: 'val', useDefault: true, literal: 4, value: transcribeConcurrentChunks, set: setTranscribeConcurrentChunks },
     { key: 'transcribeChunkOverlapSeconds', kind: 'val', useDefault: true, literal: 30, value: transcribeChunkOverlapSeconds, set: setTranscribeChunkOverlapSeconds },
@@ -1567,6 +1569,8 @@ function Settings() {
         onWhisperLanguageChange={setWhisperLanguage}
         whisperComputeType={whisperComputeType}
         onWhisperComputeTypeChange={setWhisperComputeType}
+        localModelIdleUnloadSeconds={localModelIdleUnloadSeconds}
+        onLocalModelIdleUnloadSecondsChange={setLocalModelIdleUnloadSeconds}
         transcribeMaxChunkSeconds={transcribeMaxChunkSeconds}
         onTranscribeMaxChunkSecondsChange={setTranscribeMaxChunkSeconds}
         transcribeConcurrentChunks={transcribeConcurrentChunks}
