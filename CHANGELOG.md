@@ -14,6 +14,10 @@ release notes.
 
 - When an ad is detected, the rest of that episode's audio is now searched for other copies of the same spot, and those are removed too. A copy carries the `detection_stage` value `episode_repeat`, shows a "Repeat" stage badge and is counted in `stageHits.episodeRepeat`. The search uses the audio fingerprint, so it does not run when fingerprint matching is turned off. It also does not run in processing modes that skip the LLM, such as cue-only.
 
+### Changed
+
+- The "Pass 2" stage badge is now amber and "Cue pair" is teal. Both were the same purple as the category badge next to them.
+
 ### Fixed
 
 - The cross-fetch comparison checked only the start of each segment. It could report two downloads of an episode as identical when the second was missing audio partway through one. Such a segment is now marked unknown, so it no longer counts as evidence that the audio is show content.
