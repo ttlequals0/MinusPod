@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 TIMEOUT_S = 1800
 CAPTIONS_TIMEOUT_S = 300
 _impersonate_cache: dict[str, str | None] = {}
+_SUBTITLE_ERROR_PATTERNS = ('unable to download video subtitles', 'unable to download subtitles')
 
 
 class DownloadError(Exception):
@@ -68,22 +69,51 @@ def auth_args() -> list[str]:
     return args
 
 
-def download(video_id: str, *, want_captions: bool, language: str) -> DownloadResult:
-    """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio."""
-    args = ['-x', '--audio-format', 'mp3', '--audio-quality', resolve_bitrate(), '--no-playlist',
+def _is_subtitle_error(stderr: str) -> bool:
+    """True when yt-dlp failed solely on subtitle download (e.g. caption HTTP 429)."""
+    lines = [ln.strip() for ln in (stderr or '').splitlines() if ln.strip()]
+    errors = [ln for ln in lines if ln.startswith('ERROR:')]
+    if not errors:
+        return False
+    return all(any(pat in ln.lower() for pat in _SUBTITLE_ERROR_PATTERNS) for ln in errors)
+
+
+def _download_args(bitrate: str, auth: list[str], video_url: str, *,
+                   want_captions: bool, language: str | None) -> list[str]:
+    args = ['-x', '--audio-format', 'mp3', '--audio-quality', bitrate, '--no-playlist',
             '--write-info-json', '--embed-chapters', '--no-write-playlist-metafiles', '--no-progress',
             '--no-warnings', '--sleep-requests', '1', '--sleep-interval', '2', '--max-sleep-interval', '8',
             '-o', '%(id)s.%(ext)s']
     if want_captions:
         args += ['--write-subs', '--write-auto-subs', '--sub-langs', _sub_langs(language), '--sub-format', 'json3']
-    args += auth_args()
-    args.append(watch_url(video_id))
+    args += auth
+    args.append(video_url)
+    return args
+
+
+def _run_download(args: list[str], work_dir: str) -> subprocess.CompletedProcess:
+    try:
+        return ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir)
+    except subprocess.TimeoutExpired as exc:
+        raise DownloadError('yt-dlp timed out downloading the video') from exc
+
+
+def download(video_id: str, *, want_captions: bool, language: str | None) -> DownloadResult:
+    """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio."""
+    bitrate = resolve_bitrate()
+    auth = auth_args()
+    url = watch_url(video_id)
+    args = _download_args(bitrate, auth, url, want_captions=want_captions, language=language)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
     try:
-        try:
-            result = ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir)
-        except subprocess.TimeoutExpired as exc:
-            raise DownloadError('yt-dlp timed out downloading the video') from exc
+        result = _run_download(args, work_dir)
+        if result.returncode != 0 and want_captions and _is_subtitle_error(result.stderr):
+            logger.warning(
+                f"yt-dlp caption download failed for {video_id}; retrying audio without captions: "
+                f"{ytdlp.trimmed_error(result.stderr)}"
+            )
+            retry_args = _download_args(bitrate, auth, url, want_captions=False, language=language)
+            result = _run_download(retry_args, work_dir)
         if result.returncode != 0:
             raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
         audio_path = os.path.join(work_dir, f'{video_id}.mp3')
