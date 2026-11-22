@@ -749,7 +749,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     treats them as barriers though they left ``all_ads``.
     ``cue_only_safety``/``cue_unproven_template_ids`` pass to the validator (None
     outside cue_only runs). ``apply_heuristic_rolls`` is False under cue_only,
-    where cuts must come only from cue and pattern-DB evidence. ``segment_actions``
+    where cuts must come only from cue and pattern-DB evidence; it also skips the
+    in-episode repeat search. ``segment_actions``
     is the resolved category -> action map, so the validator's merge never folds
     ads whose categories resolve to different actions.
 
@@ -816,11 +817,13 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
     all_ads_with_validation = validation_result.ads
 
+    # Like heuristic rolls, the repeat search adds cuts beyond cue and pattern evidence.
     twin_cuts, twin_ads, twin_low_confidence, twin_rejected = _validate_repeat_twins(
         slug, episode_id, validator, ads_to_remove, all_ads_with_validation, keep_ads,
         segments, audio_path, episode_duration, segment_actions, min_cut_confidence,
         db=db, false_positive_corrections=false_positive_corrections, podcast_name=podcast_name,
-        audio_analysis=audio_analysis, cue_gate_enabled=cue_gate_enabled)
+        audio_analysis=audio_analysis, cue_gate_enabled=cue_gate_enabled,
+    ) if apply_heuristic_rolls else ([], [], 0, 0)
     if twin_ads:
         ads_to_remove = sorted([*ads_to_remove, *twin_cuts], key=lambda ad: ad['start'])
         all_ads_with_validation = sorted(

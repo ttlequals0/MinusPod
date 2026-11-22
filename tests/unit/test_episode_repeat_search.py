@@ -65,6 +65,21 @@ def test_twin_span_is_the_source_span_projected_over_the_match():
     assert abs(match.start - 200.0) < 0.2
 
 
+def test_twin_clipped_by_the_episode_start_does_not_overshoot_the_copy():
+    ep, spot, rng = _episode([40])
+    # The copy began 3 s before the episode did, so only its last 27 s are present.
+    _plant(ep, spot[int(3 * IPS):], 0.0, rng, flips=1)
+    (_, match), = _find(ep, [(40.0, 70.0)], blocked=[(40.0, 70.0)])
+    assert match.start == 0.0
+    assert abs(match.end - 27.0) < 0.5
+
+
+def test_twin_clamped_below_the_minimum_ad_length_is_dropped():
+    ep, spot, rng = _episode([40])
+    _plant(ep, spot[int(3 * IPS):], 0.0, rng, flips=1)
+    assert _find(ep, [(40.0, 70.0)], blocked=[(40.0, 70.0)], min_ad_length_s=28.0) == []
+
+
 def test_no_twin_when_only_half_the_source_repeats():
     ep, spot, rng = _episode([40])
     _plant(ep, spot[:len(spot) // 2], 200.0, rng, flips=1)
@@ -215,7 +230,7 @@ def test_stage_failure_is_not_fatal():
 
 # --- _refine_and_validate wiring ----------------------------------------------------------------
 
-def _refine(all_ads, matches, fp_corrections=()):
+def _refine(all_ads, matches, fp_corrections=(), apply_heuristic_rolls=True):
     fingerprinter = MagicMock()
     fingerprinter.find_in_episode_repeats.return_value = matches
     detector = MagicMock(audio_fingerprinter=fingerprinter)
@@ -226,7 +241,8 @@ def _refine(all_ads, matches, fp_corrections=()):
                              DURATION, a[1], a[2], false_positive_corrections=list(fp_corrections))):
         return detect._refine_and_validate(
             's', 'e', all_ads, [], '/a.mp3', '', DURATION, 0.8, 'Show',
-            corrections=(list(fp_corrections), []), apply_heuristic_rolls=False, segment_actions={})
+            corrections=(list(fp_corrections), []), apply_heuristic_rolls=apply_heuristic_rolls,
+            segment_actions={})
 
 
 def test_twin_is_validated_and_cut_in_the_same_run():
@@ -237,6 +253,20 @@ def test_twin_is_validated_and_cut_in_the_same_run():
     assert twins[0]['was_cut'] is True and 'validation' in twins[0]
     assert twins[0] in all_ads
     assert [a['start'] for a in to_remove] == sorted(a['start'] for a in to_remove)
+
+
+def test_cue_only_run_never_searches_for_repeats():
+    src = _ad(200.0, 230.0, confidence=0.97)
+    with patch.object(detect, '_find_episode_repeats') as search:
+        to_remove, _ = _refine([src], [(0, _Match(100.0, 129.6))], apply_heuristic_rolls=False)
+    search.assert_not_called()
+    assert all(a['detection_stage'] != REPEAT_STAGE for a in to_remove)
+
+
+def test_normal_run_searches_for_repeats():
+    with patch.object(detect, '_find_episode_repeats', return_value=[]) as search:
+        _refine([_ad(200.0, 230.0)], [], apply_heuristic_rolls=True)
+    search.assert_called_once()
 
 
 def test_twins_get_the_standard_boundary_refinement():

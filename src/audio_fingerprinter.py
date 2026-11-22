@@ -1001,9 +1001,12 @@ def find_episode_repeats(ep_ints, ep_duration, spans, blocked, *, strictness, ga
             continue
         lo, hi = spans[m.pattern_id]
         # The matched run can stop short of the copy's edges; the source's own length does not
-        start = m.origin_s + lo - int(round(lo * fps)) / fps
-        start = max(start, 0.0)
-        m = replace(m, start=start, end=min(start + hi - lo, ep_duration))
+        raw_start = m.origin_s + lo - int(round(lo * fps)) / fps
+        start = min(max(raw_start, 0.0), ep_duration)
+        end = min(max(raw_start + hi - lo, 0.0), ep_duration)
+        if end - start < min_ad_length_s:
+            continue
+        m = replace(m, start=start, end=end)
         taken = [*blocked, *((f.start, f.end) for _i, f in found)]
         if any(overlap_seconds(m.start, m.end, a, b) > REPEAT_MAX_OVERLAP_S for a, b in taken):
             continue
