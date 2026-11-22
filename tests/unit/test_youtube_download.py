@@ -163,3 +163,97 @@ def test_fetch_captions_returns_none_and_cleans_up_when_nothing_written():
 def test_fetch_captions_raises_on_timeout():
     with pytest.raises(download.DownloadError):
         _fetch(subprocess.TimeoutExpired('yt-dlp', 300))
+
+
+def test_download_retries_audio_without_captions_on_subtitle_429():
+    dirs = []
+    calls = []
+
+    def run(args, timeout, cwd=None, **kw):
+        dirs.append(cwd)
+        calls.append(list(args))
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                args, 1, stdout='',
+                stderr="ERROR: Unable to download video subtitles for 'de': HTTP Error 429: Too Many Requests")
+        open(os.path.join(cwd, 'vid000000001.mp3'), 'wb').write(b'ID3')
+        json.dump({'id': 'vid000000001', 'title': 't', 'duration': 100},
+                  open(os.path.join(cwd, 'vid000000001.info.json'), 'w'))
+        return subprocess.CompletedProcess(args, 0, stdout='', stderr='')
+
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=run):
+        result = download.download('vid000000001', want_captions=True, language='de')
+    try:
+        assert len(calls) == 2
+        assert '--write-subs' in calls[0]
+        assert all(flag not in calls[1] for flag in ('--write-subs', '--write-auto-subs', '--sub-langs', '--sub-format'))
+        assert dirs[0] == dirs[1]
+        assert os.path.exists(result.audio_path)
+        assert result.captions_path is None
+    finally:
+        shutil.rmtree(os.path.dirname(result.audio_path), ignore_errors=True)
+
+
+def test_download_preserves_written_caption_file_on_subtitle_retry():
+    calls = []
+
+    def run(args, timeout, cwd=None, **kw):
+        calls.append(list(args))
+        if len(calls) == 1:
+            json.dump({'events': []}, open(os.path.join(cwd, 'vid000000001.en.json3'), 'w'))
+            return subprocess.CompletedProcess(
+                args, 1, stdout='',
+                stderr="ERROR: Unable to download video subtitles for 'en-orig': HTTP Error 429: Too Many Requests")
+        open(os.path.join(cwd, 'vid000000001.mp3'), 'wb').write(b'ID3')
+        json.dump({'id': 'vid000000001', 'title': 't', 'duration': 100},
+                  open(os.path.join(cwd, 'vid000000001.info.json'), 'w'))
+        return subprocess.CompletedProcess(args, 0, stdout='', stderr='')
+
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=run):
+        result = download.download('vid000000001', want_captions=True, language='en')
+    try:
+        assert len(calls) == 2
+        assert result.captions_path is not None and result.captions_path.endswith('vid000000001.en.json3')
+    finally:
+        shutil.rmtree(os.path.dirname(result.audio_path), ignore_errors=True)
+
+
+def test_download_does_not_retry_when_non_subtitle_error_present():
+    dirs = []
+    mixed_err = (
+        "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests\n"
+        "ERROR: [youtube] vid000000001: Sign in to confirm you're not a bot. Use --cookies"
+    )
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=_fake_run(dirs, stderr=mixed_err, code=1)) as run:
+        with pytest.raises(download.DownloadError) as exc:
+            download.download('vid000000001', want_captions=True, language='en')
+    assert run.call_count == 1
+    assert 'Sign in to confirm' in str(exc.value)
+    assert dirs and not os.path.exists(dirs[0])
+
+
+def test_download_cleans_up_temp_dir_if_subtitle_retry_fails():
+    dirs = []
+    calls = []
+
+    def run(args, timeout, cwd=None, **kw):
+        dirs.append(cwd)
+        calls.append(list(args))
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                args, 1, stdout='',
+                stderr="ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests")
+        return subprocess.CompletedProcess(
+            args, 1, stdout='',
+            stderr='ERROR: [youtube] vid000000001: Requested format is not available')
+
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=run):
+        with pytest.raises(download.DownloadError) as exc:
+            download.download('vid000000001', want_captions=True, language='en')
+    assert len(calls) == 2
+    assert exc.value.needs_update is True
+    assert dirs and not os.path.exists(dirs[0])
