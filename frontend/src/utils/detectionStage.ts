@@ -82,7 +82,7 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   },
   episode_repeat: {
     label: 'Repeat',
-    className: tint.blue,
+    className: tint.destructive,
   },
   sponsorblock: {
     label: 'SponsorBlock',

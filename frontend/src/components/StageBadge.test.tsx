@@ -11,7 +11,7 @@ describe('StageBadge', () => {
 
   it('labels in-episode repeat markers', () => {
     render(<StageBadge stage="episode_repeat" />);
-    expect(screen.getByText('Repeat').className).toContain(tint.blue);
+    expect(screen.getByText('Repeat').className).toContain(tint.destructive);
   });
 
   it('falls back to the raw stage name', () => {
