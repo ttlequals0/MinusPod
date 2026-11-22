@@ -1146,9 +1146,6 @@ class AudioFingerprinter:
     """Audio fingerprinting using Chromaprint for identifying repeated ads: generate fingerprints for segments,
     compare them, and search for known ad fingerprints in new episodes."""
 
-    # (file key, result) of the latest whole-file fingerprint
-    _last_full_fp = None
-
     def __init__(self, db=None):
         """db is the Database instance used to store/retrieve fingerprints."""
         self.db = db
@@ -1248,13 +1245,16 @@ class AudioFingerprinter:
             stat = os.stat(audio_path)
             key = (os.path.abspath(audio_path), stat.st_mtime_ns, stat.st_size)
         except OSError:
-            key = None
-        cached = self._last_full_fp
-        if key is not None and cached is not None and cached[0] == key:
-            return cached[1]
-        result = self._run_full_fingerprint(audio_path, timeout, quiet=quiet)
-        self._last_full_fp = (key, result) if key is not None and result is not None else None
-        return result
+            return self._run_full_fingerprint(audio_path, timeout, quiet=quiet)
+        return self._full_fp_cache().get_or_compute(
+            key,
+            lambda: self._run_full_fingerprint(audio_path, timeout, quiet=quiet),
+            keep=lambda result: result is not None,
+        )
+
+    def _full_fp_cache(self):
+        """Per-instance one-entry cache, created lazily so __new__-built instances work."""
+        return self.__dict__.setdefault('_full_fp', _PatternCache(1))
 
     def _run_full_fingerprint(
         self, audio_path: str, timeout: int = FPCALC_TIMEOUT_FULL, *, quiet: bool = False
@@ -1538,8 +1538,7 @@ class AudioFingerprinter:
         return _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity)
 
     def find_in_episode_repeats(self, audio_path, spans, blocked, duration):
-        """Other copies of each span in the episode (see find_episode_repeats); empty when fingerprinting is
-        off or fpcalc is missing or fails."""
+        """Other copies of each span in the episode; empty when fingerprinting is off or fails."""
         if not self.is_available() or not spans:
             return []
         if self.db and not self.db.get_setting_bool('fingerprint_enabled', True):

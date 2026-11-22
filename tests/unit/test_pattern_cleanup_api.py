@@ -341,18 +341,20 @@ def test_approve_twice_is_409_invalid_transition(app_client, podcast):
     assert r.get_json()['error'] == 'invalid_transition'
 
 
-def test_approve_stale_is_409_stale_then_gone_from_pending_and_reject_works_on_stale(app_client, podcast):
+def test_approve_stale_is_409_and_is_hidden_from_pending(app_client, podcast):
     p = _pattern(podcast)
-    stale = _suggest(podcast, p, kind='trim', payload={'text': 'Acme'})
+    sid = _suggest(podcast, p, kind='trim', payload={'text': 'Acme'})
     podcast.update_ad_pattern(p['id'], intro_variants=['manual intro'])
-    r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{stale}/approve')
+    r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve')
     assert r.status_code == 409 and r.get_json()['error'] == 'stale_suggestion'
     listed = app_client.get('/api/v1/patterns/cleanup/suggestions?status=pending').get_json()
-    assert stale not in [x['id'] for x in listed['suggestions']]
+    assert sid not in [x['id'] for x in listed['suggestions']]
 
-    p2 = _pattern(podcast)
-    sid = _suggest(podcast, p2, kind='trim', payload={'text': 'Acme'})
-    podcast.update_ad_pattern(p2['id'], intro_variants=['manual intro'])
+
+def test_reject_stale_succeeds(app_client, podcast):
+    p = _pattern(podcast)
+    sid = _suggest(podcast, p, kind='trim', payload={'text': 'Acme'})
+    podcast.update_ad_pattern(p['id'], intro_variants=['manual intro'])
     r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/reject')
     assert r.status_code == 200 and r.get_json()['status'] == 'rejected'
 

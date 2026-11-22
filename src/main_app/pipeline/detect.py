@@ -681,10 +681,7 @@ def reconcile_description_chapter(all_ads, description, episode_duration, descri
 
 def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration,
                           segment_actions):
-    """Unvalidated markers for other copies, in the same episode, of the spots about to be cut.
-
-    Never raises: a failed search leaves the episode as it was.
-    """
+    """Unvalidated markers for other copies of the spots about to be cut; never raises."""
     sources = [ad for ad in ads_to_remove
                if not ad.get('held_for_review')
                and REPEAT_MIN_SOURCE_S <= ad['end'] - ad['start'] <= REPEAT_MAX_SOURCE_S
@@ -692,7 +689,7 @@ def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path
     if not sources or not audio_path:
         return []
     spans = [(ad['start'], ad['end']) for ad in sources]
-    blocked = spans + [(ad['start'], ad['end']) for ad in known_ads if ad not in sources]
+    blocked = spans + [(ad['start'], ad['end']) for ad in known_ads]
     try:
         found = ad_detector.audio_fingerprinter.find_in_episode_repeats(
             audio_path, spans, blocked, episode_duration)
@@ -716,6 +713,25 @@ def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path
             f"{match.start:.1f}s-{match.end:.1f}s (similarity {match.similarity:.2f}, "
             f"coverage {match.coverage:.2f})")
     return twins
+
+
+def _validate_repeat_twins(slug, episode_id, validator, ads_to_remove, validated_ads, keep_ads, segments,
+                           audio_path, episode_duration, segment_actions, min_cut_confidence, *, db,
+                           false_positive_corrections, podcast_name, audio_analysis, cue_gate_enabled):
+    """Find, refine, validate and gate in-episode repeats; (cuts, validated twins, low_confidence, rejected)."""
+    known_ads = [*validated_ads, *(keep_ads or [])]
+    twins = _find_episode_repeats(
+        slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration, segment_actions)
+    if not twins:
+        return [], [], 0, 0
+    # Same edge refinement as other markers; known_ads act as barriers so a twin stays out of them.
+    twins = _refine_boundaries(
+        twins, segments, db=db, false_positive_corrections=false_positive_corrections,
+        podcast_name=podcast_name, keep_ads=known_ads)
+    twin_result = validator.validate(twins, audio_analysis=audio_analysis, actions_map=segment_actions)
+    twin_cuts, twin_low_confidence = _gate_validation_by_confidence(
+        slug, episode_id, twin_result.ads, min_cut_confidence, cue_gate_enabled=cue_gate_enabled)
+    return twin_cuts, twin_result.ads, twin_low_confidence, twin_result.rejected
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
@@ -800,24 +816,17 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
     all_ads_with_validation = validation_result.ads
 
-    # Twins are validated and gated like any marker, after the sources they copy are known to be cut.
-    twins = _find_episode_repeats(
-        slug, episode_id, ads_to_remove, [*all_ads_with_validation, *(keep_ads or [])],
-        audio_path, episode_duration, segment_actions)
-    if twins:
-        # Same transcript edge refinement as the other markers; the barriers keep a twin out of known ads.
-        twins = _refine_boundaries(
-            twins, segments, db=db, false_positive_corrections=false_positive_corrections,
-            podcast_name=podcast_name, keep_ads=[*all_ads_with_validation, *(keep_ads or [])])
-        twin_result = validator.validate(
-            twins, audio_analysis=audio_analysis, actions_map=segment_actions)
-        twin_cuts, twin_low_confidence = _gate_validation_by_confidence(
-            slug, episode_id, twin_result.ads, min_cut_confidence, cue_gate_enabled=cue_gate_enabled)
+    twin_cuts, twin_ads, twin_low_confidence, twin_rejected = _validate_repeat_twins(
+        slug, episode_id, validator, ads_to_remove, all_ads_with_validation, keep_ads,
+        segments, audio_path, episode_duration, segment_actions, min_cut_confidence,
+        db=db, false_positive_corrections=false_positive_corrections, podcast_name=podcast_name,
+        audio_analysis=audio_analysis, cue_gate_enabled=cue_gate_enabled)
+    if twin_ads:
         ads_to_remove = sorted([*ads_to_remove, *twin_cuts], key=lambda ad: ad['start'])
         all_ads_with_validation = sorted(
-            [*all_ads_with_validation, *twin_result.ads], key=lambda ad: ad['start'])
+            [*all_ads_with_validation, *twin_ads], key=lambda ad: ad['start'])
         low_confidence_count += twin_low_confidence
-        validation_result.rejected += twin_result.rejected
+        validation_result.rejected += twin_rejected
 
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 

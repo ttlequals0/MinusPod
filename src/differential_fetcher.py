@@ -226,12 +226,9 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
 
 def _tail_matches(run_pcm: np.ndarray, ref_pcm: np.ndarray, end: float,
                   head_end: float, offset: float) -> bool:
-    """True unless the block tail fails to match at the head's offset (material missing mid-block).
+    """True unless the block tail fails to match at the head's offset (material dropped mid-block).
 
-    A head probe alone cannot see run material the refetch dropped after the head: the tail and the next block
-    sit at a shifted offset while the head still matches. A block too short to hold a tail window clear of
-    the head cannot hide a shift past the search radius and passes.
-    """
+    A head probe cannot see material dropped after the head; a block too short for a tail window passes."""
     tail_t = end - DAI_PROBE_LEAD_S - XCORR_REF_S
     if tail_t < head_end:
         return True
@@ -257,9 +254,6 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     silencedetect missed a mark on the refetch) would otherwise mislabel identical audio as differential.
     Chain-matched blocks carry their own exact offset and are never retried: a low score there is a real
     difference, not drift.
-
-    An unmatched block that passes on its head must also match on its tail at the same offset; otherwise the
-    refetch dropped material mid-block and the block is 'unknown', never 'identical'.
     """
     block_len = end - start
     if block_len < MIN_REGION_S:

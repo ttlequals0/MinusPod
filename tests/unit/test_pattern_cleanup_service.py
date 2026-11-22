@@ -1426,16 +1426,20 @@ def test_apply_refuses_when_sponsor_changed(temp_db):
     assert temp_db.get_cleanup_suggestion(sid) is None
 
 
-@pytest.mark.parametrize('action', [apply_suggestion, reject_suggestion])
-def test_sponsor_rename_invalidates_pending_suggestion(temp_db, action):
+def test_sponsor_rename_makes_apply_stale(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
     temp_db.update_known_sponsor(p['sponsor_id'], name='Acme Corporation')
-    if action is apply_suggestion:
-        with pytest.raises(SuggestionStaleError):
-            action(temp_db, sid)
-    else:
-        assert action(temp_db, sid)['status'] == 'rejected'
+    with pytest.raises(SuggestionStaleError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] is None
+
+
+def test_sponsor_rename_still_allows_reject(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_known_sponsor(p['sponsor_id'], name='Acme Corporation')
+    assert reject_suggestion(temp_db, sid)['status'] == 'rejected'
     assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] is None
 
 

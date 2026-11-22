@@ -189,7 +189,17 @@ def test_stage_blocks_against_all_existing_markers():
     src = _ad(4000.0, 4030.0)
     rejected = _ad(1000.0, 1030.0)
     _, fp = _stage([src], existing=[src, rejected])
-    assert fp.find_in_episode_repeats.call_args.args[2] == [(4000.0, 4030.0), (1000.0, 1030.0)]
+    assert set(fp.find_in_episode_repeats.call_args.args[2]) == {(4000.0, 4030.0), (1000.0, 1030.0)}
+
+
+def test_stage_with_no_markers_is_a_noop():
+    twins, fp = _stage([])
+    assert twins == []
+    fp.find_in_episode_repeats.assert_not_called()
+
+
+def test_refine_with_no_ads_never_searches():
+    assert _refine([], []) == ([], [])
 
 
 def test_stage_without_audio_path_does_nothing():
@@ -248,7 +258,7 @@ def test_twin_on_a_user_rejected_region_is_not_cut():
 
 # --- whole-file fingerprint reuse -----------------------------------------------------------------
 
-def _counting_fingerprinter(tmp_path):
+def _counting_fingerprinter():
     fp = AudioFingerprinter(db=None)
     fp._fpcalc_path = '/usr/bin/fpcalc'
     fp._run_full_fingerprint = MagicMock(side_effect=lambda path, *a, **k: ([1, 2, 3], 1.0))
@@ -258,7 +268,7 @@ def _counting_fingerprinter(tmp_path):
 def test_same_file_is_fingerprinted_once(tmp_path):
     audio = tmp_path / 'ep.mp3'
     audio.write_bytes(b'a' * 10)
-    fp = _counting_fingerprinter(tmp_path)
+    fp = _counting_fingerprinter()
     assert fp._generate_full_fingerprint(str(audio)) == fp._generate_full_fingerprint(str(audio))
     assert fp._run_full_fingerprint.call_count == 1
 
@@ -267,7 +277,7 @@ def test_other_path_or_changed_file_is_not_a_cache_hit(tmp_path):
     first, processed = tmp_path / 'ep.mp3', tmp_path / 'ep_processed.mp3'
     first.write_bytes(b'a' * 10)
     processed.write_bytes(b'a' * 10)
-    fp = _counting_fingerprinter(tmp_path)
+    fp = _counting_fingerprinter()
     fp._generate_full_fingerprint(str(first))
     fp._generate_full_fingerprint(str(processed))
     assert fp._run_full_fingerprint.call_count == 2
@@ -279,7 +289,7 @@ def test_other_path_or_changed_file_is_not_a_cache_hit(tmp_path):
 def test_failed_fingerprint_is_not_cached(tmp_path):
     audio = tmp_path / 'ep.mp3'
     audio.write_bytes(b'a' * 10)
-    fp = _counting_fingerprinter(tmp_path)
+    fp = _counting_fingerprinter()
     fp._run_full_fingerprint.side_effect = [None, ([1], 1.0)]
     assert fp._generate_full_fingerprint(str(audio)) is None
     assert fp._generate_full_fingerprint(str(audio)) == ([1], 1.0)

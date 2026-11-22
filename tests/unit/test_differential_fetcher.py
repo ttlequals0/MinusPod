@@ -528,20 +528,9 @@ def test_interior_cut_in_unmatched_block_is_not_identical():
 
     result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
 
-    covered = df.identical_coverage(result, run_marks[1], run_marks[2])
-    assert covered == 0.0
-    b = next(r for r in result['regions'] if r['start_s'] <= 20.0 <= r['end_s'])
-    assert b['kind'] == 'unknown'
-    assert b['corr'] is None
-
-
-def test_interior_cut_leaves_matched_neighbours_identical():
-    (run_pcm, run_marks), (ref_pcm, ref_marks) = _interior_cut_pair()
-
-    result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
-
-    kinds = [r['kind'] for r in result['regions']]
-    assert kinds == ['identical', 'unknown', 'identical']
+    assert [r['kind'] for r in result['regions']] == ['identical', 'unknown', 'identical']
+    assert df.identical_coverage(result, run_marks[1], run_marks[2]) == 0.0
+    assert next(r for r in result['regions'] if r['start_s'] <= 20.0 <= r['end_s'])['corr'] is None
 
 
 def _region(start, end, kind='identical', corr=1.0):
