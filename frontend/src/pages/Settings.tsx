@@ -1283,7 +1283,7 @@ function Settings() {
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <a
-            href="https://github.com/ttlequals0/MinusPod/blob/main/docs/README.md"
+            href="https://docs.minuspod.app/"
             target="_blank"
             rel="noopener noreferrer"
             className={docsLink}
