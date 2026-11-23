@@ -2,7 +2,7 @@
 import pytest
 
 from config import HOLD_REASON_LARGE_VAD_GAP
-from vad_gap_detector import detect_vad_gaps
+from vad_gap_detector import detect_vad_gaps, show_cue_spans
 
 
 def _seg(start, end, text=''):
@@ -319,3 +319,108 @@ class TestOneSidedMidGapRegression:
             g.get('detection_stage') == 'vad_gap' and g['start'] == 2081.8
             for g in gaps
         )
+
+
+def _cue(start, end, cue_type, source='template', confidence=0.95):
+    return {'start': start, 'end': end, 'signal_type': 'audio_cue',
+            'confidence': confidence,
+            'details': {'source': source, 'cue_type': cue_type}}
+
+
+class TestShowCueSpans:
+    def test_collects_template_show_intro_and_outro_cues(self):
+        analysis = {'signals': [
+            _cue(0.4, 4.6, 'show_intro'),
+            _cue(247.6, 255.9, 'show_outro'),
+            _cue(120.0, 122.0, 'ad_break_boundary'),
+            _cue(130.0, 132.0, 'content_transition'),
+            _cue(250.0, 252.0, 'show_outro', source='spectral'),
+            {'start': 249.0, 'end': 250.0, 'signal_type': 'volume_change',
+             'confidence': 0.9, 'details': {}},
+        ]}
+        assert show_cue_spans(analysis) == {
+            'show_intro': [(0.4, 4.6)],
+            'show_outro': [(247.6, 255.9)],
+        }
+
+    def test_missing_analysis_yields_empty_spans(self):
+        assert show_cue_spans(None) == {'show_intro': [], 'show_outro': []}
+        assert show_cue_spans({}) == {'show_intro': [], 'show_outro': []}
+
+
+class TestShowCueCategory:
+    """A head/tail gap the feed's own show intro/outro cue covers is show audio, so the
+    marker carries that category and the feed's segment action decides it, not Rule 4."""
+
+    SEGMENTS = [_seg(5.1, 120.0, 'Good morning, here is the news.'),
+                _seg(120.0, 246.6, 'That was all for today.')]
+
+    def _tail(self, gaps):
+        return [g for g in gaps if g['end'] == pytest.approx(256.1)]
+
+    def _head(self, gaps):
+        return [g for g in gaps if g['start'] == 0.0]
+
+    def test_tail_gap_covered_by_outro_cue_is_outro(self):
+        gaps = detect_vad_gaps(self.SEGMENTS, [], 256.1,
+                               show_cues={'show_outro': [(247.6, 255.9)]})
+        tail = self._tail(gaps)
+        assert len(tail) == 1
+        assert tail[0]['start'] == pytest.approx(246.6)
+        assert tail[0]['category'] == 'outro'
+        assert tail[0]['detection_stage'] == 'vad_gap'
+
+    def test_head_gap_covered_by_intro_cue_is_intro(self):
+        gaps = detect_vad_gaps(self.SEGMENTS, [], 256.1,
+                               show_cues={'show_intro': [(0.3, 4.8)]})
+        head = self._head(gaps)
+        assert len(head) == 1
+        assert head[0]['end'] == pytest.approx(5.1)
+        assert head[0]['category'] == 'intro'
+
+    def test_no_cue_leaves_gaps_uncategorised(self):
+        gaps = detect_vad_gaps(self.SEGMENTS, [], 256.1)
+        assert len(gaps) == 2
+        assert all('category' not in g for g in gaps)
+
+    def test_outro_cue_outside_the_tail_gap_is_ignored(self):
+        gaps = detect_vad_gaps(self.SEGMENTS, [], 256.1,
+                               show_cues={'show_outro': [(200.0, 205.0)],
+                                          'show_intro': [(60.0, 64.0)]})
+        assert all('category' not in g for g in gaps)
+
+    def test_intro_cue_does_not_categorise_the_tail(self):
+        gaps = detect_vad_gaps(self.SEGMENTS, [], 256.1,
+                               show_cues={'show_intro': [(247.6, 255.9)]})
+        assert 'category' not in self._tail(gaps)[0]
+
+    def test_audio_after_the_outro_stays_its_own_marker(self):
+        # 20 s of untranscribed audio after the outro could be an inserted post-roll:
+        # it keeps the plain tail marker (and Rule 4's hold); only the outro is show audio.
+        segments = [_seg(5.1, 246.6, 'That was all for today.')]
+        gaps = detect_vad_gaps(segments, [], 276.0,
+                               show_cues={'show_outro': [(247.6, 255.9)]})
+        tail = sorted((g for g in gaps if g['start'] >= 246.0), key=lambda g: g['start'])
+        assert [(round(g['start'], 1), round(g['end'], 1)) for g in tail] == [
+            (246.6, 255.9), (255.9, 276.0)]
+        assert tail[0]['category'] == 'outro'
+        assert 'category' not in tail[1]
+
+    def test_audio_before_the_intro_stays_its_own_marker(self):
+        segments = [_seg(30.0, 200.0, 'Welcome back to the show.')]
+        gaps = detect_vad_gaps(segments, [], 260.0,
+                               show_cues={'show_intro': [(20.0, 29.0)]})
+        head = sorted((g for g in gaps if g['end'] <= 30.0), key=lambda g: g['start'])
+        assert [(round(g['start'], 1), round(g['end'], 1)) for g in head] == [
+            (0.0, 20.0), (20.0, 30.0)]
+        assert 'category' not in head[0]
+        assert head[1]['category'] == 'intro'
+
+    def test_short_remainder_after_the_outro_is_absorbed(self):
+        # A fade under tail_min_seconds after the cue is part of the outro.
+        gaps = detect_vad_gaps(self.SEGMENTS, [], 256.1,
+                               show_cues={'show_outro': [(247.6, 253.5)]})
+        tail = [g for g in gaps if g['start'] >= 246.0]
+        assert len(tail) == 1
+        assert tail[0]['end'] == pytest.approx(256.1)
+        assert tail[0]['category'] == 'outro'

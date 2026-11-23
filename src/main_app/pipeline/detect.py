@@ -450,8 +450,12 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
 
 
 def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
-                            episode_duration, skip_patterns, db):
-    """Append heuristic pre/post-roll and VAD-gap ads to ``all_ads`` in place."""
+                            episode_duration, skip_patterns, db, audio_analysis=None):
+    """Append heuristic pre/post-roll and VAD-gap ads to ``all_ads`` in place.
+
+    ``audio_analysis`` (validator-format dict) supplies the feed's show intro/outro
+    template cues, which categorise the head/tail VAD gaps they cover.
+    """
     if not segments:
         return
     from roll_detector import detect_preroll, detect_postroll
@@ -468,12 +472,13 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
 
     # VAD-gap detection (head/mid/tail)
     if _vad_gap_enabled(db):
-        from vad_gap_detector import detect_vad_gaps
+        from vad_gap_detector import detect_vad_gaps, show_cue_spans
         vad_gap_ads = detect_vad_gaps(
             segments, all_ads, episode_duration,
             start_min_seconds=common._setting_float(db, 'vad_gap_start_min_seconds', 3.0),
             mid_min_seconds=common._setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
             tail_min_seconds=common._setting_float(db, 'vad_gap_tail_min_seconds', 3.0),
+            show_cues=show_cue_spans(audio_analysis),
         )
         if vad_gap_ads:
             all_ads.extend(vad_gap_ads)
@@ -770,7 +775,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     if apply_heuristic_rolls:
         # cue_only cuts only from cue and pattern evidence.
         _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
-                                episode_duration, skip_patterns, db)
+                                episode_duration, skip_patterns, db,
+                                audio_analysis=audio_analysis)
 
     # A description chapter cut is appended after refinement so no merge or snap step touches it.
     chapter = _description_chapter_marker(episode_description, episode_duration, description_trim)
