@@ -47,10 +47,6 @@ class ResponseTooLargeError(Exception):
     """Raised when a streamed response exceeds the caller-supplied cap."""
 
 
-class StreamDeadlineError(Exception):
-    """Raised when a streamed download exceeds its total time budget."""
-
-
 class IncompleteResponseError(Exception):
     """Raised when a body ends before its declared Content-Length."""
 
@@ -109,11 +105,11 @@ def _declared_length(response: _ChunkedResponse) -> int | None:
 
 
 def stream_to_file_capped(response, fh, max_bytes, *, already=0, chunk_size=8192,
-                          max_seconds=None, progress=None, progress_interval=60.0):
+                          max_seconds=None, progress=None):
     """Stream a response body into file handle ``fh`` with a hard total byte cap
     (counting ``already`` bytes already on disk). Raises ``ResponseTooLargeError``
-    if exceeded, or ``StreamDeadlineError`` past ``max_seconds``. ``progress`` is
-    called as (total_bytes, elapsed_s) at most once per ``progress_interval``.
+    if exceeded, or ``ResponseDeadlineError`` past ``max_seconds``. ``progress`` is
+    called as (total_bytes, elapsed_s) at most once a minute.
     Returns total bytes written."""
     total = already
     start = last_progress = time.monotonic()
@@ -124,15 +120,14 @@ def stream_to_file_capped(response, fh, max_bytes, *, already=0, chunk_size=8192
         if total > max_bytes:
             raise ResponseTooLargeError(f"stream exceeds {max_bytes} bytes")
         fh.write(chunk)
-        if max_seconds is None and progress is None:
-            continue
         now = time.monotonic()
-        if max_seconds is not None and now - start > max_seconds:
-            raise StreamDeadlineError(
-                f"stream exceeded {max_seconds}s budget ({total} bytes in {now - start:.0f}s)")
-        if progress is not None and now - last_progress >= progress_interval:
+        elapsed = now - start
+        if max_seconds is not None and elapsed > max_seconds:
+            raise ResponseDeadlineError(
+                f"stream exceeded {max_seconds}s budget ({total} bytes in {elapsed:.0f}s)")
+        if progress is not None and now - last_progress >= 60:
             last_progress = now
-            progress(total, now - start)
+            progress(total, elapsed)
     return total
 
 

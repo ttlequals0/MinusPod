@@ -67,6 +67,10 @@ logger = logging.getLogger(__name__)
 
 MB = 1024 * 1024
 
+
+def _kbps(num_bytes, seconds):
+    return num_bytes / 1024 / max(seconds, 1e-6)
+
 # check_audio_availability reports failures as prose that main_app.processing's
 # retry classifier matches on. Shared so rewording one cannot silently flip the
 # other's verdict.
@@ -704,8 +708,7 @@ class Transcriber:
 
             def log_progress(done, elapsed):
                 of = f" of {total_mb:.1f}MB" if total_mb else ""
-                logger.info(f"Downloading audio: {done / MB:.1f}MB{of} "
-                            f"({done / 1024 / max(elapsed, 1e-6):.0f} KB/s)")
+                logger.info(f"Downloading audio: {done / MB:.1f}MB{of} ({_kbps(done, elapsed):.0f} KB/s)")
 
             started = time.monotonic()
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
@@ -720,7 +723,7 @@ class Transcriber:
 
             elapsed = time.monotonic() - started
             logger.info(f"Downloaded audio to: {temp_path} ({downloaded / MB:.1f}MB in {elapsed:.0f}s, "
-                        f"{downloaded / 1024 / max(elapsed, 1e-6):.0f} KB/s)")
+                        f"{_kbps(downloaded, elapsed):.0f} KB/s)")
             return temp_path
         # Only the two audio-cap raises above can reach this handler:
         # safe_get runs in the first try block, and nothing else in this

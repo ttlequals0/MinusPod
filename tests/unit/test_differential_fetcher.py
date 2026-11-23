@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import differential_fetcher as df
 from config import BROWSER_USER_AGENT
-from utils.safe_http import StreamDeadlineError
+from utils.safe_http import ResponseDeadlineError
 from differential_fetcher import (
     REFETCH_USER_AGENTS,
     fetch_and_diff,
@@ -581,7 +581,7 @@ def test_fetch_and_diff_time_budget_exceeded_is_nonfatal(tmp_path):
 
     def slow_stream(response, fh, max_bytes, **kwargs):
         fh.write(b'x')
-        raise StreamDeadlineError('stream exceeded 300s budget')
+        raise ResponseDeadlineError('stream exceeded 300s budget')
 
     with patch('differential_fetcher.safe_get', return_value=_FakeResponse([b'x'])), \
          patch('differential_fetcher.stream_to_file_capped',

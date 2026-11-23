@@ -9,7 +9,6 @@ from utils.safe_http import (
     URLTrust,
     ResponseDeadlineError,
     ResponseTooLargeError,
-    StreamDeadlineError,
     read_response_capped,
     stream_to_file_capped,
     _reject_https_downgrade,
@@ -158,7 +157,7 @@ def _fake_clock(monkeypatch, step):
 
 def test_stream_to_file_capped_raises_past_max_seconds(monkeypatch):
     _fake_clock(monkeypatch, 100)
-    with pytest.raises(StreamDeadlineError, match='bytes'):
+    with pytest.raises(ResponseDeadlineError, match='bytes'):
         stream_to_file_capped(_Body(10), MagicMock(), 10_000, max_seconds=250)
 
 
@@ -171,7 +170,6 @@ def test_stream_to_file_capped_progress_fires_at_interval_not_per_chunk(monkeypa
     _fake_clock(monkeypatch, 20)
     calls = []
     stream_to_file_capped(_Body(10), MagicMock(), 10_000,
-                          progress=lambda total, elapsed: calls.append((total, elapsed)),
-                          progress_interval=60.0)
+                          progress=lambda total, elapsed: calls.append((total, elapsed)))
     assert 0 < len(calls) < 10
     assert calls[0][0] > 0
