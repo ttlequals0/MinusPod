@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- A show that ends on its own closing music without speech had every episode's untranscribed tail held for review as `uncorroborated_tail`, and confirming the hold could not change the audio when the feed keeps outros. A head or tail VAD gap that the feed's show intro or show outro cue template matches now carries the `intro` or `outro` category, so the feed's segment action decides it and keep clears the hold. Untranscribed audio of at least the gap minimum before the intro or after the outro stays a separate marker and is still reviewed.
+
 ## [2.102.15] - 2026-11-22
 
 ### Added

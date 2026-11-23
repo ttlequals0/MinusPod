@@ -204,3 +204,44 @@ def test_corroborated_accept_tail_still_cut():
     ad = result.ads[0]
     assert ad['validation']['decision'] == Decision.ACCEPT.value
     assert ad.get('held_for_review') is not True
+
+
+def _show_outro_analysis():
+    return {
+        'signals': [{
+            'start': 10560.0, 'end': 10598.0,
+            'signal_type': 'audio_cue', 'confidence': 0.97,
+            'details': {'source': 'template', 'cue_type': 'show_outro',
+                        'role': 'non_ad', 'template_id': 7},
+        }],
+        'loudness_baseline': -16.0,
+        'analysis_time_seconds': 4.2,
+        'errors': [],
+    }
+
+
+def test_show_outro_tail_is_kept_not_pending(monkeypatch):
+    """A tail gap covered by the feed's show outro cue becomes an outro marker. With
+    outro=keep the late keep partition keeps it and clears Rule 4's hold, so a feed
+    that closes on its own music is not sent to review every episode."""
+    from main_app.pipeline import keep_rules
+    monkeypatch.setattr(detect, '_vad_gap_enabled', lambda db: True)
+    monkeypatch.setattr(detect.common, '_setting_float',
+                        lambda db, key, default, **k: default)
+    all_ads = []
+    detect._apply_heuristic_rolls('slug', 'ep', all_ads, TAIL_SEGMENTS, 'Pod',
+                                  10600.0, False, None,
+                                  audio_analysis=_show_outro_analysis())
+    tail = [a for a in all_ads
+            if a.get('detection_stage') == 'vad_gap' and a['end'] == 10600.0]
+    assert len(tail) == 1 and tail[0]['category'] == 'outro'
+
+    validator = AdValidator(episode_duration=10600.0, segments=TAIL_SEGMENTS)
+    result = validator.validate(tail, audio_analysis=_show_outro_analysis())
+    actions = {'sponsor': 'remove', 'outro': 'keep', 'intro': 'keep'}
+    keep, remove = keep_rules._partition_keep_ads(result.ads, actions)
+    assert remove == []
+    assert keep[0]['was_cut'] is False
+    assert keep[0]['action_applied'] == 'keep'
+    assert is_pending_review(keep[0]) is False
+    assert count_pending_review(result.ads) == 0
