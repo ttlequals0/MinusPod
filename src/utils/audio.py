@@ -40,6 +40,48 @@ def get_audio_codec(audio_path: str) -> str | None:
     return None
 
 
+def _probe_audio_channels(audio_path: str) -> int | None:
+    """Channel count of the first audio stream via ffprobe, or None on failure."""
+    cmd = [
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error',
+        '-select_streams', 'a:0',
+        '-show_entries', 'stream=channels',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        audio_path
+    ]
+    try:
+        result = subprocess_registry.tracked_run(cmd, capture_output=True, text=True,
+                                                 timeout=FFPROBE_TIMEOUT)
+        if result.returncode == 0 and result.stdout.strip():
+            return int(result.stdout.strip())
+        logger.warning(f"ffprobe channel query failed for {audio_path}: "
+                       f"{result.stderr or 'no output'}")
+    except Exception as e:
+        logger.warning(f"Channel query failed for {audio_path}: {e}")
+    return None
+
+
+_CHANNELS_CACHE_MAX = 500
+_channels_cache: dict[str, tuple[int, tuple[int, int]]] = {}  # path -> (channels, stamp)
+
+
+def get_audio_channels(audio_path: str) -> int | None:
+    """Channel count, probed once per file version; a failed probe is retried."""
+    try:
+        stamp = AudioMetadata._stamp(audio_path)
+    except OSError:
+        return _probe_audio_channels(audio_path)
+    cached = _channels_cache.get(audio_path)
+    if cached and cached[1] == stamp:
+        return cached[0]
+    channels = _probe_audio_channels(audio_path)
+    if channels is not None:
+        _channels_cache[audio_path] = (channels, stamp)
+        while len(_channels_cache) > _CHANNELS_CACHE_MAX:
+            _channels_cache.pop(next(iter(_channels_cache)))
+    return channels
+
+
 @dataclass(frozen=True)
 class RenderInput:
     """What a render needs from its input file, read by one ffprobe call."""

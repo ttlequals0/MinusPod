@@ -14,7 +14,8 @@ release notes.
 
 - Documentation links in the README and the Docs button on the Settings page now open the pages on docs.minuspod.app instead of the Markdown files in the repository.
 - The audio download logs its progress once a minute, and its final log line reports the size, the time taken and the average speed.
-- Dependency updates: anthropic 2.11.0, openai 3.56.0, python-slugify 9.2.0, soupsieve 4.1.2, nh3 0.3.8, lucide-react 1.76.0, vite 8.3.8, @vitejs/plugin-react 6.3.0, eslint 10.15.0 and @playwright/test 1.65.1 (#1046 to #1055).
+- Preparing a stereo episode for transcription is faster. Loudness normalisation now runs after the mixdown to mono, so it processes one channel instead of two. On a 10-minute stereo test file the step took 9.1 seconds instead of 16.3, and the prepared audio was within 0.2 dB of its previous loudness. A recording whose left and right channels differ strongly can shift by more. Mono episodes and episodes with more than two channels are prepared as before (#1058).
+- Dependency updates: anthropic 2.12.0, openai 3.57.0, python-slugify 9.2.0, soupsieve 4.1.3, nh3 0.3.8, lucide-react 1.76.0, vite 8.3.8, @vitejs/plugin-react 6.3.0, eslint 10.15.0 and @playwright/test 1.65.1 (#1046 to #1055).
 
 ### Fixed
 

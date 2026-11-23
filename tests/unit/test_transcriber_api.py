@@ -11,12 +11,15 @@ import requests as requests_lib
 from transcriber import Transcriber, TranscriptionRejectedError
 from transcriber.settings import (
     _get_whisper_settings, _get_whisper_compute_type, _api_timeout, PREPROCESS_AUDIO_FILTERS,
+    PREPROCESS_AUDIO_FILTERS_STEREO, preprocess_filters_for,
 )
 from transcriber.local import WhisperModelSingleton
 from transcriber.remote import (
     _whisper_api_rejects_word_timestamps, _whisper_api_rejects_vad_filter, is_whisper_failover_trigger,
 )
 from transcriber.chunking import extract_audio_chunk, _ffmpeg_error_tail
+import utils.audio
+from utils.audio import get_audio_channels
 from utils.errors import (
     ServiceUnavailableError, AudioExtractionError, AudioExtractionTimeout,
 )
@@ -870,9 +873,17 @@ class TestTranscriptionRejected:
             os.unlink(temp_path)
 
 
+@pytest.fixture
+def no_channel_probe():
+    with patch('transcriber.utils.audio.get_audio_channels', return_value=None):
+        yield
+
+
 class TestExtractAudioChunkSinglePass:
     """extract_audio_chunk folds the preprocess filter chain (and optional
     FLAC encode) into the single extraction ffmpeg pass."""
+
+    pytestmark = pytest.mark.usefixtures('no_channel_probe')
 
     def _run_extract(self, start=10.0, end=40.0, **kwargs):
         captured = {}
@@ -906,6 +917,16 @@ class TestExtractAudioChunkSinglePass:
         assert path.endswith('.wav')
         # Filtering gets the standalone preprocess pass's larger budget
         assert captured['timeout'] == FFMPEG_LONG_TIMEOUT + 30 // 12
+
+    def test_stereo_source_uses_stereo_chain(self):
+        with patch('transcriber.utils.audio.get_audio_channels', return_value=2):
+            _, captured = self._run_extract(preprocess=True)
+        assert captured['cmd'][captured['cmd'].index('-af') + 1] == PREPROCESS_AUDIO_FILTERS_STEREO
+
+    def test_no_probe_without_preprocess(self):
+        with patch('transcriber.utils.audio.get_audio_channels') as probe:
+            self._run_extract()
+        probe.assert_not_called()
 
     def test_timeout_scales_with_chunk_duration(self):
         # A 60.5 min chunk must not get the same budget as a 30s one (#644).
@@ -941,6 +962,83 @@ class TestExtractAudioChunkSinglePass:
         assert path.endswith('.flac')
 
 
+class TestPreprocessFiltersFor:
+    @pytest.mark.parametrize('channels,expected', [
+        (2, PREPROCESS_AUDIO_FILTERS_STEREO),
+        (1, PREPROCESS_AUDIO_FILTERS),
+        (None, PREPROCESS_AUDIO_FILTERS),
+        (6, PREPROCESS_AUDIO_FILTERS),
+    ])
+    def test_chain_follows_channel_count(self, channels, expected):
+        with patch('transcriber.utils.audio.get_audio_channels', return_value=channels):
+            assert preprocess_filters_for('/tmp/in.mp3') == expected
+
+    def test_preprocess_audio_uses_stereo_chain(self):
+        cmds = []
+
+        def fake_run(cmd, **kwargs):
+            cmds.append(cmd)
+            return MagicMock(returncode=0)
+
+        with tempfile.NamedTemporaryFile(suffix='.mp3') as src, \
+             patch('transcriber.utils.audio.get_audio_channels', return_value=2), \
+             patch('transcriber.utils.subprocess_registry.tracked_run', side_effect=fake_run):
+            out = Transcriber().preprocess_audio(src.name)
+        os.unlink(out)
+        assert cmds[0][cmds[0].index('-af') + 1] == PREPROCESS_AUDIO_FILTERS_STEREO
+
+
+class TestGetAudioChannels:
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        utils.audio._channels_cache.clear()
+        yield
+        utils.audio._channels_cache.clear()
+
+    def _run(self, **kw):
+        with patch('utils.audio.subprocess_registry.tracked_run', **kw):
+            return get_audio_channels('/tmp/in.mp3')
+
+    def test_returns_channel_count(self):
+        assert self._run(return_value=MagicMock(returncode=0, stdout='2\n', stderr='')) == 2
+
+    def test_nonzero_exit_returns_none(self):
+        assert self._run(return_value=MagicMock(returncode=1, stdout='', stderr='bad')) is None
+
+    def test_exception_returns_none(self):
+        assert self._run(side_effect=subprocess.TimeoutExpired('ffprobe', 1)) is None
+
+    def test_same_file_probed_once(self, tmp_path):
+        f = tmp_path / 'a.mp3'
+        f.write_bytes(b'x' * 10)
+        with patch('utils.audio.subprocess_registry.tracked_run',
+                   return_value=MagicMock(returncode=0, stdout='2\n', stderr='')) as run:
+            assert get_audio_channels(str(f)) == 2
+            assert get_audio_channels(str(f)) == 2
+        assert run.call_count == 1
+
+    def test_changed_file_is_reprobed(self, tmp_path):
+        f = tmp_path / 'a.mp3'
+        f.write_bytes(b'x' * 10)
+        with patch('utils.audio.subprocess_registry.tracked_run',
+                   side_effect=[MagicMock(returncode=0, stdout='2\n', stderr=''),
+                                MagicMock(returncode=0, stdout='1\n', stderr='')]) as run:
+            assert get_audio_channels(str(f)) == 2
+            f.write_bytes(b'x' * 20)
+            assert get_audio_channels(str(f)) == 1
+        assert run.call_count == 2
+
+    def test_failed_probe_is_retried(self, tmp_path):
+        f = tmp_path / 'a.mp3'
+        f.write_bytes(b'x' * 10)
+        with patch('utils.audio.subprocess_registry.tracked_run',
+                   side_effect=[MagicMock(returncode=1, stdout='', stderr='bad'),
+                                MagicMock(returncode=0, stdout='2\n', stderr='')]) as run:
+            assert get_audio_channels(str(f)) is None
+            assert get_audio_channels(str(f)) == 2
+        assert run.call_count == 2
+
+
 class TestFfmpegErrorTail:
     _BANNER = (b'ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025\n'
                b'  configuration: --prefix=/usr --extra-version=3ubuntu2 '
@@ -966,6 +1064,8 @@ class TestFfmpegErrorTail:
 
 
 class TestChunkedSinglePass:
+    pytestmark = pytest.mark.usefixtures('no_channel_probe')
+
     """Chunked paths run exactly one ffmpeg pass per chunk: extraction with
     the preprocess filter chain folded in, no second preprocess pass, and
     (API path) no separate FLAC encode pass."""

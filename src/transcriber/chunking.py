@@ -69,7 +69,7 @@ def extract_audio_chunk(
             '-ac', '1',      # Mono
         ]
         if preprocess:
-            cmd += ['-af', settings.PREPROCESS_AUDIO_FILTERS]
+            cmd += ['-af', settings.preprocess_filters_for(audio_path)]
         # FLAC for upload; otherwise uncompressed for faster processing
         cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
 

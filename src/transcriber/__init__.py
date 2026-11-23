@@ -583,7 +583,7 @@ class Transcriber:
                 '-vn',           # ignore embedded cover art (#556)
                 '-ar', '16000',  # 16kHz (Whisper native sample rate)
                 '-ac', '1',      # Mono
-                '-af', settings.PREPROCESS_AUDIO_FILTERS,
+                '-af', settings.preprocess_filters_for(input_path),
                 output_path
             ]
             # Scale timeout by file size: 10s per MB (~1MB/min for podcasts)
