@@ -12,45 +12,45 @@ Website: [minuspod.app](https://minuspod.app). Documentation: [docs.minuspod.app
   <img src="docs/screenshots/dashboard-mobile-nord.png" alt="MinusPod dashboard on mobile" width="185" />
 </p>
 
-A tour of the web UI. More videos, portrait cuts and the files themselves in [docs/videos](docs/videos/README.md).
+A tour of the web UI. More videos, portrait cuts and the files themselves on the [videos page](https://docs.minuspod.app/videos/).
 
 https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 
 ## Features
 
 **Ad detection**
-- An LLM finds ads in the transcript, a second pass verifies the cut, and an optional reviewer confirms or adjusts each boundary. [How it works](docs/how-it-works.md)
-- Audio evidence backs the transcript: loudness and DAI transitions, a cross-fetch diff against a second download, per-feed jingle cues, and the publisher's own transcript. [Audio cues](docs/audio-cues.md), [Transcript differential](docs/transcript-differential.md)
+- An LLM finds ads in the transcript, a second pass verifies the cut, and an optional reviewer confirms or adjusts each boundary. [How it works](https://docs.minuspod.app/how-it-works/)
+- Audio evidence backs the transcript: loudness and DAI transitions, a cross-fetch diff against a second download, per-feed jingle cues, and the publisher's own transcript. [Audio cues](https://docs.minuspod.app/audio-cues/), [Transcript differential](https://docs.minuspod.app/transcript-differential/)
 - Each detection gets a category (sponsor, cross-promo, self-promo, intro/outro) and a per-feed action: remove, beep, keep, or mark as a skippable chapter
 - Low-confidence cuts wait in a review queue with a waveform editor; your corrections become cross-episode patterns so repeat sponsors are caught without another LLM call
-- Five per-feed [processing modes](docs/workflows.md), from full detection to pass-through
+- Five per-feed [processing modes](https://docs.minuspod.app/workflows/), from full detection to pass-through
 
 **Transcription and LLMs**
-- Transcribe locally with faster-whisper or NVIDIA Parakeet on GPU or CPU, or remotely through whisper.cpp, Groq, OpenAI, or OpenVINO. [Transcription](docs/transcription.md)
-- Anthropic, OpenRouter, Ollama, System One, or any OpenAI-compatible endpoint, switchable at runtime with per-stage models and editable prompts. [LLM providers](docs/llm-providers.md)
-- Or no LLM at all. With the provider set to None, MinusPod uses audio cues, fingerprints, text patterns, the cross-fetch differential and SponsorBlock. A fresh install finds little on a regular podcast feed until you mark ads. [Running without an LLM](docs/llm-providers.md#running-without-an-llm)
-- A/B routing between two providers, [failover](docs/failover.md) to a standby, rate-limit holds, a weekly processing schedule, and an offline queue for self-hosted endpoints
+- Transcribe locally with faster-whisper or NVIDIA Parakeet on GPU or CPU, or remotely through whisper.cpp, Groq, OpenAI, or OpenVINO. [Transcription](https://docs.minuspod.app/transcription/)
+- Anthropic, OpenRouter, Ollama, System One, or any OpenAI-compatible endpoint, switchable at runtime with per-stage models and editable prompts. [LLM providers](https://docs.minuspod.app/llm-providers/)
+- Or no LLM at all. With the provider set to None, MinusPod uses audio cues, fingerprints, text patterns, the cross-fetch differential and SponsorBlock. A fresh install finds little on a regular podcast feed until you mark ads. [Running without an LLM](https://docs.minuspod.app/llm-providers/#running-without-an-llm)
+- A/B routing between two providers, [failover](https://docs.minuspod.app/failover/) to a standby, rate-limit holds, a weekly processing schedule, and an offline queue for self-hosted endpoints
 
 **Patterns and sponsors**
 - Learned patterns scoped per podcast, network, or globally, with a sponsor list and aliases
 - Opt-in [community pattern](patterns/README.md) sync with one-PR contribution back
-- Scheduled [Pattern Cleanup](docs/pattern-cleanup.md) suggests trims, splits, and retirements, with approval and undo
+- Scheduled [Pattern Cleanup](https://docs.minuspod.app/pattern-cleanup/) suggests trims, splits, and retirements, with approval and undo
 
 **Publishing**
 - Re-cut RSS feeds per podcast with versioned audio, a replacement sound at each cut, loudness leveling, and lossless MP3 stream copy where the cut allows
-- [Podcasting 2.0](docs/podcasting-2.0.md) tags regenerated: transcripts, chapters, AI-content disclosure, value-for-value passed through
+- [Podcasting 2.0](https://docs.minuspod.app/podcasting-2.0/) tags regenerated: transcripts, chapters, AI-content disclosure, value-for-value passed through
 - Podping listener refreshes a feed seconds after the host announces an episode
-- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, and [local feeds](docs/local-feeds.md) built from your own audio files
+- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, and [local feeds](https://docs.minuspod.app/local-feeds/) built from your own audio files
 
 **YouTube**
-- Turn a YouTube playlist or channel into a podcast feed: audio through yt-dlp, the video's captions as the transcript, chapters, artwork and descriptions. [YouTube feeds](docs/youtube-feeds.md)
+- Turn a YouTube playlist or channel into a podcast feed: audio through yt-dlp, the video's captions as the transcript, chapters, artwork and descriptions. [YouTube feeds](https://docs.minuspod.app/youtube-feeds/)
 - Community [SponsorBlock](https://sponsor.ajay.app/) marks are cut as given and learned as patterns. The LLM steps in only when a video has no marks, or on top of them per feed. Off by default.
 
 **Web UI and administration**
-- Feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS, and Windows. [Web interface](docs/web-interface.md)
+- Feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS, and Windows. [Web interface](https://docs.minuspod.app/web-interface/)
 - Stats and an LLM cost ledger down to the individual call
-- Retention per feed, scheduled encrypted backups, email and webhook notifications, and a REST API with OpenAPI. [API and webhooks](docs/api-and-webhooks.md)
-- Password auth for the UI and API, feed keys or per-feed subscriber keys for RSS, provider keys encrypted at rest. [Security](docs/security-and-storage.md)
+- Retention per feed, scheduled encrypted backups, email and webhook notifications, and a REST API with OpenAPI. [API and webhooks](https://docs.minuspod.app/api-and-webhooks/)
+- Password auth for the UI and API, feed keys or per-feed subscriber keys for RSS, provider keys encrypted at rest. [Security](https://docs.minuspod.app/security-and-storage/)
 
 ## How it works
 
@@ -58,14 +58,14 @@ The transcriber turns the episode into text, an LLM marks the ad segments, FFmpe
 
 https://github.com/user-attachments/assets/cf3d38d7-3df6-4e8d-bac1-c5dd720dc4b6
 
-The full pipeline, including the verification pass, sliding windows, pattern learning, and audio analysis, is in [docs/how-it-works.md](docs/how-it-works.md).
+The full pipeline, including the verification pass, sliding windows, pattern learning, and audio analysis, is in [How it works](https://docs.minuspod.app/how-it-works/).
 
 ## Requirements
 
 - Docker on an amd64 or arm64 host. An NVIDIA GPU speeds up local transcription but is not required.
-- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint. An LLM is optional. Set `LLM_PROVIDER=none` to run without one, as described in [Running without an LLM](docs/llm-providers.md#running-without-an-llm). A fresh install on None finds little on a regular podcast feed until you mark ads, and SponsorBlock covers YouTube feeds only.
+- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint. An LLM is optional. Set `LLM_PROVIDER=none` to run without one, as described in [Running without an LLM](https://docs.minuspod.app/llm-providers/#running-without-an-llm). A fresh install on None finds little on a regular podcast feed until you mark ads, and SponsorBlock covers YouTube feeds only.
 
-Whisper and Parakeet sizing and RAM/VRAM figures are in [Installation](docs/installation.md#memory-requirements).
+Whisper and Parakeet sizing and RAM/VRAM figures are in [Installation](https://docs.minuspod.app/installation/#memory-requirements).
 
 ## Quick start
 
@@ -92,30 +92,30 @@ Adding the first podcast on a phone, from the search to playing it in a podcast 
 
 https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
 
-`MINUSPOD_MASTER_PASSPHRASE` encrypts provider keys at rest, so set it before you store any. Remote first-time setup, public processing, and the slower `stable` release channel are covered in [Installation](docs/installation.md#quick-start).
+`MINUSPOD_MASTER_PASSPHRASE` encrypts provider keys at rest, so set it before you store any. Remote first-time setup, public processing, and the slower `stable` release channel are covered in [Installation](https://docs.minuspod.app/installation/#quick-start).
 
 ## Documentation
 
 | Topic | |
 |---|---|
-| [Installation](docs/installation.md) | Requirements, sizing, quick start, CPU image |
-| [Environment variables](docs/environment-variables.md) | Every env var |
-| [LLM providers](docs/llm-providers.md) | Providers, recommended models, pricing |
-| [Transcription](docs/transcription.md) | faster-whisper, Parakeet, remote APIs, [OpenVINO](docs/transcription-openvino.md) |
-| [Web interface](docs/web-interface.md) | Management UI and the ad editor |
-| [How it works](docs/how-it-works.md) | The detection pipeline in depth |
-| [Workflows](docs/workflows.md) | Processing modes, re-runs, failure paths |
-| [Configuration](docs/configuration.md) | Every setting and experiment |
-| [Security and storage](docs/security-and-storage.md) | Remote access, authenticated feeds, backups |
-| [API and webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, notifications |
-| [Podcasting 2.0](docs/podcasting-2.0.md) | What is emitted, regenerated, and stripped |
-| [Glossary](docs/glossary.md) | Every term the app uses |
+| [Installation](https://docs.minuspod.app/installation/) | Requirements, sizing, quick start, CPU image |
+| [Environment variables](https://docs.minuspod.app/environment-variables/) | Every env var |
+| [LLM providers](https://docs.minuspod.app/llm-providers/) | Providers, recommended models, pricing |
+| [Transcription](https://docs.minuspod.app/transcription/) | faster-whisper, Parakeet, remote APIs, [OpenVINO](https://docs.minuspod.app/transcription-openvino/) |
+| [Web interface](https://docs.minuspod.app/web-interface/) | Management UI and the ad editor |
+| [How it works](https://docs.minuspod.app/how-it-works/) | The detection pipeline in depth |
+| [Workflows](https://docs.minuspod.app/workflows/) | Processing modes, re-runs, failure paths |
+| [Configuration](https://docs.minuspod.app/configuration/) | Every setting and experiment |
+| [Security and storage](https://docs.minuspod.app/security-and-storage/) | Remote access, authenticated feeds, backups |
+| [API and webhooks](https://docs.minuspod.app/api-and-webhooks/) | REST endpoints, webhook events, notifications |
+| [Podcasting 2.0](https://docs.minuspod.app/podcasting-2.0/) | What is emitted, regenerated, and stripped |
+| [Glossary](https://docs.minuspod.app/glossary/) | Every term the app uses |
 
-The [full docs index](docs/README.md) covers the rest: audio cues, community patterns, Pattern Cleanup, System One, failover, local feeds, YouTube feeds, download history, configuration import and export, deployment, releasing, and the [LLM benchmark report](benchmarks/llm/results/report.md).
+The [full docs index](https://docs.minuspod.app/) covers the rest: audio cues, community patterns, Pattern Cleanup, System One, failover, local feeds, YouTube feeds, download history, configuration import and export, deployment, releasing, and the [LLM benchmark report](https://docs.minuspod.app/benchmarks/llm/results/).
 
 ## Contributing
 
-Bug reports, feature requests, and pull requests are welcome. Open an issue first for larger changes so we can agree on the approach. See the [contributor guide](docs/CONTRIBUTING.md) for development setup, build instructions, and tests. Ad patterns go through [Community Patterns](patterns/README.md) and benchmark results through [Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md). Fork-derived features and community bug reports are credited in the CHANGELOG entry that ships them.
+Bug reports, feature requests, and pull requests are welcome. Open an issue first for larger changes so we can agree on the approach. See the [contributor guide](https://docs.minuspod.app/contributing/) for development setup, build instructions, and tests. Ad patterns go through [Community Patterns](patterns/README.md) and benchmark results through [Benchmark Contributing](https://docs.minuspod.app/benchmarks/llm/contributing/). Fork-derived features and community bug reports are credited in the CHANGELOG entry that ships them.
 
 ## Disclaimer
 

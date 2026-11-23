@@ -451,11 +451,7 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
 
 def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
                             episode_duration, skip_patterns, db, audio_analysis=None):
-    """Append heuristic pre/post-roll and VAD-gap ads to ``all_ads`` in place.
-
-    ``audio_analysis`` (validator-format dict) supplies the feed's show intro/outro
-    template cues, which categorise the head/tail VAD gaps they cover.
-    """
+    """Append heuristic pre/post-roll and VAD-gap ads to ``all_ads`` in place."""
     if not segments:
         return
     from roll_detector import detect_preroll, detect_postroll

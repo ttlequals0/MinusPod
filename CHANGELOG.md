@@ -10,9 +10,13 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- The README's documentation links now open the pages on docs.minuspod.app instead of the Markdown files in the repository.
+
 ### Fixed
 
-- A show that ends on its own closing music without speech had every episode's untranscribed tail held for review as `uncorroborated_tail`, and confirming the hold could not change the audio when the feed keeps outros. A head or tail VAD gap that the feed's show intro or show outro cue template matches now carries the `intro` or `outro` category, so the feed's segment action decides it and keep clears the hold. Untranscribed audio of at least the gap minimum before the intro or after the outro stays a separate marker and is still reviewed.
+- A show that ends on its own closing music, without speech, had the untranscribed tail of every episode held for review as `uncorroborated_tail`. When the feed keeps outros, confirming that hold could not change the audio. A head or tail VAD gap matched by the feed's show intro or show outro cue template now carries the `intro` or `outro` category. The feed's segment action then decides it, and keep clears the hold. Untranscribed audio of at least the gap minimum before the intro or after the outro stays a separate marker and is still reviewed.
 
 ## [2.102.15] - 2026-11-22
 

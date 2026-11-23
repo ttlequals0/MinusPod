@@ -27,8 +27,9 @@ from roll_detector import (
 )
 from utils.text import get_transcript_text_for_range, transcript_gaps
 from config import (
-    AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO, HOLD_REASON_LARGE_VAD_GAP,
-    MAX_ADJACENT_AUTO_EXTENSION_SECONDS, VAD_GAP_CONFIDENCE, is_template_cue,
+    AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO, CUE_CUT_CATEGORY,
+    HOLD_REASON_LARGE_VAD_GAP, MAX_ADJACENT_AUTO_EXTENSION_SECONDS, VAD_GAP_CONFIDENCE,
+    is_template_cue,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,19 +141,12 @@ def _new_marker(start: float, end: float, reason: str) -> dict:
     }
 
 
-_SHOW_CUE_CATEGORY = {
-    AUDIO_CUE_TYPE_SHOW_INTRO: 'intro',
-    AUDIO_CUE_TYPE_SHOW_OUTRO: 'outro',
-}
+_SHOW_CUE_TYPES = (AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO)
 
 
 def show_cue_spans(audio_analysis: dict | None) -> dict[str, list[tuple[float, float]]]:
-    """Template show intro/outro cue spans from a validator-format audio analysis dict.
-
-    Only template matches count: they come from a cue the operator captured for this feed
-    and already passed its score threshold. Spectral cues carry no reliable type.
-    """
-    spans: dict[str, list[tuple[float, float]]] = {t: [] for t in _SHOW_CUE_CATEGORY}
+    """Template show intro/outro cue spans by cue type; spectral cues carry no reliable type."""
+    spans: dict[str, list[tuple[float, float]]] = {t: [] for t in _SHOW_CUE_TYPES}
     for sig in (audio_analysis or {}).get('signals') or []:
         details = sig.get('details') or {}
         cue_type = details.get('cue_type')
@@ -167,52 +161,41 @@ def _split_by_show_cue(
 ) -> list[tuple[float, float, bool]]:
     """Split a gap into (start, end, is_show_audio) pieces around the cues that overlap it.
 
-    Untranscribed audio before or after the cues stays its own piece when it is at least
-    ``min_seconds`` (it could be an inserted ad); a shorter remainder, such as a fade, is
-    absorbed into the show piece.
+    A remainder of at least ``min_seconds`` could be an inserted ad and stays its own piece.
     """
     overlapping = [(s, e) for s, e in cues if s < gap_end and e > gap_start]
     if not overlapping:
         return [(gap_start, gap_end, False)]
     show_start = max(gap_start, min(s for s, _ in overlapping))
     show_end = min(gap_end, max(e for _, e in overlapping))
+    lead = show_start - gap_start >= min_seconds
+    trail = gap_end - show_end >= min_seconds
     pieces = []
-    if show_start - gap_start >= min_seconds:
+    if lead:
         pieces.append((gap_start, show_start, False))
-    else:
-        show_start = gap_start
-    after = None
-    if gap_end - show_end >= min_seconds:
-        after = (show_end, gap_end, False)
-    else:
-        show_end = gap_end
-    pieces.append((show_start, show_end, True))
-    if after:
-        pieces.append(after)
+    pieces.append((show_start if lead else gap_start, show_end if trail else gap_end, True))
+    if trail:
+        pieces.append((show_end, gap_end, False))
     return pieces
 
 
 def _edge_gap_markers(
-    gap_start: float, gap_end: float, edge: str, cue_type: str,
+    gap_start: float, gap_end: float, cue_type: str,
     show_cues: dict | None, min_seconds: float,
 ) -> list[dict]:
     """Markers for a head or tail gap, with the show-cue-covered part categorised."""
-    category = _SHOW_CUE_CATEGORY[cue_type]
+    edge = 'head' if cue_type == AUDIO_CUE_TYPE_SHOW_INTRO else 'tail'
+    category = CUE_CUT_CATEGORY[cue_type]
     markers = []
     for start, end, is_show in _split_by_show_cue(
-            gap_start, gap_end, (show_cues or {}).get(cue_type) or [], min_seconds):
+            gap_start, gap_end, (show_cues or {}).get(cue_type, []), min_seconds):
+        covered = f' covered by show {category} cue' if is_show else ''
+        marker = _new_marker(
+            start, end,
+            f'VAD gap at episode {edge}{covered} ({end - start:.1f}s untranscribed)')
         if is_show:
-            marker = _new_marker(
-                start, end,
-                f'VAD gap at episode {edge} covered by show {category} cue '
-                f'({end - start:.1f}s untranscribed)',
-            )
             marker['category'] = category
-            logger.info(f"VAD {edge} gap: {start:.1f}s-{end:.1f}s is show {category} audio")
-        else:
-            marker = _new_marker(
-                start, end, f'VAD gap at episode {edge} ({end - start:.1f}s untranscribed)')
-            logger.info(f"VAD {edge} gap: {start:.1f}s-{end:.1f}s")
+        logger.info(f"VAD {edge} gap: {start:.1f}s-{end:.1f}s{covered}")
         markers.append(marker)
     return markers
 
@@ -247,7 +230,7 @@ def detect_vad_gaps(
     head_end = segments[0].get('start', 0.0)
     if head_end >= start_min_seconds and not _region_covered(0.0, head_end, existing_ads):
         new_markers.extend(_edge_gap_markers(
-            0.0, head_end, 'head', AUDIO_CUE_TYPE_SHOW_INTRO, show_cues, start_min_seconds))
+            0.0, head_end, AUDIO_CUE_TYPE_SHOW_INTRO, show_cues, start_min_seconds))
 
     # Mid gaps
     starts = [seg.get('start', 0.0) for seg in segments]
@@ -338,7 +321,6 @@ def detect_vad_gaps(
         tail_span = episode_duration - tail_start
         if tail_span >= tail_min_seconds and not _region_covered(tail_start, episode_duration, existing_ads):
             new_markers.extend(_edge_gap_markers(
-                tail_start, episode_duration, 'tail', AUDIO_CUE_TYPE_SHOW_OUTRO, show_cues,
-                tail_min_seconds))
+                tail_start, episode_duration, AUDIO_CUE_TYPE_SHOW_OUTRO, show_cues, tail_min_seconds))
 
     return new_markers
