@@ -437,6 +437,8 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str,
 
 # Refetch may not exceed this multiple of the primary file's size.
 REFETCH_SIZE_FACTOR = 1.5
+# Total refetch time budget: the refetch is optional evidence, a slow host must not hold the pipeline.
+REFETCH_MAX_SECONDS = 300
 
 
 def match_cue_anchor_pairs(primary_cues: list, refetch_cues: list) -> list:
@@ -471,7 +473,7 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
     """Refetch the enclosure with a rotated podcast-client UA and diff it against the run file.
 
     Never raises: every failure returns status 'error' so the pipeline can record it and continue. timeout_s is
-    the per-read timeout passed to safe_get, matched to the primary download's 300s cap.
+    the per-read timeout passed to safe_get; the whole download is bounded by REFETCH_MAX_SECONDS.
 
     Cue fusion (2.76.0): ``cue_scan`` is an optional callable (refetch_path) -> [{'time', 'template_id'}] run after
     the download and before alignment, so the refetch's template cues persist in the result ('refetch_cues') and
@@ -500,7 +502,7 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
         try:
             response.raise_for_status()
             with open(refetch_path, 'wb') as fh:
-                stream_to_file_capped(response, fh, max_bytes)
+                stream_to_file_capped(response, fh, max_bytes, max_seconds=REFETCH_MAX_SECONDS)
         finally:
             response.close()
         meta['size'] = os.path.getsize(refetch_path)

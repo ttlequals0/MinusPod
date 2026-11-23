@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import differential_fetcher as df
 from config import BROWSER_USER_AGENT
+from utils.safe_http import StreamDeadlineError
 from differential_fetcher import (
     REFETCH_USER_AGENTS,
     fetch_and_diff,
@@ -573,3 +574,20 @@ def test_refetch_excludes_feed_override_and_accepted_fallback(tmp_path, monkeypa
                             primary_user_agent=primary, fallback_user_agent=fallback)
     assert choices == [list(REFETCH_USER_AGENTS[2:])]
     assert result['refetch_meta']['ua'] not in (primary, fallback)
+
+
+def test_fetch_and_diff_time_budget_exceeded_is_nonfatal(tmp_path):
+    run_file = _run_file(tmp_path)
+
+    def slow_stream(response, fh, max_bytes, **kwargs):
+        fh.write(b'x')
+        raise StreamDeadlineError('stream exceeded 300s budget')
+
+    with patch('differential_fetcher.safe_get', return_value=_FakeResponse([b'x'])), \
+         patch('differential_fetcher.stream_to_file_capped',
+               side_effect=slow_stream) as mock_stream:
+        result = fetch_and_diff('https://example.com/e.mp3', run_file, str(tmp_path))
+    assert result['status'] == 'error'
+    assert 'budget' in result['error']
+    assert mock_stream.call_args.kwargs['max_seconds'] == df.REFETCH_MAX_SECONDS
+    assert not os.path.exists(os.path.join(str(tmp_path), 'refetch_audio'))
