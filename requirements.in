@@ -49,7 +49,7 @@ rapidfuzz>=3.14.6
 scikit-learn>=1.9.1
 
 # Security
-nh3>=0.3.7
+nh3>=0.3.8
 cryptography>=50.0.2
 pyjwt>=2.15.1
 defusedxml>=0.7.1
