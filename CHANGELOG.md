@@ -12,11 +12,14 @@ release notes.
 
 ### Changed
 
-- The README's documentation links now open the pages on docs.minuspod.app instead of the Markdown files in the repository.
+- Documentation links in the README and the Docs button on the Settings page now open the pages on docs.minuspod.app instead of the Markdown files in the repository.
+- The audio download logs its progress once a minute, and its final log line reports the size, the time taken and the average speed.
+- Dependency updates: anthropic 2.11.0, openai 3.56.0, python-slugify 9.2.0, soupsieve 4.1.2, nh3 0.3.8, lucide-react 1.76.0, vite 8.3.8, @vitejs/plugin-react 6.3.0, eslint 10.15.0 and @playwright/test 1.65.1 (#1046 to #1055).
 
 ### Fixed
 
 - A show that ends on its own closing music, without speech, had the untranscribed tail of every episode held for review as `uncorroborated_tail`. When the feed keeps outros, confirming that hold could not change the audio. A head or tail VAD gap matched by the feed's show intro or show outro cue template now carries the `intro` or `outro` category. The feed's segment action then decides it, and keep clears the hold. Untranscribed audio of at least the gap minimum before the intro or after the outro stays a separate marker and is still reviewed.
+- The cross-fetch comparison downloads the episode a second time, and that download had no overall time limit. A host that sent the file slowly could hold an episode in processing for as long as the first download took. The second download now stops after 300 seconds. The comparison is then recorded as failed and processing continues without it.
 
 ## [2.102.15] - 2026-11-22
 
