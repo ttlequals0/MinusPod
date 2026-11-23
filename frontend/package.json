@@ -48,7 +48,7 @@
     "@axe-core/playwright": "^4.14.0",
     "@babel/core": "^7.29.6",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.64.1",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
