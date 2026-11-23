@@ -5,6 +5,7 @@ import tempfile
 import os
 import subprocess
 import threading
+import time
 from contextlib import ExitStack
 from dataclasses import dataclass, field, replace
 from typing import cast
@@ -63,6 +64,12 @@ os.environ.setdefault('HUGGINGFACE_HUB_CACHE', os.path.join(cache_dir, 'hub'))
 os.environ.setdefault('XDG_CACHE_HOME', cache_dir)
 
 logger = logging.getLogger(__name__)
+
+MB = 1024 * 1024
+
+
+def _kbps(num_bytes, seconds):
+    return num_bytes / 1024 / max(seconds, 1e-6)
 
 # check_audio_availability reports failures as prose that main_app.processing's
 # retry classifier matches on. Shared so rewording one cannot silently flip the
@@ -697,17 +704,26 @@ class Transcriber:
 
             # Cap the stream independent of Content-Length (absent on chunked
             # responses) so a feed enclosure can't fill the disk (transcription-1).
+            total_mb = int(content_length) / MB if content_length and content_length.isdigit() else None
+
+            def log_progress(done, elapsed):
+                of = f" of {total_mb:.1f}MB" if total_mb else ""
+                logger.info(f"Downloading audio: {done / MB:.1f}MB{of} ({_kbps(done, elapsed):.0f} KB/s)")
+
+            started = time.monotonic()
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
                 temp_path = tmp.name
                 try:
-                    stream_to_file_capped(response, tmp, max_bytes)
+                    downloaded = stream_to_file_capped(response, tmp, max_bytes, progress=log_progress)
                 except ResponseTooLargeError:
                     response.close()
                     raise ResponseTooLargeError(
                         f"Audio stream exceeded the {max_mb}MB download cap"
                     ) from None
 
-            logger.info(f"Downloaded audio to: {temp_path}")
+            elapsed = time.monotonic() - started
+            logger.info(f"Downloaded audio to: {temp_path} ({downloaded / MB:.1f}MB in {elapsed:.0f}s, "
+                        f"{_kbps(downloaded, elapsed):.0f} KB/s)")
             return temp_path
         # Only the two audio-cap raises above can reach this handler:
         # safe_get runs in the first try block, and nothing else in this

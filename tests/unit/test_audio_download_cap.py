@@ -56,7 +56,8 @@ class TestDownloadAudioCap:
         # side_effect=None leaves the stream mock a no-op; the happy-path
         # tests only assert a temp path comes back.
         with patch('transcriber.safe_get', return_value=response), \
-             patch('transcriber.stream_to_file_capped', side_effect=stream_error):
+             patch('transcriber.stream_to_file_capped', side_effect=stream_error,
+                   return_value=10 * MB):
             return Transcriber().download_audio('https://example.com/ep.mp3')
 
     def test_content_length_over_cap_raises(self):
@@ -95,11 +96,36 @@ class TestDownloadAudioCap:
         monkeypatch.setenv('MAX_AUDIO_DOWNLOAD_MB', '1000')
         response = _mock_response(content_length=None)
         with patch('transcriber.safe_get', return_value=response), \
-             patch('transcriber.stream_to_file_capped') as stream_mock:
+             patch('transcriber.stream_to_file_capped', return_value=MB) as stream_mock:
             path = Transcriber().download_audio('https://example.com/ep.mp3')
         assert path is not None
         os.unlink(path)
         assert stream_mock.call_args.args[2] == 1000 * MB
+
+    def test_final_log_line_reports_throughput(self, caplog):
+        response = _mock_response(content_length=10 * MB)
+        with caplog.at_level('INFO', logger='transcriber'):
+            path = self._download(response)
+        os.unlink(path)
+        assert any('Downloaded audio to:' in r.message and 'MB in' in r.message
+                   and 'KB/s' in r.message for r in caplog.records)
+
+    def test_progress_callback_logs_total_and_rate(self, caplog):
+        response = _mock_response(content_length=100 * MB)
+        captured = {}
+
+        def fake_stream(resp, fh, max_bytes, **kwargs):
+            captured['progress'] = kwargs['progress']
+            return MB
+
+        with patch('transcriber.safe_get', return_value=response), \
+             patch('transcriber.stream_to_file_capped', side_effect=fake_stream), \
+             caplog.at_level('INFO', logger='transcriber'):
+            path = Transcriber().download_audio('https://example.com/ep.mp3')
+            captured['progress'](10 * MB, 100.0)
+        os.unlink(path)
+        assert any('Downloading audio: 10.0MB of 100.0MB' in r.message
+                   for r in caplog.records)
 
     def test_hint_not_doubled_on_rewrap(self):
         original = AudioTooLargeError('Audio file is 620.0MB, over the 500MB download cap')
