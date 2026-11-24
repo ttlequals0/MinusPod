@@ -113,6 +113,19 @@ def _sponsor_name_re(sponsor: str) -> re.Pattern | None:
     return word_boundary_re((sponsor,))
 
 
+_SPACE_AROUND_PUNCT_RE = re.compile(r'\s*([^\w\s])\s*')
+
+
+def _squash_spacing(text: str) -> str:
+    """Lowercase `text` with runs of whitespace collapsed and none beside punctuation.
+
+    The model quotes "acme .se" for a transcript's "acme.se", so a substring test
+    on the raw text misses a quote that is really there.
+    """
+    text = _SPACE_AROUND_PUNCT_RE.sub(r'\1', text.lower())
+    return ' '.join(text.split())
+
+
 def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
     """Return saved trim exclusions after newer approvals take precedence."""
     protected = []
@@ -1275,16 +1288,24 @@ class AdValidator:
             logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
             return 0.0  # Force rejection
 
-        # Vague reason = penalize
-        if any(vague in reason for vague in self.VAGUE_REASONS):
-            flags.append("WARN: Vague reason")
-            return max(0.0, confidence - 0.1)
-
         # Sponsor name in reason = boost
         if self.SPONSOR_PATTERNS.search(reason):
             return min(1.0, confidence + 0.1)
 
+        # Vague reason = penalize. The phrases match as substrings ("sponsored" holds
+        # "sponsor"), so a reason that also names its advertiser is not vague.
+        if (any(vague in reason for vague in self.VAGUE_REASONS)
+                and not self._reason_names_advertiser(ad.get('reason', ''))):
+            flags.append("WARN: Vague reason")
+            return max(0.0, confidence - 0.1)
+
         return confidence
+
+    @staticmethod
+    def _reason_names_advertiser(reason: str) -> bool:
+        """Whether the model's reason names a brand, not only the kind of segment."""
+        brand = SponsorService.extract_sponsor_from_reason(reason)
+        return bool(brand) and not is_non_brand_name(brand)
 
     def _verify_in_transcript(self, ad: dict, confidence: float,
                                flags: list[str], transcript_hits: list[dict] | None = None) -> float:
@@ -1343,7 +1364,7 @@ class AdValidator:
         # Verify end_text exists in transcript
         end_text = ad.get('end_text', '')
         if end_text and len(end_text) > 5:
-            if end_text.lower() not in ad_text.lower():
+            if _squash_spacing(end_text) not in _squash_spacing(ad_text):
                 flags.append("WARN: end_text not found in transcript")
                 return max(0.0, confidence - 0.05)
 
