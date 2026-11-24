@@ -188,7 +188,8 @@ Key endpoints:
       "stage": "pass1:transcribing",
       "progress": 35,
       "startedAt": 1767261900,
-      "elapsed": 120
+      "elapsed": 120,
+      "stageDetail": {"processed": 894, "total": 2706, "unit": "seconds"}
     }
   ],
   "whisper": {
@@ -209,7 +210,7 @@ Key endpoints:
 
 Both frames also carry `processingSchedule`: `{"enabled": true, "open": false, "nextChangeAt": "2026-01-01T22:00:00Z"}`. While `open` is false the queue holds new starts (a queued entry's `admission.reason` is `outside_schedule` and `resumesAt` is `nextChangeAt`). `nextChangeAt` is null when the schedule is disabled or never closes.
 
-`jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
+`jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `stageDetail` is null unless a long stage reports sub-progress: during transcription it carries `processed` and `total` in `seconds` of audio (local decode) or `chunks` (remote API with parallel chunks), and it is cleared when the stage changes. It never changes `progress`. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 
 Both frames also carry a `failover` block: `{"active": ["llm-a"], "targets": {"llm-a": {"active": true, "source": "auto", "since": "2026-01-01T12:00:00Z"}, "llm-b": {...}, "transcriber": {...}}}`. `active` lists the targets currently on their failover configuration; `targets` gives every target's state regardless. See [Failover](failover.md) for what drives a switch. `GET /api/v1/system/status` additionally carries `failover.targets` (with the `configured` flag) and `failover.probes` (the health-probe results behind auto-trigger and auto-recovery).
 

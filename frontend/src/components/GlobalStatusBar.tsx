@@ -8,7 +8,7 @@ import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import ProcessingJobProgress from './ProcessingJobProgress';
 import { failoverSourceLabel, failoverTargetLabel } from '../api/failover';
-import type { ProcessingScheduleStatus, ProcessingStatus, WaitingEpisode } from '../api/status';
+import type { ProcessingScheduleStatus, ProcessingStatus, StageDetail, WaitingEpisode } from '../api/status';
 import { sponsorBlockLabel } from '../utils/sponsorBlock';
 import { formatElapsed } from '../utils/format';
 import { focusRing } from './fieldStyles';
@@ -24,6 +24,7 @@ interface ProcessingJob {
   startedAt: number;
   elapsed: number;
   runId?: string | null;
+  stageDetail?: StageDetail | null;
 }
 
 interface QueuedEpisode {

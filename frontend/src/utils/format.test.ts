@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHit, formatTimestamp, formatDateShort } from './format';
+import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, formatStageDetail, sentenceCase, cacheHit, formatTimestamp, formatDateShort } from './format';
 
 describe('formatDurationHoursMinutes', () => {
   it.each([
@@ -51,6 +51,24 @@ describe('formatElapsed', () => {
     expect(formatElapsed(59.4)).toBe('59s');
     expect(formatElapsed(-3)).toBe('0s');
     expect(formatElapsed(NaN)).toBe('0s');
+  });
+});
+
+describe('formatStageDetail', () => {
+  it('formats seconds as minutes with one decimal', () => {
+    expect(formatStageDetail({ processed: 894, total: 2706, unit: 'seconds' })).toBe('14.9 / 45.1 min');
+  });
+  it('formats chunks as counts', () => {
+    expect(formatStageDetail({ processed: 3, total: 12, unit: 'chunks' })).toBe('3 / 12 chunks');
+  });
+  it('clamps processed to total and below zero', () => {
+    expect(formatStageDetail({ processed: 3000, total: 2700, unit: 'seconds' })).toBe('45.0 / 45.0 min');
+    expect(formatStageDetail({ processed: -5, total: 12, unit: 'chunks' })).toBe('0 / 12 chunks');
+  });
+  it('returns null when absent or total is not positive', () => {
+    expect(formatStageDetail(undefined)).toBeNull();
+    expect(formatStageDetail(null)).toBeNull();
+    expect(formatStageDetail({ processed: 0, total: 0, unit: 'seconds' })).toBeNull();
   });
 });
 

@@ -142,6 +142,14 @@ export function cacheHit(read: number, write: number, input: number): { text: st
   };
 }
 
+// Stage sub-progress for the job meta line: '14.9 / 45.1 min' or '3 / 12 chunks'; null when absent or total is 0.
+export function formatStageDetail(detail: { processed: number; total: number; unit: 'seconds' | 'chunks' } | null | undefined): string | null {
+  if (!detail || !Number.isFinite(detail.total) || detail.total <= 0) return null;
+  const processed = Math.max(0, Math.min(detail.total, Number.isFinite(detail.processed) ? detail.processed : 0));
+  if (detail.unit === 'chunks') return `${Math.floor(processed)} / ${Math.floor(detail.total)} chunks`;
+  return `${(processed / 60).toFixed(1)} / ${(detail.total / 60).toFixed(1)} min`;
+}
+
 // Elapsed or summed duration, rounded to whole seconds; zero trailing units are dropped: '45s', '2m 5s', '1h 2m'.
 export function formatElapsed(seconds: number): string {
   const total = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;

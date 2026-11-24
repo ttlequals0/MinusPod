@@ -4,6 +4,7 @@ import logging
 import tempfile
 import os
 import subprocess
+import contextvars
 import threading
 import time
 from contextlib import ExitStack
@@ -13,6 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import failover
 import run_context
+from status_service import StatusService
 from user_agent import download_user_agent
 import utils.audio
 from utils.errors import (
@@ -67,6 +69,10 @@ logger = logging.getLogger(__name__)
 
 MB = 1024 * 1024
 CANCEL_CHECK_INTERVAL_SECONDS = 2.0
+STAGE_DETAIL_INTERVAL_SECONDS = 5.0
+# (offset, total) seconds of the chunk being decoded within the episode; None means the file is the episode.
+_progress_window: contextvars.ContextVar = contextvars.ContextVar('transcribe_progress_window', default=None)
+_stage_detail_warned = False
 
 
 def _raise_if_cancelled():
@@ -74,6 +80,25 @@ def _raise_if_cancelled():
     ctx = run_context.current()
     if ctx is not None:
         ctx.llm_cancel_check()
+
+
+def _publish_stage_detail(processed, total, unit, force=False, now=None):
+    """Publish sub-stage progress to the job status, at most once per interval unless forced; never raises."""
+    global _stage_detail_warned
+    ctx = run_context.current()
+    if ctx is None or not total or total <= 0:
+        return
+    now = time.monotonic() if now is None else now
+    if not force and now - getattr(ctx, '_stage_detail_at', float('-inf')) < STAGE_DETAIL_INTERVAL_SECONDS:
+        return
+    ctx._stage_detail_at = now
+    try:
+        StatusService().update_job_stage_detail(
+            ctx.slug, ctx.episode_id, min(processed, total), total, unit, run_id=ctx.run_id)
+    except Exception as e:
+        if not _stage_detail_warned:
+            _stage_detail_warned = True
+            logger.warning("Could not publish transcription progress: %s", e)
 
 
 def _is_cancellation(exc: BaseException) -> bool:
@@ -946,6 +971,8 @@ class Transcriber:
                             last_cancel_check = now
                             _raise_if_cancelled()
                         segment_count += 1
+                        offset, window_total = _progress_window.get() or (0.0, audio_duration)
+                        _publish_stage_detail(offset + segment.end, window_total, 'seconds', now=now)
                         # Store word-level timestamps for boundary refinement
                         words = []
                         if segment.words:
@@ -1164,6 +1191,8 @@ class Transcriber:
                 results[chunk_idx] = segs
                 if segs is None:
                     failed += 1
+                else:
+                    _publish_stage_detail(completed - failed, len(plan_subset), 'chunks', force=True)
                 logger.info(
                     f"{prefix}Chunk {chunk_idx + 1} complete "
                     f"({completed}/{len(plan_subset)}): "
@@ -1532,11 +1561,15 @@ class Transcriber:
 
                 try:
                     # Transcribe chunk (will handle its own batch sizing and retries)
-                    chunk_segments = self.transcribe(
-                        chunk_path,
-                        language_override=language_override, preprocessed=True,
-                        whisper_settings=whisper_settings,
-                    )
+                    window_token = _progress_window.set((chunk_start, duration))
+                    try:
+                        chunk_segments = self.transcribe(
+                            chunk_path,
+                            language_override=language_override, preprocessed=True,
+                            whisper_settings=whisper_settings,
+                        )
+                    finally:
+                        _progress_window.reset(window_token)
 
                     if chunk_segments is None:
                         error = (self.last_transcription_stats or {}).get('error', '')
@@ -1587,6 +1620,8 @@ class Transcriber:
                         f"Chunk {chunk_num} complete: {len(chunk_segments)} segments "
                         f"(total: {len(all_segments)})"
                     )
+
+                    _publish_stage_detail(chunk_end, duration, 'seconds', force=True)
 
                     # Move to next chunk
                     chunk_start = chunk_end

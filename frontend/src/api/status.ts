@@ -16,6 +16,13 @@ export interface ProcessingScheduleStatus {
   nextChangeAt: string | null;
 }
 
+/** Sub-stage progress while a long stage runs; null or absent otherwise. */
+export interface StageDetail {
+  processed: number;
+  total: number;
+  unit: 'seconds' | 'chunks';
+}
+
 export interface ProcessingStatus {
   currentJob: {
     slug: string;
@@ -25,6 +32,7 @@ export interface ProcessingStatus {
     stage: string;
     progress: number;
     elapsed: number;
+    stageDetail?: StageDetail | null;
   } | null;
   jobs?: Array<NonNullable<ProcessingStatus['currentJob']>>;
   queueLength: number;

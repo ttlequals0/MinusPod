@@ -21008,6 +21008,19 @@ components:
             elapsed:
               type: number
               description: Seconds since the job started
+            stageDetail:
+              type:
+                - object
+                - 'null'
+              description: Sub-stage progress while a stage runs long (transcription), null otherwise. It never moves the overall progress value and is dropped when the stage changes.
+              properties:
+                processed:
+                  type: number
+                total:
+                  type: number
+                unit:
+                  type: string
+                  enum: [seconds, chunks]
         jobs:
           type: array
           description: Every episode currently processing, oldest first. currentJob is jobs[0].
@@ -21034,6 +21047,19 @@ components:
               elapsed:
                 type: number
                 description: Seconds since the job started
+              stageDetail:
+                type:
+                  - object
+                  - 'null'
+                description: Sub-stage progress while a stage runs long (transcription), null otherwise. It never moves the overall progress value and is dropped when the stage changes.
+                properties:
+                  processed:
+                    type: number
+                  total:
+                    type: number
+                  unit:
+                    type: string
+                    enum: [seconds, chunks]
         whisper:
           $ref: '#/components/schemas/WhisperPoolSnapshot'
         queueLength:
