@@ -176,3 +176,48 @@ def test_restore_proxy_password():
     for bad in ('http://u:***@other:1', 'http://x:***@h:1', 'socks5://u:***@h:1'):
         with pytest.raises(ValueError, match='host or user changed'):
             ytdlp.restore_proxy_password(bad, stored)
+
+
+@pytest.mark.parametrize('code,expected', [
+    ('de', 'de'), (' DE ', 'de'), ('he', 'iw'), ('zh', 'zh-CN'), ('nb', 'no'), ('tl', 'fil'),
+    ('en', None), ('auto', None), ('', None), (None, None), ('yue', None),
+])
+def test_youtube_lang_maps_whisper_codes(code, expected):
+    assert ytdlp.youtube_lang(code) == expected
+
+
+def test_feed_lang_prefers_the_override_then_the_global_whisper_language():
+    db = MagicMock()
+    db.get_setting.return_value = 'fr'
+    assert ytdlp.feed_lang(db, 'de') == 'de'
+    assert ytdlp.feed_lang(db, None) == 'fr'
+    assert ytdlp.feed_lang(db, 'auto') is None
+    assert ytdlp.feed_lang(db, 'en') is None
+    db.get_setting.return_value = None
+    assert ytdlp.feed_lang(db, '') is None
+
+
+@pytest.mark.parametrize('tokens,expected', [
+    ([], ['--extractor-args', 'youtube:lang=de']),
+    (['--limit-rate', '2M'], ['--limit-rate', '2M', '--extractor-args', 'youtube:lang=de']),
+    (['--extractor-args', 'youtube:player_client=web'], ['--extractor-args', 'youtube:player_client=web;lang=de']),
+    (['--extractor-args=YouTube:player_client=web'], ['--extractor-args=YouTube:player_client=web;lang=de']),
+    (['--extractor-args', 'youtube:lang=fr'], ['--extractor-args', 'youtube:lang=fr']),
+    (['--extractor-args', 'youtubetab:skip=webpage'],
+     ['--extractor-args', 'youtubetab:skip=webpage', '--extractor-args', 'youtube:lang=de']),
+    (['--extractor-args', 'youtube:a=1', '--extractor-args', 'youtube:b=2'],
+     ['--extractor-args', 'youtube:a=1', '--extractor-args', 'youtube:b=2;lang=de']),
+])
+def test_with_lang_merges_into_the_operators_youtube_args(tokens, expected):
+    assert ytdlp.with_lang(tokens, 'de') == expected
+
+
+def test_with_lang_none_leaves_tokens_alone():
+    assert ytdlp.with_lang(['--limit-rate', '2M'], None) == ['--limit-rate', '2M']
+
+
+def test_run_adds_lang_after_proxy_and_extras():
+    cmd = _run('--extractor-args youtube:player_client=web', url='http://p:1', lang='de')
+    assert cmd == ['/bin/yt-dlp', '--proxy', 'http://p:1', '--extractor-args', 'youtube:player_client=web;lang=de',
+                   '--dump-single-json', 'u']
+    assert _run('', lang='de') == ['/bin/yt-dlp', '--extractor-args', 'youtube:lang=de', '--dump-single-json', 'u']

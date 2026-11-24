@@ -141,6 +141,11 @@ the cut step already wrote correctly.
 
 **Always generate** skips the probe and always produces AI chapters.
 
+AI chapter titles are written in the feed's language: its transcription language
+override, else the global transcription language. With the language set to auto,
+the titles follow the language spoken in the transcript. Feed chapter notes are
+added after this instruction, so a note can still ask for another language.
+
 **Off** stops chapter work for episodes processed from then on: no
 probing, no generation, and nothing saved, so those episodes carry no
 `podcast:chapters` tag. Episodes processed before the switch keep the

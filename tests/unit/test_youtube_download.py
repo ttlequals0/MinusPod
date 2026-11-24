@@ -42,6 +42,17 @@ def test_download_returns_paths_and_passes_flags(tmp_path):
     assert args[args.index('--sub-langs') + 1] == 'en,en-orig,-live_chat'
 
 
+def test_download_passes_metadata_lang_to_ytdlp():
+    with patch.object(download.ytdlp, 'run', side_effect=_fake_run([])) as run, \
+            patch.object(download, '_impersonate_target', return_value=None), \
+            patch.object(download, 'cookies_path', return_value=None), \
+            patch.object(download, 'resolve_bitrate', return_value='128k'):
+        download.download('vid000000001', want_captions=False, language='de', metadata_lang='de')
+        assert run.call_args.kwargs['lang'] == 'de'
+        download.download('vid000000001', want_captions=False, language='en')
+        assert run.call_args.kwargs['lang'] is None
+
+
 @pytest.mark.parametrize('language', ['auto', '', None])
 def test_download_auto_language_requests_original_auto_captions(language):
     with patch.object(download.ytdlp, 'run', side_effect=_fake_run([])) as run, \

@@ -45,6 +45,69 @@ DENIED_FLAGS = frozenset({
 })
 
 
+# The `lang` values yt-dlp's YouTube extractor accepts; any other value fails the extraction.
+YOUTUBE_LANG_CODES = frozenset({
+    'af', 'az', 'id', 'ms', 'bs', 'ca', 'cs', 'da', 'de', 'et', 'en-IN', 'en-GB', 'en', 'es', 'es-419', 'es-US',
+    'eu', 'fil', 'fr', 'fr-CA', 'gl', 'hr', 'zu', 'is', 'it', 'sw', 'lv', 'lt', 'hu', 'nl', 'no', 'uz', 'pl',
+    'pt-PT', 'pt', 'ro', 'sq', 'sk', 'sl', 'sr-Latn', 'fi', 'sv', 'vi', 'tr', 'be', 'bg', 'ky', 'kk', 'mk', 'mn',
+    'ru', 'sr', 'uk', 'el', 'hy', 'iw', 'ur', 'ar', 'fa', 'ne', 'mr', 'hi', 'as', 'bn', 'pa', 'gu', 'or', 'ta',
+    'te', 'kn', 'ml', 'si', 'th', 'lo', 'my', 'ka', 'am', 'km', 'zh-CN', 'zh-TW', 'zh-HK', 'ja', 'ko',
+})
+# Whisper codes YouTube spells differently.
+_YOUTUBE_LANG_ALIASES = {'he': 'iw', 'zh': 'zh-CN', 'nb': 'no', 'nn': 'no', 'tl': 'fil'}
+
+
+def youtube_lang(code: str | None) -> str | None:
+    """yt-dlp's `lang` for a Whisper-style code; None for auto, English or a language YouTube lacks.
+
+    English is left out on purpose: without `lang` yt-dlp keeps a video's own language and falls back
+    to English, while `lang=en` would turn every other video's title and chapters into English ones.
+    """
+    code = (code or '').strip().lower()
+    code = _YOUTUBE_LANG_ALIASES.get(code, code)
+    if code == 'en' or code not in YOUTUBE_LANG_CODES:
+        return None
+    return code
+
+
+def feed_lang(db, language_override: str | None) -> str | None:
+    """yt-dlp `lang` for a feed: its language override, else the global Whisper language."""
+    code = (language_override or '').strip()
+    if not code:
+        try:
+            code = db.get_setting('whisper_language') or ''
+        except Exception:
+            code = ''
+    return youtube_lang(code if isinstance(code, str) else '')
+
+
+def with_lang(tokens: list[str], lang: str | None) -> list[str]:
+    """Add `lang` to the YouTube extractor arguments in tokens.
+
+    yt-dlp keeps only the last --extractor-args per extractor, so an operator's own `youtube:` arguments
+    get `lang` appended instead of being replaced, and a `lang` they set themselves wins.
+    """
+    if not lang:
+        return list(tokens)
+    out = list(tokens)
+    for i in range(len(out) - 1, -1, -1):
+        token = out[i]
+        if token == '--extractor-args' and i + 1 < len(out):
+            index, value, prefix = i + 1, out[i + 1], ''
+        elif token.startswith('--extractor-args='):
+            index, value, prefix = i, token.split('=', 1)[1], '--extractor-args='
+        else:
+            continue
+        key, _, rest = value.partition(':')
+        if key.strip().lower() != 'youtube':
+            continue
+        if any(part.split('=', 1)[0].strip() == 'lang' for part in rest.split(';')):
+            return out
+        out[index] = f'{prefix}{key}:{rest};lang={lang}' if rest else f'{prefix}{key}:lang={lang}'
+        return out
+    return [*out, '--extractor-args', f'youtube:lang={lang}']
+
+
 class YtDlpNotInstalled(RuntimeError):
     pass
 
@@ -228,7 +291,8 @@ def _configured_extra_args(db) -> list[str]:
 
 
 def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
-        extra_args: bool = True, proxy: bool = True) -> subprocess.CompletedProcess:
+        extra_args: bool = True, proxy: bool = True, lang: str | None = None) -> subprocess.CompletedProcess:
+    """Run yt-dlp; `lang` (from youtube_lang) asks YouTube for titles, descriptions and chapters in that language."""
     # Lazy import: main_app imports this package at startup.
     from main_app import db as app_db, storage as app_storage
     storage = storage or app_storage
@@ -239,6 +303,7 @@ def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
         binary = ensure_runtime_binary(storage, db)
     proxy_url = configured_proxy(db) if proxy else ''
     leading = [*(['--proxy', proxy_url] if proxy_url else []), *(_configured_extra_args(db) if extra_args else [])]
+    leading = with_lang(leading, lang)
     try:
         result = subprocess.run([str(binary), *leading, *args], capture_output=True, text=True,
                                 timeout=timeout, cwd=cwd)

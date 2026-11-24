@@ -1072,3 +1072,38 @@ class TestFeedNotesInTitlePrompt:
 
     def test_no_notes_leaves_prompt_unchanged(self):
         assert 'Feed notes:' not in self._title_prompt(None)
+
+
+class TestChapterLanguage:
+    def test_instruction_names_the_code_or_the_transcript_language(self):
+        from chapters_generator import chapter_language_instruction
+        assert "ISO 639 code 'de'" in chapter_language_instruction('DE')
+        assert 'language the transcript is spoken in' in chapter_language_instruction('auto')
+        assert chapter_language_instruction(None) == ''
+        assert chapter_language_instruction('') == ''
+
+    def test_title_prompt_carries_the_language_before_the_feed_notes(self):
+        from chapters_generator import chapter_language_instruction
+        gen, stub = _make_generator_with_stub(canned_text='Titel Eins')
+        gen._language_instruction = chapter_language_instruction('de')
+        gen._chapter_notes = 'Donations get a chapter.'
+        gen._call_claude_for_titles(
+            chapter_requests=[{'index': 0, 'excerpt': 'hallo', 'position': 'start'}],
+            podcast_name='p', episode_title='e')
+        assert stub.last_prompt.endswith(
+            f"\n\n{chapter_language_instruction('de')}\n\nFeed notes:\nDonations get a chapter.")
+
+    def test_topic_prompt_carries_the_language(self):
+        from chapters_generator import chapter_language_instruction
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._language_instruction = chapter_language_instruction('auto')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3)
+        assert stub.last_prompt.endswith(chapter_language_instruction('auto'))
+
+    def test_generate_chapters_without_language_adds_nothing(self):
+        gen, _ = _make_generator_with_stub(canned_text='')
+        gen.generate_chapters(segments=[], podcast_name='p', episode_title='e')
+        assert gen._language_instruction == ''
+        gen.generate_chapters(segments=[], podcast_name='p', episode_title='e', language='fr')
+        assert "'fr'" in gen._language_instruction

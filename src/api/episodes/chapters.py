@@ -28,6 +28,7 @@ from rate_limit_hold import (
 )
 from utils.constants import EpisodeStatus
 from utils.http import redact_exc
+from utils.language import get_pattern_language
 from utils.text import truncate
 from api.episodes import common
 
@@ -200,6 +201,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
                 marker_cuts=marker_cuts,
                 slug=slug,
                 chapter_notes=(podcast or {}).get('chapter_notes'),
+                language=get_pattern_language(db, slug) or 'auto',
             )
     except ProviderRateLimitedError as exc:
         exc.provider_key, exc.credential_slot = resolve_hold_scope(exc, 'chapters')
