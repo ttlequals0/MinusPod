@@ -25,6 +25,7 @@ release notes.
 - The cross-fetch comparison downloads the episode a second time, and that download had no overall time limit. A host that sent the file slowly could hold an episode in processing for as long as the first download took. The second download now stops after 300 seconds. The comparison is then recorded as failed and processing continues without it.
 - A YouTube bot check ("Sign in to confirm you're not a bot"), a captcha or an HTTP 403 on the video download marked the episode permanently failed at once, because the bot check's message names "authentication". These now count as a temporary block: the episode is retried on the normal schedule and the error suggests adding YouTube cookies or a proxy. A 403 also updates yt-dlp before the retry.
 - A members-only YouTube video was retried until the retry limit before it failed. It now fails at once, and the error says to add cookies of a channel member and reprocess.
+- Positions found with the audio fingerprint (stored pattern matches, in-episode repeats and cue scans) drifted later the further into an episode they were, by about 2.5 seconds an hour in. Fingerprint points were converted to seconds as their count divided by the audio duration, but fpcalc withholds about 21 points of every file to its filter windows, so that rate runs slow. Points now convert at Chromaprint's own rate of 11025 / 1365 points per second, which also corrects the nominal rate used for checks made without an episode (it was 11025 / 1365.33).
 
 ## [2.102.15] - 2026-11-22
 
