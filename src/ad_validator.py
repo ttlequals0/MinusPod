@@ -110,6 +110,19 @@ def _sponsor_name_re(sponsor: str) -> re.Pattern | None:
     return word_boundary_re((sponsor,))
 
 
+_SPACE_AROUND_PUNCT_RE = re.compile(r'\s*([^\w\s])\s*')
+
+
+def _squash_spacing(text: str) -> str:
+    """Lowercase `text` with runs of whitespace collapsed and none beside punctuation.
+
+    The model quotes "acme .se" for a transcript's "acme.se", so a substring test
+    on the raw text misses a quote that is really there.
+    """
+    text = _SPACE_AROUND_PUNCT_RE.sub(r'\1', text.lower())
+    return ' '.join(text.split())
+
+
 def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
     """Return saved trim exclusions after newer approvals take precedence."""
     protected = []
@@ -1341,7 +1354,7 @@ class AdValidator:
         # Verify end_text exists in transcript
         end_text = ad.get('end_text', '')
         if end_text and len(end_text) > 5:
-            if end_text.lower() not in ad_text.lower():
+            if _squash_spacing(end_text) not in _squash_spacing(ad_text):
                 flags.append("WARN: end_text not found in transcript")
                 return max(0.0, confidence - 0.05)
 
