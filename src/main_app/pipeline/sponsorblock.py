@@ -10,6 +10,7 @@ from datetime import timedelta
 from main_app.pipeline import common, keep_rules
 from main_app.pipeline.shared import audio_processor, db, sponsor_service, storage
 from reprocess_modes import FORCE_TRANSCRIBE_MODES
+from utils.errors import YouTubeAccessBlockedError, YouTubeVideoUnavailableError
 from utils.markers import parse_ad_markers
 from utils.time import overlap_ratio, utc_now, utc_now_iso
 from youtube import captions, download, metadata, sponsorblock, ytdlp
@@ -92,6 +93,17 @@ def _record_video_id(slug, episode_id, episode_url, episode_data) -> str:
     return video_id
 
 
+def _download_failure(exc: download.DownloadError) -> Exception:
+    """The error a failed download raises, typed so the retry logic reads YouTube's verdict, not the wording."""
+    if exc.kind == download.KIND_BLOCKED:
+        return YouTubeAccessBlockedError(
+            f"{exc}; YouTube blocked the download (add YouTube cookies or a proxy if this persists)")
+    if exc.kind == download.KIND_MEMBERS_ONLY:
+        return YouTubeVideoUnavailableError(
+            f"{exc}; members-only video: add cookies of a channel member, then reprocess")
+    return Exception(str(exc))
+
+
 def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language, metadata_lang=None):
     """Working mp3 and caption segments: the retained original if present, else a yt-dlp download."""
     original = storage.get_original_path(slug, episode_id)
@@ -111,7 +123,7 @@ def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, langu
                 if exc.needs_update:
                     audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp looks outdated; updating before retry")
                     ytdlp.update_after_failure(db, audio_logger, f"[{slug}:{episode_id}] ")
-                raise Exception(str(exc)) from exc
+                raise _download_failure(exc) from exc
         _fill_metadata(slug, episode_id, episode_data, result.info, metadata_lang)
         work_dir = os.path.dirname(result.audio_path)
         fd, audio_path = tempfile.mkstemp(suffix='.mp3')

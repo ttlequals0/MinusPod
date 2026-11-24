@@ -68,6 +68,24 @@ logger = logging.getLogger(__name__)
 MB = 1024 * 1024
 
 
+def _raise_if_cancelled():
+    """Raise the run's cancel exception if the user cancelled this episode.
+
+    Local decodes run for minutes on CPU; without these checks a Cancel click
+    is only honoured after the whole transcription finishes.
+    """
+    ctx = run_context.current()
+    if ctx is not None:
+        ctx.llm_cancel_check()
+
+
+def _is_cancellation(exc: BaseException) -> bool:
+    """Whether exc is the run's cancel/ownership-lost signal rather than a transcription error."""
+    ctx = run_context.current()
+    return bool(ctx is not None and ctx.llm_cancel_exceptions
+                and isinstance(exc, ctx.llm_cancel_exceptions))
+
+
 def _kbps(num_bytes, seconds):
     return num_bytes / 1024 / max(seconds, 1e-6)
 
@@ -774,6 +792,9 @@ class Transcriber:
         """Transcribe with OOM retries; explicit settings pin the backend.
         language_override replaces the global language; preprocessed skips filtering.
         vad_filter is forwarded to either backend."""
+        # A cancel that arrived during download/preparation or between chunks
+        # must stop the run before another decode starts.
+        _raise_if_cancelled()
         whisper_settings = whisper_settings or settings.active_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
             return self._transcribe_via_api(
@@ -922,6 +943,10 @@ class Transcriber:
 
                     non_english_count = 0
                     for segment in segments_generator:
+                        # The generator decodes lazily, so this loop is where the
+                        # decode spends its time; check between batches.
+                        if segment_count % 5 == 0:
+                            _raise_if_cancelled()
                         segment_count += 1
                         # Store word-level timestamps for boundary refinement
                         words = []
@@ -1017,6 +1042,14 @@ class Transcriber:
                     raise
 
         except Exception as e:
+            if _is_cancellation(e):
+                # Not a transcription failure: free the GPU and let the
+                # pipeline's cancel handling reset the episode.
+                try:
+                    clear_gpu_memory()
+                except Exception as cleanup_err:
+                    logger.warning(f"Failed to clean up GPU memory: {cleanup_err}")
+                raise
             logger.error(f"Transcription failed: {e}")
             self._record_local_stats('failed', batch_size, retry_count, device,
                                      current_model, error=redact_exc(e),
@@ -1558,6 +1591,8 @@ class Transcriber:
                     chunk_start = chunk_end
 
                 except Exception as e:
+                    if _is_cancellation(e):
+                        raise
                     error_str = str(e).lower()
                     is_oom = 'out of memory' in error_str or 'oom' in error_str or 'cuda' in error_str
 

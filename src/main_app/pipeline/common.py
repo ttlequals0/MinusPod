@@ -24,7 +24,7 @@ from transcriber import CDN_REFUSED_PREFIX
 from utils.errors import (
     AudioNotReadyError, AudioTooLargeError,
     LocalTranscriptionUnavailableError, ModelLoadError, ServiceUnavailableError,
-    TranscriptionRejectedError,
+    TranscriptionRejectedError, YouTubeAccessBlockedError, YouTubeVideoUnavailableError,
 )
 
 from main_app.pipeline.shared import (db, status_service)
@@ -106,7 +106,7 @@ def is_known_upstream_error(error: Exception) -> bool:
     return (
         isinstance(error, (
             AudioNotReadyError, ServiceUnavailableError, ProviderRateLimitedError, ModelLoadError,
-            requests.RequestException, ConnectionError, TimeoutError,
+            YouTubeAccessBlockedError, requests.RequestException, ConnectionError, TimeoutError,
         ))
         or is_retryable_error(error)
         or any(pattern in str(error).lower() for pattern in _CDN_TRANSIENT_PATTERNS)
@@ -127,6 +127,13 @@ def is_transient_error(error: Exception) -> bool:
     # offline queue (#482) disabled this keeps today's retry behavior.
     if isinstance(error, ServiceUnavailableError):
         return True
+
+    # YouTube's verdict, typed at the download (youtube.download.classify_error). Checked before the
+    # message patterns: the bot check names "authentication" but lifts on its own or with cookies.
+    if isinstance(error, YouTubeAccessBlockedError):
+        return True
+    if isinstance(error, YouTubeVideoUnavailableError):
+        return False
 
     # Whisper API auth rejection: a retry sends the same bad credentials (#806).
     if isinstance(error, TranscriptionRejectedError) and error.status in (401, 403):

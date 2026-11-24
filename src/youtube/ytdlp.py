@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 BAKED_PATH = '/usr/local/bin/yt-dlp'
 RUNTIME_NOT_EXECUTABLE = 'runtime yt-dlp copy is not executable; using the image copy'
 UPDATE_INTERVAL = timedelta(hours=24)
+# A 403 on the media request is most often an outdated extractor, so it asks for an update too.
 _UPDATE_HINTS = ('please report this issue', 'unable to extract',
-                 'requested format is not available', 'nsig extraction failed')
+                 'requested format is not available', 'nsig extraction failed', 'http error 403')
 _booted = False
 _ensured_path: Path | None = None
 _baked_version: tuple[str, str | None] | None = None

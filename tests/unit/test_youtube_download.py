@@ -268,3 +268,66 @@ def test_download_cleans_up_temp_dir_if_subtitle_retry_fails():
     assert len(calls) == 2
     assert exc.value.needs_update is True
     assert dirs and not os.path.exists(dirs[0])
+
+
+_BOT = ("ERROR: [youtube] vid000000001: Sign in to confirm you’re not a bot. Use --cookies-from-browser or "
+        "--cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ  for how to pass cookies")
+
+
+@pytest.mark.parametrize('stderr, kind', [
+    (_BOT, download.KIND_BLOCKED),
+    ("ERROR: [youtube] vid000000001: Sign in to confirm you're not a bot", download.KIND_BLOCKED),
+    ('ERROR: [youtube] vid000000001: Video unavailable. YouTube is requiring a captcha challenge before playback',
+     download.KIND_BLOCKED),
+    ('ERROR: unable to download video data: HTTP Error 403: Forbidden', download.KIND_BLOCKED),
+    ('ERROR: [youtube] vid000000001: Join this channel to get access to members-only content like this video, '
+     'and other exclusive perks.', download.KIND_MEMBERS_ONLY),
+    ("ERROR: [youtube] vid000000001: This video is available to this channel's members on level: Gold "
+     '(or any higher level).', download.KIND_MEMBERS_ONLY),
+    # Members-only wins: no retry or cookie hint for a bot check fixes a missing membership.
+    ('ERROR: [youtube] vid000000001: Join this channel to get access to members-only content\n'
+     'ERROR: unable to download video data: HTTP Error 403: Forbidden', download.KIND_MEMBERS_ONLY),
+    # A caption track's 403 says nothing about the audio.
+    ("ERROR: Unable to download video subtitles for 'de': HTTP Error 403: Forbidden", None),
+    # Only ERROR lines count.
+    ('[download] Got error: HTTP Error 403: Forbidden\nERROR: [youtube] vid000000001: Requested format is not '
+     'available', None),
+    # The age gate stays an unrecognized (permanent) auth error.
+    ('ERROR: [youtube] vid000000001: Sign in to confirm your age. This video may be inappropriate for some users.',
+     None),
+    ('ERROR: [youtube] vid000000001: Video unavailable', None),
+    ('', None),
+])
+def test_classify_error(stderr, kind):
+    assert download.classify_error(stderr) == kind
+
+
+def test_download_403_is_blocked_and_asks_for_an_update():
+    dirs = []
+    a, b, c = _patched()
+    err = 'ERROR: unable to download video data: HTTP Error 403: Forbidden'
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=_fake_run(dirs, stderr=err, code=1)):
+        with pytest.raises(download.DownloadError) as exc:
+            download.download('vid000000001', want_captions=False, language='en')
+    assert exc.value.kind == download.KIND_BLOCKED
+    assert exc.value.needs_update is True
+    assert dirs and not os.path.exists(dirs[0])
+
+
+def test_download_bot_check_is_blocked_without_an_update():
+    dirs = []
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=_fake_run(dirs, stderr=_BOT, code=1)):
+        with pytest.raises(download.DownloadError) as exc:
+            download.download('vid000000001', want_captions=False, language='en')
+    assert exc.value.kind == download.KIND_BLOCKED
+    assert exc.value.needs_update is False
+
+
+def test_download_error_without_a_known_cause_has_no_kind():
+    a, b, c = _patched()
+    err = 'ERROR: [youtube] vid000000001: Requested format is not available'
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=_fake_run([], stderr=err, code=1)):
+        with pytest.raises(download.DownloadError) as exc:
+            download.download('vid000000001', want_captions=False, language='en')
+    assert exc.value.kind is None
