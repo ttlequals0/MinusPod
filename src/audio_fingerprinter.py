@@ -108,8 +108,9 @@ FINGERPRINT_SUPPORT_WINDOWS = 3
 FINGERPRINT_CONTRAST_SHIFTS = (2, 3, 4, 5)
 # Similarity a run must beat its shifted self by
 FINGERPRINT_CONTRAST_MARGIN = 0.12
-# Chromaprint points per second at its default settings, for checks made without an episode
-FINGERPRINT_NOMINAL_FPS = 11025 / 1365.33
+# Chromaprint points per second at its default settings: one point per hop of 4096 - (4096 - 4096 // 3) = 1365
+# samples at 11025 Hz
+FINGERPRINT_NOMINAL_FPS = 11025 / 1365
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
 FINGERPRINT_NOVELTY_BITS = 3
 # Shortest remainder of a clipped match that is kept, when the caller passes no setting
@@ -1266,7 +1267,7 @@ class AudioFingerprinter:
 
         timeout is the fpcalc wall-clock cap; defaults to the full-file budget, and a request-thread caller can
         pass a shorter bound so a stalled decode degrades gracefully. quiet logs failures at DEBUG (the caller
-        reports them once, labelled). Returns (raw_int_array, duration) or None on failure.
+        reports them once, labelled). Returns (raw_int_array, seconds the points span) or None on failure.
         """
         if not self._fpcalc_path:
             return None
@@ -1281,10 +1282,12 @@ class AudioFingerprinter:
                 return None
 
             raw_ints = data.get('fingerprint', [])
-            duration = data.get('duration', 0)
 
             if not isinstance(raw_ints, list):
                 return None
+            # The span the points cover, not the audio duration fpcalc reports: its filter windows withhold about
+            # 21 points of every file, so points / audio duration runs slow and puts a point an hour in 2.5 s late.
+            duration = len(raw_ints) / FINGERPRINT_NOMINAL_FPS
 
             logger.debug(f"Full-file fingerprint: {len(raw_ints)} ints for {duration:.1f}s")
             return (raw_ints, duration)
