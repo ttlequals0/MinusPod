@@ -2409,9 +2409,10 @@ class TestConfigurableDurationCeilings:
     """The ceilings are settings, not constants, so a show with long ad blocks
     can be tuned instead of losing every break to the default."""
 
-    def _ad(self, seconds=400.0, confidence=0.85):
-        """Confidence sits above the cut slider but below the high-confidence
-        override, which is the band the ceiling actually governs."""
+    def _ad(self, seconds=400.0, confidence=0.75):
+        """Confidence plus the pre-roll position boost sits above the cut slider
+        but below the high-confidence override, which is the band the ceiling
+        actually governs."""
         return {'start': 100.0, 'end': 100.0 + seconds, 'confidence': confidence,
                 'reason': 'sponsor read for Acme with promo code'}
 

@@ -25,6 +25,7 @@ release notes.
 - The cross-fetch comparison downloads the episode a second time, and that download had no overall time limit. A host that sent the file slowly could hold an episode in processing for as long as the first download took. The second download now stops after 300 seconds. The comparison is then recorded as failed and processing continues without it.
 - A YouTube bot check ("Sign in to confirm you're not a bot"), a captcha or an HTTP 403 on the video download marked the episode permanently failed at once, because the bot check's message names "authentication". These now count as a temporary block: the episode is retried on the normal schedule and the error suggests adding YouTube cookies or a proxy. A 403 also updates yt-dlp before the retry.
 - A members-only YouTube video was retried until the retry limit before it failed. It now fails at once, and the error says to add cookies of a channel member and reprocess.
+- The validator penalised a detection's confidence for a vague reason whenever the reason contained a generic phrase such as "sponsor" anywhere, so "sponsored segment promoting <brand>" lost 0.10 and skipped the sponsor-name boost. A reason that names its advertiser is no longer treated as vague, and the sponsor-name boost is checked first. Reasons that name nothing are still penalised.
 
 ## [2.102.15] - 2026-11-22
 

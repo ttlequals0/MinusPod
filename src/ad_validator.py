@@ -1265,16 +1265,24 @@ class AdValidator:
             logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
             return 0.0  # Force rejection
 
-        # Vague reason = penalize
-        if any(vague in reason for vague in self.VAGUE_REASONS):
-            flags.append("WARN: Vague reason")
-            return max(0.0, confidence - 0.1)
-
         # Sponsor name in reason = boost
         if self.SPONSOR_PATTERNS.search(reason):
             return min(1.0, confidence + 0.1)
 
+        # Vague reason = penalize. The phrases match as substrings ("sponsored" holds
+        # "sponsor"), so a reason that also names its advertiser is not vague.
+        if (any(vague in reason for vague in self.VAGUE_REASONS)
+                and not self._reason_names_advertiser(ad.get('reason', ''))):
+            flags.append("WARN: Vague reason")
+            return max(0.0, confidence - 0.1)
+
         return confidence
+
+    @staticmethod
+    def _reason_names_advertiser(reason: str) -> bool:
+        """Whether the model's reason names a brand, not only the kind of segment."""
+        brand = SponsorService.extract_sponsor_from_reason(reason)
+        return bool(brand) and not is_non_brand_name(brand)
 
     def _verify_in_transcript(self, ad: dict, confidence: float,
                                flags: list[str], transcript_hits: list[dict] | None = None) -> float:
