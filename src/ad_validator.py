@@ -1287,7 +1287,8 @@ class AdValidator:
             logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
             return 0.0  # Force rejection
 
-        hedged = any(phrase in reason for phrase in self.HEDGED_REASONS)
+        # Whole phrase only: "impossible ad" is not a hedge.
+        hedged = any(re.search(rf'(?<![a-z]){re.escape(phrase)}', reason) for phrase in self.HEDGED_REASONS)
 
         # Sponsor name in reason = boost
         if not hedged and self.SPONSOR_PATTERNS.search(reason):

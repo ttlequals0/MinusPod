@@ -422,7 +422,7 @@ def _extend_to_dai_core(hold, spans, segments, barriers=()):
     first, last = spans[0], spans[-1]
 
     def clear(lo, hi):
-        return not any(overlap_seconds(lo, hi, a, b) > EDGE_TOLERANCE for a, b in barriers)
+        return not any(overlap_seconds(lo, hi, a, b) > 0 for a, b in barriers)
 
     for lo, hi in cores:
         lo, hi = max(lo, hold['start']), min(hi, hold['end'])
@@ -480,7 +480,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
             r for r in markers if reviewer_reject_stands(r, confirmed_corrections)]
         barriers = [(r['start'], r['end']) for r in reviewer_rejects]
         barriers += [(t['start'], t['end']) for t in user_trimmed_keep_ranges(confirmed_corrections or [])]
-        barriers += [(m['start'], m['end']) for m in markers if is_keep_like(m.get('action_applied'))]
+        kept = [k for k in markers if is_keep_like(k.get('action_applied'))]
         barriers += [(fp['start'], fp['end']) for fp in fp_corrections]
         approvable = []
         for m in holds:
@@ -493,7 +493,8 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 continue
             released = m.get('pass2_released_spans') or []
             spans = released if len(released) > 1 else [_pass2_confirm_span(m)]
-            spans = _extend_to_dai_core(m, spans, segments, barriers)
+            spans = _extend_to_dai_core(
+                m, spans, segments, [*barriers, *((k['start'], k['end']) for k in kept if k is not m)])
             spans = [span for span in spans if not any(
                 overlap_seconds((span or m)['start'], (span or m)['end'],
                                 r['start'], r['end']) > 0 for r in reviewer_rejects)]
