@@ -26,6 +26,7 @@ release notes.
 - A YouTube bot check ("Sign in to confirm you're not a bot"), a captcha or an HTTP 403 on the video download marked the episode permanently failed at once, because the bot check's message names "authentication". These now count as a temporary block: the episode is retried on the normal schedule and the error suggests adding YouTube cookies or a proxy. A 403 also updates yt-dlp before the retry.
 - A members-only YouTube video was retried until the retry limit before it failed. It now fails at once, and the error says to add cookies of a channel member and reprocess.
 - When an ad near the end of an episode had been auto-approved by verification pass 2, the extension of that ad to the episode end was undone by the clamp to the approved span, so the last seconds of the ad stayed in the audio. The extension now stands when pass 2's approved end is where the detected ad ended. A span end set by a person is still respected.
+- When an ad near the end of an episode had been auto-approved by verification pass 2, the extension of that ad to the episode end was undone by the clamp to the approved span, so the last seconds of the ad stayed in the audio. The extension was also skipped when a piece carved out of a wider last ad started later than it. The last ad is now the one that ends last, and an end that pass 2 approved no longer pins an ad that the extension reached the episode end with. A span end set by a person is still respected.
 
 ## [2.102.15] - 2026-11-22
 

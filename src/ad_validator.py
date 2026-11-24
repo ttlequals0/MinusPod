@@ -85,6 +85,7 @@ from ad_detector.cue_boundary_snap import snap_split_edge
 from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
+TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
 
 logger = logging.getLogger(__name__)
 
@@ -1080,9 +1081,9 @@ class AdValidator:
                 if self.episode_duration > 0:
                     approved_end = min(approved_end, self.episode_duration)
                 if (trailing_extended_from is not None and confirmed.get('auto_filed')
-                        and approved_end >= trailing_extended_from - EDGE_TOLERANCE):
-                    # Pass 2 attested the span only up to where the marker ended; nobody chose that end. The
-                    # trailing rule's extension to the episode end stands. An operator-approved end still wins.
+                        and 0 < ad['end'] - approved_end <= TRAILING_AD_MAX_GAP):
+                    # Nobody chose a pass-2 approval's end, so it is a detected end like any other: the trailing
+                    # rule's extension to the episode end stands. An operator-approved end still wins.
                     approved_end = max(approved_end, ad['end'])
                     span = {'start': span['start'], 'end': approved_end}
                 overlaps_approved = (
@@ -1996,7 +1997,7 @@ class AdValidator:
 
     def _extend_trailing_ad(self, ads: list[dict],
                             result: ValidationResult,
-                            max_gap: float = 30.0) -> list[dict]:
+                            max_gap: float = TRAILING_AD_MAX_GAP) -> list[dict]:
         """Extend the last ad to the end of episode if it ends within max_gap seconds (default 30s).
 
         DAI post-roll ads often end slightly before the actual episode end. Corrections are recorded in `result`.
@@ -2004,9 +2005,8 @@ class AdValidator:
         if not ads or self.episode_duration <= 0:
             return ads
 
-        # Sort by start time and get last ad
-        sorted_ads = sorted(ads, key=lambda x: x['start'])
-        last_ad = sorted_ads[-1]
+        # The tail is the marker that ends last: a piece carved out of a wider marker can start later.
+        last_ad = max(ads, key=lambda x: (x['end'], x['start']))
 
         # A held marker has not been approved for cutting. Extending it could
         # absorb post-gap speech that was not part of the reviewed span.
