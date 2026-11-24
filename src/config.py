@@ -364,6 +364,9 @@ PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE = 0.9
 # narrower than the hold by more than this per edge; smaller deltas are
 # float noise, not a meaningful trim.
 PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
+# A pass-2 release of a differential hold widens to the measured cross-fetch core over audio
+# with no transcript word in it; a word reaching this far or less into that audio is timing slop.
+PASS2_DAI_RELEASE_WORD_SLOP_S = 0.25
 # text_snippet prefix of pass-2 auto-filed confirms; those rows never become
 # user keep ranges, so a machine trim cannot protect audio from later cuts.
 PASS2_AUTOAPPROVE_SNIPPET_PREFIX = 'auto-approved: pass-2'
