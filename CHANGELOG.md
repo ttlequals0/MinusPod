@@ -20,6 +20,8 @@ release notes.
 
 - A show that ends on its own closing music, without speech, had the untranscribed tail of every episode held for review as `uncorroborated_tail`. When the feed keeps outros, confirming that hold could not change the audio. A head or tail VAD gap matched by the feed's show intro or show outro cue template now carries the `intro` or `outro` category. The feed's segment action then decides it, and keep clears the hold. Untranscribed audio of at least the gap minimum before the intro or after the outro stays a separate marker and is still reviewed.
 - The cross-fetch comparison downloads the episode a second time, and that download had no overall time limit. A host that sent the file slowly could hold an episode in processing for as long as the first download took. The second download now stops after 300 seconds. The comparison is then recorded as failed and processing continues without it.
+- A YouTube bot check ("Sign in to confirm you're not a bot"), a captcha or an HTTP 403 on the video download marked the episode permanently failed at once, because the bot check's message names "authentication". These now count as a temporary block: the episode is retried on the normal schedule and the error suggests adding YouTube cookies or a proxy. A 403 also updates yt-dlp before the retry.
+- A members-only YouTube video was retried until the retry limit before it failed. It now fails at once, and the error says to add cookies of a channel member and reprocess.
 
 ## [2.102.15] - 2026-11-22
 
