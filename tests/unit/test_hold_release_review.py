@@ -531,6 +531,98 @@ def test_repeated_detection_files_one_confirm(monkeypatch):
     db.create_pattern_correction.assert_not_called()
 
 
+# ---------- Filing: a differential release reaches the measured core over wordless audio ----------
+
+def _seg(start, end, *words):
+    return {'start': start, 'end': end, 'text': 'x',
+            'words': [{'start': a, 'end': b, 'word': 'x'} for a, b in words]}
+
+
+def _differential_release(hold_span=(3587.62, 3653.7), released=(3599.6, 3650.92),
+                          reason='differential_uncorroborated'):
+    hold = _hold(*hold_span, reason)
+    hold.update(dai_core_spans=[{'start': hold_span[0], 'end': hold_span[1]}],
+                differential_uncorroborated=True, pass2_corroborated=True)
+    span = {'start': released[0], 'end': released[1]}
+    hold.update(pass2_reviewed_release=dict(span), pass2_corroborated_span=dict(span),
+                pass2_released_spans=[dict(span)])
+    return hold
+
+
+# Programme words up to the inserted block, then ad words from 3599.58; the last ad word
+# runs past the released end, and no word follows it before the measured core ends.
+_DAI_SEGMENTS = [
+    _seg(3581.94, 3587.24, (3581.94, 3584.0), (3584.1, 3587.24)),
+    _seg(3599.58, 3602.9, (3599.58, 3601.0), (3601.1, 3602.9)),
+    _seg(3646.38, 3651.22, (3646.38, 3650.6), (3650.6, 3651.22)),
+]
+
+
+def _filed_with_segments(monkeypatch, holds, segments):
+    db = _approval_db(monkeypatch)
+    db.get_original_segments.return_value = segments
+    verify._file_corroborated_hold_approvals(
+        's', 'e', holds, corrections=_user_corrections('s', 'e'))
+    return [c.kwargs for c in db.create_pattern_correction.call_args_list]
+
+
+def test_differential_release_reaches_the_core_edges_over_wordless_audio(monkeypatch):
+    [filed] = _filed_with_segments(monkeypatch, [_differential_release()], _DAI_SEGMENTS)
+
+    # Neither gap holds a word, so the confirm covers the whole measured core.
+    assert filed['original_bounds'] == {'start': 3587.62, 'end': 3653.7}
+    assert filed['corrected_bounds'] is None
+
+
+def test_differential_release_stops_at_a_word_in_the_gap(monkeypatch):
+    segments = [*_DAI_SEGMENTS, _seg(3652.0, 3652.6, (3652.0, 3652.6))]
+
+    [filed] = _filed_with_segments(monkeypatch, [_differential_release()], segments)
+
+    assert filed['corrected_bounds'] == {'start': 3587.62, 'end': 3650.92}
+
+
+def test_word_timing_slop_at_the_core_edge_does_not_block(monkeypatch):
+    # A programme word whose timing overhangs the core start by a few hundredths.
+    segments = [_seg(3581.94, 3587.66, (3584.1, 3587.66)), *_DAI_SEGMENTS[1:]]
+
+    [filed] = _filed_with_segments(monkeypatch, [_differential_release()], segments)
+
+    assert filed['corrected_bounds'] is None
+
+
+@pytest.mark.parametrize('unit', [
+    # A segment without word timings is speech all the same.
+    {'start': 3590.0, 'end': 3595.0, 'text': 'x'},
+    # A word split by the released edge that also reaches back past the core start.
+    _seg(3585.0, 3600.5, (3585.0, 3600.5)),
+])
+def test_speech_in_the_start_gap_keeps_the_start_edge(monkeypatch, unit):
+    segments = [unit, *_DAI_SEGMENTS[1:]]
+
+    [filed] = _filed_with_segments(monkeypatch, [_differential_release()], segments)
+
+    assert filed['corrected_bounds'] == {'start': 3599.6, 'end': 3653.7}
+
+
+def test_release_never_widens_past_the_measured_core(monkeypatch):
+    # A merge widened the hold past the cross-fetch measurement; only the core is proven inserted.
+    hold = _differential_release(hold_span=(3580.0, 3653.7))
+    hold['dai_core_spans'] = [{'start': 3587.62, 'end': 3653.7}]
+
+    [filed] = _filed_with_segments(monkeypatch, [hold], _DAI_SEGMENTS)
+
+    assert filed['corrected_bounds'] == {'start': 3587.62, 'end': 3653.7}
+
+
+def test_non_differential_release_keeps_its_reviewed_edges(monkeypatch):
+    hold = _differential_release(reason=NO_SPLICE)
+
+    [filed] = _filed_with_segments(monkeypatch, [hold], _DAI_SEGMENTS)
+
+    assert filed['corrected_bounds'] == {'start': 3599.6, 'end': 3650.92}
+
+
 # ---------- Recut: auto-filed confirm keeps the remainder held ----------
 
 @pytest.mark.parametrize('reason', [NO_SPLICE, 'estimated_pattern_bounds'])

@@ -228,6 +228,80 @@ def test_stage_failure_is_not_fatal():
     assert twins == []
 
 
+# --- per-spot sources inside a merged break ------------------------------------------------------
+
+def _dai(*regions):
+    return {'dai_differential': {'regions': [
+        {'start_s': lo, 'end_s': hi, 'kind': kind, 'corr': 0.05} for lo, hi, kind in regions]}}
+
+
+def _break_episode():
+    """Three different 20 s spots back to back at 20-80 s; only the middle one repeats, at 220 s."""
+    rng = random.Random(7)
+    ep = _rand_ints(rng, int(DURATION * IPS))
+    spots = [_rand_ints(rng, int(20 * IPS)) for _ in range(3)]
+    for i, spot in enumerate(spots):
+        _plant(ep, spot, 20.0 + 20 * i)
+    _plant(ep, spots[1], 220.0, rng, flips=1)
+    return ep
+
+
+def _search(ads, audio_analysis=None, ints=None):
+    fingerprinter = _fingerprinter(ints if ints is not None else _break_episode())
+    detector = MagicMock(audio_fingerprinter=fingerprinter)
+    with patch.object(detect, 'ad_detector', detector):
+        return detect._find_episode_repeats(
+            's', 'e', ads, ads, '/a.mp3', DURATION, {},
+            spot_spans=detect._dai_spot_spans(audio_analysis))
+
+
+def test_spot_inside_a_merged_break_finds_its_twin():
+    block = _ad(20.0, 80.0, sponsor='Consecutive')
+    regions = _dai((20.0, 40.0, 'differential'), (40.0, 60.0, 'differential'), (60.0, 80.0, 'differential'))
+    assert _search([block]) == []
+    twins = _search([block], regions)
+    assert len(twins) == 1
+    assert abs(twins[0]['start'] - 220.0) < 0.5 and abs(twins[0]['end'] - 240.0) < 0.5
+    assert 'Repeats the ad at 0:40' in twins[0]['reason']
+
+
+def test_spots_of_a_break_too_long_to_be_a_source_are_still_searched():
+    block = _ad(0.0, 190.0)
+    regions = _dai((40.0, 60.0, 'differential'))
+    twins = _search([block], regions)
+    assert [(round(t['start']), round(t['end'])) for t in twins] == [(220, 240)]
+
+
+def test_spot_sources_skip_short_straddling_held_and_whole_marker_regions():
+    block = _ad(20.0, 80.0)
+    held = _ad(100.0, 130.0, held_for_review=True)
+    regions = _dai((20.0, 26.0, 'differential'), (26.0, 80.0, 'identical'),
+                   (75.0, 110.0, 'differential'), (105.0, 125.0, 'differential'),
+                   (20.3, 79.8, 'differential'))
+    fingerprinter = _fingerprinter(_break_episode())
+    with patch.object(fingerprinter, 'find_in_episode_repeats', return_value=[]) as search, \
+            patch.object(detect, 'ad_detector', MagicMock(audio_fingerprinter=fingerprinter)):
+        detect._find_episode_repeats('s', 'e', [block, held], [block, held], '/a.mp3', DURATION, {},
+                                     spot_spans=detect._dai_spot_spans(regions))
+    assert search.call_args.args[1] == [(20.0, 80.0)]
+
+
+def test_spot_twin_is_cut_through_the_refine_stage():
+    block = _ad(20.0, 80.0, confidence=0.97)
+    regions = _dai((20.0, 40.0, 'differential'), (40.0, 60.0, 'differential'), (60.0, 80.0, 'differential'))
+    fingerprinter = _fingerprinter(_break_episode())
+    detector = MagicMock(audio_fingerprinter=fingerprinter)
+    with patch.object(detect, 'db', MagicMock()), patch.object(detect, 'storage', MagicMock()), \
+            patch.object(detect, 'ad_detector', detector), \
+            patch.object(detect, '_build_validator',
+                         side_effect=lambda *a, **k: AdValidator(DURATION, a[1], a[2])):
+        to_remove, _ = detect._refine_and_validate(
+            's', 'e', [block], [], '/a.mp3', '', DURATION, 0.8, 'Show',
+            corrections=([], []), segment_actions={}, audio_analysis=regions)
+    twins = [a for a in to_remove if a['detection_stage'] == REPEAT_STAGE]
+    assert [(round(t['start']), round(t['end'])) for t in twins] == [(220, 240)]
+
+
 # --- _refine_and_validate wiring ----------------------------------------------------------------
 
 def _refine(all_ads, matches, fp_corrections=(), apply_heuristic_rolls=True):
