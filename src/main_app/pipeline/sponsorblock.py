@@ -49,10 +49,7 @@ def _retry_at(episode_data, resolved) -> str:
 
 
 def _fill_metadata(slug, episode_id, episode_data, info, metadata_lang=None):
-    """Backfill the description and a full publish time that flat listings lack.
-
-    With a feed language the info's title replaces the listed one, which yt-dlp listings return in English.
-    """
+    """Backfill the description and a full publish time that flat listings lack."""
     fields = metadata.fill_fields(episode_data, info, replace_title=bool(metadata_lang))
     db.upsert_episode(slug, episode_id, yt_metadata_at=utc_now_iso(), **fields)
 

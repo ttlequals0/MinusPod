@@ -1080,6 +1080,8 @@ class TestChapterLanguage:
         assert "ISO 639 code 'de'" in chapter_language_instruction('DE')
         assert 'language the transcript is spoken in' in chapter_language_instruction('auto')
         assert chapter_language_instruction(None) == ''
+        assert chapter_language_instruction('en') == ''
+        assert chapter_language_instruction(' EN ') == ''
         assert chapter_language_instruction('') == ''
 
     def test_title_prompt_carries_the_language_before_the_feed_notes(self):

@@ -66,14 +66,11 @@ os.environ.setdefault('XDG_CACHE_HOME', cache_dir)
 logger = logging.getLogger(__name__)
 
 MB = 1024 * 1024
+CANCEL_CHECK_INTERVAL_SECONDS = 2.0
 
 
 def _raise_if_cancelled():
-    """Raise the run's cancel exception if the user cancelled this episode.
-
-    Local decodes run for minutes on CPU; without these checks a Cancel click
-    is only honoured after the whole transcription finishes.
-    """
+    """Raise the run's cancel exception if the user cancelled this episode."""
     ctx = run_context.current()
     if ctx is not None:
         ctx.llm_cancel_check()
@@ -792,8 +789,7 @@ class Transcriber:
         """Transcribe with OOM retries; explicit settings pin the backend.
         language_override replaces the global language; preprocessed skips filtering.
         vad_filter is forwarded to either backend."""
-        # A cancel that arrived during download/preparation or between chunks
-        # must stop the run before another decode starts.
+        # Stop before another decode starts if a cancel arrived during preparation or between chunks.
         _raise_if_cancelled()
         whisper_settings = whisper_settings or settings.active_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
@@ -940,12 +936,14 @@ class Transcriber:
                     result = []
                     segment_count = 0
                     last_log_time = 0
+                    last_cancel_check = float('-inf')
 
                     non_english_count = 0
                     for segment in segments_generator:
-                        # The generator decodes lazily, so this loop is where the
-                        # decode spends its time; check between batches.
-                        if segment_count % 5 == 0:
+                        # The generator decodes lazily; the check is a DB query, so throttle it by time.
+                        now = time.monotonic()
+                        if now - last_cancel_check >= CANCEL_CHECK_INTERVAL_SECONDS:
+                            last_cancel_check = now
                             _raise_if_cancelled()
                         segment_count += 1
                         # Store word-level timestamps for boundary refinement
@@ -1017,6 +1015,8 @@ class Transcriber:
                     return result
 
                 except Exception as inner_e:
+                    if _is_cancellation(inner_e):
+                        raise
                     error_str = str(inner_e).lower()
                     is_oom = 'out of memory' in error_str
 
@@ -1043,8 +1043,7 @@ class Transcriber:
 
         except Exception as e:
             if _is_cancellation(e):
-                # Not a transcription failure: free the GPU and let the
-                # pipeline's cancel handling reset the episode.
+                # Not a failure: free the GPU and let the pipeline's cancel handling reset the episode.
                 try:
                     clear_gpu_memory()
                 except Exception as cleanup_err:
@@ -1440,6 +1439,8 @@ class Transcriber:
                 # If transcribe returns None but didn't raise, fall through to chunked
                 logger.warning("Regular transcription returned None, falling back to chunked")
             except Exception as e:
+                if _is_cancellation(e):
+                    raise
                 error_str = str(e).lower()
                 if 'out of memory' in error_str or 'oom' in error_str or 'cuda' in error_str:
                     logger.warning(f"OOM during regular transcription, falling back to chunked: {e}")

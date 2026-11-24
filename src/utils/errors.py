@@ -70,11 +70,7 @@ class AudioNotReadyError(Exception):
 
 
 class YouTubeAccessBlockedError(Exception):
-    """YouTube refused the download: a bot check, a captcha or HTTP 403.
-
-    Transient: such blocks usually lift, and cookies, a proxy or a yt-dlp update can clear them. The
-    bot check's message names "authentication", which alone would read as a permanent auth error.
-    """
+    """YouTube refused the download (bot check, captcha or HTTP 403); transient."""
 
 
 class YouTubeVideoUnavailableError(Exception):

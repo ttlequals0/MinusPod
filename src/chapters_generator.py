@@ -141,13 +141,10 @@ def _format_hints_block(hints: list[dict]) -> str:
 
 
 def chapter_language_instruction(language: str | None) -> str:
-    """Prompt paragraph naming the language of the chapter titles.
-
-    language: ISO 639 code from the feed's language override or the global Whisper language, or 'auto'
-    for the transcript's own language; None adds nothing, leaving the prompt as it was.
-    """
+    """Prompt paragraph naming the chapter title language; empty for none or English."""
     code = (language or '').strip().lower()
-    if not code:
+    # The prompts are English already.
+    if not code or code == 'en':
         return ''
     if code != 'auto':
         return (f"Write every chapter title in the language with ISO 639 code '{code}', "
@@ -799,9 +796,7 @@ class ChaptersGenerator:
             processed timeline but hints need the original applied-cut list to map from marker coordinates.
         chapter_notes: per-feed notes appended to the topic-detection prompt as a final "Feed notes:"
             paragraph; None or blank adds nothing.
-        language: ISO 639 code the chapter titles are written in (the feed's language override, else
-            the global Whisper language), or 'auto' for the transcript's own language; None adds no
-            language line to the prompts.
+        language: ISO 639 code for the chapter titles, or 'auto'; None or 'en' leaves the prompts as is.
         slug: podcast slug for the llm_call_usage ledger's podcast linkage; omitted call sites still
             ledger the attempt, without a resolved podcast_id.
 

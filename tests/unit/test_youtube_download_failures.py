@@ -13,11 +13,12 @@ from utils.constants import EpisodeStatus  # noqa: E402
 from utils.errors import YouTubeAccessBlockedError, YouTubeVideoUnavailableError  # noqa: E402
 from youtube import download  # noqa: E402
 
-BOT = ("ERROR: [youtube] vid000000001: Sign in to confirm you’re not a bot. Use --cookies-from-browser or "
+BOT = ("ERROR: [youtube] vid000000001: Sign in to confirm you're not a bot. Use --cookies-from-browser or "
        "--cookies for the authentication.")
 FORBIDDEN = 'ERROR: unable to download video data: HTTP Error 403: Forbidden'
 MEMBERS = 'ERROR: [youtube] vid000000001: Join this channel to get access to members-only content like this video'
-AGE = 'ERROR: [youtube] vid000000001: Sign in to confirm your age. Use --cookies for the authentication.'
+AGE = ('ERROR: [youtube] vid000000001: Sign in to confirm your age. This video may be inappropriate for some '
+       'users. Use --cookies-from-browser or --cookies for the authentication.')
 
 
 def _download_error(stderr):
@@ -65,7 +66,7 @@ class TestDownloadFailureType(unittest.TestCase):
         raised, _ = _acquire_error(_download_error(AGE))
         self.assertIs(type(raised), Exception)
         self.assertEqual(str(raised), AGE)
-        # The age gate needs cookies; retrying without them never helps, as before.
+        # yt-dlp's cookie hint names "authentication", so the age gate stays a permanent failure.
         self.assertFalse(common.is_transient_error(raised))
 
 

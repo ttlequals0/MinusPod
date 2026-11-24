@@ -14,7 +14,7 @@ _test_data_dir = bootstrap('transcriber_cancel_test_')
 
 import run_context  # noqa: E402
 import transcriber as transcriber_mod  # noqa: E402
-from cancel import ProcessingCancelled  # noqa: E402
+from cancel import ProcessingCancelled, ProcessingOwnershipLost  # noqa: E402
 from transcriber import Transcriber  # noqa: E402
 
 
@@ -43,6 +43,16 @@ class _LazyPipeline:
                 self.decoded += 1
                 yield _Segment(i)
         return gen(), info
+
+
+def _advance_clock_per_call(monkeypatch, step):
+    """time.monotonic moves `step` seconds on every call."""
+    now = [1000.0]
+
+    def fake():
+        now[0] += step
+        return now[0]
+    monkeypatch.setattr(transcriber_mod.time, 'monotonic', fake)
 
 
 def _patch_local(monkeypatch, pipeline):
@@ -89,6 +99,7 @@ def test_cancel_during_decode_stops_between_segments(monkeypatch, run_ctx):
     _patch_local(monkeypatch, pipeline)
     # Entry check passes, then the first in-loop check passes, the second raises.
     run_ctx['cancelled_after'] = 2
+    _advance_clock_per_call(monkeypatch, step=transcriber_mod.CANCEL_CHECK_INTERVAL_SECONDS)
 
     t = Transcriber()
     with pytest.raises(ProcessingCancelled):
@@ -98,6 +109,18 @@ def test_cancel_during_decode_stops_between_segments(monkeypatch, run_ctx):
     assert 0 < pipeline.decoded < pipeline.total
     # A cancel is not a transcription failure.
     assert (t.last_transcription_stats or {}).get('outcome') != 'failed'
+
+
+def test_cancel_check_is_throttled_by_time(monkeypatch, run_ctx):
+    pipeline = _LazyPipeline(total=40)
+    _patch_local(monkeypatch, pipeline)
+    # The clock moves 0.5 s per call, so a check is due on every fourth segment.
+    _advance_clock_per_call(monkeypatch, step=0.5)
+
+    result = Transcriber().transcribe('/nonexistent/audio.wav')
+
+    assert len(result) == 40
+    assert 2 <= run_ctx['checks'] < 40 // 2
 
 
 def test_without_cancel_transcription_completes(monkeypatch, run_ctx):
@@ -118,3 +141,48 @@ def test_no_run_context_is_unaffected(monkeypatch):
     result = Transcriber().transcribe('/nonexistent/audio.wav')
 
     assert len(result) == 7
+
+
+@pytest.mark.parametrize('exc_type', [ProcessingCancelled, ProcessingOwnershipLost])
+@pytest.mark.parametrize('chunked', [False, True])
+def test_cancel_in_chunked_local_run_propagates_without_oom_handling(monkeypatch, run_ctx, exc_type, chunked):
+    unloads = []
+    monkeypatch.setattr(transcriber_mod.local, '_unload_local_models', lambda: unloads.append(1))
+    monkeypatch.setattr(transcriber_mod, 'resolve_whisper_device', lambda: 'cpu')
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton, 'get_configured_model',
+                        classmethod(lambda cls: 'fake-model'))
+    chunk = (60.0 if chunked else 3600.0, 'test')
+    monkeypatch.setattr(transcriber_mod.chunking, 'calculate_optimal_chunk_duration', lambda m, d: chunk)
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton, 'get_batched_pipeline',
+                        classmethod(lambda cls: None))
+    run_ctx_obj = run_context.current()
+    run_ctx_obj.llm_cancel_exceptions = (ProcessingCancelled, ProcessingOwnershipLost)
+
+    class FakePrefetcher:
+        def __init__(self, path):
+            pass
+
+        def prime(self, *a):
+            pass
+
+        def take(self, *a):
+            return '/nonexistent/chunk.wav'
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(transcriber_mod, '_ChunkPrefetcher', FakePrefetcher)
+    calls = []
+
+    def boom(self, *a, **k):
+        calls.append(1)
+        raise exc_type('episode in feed room-cuda was cancelled (oom)')
+
+    monkeypatch.setattr(Transcriber, 'transcribe', boom)
+
+    with pytest.raises(exc_type):
+        Transcriber()._transcribe_chunked_local_body(
+            '/nonexistent/audio.wav', 600.0, transcriber_mod.settings.active_whisper_settings())
+
+    assert calls == [1]
+    assert unloads == []

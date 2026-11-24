@@ -270,7 +270,7 @@ def test_download_cleans_up_temp_dir_if_subtitle_retry_fails():
     assert dirs and not os.path.exists(dirs[0])
 
 
-_BOT = ("ERROR: [youtube] vid000000001: Sign in to confirm you’re not a bot. Use --cookies-from-browser or "
+_BOT = ("ERROR: [youtube] vid000000001: Sign in to confirm you're not a bot. Use --cookies-from-browser or "
         "--cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ  for how to pass cookies")
 
 

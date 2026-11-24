@@ -33,11 +33,8 @@ class DownloadError(Exception):
 
 
 def classify_error(stderr: str) -> str | None:
-    """KIND_MEMBERS_ONLY or KIND_BLOCKED for a recognized yt-dlp failure, else None.
-
-    Only ERROR lines count, and subtitle errors are left out: a failed caption track never decides
-    what happened to the audio.
-    """
+    """KIND_MEMBERS_ONLY or KIND_BLOCKED for a recognized yt-dlp failure, else None."""
+    # ERROR lines only, minus subtitle errors: a failed caption track never decides the audio's fate.
     errors = [ln.strip().lower() for ln in (stderr or '').splitlines() if ln.strip().startswith('ERROR:')]
     errors = [ln for ln in errors if not any(pat in ln for pat in _SUBTITLE_ERROR_PATTERNS)]
     if any(pat in ln for ln in errors for pat in _MEMBERS_ONLY_PATTERNS):
@@ -123,10 +120,7 @@ def _run_download(args: list[str], work_dir: str, lang: str | None = None) -> su
 
 def download(video_id: str, *, want_captions: bool, language: str | None,
              metadata_lang: str | None = None) -> DownloadResult:
-    """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio.
-
-    `metadata_lang` (ytdlp.youtube_lang) picks the language of the title, description and chapters.
-    """
+    """Fetch audio as mp3 into a fresh temp dir the caller deletes; `metadata_lang` sets the title language."""
     bitrate = resolve_bitrate()
     auth = auth_args()
     url = watch_url(video_id)
