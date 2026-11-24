@@ -114,29 +114,33 @@ def _download_args(bitrate: str, auth: list[str], video_url: str, *,
     return args
 
 
-def _run_download(args: list[str], work_dir: str) -> subprocess.CompletedProcess:
+def _run_download(args: list[str], work_dir: str, lang: str | None = None) -> subprocess.CompletedProcess:
     try:
-        return ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir)
+        return ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir, lang=lang)
     except subprocess.TimeoutExpired as exc:
         raise DownloadError('yt-dlp timed out downloading the video') from exc
 
 
-def download(video_id: str, *, want_captions: bool, language: str | None) -> DownloadResult:
-    """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio."""
+def download(video_id: str, *, want_captions: bool, language: str | None,
+             metadata_lang: str | None = None) -> DownloadResult:
+    """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio.
+
+    `metadata_lang` (ytdlp.youtube_lang) picks the language of the title, description and chapters.
+    """
     bitrate = resolve_bitrate()
     auth = auth_args()
     url = watch_url(video_id)
     args = _download_args(bitrate, auth, url, want_captions=want_captions, language=language)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
     try:
-        result = _run_download(args, work_dir)
+        result = _run_download(args, work_dir, metadata_lang)
         if result.returncode != 0 and want_captions and _is_subtitle_error(result.stderr):
             logger.warning(
                 f"yt-dlp caption download failed for {video_id}; retrying audio without captions: "
                 f"{ytdlp.trimmed_error(result.stderr)}"
             )
             retry_args = _download_args(bitrate, auth, url, want_captions=False, language=language)
-            result = _run_download(retry_args, work_dir)
+            result = _run_download(retry_args, work_dir, metadata_lang)
         if result.returncode != 0:
             raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr),
                                 kind=classify_error(result.stderr))

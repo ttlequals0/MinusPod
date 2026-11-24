@@ -29,6 +29,12 @@ def test_fill_fields_replaces_placeholder_title_only():
     assert metadata.fill_fields({'title': 'Mine'}, {'title': 'Real'}) == {}
 
 
+def test_fill_fields_replace_title_takes_the_localized_title():
+    assert metadata.fill_fields({'title': 'English'}, {'title': 'Deutsch'}, replace_title=True) == {'title': 'Deutsch'}
+    assert metadata.fill_fields({'title': 'Deutsch'}, {'title': 'Deutsch'}, replace_title=True) == {}
+    assert metadata.fill_fields({'title': 'English'}, {}, replace_title=True) == {}
+
+
 def test_fill_fields_description_only_when_empty():
     assert metadata.fill_fields({'description': ''}, {'description': 'Hi'}) == {'description': 'Hi'}
     assert metadata.fill_fields({'description': 'Old'}, {'description': 'New'}) == {}
@@ -127,10 +133,34 @@ def test_tick_upserts_fields_and_marker():
     with _enabled(), patch.object(metadata, 'fetch_info', return_value={
             'vid1': {'id': 'vid1', 'description': 'Hello'}, 'vid2': {'id': 'vid2'}}) as fetch:
         metadata._run_batch(db)
-    fetch.assert_called_once_with(['vid1', 'vid2'])
+    fetch.assert_called_once_with(['vid1', 'vid2'], lang=None)
     first, second = db.upsert_episode.call_args_list
     assert first[0] == ('s', 'e1') and first[1]['description'] == 'Hello' and first[1]['yt_metadata_at']
     assert second[0] == ('s', 'e2') and set(second[1]) == {'yt_metadata_at'}
+
+
+def test_fetch_info_passes_lang_to_ytdlp():
+    run = MagicMock(return_value=_run_result(json.dumps({'id': 'vid1'})))
+    p1, p2 = _patched_fetch(run)
+    with p1, p2:
+        metadata.fetch_info(['vid1'], lang='de')
+    assert run.call_args[1]['lang'] == 'de'
+
+
+def test_batch_fetches_once_per_feed_language_and_takes_localized_titles():
+    rows = [{'slug': 'de-feed', 'episode_id': 'e1', 'youtube_video_id': 'vid1', 'original_url': 'u',
+             'published_at': None, 'description': 'x', 'title': 'English one', 'language_override': 'de'},
+            {'slug': 'en-feed', 'episode_id': 'e2', 'youtube_video_id': 'vid2', 'original_url': 'u',
+             'published_at': None, 'description': 'x', 'title': 'Kept', 'language_override': 'en'}]
+    db = _db(rows)
+    infos = {'de': {'vid1': {'id': 'vid1', 'title': 'Deutsch eins'}}, None: {'vid2': {'id': 'vid2', 'title': 'Other'}}}
+    with _enabled(), patch.object(metadata, 'fetch_info', side_effect=lambda ids, lang: infos[lang]) as fetch:
+        metadata._run_batch(db)
+    assert [c.args[0] for c in fetch.call_args_list] == [['vid1'], ['vid2']]
+    assert [c.kwargs['lang'] for c in fetch.call_args_list] == ['de', None]
+    first, second = db.upsert_episode.call_args_list
+    assert first[1]['title'] == 'Deutsch eins'
+    assert 'title' not in second[1]
 
 
 def test_tick_error_does_not_mark_rows_and_throttles():

@@ -94,7 +94,7 @@ class YouTubeMixin:
     def get_youtube_episodes_missing_metadata(self, limit: int) -> list[dict]:
         cursor = self.get_connection().execute(
             """SELECT e.id, e.episode_id, e.youtube_video_id, e.original_url, e.published_at,
-                      e.description, p.slug
+                      e.description, e.title, p.slug, p.language_override
                FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
                WHERE p.feed_type = 'youtube' AND e.yt_metadata_at IS NULL
                ORDER BY e.published_at DESC, e.id DESC LIMIT ?""",

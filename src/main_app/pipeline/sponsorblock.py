@@ -48,9 +48,12 @@ def _retry_at(episode_data, resolved) -> str:
     return (utc_now() + gap).isoformat()
 
 
-def _fill_metadata(slug, episode_id, episode_data, info):
-    """Backfill the description and a full publish time that flat listings lack."""
-    fields = metadata.fill_fields(episode_data, info)
+def _fill_metadata(slug, episode_id, episode_data, info, metadata_lang=None):
+    """Backfill the description and a full publish time that flat listings lack.
+
+    With a feed language the info's title replaces the listed one, which yt-dlp listings return in English.
+    """
+    fields = metadata.fill_fields(episode_data, info, replace_title=bool(metadata_lang))
     db.upsert_episode(slug, episode_id, yt_metadata_at=utc_now_iso(), **fields)
 
 
@@ -101,7 +104,7 @@ def _download_failure(exc: download.DownloadError) -> Exception:
     return Exception(str(exc))
 
 
-def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language):
+def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language, metadata_lang=None):
     """Working mp3 and caption segments: the retained original if present, else a yt-dlp download."""
     original = storage.get_original_path(slug, episode_id)
     segments = []
@@ -114,13 +117,14 @@ def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, langu
         common._publish_status('update_job_stage', slug, episode_id, 'downloading', 5)
         with common._measure_run_stage('download'):
             try:
-                result = download.download(video_id, want_captions=want_captions, language=language)
+                result = download.download(video_id, want_captions=want_captions, language=language,
+                                           metadata_lang=metadata_lang)
             except download.DownloadError as exc:
                 if exc.needs_update:
                     audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp looks outdated; updating before retry")
                     ytdlp.update_after_failure(db, audio_logger, f"[{slug}:{episode_id}] ")
                 raise _download_failure(exc) from exc
-        _fill_metadata(slug, episode_id, episode_data, result.info)
+        _fill_metadata(slug, episode_id, episode_data, result.info, metadata_lang)
         work_dir = os.path.dirname(result.audio_path)
         fd, audio_path = tempfile.mkstemp(suffix='.mp3')
         os.close(fd)
@@ -136,8 +140,9 @@ def acquire_audio(slug, episode_id, video_id, episode_data, want_captions, langu
 def acquire_passthrough_audio(slug, episode_id, episode_url, podcast, episode_data) -> str:
     """Audio for a pass-through run: no captions, no SponsorBlock lookup, never defers."""
     video_id = _record_video_id(slug, episode_id, episode_url, episode_data)
-    audio_path, _ = acquire_audio(slug, episode_id, video_id, episode_data, False,
-                                  (podcast or {}).get('language_override'))
+    language = (podcast or {}).get('language_override')
+    audio_path, _ = acquire_audio(slug, episode_id, video_id, episode_data, False, language,
+                                  ytdlp.feed_lang(db, language))
     return audio_path
 
 
@@ -156,7 +161,8 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         gap = timedelta(minutes=resolved.probe_interval_minutes)
         raise SponsorBlockDeferred('SponsorBlock is unreachable', (utc_now() + gap).isoformat())
 
-    audio_path, segments = acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language)
+    audio_path, segments = acquire_audio(slug, episode_id, video_id, episode_data, want_captions, language,
+                                         ytdlp.feed_lang(db, language))
     try:
         duration = audio_processor.get_audio_duration(audio_path)
         with common._measure_run_stage('sponsorblock'):

@@ -140,6 +140,22 @@ def _format_hints_block(hints: list[dict]) -> str:
     )
 
 
+def chapter_language_instruction(language: str | None) -> str:
+    """Prompt paragraph naming the language of the chapter titles.
+
+    language: ISO 639 code from the feed's language override or the global Whisper language, or 'auto'
+    for the transcript's own language; None adds nothing, leaving the prompt as it was.
+    """
+    code = (language or '').strip().lower()
+    if not code:
+        return ''
+    if code != 'auto':
+        return (f"Write every chapter title in the language with ISO 639 code '{code}', "
+                "even where the transcript or these instructions use another language.")
+    return ("Write every chapter title in the language the transcript is spoken in, "
+            "even though these instructions are in English.")
+
+
 def get_chapters_model() -> str:
     """This run's chapters model, else the configured value outside a run."""
     route = route_for_phase('chapters')
@@ -173,6 +189,7 @@ class ChaptersGenerator:
         self._slug: str | None = None
         # (template, override), read once per run rather than per window.
         self._chapter_prompt: tuple[str, str] | None = None
+        self._language_instruction = ''
         # Per-feed notes are set per generate_chapters call, never baked into the cached template.
         self._chapter_notes: str | None = None
         # Set when topic detection or title generation fails and the run
@@ -333,6 +350,8 @@ class ChaptersGenerator:
             hints_block=hints_block,
             transcript=transcript,
         )
+        if self._language_instruction:
+            prompt += f"\n\n{self._language_instruction}"
         if self._chapter_notes:
             prompt += f"\n\nFeed notes:\n{self._chapter_notes}"
 
@@ -534,6 +553,8 @@ class ChaptersGenerator:
         prompt_parts.append(f"Provide exactly {len(chapter_requests)} titles, one per line:")
 
         prompt = "\n".join(prompt_parts)
+        if self._language_instruction:
+            prompt += f"\n\n{self._language_instruction}"
         if self._chapter_notes:
             prompt += f"\n\nFeed notes:\n{self._chapter_notes}"
 
@@ -757,6 +778,7 @@ class ChaptersGenerator:
         marker_cuts: list[dict] | None = None,
         slug: str | None = None,
         chapter_notes: str | None = None,
+        language: str | None = None,
     ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -777,6 +799,9 @@ class ChaptersGenerator:
             processed timeline but hints need the original applied-cut list to map from marker coordinates.
         chapter_notes: per-feed notes appended to the topic-detection prompt as a final "Feed notes:"
             paragraph; None or blank adds nothing.
+        language: ISO 639 code the chapter titles are written in (the feed's language override, else
+            the global Whisper language), or 'auto' for the transcript's own language; None adds no
+            language line to the prompts.
         slug: podcast slug for the llm_call_usage ledger's podcast linkage; omitted call sites still
             ledger the attempt, without a resolved podcast_id.
 
@@ -786,6 +811,7 @@ class ChaptersGenerator:
         self._episode_id = episode_id
         self._slug = slug
         self._chapter_notes = (chapter_notes or '').strip() or None
+        self._language_instruction = chapter_language_instruction(language)
         self._topic_detection_failed = False
         self._title_generation_failed = False
         self._missing_client_for_titles = False

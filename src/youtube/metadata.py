@@ -30,14 +30,19 @@ def video_id_of(row, url=None) -> str:
     return vid or parse_qs(urlparse(url or (row or {}).get('original_url') or '').query).get('v', [''])[0]
 
 
-def fill_fields(episode_row, info) -> dict:
-    """Fields the info supplies and the row lacks."""
+def fill_fields(episode_row, info, replace_title: bool = False) -> dict:
+    """Fields the info supplies and the row lacks.
+
+    replace_title: the info was read in the feed's language, so its title replaces the listed one,
+    which a yt-dlp listing returns in English.
+    """
     fields = {}
     description = (info or {}).get('description')
     if description and not (episode_row or {}).get('description'):
         fields['description'] = description
     info = info or {}
-    if info.get('title') and (episode_row or {}).get('title') in PLACEHOLDER_TITLES.values():
+    title = (episode_row or {}).get('title')
+    if info.get('title') and (title in PLACEHOLDER_TITLES.values() or (replace_title and info['title'] != title)):
         fields['title'] = info['title']
     timestamp = info.get('timestamp')
     if not isinstance(timestamp, (int, float)):
@@ -48,13 +53,13 @@ def fill_fields(episode_row, info) -> dict:
     return fields
 
 
-def fetch_info(video_ids: list[str]) -> dict[str, dict]:
-    """One yt-dlp call for all ids; returns info keyed by video id."""
+def fetch_info(video_ids: list[str], lang: str | None = None) -> dict[str, dict]:
+    """One yt-dlp call for all ids; returns info keyed by video id, its text in `lang` when given."""
     args = ['--dump-json', '--skip-download', '--no-playlist', '--no-warnings', '--no-progress']
     args += download.auth_args()
     args += [watch_url(vid) for vid in video_ids]
     try:
-        result = ytdlp.run(args, timeout=METADATA_TIMEOUT_S)
+        result = ytdlp.run(args, timeout=METADATA_TIMEOUT_S, lang=lang)
     except subprocess.TimeoutExpired as exc:
         raise download.DownloadError('yt-dlp timed out reading video metadata') from exc
     infos = {}
@@ -87,23 +92,28 @@ def _run_batch(db):
         rows = db.get_youtube_episodes_missing_metadata(BATCH)
         ok = bool(rows)
         if rows:
-            wanted = [(row, video_id_of(row)) for row in rows]
+            wanted = [(row, video_id_of(row), ytdlp.feed_lang(db, row.get('language_override'))) for row in rows]
             try:
-                infos = fetch_info([vid for _, vid in wanted if vid])
+                # One call per language: `lang` applies to the whole yt-dlp call.
+                infos = {}
+                for lang in dict.fromkeys(lang for _, _, lang in wanted):
+                    ids = [vid for _, vid, row_lang in wanted if vid and row_lang == lang]
+                    if ids:
+                        infos.update(fetch_info(ids, lang=lang))
             except download.DownloadError as exc:
                 ok = False
                 logger.warning(f"YouTube metadata backfill failed: {exc}")
                 if exc.needs_update:
                     ytdlp.update_after_failure(db, logger)
-                for row, vid in wanted:
+                for row, vid, _ in wanted:
                     if vid and _give_up(vid):
                         _stamp(db, row)
         if ok:
             filled = 0
-            for row, vid in wanted:
+            for row, vid, lang in wanted:
                 if vid and vid not in infos and not _give_up(vid):
                     continue
-                fields = fill_fields(row, infos.get(vid, {}))
+                fields = fill_fields(row, infos.get(vid, {}), replace_title=bool(lang))
                 if fields.get('description'):
                     filled += 1
                 _stamp(db, row, **fields)

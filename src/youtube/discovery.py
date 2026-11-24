@@ -120,9 +120,10 @@ def _api_get(path: str, params: dict, key: str, *, proxy: str = '') -> dict:
         raise DiscoveryError('YouTube Data API returned an unreadable response') from None
 
 
-def _ytdlp_json(url: str, extra: list[str], timeout: int) -> dict:
+def _ytdlp_json(url: str, extra: list[str], timeout: int, lang: str | None = None) -> dict:
     try:
-        result = ytdlp.run(['--flat-playlist', '--dump-single-json', '--no-warnings', *download.auth_args(), *extra, url], timeout=timeout)
+        args = ['--flat-playlist', '--dump-single-json', '--no-warnings', *download.auth_args(), *extra, url]
+        result = ytdlp.run(args, timeout=timeout, lang=lang)
     except subprocess.TimeoutExpired:
         raise DiscoveryError('yt-dlp timed out listing the source') from None
     except ytdlp.YtDlpNotInstalled as exc:
@@ -298,7 +299,10 @@ def _list_single_video(db, podcast: dict) -> list[dict]:
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}: {exc}); "
                            "listing with yt-dlp")
-    data = _ytdlp_json(watch_url(video_id), ['--no-playlist'], timeout=120)
+    # A single video is read in full, so it can carry the feed's language. Playlist and channel listings
+    # stay in English: yt-dlp reads their approximate upload dates from English text only.
+    data = _ytdlp_json(watch_url(video_id), ['--no-playlist'], timeout=120,
+                       lang=ytdlp.feed_lang(db, podcast.get('language_override')))
     duration = float(data['duration']) if data.get('duration') is not None else None
     if not _keep(duration, data.get('live_status') in _LIVE_STATUSES, True, False):
         return []

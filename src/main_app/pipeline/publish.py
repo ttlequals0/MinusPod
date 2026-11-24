@@ -47,6 +47,7 @@ from rate_limit_hold import (
 
 from user_agent import feed_user_agent, settled_download_user_agent
 from utils.constants import EpisodeStatus
+from utils.language import get_pattern_language
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage)
@@ -611,6 +612,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                             segment_markers=markers,
                             slug=slug,
                             chapter_notes=(podcast_row or {}).get('chapter_notes'),
+                            language=get_pattern_language(db, slug) or 'auto',
                         )
                     except ProviderRateLimitedError as e:
                         # The audio is already cut, so hold the queue and publish ad

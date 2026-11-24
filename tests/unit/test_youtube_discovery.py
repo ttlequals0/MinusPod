@@ -473,6 +473,16 @@ def test_list_single_video_via_ytdlp_keeps_a_short_and_skips_the_playlist():
     assert '--no-playlist' in run.call_args.args[0]
 
 
+def test_single_video_reads_the_feed_language_but_playlists_stay_english():
+    podcast = dict(_podcast('video', 'abc123def45'), language_override='de')
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_VIDEO)) as run:
+        discovery.list_videos(_db(), podcast, limit=50)
+    assert run.call_args.kwargs['lang'] == 'de'
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed({'entries': []})) as run:
+        discovery.list_videos(_db(), dict(_podcast(), language_override='de'), limit=50)
+    assert run.call_args.kwargs['lang'] is None
+
+
 def test_list_single_video_via_api_keeps_a_short():
     with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
             patch.object(discovery, 'read_response_capped', return_value=json.dumps(API_VIDEO).encode()):
