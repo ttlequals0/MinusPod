@@ -101,6 +101,15 @@ def test_update_after_failure_skips_within_the_cooldown():
     _update_after_failure(recent).assert_not_called()
 
 
+def test_update_after_failure_skips_when_auto_update_is_off():
+    db = _failure_db(None)
+    db.get_setting_bool.return_value = False
+    with patch.object(ytdlp, 'update_binary') as update, \
+            patch.dict(sys.modules, {'main_app': SimpleNamespace(storage=MagicMock())}):
+        ytdlp.update_after_failure(db, MagicMock())
+    update.assert_not_called()
+
+
 def test_update_after_failure_runs_when_the_check_is_old_or_missing():
     old = (ytdlp.utc_now() - ytdlp.FAILURE_UPDATE_COOLDOWN - ytdlp.timedelta(minutes=1)).isoformat()
     _update_after_failure(old).assert_called_once()

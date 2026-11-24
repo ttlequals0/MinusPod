@@ -1335,9 +1335,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <span>Skip transcription</span>
                     </label>
                     <p className="text-xs text-warning">
-                      Episodes whose publisher chapters match the rule are cut by the rule
-                      alone, with no transcription or ad detection, so unmarked ads stay in
-                      and there is no transcript. Other episodes are processed normally.
+                      Episodes with a matching chapter skip transcription and ad detection.
+                      Unmarked ads stay in.
                     </p>
                   </div>
                 </div>

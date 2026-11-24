@@ -74,7 +74,7 @@ for (const width of WIDTHS) {
         const box = (await toggle.boundingBox())!;
         expect(box.height).toBeGreaterThanOrEqual(phone ? 44 : 20);
         if (phone) expect(box.width).toBeGreaterThanOrEqual(44);
-        await expect(page.getByText(/cut by the rule alone, with no transcription or ad detection/)).toBeVisible();
+        await expect(page.getByText(/matching chapter skip transcription and ad detection/)).toBeVisible();
         await noOverflow(page);
         await shoot(page, `chapter-trim-off-${width}${suffix}`);
 

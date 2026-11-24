@@ -392,6 +392,8 @@ def update_after_failure(db, log, prefix=''):
     """Self-update the binary after an outdated-extractor failure; never raises."""
     from main_app import storage  # lazy: main_app instantiates Storage on import
     try:
+        if not db.get_setting_bool('youtube_ytdlp_auto_update', True):
+            return
         last = parse_iso_utc(db.get_setting('youtube_ytdlp_last_check_at'))
         if last and utc_now() - last < FAILURE_UPDATE_COOLDOWN:
             return

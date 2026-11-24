@@ -64,7 +64,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
                                                            'reprocess_mode': reprocess_mode}
             db.get_podcast_cue_settings_overrides.return_value = {}
             db.get_setting.side_effect = lambda key: 'false'
-            db.get_setting_bool.return_value = False
+            db.get_setting_bool.side_effect = lambda key, default=False: key == 'youtube_ytdlp_auto_update'
             db.get_false_positive_corrections.return_value = []
             db.get_confirmed_corrections.return_value = []
             db.get_setting_float.side_effect = lambda key, default=None: default

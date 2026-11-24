@@ -1195,7 +1195,7 @@ describe('FeedSettingsPanel chapter trim transcription toggle', () => {
   it.each(['standard', 'keep_content'] as const)('shows one toggle in %s mode when a pattern is set', (mode) => {
     renderPanel(makeFeed({ processingMode: mode, descriptionTrimPattern: '*Donations*' }));
     expect(toggle()).toHaveLength(1);
-    expect(screen.getByText(/cut by the rule alone, with no transcription or ad detection/i)).toBeDefined();
+    expect(screen.getByText(/matching chapter skip transcription and ad detection/i)).toBeDefined();
   });
 
   it.each(['skip_detection', 'passthrough'] as const)('hides the toggle in %s mode', (mode) => {

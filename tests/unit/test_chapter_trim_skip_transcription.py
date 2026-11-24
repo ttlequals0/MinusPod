@@ -8,7 +8,7 @@ import pytest
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='chapter_skip_test_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
-from main_app.pipeline import detect, publish, transcribe  # noqa: E402
+from main_app.pipeline import detect, publish, signals, transcribe  # noqa: E402
 from main_app.pipeline import recut as recut_stage  # noqa: E402
 from tests.unit.pipeline_run_support import _row, _run_pipeline  # noqa: E402
 
@@ -138,14 +138,15 @@ def _feed_row(mode=None, **extra):
 
 
 def test_matched_episode_runs_without_llm_phases_and_cue_only_extras():
-    with patch.object(recut_stage, '_recut_episode') as recut:
+    with patch.object(recut_stage, '_recut_episode') as recut, \
+         patch.object(signals, '_run_transcript_diff') as transcript_diff:
         m = _run_pipeline(_feed_row(), enable_ad_review=True, download_effect=_marker_effect(MARKER))
     assert m['result'] is True
     recut.assert_not_called()
     assert m['dat'].call_args.kwargs['chapter_trim_skip'] is True
-    assert m['detect'].call_args.kwargs['skip_llm'] is True
-    assert m['detect'].call_args.kwargs['force_create_from_pairs'] is False
-    assert m['analyze'].call_args.kwargs['force_cue_detection'] is False
+    for stage in (m['detect'], m['analyze'], m['diff_fetch'], transcript_diff):
+        stage.assert_not_called()
+    assert m['refine'].call_args.args[2] == []
     refine = m['refine'].call_args.kwargs
     assert refine['chapter_marker'] == MARKER
     assert refine['apply_heuristic_rolls'] is False and refine['cue_only_safety'] is None
@@ -154,6 +155,7 @@ def test_matched_episode_runs_without_llm_phases_and_cue_only_extras():
     m['db'].reserve_provider_spend.assert_not_called()
     stats = m['finalize'].call_args.kwargs['run_stats']
     assert stats['transcription_skipped'] is True and stats['verification_skipped'] is True
+    assert stats['audio_analysis_skipped'] is True
     assert 'cue_only' not in stats
 
 
