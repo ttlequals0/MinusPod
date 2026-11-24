@@ -1023,6 +1023,7 @@ class AdValidator:
         pre_restore_confirmed = ad.pop(
             '_pre_dai_restore_confirmed_correction', None)
         confirmed = ad.pop('_confirmed_correction', None)
+        trailing_extended_from = ad.pop('_trailing_extended_from', None)
         duplicate_confirmed = ad.pop(
             '_has_confirmed_correction_candidate', False) and confirmed is None
         if ad.get('_user_kept_by_trim'):
@@ -1078,6 +1079,12 @@ class AdValidator:
                 approved_end = span['end']
                 if self.episode_duration > 0:
                     approved_end = min(approved_end, self.episode_duration)
+                if (trailing_extended_from is not None and confirmed.get('auto_filed')
+                        and approved_end >= trailing_extended_from - EDGE_TOLERANCE):
+                    # Pass 2 attested the span only up to where the marker ended; nobody chose that end. The
+                    # trailing rule's extension to the episode end stands. An operator-approved end still wins.
+                    approved_end = max(approved_end, ad['end'])
+                    span = {'start': span['start'], 'end': approved_end}
                 overlaps_approved = (
                     ad['start'] < approved_end and ad['end'] > approved_start)
                 if not overlaps_approved or approved_end <= approved_start:
@@ -2016,6 +2023,8 @@ class AdValidator:
         if 0 < gap_to_end <= max_gap:
             original_end = last_ad['end']
             last_ad['end'] = self.episode_duration
+            # Read by _validate_ad: a pass-2 approval ending here keeps the extension.
+            last_ad['_trailing_extended_from'] = original_end
             result.corrections.append(
                 f"Extended trailing ad from {original_end:.1f}s to episode end "
                 f"({self.episode_duration:.1f}s) - gap was {gap_to_end:.1f}s"

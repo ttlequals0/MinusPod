@@ -902,6 +902,56 @@ class TestConfirmedCorrections:
         assert out['end'] == 170.0
         assert out['validation']['user_confirmed'] is True
 
+    def test_auto_filed_span_keeps_trailing_extension_to_episode_end(self):
+        validator = AdValidator(
+            episode_duration=3654.27,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 3599.6,
+                'end': 3650.92,
+                'confirmed_span': {'start': 3599.6, 'end': 3650.92},
+                'correction_type': 'confirm',
+                'auto_filed': True,
+                'hold_reason': 'dai_core',
+            }],
+        )
+        ad = {
+            'start': 3599.6,
+            'end': 3650.92,
+            'confidence': 0.9,
+            'reason': 'Post-roll ad',
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert (out['start'], out['end']) == (3599.6, 3654.27)
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert out['validation']['confirmed_span'] == {
+            'start': 3599.6, 'end': 3654.27}
+        assert 'INFO: Clamped to user-approved span' not in (
+            out['validation']['flags'])
+        assert not any(key.startswith('_trailing') for key in out)
+
+    def test_auto_filed_span_trimmed_before_detected_end_still_clamps(self):
+        # Pass 2 excluded detected audio before the end: that trim stands.
+        validator = AdValidator(
+            episode_duration=200.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 160.0,
+                'end': 185.0,
+                'confirmed_span': {'start': 160.0, 'end': 175.0},
+                'correction_type': 'confirm',
+                'auto_filed': True,
+            }],
+        )
+        ad = {'start': 160.0, 'end': 185.0, 'confidence': 0.9,
+              'reason': 'Post-roll ad'}
+
+        out = validator.validate([ad]).ads[0]
+
+        assert (out['start'], out['end']) == (160.0, 175.0)
+
     def test_expanded_boundary_adjustment_survives_trailing_extension(self):
         validator = AdValidator(
             episode_duration=200.0,
