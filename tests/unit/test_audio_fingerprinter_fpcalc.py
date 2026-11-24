@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from audio_fingerprinter import AudioFingerprinter
+from audio_fingerprinter import FINGERPRINT_NOMINAL_FPS, AudioFingerprinter
 
 
 def _result(returncode=0, stdout=b'', stderr=b''):
@@ -50,7 +50,7 @@ class TestGenerateFullFingerprint:
         with patch('audio_fingerprinter.tracked_run',
                    return_value=_result(3, _FULL_FP_STDOUT, b'ERROR: decode glitch')):
             result = fp._generate_full_fingerprint('/tmp/x.mp3')
-        assert result == ([1, 2, 3, 4], 3259.01)
+        assert result == ([1, 2, 3, 4], 4 / FINGERPRINT_NOMINAL_FPS)
 
     def test_none_on_empty_fingerprint_list(self, fp):
         stdout = b'{"duration": 10.0, "fingerprint": []}'
