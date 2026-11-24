@@ -67,3 +67,15 @@ class AudioTooLargeError(Exception):
 
 class AudioNotReadyError(Exception):
     """The enclosure could not be fetched, so the run did no work at all."""
+
+
+class YouTubeAccessBlockedError(Exception):
+    """YouTube refused the download: a bot check, a captcha or HTTP 403.
+
+    Transient: such blocks usually lift, and cookies, a proxy or a yt-dlp update can clear them. The
+    bot check's message names "authentication", which alone would read as a permanent auth error.
+    """
+
+
+class YouTubeVideoUnavailableError(Exception):
+    """The video is members-only, so no retry without member cookies can fetch it. Permanent."""

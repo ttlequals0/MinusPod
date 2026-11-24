@@ -17,11 +17,34 @@ CAPTIONS_TIMEOUT_S = 300
 _impersonate_cache: dict[str, str | None] = {}
 _SUBTITLE_ERROR_PATTERNS = ('unable to download video subtitles', 'unable to download subtitles')
 
+# DownloadError.kind values; None means the failure is not a recognized YouTube condition.
+KIND_BLOCKED = 'blocked'
+KIND_MEMBERS_ONLY = 'members_only'
+# YouTube's own playability text, passed through by yt-dlp. Several phrasings, since YouTube rewords them.
+_MEMBERS_ONLY_PATTERNS = ('members-only', "channel's members", 'join this channel')
+_BLOCKED_PATTERNS = ('not a bot', 'captcha', 'http error 403')
+
 
 class DownloadError(Exception):
-    def __init__(self, message: str, needs_update: bool = False):
+    def __init__(self, message: str, needs_update: bool = False, kind: str | None = None):
         super().__init__(message)
         self.needs_update = needs_update
+        self.kind = kind
+
+
+def classify_error(stderr: str) -> str | None:
+    """KIND_MEMBERS_ONLY or KIND_BLOCKED for a recognized yt-dlp failure, else None.
+
+    Only ERROR lines count, and subtitle errors are left out: a failed caption track never decides
+    what happened to the audio.
+    """
+    errors = [ln.strip().lower() for ln in (stderr or '').splitlines() if ln.strip().startswith('ERROR:')]
+    errors = [ln for ln in errors if not any(pat in ln for pat in _SUBTITLE_ERROR_PATTERNS)]
+    if any(pat in ln for ln in errors for pat in _MEMBERS_ONLY_PATTERNS):
+        return KIND_MEMBERS_ONLY
+    if any(pat in ln for ln in errors for pat in _BLOCKED_PATTERNS):
+        return KIND_BLOCKED
+    return None
 
 
 @dataclass
@@ -115,7 +138,8 @@ def download(video_id: str, *, want_captions: bool, language: str | None) -> Dow
             retry_args = _download_args(bitrate, auth, url, want_captions=False, language=language)
             result = _run_download(retry_args, work_dir)
         if result.returncode != 0:
-            raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
+            raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr),
+                                kind=classify_error(result.stderr))
         audio_path = os.path.join(work_dir, f'{video_id}.mp3')
         if not os.path.exists(audio_path):
             raise DownloadError('yt-dlp finished without producing an mp3')
