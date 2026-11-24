@@ -27,6 +27,7 @@ release notes.
 - A members-only YouTube video was retried until the retry limit before it failed. It now fails at once, and the error says to add cookies of a channel member and reprocess.
 - The validator penalised a detection's confidence for a vague reason whenever the reason contained a generic phrase such as "sponsor" anywhere, so "sponsored segment promoting <brand>" lost 0.10 and skipped the sponsor-name boost. A reason that names its advertiser is no longer treated as vague, and the sponsor-name boost is checked first. Reasons that name nothing are still penalised.
 - The check that a detection's quoted end text appears in the transcript compared the raw strings, so a quote spaced differently from the transcript, such as "example .se" for "example.se", was reported as missing and cost 0.05 confidence. Both sides are now compared with whitespace collapsed and removed next to punctuation.
+- When two overlapping window detections were merged, the longer reason was kept, which was often the partial window's "continues in next window" note rather than the complete detection's reason. The merged marker now keeps the reason and sponsor of the more confident detection, and the longer reason only when the confidences are equal.
 
 ## [2.102.15] - 2026-11-22
 
