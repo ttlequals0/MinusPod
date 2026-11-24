@@ -6,8 +6,9 @@ from dataclasses import dataclass, replace
 from ad_detector.boundaries import _content_duration_in_range
 
 from audio_processor import get_replacement_duration
-from utils.markers import (DAI_CORE_SPANS, EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
-                           finite_number, fold_marker_pair, foldable_twin, merge_runs,
+from ad_validator import user_trimmed_keep_ranges
+from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
+                           dai_core_spans, finite_number, fold_marker_pair, foldable_twin, merge_runs,
                            reviewer_reject_stands, timed_span)
 
 from utils.time import (
@@ -21,7 +22,7 @@ from config import (
     MAX_MERGED_DURATION,
     PASS2_AUTOAPPROVE_HOLD_REASONS, PASS2_REVIEWED_RELEASE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
-    PASS2_AUTOAPPROVE_TRIM_SLACK_S, PASS2_DAI_RELEASE_WORD_SLOP_S,
+    PASS2_AUTOAPPROVE_TRIM_SLACK_S, PASS2_DAI_RELEASE_MAX_EXTEND_S, PASS2_DAI_RELEASE_WORD_SLOP_S,
     CORRECTION_ORIGIN_AUTO_PASS2, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     is_pending_review, normalize_segment_category, is_keep_like, is_known_ad,
     SEGMENT_CATEGORIES,
@@ -394,15 +395,12 @@ def _pass2_confirm_span(marker):
 
 
 def _wordless(units, lo, hi, edge):
-    """True when no speech unit reaches more than the slop into the gap (lo, hi).
-
-    edge names the released span's edge the gap sits before ('start') or after ('end'). A unit
-    split by that edge is already part of the cut ad and does not count, unless it also reaches
-    past the gap's other side: widening would cut into it there."""
+    """True when no speech unit reaches more than the slop into the gap (lo, hi) before the released edge."""
     slop = PASS2_DAI_RELEASE_WORD_SLOP_S
     for a, b in units:
         if min(b, hi) - max(a, lo) <= slop:
             continue
+        # A unit split by the released edge is already cut, unless it also reaches past the gap's far side.
         if edge == 'start':
             split, past_core = b > hi + slop, a < lo - slop
         else:
@@ -412,28 +410,31 @@ def _wordless(units, lo, hi, edge):
     return True
 
 
-def _extend_to_dai_core(hold, spans, segments):
-    """Widen a differential hold's released spans to its measured core over wordless audio.
-
-    The cross-fetch differential proves the core inserted; the release's word-based edges would
-    leave the core's music or silence around the ad as an unreleasable remainder. An edge moves
-    only outward, only to the core run it lies in, and never over a transcript word."""
+def _extend_to_dai_core(hold, spans, segments, barriers=()):
+    """Widen a differential hold's released spans to its measured core over wordless audio, short of barriers."""
     if (hold.get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
             or not spans or spans[0] is None):
         return spans
-    cores = merge_runs([(c['start'], c['end']) for c in hold.get(DAI_CORE_SPANS) or []],
-                       gap=EDGE_TOLERANCE)
+    cores = merge_runs(dai_core_spans(hold), gap=EDGE_TOLERANCE)
     units = [span for span in (timed_span(unit) for seg in segments or []
                                for unit in seg.get('words') or [seg]) if span]
     spans = [dict(s) for s in spans]
     first, last = spans[0], spans[-1]
+
+    def clear(lo, hi):
+        return not any(overlap_seconds(lo, hi, a, b) > EDGE_TOLERANCE for a, b in barriers)
+
     for lo, hi in cores:
         lo, hi = max(lo, hold['start']), min(hi, hold['end'])
-        if lo < first['start'] <= hi + EDGE_TOLERANCE and _wordless(
-                units, lo, first['start'], 'start'):
+        if (lo < first['start'] <= hi + EDGE_TOLERANCE
+                and first['start'] - lo <= PASS2_DAI_RELEASE_MAX_EXTEND_S
+                and clear(lo, first['start'])
+                and _wordless(units, lo, first['start'], 'start')):
             first['start'] = lo
-        if lo - EDGE_TOLERANCE <= last['end'] < hi and _wordless(
-                units, last['end'], hi, 'end'):
+        if (lo - EDGE_TOLERANCE <= last['end'] < hi
+                and hi - last['end'] <= PASS2_DAI_RELEASE_MAX_EXTEND_S
+                and clear(last['end'], hi)
+                and _wordless(units, last['end'], hi, 'end')):
             last['end'] = hi
     if (len(spans) == 1
             and first['start'] <= hold['start'] + PASS2_AUTOAPPROVE_TRIM_SLACK_S
@@ -477,6 +478,10 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
         fp_corrections = fp_corrections or []
         reviewer_rejects = [
             r for r in markers if reviewer_reject_stands(r, confirmed_corrections)]
+        barriers = [(r['start'], r['end']) for r in reviewer_rejects]
+        barriers += [(t['start'], t['end']) for t in user_trimmed_keep_ranges(confirmed_corrections or [])]
+        barriers += [(m['start'], m['end']) for m in markers if is_keep_like(m.get('action_applied'))]
+        barriers += [(fp['start'], fp['end']) for fp in fp_corrections]
         approvable = []
         for m in holds:
             if any(ranges_overlap(m['start'], m['end'], fp['start'], fp['end'])
@@ -488,7 +493,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 continue
             released = m.get('pass2_released_spans') or []
             spans = released if len(released) > 1 else [_pass2_confirm_span(m)]
-            spans = _extend_to_dai_core(m, spans, segments)
+            spans = _extend_to_dai_core(m, spans, segments, barriers)
             spans = [span for span in spans if not any(
                 overlap_seconds((span or m)['start'], (span or m)['end'],
                                 r['start'], r['end']) > 0 for r in reviewer_rejects)]

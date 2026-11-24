@@ -961,6 +961,21 @@ class TestConfirmedCorrections:
         assert [(a['start'], a['end']) for a in ads if a is not last] == [
             (3564.0, 3587.62), (3587.62, 3599.6)]
 
+    def test_auto_filed_end_far_inside_the_tail_stays_held_not_cut(self):
+        # Pass 2 trimmed 24 s off the detection: that remainder is held, never absorbed by the extension.
+        validator = AdValidator(
+            episode_duration=3654.27, segments=[],
+            confirmed_corrections=[{
+                'start': 3599.6, 'end': 3653.7,
+                'confirmed_span': {'start': 3599.6, 'end': 3630.0},
+                'correction_type': 'confirm', 'auto_filed': True, 'hold_reason': 'dai_core'}])
+        ad = {'start': 3599.6, 'end': 3653.7, 'confidence': 0.95, 'reason': 'DAI ad', 'category': 'sponsor'}
+
+        ads = validator.validate([ad]).ads
+
+        assert [(a['start'], a['end'], bool(a.get('held_for_review'))) for a in ads] == [
+            (3599.6, 3630.0, False), (3630.0, 3653.7, True)]
+
     def test_operator_end_still_pins_a_merged_tail(self):
         confirms = [dict(self.MERGED_TAIL_CONFIRMS[0], auto_filed=False),
                     self.MERGED_TAIL_CONFIRMS[1]]

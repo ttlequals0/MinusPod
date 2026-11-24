@@ -117,11 +117,7 @@ _SPACE_AROUND_PUNCT_RE = re.compile(r'\s*([^\w\s])\s*')
 
 
 def _squash_spacing(text: str) -> str:
-    """Lowercase `text` with runs of whitespace collapsed and none beside punctuation.
-
-    The model quotes "acme .se" for a transcript's "acme.se", so a substring test
-    on the raw text misses a quote that is really there.
-    """
+    """Lowercase `text`, collapse whitespace runs and drop whitespace beside punctuation."""
     text = _SPACE_AROUND_PUNCT_RE.sub(r'\1', text.lower())
     return ' '.join(text.split())
 
@@ -339,9 +335,12 @@ class AdValidator:
         'transcript_differential': (HOLD_REASON_TRANSCRIPT_DIFFERENTIAL, lambda ad: True),
     }
 
+    # Vague phrases that state uncertainty; a named brand does not excuse them.
+    HEDGED_REASONS: ClassVar[tuple[str, ...]] = ('possible ad', 'likely ad')
+
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
-        'possible ad', 'likely ad', 'advertisement segment'
+        *HEDGED_REASONS, 'advertisement segment'
     ]
 
     # Patterns that indicate Claude determined this is NOT an ad. The second branch only matches
@@ -1288,14 +1287,15 @@ class AdValidator:
             logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
             return 0.0  # Force rejection
 
+        hedged = any(phrase in reason for phrase in self.HEDGED_REASONS)
+
         # Sponsor name in reason = boost
-        if self.SPONSOR_PATTERNS.search(reason):
+        if not hedged and self.SPONSOR_PATTERNS.search(reason):
             return min(1.0, confidence + 0.1)
 
-        # Vague reason = penalize. The phrases match as substrings ("sponsored" holds
-        # "sponsor"), so a reason that also names its advertiser is not vague.
-        if (any(vague in reason for vague in self.VAGUE_REASONS)
-                and not self._reason_names_advertiser(ad.get('reason', ''))):
+        # Substring match ("sponsored" holds "sponsor"), so a reason that names its advertiser is not vague.
+        if hedged or (any(vague in reason for vague in self.VAGUE_REASONS)
+                      and not self._reason_names_advertiser(ad.get('reason', ''))):
             flags.append("WARN: Vague reason")
             return max(0.0, confidence - 0.1)
 
@@ -2061,11 +2061,7 @@ class AdValidator:
         return ads
 
     def _speech_starts_after(self, edge: float) -> bool:
-        """Whether a transcript word (or an untimed segment) starts after `edge`.
-
-        A word already running at `edge` belongs to the ad that ends there; one that starts
-        later is speech after the ad. Word-timing slop of TRAILING_SPEECH_SLOP_S is ignored.
-        """
+        """Whether a word (or untimed segment) starts more than the slop after `edge`."""
         cutoff = edge + TRAILING_SPEECH_SLOP_S
         for seg in self.segments:
             if not (seg.get('text') or '').strip():

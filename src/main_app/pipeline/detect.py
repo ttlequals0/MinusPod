@@ -694,11 +694,8 @@ def _dai_spot_spans(audio_analysis):
 
 
 def _repeat_sources(ads_to_remove, segment_actions, spot_spans):
-    """[(span, marker)] to search for: each cut marker, and each measured spot inside one.
-
-    A merged break holds several spots, and one spot repeated elsewhere never reproduces
-    REPEAT_MIN_COVERAGE of the whole break, so its spots are searched on their own.
-    """
+    """[(span, marker)] to search for: each cut marker, and each measured spot inside one."""
+    # A repeated spot never reproduces REPEAT_MIN_COVERAGE of its whole merged break, so spots are searched alone.
     def searchable(lo, hi):
         return REPEAT_MIN_SOURCE_S <= hi - lo <= REPEAT_MAX_SOURCE_S
 

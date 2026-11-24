@@ -1314,11 +1314,7 @@ class AudioFingerprinter:
     def generate_raw_span_fingerprint(
         self, audio_path: str, start_s: float, end_s: float,
     ) -> tuple[list[int], float] | None:
-        """Raw chromaprint ints for the [start_s, end_s] span of a file.
-
-        Extract-then-fingerprint twin of :meth:`generate_fingerprint` that keeps the ``-raw`` int array (comparable
-        against full-file raw fingerprints via the window-occurrence helpers). Returns (raw_ints, duration) or None.
-        """
+        """Raw chromaprint ints and the seconds they span for [start_s, end_s] of a file, or None."""
         if not self._fpcalc_path or end_s <= start_s:
             return None
         try:
@@ -1339,7 +1335,7 @@ class AudioFingerprinter:
             raw_ints = data.get('fingerprint', [])
             if not isinstance(raw_ints, list):
                 return None
-            return (raw_ints, data.get('duration', end_s - start_s))
+            return (raw_ints, len(raw_ints) / FINGERPRINT_NOMINAL_FPS)
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if e.stderr else ''
             logger.warning(f"span ffmpeg extract failed: {stderr}")

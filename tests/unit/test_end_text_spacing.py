@@ -10,7 +10,7 @@ from ad_validator import AdValidator
 
 _SEGMENTS = [
     {'start': 100.0, 'end': 104.0, 'text': 'Och nu en annons om molnet.'},
-    {'start': 104.0, 'end': 108.0, 'text': 'Läs mer på acmeledger.se'},
+    {'start': 104.0, 'end': 108.0, 'text': 'L\u00e4s mer p\u00e5 acmeledger.se'},
 ]
 
 
@@ -22,9 +22,9 @@ def _verify(end_text):
 
 
 @pytest.mark.parametrize('end_text', [
-    'Läs mer på acmeledger .se',
-    'läs  mer på acmeledger. se',
-    'Läs mer på acmeledger.se',
+    'L\u00e4s mer p\u00e5 acmeledger .se',
+    'l\u00e4s  mer p\u00e5 acmeledger. se',
+    'L\u00e4s mer p\u00e5 acmeledger.se',
 ])
 def test_end_text_matches_despite_spacing(end_text):
     adjusted, flags = _verify(end_text)
@@ -33,6 +33,6 @@ def test_end_text_matches_despite_spacing(end_text):
 
 
 def test_end_text_that_is_not_spoken_is_still_penalised():
-    adjusted, flags = _verify('Besök annat.se idag')
+    adjusted, flags = _verify('Bes\u00f6k annat.se idag')
     assert 'WARN: end_text not found in transcript' in flags
     assert adjusted == pytest.approx(0.85)

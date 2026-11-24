@@ -69,7 +69,7 @@ class TestGenerateRawSpanFingerprint:
         with patch('audio_fingerprinter.tracked_run',
                    return_value=_result(3, _FULL_FP_STDOUT, b'ERROR: decode glitch')):
             result = fp.generate_raw_span_fingerprint('/tmp/x.mp3', 10.0, 20.0)
-        assert result == ([1, 2, 3, 4], 3259.01)
+        assert result == ([1, 2, 3, 4], 4 / FINGERPRINT_NOMINAL_FPS)
 
     def test_none_on_empty_stdout(self, fp):
         with patch('audio_fingerprinter.tracked_run',

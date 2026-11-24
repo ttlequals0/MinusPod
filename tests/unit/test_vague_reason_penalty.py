@@ -49,3 +49,14 @@ def test_an_unknown_named_sponsor_gets_no_boost():
     adjusted, flags = _check('Sponsor: Acme Tools')
     assert adjusted == pytest.approx(0.8)
     assert flags == []
+
+
+@pytest.mark.parametrize('reason', [
+    'Possible ad for Acme Tools, uncertain',
+    'Possible ad but may be show content about Acme',
+    'Likely ad for Squarespace',
+])
+def test_a_hedged_reason_is_penalised_even_when_it_names_a_brand(reason):
+    adjusted, flags = _check(reason)
+    assert adjusted == pytest.approx(0.7)
+    assert 'WARN: Vague reason' in flags
