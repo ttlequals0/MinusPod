@@ -48,6 +48,7 @@ from utils.markers import (
     find_marker_in_list,
     finite_number,
     inherit_edge,
+    timed_span,
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
@@ -85,6 +86,8 @@ from ad_detector.cue_boundary_snap import snap_split_edge
 from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
+TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
+TRAILING_SPEECH_SLOP_S = 0.25  # seconds; a word starting this soon after the ad's end is timing slop
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +111,19 @@ _REMAINDER_DROPPED_KEYS = (
 def _sponsor_name_re(sponsor: str) -> re.Pattern | None:
     """Whole-word matcher for one sponsor name, built once per name."""
     return word_boundary_re((sponsor,))
+
+
+_SPACE_AROUND_PUNCT_RE = re.compile(r'\s*([^\w\s])\s*')
+
+
+def _squash_spacing(text: str) -> str:
+    """Lowercase `text` with runs of whitespace collapsed and none beside punctuation.
+
+    The model quotes "acme .se" for a transcript's "acme.se", so a substring test
+    on the raw text misses a quote that is really there.
+    """
+    text = _SPACE_AROUND_PUNCT_RE.sub(r'\1', text.lower())
+    return ' '.join(text.split())
 
 
 def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
@@ -1023,6 +1039,7 @@ class AdValidator:
         pre_restore_confirmed = ad.pop(
             '_pre_dai_restore_confirmed_correction', None)
         confirmed = ad.pop('_confirmed_correction', None)
+        trailing_extended_from = ad.pop('_trailing_extended_from', None)
         duplicate_confirmed = ad.pop(
             '_has_confirmed_correction_candidate', False) and confirmed is None
         if ad.get('_user_kept_by_trim'):
@@ -1078,6 +1095,12 @@ class AdValidator:
                 approved_end = span['end']
                 if self.episode_duration > 0:
                     approved_end = min(approved_end, self.episode_duration)
+                if (trailing_extended_from is not None and confirmed.get('auto_filed')
+                        and 0 < ad['end'] - approved_end <= TRAILING_AD_MAX_GAP):
+                    # Nobody chose a pass-2 approval's end, so it is a detected end like any other: the trailing
+                    # rule's extension to the episode end stands. An operator-approved end still wins.
+                    approved_end = max(approved_end, ad['end'])
+                    span = {'start': span['start'], 'end': approved_end}
                 overlaps_approved = (
                     ad['start'] < approved_end and ad['end'] > approved_start)
                 if not overlaps_approved or approved_end <= approved_start:
@@ -1265,16 +1288,24 @@ class AdValidator:
             logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
             return 0.0  # Force rejection
 
-        # Vague reason = penalize
-        if any(vague in reason for vague in self.VAGUE_REASONS):
-            flags.append("WARN: Vague reason")
-            return max(0.0, confidence - 0.1)
-
         # Sponsor name in reason = boost
         if self.SPONSOR_PATTERNS.search(reason):
             return min(1.0, confidence + 0.1)
 
+        # Vague reason = penalize. The phrases match as substrings ("sponsored" holds
+        # "sponsor"), so a reason that also names its advertiser is not vague.
+        if (any(vague in reason for vague in self.VAGUE_REASONS)
+                and not self._reason_names_advertiser(ad.get('reason', ''))):
+            flags.append("WARN: Vague reason")
+            return max(0.0, confidence - 0.1)
+
         return confidence
+
+    @staticmethod
+    def _reason_names_advertiser(reason: str) -> bool:
+        """Whether the model's reason names a brand, not only the kind of segment."""
+        brand = SponsorService.extract_sponsor_from_reason(reason)
+        return bool(brand) and not is_non_brand_name(brand)
 
     def _verify_in_transcript(self, ad: dict, confidence: float,
                                flags: list[str], transcript_hits: list[dict] | None = None) -> float:
@@ -1333,7 +1364,7 @@ class AdValidator:
         # Verify end_text exists in transcript
         end_text = ad.get('end_text', '')
         if end_text and len(end_text) > 5:
-            if end_text.lower() not in ad_text.lower():
+            if _squash_spacing(end_text) not in _squash_spacing(ad_text):
                 flags.append("WARN: end_text not found in transcript")
                 return max(0.0, confidence - 0.05)
 
@@ -1989,7 +2020,7 @@ class AdValidator:
 
     def _extend_trailing_ad(self, ads: list[dict],
                             result: ValidationResult,
-                            max_gap: float = 30.0) -> list[dict]:
+                            max_gap: float = TRAILING_AD_MAX_GAP) -> list[dict]:
         """Extend the last ad to the end of episode if it ends within max_gap seconds (default 30s).
 
         DAI post-roll ads often end slightly before the actual episode end. Corrections are recorded in `result`.
@@ -1997,9 +2028,8 @@ class AdValidator:
         if not ads or self.episode_duration <= 0:
             return ads
 
-        # Sort by start time and get last ad
-        sorted_ads = sorted(ads, key=lambda x: x['start'])
-        last_ad = sorted_ads[-1]
+        # The tail is the marker that ends last: a piece carved out of a wider marker can start later.
+        last_ad = max(ads, key=lambda x: (x['end'], x['start']))
 
         # A held marker has not been approved for cutting. Extending it could
         # absorb post-gap speech that was not part of the reviewed span.
@@ -2012,10 +2042,13 @@ class AdValidator:
 
         gap_to_end = self.episode_duration - last_ad['end']
 
-        # Only extend if gap is positive and within threshold
-        if 0 < gap_to_end <= max_gap:
+        # Only extend if gap is positive and within threshold, and nobody speaks in it: the rule
+        # covers inserted post-roll tails, not a closing line after the last ad.
+        if 0 < gap_to_end <= max_gap and not self._speech_starts_after(last_ad['end']):
             original_end = last_ad['end']
             last_ad['end'] = self.episode_duration
+            # Read by _validate_ad: a pass-2 approval ending here keeps the extension.
+            last_ad['_trailing_extended_from'] = original_end
             result.corrections.append(
                 f"Extended trailing ad from {original_end:.1f}s to episode end "
                 f"({self.episode_duration:.1f}s) - gap was {gap_to_end:.1f}s"
@@ -2026,6 +2059,22 @@ class AdValidator:
             )
 
         return ads
+
+    def _speech_starts_after(self, edge: float) -> bool:
+        """Whether a transcript word (or an untimed segment) starts after `edge`.
+
+        A word already running at `edge` belongs to the ad that ends there; one that starts
+        later is speech after the ad. Word-timing slop of TRAILING_SPEECH_SLOP_S is ignored.
+        """
+        cutoff = edge + TRAILING_SPEECH_SLOP_S
+        for seg in self.segments:
+            if not (seg.get('text') or '').strip():
+                continue
+            words = [span for span in (timed_span(w) for w in seg.get('words') or []) if span]
+            units = words or [span for span in (timed_span(seg),) if span]
+            if any(start > cutoff for start, _ in units):
+                return True
+        return False
 
     def _has_speech_in_range(self, start: float, end: float) -> bool:
         """Check if any transcript segments contain speech in the given range."""

@@ -27,7 +27,7 @@ from config import (
     resolve_silence_snap_tunables,
     resolve_max_ad_duration,
     resolve_max_ad_duration_confirmed,
-    REPEAT_STAGE, REPEAT_MIN_SOURCE_S, REPEAT_MAX_SOURCE_S,
+    REPEAT_STAGE, REPEAT_MIN_SOURCE_S, REPEAT_MAX_SOURCE_S, REPEAT_MAX_OVERLAP_S,
     is_keep_like, normalize_segment_category,
     VETO_MIN_CUT_SECONDS,
     resolve_splice_veto_enabled,
@@ -48,7 +48,7 @@ from llm_client import (
 )
 
 from utils.correction_guard import usable_confirmed_corrections
-from utils.markers import held_review_window, parse_ad_markers
+from utils.markers import finite_number, held_review_window, parse_ad_markers
 from utils.errors import ServiceUnavailableError
 from utils.short_asks import is_clampable_short_ask, unflag
 from utils.time import format_duration
@@ -680,17 +680,56 @@ def reconcile_description_chapter(all_ads, description, episode_duration, descri
     return sorted(result, key=lambda ad: ad['start'])
 
 
+def _dai_spot_spans(audio_analysis):
+    """(start, end) of each cross-fetch differential region; the fetcher cuts them at silences, so one per spot."""
+    regions = ((audio_analysis or {}).get('dai_differential') or {}).get('regions') or []
+    spans = []
+    for region in regions:
+        if not isinstance(region, dict) or region.get('kind') != 'differential':
+            continue
+        lo, hi = finite_number(region.get('start_s')), finite_number(region.get('end_s'))
+        if lo is not None and hi is not None and hi > lo:
+            spans.append((lo, hi))
+    return spans
+
+
+def _repeat_sources(ads_to_remove, segment_actions, spot_spans):
+    """[(span, marker)] to search for: each cut marker, and each measured spot inside one.
+
+    A merged break holds several spots, and one spot repeated elsewhere never reproduces
+    REPEAT_MIN_COVERAGE of the whole break, so its spots are searched on their own.
+    """
+    def searchable(lo, hi):
+        return REPEAT_MIN_SOURCE_S <= hi - lo <= REPEAT_MAX_SOURCE_S
+
+    sources = []
+    for ad in ads_to_remove:
+        if ad.get('held_for_review') or is_keep_like(
+                (segment_actions or {}).get(normalize_segment_category(ad.get('category')))):
+            continue
+        start, end = ad['start'], ad['end']
+        if searchable(start, end):
+            sources.append(((start, end), ad))
+        for lo, hi in spot_spans:
+            # A spot that straddles the cut edge reaches audio nobody judged to be an ad
+            if lo < start - REPEAT_MAX_OVERLAP_S or hi > end + REPEAT_MAX_OVERLAP_S:
+                continue
+            lo, hi = max(lo, start), min(hi, end)
+            whole = abs(lo - start) <= REPEAT_MAX_OVERLAP_S and abs(hi - end) <= REPEAT_MAX_OVERLAP_S
+            if not whole and searchable(lo, hi):
+                sources.append(((lo, hi), ad))
+    return sources
+
+
 def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration,
-                          segment_actions):
+                          segment_actions, *, spot_spans=()):
     """Unvalidated markers for other copies of the spots about to be cut; never raises."""
-    sources = [ad for ad in ads_to_remove
-               if not ad.get('held_for_review')
-               and REPEAT_MIN_SOURCE_S <= ad['end'] - ad['start'] <= REPEAT_MAX_SOURCE_S
-               and not is_keep_like((segment_actions or {}).get(normalize_segment_category(ad.get('category'))))]
+    sources = _repeat_sources(ads_to_remove, segment_actions, spot_spans)
     if not sources or not audio_path:
         return []
-    spans = [(ad['start'], ad['end']) for ad in sources]
-    blocked = spans + [(ad['start'], ad['end']) for ad in known_ads]
+    spans = [span for span, _ad in sources]
+    blocked = spans + [(ad['start'], ad['end']) for _span, ad in sources] + [
+        (ad['start'], ad['end']) for ad in known_ads]
     try:
         found = ad_detector.audio_fingerprinter.find_in_episode_repeats(
             audio_path, spans, blocked, episode_duration)
@@ -699,10 +738,10 @@ def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path
         return []
     twins = []
     for index, match in found:
-        source = sources[index]
+        (src_start, src_end), source = sources[index]
         twin = {
             'start': match.start, 'end': match.end, 'confidence': match.similarity,
-            'reason': (f"Repeats the ad at {format_duration(source['start'])} "
+            'reason': (f"Repeats the ad at {format_duration(src_start)} "
                        f"(audio similarity {match.similarity:.2f}, coverage {match.coverage:.2f})"),
             'sponsor': source.get('sponsor'), 'detection_stage': REPEAT_STAGE,
         }
@@ -710,7 +749,7 @@ def _find_episode_repeats(slug, episode_id, ads_to_remove, known_ads, audio_path
             twin['category'] = source['category']
         twins.append(twin)
         audio_logger.info(
-            f"[{slug}:{episode_id}] Ad at {source['start']:.1f}s-{source['end']:.1f}s repeats at "
+            f"[{slug}:{episode_id}] Ad at {src_start:.1f}s-{src_end:.1f}s repeats at "
             f"{match.start:.1f}s-{match.end:.1f}s (similarity {match.similarity:.2f}, "
             f"coverage {match.coverage:.2f})")
     return twins
@@ -722,7 +761,8 @@ def _validate_repeat_twins(slug, episode_id, validator, ads_to_remove, validated
     """Find, refine, validate and gate in-episode repeats; (cuts, validated twins, low_confidence, rejected)."""
     known_ads = [*validated_ads, *(keep_ads or [])]
     twins = _find_episode_repeats(
-        slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration, segment_actions)
+        slug, episode_id, ads_to_remove, known_ads, audio_path, episode_duration, segment_actions,
+        spot_spans=_dai_spot_spans(audio_analysis))
     if not twins:
         return [], [], 0, 0
     # Same edge refinement as other markers; known_ads act as barriers so a twin stays out of them.

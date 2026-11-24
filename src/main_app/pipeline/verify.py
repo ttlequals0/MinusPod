@@ -6,8 +6,9 @@ from dataclasses import dataclass, replace
 from ad_detector.boundaries import _content_duration_in_range
 
 from audio_processor import get_replacement_duration
-from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm, finite_number,
-                           fold_marker_pair, foldable_twin, reviewer_reject_stands)
+from utils.markers import (DAI_CORE_SPANS, EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
+                           finite_number, fold_marker_pair, foldable_twin, merge_runs,
+                           reviewer_reject_stands, timed_span)
 
 from utils.time import (
     merge_cut_spans, overlap_seconds,
@@ -20,8 +21,8 @@ from config import (
     MAX_MERGED_DURATION,
     PASS2_AUTOAPPROVE_HOLD_REASONS, PASS2_REVIEWED_RELEASE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
-    PASS2_AUTOAPPROVE_TRIM_SLACK_S,
-    CORRECTION_ORIGIN_AUTO_PASS2,
+    PASS2_AUTOAPPROVE_TRIM_SLACK_S, PASS2_DAI_RELEASE_WORD_SLOP_S,
+    CORRECTION_ORIGIN_AUTO_PASS2, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     is_pending_review, normalize_segment_category, is_keep_like, is_known_ad,
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
@@ -392,6 +393,55 @@ def _pass2_confirm_span(marker):
     return None
 
 
+def _wordless(units, lo, hi, edge):
+    """True when no speech unit reaches more than the slop into the gap (lo, hi).
+
+    edge names the released span's edge the gap sits before ('start') or after ('end'). A unit
+    split by that edge is already part of the cut ad and does not count, unless it also reaches
+    past the gap's other side: widening would cut into it there."""
+    slop = PASS2_DAI_RELEASE_WORD_SLOP_S
+    for a, b in units:
+        if min(b, hi) - max(a, lo) <= slop:
+            continue
+        if edge == 'start':
+            split, past_core = b > hi + slop, a < lo - slop
+        else:
+            split, past_core = a < lo - slop, b > hi + slop
+        if not split or past_core:
+            return False
+    return True
+
+
+def _extend_to_dai_core(hold, spans, segments):
+    """Widen a differential hold's released spans to its measured core over wordless audio.
+
+    The cross-fetch differential proves the core inserted; the release's word-based edges would
+    leave the core's music or silence around the ad as an unreleasable remainder. An edge moves
+    only outward, only to the core run it lies in, and never over a transcript word."""
+    if (hold.get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
+            or not spans or spans[0] is None):
+        return spans
+    cores = merge_runs([(c['start'], c['end']) for c in hold.get(DAI_CORE_SPANS) or []],
+                       gap=EDGE_TOLERANCE)
+    units = [span for span in (timed_span(unit) for seg in segments or []
+                               for unit in seg.get('words') or [seg]) if span]
+    spans = [dict(s) for s in spans]
+    first, last = spans[0], spans[-1]
+    for lo, hi in cores:
+        lo, hi = max(lo, hold['start']), min(hi, hold['end'])
+        if lo < first['start'] <= hi + EDGE_TOLERANCE and _wordless(
+                units, lo, first['start'], 'start'):
+            first['start'] = lo
+        if lo - EDGE_TOLERANCE <= last['end'] < hi and _wordless(
+                units, last['end'], hi, 'end'):
+            last['end'] = hi
+    if (len(spans) == 1
+            and first['start'] <= hold['start'] + PASS2_AUTOAPPROVE_TRIM_SLACK_S
+            and first['end'] >= hold['end'] - PASS2_AUTOAPPROVE_TRIM_SLACK_S):
+        return [None]
+    return spans
+
+
 def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
     """File the confirm corrections for pass-2-corroborated holds.
 
@@ -415,7 +465,8 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
                 f"retained original audio to recut from")
             return 0
-        if not db.get_original_segments(slug, episode_id):
+        segments = db.get_original_segments(slug, episode_id)
+        if not segments:
             audio_logger.info(
                 f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
                 f"saved transcript segments to recut with")
@@ -437,6 +488,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 continue
             released = m.get('pass2_released_spans') or []
             spans = released if len(released) > 1 else [_pass2_confirm_span(m)]
+            spans = _extend_to_dai_core(m, spans, segments)
             spans = [span for span in spans if not any(
                 overlap_seconds((span or m)['start'], (span or m)['end'],
                                 r['start'], r['end']) > 0 for r in reviewer_rejects)]
