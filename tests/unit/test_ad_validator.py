@@ -902,6 +902,113 @@ class TestConfirmedCorrections:
         assert out['end'] == 170.0
         assert out['validation']['user_confirmed'] is True
 
+    def test_auto_filed_span_keeps_trailing_extension_to_episode_end(self):
+        validator = AdValidator(
+            episode_duration=3654.27,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 3599.6,
+                'end': 3650.92,
+                'confirmed_span': {'start': 3599.6, 'end': 3650.92},
+                'correction_type': 'confirm',
+                'auto_filed': True,
+                'hold_reason': 'dai_core',
+            }],
+        )
+        ad = {
+            'start': 3599.6,
+            'end': 3650.92,
+            'confidence': 0.9,
+            'reason': 'Post-roll ad',
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert (out['start'], out['end']) == (3599.6, 3654.27)
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert out['validation']['confirmed_span'] == {
+            'start': 3599.6, 'end': 3654.27}
+        assert 'INFO: Clamped to user-approved span' not in (
+            out['validation']['flags'])
+        assert not any(key.startswith('_trailing') for key in out)
+
+    # A merged tail marker spanning a pass-2 release and an operator confirm.
+    MERGED_TAIL_CONFIRMS = [
+        {'start': 3587.62, 'end': 3653.7,
+         'confirmed_span': {'start': 3599.6, 'end': 3650.92},
+         'correction_type': 'confirm', 'auto_filed': True,
+         'hold_reason': 'dai_core'},
+        {'start': 3587.62, 'end': 3599.6, 'correction_type': 'confirm'},
+    ]
+
+    def _validate_merged_tail(self, confirms):
+        validator = AdValidator(
+            episode_duration=3654.27, segments=[],
+            confirmed_corrections=confirms,
+            false_positive_corrections=[{'start': 3555.94, 'end': 3564.85}])
+        ad = {'start': 3564.0, 'end': 3653.7, 'confidence': 0.95,
+              'reason': 'DAI ad', 'category': 'sponsor'}
+        return validator.validate([ad]).ads
+
+    def test_auto_filed_end_does_not_pin_a_merged_tail_before_episode_end(self):
+        ads = self._validate_merged_tail(self.MERGED_TAIL_CONFIRMS)
+
+        last = max(ads, key=lambda a: a['end'])
+        assert (last['start'], last['end']) == (3599.6, 3654.27)
+        assert last['validation']['decision'] == Decision.ACCEPT.value
+        assert last['validation']['confirmed_span'] == {
+            'start': 3599.6, 'end': 3654.27}
+        assert [(a['start'], a['end']) for a in ads if a is not last] == [
+            (3564.0, 3587.62), (3587.62, 3599.6)]
+
+    def test_operator_end_still_pins_a_merged_tail(self):
+        confirms = [dict(self.MERGED_TAIL_CONFIRMS[0], auto_filed=False),
+                    self.MERGED_TAIL_CONFIRMS[1]]
+
+        ads = self._validate_merged_tail(confirms)
+
+        assert max(a['end'] for a in ads) == 3650.92
+
+    def test_trailing_extension_takes_the_marker_that_ends_last(self):
+        validator = AdValidator(episode_duration=3654.27, segments=[])
+        tail = {'start': 3564.0, 'end': 3653.7}
+        held = {'start': 3587.62, 'end': 3599.6, 'held_for_review': True}
+
+        validator._extend_trailing_ad([tail, held], ValidationResult(ads=[]))
+
+        assert tail['end'] == 3654.27
+        assert held['end'] == 3599.6
+
+    @staticmethod
+    def _extend(segments, end=3650.92):
+        validator = AdValidator(episode_duration=3654.27, segments=segments)
+        tail = {'start': 3599.6, 'end': end}
+        validator._extend_trailing_ad([tail], ValidationResult(ads=[]))
+        return tail['end']
+
+    def test_trailing_extension_stops_at_speech_after_the_ad(self):
+        closing = {'start': 3651.5, 'end': 3653.9, 'text': 'Thanks for listening.',
+                   'words': [{'start': 3651.5, 'end': 3652.4}, {'start': 3652.5, 'end': 3653.9}]}
+
+        assert self._extend([closing]) == 3650.92
+
+    def test_trailing_extension_ignores_the_ads_own_last_word(self):
+        ad_end = {'start': 3646.38, 'end': 3651.22, 'text': 'Read more at the shop.',
+                  'words': [{'start': 3646.4, 'end': 3650.0}, {'start': 3650.1, 'end': 3651.2}]}
+
+        assert self._extend([ad_end]) == 3654.27
+
+    def test_trailing_extension_ignores_word_timing_slop(self):
+        late = {'start': 3651.0, 'end': 3651.3, 'text': 'shop.',
+                'words': [{'start': 3651.1, 'end': 3651.3}]}
+
+        assert self._extend([late]) == 3654.27
+
+    def test_trailing_extension_stops_at_an_untimed_segment_after_the_ad(self):
+        closing = {'start': 3652.0, 'end': 3654.0, 'text': 'Bye now.'}
+
+        assert self._extend([closing]) == 3650.92
+
     def test_expanded_boundary_adjustment_survives_trailing_extension(self):
         validator = AdValidator(
             episode_duration=200.0,
