@@ -48,6 +48,7 @@ from utils.markers import (
     find_marker_in_list,
     finite_number,
     inherit_edge,
+    timed_span,
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
@@ -86,6 +87,7 @@ from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
+TRAILING_SPEECH_SLOP_S = 0.25  # seconds; a word starting this soon after the ad's end is timing slop
 
 logger = logging.getLogger(__name__)
 
@@ -2019,8 +2021,9 @@ class AdValidator:
 
         gap_to_end = self.episode_duration - last_ad['end']
 
-        # Only extend if gap is positive and within threshold
-        if 0 < gap_to_end <= max_gap:
+        # Only extend if gap is positive and within threshold, and nobody speaks in it: the rule
+        # covers inserted post-roll tails, not a closing line after the last ad.
+        if 0 < gap_to_end <= max_gap and not self._speech_starts_after(last_ad['end']):
             original_end = last_ad['end']
             last_ad['end'] = self.episode_duration
             # Read by _validate_ad: a pass-2 approval ending here keeps the extension.
@@ -2035,6 +2038,22 @@ class AdValidator:
             )
 
         return ads
+
+    def _speech_starts_after(self, edge: float) -> bool:
+        """Whether a transcript word (or an untimed segment) starts after `edge`.
+
+        A word already running at `edge` belongs to the ad that ends there; one that starts
+        later is speech after the ad. Word-timing slop of TRAILING_SPEECH_SLOP_S is ignored.
+        """
+        cutoff = edge + TRAILING_SPEECH_SLOP_S
+        for seg in self.segments:
+            if not (seg.get('text') or '').strip():
+                continue
+            words = [span for span in (timed_span(w) for w in seg.get('words') or []) if span]
+            units = words or [span for span in (timed_span(seg),) if span]
+            if any(start > cutoff for start, _ in units):
+                return True
+        return False
 
     def _has_speech_in_range(self, start: float, end: float) -> bool:
         """Check if any transcript segments contain speech in the given range."""

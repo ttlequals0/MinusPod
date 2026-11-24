@@ -979,6 +979,36 @@ class TestConfirmedCorrections:
         assert tail['end'] == 3654.27
         assert held['end'] == 3599.6
 
+    @staticmethod
+    def _extend(segments, end=3650.92):
+        validator = AdValidator(episode_duration=3654.27, segments=segments)
+        tail = {'start': 3599.6, 'end': end}
+        validator._extend_trailing_ad([tail], ValidationResult(ads=[]))
+        return tail['end']
+
+    def test_trailing_extension_stops_at_speech_after_the_ad(self):
+        closing = {'start': 3651.5, 'end': 3653.9, 'text': 'Thanks for listening.',
+                   'words': [{'start': 3651.5, 'end': 3652.4}, {'start': 3652.5, 'end': 3653.9}]}
+
+        assert self._extend([closing]) == 3650.92
+
+    def test_trailing_extension_ignores_the_ads_own_last_word(self):
+        ad_end = {'start': 3646.38, 'end': 3651.22, 'text': 'Read more at the shop.',
+                  'words': [{'start': 3646.4, 'end': 3650.0}, {'start': 3650.1, 'end': 3651.2}]}
+
+        assert self._extend([ad_end]) == 3654.27
+
+    def test_trailing_extension_ignores_word_timing_slop(self):
+        late = {'start': 3651.0, 'end': 3651.3, 'text': 'shop.',
+                'words': [{'start': 3651.1, 'end': 3651.3}]}
+
+        assert self._extend([late]) == 3654.27
+
+    def test_trailing_extension_stops_at_an_untimed_segment_after_the_ad(self):
+        closing = {'start': 3652.0, 'end': 3654.0, 'text': 'Bye now.'}
+
+        assert self._extend([closing]) == 3650.92
+
     def test_expanded_boundary_adjustment_survives_trailing_extension(self):
         validator = AdValidator(
             episode_duration=200.0,
