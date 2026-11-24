@@ -18,6 +18,7 @@ release notes.
 
 ### Fixed
 
+- Cancel on the Queue page was ignored while an episode was being transcribed locally. The request was recorded, but the transcriber never checked it, so the episode kept decoding until the whole transcription finished, which takes many minutes on CPU, and a cancel sent during the download or preparation still started a full decode. Local transcription now checks for a cancel before each decode starts and between decoded batches, and a cancel is no longer logged as a failed chunk or transcription.
 - A show that ends on its own closing music, without speech, had the untranscribed tail of every episode held for review as `uncorroborated_tail`. When the feed keeps outros, confirming that hold could not change the audio. A head or tail VAD gap matched by the feed's show intro or show outro cue template now carries the `intro` or `outro` category. The feed's segment action then decides it, and keep clears the hold. Untranscribed audio of at least the gap minimum before the intro or after the outro stays a separate marker and is still reviewed.
 - The cross-fetch comparison downloads the episode a second time, and that download had no overall time limit. A host that sent the file slowly could hold an episode in processing for as long as the first download took. The second download now stops after 300 seconds. The comparison is then recorded as failed and processing continues without it.
 
