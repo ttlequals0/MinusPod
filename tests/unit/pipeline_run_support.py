@@ -87,7 +87,8 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                   failover_state=None, standby_dispatch=False,
                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None,
                   real_detect=False, refine_cuts_all=False, real_stages=(),
-                  manual_approval=None, settings=None, differential=None):
+                  manual_approval=None, settings=None, differential=None,
+                  download_effect=None):
     """Run stubbed pipeline stages with optional frozen routes and failover state.
 
     real_stages names stages left real: refine, reviewer, verify, assets, finalize.
@@ -210,6 +211,8 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         # this harness fakes via ctx.tokens.add above.
         db.get_run_provider_spend.return_value = round(token_cost * 1_000_000)
         db.run_provider_spend_is_incomplete.return_value = False
+        if download_effect is not None:
+            dat.side_effect = download_effect
         if download_error is not None:
             dat.side_effect = download_error
         if detect_error is not None:

@@ -72,7 +72,6 @@ CANCEL_CHECK_INTERVAL_SECONDS = 2.0
 STAGE_DETAIL_INTERVAL_SECONDS = 5.0
 # (offset, total) seconds of the chunk being decoded within the episode; None means the file is the episode.
 _progress_window: contextvars.ContextVar = contextvars.ContextVar('transcribe_progress_window', default=None)
-_stage_detail_warned = False
 
 
 def _raise_if_cancelled():
@@ -84,21 +83,18 @@ def _raise_if_cancelled():
 
 def _publish_stage_detail(processed, total, unit, force=False, now=None):
     """Publish sub-stage progress to the job status, at most once per interval unless forced; never raises."""
-    global _stage_detail_warned
     ctx = run_context.current()
-    if ctx is None or not total or total <= 0:
+    if ctx is None or not total or total < 0:
         return
     now = time.monotonic() if now is None else now
-    if not force and now - getattr(ctx, '_stage_detail_at', float('-inf')) < STAGE_DETAIL_INTERVAL_SECONDS:
+    if not force and now - ctx.stage_detail_at < STAGE_DETAIL_INTERVAL_SECONDS:
         return
-    ctx._stage_detail_at = now
+    ctx.stage_detail_at = now
     try:
         StatusService().update_job_stage_detail(
             ctx.slug, ctx.episode_id, min(processed, total), total, unit, run_id=ctx.run_id)
     except Exception as e:
-        if not _stage_detail_warned:
-            _stage_detail_warned = True
-            logger.warning("Could not publish transcription progress: %s", e)
+        logger.debug("Could not publish transcription progress: %s", e)
 
 
 def _is_cancellation(exc: BaseException) -> bool:

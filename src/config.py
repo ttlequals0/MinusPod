@@ -1108,8 +1108,17 @@ CUE_ONLY_AUTOCUT_CONFIDENCE = 0.90  # auto_cut safety floor, above the 0.85 pair
 
 
 def resolve_skip_transcription(podcast_row):
-    """Per-feed transcription opt-out; only honored in cue_only mode."""
+    """Per-feed transcription opt-out; honored in cue_only, or per episode on a Chapter trim match."""
     return bool(podcast_row and podcast_row.get('skip_transcription'))
+
+
+def skip_transcription_error(mode, trim_pattern):
+    """Why skip_transcription cannot be on for this mode and Chapter trim pattern, else None."""
+    if mode == PROCESSING_MODE_CUE_ONLY or (
+            mode in (PROCESSING_MODE_STANDARD, PROCESSING_MODE_KEEP_CONTENT) and trim_pattern):
+        return None
+    return ('requires cue_only processing mode, or standard or keep-content mode '
+            'with a Chapter trim pattern')
 
 
 def resolve_cue_only_safety(podcast_row):

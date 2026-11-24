@@ -185,6 +185,7 @@ class RunContext:
         self.llm_cancel_exceptions = ()
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
+        self.stage_detail_at = float('-inf')
 
     def note_llm_failover(self, phase: str, invoking_pass: int | None, original_slot: str | None = None) -> None:
         route = (self.route_snapshot or {}).get(phase, {})

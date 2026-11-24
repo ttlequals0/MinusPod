@@ -1318,6 +1318,30 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </p>
                 </div>
               </div>
+              {(processingMode === 'standard' || processingMode === 'keep_content')
+                && !!feed.descriptionTrimPattern?.trim() && (
+                <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                  <span className={rowLabelTopSm}>
+                    Transcription:
+                  </span>
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <ToggleSwitch
+                        checked={feed.skipTranscription === true}
+                        onChange={(v) => updateMutation.mutate({ skipTranscription: v })}
+                        disabled={updateMutation.isPending}
+                        ariaLabel="Skip transcription"
+                      />
+                      <span>Skip transcription</span>
+                    </label>
+                    <p className="text-xs text-warning">
+                      Episodes whose publisher chapters match the rule are cut by the rule
+                      alone, with no transcription or ad detection, so unmarked ads stay in
+                      and there is no transcript. Other episodes are processed normally.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </CollapsibleSection>
 

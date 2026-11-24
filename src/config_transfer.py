@@ -19,9 +19,10 @@ from config import (
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS, SETTING_CONSTRAINTS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
-    PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles_for_feed,
+    cue_only_missing_roles_for_feed,
     get_env_backed_int, get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
+    skip_transcription_error,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
     SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX,
     AUTO_PROCESS_MAX_AGE_ERROR, valid_auto_process_max_age,
@@ -1217,8 +1218,10 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         raise ConfigTransferError(range_error)
     if updates.get('skip_transcription'):
         effective = {**(podcast or {}), **updates}
-        if resolve_feed_processing_mode(effective) != PROCESSING_MODE_CUE_ONLY:
-            raise ConfigTransferError('skip_transcription requires cue_only processing mode')
+        skip_error = skip_transcription_error(
+            resolve_feed_processing_mode(effective), effective.get('description_trim_pattern'))
+        if skip_error:
+            raise ConfigTransferError(f'skip_transcription {skip_error}')
     if podcast and 'source_url' in updates and updates['source_url'] != _stored_source(podcast):
         raise ConfigTransferError('Import cannot repoint an existing feed')
     return updates

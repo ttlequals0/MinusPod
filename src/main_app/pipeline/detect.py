@@ -743,7 +743,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
                           corrections, transcript_spans=None, description_trim=None,
-                          loop_runs=None):
+                          loop_runs=None, chapter_marker=None):
     """Pipeline stage: refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are keep-partitioned markers, passed so boundary extension
@@ -775,11 +775,13 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                                 audio_analysis=audio_analysis)
 
     # A description chapter cut is appended after refinement so no merge or snap step touches it.
-    chapter = _description_chapter_marker(episode_description, episode_duration, description_trim)
+    # A matched publisher chapter replaces the description rule's marker.
+    chapter = chapter_marker or _description_chapter_marker(
+        episode_description, episode_duration, description_trim)
     if chapter:
         all_ads = [*all_ads, chapter]
         audio_logger.info(
-            f"[{slug}:{episode_id}] Description chapter trim: "
+            f"[{slug}:{episode_id}] Chapter trim: "
             f"{chapter['start']:.1f}s-{chapter['end']:.1f}s ({chapter['reason']})")
 
     # Validation

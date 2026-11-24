@@ -1257,7 +1257,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-out from transcription. Only valid on a feed already in cue_only mode; rejected with a 400 otherwise. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
+                  description: Per-feed opt-out from transcription. Valid on a feed already in cue_only mode, or in standard or keep_content mode with a descriptionTrimPattern (episodes whose publisher chapters match the pattern are then cut by the rule alone, with no transcript or detection); rejected with a 400 otherwise. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
                 maxEpisodes:
                   type:
                     - integer
@@ -16021,7 +16021,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Per-feed opt-out from transcription. Only valid on a feed in cue_only mode. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
+          description: Per-feed opt-out from transcription. Valid in cue_only mode, or in standard or keep_content mode with a descriptionTrimPattern (episodes whose publisher chapters match the pattern are then cut by the rule alone, with no transcript or detection). Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
         maxEpisodes:
           type:
             - integer

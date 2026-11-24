@@ -31,7 +31,7 @@ from config import (
     count_not_cut, is_pending_review, is_keep_like,
     resolve_processing_mode,
     resolve_skip_second_pass,
-    resolve_skip_transcription,
+    resolve_skip_transcription, skip_transcription_error,
     resolve_cue_only_safety,
     cue_only_missing_roles_for_feed,
     resolve_max_ad_duration_override,
@@ -458,6 +458,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # the feed also opts into that.
     cue_only = processing_mode == PROCESSING_MODE_CUE_ONLY
     skip_transcription_active = cue_only and resolve_skip_transcription(podcast_settings)
+    # Per-episode skip on a chapter match; the match itself is known only after the download.
+    chapter_trim_skip = (
+        not cue_only and resolve_skip_transcription(podcast_settings)
+        and skip_transcription_error(
+            processing_mode, (podcast_settings or {}).get('description_trim_pattern')) is None)
 
     try:
         active_phases = admission._active_phases_for_admission(
@@ -627,6 +632,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             audio_path, segments = transcribe._download_and_transcribe(
                 slug, episode_id, episode_url,
                 skip_transcription=skip_transcription_active,
+                chapter_trim_skip=chapter_trim_skip and yt_run is None,
                 podcast=podcast_settings,
                 force_transcription=force_transcription,
                 outcome=transcribe_outcome,
@@ -640,6 +646,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             transcription_stats = transcriber.last_transcription_stats
             if transcription_stats is not None:
                 run_stats['transcription'] = dict(transcription_stats)
+        chapter_trim_marker = transcribe_outcome.get('chapter_trim_marker')
+        if chapter_trim_marker:
+            skip_transcription_active = llm_off = True
+            run_stats['transcription_skipped'] = True
+            run_stats['verification_skipped'] = True
         run_stats['transcript_source'] = transcribe_outcome.get(
             'transcript_source', 'none' if skip_transcription_active else 'whisper')
         _check_cancel(cancel_event, slug, episode_id)
@@ -830,8 +841,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         f"[{slug}:{episode_id}] Pattern-only detection (SponsorBlock marks, LLM off)")
 
                 # Stage 3: First-pass detection
-                _reserve_provider()
-                provider_attempted = True
+                if not chapter_trim_marker:
+                    _reserve_provider()
+                    provider_attempted = True
                 with common._measure_run_stage('detection'):
                     first_pass_ads, first_pass_count, ad_result = detect._detect_ads_first_pass(
                         ctx, segments, audio_path,
@@ -936,6 +948,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         transcript_spans=transcript_spans,
                         description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                           (podcast_settings or {}).get('description_trim_mode')),
+                        chapter_marker=chapter_trim_marker,
                         loop_runs=loop_runs,
                     )
 
@@ -1216,7 +1229,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                   original_duration=original_duration,
                                   run_stats=run_stats,
                                   markers=all_ads_with_validation,
-                                  download_outcome=transcribe_outcome)
+                                  download_outcome=transcribe_outcome,
+                                  allow_chapter_trim=not detection_off)
             # Retain the source only after chapter assets validate.
             keep_original = db.resolve_keep_original_audio(
                 slug, podcast_settings)

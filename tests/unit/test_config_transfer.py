@@ -721,6 +721,22 @@ def test_preview_validates_nullable_feed_overrides_and_effective_processing_mode
         config_transfer.build_preview(temp_db, invalid_range, 'everything')
 
 
+@pytest.mark.parametrize('settings,ok', [
+    ({'description_trim_pattern': '*Donations*'}, True),
+    ({'description_trim_pattern': '*Donations*', 'detection_mode': 'keep_content'}, True),
+    ({}, False),
+    ({'description_trim_pattern': '*Donations*', 'skip_ad_detection': True}, False),
+    ({'description_trim_pattern': '*Donations*', 'passthrough_enabled': True}, False),
+])
+def test_preview_skip_transcription_needs_chapter_trim_outside_cue_only(temp_db, settings, ok):
+    document = _document(feeds=[_feed(skip_transcription=True, **settings)])
+    if ok:
+        config_transfer.build_preview(temp_db, document, 'everything')
+    else:
+        with pytest.raises(ConfigTransferError, match='Chapter trim pattern'):
+            config_transfer.build_preview(temp_db, document, 'everything')
+
+
 def test_preview_rejects_nonfinite_feed_numbers(temp_db):
     document = _document(feeds=[_feed(cue_snap_confidence_override=float('nan'))])
 

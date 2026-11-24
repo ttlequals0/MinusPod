@@ -204,7 +204,6 @@ def detail_calls(monkeypatch):
     _FakeStatus.calls = []
     _FakeStatus.fail = False
     monkeypatch.setattr(transcriber_mod, 'StatusService', _FakeStatus)
-    monkeypatch.setattr(transcriber_mod, '_stage_detail_warned', False)
     return _FakeStatus
 
 

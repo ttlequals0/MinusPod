@@ -25,7 +25,7 @@ from config import (
     CHAPTERS_MODE_AUTO,
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
-    is_pending_review, is_keep_like,
+    is_pending_review, is_keep_like, normalize_segment_category,
     resolve_chapters_mode,
 )
 
@@ -134,11 +134,12 @@ def pending_chapter_trim(markers):
 
 def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
                         replacement_duration, audio_duration, original_duration,
-                        markers, source, original_timeline=False):
+                        markers, source, original_timeline=False, needs_recut=True):
     """Add the trim marker for the first chapter matching the feed rule; True when added.
 
     chapters are on the processed timeline unless original_timeline is set, so
-    the span maps back through this run's cut list. The caller's recut applies it.
+    the span maps back through this run's cut list. The caller's recut applies it,
+    unless needs_recut is False (the marker is added before the cut).
     """
     pattern = (podcast_row or {}).get('description_trim_pattern')
     mode = (podcast_row or {}).get('description_trim_mode') or TO_END
@@ -166,7 +167,7 @@ def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
            and m['start'] <= start + tol and m['end'] >= end - tol for m in markers):
         return False
     # The recut needs the retained original; without it the marker would sit uncut.
-    if not db.resolve_keep_original_audio(slug, podcast_row):
+    if needs_recut and not db.resolve_keep_original_audio(slug, podcast_row):
         audio_logger.info(
             f"[{slug}:{episode_id}] Chapter trim: '{title}' matched but original "
             f"audio is not retained; no recut")
@@ -177,8 +178,40 @@ def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
         'reason': f'Chapter: {title}', 'source': source, 'trim_mode': mode,
     })
     audio_logger.info(
-        f"[{slug}:{episode_id}] Chapter trim: queued recut for {start:.1f}-{end:.1f} ({title})")
+        f"[{slug}:{episode_id}] Chapter trim: "
+        f"{'queued recut for' if needs_recut else 'cutting'} {start:.1f}-{end:.1f} ({title})")
     return True
+
+
+def pre_cut_chapter_trim_marker(slug, episode_id, audio_path, podcast_row, download_outcome,
+                                upstream_chapters_url=None):
+    """Trim marker for the feed rule matched on the original's publisher chapters, or None."""
+    probed = probe_chapters(str(audio_path)) or []
+    chapters = (_publisher_chapter_entries(probed)
+                if len(probed) >= MIN_PRESERVED_CHAPTERS or any(c.get('_id3_id') for c in probed)
+                else [])
+    if not chapters:
+        url = upstream_chapters_url
+        fetched = fetch_upstream_chapters(
+            url, user_agent=settled_download_user_agent(download_outcome, podcast_row),
+            fallback_user_agent=feed_user_agent(podcast_row)) if url else None
+        chapters = fetched if fetched and len(fetched) >= MIN_PRESERVED_CHAPTERS else []
+    if not chapters:
+        return None
+    duration = get_audio_duration(audio_path)
+    markers = []
+    if not _queue_chapter_trim(
+            slug, episode_id, chapters, podcast_row, [], 0.0, duration, duration, markers,
+            'upstream_chapter', original_timeline=True, needs_recut=False):
+        return None
+    action = db.resolve_segment_actions(slug, podcast=podcast_row).get(
+        normalize_segment_category(markers[0]['category']))
+    if is_keep_like(action):
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Chapter matched but the Outro action is '{action}', "
+            f"which does not cut; processing normally")
+        return None
+    return markers[0]
 
 
 def _ad_chapter_count(chapters):
@@ -431,7 +464,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       audio_path=None, audio_duration=None,
                       previous_cuts=None, original_duration=None,
                       podcast_row=None, run_stats=None, markers=None,
-                      download_outcome=None):
+                      download_outcome=None, allow_chapter_trim=True):
     """Pipeline stage: generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -464,6 +497,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     pending_assets = {}
     publish_assets = True
     preserving_source = False
+    # A None marker list turns the chapter trim off (skip-detection runs).
+    trim_markers = markers if allow_chapter_trim else None
     try:
         vtt_enabled = db.get_setting('vtt_transcripts_enabled')
         transcript_gen = TranscriptGenerator()
@@ -532,7 +567,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                         base = chapters_json['chapters']
                         _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
                                             replacement_duration, audio_duration,
-                                            original_duration, markers, 'upstream_chapter')
+                                            original_duration, trim_markers, 'upstream_chapter')
                         merged = merge_ad_chapters(base, markers, all_cuts or [],
                                                    audio_duration, replacement_duration,
                                                    ad_config)
@@ -566,7 +601,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                     _queue_chapter_trim(
                                         slug, episode_id, fetched, podcast_row, all_cuts,
                                         replacement_duration, audio_duration,
-                                        original_duration, markers, 'upstream_chapter',
+                                        original_duration, trim_markers, 'upstream_chapter',
                                         original_timeline=True)
                                     merged = merge_ad_chapters(
                                         chapters_json['chapters'], markers,
@@ -648,7 +683,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     topic = (chapters or {}).get('chapters') or []
                     _queue_chapter_trim(slug, episode_id, topic, podcast_row, all_cuts,
                                         replacement_duration, audio_duration,
-                                        original_duration, markers, 'generated_chapter')
+                                        original_duration, trim_markers, 'generated_chapter')
                     merged = merge_ad_chapters(topic, markers, all_cuts or [],
                                                audio_duration, replacement_duration,
                                                ad_config)

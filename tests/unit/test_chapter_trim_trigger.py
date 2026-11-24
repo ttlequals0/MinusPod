@@ -86,7 +86,7 @@ def test_beep_block_boundary_maps_to_the_cut_start():
     assert markers[0]['start'] == 100.0
 
 
-def _generate(markers, regenerate_chapters, generated=None, trim_spy=None):
+def _generate(markers, regenerate_chapters, generated=None, trim_spy=None, podcast=PODCAST, allow_chapter_trim=True):
     gen_cls = MagicMock()
     gen_cls.return_value.generate_chapters.return_value = generated
     gen_cls.return_value.chapters_degraded = False
@@ -109,7 +109,8 @@ def _generate(markers, regenerate_chapters, generated=None, trim_spy=None):
         publish._generate_assets(
             's', 'e', [{'start': 0, 'end': 1, 'text': 'x'}], [], 'desc', 'Show', 'Ep',
             regenerate_chapters=regenerate_chapters, audio_duration=3000.0,
-            original_duration=3200.0, podcast_row=PODCAST, markers=markers)
+            original_duration=3200.0, podcast_row=podcast, markers=markers,
+            allow_chapter_trim=allow_chapter_trim)
     return spy
 
 
@@ -141,3 +142,15 @@ def test_original_timeline_chapters_skip_the_cut_mapping():
             's', 'e', CHAPTERS, PODCAST, [{'start': 100.0, 'end': 160.0}], 0.0, 3000.0, 3200.0,
             markers, 'upstream_chapter', original_timeline=True)
     assert (markers[0]['start'], markers[0]['end']) == (1200.0, 1500.0)
+
+
+SKIP_DETECTION_PODCAST = {**PODCAST, 'skip_ad_detection': 1}
+
+
+def test_skip_detection_feed_never_queues_a_chapter_trim():
+    markers = []
+    _generate(markers, regenerate_chapters=True,
+              generated={'version': '1.2.0', 'chapters': CHAPTERS}, podcast=SKIP_DETECTION_PODCAST,
+              allow_chapter_trim=False)
+    assert markers == []
+    assert publish.pending_chapter_trim(markers) is False
