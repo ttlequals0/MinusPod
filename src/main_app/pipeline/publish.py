@@ -464,7 +464,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       audio_path=None, audio_duration=None,
                       previous_cuts=None, original_duration=None,
                       podcast_row=None, run_stats=None, markers=None,
-                      download_outcome=None, allow_chapter_trim=True):
+                      download_outcome=None):
     """Pipeline stage: generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -497,8 +497,6 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     pending_assets = {}
     publish_assets = True
     preserving_source = False
-    # A None marker list turns the chapter trim off (skip-detection runs).
-    trim_markers = markers if allow_chapter_trim else None
     try:
         vtt_enabled = db.get_setting('vtt_transcripts_enabled')
         transcript_gen = TranscriptGenerator()
@@ -567,7 +565,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                         base = chapters_json['chapters']
                         _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
                                             replacement_duration, audio_duration,
-                                            original_duration, trim_markers, 'upstream_chapter')
+                                            original_duration, markers, 'upstream_chapter')
                         merged = merge_ad_chapters(base, markers, all_cuts or [],
                                                    audio_duration, replacement_duration,
                                                    ad_config)
@@ -601,7 +599,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                     _queue_chapter_trim(
                                         slug, episode_id, fetched, podcast_row, all_cuts,
                                         replacement_duration, audio_duration,
-                                        original_duration, trim_markers, 'upstream_chapter',
+                                        original_duration, markers, 'upstream_chapter',
                                         original_timeline=True)
                                     merged = merge_ad_chapters(
                                         chapters_json['chapters'], markers,
@@ -683,7 +681,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     topic = (chapters or {}).get('chapters') or []
                     _queue_chapter_trim(slug, episode_id, topic, podcast_row, all_cuts,
                                         replacement_duration, audio_duration,
-                                        original_duration, trim_markers, 'generated_chapter')
+                                        original_duration, markers, 'generated_chapter')
                     merged = merge_ad_chapters(topic, markers, all_cuts or [],
                                                audio_duration, replacement_duration,
                                                ad_config)

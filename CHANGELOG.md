@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- A feed in Skip detection mode applies its Chapter trim rule again. 2.102.16 turned the rule off for that mode, so chapters that matched the pattern stayed in the episode. To trim an episode that 2.102.16 or 2.102.17 handled, reprocess it.
+
 ## [2.102.17] - 2026-11-24
 
 ### Fixed

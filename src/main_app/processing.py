@@ -1231,8 +1231,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                   original_duration=original_duration,
                                   run_stats=run_stats,
                                   markers=all_ads_with_validation,
-                                  download_outcome=transcribe_outcome,
-                                  allow_chapter_trim=not detection_off)
+                                  download_outcome=transcribe_outcome)
             # Retain the source only after chapter assets validate.
             keep_original = db.resolve_keep_original_audio(
                 slug, podcast_settings)
