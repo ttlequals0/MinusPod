@@ -9,8 +9,9 @@ from ad_reviewer import (
 
 from audio_processor import get_replacement_duration
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
-                           clip_merge_spans, invalidate_tail_provenance,
-                           merge_runs, set_reviewer_locks, spans_match, subtract_spans)
+                           clip_merge_spans, held_window_blockers, invalidate_tail_provenance,
+                           merge_runs, set_reviewer_locks, spans_match, subtract_spans,
+                           usable_reviewer_proposal)
 
 from utils.time import (
     adjust_timestamp, overlap_seconds, span_inside_any_cut,
@@ -19,6 +20,7 @@ from utils.time import (
 from config import (
     MIN_AD_DURATION, HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+    resolve_max_boundary_shift,
 )
 
 from llm_capabilities import (
@@ -120,6 +122,19 @@ def _hold_pass2_verdict(v, proc_ad, held_ad, v_ads_to_cut, v_ads_for_ui, v_ads_h
     return True
 
 
+def _stopped_at_cuts(v, cuts, neighbours, cap):
+    """The adjusted span stopped at pass-1 cuts the way a human is offered it, else None."""
+    pieces = subtract_spans([(v.adjusted_start, v.adjusted_end)],
+                            [(cut['start'], cut['end']) for cut in cuts])
+    # Audio on both sides of a cut is not one span: a human decides.
+    if len(pieces) != 1 or pieces[0] == (v.adjusted_start, v.adjusted_end):
+        return None
+    proposal = {'reviewer_proposed_start': pieces[0][0], 'reviewer_proposed_end': pieces[0][1]}
+    return usable_reviewer_proposal(
+        proposal, v.original_start, v.original_end, cap,
+        held_window_blockers(neighbours, None, True))
+
+
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
@@ -204,7 +219,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     ui_by_key = {(a.get('start'), a.get('end')): a for a in v_ads_for_ui}
     original_by_key = {(a.get('start'), a.get('end')): a for a in verification_ads_original}
 
-    for v in result.verdicts:
+    effective_verdicts = list(result.verdicts)
+    for idx, v in enumerate(result.verdicts):
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
@@ -252,14 +268,21 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 if held_ad is not None:
                     ledger.record(held_ad, 'covered')
                 continue
-            # A proposal running into a pass-1 cut on one side stops at it: what is left is one span that joins
-            # the cut. A proposal with audio on both sides of a cut still crosses it.
+            # A proposal running into a pass-1 cut on one side stops at it, as the human path would offer.
             if adjusted_start is not None:
-                pieces = subtract_spans([(adjusted_start, adjusted_end)],
-                                        [(cut['start'], cut['end']) for cut in cuts])
-                if len(pieces) == 1 and pieces[0] != (adjusted_start, adjusted_end):
-                    adjusted_start, adjusted_end = pieces[0]
-                    v = replace(v, adjusted_start=adjusted_start, adjusted_end=adjusted_end)
+                twins = (ui_ad, held_ad, original_by_key.get(key))
+                neighbours = [m for m in (*v_ads_for_ui, *v_ads_held, *verification_ads_original)
+                              if not any(m is twin for twin in twins)]
+                stopped = _stopped_at_cuts(v, cuts, neighbours, resolve_max_boundary_shift(db))
+                if stopped is not None:
+                    # An edge the clip moved no longer carries the reviewer's choice.
+                    proposed = {'start': adjusted_start, 'end': adjusted_end}
+                    clipped = {'start': stopped[0], 'end': stopped[1]}
+                    locked = tuple(edge for edge in v.locked_edges if clipped[edge] == proposed[edge])
+                    adjusted_start, adjusted_end = stopped
+                    v = replace(v, adjusted_start=adjusted_start, adjusted_end=adjusted_end,
+                                locked_edges=locked)
+                    effective_verdicts[idx] = v
             # Touching a pass-1 cut edge is not crossing it.
             crosses_cut = adjusted_start is None or any(
                 overlap_seconds(adjusted_start, adjusted_end, cut['start'], cut['end']) > 0
@@ -335,7 +358,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         if ui_ad is not None:
             stamp_reviewer_fields(ui_ad, v)
 
-    _log_reviewer_verdicts(slug, episode_id, 2, result.verdicts)
+    _log_reviewer_verdicts(slug, episode_id, 2, effective_verdicts)
 
 
 def _released_span(v, sub, hold, barriers):
