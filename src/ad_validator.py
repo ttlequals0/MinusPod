@@ -88,6 +88,7 @@ from audio_analysis.base import AudioSegmentSignal
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
 TRAILING_SPEECH_SLOP_S = 0.25  # seconds; a word starting this soon after the ad's end is timing slop
+LEADING_AD_MAX_GAP = TRAILING_AD_MAX_GAP  # seconds; a first ad starting this close to the file start runs from it
 
 logger = logging.getLogger(__name__)
 
@@ -937,7 +938,8 @@ class AdValidator:
         # Step 3: Merge tiny gaps
         ads = self._merge_close_ads(ads, result, actions_map=actions_map)
 
-        # Step 3.5: Extend trailing ad to end of episode if close
+        # Step 3.5: Extend the first ad to the start and the last ad to the end of the episode if close
+        ads = self._extend_leading_ad(ads, result)
         ads = self._extend_trailing_ad(ads, result)
 
         # Step 3.6: Cut measured audio, hold only an estimated remainder
@@ -1040,6 +1042,7 @@ class AdValidator:
             '_pre_dai_restore_confirmed_correction', None)
         confirmed = ad.pop('_confirmed_correction', None)
         trailing_extended_from = ad.pop('_trailing_extended_from', None)
+        leading_extended_from = ad.pop('_leading_extended_from', None)
         duplicate_confirmed = ad.pop(
             '_has_confirmed_correction_candidate', False) and confirmed is None
         if ad.get('_user_kept_by_trim'):
@@ -1101,6 +1104,11 @@ class AdValidator:
                     # rule's extension to the episode end stands. An operator-approved end still wins.
                     approved_end = max(approved_end, ad['end'])
                     span = {'start': span['start'], 'end': approved_end}
+                if (leading_extended_from is not None and confirmed.get('auto_filed')
+                        and 0 < approved_start - ad['start'] <= LEADING_AD_MAX_GAP):
+                    # Same for a pass-2 approval's start and the leading rule's extension to the episode start.
+                    approved_start = min(approved_start, ad['start'])
+                    span = {'start': approved_start, 'end': span['end']}
                 overlaps_approved = (
                     ad['start'] < approved_end and ad['end'] > approved_start)
                 if not overlaps_approved or approved_end <= approved_start:
@@ -2060,21 +2068,46 @@ class AdValidator:
 
         return ads
 
-    def _speech_starts_after(self, edge: float) -> bool:
-        """Whether a transcript word (or an untimed segment) starts after `edge`.
+    def _extend_leading_ad(self, ads: list[dict], result: ValidationResult,
+                           max_gap: float = LEADING_AD_MAX_GAP) -> list[dict]:
+        """Start the first ad at 0 if it starts within max_gap seconds and nobody speaks before it."""
+        if not ads:
+            return ads
+        first_ad = min(ads, key=lambda x: (x['start'], x['end']))
+        # Same guards as the trailing rule. A precise start is extended on purpose: it marks the ad's first
+        # word, and a pre-roll's music bed plays before it.
+        if (first_ad.get('_user_kept_by_trim') or first_ad.get('held_for_review')
+                or first_ad.get('vad_gap_requires_review')):
+            return ads
+        if 0 < first_ad['start'] <= max_gap and not self._speech_starts_before(first_ad['start']):
+            original_start = first_ad['start']
+            first_ad['start'] = 0.0
+            # Read by _validate_ad: a pass-2 approval starting here keeps the extension.
+            first_ad['_leading_extended_from'] = original_start
+            result.corrections.append(
+                f"Extended leading ad from {original_start:.1f}s to episode start")
+            logger.info(f"Extended leading ad to episode start: {original_start:.1f}s -> 0.0s")
+        return ads
 
-        A word already running at `edge` belongs to the ad that ends there; one that starts
-        later is speech after the ad. Word-timing slop of TRAILING_SPEECH_SLOP_S is ignored.
-        """
-        cutoff = edge + TRAILING_SPEECH_SLOP_S
+    def _word_starts(self):
+        """Start times of transcript words, or of whole segments that carry no word timing."""
         for seg in self.segments:
             if not (seg.get('text') or '').strip():
                 continue
             words = [span for span in (timed_span(w) for w in seg.get('words') or []) if span]
-            units = words or [span for span in (timed_span(seg),) if span]
-            if any(start > cutoff for start, _ in units):
-                return True
-        return False
+            for start, _ in words or [span for span in (timed_span(seg),) if span]:
+                yield start
+
+    def _speech_starts_after(self, edge: float) -> bool:
+        """Whether a word starts after `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop.
+
+        A word already running at `edge` belongs to the ad that ends there.
+        """
+        return any(start > edge + TRAILING_SPEECH_SLOP_S for start in self._word_starts())
+
+    def _speech_starts_before(self, edge: float) -> bool:
+        """Whether a word starts before `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop."""
+        return any(start < edge - TRAILING_SPEECH_SLOP_S for start in self._word_starts())
 
     def _has_speech_in_range(self, start: float, end: float) -> bool:
         """Check if any transcript segments contain speech in the given range."""
