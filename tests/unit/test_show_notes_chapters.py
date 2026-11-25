@@ -494,3 +494,39 @@ def test_show_notes_starts_cover_listed_chapters_and_intro_not_extras():
     gen, chapters, _ = _with_detection([_b('38:20', 'Guest interview')])
     assert _starts(chapters) == [1, 480, 630, 1980, 2300]
     assert gen.show_notes_starts == frozenset({1, 480, 630, 1980})
+
+
+def test_clock_suffix_titles_are_dropped():
+    assert _uses_show_notes('10:30 AM\n11:30 PM show\n12:30 p.m. Lunch')[0] is False
+
+
+def test_titles_that_only_start_with_am_pm_letters_are_kept():
+    aligned, chapters = _uses_show_notes(
+        '00:00 Opening\n12:00 Am I Wrong About AI\n30:00 PM Questions Time With Guests')
+    assert aligned
+    assert [c['title'] for c in chapters] == [
+        'Opening', 'Am I Wrong About AI', 'PM Questions Time With Guests']
+
+
+def test_clock_time_before_a_longer_pm_title_is_kept():
+    aligned, chapters = _uses_show_notes(
+        '00:00 Opening\n05:00 PM Questions Time With Guests\n20:00 Bravo')
+    assert aligned
+    assert 'PM Questions Time With Guests' in [c['title'] for c in chapters]
+
+
+@pytest.mark.parametrize('description', [
+    '(2:30) use code ACME for 20% off\n(12:30) Visit example.com/show\n(25:00) Free trial at Acme',
+])
+def test_promo_only_lists_fall_back_to_topic_detection(description):
+    assert _uses_show_notes(description)[0] is False
+
+
+def test_promo_line_is_not_a_chapter_or_counted():
+    description = ('01:00 One\n05:00 Two\n10:00 Three\n15:00 Four\n20:00 Five\n'
+                   '25:00 Use code ACME for 20% off')
+    aligned, chapters = _uses_show_notes(description)
+    assert aligned
+    titles = [c['title'] for c in chapters]
+    assert [t for t in titles if t != 'Intro'] == ['One', 'Two', 'Three', 'Four', 'Five']
+    assert not any('ACME' in t for t in titles)

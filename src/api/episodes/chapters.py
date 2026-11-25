@@ -175,6 +175,9 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     # is missing it falls back to no hints.
     segment_markers = common._markers_from_row(episode)
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
+    # Audio shortened but no cut list stored: listed times cannot be shifted, so skip show notes.
+    cuts_unknown = marker_cuts is None and (
+        (episode.get('original_duration') or 0) - (episode.get('new_duration') or 0) > 1.0)
 
     # Reuse the job context so route, usage, and logs share one run ID.
     from main_app.pipeline.admission import _resolve_or_load_route_snapshot
@@ -203,7 +206,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
                 slug=slug,
                 chapter_notes=(podcast or {}).get('chapter_notes'),
                 language=get_pattern_language(db, slug) or 'auto',
-                show_notes_chapters=resolve_show_notes_chapters(podcast),
+                show_notes_chapters=resolve_show_notes_chapters(podcast) and not cuts_unknown,
             )
     except ProviderRateLimitedError as exc:
         exc.provider_key, exc.credential_slot = resolve_hold_scope(exc, 'chapters')

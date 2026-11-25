@@ -17,7 +17,6 @@ from utils.time import (
     parse_timestamp, adjust_timestamp, merge_cut_spans, shift_for_merged_cuts,
     span_inside_any_cut,
 )
-from description_chapters import CLOCK_TIME_SUFFIX
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
@@ -39,10 +38,7 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
-# Show-notes gate: description timestamps replace LLM topic detection when at
-# least this many fall inside the episode, the first is listed within the
-# first-seconds limit (original audio) and consecutive ones are at least the
-# spacing apart.
+# Show-notes gate: >= MIN entries inside the episode, first within the limit (original audio), spaced apart.
 MIN_SHOW_NOTES_CHAPTERS = 3
 SHOW_NOTES_MAX_FIRST_SECONDS = 600.0
 SHOW_NOTES_MIN_SPACING_SECONDS = 60.0
@@ -63,7 +59,22 @@ SHOW_NOTES_ALIGN_PROMPT = (
     "Topics:\n{topics}\n\nTranscript:\n{transcript}"
 )
 
-_CLOCK_TITLE = re.compile(CLOCK_TIME_SUFFIX)
+# A title that starts with an AM/PM clock suffix (not a word like "Am I Wrong").
+_CLOCK_TITLE = re.compile(r'^[AaPp]\.?[Mm]\.?(?:\s*$|\s*[-:,.)])')
+_CLOCK_TOKEN = re.compile(r'^(?:am|pm|a\.m\.|p\.m\.)$', re.IGNORECASE)
+# URLs, domains, promo/discount codes, percent-off and free-trial sponsor lines.
+_PROMO_TITLE = re.compile(
+    r'https?://|\bwww\.|\b[\w-]+\.(?:com|net|org|io|co|tv|fm|ai|app|dev)\b'
+    r'|(?i:\b(?:use|promo|coupon|discount)\s+code\b|\d+\s?%\s*off\b|\bfree\s+trial\b)'
+    r'|\bcode\s+[A-Z0-9]{3,}\b')
+
+
+def _is_clock_title(title: str) -> bool:
+    """True when the title starts with an AM/PM clock suffix."""
+    if _CLOCK_TITLE.match(title):
+        return True
+    words = title.split()
+    return bool(words) and bool(_CLOCK_TOKEN.match(words[0])) and len(words) <= 3
 
 _ALIGN_LINE = re.compile(
     r'^\W*(\d{1,3})\s*[.):\-]?\s+(\d{1,3}:\d{2}(?::\d{2})?|-)(?:\s|$)')
@@ -101,7 +112,7 @@ def _show_notes_anchors(description: str | None, cuts: list[dict] | None,
     """Listed (original-audio) times shifted by the cuts like the served description, or [] off the gate."""
     listed = [(parse_timestamp(ts), title)
               for ts, title in _parse_description_anchors(description or '')
-              if not _CLOCK_TITLE.match(title)]
+              if not _is_clock_title(title) and not _PROMO_TITLE.search(title)]
     merged = merge_cut_spans(cuts or [], default_replacement=replacement_duration)
     inside = [(t, shift_for_merged_cuts(t, merged), title) for t, title in listed]
     inside = [a for a in inside if a[1] < episode_duration]

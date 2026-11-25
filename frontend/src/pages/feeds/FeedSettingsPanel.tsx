@@ -1258,9 +1258,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <span>Chapters from show notes</span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  When an episode description lists at least three timestamps, those lines
-                  become the generated chapters with their own titles. Off uses topic
-                  detection, with the timestamps as hints.
+                  Use the description&apos;s timestamps as chapters when it lists three or more.
                 </p>
               </LlmGate>
 
