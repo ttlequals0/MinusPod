@@ -19,7 +19,7 @@ from utils.time import (
     adjust_timestamp, merge_cut_spans, span_inside_any_cut,
 )
 
-from description_chapters import TO_END, chapter_trim_span
+from description_chapters import TO_END, chapter_trim_spans
 from config import (
     CHAPTER_TRIM_SOURCES, DESCRIPTION_CHAPTER_STAGE,
     CHAPTERS_MODE_AUTO,
@@ -135,58 +135,55 @@ def pending_chapter_trim(markers):
 def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
                         replacement_duration, audio_duration, original_duration,
                         markers, source, original_timeline=False, needs_recut=True, skip_starts=()):
-    """Add the trim marker for the first chapter matching the feed rule; True when added.
+    """Add a trim marker per chapter matching the feed rule (first only in to_end mode); True when any added.
 
-    chapters are on the processed timeline unless original_timeline is set, so
-    the span maps back through this run's cut list. The caller's recut applies it,
-    unless needs_recut is False (the marker is added before the cut).
-    Chapters starting at a time in skip_starts never match.
+    Chapters in skip_starts never match; needs_recut False means the markers are added before the cut.
     """
     pattern = (podcast_row or {}).get('description_trim_pattern')
     mode = (podcast_row or {}).get('description_trim_mode') or TO_END
     if not pattern or markers is None or not original_duration:
         return False
     if original_timeline:
-        span = chapter_trim_span(chapters, pattern, mode, original_duration, skip_starts)
-        if span is None:
-            return False
-        start, end, title = span
+        spans = chapter_trim_spans(chapters, pattern, mode, original_duration, skip_starts)
     else:
         processed_duration = audio_duration or adjust_timestamp(
             original_duration, all_cuts or [], replacement_duration)
-        span = chapter_trim_span(chapters, pattern, mode, processed_duration, skip_starts)
-        if span is None:
-            return False
-        start_p, end_p, title = span
-        start = _unadjust_timestamp(start_p, all_cuts or [], replacement_duration)
-        end = (original_duration if end_p >= processed_duration
-               else _unadjust_timestamp(end_p, all_cuts or [], replacement_duration))
-    if end <= start:
-        return False
+        spans = []
+        for start_p, end_p, title in chapter_trim_spans(
+                chapters, pattern, mode, processed_duration, skip_starts):
+            start = _unadjust_timestamp(start_p, all_cuts or [], replacement_duration)
+            end = (original_duration if end_p >= processed_duration
+                   else _unadjust_timestamp(end_p, all_cuts or [], replacement_duration))
+            spans.append((start, end, title))
     tol = CHAPTER_TRIM_COVER_TOLERANCE
-    if any(m.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
-           and m['start'] <= start + tol and m['end'] >= end - tol for m in markers):
+    uncovered = [
+        (start, end, title) for start, end, title in spans
+        if end > start and not any(
+            m.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+            and m['start'] <= start + tol and m['end'] >= end - tol for m in markers)]
+    if not uncovered:
         return False
     # The recut needs the retained original; without it the marker would sit uncut.
     if needs_recut and not db.resolve_keep_original_audio(slug, podcast_row):
         audio_logger.info(
-            f"[{slug}:{episode_id}] Chapter trim: '{title}' matched but original "
+            f"[{slug}:{episode_id}] Chapter trim: '{uncovered[0][2]}' matched but original "
             f"audio is not retained; no recut")
         return False
-    markers.append({
-        'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
-        'detection_stage': DESCRIPTION_CHAPTER_STAGE, 'sponsor': None,
-        'reason': f'Chapter: {title}', 'source': source, 'trim_mode': mode,
-    })
-    audio_logger.info(
-        f"[{slug}:{episode_id}] Chapter trim: "
-        f"{'queued recut for' if needs_recut else 'cutting'} {start:.1f}-{end:.1f} ({title})")
+    for start, end, title in uncovered:
+        markers.append({
+            'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
+            'detection_stage': DESCRIPTION_CHAPTER_STAGE, 'sponsor': None,
+            'reason': f'Chapter: {title}', 'source': source, 'trim_mode': mode,
+        })
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Chapter trim: "
+            f"{'queued recut for' if needs_recut else 'cutting'} {start:.1f}-{end:.1f} ({title})")
     return True
 
 
-def pre_cut_chapter_trim_marker(slug, episode_id, audio_path, podcast_row, download_outcome,
-                                upstream_chapters_url=None):
-    """Trim marker for the feed rule matched on the original's publisher chapters, or None."""
+def pre_cut_chapter_trim_markers(slug, episode_id, audio_path, podcast_row, download_outcome,
+                                 upstream_chapters_url=None):
+    """Trim markers for the feed rule matched on the original's publisher chapters, or []."""
     probed = probe_chapters(str(audio_path)) or []
     chapters = (_publisher_chapter_entries(probed)
                 if len(probed) >= MIN_PRESERVED_CHAPTERS or any(c.get('_id3_id') for c in probed)
@@ -198,21 +195,21 @@ def pre_cut_chapter_trim_marker(slug, episode_id, audio_path, podcast_row, downl
             fallback_user_agent=feed_user_agent(podcast_row)) if url else None
         chapters = fetched if fetched and len(fetched) >= MIN_PRESERVED_CHAPTERS else []
     if not chapters:
-        return None
+        return []
     duration = get_audio_duration(audio_path)
     markers = []
     if not _queue_chapter_trim(
             slug, episode_id, chapters, podcast_row, [], 0.0, duration, duration, markers,
             'upstream_chapter', original_timeline=True, needs_recut=False):
-        return None
+        return []
     action = db.resolve_segment_actions(slug, podcast=podcast_row).get(
         normalize_segment_category(markers[0]['category']))
     if is_keep_like(action):
         audio_logger.info(
             f"[{slug}:{episode_id}] Chapter matched but the Outro action is '{action}', "
             f"which does not cut; processing normally")
-        return None
-    return markers[0]
+        return []
+    return markers
 
 
 def _ad_chapter_count(chapters):

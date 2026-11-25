@@ -542,3 +542,12 @@ def test_remap_ad_only_stored_list_with_no_eligible_marker_writes_empty_set(monk
         audio_duration=3600.0, markers=markers, pending_assets=pending)
     assert pending['chapters']['chapters'] == []
     assert embedded == {'path': '/x.mp3', 'chapters': []}
+
+
+def test_every_trimmed_chapter_is_dropped_when_several_trim_cuts_apply():
+    chapters = [{'startTime': 10, 'title': 'Intro'}, {'startTime': 100, 'title': 'Donations'},
+                {'startTime': 200, 'title': 'Talk'}, {'startTime': 500, 'title': 'Donations'},
+                {'startTime': 600, 'title': 'Outro'}]
+    new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
+    out = publish._remap_chapters_for_recut(chapters, [], new_cuts, BEEP, 1000.0, 802.0)
+    assert [c['title'] for c in out] == ['Intro', 'Talk', 'Outro']

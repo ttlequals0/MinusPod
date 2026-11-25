@@ -1085,11 +1085,11 @@ paths:
                   type: [string, 'null']
                   minLength: 1
                   maxLength: 200
-                  description: Chapter title glob for the chapter trim. Matched against the title of each timestamp line in the episode description and against the episode's chapters (upstream or MinusPod-generated), case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode. Null clears the rule.
+                  description: Chapter title glob for the chapter trim. Matched against the title of each timestamp line in the episode description and against the episode's chapters (upstream or MinusPod-generated), case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode; to_next cuts every match. Null clears the rule.
                 descriptionTrimMode:
                   type: string
                   enum: [to_end, to_next]
-                  description: to_end (default) cuts to the end of the episode; to_next cuts until the next timestamp line.
+                  description: to_end (default) cuts from the first match to the end of the episode; to_next cuts each match until the next timestamp line or chapter.
                 descriptionSkipPatterns:
                   type:
                     - array

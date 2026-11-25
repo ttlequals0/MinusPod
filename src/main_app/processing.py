@@ -646,8 +646,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             transcription_stats = transcriber.last_transcription_stats
             if transcription_stats is not None:
                 run_stats['transcription'] = dict(transcription_stats)
-        chapter_trim_marker = transcribe_outcome.get('chapter_trim_marker')
-        if chapter_trim_marker:
+        chapter_trim_markers = transcribe_outcome.get('chapter_trim_markers')
+        if chapter_trim_markers:
             skip_transcription_active = llm_off = audio_analysis_skipped = True
             run_stats['transcription_skipped'] = True
             run_stats['verification_skipped'] = True
@@ -658,7 +658,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
         # Stage 1a: upstream transcript differential (best effort, bounded fetch).
         transcript_spans = []
-        if not (detection_off or chapter_trim_marker):
+        if not (detection_off or chapter_trim_markers):
             transcript_diff = signals._run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
                 download_outcome=transcribe_outcome,
@@ -683,7 +683,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Both stages want the original's template cues; audio analysis owns
         # the scan and the differential waits for its result.
         primary_cue_future = Future()
-        if not (detection_off or chapter_trim_marker):
+        if not (detection_off or chapter_trim_markers):
             # Stamp from the main thread BEFORE the worker starts: all status
             # stamps stay on the main thread, so the pass1 ordering 22 -> 25
             # is monotonic and an abandoned worker never stamps another job.
@@ -815,7 +815,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     episode_description, episode_duration, min_cut_confidence, podcast_name,
                     apply_heuristic_rolls=False, segment_actions=segment_actions,
                     corrections=user_corrections, loop_runs=loop_runs,
-                    chapter_marker=chapter_trim_marker,
+                    chapter_markers=chapter_trim_markers,
                     description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                       (podcast_settings or {}).get('description_trim_mode')))
             else:
@@ -851,7 +851,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 # Stage 3: First-pass detection. A chapter match cuts by the rule alone: no detection, no provider.
                 first_pass_ads, first_pass_count, ad_result = [], 0, None
-                if not chapter_trim_marker:
+                if not chapter_trim_markers:
                     _reserve_provider()
                     provider_attempted = True
                     with common._measure_run_stage('detection'):
@@ -958,7 +958,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         transcript_spans=transcript_spans,
                         description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                           (podcast_settings or {}).get('description_trim_mode')),
-                        chapter_marker=chapter_trim_marker,
+                        chapter_markers=chapter_trim_markers,
                         loop_runs=loop_runs,
                     )
 

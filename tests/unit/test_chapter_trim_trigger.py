@@ -194,3 +194,67 @@ def test_feed_switch_reaches_the_generator(column, expected):
                         podcast={**PODCAST, 'show_notes_chapters': column})
     kwargs = gen_cls.return_value.generate_chapters.call_args.kwargs
     assert kwargs['show_notes_chapters'] is expected
+
+
+DONATIONS = [
+    {'startTime': 1, 'title': 'Opening'},
+    {'startTime': 300, 'title': 'Donations'}, {'startTime': 600, 'title': 'Talk'},
+    {'startTime': 1200, 'title': 'Donations'}, {'startTime': 1500, 'title': 'Talk 2'},
+    {'startTime': 2400, 'title': 'Donations'},
+]
+
+
+def test_to_next_queues_every_matching_chapter_with_original_spans():
+    markers = []
+    _run(markers, chapters=DONATIONS, podcast={**PODCAST, 'description_trim_pattern': 'Donations'})
+    assert [(m['start'], m['end']) for m in markers] == [
+        (300.0, 600.0), (1200.0, 1500.0), (2400.0, 3200.0)]
+
+
+def test_to_next_maps_each_span_back_through_earlier_cuts():
+    markers = []
+    podcast = {**PODCAST, 'description_trim_pattern': 'Donations'}
+    chapters = [{'startTime': 1, 'title': 'Opening'}, {'startTime': 500, 'title': 'Donations'},
+                {'startTime': 600, 'title': 'Talk'}, {'startTime': 2000, 'title': 'Donations'},
+                {'startTime': 2100, 'title': 'Talk 2'}]
+    _run(markers, cuts=[{'start': 100.0, 'end': 160.0}], podcast=podcast, chapters=chapters)
+    assert [(m['start'], m['end']) for m in markers] == [(560.0, 660.0), (2060.0, 2160.0)]
+
+
+def test_adjacent_matching_chapters_merge_into_one_marker():
+    markers = []
+    chapters = [{'startTime': 1, 'title': 'Opening'}, {'startTime': 500, 'title': 'Donations'},
+                {'startTime': 600, 'title': 'More Donations'}, {'startTime': 700, 'title': 'Talk'}]
+    _run(markers, chapters=chapters)
+    assert [(m['start'], m['end']) for m in markers] == [(500.0, 700.0)]
+
+
+def test_to_end_queues_one_marker_from_the_first_match():
+    markers = []
+    _run(markers, chapters=DONATIONS,
+         podcast={'description_trim_pattern': 'Donations', 'description_trim_mode': 'to_end'})
+    assert [(m['start'], m['end']) for m in markers] == [(300.0, 3200.0)]
+
+
+def test_second_call_with_markers_present_adds_nothing():
+    markers = []
+    podcast = {**PODCAST, 'description_trim_pattern': 'Donations'}
+    assert _run(markers, chapters=DONATIONS, podcast=podcast) is True
+    assert _run(markers, chapters=DONATIONS, podcast=podcast) is False
+    assert len(markers) == 3
+
+
+def test_skip_starts_apply_per_chapter():
+    markers = []
+    with patch.object(publish, 'db', MagicMock(resolve_keep_original_audio=lambda *a: True)):
+        publish._queue_chapter_trim(
+            's', 'e', DONATIONS, {**PODCAST, 'description_trim_pattern': 'Donations'}, [], 0.0,
+            3000.0, 3200.0, markers, 'generated_chapter', skip_starts={1200})
+    assert [m['start'] for m in markers] == [300.0, 2400.0]
+
+
+def test_generating_run_appends_a_pending_marker_per_match():
+    markers = []
+    _generate(markers, regenerate_chapters=True, generated={'version': '1.2.0', 'chapters': DONATIONS},
+              podcast={**PODCAST, 'description_trim_pattern': 'Donations'})
+    assert len(markers) == 3 and publish.pending_chapter_trim(markers) is True

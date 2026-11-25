@@ -53,7 +53,7 @@ def test_id3_chapter_match_skips_whisper_with_original_timeline_marker():
     whisper.transcribe_chunked.assert_not_called()
     fetch.assert_not_called()
     assert (path, segments) == ('/tmp/a.mp3', [])
-    marker = outcome['chapter_trim_marker']
+    (marker,) = outcome['chapter_trim_markers']
     assert (marker['start'], marker['end']) == (1200.0, 1500.0)
     assert marker['detection_stage'] == 'description_chapter' and marker['source'] == 'upstream_chapter'
 
@@ -64,7 +64,7 @@ def test_json_chapter_match_uses_to_end_span_and_ignores_unretained_original():
     whisper.transcribe_chunked.assert_not_called()
     fetch.assert_called_once()
     assert segments == []
-    assert (outcome['chapter_trim_marker']['start'], outcome['chapter_trim_marker']['end']) == (1200.0, 3200.0)
+    assert [(m['start'], m['end']) for m in outcome['chapter_trim_markers']] == [(1200.0, 3200.0)]
 
 
 @pytest.mark.parametrize('kwargs', [
@@ -81,7 +81,7 @@ def test_no_chapters_or_no_title_match_transcribes_as_usual(kwargs):
     _, segments, outcome, whisper, _, _ = _transcribe(**kwargs)
     whisper.transcribe_chunked.assert_called_once()
     assert segments == SEGMENTS
-    assert 'chapter_trim_marker' not in outcome
+    assert 'chapter_trim_markers' not in outcome
 
 
 @pytest.mark.parametrize('action', ['keep', 'mark'])
@@ -89,13 +89,13 @@ def test_non_cutting_outro_action_transcribes_as_usual(action):
     _, segments, outcome, whisper, _, _ = _transcribe(id3=ID3_CHAPTERS, actions={'outro': action})
     whisper.transcribe_chunked.assert_called_once()
     assert segments == SEGMENTS
-    assert 'chapter_trim_marker' not in outcome
+    assert 'chapter_trim_markers' not in outcome
 
 
 def test_json_fetch_failure_means_normal_processing():
     _, segments, outcome, whisper, _, _ = _transcribe(id3=[], fetched=None)
     whisper.transcribe_chunked.assert_called_once()
-    assert 'chapter_trim_marker' not in outcome
+    assert 'chapter_trim_markers' not in outcome
 
 
 def test_forced_rerun_clears_stale_details_on_match():
@@ -104,7 +104,7 @@ def test_forced_rerun_clears_stale_details_on_match():
 
 
 def test_saved_transcript_is_reused_without_a_chapter_check():
-    with patch.object(publish, 'pre_cut_chapter_trim_marker') as probe, \
+    with patch.object(publish, 'pre_cut_chapter_trim_markers') as probe, \
          patch.object(transcribe, 'db') as tdb, patch.object(transcribe, 'storage') as tstorage, \
          patch.object(transcribe, '_resolve_audio_path', return_value='/tmp/a.mp3'), \
          patch.object(transcribe, '_repair_transcript', side_effect=lambda *a, **k: (a[3], [], [])), \
@@ -121,7 +121,7 @@ def test_saved_transcript_is_reused_without_a_chapter_check():
 
 def _marker_effect(marker):
     def effect(*args, **kwargs):
-        kwargs['outcome']['chapter_trim_marker'] = marker
+        kwargs['outcome']['chapter_trim_markers'] = [marker]
         return '/tmp/mode.mp3', []
     return effect
 
@@ -148,7 +148,7 @@ def test_matched_episode_runs_without_llm_phases_and_cue_only_extras():
         stage.assert_not_called()
     assert m['refine'].call_args.args[2] == []
     refine = m['refine'].call_args.kwargs
-    assert refine['chapter_marker'] == MARKER
+    assert refine['chapter_markers'] == [MARKER]
     assert refine['apply_heuristic_rolls'] is False and refine['cue_only_safety'] is None
     m['reviewer'].assert_not_called()
     assert m['verify'].call_args.kwargs['skip_verification'] is True
@@ -162,7 +162,7 @@ def test_matched_episode_runs_without_llm_phases_and_cue_only_extras():
 def test_unmatched_episode_is_a_normal_run():
     m = _run_pipeline(_feed_row(), enable_ad_review=True)
     assert m['detect'].call_args.kwargs['skip_llm'] is False
-    assert m['refine'].call_args.kwargs['chapter_marker'] is None
+    assert m['refine'].call_args.kwargs['chapter_markers'] is None
     assert m['refine'].call_args.kwargs['apply_heuristic_rolls'] is True
     m['reviewer'].assert_called_once()
     m['db'].reserve_provider_spend.assert_called_once()
@@ -185,7 +185,7 @@ def test_cue_only_skip_transcription_is_unchanged():
     m = _run_pipeline(_feed_row(mode='cue_only'))
     assert m['dat'].call_args.kwargs['skip_transcription'] is True
     assert m['detect'].call_args.kwargs['force_create_from_pairs'] is True
-    assert m['refine'].call_args.kwargs['chapter_marker'] is None
+    assert m['refine'].call_args.kwargs['chapter_markers'] is None
 
 
 def test_marker_is_force_accepted_before_the_cut_and_never_recut_or_duplicated():
@@ -193,7 +193,7 @@ def test_marker_is_force_accepted_before_the_cut_and_never_recut_or_duplicated()
          patch.object(detect, 'storage'), patch.object(detect, 'db'):
         to_remove, validated = detect._refine_and_validate(
             's', 'e', [], [], '/tmp/a.mp3', 'desc', 3200.0, 0.8, 'Pod',
-            corrections=([], []), apply_heuristic_rolls=False, chapter_marker=dict(MARKER))
+            corrections=([], []), apply_heuristic_rolls=False, chapter_markers=[dict(MARKER)])
     cut = to_remove[0]
     assert (cut['start'], cut['end']) == (1200.0, 1500.0) and cut['was_cut'] is True
     assert validated[0]['validation']['decision'] == 'ACCEPT'
@@ -204,3 +204,27 @@ def test_marker_is_force_accepted_before_the_cut_and_never_recut_or_duplicated()
             's', 'e', JSON_CHAPTERS, PODCAST, [], 0.0, 3000.0, 3200.0, validated,
             'upstream_chapter', original_timeline=True) is False
     assert len(validated) == 1
+
+
+THREE_ID3 = [{'start': 1.0, 'title': 'Opening'}, {'start': 1200.0, 'title': 'Listener Donations'},
+             {'start': 1500.0, 'title': 'Main Topic'}, {'start': 2000.0, 'title': 'Donations'},
+             {'start': 2400.0, 'title': 'Talk'}, {'start': 3000.0, 'title': 'Donations'}]
+
+
+def test_every_matching_publisher_chapter_is_returned_and_skips_whisper():
+    _, _, outcome, whisper, _, _ = _transcribe(id3=THREE_ID3)
+    whisper.transcribe_chunked.assert_not_called()
+    assert [(m['start'], m['end']) for m in outcome['chapter_trim_markers']] == [
+        (1200.0, 1500.0), (2000.0, 2400.0), (3000.0, 3200.0)]
+
+
+def test_all_markers_are_force_accepted_before_the_cut():
+    second = {**MARKER, 'start': 2000.0, 'end': 2400.0}
+    with patch.object(detect, '_validate_repeat_twins', return_value=([], [], 0, 0)), \
+         patch.object(detect, 'storage'), patch.object(detect, 'db'):
+        to_remove, validated = detect._refine_and_validate(
+            's', 'e', [], [], '/tmp/a.mp3', 'desc', 3200.0, 0.8, 'Pod',
+            corrections=([], []), apply_heuristic_rolls=False,
+            chapter_markers=[dict(MARKER), second])
+    assert [(c['start'], c['end']) for c in to_remove] == [(1200.0, 1500.0), (2000.0, 2400.0)]
+    assert publish.pending_chapter_trim(validated) is False

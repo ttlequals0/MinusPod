@@ -36,7 +36,7 @@ from config import (
 )
 
 from database.settings import registry_get_default
-from description_chapters import TO_END, description_trim_span
+from description_chapters import TO_END, description_trim_spans
 from llm_capabilities import (
     PASS_AD_DETECTION_1, clear_fallback,
 )
@@ -638,25 +638,18 @@ def _build_validator(episode_duration, segments, episode_description, *,
     )
 
 
-def _description_chapter_marker(description, episode_duration, description_trim):
-    """Build the always-cut marker for the feed's description chapter rule, or None."""
+def _description_chapter_markers(description, episode_duration, description_trim):
+    """Build the always-cut markers for the feed's description chapter rule."""
     pattern, mode = description_trim or (None, None)
-    span = description_trim_span(description, pattern, mode, episode_duration)
-    if span is None:
-        return None
-    start, end, title = span
-    return {'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
-            'detection_stage': DESCRIPTION_CHAPTER_STAGE, 'sponsor': None,
-            'reason': f'Description chapter: {title}'}
+    return [{'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
+             'detection_stage': DESCRIPTION_CHAPTER_STAGE, 'sponsor': None,
+             'reason': f'Description chapter: {title}'}
+            for start, end, title in description_trim_spans(
+                description, pattern, mode, episode_duration)]
 
 
 def reconcile_description_chapter(all_ads, description, episode_duration, description_trim):
-    """Re-derive trim markers from the feed's current rule; returns the new list.
-
-    Description-derived markers are recomputed. Chapter-derived markers (source
-    set) cannot be recomputed once the chapter is cut, so they stay while the
-    pattern matches their title; a mode change only re-ends them.
-    """
+    """Re-sync stored trim markers to the feed's rule: re-derive description ones, keep chapter ones that still match (re-ended on a mode change)."""
     pattern, mode = description_trim or (None, None)
     mode = mode or TO_END
     patterns_json = json.dumps([pattern]) if pattern else None
@@ -677,15 +670,21 @@ def reconcile_description_chapter(all_ads, description, episode_duration, descri
     desc_ads = [ad for ad in all_ads
                 if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
                 and ad.get('source') not in CHAPTER_TRIM_SOURCES]
-    fresh = _description_chapter_marker(description, episode_duration, description_trim)
-    if fresh and any(ad['start'] == fresh['start'] and ad['end'] == fresh['end'] for ad in desc_ads):
-        fresh, desc_ads = None, []
-    survivors = [(ad, moded(ad)) for ad in chapter_ads if chapter_matches(ad)]
-    if (fresh is None and not desc_ads and len(survivors) == len(chapter_ads)
+    fresh = _description_chapter_markers(description, episode_duration, description_trim)
+    fresh_keys = {(ad['start'], ad['end']) for ad in fresh}
+    stored_keys = {(ad['start'], ad['end']) for ad in desc_ads}
+    stale = [ad for ad in desc_ads if (ad['start'], ad['end']) not in fresh_keys]
+    added = [ad for ad in fresh if (ad['start'], ad['end']) not in stored_keys]
+    matching = [ad for ad in chapter_ads if chapter_matches(ad)]
+    if mode == TO_END:
+        matching = sorted(matching, key=lambda ad: ad['start'])[:1]
+    survivors = [(ad, moded(ad)) for ad in matching]
+    if (not added and not stale and len(survivors) == len(chapter_ads)
             and all(old is new for old, new in survivors)):
         return all_ads
     others = [ad for ad in all_ads if ad not in desc_ads and ad not in chapter_ads]
-    result = [*others, *(new for _old, new in survivors), *([fresh] if fresh else [])]
+    kept = [ad for ad in desc_ads if ad not in stale]
+    result = [*others, *kept, *(new for _old, new in survivors), *added]
     return sorted(result, key=lambda ad: ad['start'])
 
 
@@ -789,7 +788,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
                           corrections, transcript_spans=None, description_trim=None,
-                          loop_runs=None, chapter_marker=None):
+                          loop_runs=None, chapter_markers=None):
     """Pipeline stage: refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are keep-partitioned markers, passed so boundary extension
@@ -821,11 +820,11 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                                 audio_analysis=audio_analysis)
 
     # A description chapter cut is appended after refinement so no merge or snap step touches it.
-    # A matched publisher chapter replaces the description rule's marker.
-    chapter = chapter_marker or _description_chapter_marker(
+    # Matched publisher chapters replace the description rule's markers.
+    chapters = chapter_markers or _description_chapter_markers(
         episode_description, episode_duration, description_trim)
-    if chapter:
-        all_ads = [*all_ads, chapter]
+    all_ads = [*all_ads, *chapters]
+    for chapter in chapters:
         audio_logger.info(
             f"[{slug}:{episode_id}] Chapter trim: "
             f"{chapter['start']:.1f}s-{chapter['end']:.1f}s ({chapter['reason']})")

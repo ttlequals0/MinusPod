@@ -210,7 +210,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     ``outcome``: optional dict; gets ``segments_reused`` True only when saved segments were used.
     ``preacquired_audio``: audio the caller already downloaded (YouTube).
     ``preloaded_segments``: caller-supplied transcript segments (YouTube captions).
-    ``chapter_trim_skip``: on a publisher chapter match, skip Whisper and set ``outcome['chapter_trim_marker']``.
+    ``chapter_trim_skip``: on a publisher chapter match, skip Whisper and set ``outcome['chapter_trim_markers']``.
 
     Returns (audio_path, segments) or raises on failure.
     """
@@ -286,14 +286,14 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome, preacquired_audio)
 
         if chapter_trim_skip:
-            marker = publish.pre_cut_chapter_trim_marker(
+            markers = publish.pre_cut_chapter_trim_markers(
                 slug, episode_id, audio_path, podcast, outcome,
                 episode_row.get('upstream_chapters_url'))
-            if marker:
+            if markers:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Publisher chapter matched the Chapter trim rule "
-                    f"({marker['reason']}); transcription and ad detection skipped")
-                outcome['chapter_trim_marker'] = marker
+                    f"({'; '.join(m['reason'] for m in markers)}); transcription and ad detection skipped")
+                outcome['chapter_trim_markers'] = markers
                 if force_transcription:
                     db.clear_episode_details(slug, episode_id)
                 return audio_path, []
