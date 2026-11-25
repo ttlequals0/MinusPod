@@ -8,6 +8,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.19] - 2026-11-25
+
+### Fixed
+
+- Chapter trim with **Cut until the next chapter** cut only the first chapter that matched the pattern. It now cuts every matching chapter, so an episode with several matching segments loses all of them. **Cut to the end of the episode** still starts at the first match.
+- A pre-roll ad was cut from its first spoken word, so the music bed before it stayed at the start of the episode. The first ad now runs from the start of the file when it starts in the first 5 seconds and the transcript has no words before it. An episode with no transcript is left alone, and so is a feed that excludes its opening from ad detection. A pass-2 approval keeps the extension, and an operator-approved start still wins (#1079).
+- A recut split two back-to-back ads when the first ended at a reviewer-locked edge, leaving the music between them and an extra replacement sound in the episode, while the first run had joined them. A locked edge still keeps a gap with speech in it, but no longer a gap shorter than 5 seconds that no transcript word starts in.
+
 ## [2.102.18] - 2026-11-25
 
 ### Changed
