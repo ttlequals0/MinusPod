@@ -41,7 +41,7 @@ RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/s
 
 # Build patched utilities with unprivileged package tests.
 FROM base-security-builder AS aux-security-builder
-RUN apt-get build-dep -y --no-install-recommends p11-kit bubblewrap tar libxrender \
+RUN apt-get build-dep -y --no-install-recommends p11-kit bubblewrap tar \
     && apt-get install -y --no-install-recommends gtk-doc-tools dh-exec bison xutils-dev libselinux1-dev
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/aux-security/ /build/scripts/aux-security/

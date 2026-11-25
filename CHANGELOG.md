@@ -13,6 +13,7 @@ release notes.
 ### Changed
 
 - Timestamps in the episode description become the generated chapters, with the show notes' own titles. This needs at least three of them, the first within ten minutes of the start and each at least a minute after the previous one. Each listed time is shifted by the cuts and then moved by the LLM to where the topic starts in the transcript. The LLM also adds chapters for major topics the show notes do not list. These chapters never trigger a chapter trim, and a failed alignment marks the chapters as degraded. Feed Settings > Chapters > Chapters from show notes (`showNotesChapters`) turns them off for a feed. Lines that read as a clock time (10:30 AM) or a sponsor promo (a link, a promo code, percent off) are not counted. An episode processed before cut lists were stored keeps topic detection when its chapters are regenerated.
+- The images use Ubuntu's own `libxrender1` security update (CVE-2026-88807) in place of the project's patched build of that library. Ubuntu shipped the same fix, so the project's copy is retired.
 
 ### Fixed
 
