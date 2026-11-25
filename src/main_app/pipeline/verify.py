@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass, replace
 from ad_detector.boundaries import _content_duration_in_range
+from ad_detector.cue_boundary_snap import snap_split_edge
 
 from audio_processor import get_replacement_duration
 from utils.markers import (DAI_CORE_SPANS, EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
@@ -261,6 +262,44 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
     return _unzip(reconciled)
 
 
+def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_result,
+                             pass1_cuts, snap_settings):
+    """Snap pass-2 cut edges onto removable break cues, as pass-1 detection does.
+
+    Runs in original time on the pass-1 analysis cues, after gating, so a hold
+    decision never sees it; the caller's protected-span split still clips the
+    result. An edge moves only onto a cue removed with the ad, and not across
+    a pass-1 cut, so the processed twin shifts by the same amount.
+    """
+    cues = (audio_analysis_result.get_signals_by_type('audio_cue')
+            if audio_analysis_result else [])
+    if not cues:
+        return
+    for processed, original in zip(processed_cuts, original_cuts, strict=True):
+        records = {}
+        for edge, other in (('start', 'end'), ('end', 'start')):
+            value = original[edge]
+            snapped = snap_split_edge(edge, value, original[other], cues, **snap_settings)
+            if snapped is None:
+                continue
+            new_value, record = snapped
+            lo, hi = sorted((value, new_value))
+            if any(cut['start'] < hi and cut['end'] > lo for cut in pass1_cuts or []):
+                continue
+            # One cue cannot bound both edges.
+            if edge == 'end' and records.get('start', {}).get('cue_start') == record['cue_start']:
+                continue
+            original[edge] = new_value
+            processed[edge] = round(processed[edge] + new_value - value, 3)
+            records[edge] = record
+            audio_logger.info(f"Pass-2 cue snap ({edge}): {value:.3f}s -> {new_value:.3f}s "
+                              f"(cue={record.get('label')})")
+        if records:
+            # Not cue_snap: that key exempts a marker from the cue gate.
+            for ad in (processed, original):
+                ad['pass2_cue_snap'] = {**(ad.get('pass2_cue_snap') or {}), **records}
+
+
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
@@ -281,8 +320,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 
     ``max_ad_duration_override`` and ``cue_gate_enabled`` come from the
     per-feed resolvers (read once by the caller). Verification ads never carry
-    cue evidence (snap is pass-1 only), so on a cue-gated feed every pass-2
-    proposal is held, intentionally.
+    cue evidence (their cue snap runs after gating), so on a cue-gated feed
+    every pass-2 proposal is held, intentionally.
 
     ``keep_barriers_processed`` holds hard protected ranges on the processed
     timeline. Validator-only copies stay in the ordered span list so a removable
@@ -841,12 +880,16 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_verification=False, segment_actions=None,
                             differential_override=None, run_stats=None,
                             original_audio_path=None, pass1_markers=None,
-                            pass1_reviewer_rejects=None, *, false_positive_corrections):
+                            pass1_reviewer_rejects=None, audio_analysis_result=None, *,
+                            false_positive_corrections):
     """Pipeline stage: run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
     compute_applied_cuts), not the requested list, since every use here maps
     processed to original timestamps.
+
+    ``audio_analysis_result`` is the pass-1 analysis (original time); its
+    template cues snap the edges of pass-2 cuts once gating is done.
 
     ``pass1_held_markers`` are pass-1 markers held for review (original
     coordinates); a pass-2 cut overlapping one is dropped so the protected
@@ -1143,6 +1186,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
                 # Stamped only now: a candidate diverted to a hold or reject must not advertise a cut.
                 keep_rules._partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
+                # After every hold decision, before the splits that clip protected audio.
+                if audio_analysis_result:
+                    _snap_pass2_cuts_to_cues(v_ads_to_cut, v_ads_for_ui, audio_analysis_result,
+                                             pass1_cuts, detect._cue_snap_settings(ctx.podcast_id))
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
                 protection = current_protection()

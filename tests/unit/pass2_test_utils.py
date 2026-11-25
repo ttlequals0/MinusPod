@@ -128,6 +128,7 @@ def drive_verification_pass(findings=(), *, pairs=None, holds=(), cuts=(), kept=
               'verification_miss_autocut_min_confidence': 0.0}
     fake_db.get_setting_float.side_effect = lambda key, default=None: floors.get(key, default)
     fake_db.get_setting.return_value = 'false'
+    fake_db.get_podcast_cue_settings_overrides.return_value = {}
     validated = []
 
     def run_validate(*args, **kwargs):

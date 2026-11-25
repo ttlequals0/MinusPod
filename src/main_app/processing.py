@@ -1127,6 +1127,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     pass1_markers=ads_to_remove,
                     false_positive_corrections=user_corrections[0],
                     pass1_reviewer_rejects=pass1_reviewer_rejects,
+                    audio_analysis_result=audio_analysis_result,
                 )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
