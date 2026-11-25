@@ -442,6 +442,61 @@ def test_pass2_stop_at_cut_drops_the_lock_on_the_clipped_edge_and_logs_the_clip(
         (261.49, 360.9, ('start',))]
 
 
+def test_pass2_stop_leaving_the_marker_span_cuts_it_unchanged_not_held(monkeypatch):
+    original, held, logged = _stop_run(monkeypatch, (250.0, 300.0), (250.0, 360.0),
+                                       [(300.0, 400.0)], locked=('start', 'end'))
+
+    assert held == []
+    assert (original['start'], original['end']) == (250.0, 300.0)
+    assert original['reviewer_verdict'] == 'confirmed'
+    assert 'reviewer_moved' not in original
+    assert not any(key.startswith('reviewer_locked') for key in original)
+    assert not is_pending_review(original)
+    assert [(v.verdict, v.locked_edges) for v in logged] == [('confirmed', ())]
+
+
+def test_pass2_stop_leaving_the_marker_span_still_holds_a_protected_range(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (250.0, 360.0),
+                                  [(300.0, 400.0)],
+                                  protected_original_ranges=[{'start': 270.0, 'end': 280.0}])
+
+    assert held == [original]
+
+
+def test_pass2_stop_past_the_episode_end_is_clamped_to_the_duration(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (240.0, 330.0),
+                                  [(305.0, 400.0)], original_duration=310.0)
+
+    assert held == []
+    assert (original['start'], original['end']) == (240.0, 305.0)
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (240.0, 330.0),
+                                  [(305.0, 400.0)], original_duration=302.0)
+    assert (original['start'], original['end']) == (240.0, 302.0)
+
+
+def test_pass2_stop_ignores_the_verdicts_own_duplicate_twins(monkeypatch):
+    twin = {'start': 250.0, 'end': 300.0, 'was_cut': True}
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (200.0, 320.0),
+                                  [(310.0, 400.0)], [twin])
+
+    # The verdict applies to the later duplicate; neither blocks the other.
+    assert held == []
+    assert (twin['start'], twin['end']) == (200.0, 310.0)
+
+
+def test_pass2_stop_loads_the_boundary_cap_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(review, 'resolve_max_boundary_shift',
+                        lambda db: calls.append(1) or 60)
+    original, processed = _pair(250.0, 300.0, 250.0, 300.0)
+    verdicts = [_verdict('adjust', 250.0, 300.0, reasoning=AFFIRMING, adjusted=(200.0, 320.0))
+                for _ in range(3)]
+    _run_pass2(monkeypatch, verdicts, [processed], [original], [], [processed], [original],
+               pass1_cuts=[{'start': 310.0, 'end': 400.0}])
+
+    assert len(calls) == 1
+
+
 STOP_CASES = [
     ((250.0, 300.0), (200.0, 320.0), [(310.0, 400.0)], [KEPT]),
     ((250.0, 300.0), (240.0, 320.0), [(310.0, 400.0)], [KEPT]),
@@ -451,6 +506,8 @@ STOP_CASES = [
     ((250.0, 300.0), (300.0, 330.0), [(305.0, 400.0)], []),
     ((250.0, 300.0), (200.0, 320.0), [(310.0, 400.0)],
      [{'start': 300.0, 'end': 305.0, 'validation': {'decision': 'REJECT'}}]),
+    ((250.0, 300.0), (140.0, 320.0), [(100.0, 150.0), (310.0, 400.0)], []),
+    ((250.0, 300.0), (120.0, 340.0), [(100.0, 150.0), (310.0, 400.0)], [KEPT]),
 ]
 
 

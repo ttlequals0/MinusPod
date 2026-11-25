@@ -1189,6 +1189,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     protected_spans=reviewer_protection.hard_labelled,
                     ledger=ledger,
                     hard_barriers=reviewer_protection.hard_orig,
+                    original_duration=(local_audio_processor.get_audio_duration(original_audio_path)
+                                       if original_audio_path else None),
                 )
                 review._hold_adjustments_crossing_final_holds(
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)

@@ -122,17 +122,20 @@ def _hold_pass2_verdict(v, proc_ad, held_ad, v_ads_to_cut, v_ads_for_ui, v_ads_h
     return True
 
 
-def _stopped_at_cuts(v, cuts, neighbours, cap):
+def _stopped_at_cuts(v, cuts, neighbours, cap, duration):
     """The adjusted span stopped at pass-1 cuts the way a human is offered it, else None."""
     pieces = subtract_spans([(v.adjusted_start, v.adjusted_end)],
                             [(cut['start'], cut['end']) for cut in cuts])
     # Audio on both sides of a cut is not one span: a human decides.
     if len(pieces) != 1 or pieces[0] == (v.adjusted_start, v.adjusted_end):
         return None
+    # The marker's own bounds are the span: the reviewer's extension was all cut audio.
+    if spans_match(*pieces[0], v.original_start, v.original_end, EDGE_TOLERANCE):
+        return v.original_start, v.original_end
     proposal = {'reviewer_proposed_start': pieces[0][0], 'reviewer_proposed_end': pieces[0][1]}
     return usable_reviewer_proposal(
         proposal, v.original_start, v.original_end, cap,
-        held_window_blockers(neighbours, None, True))
+        held_window_blockers(neighbours, None, True), duration)
 
 
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
@@ -140,7 +143,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            original_segments, min_cut_confidence,
                            cue_gate_enabled=False, pass1_cuts=None,
                            protected_original_ranges=None, segment_actions=None,
-                           protected_spans=None, ledger=None, hard_barriers=None):
+                           protected_spans=None, ledger=None, hard_barriers=None,
+                           original_duration=None):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
 
     Mutates ``v_ads_to_cut``, ``v_ads_for_ui`` and ``v_ads_held`` in place.
@@ -220,6 +224,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     original_by_key = {(a.get('start'), a.get('end')): a for a in verification_ads_original}
 
     effective_verdicts = list(result.verdicts)
+    cap = resolve_max_boundary_shift(db)
+    all_markers = [*v_ads_for_ui, *v_ads_held, *verification_ads_original]
     for idx, v in enumerate(result.verdicts):
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
@@ -270,18 +276,21 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 continue
             # A proposal running into a pass-1 cut on one side stops at it, as the human path would offer.
             if adjusted_start is not None:
-                twins = (ui_ad, held_ad, original_by_key.get(key))
-                neighbours = [m for m in (*v_ads_for_ui, *v_ads_held, *verification_ads_original)
-                              if not any(m is twin for twin in twins)]
-                stopped = _stopped_at_cuts(v, cuts, neighbours, resolve_max_boundary_shift(db))
+                neighbours = [m for m in all_markers if not spans_match(
+                    m.get('start'), m.get('end'), v.original_start, v.original_end, EDGE_TOLERANCE)]
+                stopped = _stopped_at_cuts(v, cuts, neighbours, cap, original_duration)
                 if stopped is not None:
                     # An edge the clip moved no longer carries the reviewer's choice.
                     proposed = {'start': adjusted_start, 'end': adjusted_end}
                     clipped = {'start': stopped[0], 'end': stopped[1]}
                     locked = tuple(edge for edge in v.locked_edges if clipped[edge] == proposed[edge])
                     adjusted_start, adjusted_end = stopped
+                    # No edge moved: no lock, and stamped as the plain confirmed branch does.
+                    unchanged = spans_match(*stopped, v.original_start, v.original_end,
+                                            EDGE_TOLERANCE)
                     v = replace(v, adjusted_start=adjusted_start, adjusted_end=adjusted_end,
-                                locked_edges=locked)
+                                locked_edges=() if unchanged else locked,
+                                verdict='confirmed' if unchanged else v.verdict)
                     effective_verdicts[idx] = v
             # Touching a pass-1 cut edge is not crossing it.
             crosses_cut = adjusted_start is None or any(

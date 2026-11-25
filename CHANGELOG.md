@@ -12,7 +12,7 @@ release notes.
 
 ### Fixed
 
-- A pass-2 reviewer adjustment that ran into an ad pass 1 had already cut was held for review as `reviewer_contradiction`, even when stopping it at that cut left exactly the ad. A sponsor read whose second half pass 1 cut and whose first half pass 2 found stayed in the episode until a human confirmed it. The proposal now stops at the cut and is applied like any adjustment, joining the cut. A proposal with audio on both sides of a cut is still held.
+- A pass-2 reviewer adjustment that ran into an ad pass 1 had already cut was held for review as `reviewer_contradiction`, even when stopping it at that cut left exactly the ad. A sponsor read whose second half pass 1 cut and whose first half pass 2 found stayed in the episode until a human confirmed it. The proposal now stops at the cut, joins it and is applied like any adjustment. The stopped span is the one the held marker's confirm button would offer, so a kept or rejected marker in the way, or a remainder under 1 second, still leaves it held. A proposal with audio on both sides of a cut is still held (#1081).
 
 ## [2.102.19] - 2026-11-25
 
