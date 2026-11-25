@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- A failed yt-dlp self-update now logs a warning with the reason. Before, the reason was only saved to the YouTube settings page. Each check also logs whether yt-dlp was updated or is already current.
+
 ## [2.102.20] - 2026-11-25
 
 ### Fixed

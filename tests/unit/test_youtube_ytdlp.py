@@ -237,3 +237,60 @@ def test_second_concurrent_update_returns_without_running(tmp_path):
             ytdlp._update_lock.release()
     assert result == {'updated': False, 'version': '2026.10.26', 'error': 'update already running'}
     run.assert_not_called()
+
+
+def _warnings(caplog):
+    return [r for r in caplog.records if r.levelname == 'WARNING' and r.name == ytdlp.logger.name]
+
+
+
+
+def test_failed_update_logs_one_redacted_warning(tmp_path, caplog):
+    storage = FakeStorage(tmp_path / 'data')
+    _fake_binary(ytdlp.runtime_path(storage), '2026.10.26')
+    failed = subprocess.CompletedProcess(['yt-dlp', '-U'], 1, stdout='', stderr=_SIGNED_STDERR)
+    with caplog.at_level('INFO', logger=ytdlp.logger.name), \
+            patch.object(ytdlp, 'run', return_value=failed), \
+            patch.object(ytdlp, 'binary_version', return_value='2026.10.26'):
+        result = ytdlp.update_binary(storage, MagicMock(), ytdlp.runtime_path(storage))
+    warnings = _warnings(caplog)
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert result['error'] in message and '2026.10.26' in message and 'X-Amz-Signature' not in message
+
+
+def test_failed_version_probe_logs_one_warning(tmp_path, caplog):
+    storage = FakeStorage(tmp_path / 'data')
+    _fake_binary(ytdlp.runtime_path(storage), '2026.10.26')
+    done = subprocess.CompletedProcess(['yt-dlp', '-U'], 0, stdout='ok\n', stderr='')
+    with caplog.at_level('INFO', logger=ytdlp.logger.name), \
+            patch.object(ytdlp, 'run', return_value=done), \
+            patch.object(ytdlp, 'binary_version', side_effect=['2026.10.26', None]):
+        ytdlp.update_binary(storage, MagicMock(), ytdlp.runtime_path(storage))
+    warnings = _warnings(caplog)
+    assert len(warnings) == 1 and 'version probe failed after update' in warnings[0].getMessage()
+
+
+def test_current_binary_logs_an_info_line(tmp_path, caplog):
+    storage = FakeStorage(tmp_path / 'data')
+    _fake_binary(ytdlp.runtime_path(storage), '2026.10.26')
+    done = subprocess.CompletedProcess(['yt-dlp', '-U'], 0, stdout='yt-dlp is up to date\n', stderr='')
+    with caplog.at_level('INFO', logger=ytdlp.logger.name), \
+            patch.object(ytdlp, 'run', return_value=done), \
+            patch.object(ytdlp, 'binary_version', return_value='2026.10.26'):
+        result = ytdlp.update_binary(storage, MagicMock(), ytdlp.runtime_path(storage))
+    assert result['updated'] is False
+    assert [r.getMessage() for r in caplog.records if r.levelname == 'INFO'] == ['yt-dlp is current (2026.10.26)']
+    assert not _warnings(caplog)
+
+
+def test_real_update_logs_updated_not_current(tmp_path, caplog):
+    storage = FakeStorage(tmp_path / 'data')
+    _fake_binary(ytdlp.runtime_path(storage), '2026.10.26')
+    done = subprocess.CompletedProcess(['yt-dlp', '-U'], 0, stdout='Updated yt-dlp to stable@2026.10.27\n', stderr='')
+    with caplog.at_level('INFO', logger=ytdlp.logger.name), \
+            patch.object(ytdlp, 'run', return_value=done), \
+            patch.object(ytdlp, 'binary_version', side_effect=['2026.10.26', '2026.10.27']):
+        ytdlp.update_binary(storage, MagicMock(), ytdlp.runtime_path(storage))
+    messages = [r.getMessage() for r in caplog.records]
+    assert messages == ['yt-dlp updated 2026.10.26 -> 2026.10.27']
