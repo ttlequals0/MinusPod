@@ -326,9 +326,7 @@ def test_pass2_adjust_overlapping_a_pass1_cut_is_held(monkeypatch):
 
 
 def test_pass2_adjust_into_a_pass1_cut_holds_a_confirmable_start(monkeypatch):
-    # Pass 2 widens the start of a read whose rest pass 1 already cut, and its
-    # end runs 60.056 s into that cut. The hold keeps the raw proposal; what a
-    # human may confirm is the proposal stopped at the cut, start included.
+    # The hold keeps the raw proposal; a human may confirm it stopped at the pass 1 cut.
     from utils.markers import held_review_proposal, held_review_window
     original, processed = _pair(259.616, 359.8, 259.616, 359.8)
     cuts, ui, held = [processed], [original], []

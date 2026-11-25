@@ -735,9 +735,7 @@ export interface AdSegment {
   // Held markers: the widest span the corrections API accepts for a confirm
   // (the server's own window). Absent on older backends.
   allowedBounds?: { min: number; max: number };
-  // Held markers: the reviewer proposal as the corrections API accepts it (stopped at decided
-  // neighbours, over-cap edges back on the marker's own edge). Null when none is usable;
-  // absent on older backends.
+  // Held markers: the reviewer proposal as the corrections API accepts it; null when none is usable.
   usableProposal?: { start: number; end: number } | null;
   // Set by the detector on a 2-40 s host ask or sponsor thanks (snip_short_asks).
   short_ask?: boolean;

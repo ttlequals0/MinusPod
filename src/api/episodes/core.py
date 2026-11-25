@@ -432,7 +432,7 @@ def get_episode(slug, episode_id):
                 continue
             lo, hi = held_review_window(episode, all_markers, marker, fp_spans, widen_s, cap)
             marker['allowedBounds'] = {'min': lo, 'max': hi}
-            # The reviewer proposal clipped to what the API accepts; null when none is usable.
+            # Reviewer proposal clipped to what the API accepts; null when none is usable.
             proposal = held_review_proposal(episode, all_markers, marker, fp_spans, cap)
             marker['usableProposal'] = (
                 {'start': proposal[0], 'end': proposal[1]} if proposal else None)

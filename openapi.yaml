@@ -17793,10 +17793,10 @@ components:
           type: [object, 'null']
           description: >-
             Set on pendingReviewMarkers only. The reviewer's proposed bounds as a human may
-            confirm them: each edge stops at cut, approved, kept or rejected neighbours, and an
-            edge that moves more than reviewMaxBoundaryShift falls back to the marker's own edge.
-            Null when the marker has no proposal, it does not overlap the marker, or nothing of it
-            is left after those limits.
+            confirm them: each edge stops at cut, approved, kept or rejected neighbours and the
+            episode bounds, and a widening edge past reviewMaxBoundaryShift falls back to the
+            marker's own edge. Null when none is usable: no overlapping proposal, an edge inside
+            the marker moves more than reviewMaxBoundaryShift, or the clipped span is under 1 second.
           properties:
             start:
               type: number

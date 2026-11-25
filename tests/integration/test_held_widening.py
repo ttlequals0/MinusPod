@@ -277,7 +277,7 @@ def widen_off(monkeypatch):
 
 
 def _contradiction_hold_beside_cut():
-    """A held start of a read whose rest was already cut; the reviewer's end runs 60.056 s into the cut."""
+    """A held start of a read whose rest was already cut; the reviewer's end runs into the cut."""
     cut = _marker(1100.0, 1300.0, was_cut=True, held_for_review=False)
     cut.pop('hold_reason')
     held = _marker(1000.0, 1100.0, hold_reason='reviewer_contradiction',

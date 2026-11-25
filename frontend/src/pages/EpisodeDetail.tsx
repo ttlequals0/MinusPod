@@ -150,8 +150,7 @@ function correctionResultText(correction?: EpisodeCorrection): string | null {
   return null;
 }
 
-// The reviewer proposal a human may confirm on a held marker: the server's usableProposal, or on
-// older backends that do not send it, the raw proposal when it overlaps the marker.
+// The proposal a human may confirm: usableProposal, or the raw overlapping proposal on older backends.
 function reviewerProposal(seg: AdSegment): { start: number; end: number } | null {
   if (seg.usableProposal !== undefined) return seg.usableProposal;
   const { reviewer_proposed_start: start, reviewer_proposed_end: end } = seg;
@@ -159,8 +158,7 @@ function reviewerProposal(seg: AdSegment): { start: number; end: number } | null
   return { start, end };
 }
 
-// Label and tooltip for the button that confirms the reviewer's bounds: a trim leaves the rest of
-// the marker in the episode, a widening also cuts audio outside it.
+// Label and tooltip for confirming the reviewer's bounds; a widening also cuts audio outside the marker.
 function proposalButtonText(seg: AdSegment, proposal: { start: number; end: number }) {
   const range = `${formatTimestamp(proposal.start)} - ${formatTimestamp(proposal.end)}`;
   const trims = proposal.start > seg.start || proposal.end < seg.end;
@@ -168,14 +166,14 @@ function proposalButtonText(seg: AdSegment, proposal: { start: number; end: numb
   if (!widens) {
     return {
       label: `Confirm trimmed (${range})`,
-      title: 'Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode',
+      title: 'Cut only the part the reviewer marked as ad.',
     };
   }
   return {
     label: `Confirm adjusted (${range})`,
     title: trims
-      ? 'Approve the span the reviewer identified as ad content instead of this marker; the part it leaves out stays in the episode and the audio it adds is cut too'
-      : 'Approve the span the reviewer identified as ad content, which reaches past this marker; the audio it adds is cut too',
+      ? "Cut the reviewer's span. It drops part of this marker and adds audio."
+      : "Cut the reviewer's span, including audio past this marker.",
   };
 }
 

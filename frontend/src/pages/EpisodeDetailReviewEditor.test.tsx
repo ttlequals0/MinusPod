@@ -460,7 +460,7 @@ describe('Open in editor: held rows', () => {
 });
 
 describe('Held rows: server-clipped usableProposal', () => {
-  // Real case: the raw proposal reaches 419.856, into an already-cut neighbour at 359.8-560.7.
+  // The raw proposal reaches into an already-cut neighbour at 359.8-560.7.
   const clipped = {
     ...heldMarker,
     start: 259.616,
@@ -504,7 +504,7 @@ describe('Held rows: server-clipped usableProposal', () => {
 
     const btn = await screen.findByTestId('approve-trimmed-0');
     expect(btn.textContent).toMatch(/^Confirm adjusted \(/);
-    expect(btn.getAttribute('title')).toContain('the audio it adds is cut too');
+    expect(btn.getAttribute('title')).toContain('including audio past this marker');
     await user.click(btn);
 
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
@@ -514,7 +514,7 @@ describe('Held rows: server-clipped usableProposal', () => {
     expect(payload.adjusted_end).toBe(359.8);
   });
 
-  it('labels a pure trim "Confirm trimmed" with the rest-stays-in-episode title', async () => {
+  it('labels a pure trim "Confirm trimmed" with the shrink-only title', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ pendingReviewMarkers: [
       { ...heldMarker, usableProposal: { start: 130, end: 300 } },
@@ -522,7 +522,7 @@ describe('Held rows: server-clipped usableProposal', () => {
 
     const btn = await screen.findByTestId('approve-trimmed-0');
     expect(btn.textContent).toMatch(/^Confirm trimmed \(/);
-    expect(btn.getAttribute('title')).toContain('the rest of this marker stays in the episode');
+    expect(btn.getAttribute('title')).toContain('Cut only the part the reviewer marked as ad');
     await user.click(btn);
 
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
