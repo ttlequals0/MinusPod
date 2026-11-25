@@ -905,7 +905,7 @@ class TestConfirmedCorrections:
     def test_auto_filed_span_keeps_trailing_extension_to_episode_end(self):
         validator = AdValidator(
             episode_duration=3654.27,
-            segments=[],
+            segments=[{'start': 10.0, 'end': 12.0, 'text': 'Welcome to the show.'}],
             confirmed_corrections=[{
                 'start': 3599.6,
                 'end': 3650.92,
@@ -943,7 +943,7 @@ class TestConfirmedCorrections:
 
     def _validate_merged_tail(self, confirms):
         validator = AdValidator(
-            episode_duration=3654.27, segments=[],
+            episode_duration=3654.27, segments=[{'start': 10.0, 'end': 12.0, 'text': 'Welcome to the show.'}],
             confirmed_corrections=confirms,
             false_positive_corrections=[{'start': 3555.94, 'end': 3564.85}])
         ad = {'start': 3564.0, 'end': 3653.7, 'confidence': 0.95,
@@ -964,7 +964,7 @@ class TestConfirmedCorrections:
     def test_auto_filed_end_far_inside_the_tail_stays_held_not_cut(self):
         # Pass 2 trimmed 24 s off the detection: that remainder is held, never absorbed by the extension.
         validator = AdValidator(
-            episode_duration=3654.27, segments=[],
+            episode_duration=3654.27, segments=[{'start': 10.0, 'end': 12.0, 'text': 'Welcome to the show.'}],
             confirmed_corrections=[{
                 'start': 3599.6, 'end': 3653.7,
                 'confirmed_span': {'start': 3599.6, 'end': 3630.0},
@@ -985,7 +985,7 @@ class TestConfirmedCorrections:
         assert max(a['end'] for a in ads) == 3650.92
 
     def test_trailing_extension_takes_the_marker_that_ends_last(self):
-        validator = AdValidator(episode_duration=3654.27, segments=[])
+        validator = AdValidator(episode_duration=3654.27, segments=[{'start': 10.0, 'end': 12.0, 'text': 'Welcome to the show.'}])
         tail = {'start': 3564.0, 'end': 3653.7}
         held = {'start': 3587.62, 'end': 3599.6, 'held_for_review': True}
 
@@ -1000,6 +1000,9 @@ class TestConfirmedCorrections:
         tail = {'start': 3599.6, 'end': end}
         validator._extend_trailing_ad([tail], ValidationResult(ads=[]))
         return tail['end']
+
+    def test_trailing_extension_needs_a_transcript(self):
+        assert self._extend([]) == 3650.92
 
     def test_trailing_extension_stops_at_speech_after_the_ad(self):
         closing = {'start': 3651.5, 'end': 3653.9, 'text': 'Thanks for listening.',

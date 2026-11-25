@@ -65,3 +65,10 @@ def test_a_word_ending_within_slop_of_the_gap_start_does_not_block():
             'words': [{'start': 412.06, 'end': 416.5}]}
 
     assert _merge([tail, SEGMENTS[1]]) == [(394.19, 448.11)]
+
+
+def test_a_segment_with_only_untimed_words_in_the_gap_keeps_it():
+    untimed = {'start': 416.8, 'end': 417.8, 'text': 'So',
+               'words': [{'word': 'So', 'start': None, 'end': None}]}
+
+    assert _merge([SEGMENTS[0], untimed, SEGMENTS[1]]) == [(394.19, 416.3), (418.192, 448.11)]

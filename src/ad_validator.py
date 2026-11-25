@@ -89,7 +89,6 @@ from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
-TRAILING_SPEECH_SLOP_S = SPEECH_SLOP_S  # seconds; a word starting this soon after the ad's end is timing slop
 LEADING_AD_MAX_GAP = 5.0  # seconds; a first ad starting this close to the file start runs from it
 
 logger = logging.getLogger(__name__)
@@ -2039,7 +2038,7 @@ class AdValidator:
 
         DAI post-roll ads often end slightly before the actual episode end. Corrections are recorded in `result`.
         """
-        if not ads or self.episode_duration <= 0:
+        if not ads or self.episode_duration <= 0 or not self._has_transcript():
             return ads
 
         # The tail is the marker that ends last: a piece carved out of a wider marker can start later.
@@ -2076,12 +2075,11 @@ class AdValidator:
 
     def _extend_leading_ad(self, ads: list[dict], result: ValidationResult,
                            max_gap: float = LEADING_AD_MAX_GAP) -> list[dict]:
-        """Start the first ad at 0 if it starts within max_gap seconds and nobody speaks before it."""
-        has_transcript = any((seg.get('text') or '').strip() for seg in self.segments)
-        if not ads or self.opening_excluded or not has_transcript:
+        """Start the first ad at 0 when it starts within max_gap, speech-free before it, with a transcript and no opening exclusion."""
+        if not ads or self.opening_excluded or not self._has_transcript():
             return ads
         first_ad = min(ads, key=lambda x: (x['start'], x['end']))
-        # Same guards as the trailing rule. A precise start is extended on purpose: it marks the ad's first
+        # Held and kept markers are skipped as in the trailing rule. A precise start is extended on purpose: it marks the ad's first
         # word, and a pre-roll's music bed plays before it.
         if (first_ad.get('_user_kept_by_trim') or first_ad.get('held_for_review')
                 or first_ad.get('vad_gap_requires_review')):
@@ -2096,6 +2094,10 @@ class AdValidator:
             logger.info(f"Extended leading ad to episode start: {original_start:.1f}s -> 0.0s")
         return ads
 
+    def _has_transcript(self) -> bool:
+        """Whether any segment has text; without one, silence cannot be told from a missing transcript."""
+        return any((seg.get('text') or '').strip() for seg in self.segments)
+
     def _word_starts(self):
         """Start times of transcript words, or of whole segments that carry no word timing."""
         for seg in self.segments:
@@ -2107,11 +2109,11 @@ class AdValidator:
 
     def _speech_starts_after(self, edge: float) -> bool:
         """Whether a word starts after `edge`, ignoring timing slop."""
-        return any(start > edge + TRAILING_SPEECH_SLOP_S for start in self._word_starts())
+        return any(start > edge + SPEECH_SLOP_S for start in self._word_starts())
 
     def _speech_starts_before(self, edge: float) -> bool:
-        """Whether a word starts before `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop."""
-        return any(start < edge - TRAILING_SPEECH_SLOP_S for start in self._word_starts())
+        """Whether a word starts before `edge`, ignoring timing slop."""
+        return any(start < edge - SPEECH_SLOP_S for start in self._word_starts())
 
     def _has_speech_in_range(self, start: float, end: float) -> bool:
         """Check if any transcript segments contain speech in the given range."""

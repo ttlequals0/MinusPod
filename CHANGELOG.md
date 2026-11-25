@@ -13,8 +13,8 @@ release notes.
 ### Fixed
 
 - Chapter trim with **Cut until the next chapter** cut only the first chapter that matched the pattern. It now cuts every matching chapter, so an episode with several matching segments loses all of them. **Cut to the end of the episode** still starts at the first match.
-- A pre-roll ad was cut from its first spoken word, so the music bed before it stayed at the start of the episode. The first ad now runs from the start of the file when it starts in the first 5 seconds and the transcript has no words before it. An episode with no transcript is left alone, and so is a feed that excludes its opening from ad detection. A pass-2 approval keeps the extension, and an operator-approved start still wins (#1079).
-- A recut split two back-to-back ads when the first ended at a reviewer-locked edge, leaving the music between them and an extra replacement sound in the episode, while the first run had joined them. A locked edge still keeps a gap with speech in it, but no longer a gap shorter than 5 seconds that no transcript word starts in.
+- A pre-roll ad was cut from its first spoken word, so the music bed before it stayed at the start of the episode. The first ad now runs from the start of the file when it starts in the first 5 seconds and the transcript has no words before it. An episode with no transcript is left alone, and so is a feed that excludes its opening from ad detection. A pass-2 approval keeps the extension, and an operator-approved start still wins (#1079). The matching rule for the last ad no longer extends it to the end of an episode that has no transcript.
+- A recut split two back-to-back ads when the first ended at a reviewer-locked edge, leaving the music between them and an extra replacement sound in the episode, while the first run had joined them. A locked edge still keeps a gap with speech in it. A gap shorter than 5 seconds with no speech in it is merged. The first run and a recut now apply the same rule (#1080).
 
 ## [2.102.18] - 2026-11-25
 

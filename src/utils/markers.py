@@ -62,15 +62,18 @@ def timed_span(unit: dict) -> tuple[float, float] | None:
 
 def speech_units(segments) -> list[tuple[float, float]]:
     """(start, end) of every timed word, or of the segment when it has none."""
-    spans = (timed_span(unit) for seg in segments or [] for unit in seg.get('words') or [seg])
-    return [span for span in spans if span]
+    units = []
+    for seg in segments or []:
+        words = [span for span in (timed_span(w) for w in seg.get('words') or []) if span]
+        units.extend(words or [span for span in (timed_span(seg),) if span])
+    return units
 
 
 SPEECH_SLOP_S = 0.25  # seconds; word timing slop at a gap's edges
 
 
 def locked_gap_bridgeable(segments, start, end) -> bool:
-    """Whether a gap beside a reviewer-locked edge may be cut: under the merge gap, with a transcript and no speech in it."""
+    """Whether a short, speech-free gap beside a locked edge may be cut."""
     if not 0 < end - start < MERGE_GAP_THRESHOLD:
         return False
     spoken = [seg for seg in segments or [] if (seg.get('text') or '').strip()]
