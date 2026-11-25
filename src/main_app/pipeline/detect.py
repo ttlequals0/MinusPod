@@ -261,9 +261,13 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     if first_pass_ads and audio_analysis_result:
         try:
             max_shift = resolve_max_boundary_shift(db)
-            # Mutates first_pass_ads in place (edges + cue_snap metadata).
+            # A kept marker stays where the LLM put it: snapping would make
+            # it swallow a break cue that a later cut needs.
+            snappable = [ad for ad in first_pass_ads if not is_keep_like(
+                (action_map or {}).get(normalize_segment_category(ad.get('category'))))]
+            # Mutates the markers in place (edges + cue_snap metadata).
             snap_ad_boundaries_to_cues(
-                first_pass_ads, audio_analysis_result, max_shift,
+                snappable, audio_analysis_result, max_shift,
                 min_confidence=snap_confidence,
                 snap_lead_s=snap_lead,
                 snap_lag_s=snap_lag,
@@ -569,6 +573,17 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
     return ads_to_remove, low_confidence_count
 
 
+def _cue_snap_settings(podcast_id):
+    """The feed's detection cue snap knobs, as snap_split_edge keywords."""
+    cue_settings = resolve_feed_cue_settings(db, podcast_id)
+    return {
+        'max_boundary_shift_s': resolve_max_boundary_shift(db),
+        'snap_lead_s': cue_settings['snap_lead'],
+        'snap_lag_s': cue_settings['snap_lag'],
+        'min_confidence': cue_settings['snap_confidence'],
+    }
+
+
 def _build_validator(episode_duration, segments, episode_description, *,
                      false_positive_corrections, min_cut_confidence,
                      max_ad_duration_override, cue_gate_enabled,
@@ -587,13 +602,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
     from ad_validator import AdValidator
     max_ad_duration = resolve_max_ad_duration(db, podcast_id)
     # Same knobs as the detection snap, for the edges an estimated-span split creates.
-    cue_settings = resolve_feed_cue_settings(db, podcast_id)
-    cue_snap_settings = {
-        'max_boundary_shift_s': resolve_max_boundary_shift(db),
-        'snap_lead_s': cue_settings['snap_lead'],
-        'snap_lag_s': cue_settings['snap_lag'],
-        'min_confidence': cue_settings['snap_confidence'],
-    }
+    cue_snap_settings = _cue_snap_settings(podcast_id)
     max_ad_duration_confirmed = resolve_max_ad_duration_confirmed(db)
     splice_kwargs = {}
     if splice_veto:

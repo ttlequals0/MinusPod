@@ -587,8 +587,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     recut cuts it. corroborated_count is the number of newly stamped markers
     (they need a re-save).
 
-    Verification ads never carry cue evidence (snap is pass-1 only), so on a
-    cue-gated feed every pass-2 proposal is held, intentionally.
+    Verification ads never carry cue evidence (their cue snap runs after this
+    gate), so on a cue-gated feed every pass-2 proposal is held, intentionally.
 
     A standalone miss (below min_cut_confidence, overlapping no pass-1 marker)
     either auto-cuts (``verification_miss_autocut_min_confidence`` > 0 and the
