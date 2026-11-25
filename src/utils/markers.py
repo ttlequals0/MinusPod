@@ -241,6 +241,34 @@ def find_marker_in_list(markers, start, end, tol: float = BOUNDS_TOLERANCE_S):
 HELD_WINDOW_TOLERANCE_S = 0.5
 
 
+def held_window_blockers(markers, marker, default_was_cut, blocked_spans=()):
+    """(start, end) spans a held marker's edges may not move into: decided (cut, approved,
+    kept or rejected) neighbours and the episode's not-an-ad spans."""
+    blockers = [(b['start'], b['end']) for b in blocked_spans or ()]
+    for other in markers or ():
+        if other is marker:
+            continue
+        o_start, o_end = finite_number(other.get('start')), finite_number(other.get('end'))
+        if o_start is None or o_end is None:
+            continue
+        if (other.get('was_cut', default_was_cut) or other.get('approved')
+                or is_keep_like(other.get('action_applied'))
+                or (other.get('validation') or {}).get('decision') == 'REJECT'):
+            blockers.append((o_start, o_end))
+    return blockers
+
+
+def _clamp_to_blockers(lo, hi, base_start, base_end, blockers):
+    """lo/hi stopped at blockers past each edge; a blocker overlapping an edge still stops the move
+    outward past that edge."""
+    for b_start, b_end in blockers:
+        if b_start < base_start:
+            lo = max(lo, min(b_end, base_start))
+        if b_end > base_end:
+            hi = min(hi, max(b_start, base_end))
+    return lo, hi
+
+
 def held_marker_window(markers, marker, episode_duration, default_was_cut,
                        proposal=None, blocked_spans=(), widen_s=0.0):
     """(min, max) seconds a human may set a held marker's edges to: the span (with a usable reviewer proposal)
@@ -261,25 +289,11 @@ def held_marker_window(markers, marker, episode_duration, default_was_cut,
     lo -= HELD_WINDOW_TOLERANCE_S
     hi += HELD_WINDOW_TOLERANCE_S
     if widen_s <= 0:
+        # The +/-0.5 s tolerance is never limited by a neighbour; the proposal already stops at them.
         return lo, hi
 
-    blockers = [(b['start'], b['end']) for b in blocked_spans or ()]
-    for other in markers or ():
-        if other is marker:
-            continue
-        o_start, o_end = finite_number(other.get('start')), finite_number(other.get('end'))
-        if o_start is None or o_end is None:
-            continue
-        if (other.get('was_cut', default_was_cut) or other.get('approved')
-                or is_keep_like(other.get('action_applied'))
-                or (other.get('validation') or {}).get('decision') == 'REJECT'):
-            blockers.append((o_start, o_end))
-    for b_start, b_end in blockers:
-        # A blocker overlapping an edge still stops widening outward past that edge.
-        if b_start < base_start:
-            lo = max(lo, min(b_end, base_start))
-        if b_end > base_end:
-            hi = min(hi, max(b_start, base_end))
+    blockers = held_window_blockers(markers, marker, default_was_cut, blocked_spans)
+    lo, hi = _clamp_to_blockers(lo, hi, base_start, base_end, blockers)
 
     lo = max(lo, 0.0)
     if episode_duration and episode_duration > 0:
@@ -293,23 +307,38 @@ def _proposal_overlaps(p_start, p_end, start, end):
             and p_end > p_start and p_end > start and p_start < end)
 
 
-def usable_reviewer_proposal(marker, start, end, cap):
-    """A held marker's reviewer proposal, when it is valid, overlaps the
-    detected span, and stays within the reviewer's per-edge shift cap."""
+def usable_reviewer_proposal(marker, start, end, cap, blockers=()):
+    """A held marker's reviewer proposal, when it is valid and overlaps the detected span. Each edge
+    stops at blockers past the span's own edge, then an edge that moves more than the reviewer's
+    per-edge shift cap falls back to the span's edge. None when nothing of the proposal is left."""
     # A hold stamps the raw proposal, which never passed the reviewer's clamp.
     p_start = marker.get('reviewer_proposed_start')
     p_end = marker.get('reviewer_proposed_end')
     if not _proposal_overlaps(p_start, p_end, start, end):
         return None
-    if abs(p_start - start) > cap or abs(p_end - end) > cap:
+    p_start, p_end = _clamp_to_blockers(float(p_start), float(p_end), start, end, blockers)
+    if abs(p_start - start) > cap:
+        p_start = float(start)
+    if abs(p_end - end) > cap:
+        p_end = float(end)
+    if p_end <= p_start or (p_start == start and p_end == end):
         return None
-    return float(p_start), float(p_end)
+    return p_start, p_end
+
+
+def held_review_proposal(episode, markers, marker, false_positive_spans, cap):
+    """The reviewer proposal a human may confirm on a held marker (usable_reviewer_proposal with
+    the marker's blocking neighbours), else None."""
+    blockers = held_window_blockers(
+        markers, marker, episode.get('status') == EpisodeStatus.PROCESSED,
+        false_positive_spans)
+    return usable_reviewer_proposal(
+        marker, float(marker['start']), float(marker['end']), cap, blockers)
 
 
 def held_review_window(episode, markers, marker, false_positive_spans, widen_s, cap):
     """(min, max) a human may set a held marker's edges to, for both the corrections validator and allowedBounds."""
-    proposal = usable_reviewer_proposal(
-        marker, float(marker['start']), float(marker['end']), cap)
+    proposal = held_review_proposal(episode, markers, marker, false_positive_spans, cap)
     return held_marker_window(
         markers, marker, episode.get('original_duration'),
         episode.get('status') == EpisodeStatus.PROCESSED,

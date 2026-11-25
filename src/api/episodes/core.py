@@ -20,7 +20,7 @@ from ad_yield import latest_completed_run, low_ad_yield
 from database.error_text import redact_error, redact_json_error
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
 from utils.json_fields import load_json_list
-from utils.markers import held_review_window, parse_ad_markers
+from utils.markers import held_review_proposal, held_review_window, parse_ad_markers
 from utils.short_asks import is_short_ask
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
@@ -432,6 +432,10 @@ def get_episode(slug, episode_id):
                 continue
             lo, hi = held_review_window(episode, all_markers, marker, fp_spans, widen_s, cap)
             marker['allowedBounds'] = {'min': lo, 'max': hi}
+            # The reviewer proposal clipped to what the API accepts; null when none is usable.
+            proposal = held_review_proposal(episode, all_markers, marker, fp_spans, cap)
+            marker['usableProposal'] = (
+                {'start': proposal[0], 'end': proposal[1]} if proposal else None)
 
     # Per-cue detection telemetry (advisory: template matches with score, how
     # detection used each cue, and the user's verdict). Empty for episodes
