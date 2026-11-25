@@ -12,14 +12,13 @@ from config import (
     HOLD_REASON_VERIFICATION_MISS,
     MIN_AD_DURATION,
     MIN_AD_DURATION_FOR_REMOVAL,
-    PASS2_AUTOAPPROVE_HOLD_REASONS,
+    pass2_may_autoapprove, pass2_may_release,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PASS2_COVERAGE_ONLY_HOLD_REASONS,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE,
-    PASS2_REVIEWED_RELEASE_HOLD_REASONS,
 )
 from database.settings import registry_get_default
 from utils.markers import (
@@ -166,8 +165,7 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
     stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
-            or overlapping[0].get('hold_reason')
-            not in PASS2_AUTOAPPROVE_HOLD_REASONS):
+            or not pass2_may_autoapprove(overlapping[0])):
         return False
     hold = overlapping[0]
     ad_inside = overlap_ratio(hold['start'], hold['end'],
@@ -532,7 +530,7 @@ def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, valida
 def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
                            min_cut_confidence, hard_barriers_orig, word_edges):
     """Record the finding's supported span in hold for review, longest of overlapping ones; True if recorded."""
-    if (hold.get('hold_reason') not in PASS2_REVIEWED_RELEASE_HOLD_REASONS
+    if (not pass2_may_release(hold)
             or hold.get('pass2_corroborated') or hold.get('pass2_reviewed_release')):
         return False
     span = _hold_release_span(

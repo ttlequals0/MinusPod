@@ -17707,7 +17707,7 @@ components:
         hold_reason:
           type: [string, 'null']
           enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed, transcript_loop, null]
-          description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence; reviewer_reject_conflict means the reviewer rejected a span backed by measured evidence or a confirmed sponsor; reviewer_failed means the review call failed and no independent evidence backs the bounds.
+          description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence; reviewer_reject_conflict means the reviewer rejected a span backed by measured evidence or a confirmed sponsor, and pass 2 may release it when the transcript had no words in the span (reviewer_saw_no_text); reviewer_failed means the review call failed and no independent evidence backs the bounds.
         reviewer_reasoning:
           type: [string, 'null']
           description: Reviewer explanation when the reviewer evaluated this marker.
@@ -17730,6 +17730,9 @@ components:
         pass2_corroborated:
           type: boolean
           description: Set on a held marker when pass 2 independently detected an ad inside it.
+        reviewer_saw_no_text:
+          type: boolean
+          description: Set on a reviewer_reject_conflict hold when the transcript had text but no words in the span, so pass 2 may release it.
         pass2_corroborated_span:
           type: object
           description: Part of the hold pass 2 attested as ad; the auto-approval confirm is trimmed to it.
