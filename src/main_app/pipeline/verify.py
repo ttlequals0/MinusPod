@@ -513,13 +513,11 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
                 f"saved transcript segments to recut with")
             return 0
-        # A human reject always wins: never auto-approve a span the user has
-        # explicitly marked as content.
+        # Audio a person or the reviewer rejected, kept or trimmed is never auto-approved.
         fp_corrections, confirmed_corrections = corrections
         fp_corrections = fp_corrections or []
-        reviewer_rejects = [
-            r for r in markers if reviewer_reject_stands(r, confirmed_corrections)]
-        barriers = [(r['start'], r['end']) for r in reviewer_rejects]
+        barriers = [(r['start'], r['end']) for r in markers
+                    if reviewer_reject_stands(r, confirmed_corrections)]
         barriers += [(t['start'], t['end']) for t in user_trimmed_keep_ranges(confirmed_corrections or [])]
         kept = [k for k in markers if is_keep_like(k.get('action_applied'))]
         barriers += [(fp['start'], fp['end']) for fp in fp_corrections]
