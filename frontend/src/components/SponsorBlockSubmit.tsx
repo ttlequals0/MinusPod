@@ -3,7 +3,7 @@ import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { episodeOriginalUrl, getSponsorBlockCandidates, submitSponsorBlock } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
-import type { SbCandidate, SbCandidatesReason } from '../api/types';
+import type { SbCandidate, SbCandidatesReason, SbSubmission } from '../api/types';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { formatTimestamp } from '../utils/format';
 import { AuditionPlayButton } from './AuditionPlayButton';
@@ -43,6 +43,7 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
   const queryClient = useQueryClient();
   const titleId = useId();
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [lastResults, setLastResults] = useState<SbSubmission[] | null>(null);
   // Candidate times are original-audio times; the hook pauses on unmount.
   const audition = useAuditionPlayer();
   const originalUrl = episodeOriginalUrl(slug, episodeId);
@@ -58,9 +59,36 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
       slug, episodeId,
       (data?.segments ?? []).filter((c) => picked.has(keyOf(c))).map(({ start, end }) => ({ start, end })),
     ),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
-      onClose();
+    onSuccess: async (res) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['sb-candidates', slug, episodeId] }),
+      ]);
+      const results = res?.results ?? [];
+      if (results.every((r) => r.status === 'submitted')) {
+        onClose();
+        return;
+      }
+      setLastResults(results);
+      setPicked((prev) => {
+        const next = new Set(prev);
+        for (const r of results) {
+          if (r.status === 'submitted' || r.status === 'duplicate') {
+            for (const c of data?.segments ?? []) {
+              if (Math.abs(r.start - c.start) < 0.5 && Math.abs(r.end - c.end) < 0.5) {
+                next.delete(keyOf(c));
+              }
+            }
+          }
+        }
+        return next;
+      });
+    },
+    onError: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['sb-candidates', slug, episodeId] }),
+      ]);
     },
   });
 
@@ -120,7 +148,11 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
           <ul className="space-y-2">
             {data.segments.map((c) => {
               const key = keyOf(c);
-              const done = c.submission?.status === 'submitted' || c.submission?.status === 'duplicate';
+              const latest = lastResults?.find(
+                (r) => Math.abs(r.start - c.start) < 0.5 && Math.abs(r.end - c.end) < 0.5,
+              );
+              const submission = latest ?? c.submission;
+              const done = submission?.status === 'submitted' || submission?.status === 'duplicate';
               const id = `sb-seg-${key}`;
               const from = formatTimestamp(c.start);
               const to = formatTimestamp(c.end);
@@ -147,9 +179,10 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-sm">{from} - {to}</span>
                         <SegmentCategoryBadge category={c.category} />
-                        {c.submission && (
-                          <span className="text-xs text-muted-foreground">
-                            {STATUS_TEXT[c.submission.status] ?? c.submission.status}
+                        {submission && (
+                          <span className={`text-xs ${submission.status === 'rejected' || submission.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {STATUS_TEXT[submission.status] ?? submission.status}
+                            {submission.detail ? `: ${submission.detail}` : ''}
                           </span>
                         )}
                       </span>
@@ -170,15 +203,38 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
   );
 }
 
-function SponsorBlockSubmit({ slug, episodeId, hasOriginalAudio = true }: {
-  slug: string; episodeId: string; hasOriginalAudio?: boolean;
+function SponsorBlockSubmit({
+  slug,
+  episodeId,
+  hasOriginalAudio = true,
+  submitAllowed = true,
+  blockReason = null,
+}: {
+  slug: string;
+  episodeId: string;
+  hasOriginalAudio?: boolean;
+  submitAllowed?: boolean;
+  blockReason?: SbCandidatesReason | null;
 }) {
   const [open, setOpen] = useState(false);
+  const blocked = submitAllowed === false;
+  const disabledReason = blocked
+    ? (blockReason ? REASON_TEXT[blockReason] : 'Submissions are not available for this episode.')
+    : undefined;
   return (
     <>
-      <button type="button" className={`${btnBase} ${btnSecondary}`} onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className={`${btnBase} ${btnSecondary}`}
+        disabled={blocked}
+        title={disabledReason}
+        onClick={() => setOpen(true)}
+      >
         Submit to SponsorBlock
       </button>
+      {disabledReason && (
+        <p className="mt-1.5 text-xs text-muted-foreground">{disabledReason}</p>
+      )}
       {open && <SubmitDialog slug={slug} episodeId={episodeId} hasOriginalAudio={hasOriginalAudio} onClose={() => setOpen(false)} />}
     </>
   );

@@ -293,6 +293,7 @@ export interface Episode {
     lastError: string | null;
     submissions?: SbSubmission[];
     submitAllowed?: boolean;
+    submitBlockReason?: SbCandidatesReason | null;
   } | null;
   rating?: EpisodeRating | null;
 }
@@ -735,6 +736,10 @@ export interface AdSegment {
   // Held markers: the widest span the corrections API accepts for a confirm
   // (the server's own window). Absent on older backends.
   allowedBounds?: { min: number; max: number };
+  // Held markers: the reviewer proposal as the corrections API accepts it (stopped at decided
+  // neighbours, over-cap edges back on the marker's own edge). Null when none is usable;
+  // absent on older backends.
+  usableProposal?: { start: number; end: number } | null;
   // Set by the detector on a 2-40 s host ask or sponsor thanks (snip_short_asks).
   short_ask?: boolean;
 }
