@@ -20,7 +20,7 @@ from verification_pass import _build_timestamp_map, _map_correction_to_processed
 from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_MERGED_DURATION,
-    PASS2_REVIEWED_RELEASE_HOLD_REASONS, pass2_may_autoapprove,
+    pass2_may_autoapprove, pass2_may_release,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S, PASS2_DAI_RELEASE_WORD_SLOP_S,
     CORRECTION_ORIGIN_AUTO_PASS2, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
@@ -488,8 +488,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
     holds = [m for m in markers or []
              if m.get('pass2_corroborated') and is_pending_review(m)
              and (pass2_may_autoapprove(m)
-                  or (m.get('pass2_reviewed_release')
-                      and m.get('hold_reason') in PASS2_REVIEWED_RELEASE_HOLD_REASONS))]
+                  or (m.get('pass2_reviewed_release') and pass2_may_release(m)))]
     if not holds:
         return 0
     filed = 0

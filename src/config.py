@@ -335,17 +335,15 @@ PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
 
 
 
-def pass2_may_autoapprove(hold: dict) -> bool:
-    """Whether a pass-2 re-detection may auto-approve this held marker.
+def _is_wordless_reject_hold(hold: dict) -> bool:
+    """A reviewer reject hold over a span the transcript had no words in: the reject judged no speech."""
+    return (hold.get('hold_reason') == HOLD_REASON_REVIEWER_REJECT_CONFLICT
+            and hold.get('reviewer_saw_no_text') is True)
 
-    The allowlist above, plus a reviewer_reject_conflict hold whose span the
-    reviewer saw without transcript words (reviewer_saw_no_text): that reject
-    judged no speech, so a confident pass-2 detection on the re-transcribed
-    audio is the first read of it, beside the measured evidence that held it."""
-    reason = hold.get('hold_reason')
-    return (reason in PASS2_AUTOAPPROVE_HOLD_REASONS
-            or (reason == HOLD_REASON_REVIEWER_REJECT_CONFLICT
-                and hold.get('reviewer_saw_no_text') is True))
+
+def pass2_may_autoapprove(hold: dict) -> bool:
+    """Whether a pass-2 re-detection may auto-approve this hold: the allowlist or a wordless reject."""
+    return hold.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS or _is_wordless_reject_hold(hold)
 
 
 # Holds a reviewed pass-2 subspan may release: the auto-approve set plus the reviewer
@@ -355,6 +353,11 @@ PASS2_REVIEWED_RELEASE_HOLD_REASONS = PASS2_AUTOAPPROVE_HOLD_REASONS | frozenset
     HOLD_REASON_REVIEWER_FAILED,
     HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
 })
+
+
+def pass2_may_release(hold: dict) -> bool:
+    """Whether a reviewed pass-2 subspan, or a pass-2 confirm on recut, may release this hold."""
+    return hold.get('hold_reason') in PASS2_REVIEWED_RELEASE_HOLD_REASONS or _is_wordless_reject_hold(hold)
 
 # Of those, the reasons a pass-2 ad may only corroborate by covering the held span, never by agreeing with the
 # reviewer's stored proposal: that proposal is the trim the hold was created to block, so approving it would
