@@ -1099,3 +1099,33 @@ def test_patch_changing_a_stored_over_long_override_to_another_is_rejected(app_c
                             headers=_csrf_headers(app_client))
     assert resp.status_code == 400
     assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == 'N' * 120
+
+
+# showNotesChapters: description timestamps become the chapters, on by default.
+
+def test_get_feed_reports_show_notes_chapters_on_by_default(app_client, seeded_feed):
+    _authed(app_client)
+    resp = app_client.get(f"/api/v1/feeds/{seeded_feed['slug']}")
+    assert resp.get_json()['showNotesChapters'] is True
+
+
+@pytest.mark.parametrize('value,column', [(False, 0), (True, 1)])
+def test_patch_round_trips_show_notes_chapters(app_client, seeded_feed, value, column):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'showNotesChapters': value},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['showNotesChapters'] is value
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['show_notes_chapters'] == column
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['showNotesChapters'] is value
+
+
+@pytest.mark.parametrize('value', [None, 'off', 0])
+def test_patch_rejects_a_non_boolean_show_notes_chapters(app_client, seeded_feed, value):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'showNotesChapters': value},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['show_notes_chapters'] is None

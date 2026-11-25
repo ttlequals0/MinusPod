@@ -4,6 +4,8 @@ import tempfile
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='chapter_trim_test_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
@@ -86,10 +88,12 @@ def test_beep_block_boundary_maps_to_the_cut_start():
     assert markers[0]['start'] == 100.0
 
 
-def _generate(markers, regenerate_chapters, generated=None, trim_spy=None, podcast=PODCAST):
+def _generate(markers, regenerate_chapters, generated=None, trim_spy=None,
+              show_notes_starts=frozenset(), podcast=PODCAST):
     gen_cls = MagicMock()
     gen_cls.return_value.generate_chapters.return_value = generated
     gen_cls.return_value.chapters_degraded = False
+    gen_cls.return_value.show_notes_starts = show_notes_starts
     with ExitStack() as stack:
         enter = stack.enter_context
         enter(patch.object(publish, 'db', MagicMock(
@@ -110,7 +114,7 @@ def _generate(markers, regenerate_chapters, generated=None, trim_spy=None, podca
             's', 'e', [{'start': 0, 'end': 1, 'text': 'x'}], [], 'desc', 'Show', 'Ep',
             regenerate_chapters=regenerate_chapters, audio_duration=3000.0,
             original_duration=3200.0, podcast_row=podcast, markers=markers)
-    return spy
+    return gen_cls if spy is None else spy
 
 
 def test_recut_run_never_triggers_the_chapter_trim():
@@ -152,3 +156,41 @@ def test_skip_detection_feed_still_queues_its_chapter_trim():
               generated={'version': '1.2.0', 'chapters': CHAPTERS}, podcast=SKIP_DETECTION_PODCAST)
     assert len(markers) == 1
     assert publish.pending_chapter_trim(markers) is True
+
+
+def test_skipped_chapter_never_matches_but_still_ends_the_one_before():
+    chapters = [*CHAPTERS, {'startTime': 2000, 'title': 'Listener Donations Again'}]
+    markers = []
+    with patch.object(publish, 'db', MagicMock(resolve_keep_original_audio=lambda *a: True)):
+        publish._queue_chapter_trim(
+            's', 'e', chapters, PODCAST, [], 0.0, 3000.0, 3200.0, markers,
+            'generated_chapter', skip_starts={1200, 1500})
+    assert (markers[0]['start'], markers[0]['end']) == (2000.0, 3200.0)
+    assert markers[0]['reason'] == 'Chapter: Listener Donations Again'
+
+
+def test_show_notes_chapters_never_trigger_the_chapter_trim():
+    markers = []
+    _generate(markers, regenerate_chapters=True,
+              generated={'version': '1.2.0', 'chapters': CHAPTERS},
+              show_notes_starts=frozenset({1, 1200, 1500}))
+    assert markers == []
+
+
+def test_llm_chapter_beside_show_notes_chapters_still_triggers_the_trim():
+    chapters = [{'startTime': 1, 'title': 'Intro'}, {'startTime': 600, 'title': 'Main Topic'},
+                {'startTime': 1200, 'title': 'Listener Donations'}]
+    markers = []
+    _generate(markers, regenerate_chapters=True,
+              generated={'version': '1.2.0', 'chapters': chapters},
+              show_notes_starts=frozenset({1, 600}))
+    assert len(markers) == 1 and markers[0]['reason'] == 'Chapter: Listener Donations'
+
+
+@pytest.mark.parametrize('column,expected', [(None, True), (1, True), (0, False)])
+def test_feed_switch_reaches_the_generator(column, expected):
+    gen_cls = _generate([], regenerate_chapters=True,
+                        generated={'version': '1.2.0', 'chapters': CHAPTERS},
+                        podcast={**PODCAST, 'show_notes_chapters': column})
+    kwargs = gen_cls.return_value.generate_chapters.call_args.kwargs
+    assert kwargs['show_notes_chapters'] is expected

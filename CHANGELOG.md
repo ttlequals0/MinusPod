@@ -10,6 +10,10 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- Timestamps in the episode description become the generated chapters, with the show notes' own titles, when there are at least three, the first within ten minutes of the start and each at least a minute after the previous one. Each listed time is shifted by the cuts and then moved by the LLM to where the topic starts in the transcript; the LLM also adds chapters for major topics the show notes do not list. These chapters never trigger a chapter trim, a failed alignment marks the chapters as degraded, and Feed Settings > Chapters > Chapters from show notes (`showNotesChapters`) turns them off for a feed.
+
 ### Fixed
 
 - A feed in Skip detection mode applies its Chapter trim rule again. 2.102.16 turned the rule off for that mode, so chapters that matched the pattern stayed in the episode. To trim an episode that 2.102.16 or 2.102.17 handled, reprocess it.

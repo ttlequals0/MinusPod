@@ -385,7 +385,7 @@ class PodcastMixin:
                 'language_override', 'download_user_agent_override', 'feed_user_agent_override',
                 'title_override', 'description_override', 'detection_notes', 'detection_mode', 'chapter_notes',
                 'chapters_mode', 'chapters_in_notes', 'review_links_in_notes',
-                'own_episode_guids',
+                'show_notes_chapters', 'own_episode_guids',
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,
                 *self._SNAP_FLAG_COLS,

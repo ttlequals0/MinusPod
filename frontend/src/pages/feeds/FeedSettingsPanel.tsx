@@ -1247,6 +1247,23 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 )}
               </LlmGate>
 
+              <LlmGate disabled={llmDisabled} id="feed-show-notes-chapters" describedBy="feed-chapters-llm-disabled" className="flex flex-col gap-1 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <ToggleSwitch
+                    checked={feed.showNotesChapters !== false}
+                    onChange={(showNotesChapters) => updateMutation.mutate({ showNotesChapters })}
+                    disabled={updateMutation.isPending}
+                    ariaLabel="Chapters from show notes"
+                  />
+                  <span>Chapters from show notes</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  When an episode description lists at least three timestamps, those lines
+                  become the generated chapters with their own titles. Off uses topic
+                  detection, with the timestamps as hints.
+                </p>
+              </LlmGate>
+
               {/* Per-feed chapter list in descriptions (#720) */}
               <GlobalOverrideRow
                 label="Chapter list"

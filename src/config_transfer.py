@@ -146,7 +146,7 @@ FEED_COLUMNS = (
     'language_override', 'download_user_agent_override', 'feed_user_agent_override',
     'title_override', 'description_override', 'detection_notes', 'detection_mode', 'chapter_notes',
     'chapters_mode', 'chapters_in_notes', 'review_links_in_notes',
-    'own_episode_guids',
+    'show_notes_chapters', 'own_episode_guids',
     'cue_template_score_override', 'cue_create_from_pairs_override',
     'cue_cut_matches_override',
     'cue_pair_min_break_override', 'cue_pair_max_break_override',
@@ -180,6 +180,7 @@ FEED_JSON_COLUMNS = frozenset({
 FEED_BOOL_COLUMNS = frozenset({
     'own_episode_guids', 'silence_snap_enabled', 'transition_snap_enabled',
     'splice_veto_enabled', 'cue_gated_approval', 'only_expose_processed_episodes',
+    'show_notes_chapters',
     'require_manual_approval',
     'passthrough_enabled', 'skip_ad_detection', 'detect_show_segments',
     'snip_short_asks',

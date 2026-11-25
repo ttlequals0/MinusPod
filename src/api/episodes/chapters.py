@@ -14,6 +14,7 @@ from ad_chapters import (
 )
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
+from config import resolve_show_notes_chapters
 from embedded_chapters import embed_chapters
 from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
@@ -202,6 +203,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
                 slug=slug,
                 chapter_notes=(podcast or {}).get('chapter_notes'),
                 language=get_pattern_language(db, slug) or 'auto',
+                show_notes_chapters=resolve_show_notes_chapters(podcast),
             )
     except ProviderRateLimitedError as exc:
         exc.provider_key, exc.credential_slot = resolve_hold_scope(exc, 'chapters')
