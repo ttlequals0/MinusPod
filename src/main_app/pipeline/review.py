@@ -1,6 +1,7 @@
 """Ad reviewer runs for pass 1 and pass 2, including hold release."""
 
 import logging
+from dataclasses import replace
 from ad_reviewer import (
     AdReviewer, abstain_hold_reason, is_contradiction_hold, mark_reviewer_hold,
     split_resurrection_pool, stamp_reviewer_fields,
@@ -251,6 +252,14 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 if held_ad is not None:
                     ledger.record(held_ad, 'covered')
                 continue
+            # A proposal running into a pass-1 cut on one side stops at it: what is left is one span that joins
+            # the cut. A proposal with audio on both sides of a cut still crosses it.
+            if adjusted_start is not None:
+                pieces = subtract_spans([(adjusted_start, adjusted_end)],
+                                        [(cut['start'], cut['end']) for cut in cuts])
+                if len(pieces) == 1 and pieces[0] != (adjusted_start, adjusted_end):
+                    adjusted_start, adjusted_end = pieces[0]
+                    v = replace(v, adjusted_start=adjusted_start, adjusted_end=adjusted_end)
             # Touching a pass-1 cut edge is not crossing it.
             crosses_cut = adjusted_start is None or any(
                 overlap_seconds(adjusted_start, adjusted_end, cut['start'], cut['end']) > 0

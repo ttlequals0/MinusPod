@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.20] - 2026-11-25
+
+### Fixed
+
+- A pass-2 reviewer adjustment that ran into an ad pass 1 had already cut was held for review as `reviewer_contradiction`, even when stopping it at that cut left exactly the ad. A sponsor read whose second half pass 1 cut and whose first half pass 2 found stayed in the episode until a human confirmed it. The proposal now stops at the cut and is applied like any adjustment, joining the cut. A proposal with audio on both sides of a cut is still held.
+
 ## [2.102.19] - 2026-11-25
 
 ### Fixed

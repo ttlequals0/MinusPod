@@ -312,7 +312,7 @@ def test_pass2_adjust_touching_a_pass1_cut_edge_is_cut_not_held(monkeypatch):
     assert (original['start'], original['end']) == (0.0, 60.0)
 
 
-def test_pass2_adjust_overlapping_a_pass1_cut_is_held(monkeypatch):
+def test_pass2_adjust_overlapping_a_pass1_cut_is_clipped_to_it(monkeypatch):
     original, processed = _pair(50.0, 110.0, 50.0, 110.0)
     cuts, ui, held = [processed], [original], []
     verdict = _verdict('adjust', 50.0, 110.0, reasoning=AFFIRMING, adjusted=(40.0, 120.0))
@@ -320,31 +320,44 @@ def test_pass2_adjust_overlapping_a_pass1_cut_is_held(monkeypatch):
     _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
                pass1_cuts=[{'start': 100.0, 'end': 200.0}])
 
+    assert cuts == [processed]
+    assert held == []
+    assert (original['start'], original['end']) == (40.0, 100.0)
+    assert not original.get('held_for_review')
+
+
+def test_pass2_adjust_into_a_pass1_cut_is_cut_up_to_it(monkeypatch):
+    # Pass 2 finds the start of a read whose rest pass 1 already cut, and the
+    # reviewer's end runs 59.7 s into that cut. The proposal stopped at the cut
+    # is cut, joining the pass-1 cut, instead of being held.
+    original, processed = _pair(260.128, 360.868, 260.128, 360.868)
+    cuts, ui, held = [processed], [original], []
+    verdict = _verdict('adjust', 260.128, 360.868, reasoning=AFFIRMING,
+                       adjusted=(261.49, 420.61))
+
+    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
+               pass1_cuts=[{'start': 360.9, 'end': 459.1}])
+
+    assert held == []
+    assert cuts == [processed]
+    assert (original['start'], original['end']) == (261.49, 360.9)
+    assert original['reviewer_verdict'] == 'adjust'
+
+
+def test_pass2_adjust_spanning_a_pass1_cut_is_still_held(monkeypatch):
+    # Audio on both sides of the cut: no single span to cut, so a human decides.
+    original, processed = _pair(50.0, 110.0, 50.0, 110.0)
+    cuts, ui, held = [processed], [original], []
+    verdict = _verdict('adjust', 50.0, 110.0, reasoning=AFFIRMING, adjusted=(40.0, 230.0))
+
+    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
+               pass1_cuts=[{'start': 100.0, 'end': 200.0}])
+
     assert cuts == []
     assert held == [original]
     assert original['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
-
-
-def test_pass2_adjust_into_a_pass1_cut_holds_a_confirmable_start(monkeypatch):
-    # The hold keeps the raw proposal; a human may confirm it stopped at the pass 1 cut.
-    from utils.markers import held_review_proposal, held_review_window
-    original, processed = _pair(259.616, 359.8, 259.616, 359.8)
-    cuts, ui, held = [processed], [original], []
-    verdict = _verdict('adjust', 259.616, 359.8, reasoning=AFFIRMING,
-                       adjusted=(257.4, 419.856))
-
-    _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
-               pass1_cuts=[{'start': 359.8, 'end': 560.7}])
-
-    assert held == [original]
-    assert original['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
     assert (original['reviewer_proposed_start'],
-            original['reviewer_proposed_end']) == (257.4, 419.856)
-    episode = {'status': 'processed', 'original_duration': 3600.0}
-    markers = [original, {'start': 359.8, 'end': 560.7, 'was_cut': True}]
-    assert held_review_proposal(episode, markers, original, [], 60.0) == (257.4, 359.8)
-    lo, hi = held_review_window(episode, markers, original, [], 0.0, 60.0)
-    assert lo <= 257.4 and hi >= 359.8
+            original['reviewer_proposed_end']) == (40.0, 230.0)
 
 
 def test_pass2_adjust_crossing_protected_range_is_held(monkeypatch):
