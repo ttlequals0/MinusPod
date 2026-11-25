@@ -11,7 +11,7 @@ bootstrap('reviewer_dai_core_supported_trim_test_')
 from ad_detector import dai_differential_ads
 from ad_reviewer import (AdReviewer, TranscriptIndex,
                          _SUPPORTED_EDGE_GAP_S, _edge_transcript_supported, _negated,
-                         _speech_capped_floor, _speech_units)
+                         _speech_capped_floor, speech_units)
 from ad_validator import AdValidator, ValidationResult
 from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
@@ -606,7 +606,7 @@ def test_indexed_edge_checks_match_the_transcript_scan(seed):
         segments.append({'start': round(t - 5, 2), 'end': seg_end, 'words': words})
         t = seg_end
     index = TranscriptIndex(segments)
-    units, words = _speech_units(segments), set(TimedWords(segments).spans)
+    units, words = speech_units(segments), set(TimedWords(segments).spans)
     edges = [hi for _lo, hi in words] + [lo for lo, _hi in words]
     for _ in range(300):
         new = rng.choice(edges) if rng.random() < 0.6 else rng.uniform(0, t)
@@ -635,7 +635,7 @@ def test_indexed_edge_checks_match_the_scan_at_the_exact_tolerance(seed):
             t = end
         segments.append({'start': words[0]['start'], 'end': t, 'words': words})
     index = TranscriptIndex(segments)
-    units, words = _speech_units(segments), set(TimedWords(segments).spans)
+    units, words = speech_units(segments), set(TimedWords(segments).spans)
     edges = sorted({v for span in words for v in span})
     for _ in range(2000):
         new = round(rng.choice(edges) + rng.choice([-0.05, 0.05, -0.04, 0.06, 0.0]), 2)

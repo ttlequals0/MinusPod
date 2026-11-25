@@ -1860,12 +1860,8 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
                 invalidate_word_timed_edges(last)
                 if current.get('end_text'):
                     last['end_text'] = current['end_text']
-            # Keep sponsor and reason as a pair from the same member (mirrors
-            # _merge_detection_results) so a merged marker never mixes one ad's
-            # sponsor with another's description. The more confident member's
-            # reason wins: a window that sees only part of the ad writes a longer,
-            # vaguer "continues in next window" reason. Equal confidence keeps the
-            # longer reason.
+            # Reason and sponsor stay a pair from the more confident member (equal: longer reason), so a
+            # partial window's vague "continues in next window" note never overrides the complete detection.
             current_confidence = current.get('confidence', 0)
             last_confidence = last.get('confidence', 0)
             current_reason = current.get('reason', '')

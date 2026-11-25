@@ -128,3 +128,37 @@ def test_recut_mode_change_re_ends_chapter_marker_instead_of_dropping_it():
     out = detect.reconcile_description_chapter(
         [{**_chapter_marker('to_end'), 'end': DURATION}], '', DURATION, ('*Donations*', 'to_next'))
     assert [(m['start'], m['end'], m['trim_mode']) for m in out] == [(1200.0, DURATION, 'to_next')]
+
+
+TWO_LINES = ("<p>(00:00) - Show</p><p>(10:00) - Donations</p><p>(20:00) - Talk</p>"
+             "<p>(30:00) - Donations</p><p>(40:00) - Outro</p>")
+
+
+def test_two_matching_description_lines_both_become_cut_markers():
+    _, validated = _run([], ('Donations', 'to_next'), description=TWO_LINES)
+    assert [(m['start'], m['end']) for m in _chapter(validated)] == [(600.0, 1200.0), (1800.0, 2400.0)]
+
+
+def test_recut_keeps_every_chapter_marker_and_rederives_all_description_markers():
+    chapters = [{**_chapter_marker(), 'start': 1200.0, 'end': 1500.0},
+                {**_chapter_marker(), 'start': 2000.0, 'end': 2400.0}]
+    assert detect.reconcile_description_chapter(
+        chapters, '', DURATION, ('*Donations*', 'to_next')) is chapters
+    stored = _ads(600.0, 1200.0)
+    out = detect.reconcile_description_chapter(stored, TWO_LINES, DURATION, ('Donations', 'to_next'))
+    assert [(m['start'], m['end']) for m in _chapter(out)] == [(600.0, 1200.0), (1800.0, 2400.0)]
+
+
+def test_recut_to_end_collapses_stored_chapter_markers_to_the_earliest():
+    stored = [{**_chapter_marker(), 'start': 2000.0, 'end': 2400.0},
+              {**_chapter_marker(), 'start': 1200.0, 'end': 1500.0},
+              {**_chapter_marker(), 'start': 3000.0, 'end': 3300.0}]
+    out = detect.reconcile_description_chapter(stored, '', DURATION, ('*Donations*', 'to_end'))
+    assert [(m['start'], m['end']) for m in out] == [(1200.0, DURATION)]
+
+
+def test_recut_keeps_stored_description_marker_identity_and_adds_only_new_ones():
+    stored = _ads(600.0, 1200.0)
+    out = detect.reconcile_description_chapter(stored, TWO_LINES, DURATION, ('Donations', 'to_next'))
+    assert _chapter(out)[0] is stored[0]
+    assert [(m['start'], m['end']) for m in _chapter(out)] == [(600.0, 1200.0), (1800.0, 2400.0)]

@@ -110,6 +110,24 @@ describe('SponsorBlockSubmit', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
+  it('keeps outcomes separate for candidates 0.3 s apart', async () => {
+    mockGetCandidates.mockResolvedValue({
+      allowed: true, reason: null, segments: [seg(10, 40), seg(10.3, 40.3)],
+    });
+    mockSubmitSponsorBlock.mockReset().mockResolvedValue({
+      results: [
+        { start: 10, end: 40, category: 'sponsor', status: 'rejected', at: '2026-11-25T00:00:00Z', detail: 'Too short' },
+        { start: 10.3, end: 40.3, category: 'sponsor', status: 'duplicate', at: '2026-11-25T00:00:00Z' },
+      ],
+    });
+    await openDialog();
+    for (const box of await screen.findAllByRole('checkbox')) fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Submit 2 segments' }));
+    expect(await screen.findByText('Rejected: Too short')).toBeTruthy();
+    expect(screen.getAllByText('Already on SponsorBlock')).toHaveLength(1);
+    expect(screen.getAllByText(/Rejected/)).toHaveLength(1);
+  });
+
   it('renders a disabled button with the block reason when not allowed', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>

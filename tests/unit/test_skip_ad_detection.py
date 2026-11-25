@@ -95,9 +95,10 @@ class TestSkipAdDetection:
         m['audio_analysis'].assert_not_called()
         m['prior'].assert_not_called()
         m['detect'].assert_not_called()
-        # Stage 4 must not run either: its heuristic pre/post-roll pass adds
-        # cuts even to an empty ad list.
-        m['refine'].assert_not_called()
+        # Stage 4 runs only for the description chapter rule: no heuristic rolls.
+        m['refine'].assert_called_once()
+        assert m['refine'].call_args.args[2] == []
+        assert m['refine'].call_args.kwargs['apply_heuristic_rolls'] is False
         # The verification stage owns its skip: the flag is forwarded and the
         # stage early-returns (covered by test_verification_pass_early_return).
         assert m['verify'].call_args.kwargs['skip_verification'] is True

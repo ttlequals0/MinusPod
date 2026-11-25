@@ -1085,11 +1085,11 @@ paths:
                   type: [string, 'null']
                   minLength: 1
                   maxLength: 200
-                  description: Chapter title glob for the chapter trim. Matched against the title of each timestamp line in the episode description and against the episode's chapters (upstream or MinusPod-generated), case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode. Null clears the rule.
+                  description: Chapter title glob for the chapter trim. Matched against the title of each timestamp line in the episode description and against the episode's chapters (upstream or MinusPod-generated), case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode; to_next cuts every match. Null clears the rule.
                 descriptionTrimMode:
                   type: string
                   enum: [to_end, to_next]
-                  description: to_end (default) cuts to the end of the episode; to_next cuts until the next timestamp line.
+                  description: to_end (default) cuts from the first match to the end of the episode; to_next cuts each match until the next timestamp line or chapter.
                 descriptionSkipPatterns:
                   type:
                     - array
@@ -1260,7 +1260,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-out from transcription. Only valid on a feed already in cue_only mode; rejected with a 400 otherwise. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
+                  description: Per-feed opt-out from transcription. Valid on a feed already in cue_only mode, or in standard or keep_content mode with a descriptionTrimPattern (episodes whose publisher chapters match the pattern are then cut by the rule alone, with no transcript or detection); rejected with a 400 otherwise. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
                 maxEpisodes:
                   type:
                     - integer
@@ -16027,7 +16027,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Per-feed opt-out from transcription. Only valid on a feed in cue_only mode. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
+          description: Per-feed opt-out from transcription. Valid in cue_only mode, or in standard or keep_content mode with a descriptionTrimPattern (episodes whose publisher chapters match the pattern are then cut by the rule alone, with no transcript or detection). Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
         maxEpisodes:
           type:
             - integer
@@ -16285,6 +16285,10 @@ components:
             submitAllowed:
               type: boolean
               description: True when the episode detail may offer manual SponsorBlock submission. Absent in list payloads.
+            submitBlockReason:
+              type: [string, 'null']
+              enum: [not_youtube, not_completed, community_marks, no_video_id, marks_unverified, disabled, no_user_id, service_down, null]
+              description: Why submitAllowed is false, null when it is true. Absent in list payloads.
             submissions:
               type: array
               description: Outcomes of segments a person submitted to SponsorBlock for this episode.
@@ -17114,6 +17118,9 @@ components:
       type: object
       required: [results]
       properties:
+        error:
+          type: string
+          description: Short failure message when the SponsorBlock request failed. Present on a 502.
         results:
           type: array
           items:
@@ -17790,8 +17797,8 @@ components:
             a human may confirm this held marker at. With heldWidenSeconds 0 (default) this is the
             span, widened to usableProposal when there is one, +/- 0.5 s; above 0,
             its span (and first-detected span) widened by up to that many
-            seconds each way. Either way it stops at cut, approved, kept or rejected neighbours and at 0 and the
-            episode end. The corrections API enforces exactly this window for a
+            seconds each way, stopping at cut, approved, kept or rejected neighbours. Either way it stays
+            within 0 and the episode end. The corrections API enforces exactly this window for a
             trimmed confirm.
           properties:
             min:
@@ -17802,10 +17809,10 @@ components:
           type: [object, 'null']
           description: >-
             Set on pendingReviewMarkers only. The reviewer's proposed bounds as a human may
-            confirm them: each edge stops at cut, approved, kept or rejected neighbours, and an
-            edge that moves more than reviewMaxBoundaryShift falls back to the marker's own edge.
-            Null when the marker has no proposal, it does not overlap the marker, or nothing of it
-            is left after those limits.
+            confirm them: each edge stops at cut, approved, kept or rejected neighbours and the
+            episode bounds, and a widening edge past reviewMaxBoundaryShift falls back to the
+            marker's own edge. Null when none is usable: no overlapping proposal, an edge inside
+            the marker moves more than reviewMaxBoundaryShift, or the clipped span is under 1 second.
           properties:
             start:
               type: number
@@ -21030,6 +21037,19 @@ components:
             elapsed:
               type: number
               description: Seconds since the job started
+            stageDetail:
+              type:
+                - object
+                - 'null'
+              description: Sub-stage progress while a stage runs long (transcription), null otherwise. It never moves the overall progress value and is dropped when the stage changes.
+              properties:
+                processed:
+                  type: number
+                total:
+                  type: number
+                unit:
+                  type: string
+                  enum: [seconds, chunks]
         jobs:
           type: array
           description: Every episode currently processing, oldest first. currentJob is jobs[0].
@@ -21056,6 +21076,19 @@ components:
               elapsed:
                 type: number
                 description: Seconds since the job started
+              stageDetail:
+                type:
+                  - object
+                  - 'null'
+                description: Sub-stage progress while a stage runs long (transcription), null otherwise. It never moves the overall progress value and is dropped when the stage changes.
+                properties:
+                  processed:
+                    type: number
+                  total:
+                    type: number
+                  unit:
+                    type: string
+                    enum: [seconds, chunks]
         whisper:
           $ref: '#/components/schemas/WhisperPoolSnapshot'
         queueLength:

@@ -17,7 +17,6 @@ from utils.time import (
     parse_timestamp, adjust_timestamp, merge_cut_spans, shift_for_merged_cuts,
     span_inside_any_cut,
 )
-from description_chapters import CLOCK_TIME_SUFFIX
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
@@ -39,10 +38,7 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
-# Show-notes gate: description timestamps replace LLM topic detection when at
-# least this many fall inside the episode, the first is listed within the
-# first-seconds limit (original audio) and consecutive ones are at least the
-# spacing apart.
+# Show-notes gate: >= MIN entries inside the episode, first within the limit (original audio), spaced apart.
 MIN_SHOW_NOTES_CHAPTERS = 3
 SHOW_NOTES_MAX_FIRST_SECONDS = 600.0
 SHOW_NOTES_MIN_SPACING_SECONDS = 60.0
@@ -63,7 +59,14 @@ SHOW_NOTES_ALIGN_PROMPT = (
     "Topics:\n{topics}\n\nTranscript:\n{transcript}"
 )
 
-_CLOCK_TITLE = re.compile(CLOCK_TIME_SUFFIX)
+# A title that starts with a clock suffix (AM, pm, a.m.); mixed case such as "Am I Wrong" is a word.
+_CLOCK_TITLE = re.compile(r'^(?:[AP]\.?M|[ap]\.?m)\b')
+# Sponsor lines: a URL, a domain with a path or after "visit"/"go to", a promo code, percent off or a free trial.
+_DOMAIN = r'[\w-]+\.(?:com|net|org|io|co|tv|fm|ai|app|dev)\b'
+_PROMO_TITLE = re.compile(
+    r'https?://|\bwww\.|\b' + _DOMAIN + r'/\S|(?i:\b(?:visit|go\s+to|head\s+to)\s+)' + _DOMAIN +
+    r'|(?i:\b(?:promo|coupon|discount)\s+code\b|\d+\s?%\s*off\b|\bfree\s+trial\b)'
+    r'|\bcode\s+(?:[A-Z0-9]{3,}\b|\w*\d\w*)')
 
 _ALIGN_LINE = re.compile(
     r'^\W*(\d{1,3})\s*[.):\-]?\s+(\d{1,3}:\d{2}(?::\d{2})?|-)(?:\s|$)')
@@ -101,7 +104,7 @@ def _show_notes_anchors(description: str | None, cuts: list[dict] | None,
     """Listed (original-audio) times shifted by the cuts like the served description, or [] off the gate."""
     listed = [(parse_timestamp(ts), title)
               for ts, title in _parse_description_anchors(description or '')
-              if not _CLOCK_TITLE.match(title)]
+              if not _CLOCK_TITLE.match(title) and not _PROMO_TITLE.search(title)]
     merged = merge_cut_spans(cuts or [], default_replacement=replacement_duration)
     inside = [(t, shift_for_merged_cuts(t, merged), title) for t, title in listed]
     inside = [a for a in inside if a[1] < episode_duration]
@@ -194,13 +197,10 @@ def _format_hints_block(hints: list[dict]) -> str:
 
 
 def chapter_language_instruction(language: str | None) -> str:
-    """Prompt paragraph naming the language of the chapter titles.
-
-    language: ISO 639 code from the feed's language override or the global Whisper language, or 'auto'
-    for the transcript's own language; None adds nothing, leaving the prompt as it was.
-    """
+    """Prompt paragraph naming the chapter title language; empty for none or English."""
     code = (language or '').strip().lower()
-    if not code:
+    # The prompts are English already.
+    if not code or code == 'en':
         return ''
     if code != 'auto':
         return (f"Write every chapter title in the language with ISO 639 code '{code}', "
@@ -1059,9 +1059,7 @@ class ChaptersGenerator:
             map from marker coordinates.
         chapter_notes: per-feed notes appended to the topic-detection prompt as a final "Feed notes:"
             paragraph; None or blank adds nothing.
-        language: ISO 639 code the chapter titles are written in (the feed's language override, else
-            the global Whisper language), or 'auto' for the transcript's own language; None adds no
-            language line to the prompts.
+        language: ISO 639 code for the chapter titles, or 'auto'; None or 'en' leaves the prompts as is.
         slug: podcast slug for the llm_call_usage ledger's podcast linkage; omitted call sites still
             ledger the attempt, without a resolved podcast_id.
         show_notes_chapters: the feed's switch for building chapters from description timestamps

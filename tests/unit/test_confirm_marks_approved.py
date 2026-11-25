@@ -376,9 +376,7 @@ class TestTrimmedConfirmValidation:
         assert _status(resp) == 400
 
     def test_proposal_reaching_into_a_cut_neighbour_confirms_up_to_it(self, temp_db):
-        # The reviewer found the earlier start, but its end runs 60.056 s into
-        # the already-cut rest of the read: past the shift cap, so the whole
-        # proposal used to be dropped and the start could not be confirmed.
+        # The reviewer's end runs past the shift cap into the cut rest of the read.
         marker = _held(1000.0, 1100.0)
         marker['hold_reason'] = 'reviewer_contradiction'
         marker['reviewer_proposed_start'] = 997.8

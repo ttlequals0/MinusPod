@@ -60,3 +60,32 @@ def test_legacy_current_job_file_is_read(ss):
         'queued_episodes': [], 'feed_refreshes': {}, 'last_updated': 1.0})
     status = ss.get_status()
     assert status.current_job.stage == 'detecting'
+
+
+def test_stage_detail_stored_and_serialized(ss):
+    ss.start_job('a', '1', 'A', 'Pod A', run_id='r1')
+    assert ss.to_dict()['jobs'][0]['stageDetail'] is None
+    ss.update_job_stage('a', '1', 'pass1:transcribing', 20, run_id='r1')
+    ss.update_job_stage_detail('a', '1', 894, 2706, 'seconds', run_id='r1')
+    detail = {'processed': 894, 'total': 2706, 'unit': 'seconds'}
+    assert ss.get_status().jobs[0].stage_detail == detail
+    d = ss.to_dict()
+    assert d['jobs'][0]['stageDetail'] == detail
+    assert d['currentJob']['stageDetail'] == detail
+    assert d['jobs'][0]['progress'] == 20
+
+
+def test_stage_detail_ignores_run_id_mismatch(ss):
+    ss.start_job('a', '1', 'A', 'Pod A', run_id='r1')
+    ss.update_job_stage_detail('a', '1', 1, 2, 'chunks', run_id='other')
+    assert ss.get_status().jobs[0].stage_detail is None
+
+
+def test_stage_detail_dropped_on_stage_change_kept_on_same_stage(ss):
+    ss.start_job('a', '1', 'A', 'Pod A')
+    ss.update_job_stage('a', '1', 'pass1:transcribing', 20)
+    ss.update_job_stage_detail('a', '1', 1, 2, 'chunks')
+    ss.update_job_stage('a', '1', 'pass1:transcribing', 21)
+    assert ss.get_status().jobs[0].stage_detail is not None
+    ss.update_job_stage('a', '1', 'pass1:detecting', 40)
+    assert ss.get_status().jobs[0].stage_detail is None

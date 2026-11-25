@@ -209,7 +209,7 @@ yt-dlp changes often because YouTube does. MinusPod keeps up in layers.
 - **Data-volume copy.** On first use MinusPod copies the baked binary into the data volume and runs that copy. A newer baked version replaces an older copy after an image upgrade. If the copy cannot execute, MinusPod uses the image copy and shows an error under Settings > YouTube.
 - **Daily update.** With **Update yt-dlp daily** on (default), MinusPod updates the data-volume copy once at start and then every 24 hours.
 - **Update now.** Runs an update immediately; limited to 6 per hour.
-- **Outdated extractor.** When a download fails with a message such as "Unable to extract" or "nsig extraction failed", MinusPod runs one update and retries on the next attempt. The episode shows the error until then.
+- **Outdated extractor.** When a download fails with a message such as "Unable to extract" or "nsig extraction failed", MinusPod runs one update and retries on the next attempt, at most once an hour and not when automatic yt-dlp updates are turned off. The episode shows the error until then.
 
 Settings > YouTube shows the running version, the version the image ships, and the last check time and error.
 

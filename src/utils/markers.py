@@ -7,10 +7,11 @@ import uuid
 from bisect import bisect_left, bisect_right
 from itertools import accumulate, pairwise
 
-from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
+from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE, MERGE_GAP_THRESHOLD,
                     REVIEWER_HOLD_REASONS, pass2_may_release,
                     is_keep_like, is_pending_review, repair_segment_category)
 from utils.constants import EpisodeStatus
+from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import overlap_ratio
 
 
@@ -57,6 +58,27 @@ def timed_span(unit: dict) -> tuple[float, float] | None:
     """(start, end) of a timed word or segment, or None unless both edges are finite and ordered."""
     lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
     return (lo, hi) if lo is not None and hi is not None and hi >= lo else None
+
+
+def speech_units(segments) -> list[tuple[float, float]]:
+    """(start, end) of every timed word, or of the segment when it has none."""
+    units = []
+    for seg in segments or []:
+        words = [span for span in (timed_span(w) for w in seg.get('words') or []) if span]
+        units.extend(words or [span for span in (timed_span(seg),) if span])
+    return units
+
+
+SPEECH_SLOP_S = 0.25  # seconds; word timing slop at a gap's edges
+
+
+def locked_gap_bridgeable(segments, start, end) -> bool:
+    """Whether a short, speech-free gap beside a locked edge may be cut."""
+    if not 0 < end - start < MERGE_GAP_THRESHOLD:
+        return False
+    spoken = [seg for seg in segments or [] if (seg.get('text') or '').strip()]
+    return bool(spoken) and not any(
+        lo < end - SPEECH_SLOP_S and hi > start + SPEECH_SLOP_S for lo, hi in speech_units(spoken))
 
 
 class TimedWords:
@@ -242,8 +264,7 @@ HELD_WINDOW_TOLERANCE_S = 0.5
 
 
 def held_window_blockers(markers, marker, default_was_cut, blocked_spans=()):
-    """(start, end) spans a held marker's edges may not move into: decided (cut, approved,
-    kept or rejected) neighbours and the episode's not-an-ad spans."""
+    """Spans a held marker's edges may not move into: decided neighbours and not-an-ad spans."""
     blockers = [(b['start'], b['end']) for b in blocked_spans or ()]
     for other in markers or ():
         if other is marker:
@@ -259,8 +280,7 @@ def held_window_blockers(markers, marker, default_was_cut, blocked_spans=()):
 
 
 def _clamp_to_blockers(lo, hi, base_start, base_end, blockers):
-    """lo/hi stopped at blockers past each edge; a blocker overlapping an edge still stops the move
-    outward past that edge."""
+    """lo/hi stopped at blockers past each edge, including blockers that overlap an edge."""
     for b_start, b_end in blockers:
         if b_start < base_start:
             lo = max(lo, min(b_end, base_start))
@@ -288,12 +308,10 @@ def held_marker_window(markers, marker, episode_duration, default_was_cut,
         lo, hi = min(lo, proposal[0]), max(hi, proposal[1])
     lo -= HELD_WINDOW_TOLERANCE_S
     hi += HELD_WINDOW_TOLERANCE_S
-    if widen_s <= 0:
-        # The +/-0.5 s tolerance is never limited by a neighbour; the proposal already stops at them.
-        return lo, hi
-
-    blockers = held_window_blockers(markers, marker, default_was_cut, blocked_spans)
-    lo, hi = _clamp_to_blockers(lo, hi, base_start, base_end, blockers)
+    # With widening off, the +/-0.5 s tolerance is not limited by neighbours; the proposal already stops at them.
+    if widen_s > 0:
+        blockers = held_window_blockers(markers, marker, default_was_cut, blocked_spans)
+        lo, hi = _clamp_to_blockers(lo, hi, base_start, base_end, blockers)
 
     lo = max(lo, 0.0)
     if episode_duration and episode_duration > 0:
@@ -307,33 +325,38 @@ def _proposal_overlaps(p_start, p_end, start, end):
             and p_end > p_start and p_end > start and p_start < end)
 
 
-def usable_reviewer_proposal(marker, start, end, cap, blockers=()):
-    """A held marker's reviewer proposal, when it is valid and overlaps the detected span. Each edge
-    stops at blockers past the span's own edge, then an edge that moves more than the reviewer's
-    per-edge shift cap falls back to the span's edge. None when nothing of the proposal is left."""
+def usable_reviewer_proposal(marker, start, end, cap, blockers=(), duration=None):
+    """A held marker's reviewer proposal clipped to what a human may confirm, else None."""
     # A hold stamps the raw proposal, which never passed the reviewer's clamp.
     p_start = marker.get('reviewer_proposed_start')
     p_end = marker.get('reviewer_proposed_end')
     if not _proposal_overlaps(p_start, p_end, start, end):
         return None
     p_start, p_end = _clamp_to_blockers(float(p_start), float(p_end), start, end, blockers)
-    if abs(p_start - start) > cap:
+    p_start = max(p_start, 0.0)
+    if duration:
+        p_end = min(p_end, float(duration))
+    # An edge cut deep into the marker means the reviewer called that audio content: no proposal.
+    if p_start > start + cap or p_end < end - cap:
+        return None
+    # A widening edge past the cap falls back to the marker's own edge.
+    if p_start < start - cap:
         p_start = float(start)
-    if abs(p_end - end) > cap:
+    if p_end > end + cap:
         p_end = float(end)
-    if p_end <= p_start or (p_start == start and p_end == end):
+    if p_end - p_start < MIN_CORRECTION_SPAN_S or (p_start == start and p_end == end):
         return None
     return p_start, p_end
 
 
 def held_review_proposal(episode, markers, marker, false_positive_spans, cap):
-    """The reviewer proposal a human may confirm on a held marker (usable_reviewer_proposal with
-    the marker's blocking neighbours), else None."""
+    """The reviewer proposal a human may confirm on a held marker (clipped at neighbours), else None."""
     blockers = held_window_blockers(
         markers, marker, episode.get('status') == EpisodeStatus.PROCESSED,
         false_positive_spans)
     return usable_reviewer_proposal(
-        marker, float(marker['start']), float(marker['end']), cap, blockers)
+        marker, float(marker['start']), float(marker['end']), cap, blockers,
+        finite_number(episode.get('original_duration')))
 
 
 def held_review_window(episode, markers, marker, false_positive_spans, widen_s, cap):

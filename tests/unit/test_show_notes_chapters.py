@@ -494,3 +494,52 @@ def test_show_notes_starts_cover_listed_chapters_and_intro_not_extras():
     gen, chapters, _ = _with_detection([_b('38:20', 'Guest interview')])
     assert _starts(chapters) == [1, 480, 630, 1980, 2300]
     assert gen.show_notes_starts == frozenset({1, 480, 630, 1980})
+
+
+def test_clock_suffix_titles_are_dropped():
+    assert _uses_show_notes('10:30 AM\n11:30 PM show\n12:30 p.m. Lunch')[0] is False
+
+
+def test_a_word_that_starts_with_am_is_kept():
+    aligned, chapters = _uses_show_notes(
+        '00:00 Opening\n12:00 Am I Wrong About AI\n30:00 Closing')
+    assert aligned
+    assert [c['title'] for c in chapters] == ['Opening', 'Am I Wrong About AI', 'Closing']
+
+
+@pytest.mark.parametrize('description', [
+    '(2:30) use code ACME for 20% off\n(12:30) Visit example.com/show\n(25:00) Free trial at Acme',
+])
+def test_promo_only_lists_fall_back_to_topic_detection(description):
+    assert _uses_show_notes(description)[0] is False
+
+
+def test_promo_line_is_not_a_chapter_or_counted():
+    description = ('01:00 One\n05:00 Two\n10:00 Three\n15:00 Four\n20:00 Five\n'
+                   '25:00 Use code ACME for 20% off')
+    aligned, chapters = _uses_show_notes(description)
+    assert aligned
+    titles = [c['title'] for c in chapters]
+    assert [t for t in titles if t != 'Intro'] == ['One', 'Two', 'Three', 'Four', 'Five']
+    assert not any('ACME' in t for t in titles)
+
+
+@pytest.mark.parametrize('title', [
+    'Am I Wrong About AI', 'Amazing Grace', 'Acme.com acquisition news',
+    'Why AI.dev tools matter', 'Deploying to Vercel.app', 'Use code review to ship faster',
+    'Listener mail and discount codes explained'])
+def test_real_titles_are_not_filtered(title):
+    assert not chapters_generator._CLOCK_TITLE.match(title)
+    assert not chapters_generator._PROMO_TITLE.search(title)
+
+
+@pytest.mark.parametrize('title', ['AM', 'AM Registration', 'PM show', 'p.m. Lunch', 'pm - doors'])
+def test_clock_suffix_titles_are_filtered(title):
+    assert chapters_generator._CLOCK_TITLE.match(title)
+
+
+@pytest.mark.parametrize('title', [
+    'use code ACME for 20% off', 'use code save20', 'Visit example.com', 'example.com/show',
+    'Free trial at Acme', 'https://example.com'])
+def test_promo_titles_are_filtered(title):
+    assert chapters_generator._PROMO_TITLE.search(title)

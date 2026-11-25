@@ -67,7 +67,7 @@ from utils.markers import (
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
     member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
-    silent_absorbed_spans, TimedWords, timed_span, union_cover,
+    silent_absorbed_spans, speech_units, TimedWords, union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override, seed_sponsors_enabled,
@@ -559,12 +559,6 @@ def _clamp_overrode(new_start, new_end, original_start, original_end,
 _SUPPORTED_EDGE_GAP_S = 0.3
 
 
-def _speech_units(segments) -> list[tuple[float, float]]:
-    """(start, end) of every timed word, or of the segment when it has none."""
-    spans = (timed_span(unit) for seg in segments or [] for unit in seg.get('words') or [seg])
-    return [span for span in spans if span]
-
-
 def _edge_matches(value: float, new: float) -> bool:
     return abs(value - new) <= EDGE_TOLERANCE
 
@@ -585,7 +579,7 @@ class TranscriptIndex:
     """A transcript's speech units and timed words, indexed once per review for edge lookups."""
 
     def __init__(self, segments):
-        units, words = _speech_units(segments), TimedWords(segments).spans
+        units, words = speech_units(segments), TimedWords(segments).spans
         self.end = _EdgeIndex(units, words)
         # Start edges are end edges on the negated timeline.
         self.start = _EdgeIndex(_negated(units), _negated(words))

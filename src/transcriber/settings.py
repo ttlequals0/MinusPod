@@ -6,6 +6,7 @@ import os
 import database
 import failover
 import run_context
+import utils.audio
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -32,6 +33,17 @@ logger = logging.getLogger('transcriber')
 # (extract_audio_chunk(preprocess=True)) so chunked paths run one ffmpeg pass
 # per chunk instead of extract + preprocess.
 PREPROCESS_AUDIO_FILTERS = 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000'
+# loudnorm runs on one channel instead of two. -19 because the standard chain normalises the stereo
+# pair to -16 and the later mono mixdown of typical centred speech lands about 3 dB lower.
+PREPROCESS_AUDIO_FILTERS_STEREO = (
+    'aformat=channel_layouts=mono,loudnorm=I=-19:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000')
+
+
+def preprocess_filters_for(audio_path: str) -> str:
+    """Stereo-optimised chain for 2-channel sources, else the standard chain."""
+    if utils.audio.get_audio_channels(audio_path) == 2:
+        return PREPROCESS_AUDIO_FILTERS_STEREO
+    return PREPROCESS_AUDIO_FILTERS
 
 
 def _max_download_mb() -> int:

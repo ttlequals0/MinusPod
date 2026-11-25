@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 BAKED_PATH = '/usr/local/bin/yt-dlp'
 RUNTIME_NOT_EXECUTABLE = 'runtime yt-dlp copy is not executable; using the image copy'
 UPDATE_INTERVAL = timedelta(hours=24)
+FAILURE_UPDATE_COOLDOWN = timedelta(hours=1)
 # A 403 on the media request is most often an outdated extractor, so it asks for an update too.
 _UPDATE_HINTS = ('please report this issue', 'unable to extract',
-                 'requested format is not available', 'nsig extraction failed', 'http error 403')
+                 'requested format is not available', 'nsig extraction failed')
 _booted = False
 _ensured_path: Path | None = None
 _baked_version: tuple[str, str | None] | None = None
@@ -59,11 +60,8 @@ _YOUTUBE_LANG_ALIASES = {'he': 'iw', 'zh': 'zh-CN', 'nb': 'no', 'nn': 'no', 'tl'
 
 
 def youtube_lang(code: str | None) -> str | None:
-    """yt-dlp's `lang` for a Whisper-style code; None for auto, English or a language YouTube lacks.
-
-    English is left out on purpose: without `lang` yt-dlp keeps a video's own language and falls back
-    to English, while `lang=en` would turn every other video's title and chapters into English ones.
-    """
+    """yt-dlp's `lang` for a Whisper-style code; None for auto, English or a language YouTube lacks."""
+    # English is omitted: `lang=en` would turn other-language videos' titles and chapters into English.
     code = (code or '').strip().lower()
     code = _YOUTUBE_LANG_ALIASES.get(code, code)
     if code == 'en' or code not in YOUTUBE_LANG_CODES:
@@ -83,11 +81,8 @@ def feed_lang(db, language_override: str | None) -> str | None:
 
 
 def with_lang(tokens: list[str], lang: str | None) -> list[str]:
-    """Add `lang` to the YouTube extractor arguments in tokens.
-
-    yt-dlp keeps only the last --extractor-args per extractor, so an operator's own `youtube:` arguments
-    get `lang` appended instead of being replaced, and a `lang` they set themselves wins.
-    """
+    """Add `lang` to the YouTube extractor arguments in tokens; an operator's own `lang` wins."""
+    # yt-dlp keeps only the last --extractor-args per extractor, so append to the operator's entry.
     if not lang:
         return list(tokens)
     out = list(tokens)
@@ -100,9 +95,9 @@ def with_lang(tokens: list[str], lang: str | None) -> list[str]:
         else:
             continue
         key, _, rest = value.partition(':')
-        if key.strip().lower() != 'youtube':
+        if 'youtube' not in [k.strip().lower() for k in key.split(',')]:
             continue
-        if any(part.split('=', 1)[0].strip() == 'lang' for part in rest.split(';')):
+        if any(part.split('=', 1)[0].strip().lower() == 'lang' for part in rest.split(';')):
             return out
         out[index] = f'{prefix}{key}:{rest};lang={lang}' if rest else f'{prefix}{key}:lang={lang}'
         return out
@@ -325,7 +320,10 @@ def trimmed_error(stderr: str) -> str:
 
 def needs_update(stderr: str) -> bool:
     low = (stderr or '').lower()
-    return any(hint in low for hint in _UPDATE_HINTS)
+    if any(hint in low for hint in _UPDATE_HINTS):
+        return True
+    # A 403 counts only as a final ERROR; a retried one is a warning.
+    return any('http error 403' in ln for ln in low.splitlines() if ln.strip().startswith('error:'))
 
 
 def update_binary(storage, db, target: Path | None = None) -> dict:
@@ -394,6 +392,11 @@ def update_after_failure(db, log, prefix=''):
     """Self-update the binary after an outdated-extractor failure; never raises."""
     from main_app import storage  # lazy: main_app instantiates Storage on import
     try:
+        if not db.get_setting_bool('youtube_ytdlp_auto_update', True):
+            return
+        last = parse_iso_utc(db.get_setting('youtube_ytdlp_last_check_at'))
+        if last and utc_now() - last < FAILURE_UPDATE_COOLDOWN:
+            return
         update_binary(storage, db)
     except Exception as exc:
         log.warning(f"{prefix}yt-dlp update failed: {exc}")

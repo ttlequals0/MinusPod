@@ -19,7 +19,7 @@ from utils.log_format import KEEP_URL_QUERY
 from utils.language import get_feed_language_override
 from utils.text import parse_transcript_segments
 
-from main_app.pipeline import common
+from main_app.pipeline import common, publish
 from main_app.pipeline.shared import (db, storage, transcriber, sponsor_service)
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -193,7 +193,8 @@ def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
 def _download_and_transcribe(slug, episode_id, episode_url,
                               skip_transcription=False, podcast=None,
                               force_transcription=False, outcome=None,
-                              preacquired_audio=None, preloaded_segments=None):
+                              preacquired_audio=None, preloaded_segments=None,
+                              chapter_trim_skip=False):
     """Pipeline stage: download audio and get/create transcript segments.
 
     ``skip_transcription``: cue_only preset opt-out; returns (audio_path, [])
@@ -209,6 +210,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     ``outcome``: optional dict; gets ``segments_reused`` True only when saved segments were used.
     ``preacquired_audio``: audio the caller already downloaded (YouTube).
     ``preloaded_segments``: caller-supplied transcript segments (YouTube captions).
+    ``chapter_trim_skip``: on a publisher chapter match, skip Whisper and set ``outcome['chapter_trim_markers']``.
 
     Returns (audio_path, segments) or raises on failure.
     """
@@ -234,7 +236,8 @@ def _download_and_transcribe(slug, episode_id, episode_url,
 
     segments = None
     # A publisher transcript cannot stand in for Whisper output.
-    if not force_transcription and (db.get_episode(slug, episode_id) or {}).get('transcript_source') == 'upstream':
+    episode_row = db.get_episode(slug, episode_id) or {}
+    if not force_transcription and episode_row.get('transcript_source') == 'upstream':
         audio_logger.info(f"[{slug}:{episode_id}] Publisher transcript cannot be reused; transcribing")
         force_transcription = True
     transcript_text = None if force_transcription else storage.get_transcript(slug, episode_id)
@@ -281,6 +284,22 @@ def _download_and_transcribe(slug, episode_id, episode_url,
                     f"(+{len(added)} segments)")
     else:
         audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome, preacquired_audio)
+
+        if chapter_trim_skip:
+            markers = publish.pre_cut_chapter_trim_markers(
+                slug, episode_id, audio_path, podcast, outcome,
+                episode_row.get('upstream_chapters_url'))
+            if markers:
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Publisher chapter matched the Chapter trim rule "
+                    f"({'; '.join(m['reason'] for m in markers)}); transcription and ad detection skipped")
+                outcome['chapter_trim_markers'] = markers
+                if force_transcription:
+                    db.clear_episode_details(slug, episode_id)
+                return audio_path, []
+            audio_logger.info(
+                f"[{slug}:{episode_id}] No publisher chapter matched the Chapter trim rule; "
+                f"transcribing as usual")
 
         if preloaded_segments:
             segments = preloaded_segments

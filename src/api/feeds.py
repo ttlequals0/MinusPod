@@ -37,7 +37,7 @@ from config import (
     differential_fetch_effective,
     apply_ad_chapter_compat, ad_chapter_compat_view,
     resolve_differential_fetch_mode, resolve_show_notes_chapters,
-    resolve_feed_processing_mode,
+    resolve_feed_processing_mode, skip_transcription_error,
     resolve_max_ad_duration_confirmed,
     resolve_segment_category_actions_map,
     PROCESSING_MODE_STANDARD,
@@ -2306,12 +2306,14 @@ def update_feed(slug):
         updates['cue_cut_matches_override'] = v
 
     if data.get('skipTranscription'):
-        # Effective mode after this PATCH: an in-flight processingMode write wins.
+        # Effective mode and pattern after this PATCH: in-flight writes win.
         effective = data.get('processingMode') if 'processingMode' in data else \
             resolve_feed_processing_mode(podcast)
-        if effective != PROCESSING_MODE_CUE_ONLY:
-            return error_response(
-                'skipTranscription requires the cue_only processing mode', 400)
+        pattern = updates['description_trim_pattern'] if 'description_trim_pattern' in updates \
+            else (podcast or {}).get('description_trim_pattern')
+        skip_error = skip_transcription_error(effective, pattern)
+        if skip_error:
+            return error_response(f'skipTranscription {skip_error}', 400)
 
     for json_key, db_col in _NULLABLE_BOOL_FIELDS:
         if json_key in data:

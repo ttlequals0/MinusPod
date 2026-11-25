@@ -7,9 +7,11 @@ from ad_detector.boundaries import _content_duration_in_range
 from ad_detector.cue_boundary_snap import snap_split_edge
 
 from audio_processor import get_replacement_duration
-from utils.markers import (DAI_CORE_SPANS, EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
-                           finite_number, fold_marker_pair, foldable_twin, merge_runs,
-                           reviewer_reject_stands, timed_span)
+from ad_validator import user_trimmed_keep_ranges
+from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
+                           dai_core_spans, finite_number, fold_marker_pair, foldable_twin,
+                           locked_gap_bridgeable, merge_runs, reviewer_edge_locked,
+                           reviewer_reject_stands, speech_units)
 
 from utils.time import (
     merge_cut_spans, overlap_seconds,
@@ -22,7 +24,7 @@ from config import (
     MAX_MERGED_DURATION,
     pass2_may_autoapprove, pass2_may_release,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
-    PASS2_AUTOAPPROVE_TRIM_SLACK_S, PASS2_DAI_RELEASE_WORD_SLOP_S,
+    PASS2_AUTOAPPROVE_TRIM_SLACK_S, PASS2_DAI_RELEASE_MAX_EXTEND_S, PASS2_DAI_RELEASE_WORD_SLOP_S,
     CORRECTION_ORIGIN_AUTO_PASS2, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     is_pending_review, normalize_segment_category, is_keep_like, is_known_ad,
     SEGMENT_CATEGORIES,
@@ -263,18 +265,15 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
 
 
 def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_result,
-                             pass1_cuts, snap_settings):
-    """Snap pass-2 cut edges onto removable break cues, as pass-1 detection does.
-
-    Runs in original time on the pass-1 analysis cues, after gating, so a hold
-    decision never sees it; the caller's protected-span split still clips the
-    result. An edge moves only onto a cue removed with the ad, and not across
-    a pass-1 cut, so the processed twin shifts by the same amount.
-    """
+                             pass1_cuts, snap_settings, segments=(), holds=()):
+    """Snap pass-2 cut edges outward onto removable cues across wordless, unheld audio, in original time."""
     cues = (audio_analysis_result.get_signals_by_type('audio_cue')
             if audio_analysis_result else [])
     if not cues:
         return
+    units = speech_units(segments)
+    # Hard protected audio is not checked here: the caller's split clips it afterwards.
+    blockers = [*(pass1_cuts or []), *holds]
     for processed, original in zip(processed_cuts, original_cuts, strict=True):
         records = {}
         for edge, other in (('start', 'end'), ('end', 'start')):
@@ -283,8 +282,15 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
             if snapped is None:
                 continue
             new_value, record = snapped
+            # Outward only: pass 2 already justified the audio inside the edge.
+            if (new_value > value) if edge == 'start' else (new_value < value):
+                continue
             lo, hi = sorted((value, new_value))
-            if any(cut['start'] < hi and cut['end'] > lo for cut in pass1_cuts or []):
+            if any(cut['start'] < hi and cut['end'] > lo for cut in blockers):
+                continue
+            # The audio before the cue must be wordless, so a cut never swallows speech.
+            gap = ((record['cue_end'], value) if edge == 'start' else (value, record['cue_start']))
+            if gap[0] < gap[1] and not _wordless(units, *gap, edge):
                 continue
             # One cue cannot bound both edges.
             if edge == 'end' and records.get('start', {}).get('cue_start') == record['cue_start']:
@@ -433,15 +439,12 @@ def _pass2_confirm_span(marker):
 
 
 def _wordless(units, lo, hi, edge):
-    """True when no speech unit reaches more than the slop into the gap (lo, hi).
-
-    edge names the released span's edge the gap sits before ('start') or after ('end'). A unit
-    split by that edge is already part of the cut ad and does not count, unless it also reaches
-    past the gap's other side: widening would cut into it there."""
+    """True when no speech unit reaches more than the slop into the gap (lo, hi) before the released edge."""
     slop = PASS2_DAI_RELEASE_WORD_SLOP_S
     for a, b in units:
         if min(b, hi) - max(a, lo) <= slop:
             continue
+        # A unit split by the released edge is already cut, unless it also reaches past the gap's far side.
         if edge == 'start':
             split, past_core = b > hi + slop, a < lo - slop
         else:
@@ -451,28 +454,30 @@ def _wordless(units, lo, hi, edge):
     return True
 
 
-def _extend_to_dai_core(hold, spans, segments):
-    """Widen a differential hold's released spans to its measured core over wordless audio.
-
-    The cross-fetch differential proves the core inserted; the release's word-based edges would
-    leave the core's music or silence around the ad as an unreleasable remainder. An edge moves
-    only outward, only to the core run it lies in, and never over a transcript word."""
+def _extend_to_dai_core(hold, spans, segments, barriers=()):
+    """Widen a differential hold's released spans to its measured core over wordless audio, short of barriers."""
     if (hold.get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
             or not spans or spans[0] is None):
         return spans
-    cores = merge_runs([(c['start'], c['end']) for c in hold.get(DAI_CORE_SPANS) or []],
-                       gap=EDGE_TOLERANCE)
-    units = [span for span in (timed_span(unit) for seg in segments or []
-                               for unit in seg.get('words') or [seg]) if span]
+    cores = merge_runs(dai_core_spans(hold), gap=EDGE_TOLERANCE)
+    units = speech_units(segments)
     spans = [dict(s) for s in spans]
     first, last = spans[0], spans[-1]
+
+    def clear(lo, hi):
+        return not any(overlap_seconds(lo, hi, a, b) > 0 for a, b in barriers)
+
     for lo, hi in cores:
         lo, hi = max(lo, hold['start']), min(hi, hold['end'])
-        if lo < first['start'] <= hi + EDGE_TOLERANCE and _wordless(
-                units, lo, first['start'], 'start'):
+        if (lo < first['start'] <= hi + EDGE_TOLERANCE
+                and first['start'] - lo <= PASS2_DAI_RELEASE_MAX_EXTEND_S
+                and clear(lo, first['start'])
+                and _wordless(units, lo, first['start'], 'start')):
             first['start'] = lo
-        if lo - EDGE_TOLERANCE <= last['end'] < hi and _wordless(
-                units, last['end'], hi, 'end'):
+        if (lo - EDGE_TOLERANCE <= last['end'] < hi
+                and hi - last['end'] <= PASS2_DAI_RELEASE_MAX_EXTEND_S
+                and clear(last['end'], hi)
+                and _wordless(units, last['end'], hi, 'end')):
             last['end'] = hi
     if (len(spans) == 1
             and first['start'] <= hold['start'] + PASS2_AUTOAPPROVE_TRIM_SLACK_S
@@ -509,12 +514,14 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
                 f"saved transcript segments to recut with")
             return 0
-        # A human reject always wins: never auto-approve a span the user has
-        # explicitly marked as content.
+        # Audio a person or the reviewer rejected, kept or trimmed is never auto-approved.
         fp_corrections, confirmed_corrections = corrections
         fp_corrections = fp_corrections or []
-        reviewer_rejects = [
-            r for r in markers if reviewer_reject_stands(r, confirmed_corrections)]
+        barriers = [(r['start'], r['end']) for r in markers
+                    if reviewer_reject_stands(r, confirmed_corrections)]
+        barriers += [(t['start'], t['end']) for t in user_trimmed_keep_ranges(confirmed_corrections or [])]
+        kept = [k for k in markers if is_keep_like(k.get('action_applied'))]
+        barriers += [(fp['start'], fp['end']) for fp in fp_corrections]
         approvable = []
         for m in holds:
             if any(ranges_overlap(m['start'], m['end'], fp['start'], fp['end'])
@@ -526,15 +533,17 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 continue
             released = m.get('pass2_released_spans') or []
             spans = released if len(released) > 1 else [_pass2_confirm_span(m)]
-            spans = _extend_to_dai_core(m, spans, segments)
+            blocked = [*barriers, *((k['start'], k['end']) for k in kept if k is not m)]
+            spans = _extend_to_dai_core(m, spans, segments, blocked)
+            # Protected audio must not be cut, not only kept out of the widening.
             spans = [span for span in spans if not any(
-                overlap_seconds((span or m)['start'], (span or m)['end'],
-                                r['start'], r['end']) > 0 for r in reviewer_rejects)]
+                overlap_seconds((span or m)['start'], (span or m)['end'], lo, hi) > 0
+                for lo, hi in blocked)]
             if not spans:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Not auto-approving hold "
-                    f"{m['start']:.1f}s-{m['end']:.1f}s: the reviewer "
-                    f"rejected overlapping audio")
+                    f"{m['start']:.1f}s-{m['end']:.1f}s: a reject, a kept span "
+                    f"or a user trim overlaps the approved audio")
                 continue
             approvable.append((m, spans))
         if not approvable:
@@ -663,7 +672,7 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
             for protected in protected_ranges or [])
 
     def locked_at(cut, edge):
-        return any(
+        return reviewer_edge_locked(cut, edge) or any(
             (locked := finite_number(marker.get(f'reviewer_locked_{edge}'))) is not None
             and abs(locked - cut[edge]) <= EDGE_TOLERANCE
             and _covered_by_cuts(marker, [cut])
@@ -680,13 +689,14 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         same_action = current['action_applied'] == candidate['action_applied']
         combines_passes = current['_crosspass_sources'] != candidate['_crosspass_sources']
         gap = candidate['start'] - current['end']
-        speech = (_content_duration_in_range(
-            original_segments, current['end'], candidate['start'])
-            if gap > 0 and original_segments else 0.0)
-        # A gap next to a reviewer-locked pass-1 edge is audio the reviewer kept.
-        eligible = gap <= 0 or (
-            bool(original_segments) and min_content > 0 and speech < min_content
-            and not locked_at(current, 'end') and not locked_at(candidate, 'start'))
+        if gap <= 0:
+            eligible = True
+        elif locked_at(current, 'end') or locked_at(candidate, 'start'):
+            # A gap beside a reviewer-locked edge is audio the reviewer kept unless it is short and wordless.
+            eligible = locked_gap_bridgeable(original_segments, current['end'], candidate['start'])
+        else:
+            eligible = (bool(original_segments) and min_content > 0 and _content_duration_in_range(
+                original_segments, current['end'], candidate['start']) < min_content)
         if (same_action and combines_passes and eligible
                 and end - start <= MAX_MERGED_DURATION
                 and not crosses_protected(start, end)):
@@ -1179,19 +1189,22 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     protected_spans=reviewer_protection.hard_labelled,
                     ledger=ledger,
                     hard_barriers=reviewer_protection.hard_orig,
+                    original_duration=(local_audio_processor.get_audio_duration(original_audio_path)
+                                       if original_audio_path else None),
                 )
                 review._hold_adjustments_crossing_final_holds(
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)
 
                 # Stamped only now: a candidate diverted to a hold or reject must not advertise a cut.
                 keep_rules._partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
+                protection = current_protection()
                 # After every hold decision, before the splits that clip protected audio.
                 if audio_analysis_result:
                     _snap_pass2_cuts_to_cues(v_ads_to_cut, v_ads_for_ui, audio_analysis_result,
-                                             pass1_cuts, detect._cue_snap_settings(ctx.podcast_id))
+                                             pass1_cuts, detect._cue_snap_settings(ctx.podcast_id),
+                                             original_segments, protection.holds_orig)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
-                protection = current_protection()
                 v_ads_to_cut, v_ads_for_ui = _split_pass2_candidates_around_spans(
                     v_ads_to_cut, v_ads_for_ui, protection.hard_proc,
                     pass1_cuts, 'protected audio',

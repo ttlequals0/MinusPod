@@ -8,6 +8,8 @@ import sys
 import tempfile
 from types import SimpleNamespace
 
+import pytest
+
 _test_data_dir = tempfile.mkdtemp(prefix='pass2_contradiction_test_')
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
@@ -23,6 +25,7 @@ from ad_reviewer import ReviewResult, log_contradiction_event
 from tests.unit.pass2_test_utils import _ctx, _verdict, drive_verification_pass
 from tests.unit.reviewer_test_utils import _build_reviewer, _resp
 from tests.unit.pipeline_test_utils import stub_clear_fallback
+from utils.markers import held_window_blockers, usable_reviewer_proposal
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
 
@@ -358,6 +361,166 @@ def test_pass2_adjust_spanning_a_pass1_cut_is_still_held(monkeypatch):
     assert original['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
     assert (original['reviewer_proposed_start'],
             original['reviewer_proposed_end']) == (40.0, 230.0)
+
+
+KEPT = {'start': 220.0, 'end': 230.0, 'was_cut': False, 'action_applied': 'keep'}
+
+
+def _stop_run(monkeypatch, marker, proposed, cuts, neighbours=(), locked=(), **kwargs):
+    original, processed = _pair(*marker, *marker)
+    ui, held, to_cut = [original, *neighbours], [], [processed]
+    verdict = _verdict('adjust', *marker, reasoning=AFFIRMING, adjusted=proposed,
+                       locked_edges=locked)
+    monkeypatch.setattr(review, 'resolve_max_boundary_shift', lambda db: 60)
+    logged = []
+    monkeypatch.setattr(review, '_log_reviewer_verdicts', lambda *a: logged.extend(a[3]))
+    _run_pass2(monkeypatch, [verdict], to_cut, ui, held, [processed], [original],
+               pass1_cuts=[{'start': a, 'end': b} for a, b in cuts], **kwargs)
+    return original, held, logged
+
+
+def _offered(marker, proposed, cuts, neighbours):
+    """The span the human path offers for the same inputs."""
+    blockers = [*cuts, *held_window_blockers(neighbours, None, True)]
+    return usable_reviewer_proposal(
+        {'reviewer_proposed_start': proposed[0], 'reviewer_proposed_end': proposed[1]},
+        marker[0], marker[1], 60, blockers)
+
+
+def test_pass2_stop_at_cut_clamps_to_a_kept_marker_like_the_human_path(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (200.0, 320.0),
+                                  [(310.0, 400.0)], [dict(KEPT)])
+
+    assert held == []
+    assert (original['start'], original['end']) == (230.0, 310.0)
+    assert (original['start'], original['end']) == _offered(
+        (250.0, 300.0), (200.0, 320.0), [(310.0, 400.0)], [KEPT])
+
+
+def test_pass2_stop_at_cut_over_a_not_an_ad_span_is_held(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (200.0, 320.0),
+                                  [(310.0, 400.0)],
+                                  protected_original_ranges=[{'start': 225.0, 'end': 235.0}])
+
+    assert held == [original]
+    assert (original['start'], original['end']) == (250.0, 300.0)
+
+
+def test_pass2_stop_at_cut_leaving_a_sliver_is_held(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (95.0, 105.0), (99.5, 150.0), [(100.0, 200.0)])
+
+    assert held == [original]
+    assert original['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
+    assert (original['reviewer_proposed_start'],
+            original['reviewer_proposed_end']) == (99.5, 150.0)
+
+
+def test_pass2_adjust_inside_two_adjacent_cuts_is_covered_not_held(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (120.0, 180.0), (130.0, 170.0),
+                                  [(100.0, 150.0), (150.0, 200.0)])
+
+    assert held == []
+    assert (original['start'], original['end']) == (120.0, 180.0)
+
+
+def test_pass2_adjust_between_two_cuts_keeps_the_span_left(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (140.0, 210.0), (130.0, 220.0),
+                                  [(100.0, 150.0), (200.0, 250.0)])
+
+    assert held == []
+    assert (original['start'], original['end']) == (150.0, 200.0)
+
+
+def test_pass2_stop_at_cut_drops_the_lock_on_the_clipped_edge_and_logs_the_clip(monkeypatch):
+    original, held, logged = _stop_run(monkeypatch, (260.128, 360.868), (261.49, 420.61),
+                                       [(360.9, 459.1)], locked=('start', 'end'))
+
+    assert held == []
+    assert original['reviewer_locked_start'] == 261.49
+    assert 'reviewer_locked_end' not in original
+    assert [(v.adjusted_start, v.adjusted_end, v.locked_edges) for v in logged] == [
+        (261.49, 360.9, ('start',))]
+
+
+def test_pass2_stop_leaving_the_marker_span_cuts_it_unchanged_not_held(monkeypatch):
+    original, held, logged = _stop_run(monkeypatch, (250.0, 300.0), (250.0, 360.0),
+                                       [(300.0, 400.0)], locked=('start', 'end'))
+
+    assert held == []
+    assert (original['start'], original['end']) == (250.0, 300.0)
+    assert original['reviewer_verdict'] == 'confirmed'
+    assert 'reviewer_moved' not in original
+    assert not any(key.startswith('reviewer_locked') for key in original)
+    assert not is_pending_review(original)
+    assert [(v.verdict, v.locked_edges) for v in logged] == [('confirmed', ())]
+
+
+def test_pass2_stop_leaving_the_marker_span_still_holds_a_protected_range(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (250.0, 360.0),
+                                  [(300.0, 400.0)],
+                                  protected_original_ranges=[{'start': 270.0, 'end': 280.0}])
+
+    assert held == [original]
+
+
+def test_pass2_stop_past_the_episode_end_is_clamped_to_the_duration(monkeypatch):
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (240.0, 330.0),
+                                  [(305.0, 400.0)], original_duration=310.0)
+
+    assert held == []
+    assert (original['start'], original['end']) == (240.0, 305.0)
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (240.0, 330.0),
+                                  [(305.0, 400.0)], original_duration=302.0)
+    assert (original['start'], original['end']) == (240.0, 302.0)
+
+
+def test_pass2_stop_ignores_the_verdicts_own_duplicate_twins(monkeypatch):
+    twin = {'start': 250.0, 'end': 300.0, 'was_cut': True}
+    original, held, _ = _stop_run(monkeypatch, (250.0, 300.0), (200.0, 320.0),
+                                  [(310.0, 400.0)], [twin])
+
+    # The verdict applies to the later duplicate; neither blocks the other.
+    assert held == []
+    assert (twin['start'], twin['end']) == (200.0, 310.0)
+
+
+def test_pass2_stop_loads_the_boundary_cap_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(review, 'resolve_max_boundary_shift',
+                        lambda db: calls.append(1) or 60)
+    original, processed = _pair(250.0, 300.0, 250.0, 300.0)
+    verdicts = [_verdict('adjust', 250.0, 300.0, reasoning=AFFIRMING, adjusted=(200.0, 320.0))
+                for _ in range(3)]
+    _run_pass2(monkeypatch, verdicts, [processed], [original], [], [processed], [original],
+               pass1_cuts=[{'start': 310.0, 'end': 400.0}])
+
+    assert len(calls) == 1
+
+
+STOP_CASES = [
+    ((250.0, 300.0), (200.0, 320.0), [(310.0, 400.0)], [KEPT]),
+    ((250.0, 300.0), (240.0, 320.0), [(310.0, 400.0)], [KEPT]),
+    ((250.0, 300.0), (230.0, 320.0), [(310.0, 400.0)], []),
+    ((250.0, 300.0), (150.0, 320.0), [(310.0, 400.0)], []),
+    ((250.0, 300.0), (200.0, 320.0), [(100.0, 210.0)], []),
+    ((250.0, 300.0), (300.0, 330.0), [(305.0, 400.0)], []),
+    ((250.0, 300.0), (200.0, 320.0), [(310.0, 400.0)],
+     [{'start': 300.0, 'end': 305.0, 'validation': {'decision': 'REJECT'}}]),
+    ((250.0, 300.0), (140.0, 320.0), [(100.0, 150.0), (310.0, 400.0)], []),
+    ((250.0, 300.0), (120.0, 340.0), [(100.0, 150.0), (310.0, 400.0)], [KEPT]),
+]
+
+
+@pytest.mark.parametrize('marker,proposed,cuts,neighbours', STOP_CASES)
+def test_pass2_stop_at_cut_agrees_with_the_human_path(monkeypatch, marker, proposed, cuts,
+                                                      neighbours):
+    original, held, _ = _stop_run(monkeypatch, marker, proposed, cuts,
+                                  [dict(n) for n in neighbours])
+    offered = _offered(marker, proposed, cuts, neighbours)
+
+    assert (held == []) == (offered is not None)
+    if offered is not None:
+        assert (original['start'], original['end']) == offered
 
 
 def test_pass2_adjust_crossing_protected_range_is_held(monkeypatch):

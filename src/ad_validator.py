@@ -58,6 +58,8 @@ from utils.markers import (
     note_fold,
     precise_edge,
     recorded_member_spans,
+    SPEECH_SLOP_S,
+    locked_gap_bridgeable,
     reviewer_edge_locked,
     reviewer_reject_stands,
     SILENT_ABSORBED_SPANS,
@@ -87,8 +89,7 @@ from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
-TRAILING_SPEECH_SLOP_S = 0.25  # seconds; a word starting this soon after the ad's end is timing slop
-LEADING_AD_MAX_GAP = TRAILING_AD_MAX_GAP  # seconds; a first ad starting this close to the file start runs from it
+LEADING_AD_MAX_GAP = 5.0  # seconds; a first ad starting this close to the file start runs from it
 
 logger = logging.getLogger(__name__)
 
@@ -118,11 +119,7 @@ _SPACE_AROUND_PUNCT_RE = re.compile(r'\s*([^\w\s])\s*')
 
 
 def _squash_spacing(text: str) -> str:
-    """Lowercase `text` with runs of whitespace collapsed and none beside punctuation.
-
-    The model quotes "acme .se" for a transcript's "acme.se", so a substring test
-    on the raw text misses a quote that is really there.
-    """
+    """Lowercase `text`, collapse whitespace runs and drop whitespace beside punctuation."""
     text = _SPACE_AROUND_PUNCT_RE.sub(r'\1', text.lower())
     return ' '.join(text.split())
 
@@ -340,9 +337,12 @@ class AdValidator:
         'transcript_differential': (HOLD_REASON_TRANSCRIPT_DIFFERENTIAL, lambda ad: True),
     }
 
+    # Vague phrases that state uncertainty; a named brand does not excuse them.
+    HEDGED_REASONS: ClassVar[tuple[str, ...]] = ('possible ad', 'likely ad')
+
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
-        'possible ad', 'likely ad', 'advertisement segment'
+        *HEDGED_REASONS, 'advertisement segment'
     ]
 
     # Patterns that indicate Claude determined this is NOT an ad. The second branch only matches
@@ -389,7 +389,8 @@ class AdValidator:
                  podcast_name: str = None,
                  transcript_spans: list[dict] = None,
                  loop_runs: list[tuple[float, float, int]] = None,
-                 cue_snap_settings: dict | None = None):
+                 cue_snap_settings: dict | None = None,
+                 opening_excluded: bool = False):
         """Initialize validator.
 
         episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
@@ -407,7 +408,9 @@ class AdValidator:
         Whisper repetition runs of segments when the caller already computed them; found here when None.
         cue_snap_settings are the feed's cue snap knobs (snap_split_edge keywords); with them, an edge an
         estimated-span split creates snaps onto a removed break cue the way detection snaps the others.
+        opening_excluded is True when the feed excludes its opening from ad detection; the leading rule then stays off.
         """
+        self.opening_excluded = opening_excluded
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
         self.episode_duration = episode_duration
@@ -1296,14 +1299,16 @@ class AdValidator:
             logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
             return 0.0  # Force rejection
 
+        # Whole phrase only: "impossible ad" is not a hedge.
+        hedged = any(re.search(rf'(?<![a-z]){re.escape(phrase)}', reason) for phrase in self.HEDGED_REASONS)
+
         # Sponsor name in reason = boost
-        if self.SPONSOR_PATTERNS.search(reason):
+        if not hedged and self.SPONSOR_PATTERNS.search(reason):
             return min(1.0, confidence + 0.1)
 
-        # Vague reason = penalize. The phrases match as substrings ("sponsored" holds
-        # "sponsor"), so a reason that also names its advertiser is not vague.
-        if (any(vague in reason for vague in self.VAGUE_REASONS)
-                and not self._reason_names_advertiser(ad.get('reason', ''))):
+        # Substring match ("sponsored" holds "sponsor"), so a reason that names its advertiser is not vague.
+        if hedged or (any(vague in reason for vague in self.VAGUE_REASONS)
+                      and not self._reason_names_advertiser(ad.get('reason', ''))):
             flags.append("WARN: Vague reason")
             return max(0.0, confidence - 0.1)
 
@@ -2033,7 +2038,7 @@ class AdValidator:
 
         DAI post-roll ads often end slightly before the actual episode end. Corrections are recorded in `result`.
         """
-        if not ads or self.episode_duration <= 0:
+        if not ads or self.episode_duration <= 0 or not self._has_transcript():
             return ads
 
         # The tail is the marker that ends last: a piece carved out of a wider marker can start later.
@@ -2070,11 +2075,11 @@ class AdValidator:
 
     def _extend_leading_ad(self, ads: list[dict], result: ValidationResult,
                            max_gap: float = LEADING_AD_MAX_GAP) -> list[dict]:
-        """Start the first ad at 0 if it starts within max_gap seconds and nobody speaks before it."""
-        if not ads:
+        """Start the first ad at 0 when it starts within max_gap, speech-free before it, with a transcript and no opening exclusion."""
+        if not ads or self.opening_excluded or not self._has_transcript():
             return ads
         first_ad = min(ads, key=lambda x: (x['start'], x['end']))
-        # Same guards as the trailing rule. A precise start is extended on purpose: it marks the ad's first
+        # Held and kept markers are skipped as in the trailing rule. A precise start is extended on purpose: it marks the ad's first
         # word, and a pre-roll's music bed plays before it.
         if (first_ad.get('_user_kept_by_trim') or first_ad.get('held_for_review')
                 or first_ad.get('vad_gap_requires_review')):
@@ -2089,6 +2094,10 @@ class AdValidator:
             logger.info(f"Extended leading ad to episode start: {original_start:.1f}s -> 0.0s")
         return ads
 
+    def _has_transcript(self) -> bool:
+        """Whether any segment has text; without one, silence cannot be told from a missing transcript."""
+        return any((seg.get('text') or '').strip() for seg in self.segments)
+
     def _word_starts(self):
         """Start times of transcript words, or of whole segments that carry no word timing."""
         for seg in self.segments:
@@ -2099,19 +2108,12 @@ class AdValidator:
                 yield start
 
     def _speech_starts_after(self, edge: float) -> bool:
-        """Whether a word starts after `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop.
-
-        A word already running at `edge` belongs to the ad that ends there.
-        """
-        return any(start > edge + TRAILING_SPEECH_SLOP_S for start in self._word_starts())
-
-    def _speech_starts_between(self, start: float, end: float) -> bool:
-        """Whether a word starts inside (start, end), ignoring TRAILING_SPEECH_SLOP_S of timing slop at both edges."""
-        return any(start + TRAILING_SPEECH_SLOP_S < s < end - TRAILING_SPEECH_SLOP_S for s in self._word_starts())
+        """Whether a word starts after `edge`, ignoring timing slop."""
+        return any(start > edge + SPEECH_SLOP_S for start in self._word_starts())
 
     def _speech_starts_before(self, edge: float) -> bool:
-        """Whether a word starts before `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop."""
-        return any(start < edge - TRAILING_SPEECH_SLOP_S for start in self._word_starts())
+        """Whether a word starts before `edge`, ignoring timing slop."""
+        return any(start < edge - SPEECH_SLOP_S for start in self._word_starts())
 
     def _has_speech_in_range(self, start: float, end: float) -> bool:
         """Check if any transcript segments contain speech in the given range."""
@@ -2210,9 +2212,8 @@ class AdValidator:
 
             # A gap past a reviewer-locked edge stays in the audio, unless it is a short gap nobody speaks in.
             if gap > 0 and (reviewer_edge_locked(last, 'end')
-                            or reviewer_edge_locked(current, 'start')) and not (
-                    gap < MERGE_GAP_THRESHOLD and self.segments
-                    and not self._speech_starts_between(last['end'], current['start'])):
+                            or reviewer_edge_locked(current, 'start')) and not locked_gap_bridgeable(
+                    self.segments, last['end'], current['start']):
                 merged.append(current.copy())
                 continue
 

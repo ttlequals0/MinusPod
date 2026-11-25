@@ -51,10 +51,11 @@ class TestWindow:
     def test_default_is_the_reviewed_span_plus_tolerance(self):
         assert held_marker_window([MARKER], MARKER, 3600.0, True) == (99.5, 140.5)
 
-    def test_default_ignores_neighbours_and_episode_edges(self):
-        # The +/-0.5 s tolerance is never limited by a neighbour.
+    def test_default_ignores_neighbours_but_not_the_episode_end(self):
+        # The +/-0.5 s tolerance is never limited by a neighbour; the API rejects off-episode bounds.
         near = _cut(140.2, 160.0)
-        assert held_marker_window([MARKER, near], MARKER, 140.3, True) == (99.5, 140.5)
+        assert held_marker_window([MARKER, near], MARKER, 3600.0, True) == (99.5, 140.5)
+        assert held_marker_window([MARKER, near], MARKER, 140.3, True) == (99.5, 140.3)
 
     def test_default_ignores_the_first_detected_bounds(self):
         trimmed = dict(MARKER, start=110.0, end=130.0,
@@ -114,7 +115,7 @@ class TestUsableProposal:
             marker, 100.0, 140.0, 60.0, [(140.0, 200.0)]) == (88.0, 140.0)
 
     def test_the_clip_comes_before_the_shift_cap(self):
-        # The end moves 60.056 s, past the cap, but the neighbour stops it first.
+        # The end would move past the cap, but the neighbour stops it first.
         marker = _proposed(259.616, 359.8, 257.4, 419.856)
         assert usable_reviewer_proposal(
             marker, 259.616, 359.8, 60.0, [(359.8, 560.7)]) == (257.4, 359.8)
@@ -134,6 +135,15 @@ class TestUsableProposal:
         marker = _proposed(100.0, 140.0, 85.0, 135.0)
         assert usable_reviewer_proposal(
             marker, 100.0, 140.0, 60.0, [(90.0, 110.0)]) == (100.0, 135.0)
+
+    def test_a_shrinking_edge_over_the_cap_is_no_proposal(self):
+        marker = _proposed(10286.7, 10534.6, 10422.1, 10527.9)
+        assert usable_reviewer_proposal(marker, 10286.7, 10534.6, 60.0) is None
+
+    def test_a_clipped_span_under_the_minimum_is_no_proposal(self):
+        marker = _proposed(1054.6, 1101.5, 1101.4, 1132.3)
+        assert usable_reviewer_proposal(
+            marker, 1054.6, 1101.5, 60.0, [(1101.5, 1300.0)]) is None
 
     def test_a_disjoint_proposal_is_still_none(self):
         marker = _proposed(100.0, 140.0, 0.0, 12.0)
@@ -165,3 +175,12 @@ class TestHeldReviewProposal:
         held = dict(_proposed(100.0, 140.0, 88.0, 170.0), was_cut=False)
         assert held_review_proposal(
             self.EPISODE, [held], held, [{'start': 150.0, 'end': 180.0}], 60.0) == (88.0, 150.0)
+
+    def test_a_proposal_start_below_zero_clamps_to_zero(self):
+        held = dict(_proposed(0.5, 40.0, -3.0, 30.0), was_cut=False)
+        assert held_review_proposal(self.EPISODE, [held], held, [], 60.0) == (0.0, 30.0)
+
+
+def test_window_stays_inside_the_episode_with_widening_off():
+    marker = {'start': 0.3, 'end': 59.8}
+    assert held_marker_window([marker], marker, 60.0, True) == (0.0, 60.0)

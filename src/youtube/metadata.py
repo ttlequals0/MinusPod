@@ -31,11 +31,7 @@ def video_id_of(row, url=None) -> str:
 
 
 def fill_fields(episode_row, info, replace_title: bool = False) -> dict:
-    """Fields the info supplies and the row lacks.
-
-    replace_title: the info was read in the feed's language, so its title replaces the listed one,
-    which a yt-dlp listing returns in English.
-    """
+    """Fields the info supplies and the row lacks; `replace_title` swaps in the info's localized title."""
     fields = {}
     description = (info or {}).get('description')
     if description and not (episode_row or {}).get('description'):

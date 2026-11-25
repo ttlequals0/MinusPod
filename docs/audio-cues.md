@@ -395,8 +395,9 @@ one alert per template every 5 minutes, so a publisher swapping their
 stinger does not silently stop cutting ads. See
 [API & Webhooks > Events](api-and-webhooks.md#events).
 
-**Transcription toggle.** The per-feed **Skip transcription** toggle (only
-available under `cue_only`) skips the Whisper pass entirely. Generated
+**Transcription toggle.** The per-feed **Skip transcription** toggle (under
+`cue_only`; Standard and Keep content feeds can use it with a Chapter trim
+rule, see [Chapter trim](configuration.md#chapter-trim)) skips the Whisper pass entirely. Generated
 chapters stop, and those episodes lose transcript search and VTT subtitles.
 Publisher chapters still work: both embedded ID3 chapters and linked
 Podcasting 2.0 JSON chapters are remapped onto the cut audio using the cue
@@ -430,8 +431,8 @@ Per-feed controls sit on the feed detail page under Feed settings:
   Content-transition cues may snap ad edges the same way boundary cues do.
 - **Cue-only safety** (`cueOnlySafety`) - `cue_only` feeds only. `hold_new`
   (default) or `auto_cut`; see Cue-only preset above.
-- **Skip transcription** (`skipTranscription`) - `cue_only` feeds only. See
-  Cue-only preset above.
+- **Skip transcription** (`skipTranscription`) - `cue_only` feeds, or Standard
+  and Keep content feeds with a Chapter trim pattern. See Cue-only preset above.
 
 Overrides are set at `PATCH /api/v1/feeds/<slug>` and apply to episodes
 processed after the change.

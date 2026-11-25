@@ -155,49 +155,6 @@
         "tar"
       ],
       "summary": "Confine archive extraction to the requested top-level directory."
-    },
-    {
-      "name": "libxrender",
-      "source_version": "1:0.9.12-1build1",
-      "version": "1:0.9.12-1build1+minuspod1",
-      "source_files": [
-        {
-          "file": "libxrender_0.9.12-1build1.dsc",
-          "sha256": "84d74d1d04750e0742521f453635b0b092b5fb13cdf3aa00c1360c6db2d68e42",
-          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12-1build1.dsc"
-        },
-        {
-          "file": "libxrender_0.9.12.orig.tar.gz",
-          "sha256": "0fff64125819c02d1102b6236f3d7d861a07b5216d8eea336c3811d31494ecf7",
-          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12.orig.tar.gz"
-        },
-        {
-          "file": "libxrender_0.9.12.orig.tar.gz.asc",
-          "sha256": "0bbd310ac3974ef398cf4d8a4b362b0b4d60ceb43e6eba393c3cc740b03816fc",
-          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12.orig.tar.gz.asc"
-        },
-        {
-          "file": "libxrender_0.9.12-1build1.diff.gz",
-          "sha256": "473c174d5df6c9378e52d092909acf42bdbd453af419893df6414294619649ac",
-          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12-1build1.diff.gz"
-        }
-      ],
-      "dsc": "libxrender_0.9.12-1build1.dsc",
-      "patches": [
-        {
-          "file": "libxrender-0564bce.patch",
-          "path": "patches/xrender/libxrender-0564bce.patch",
-          "sha256": "eeecac9d32dc658105059c2635270728daeeabcb25394ecdf9ec6c132ce4e595",
-          "cves": [
-            "CVE-2026-88807"
-          ],
-          "upstream_commit": "0564bce5446550c1b1681f3d8a933c20ea1455f7"
-        }
-      ],
-      "runtime_packages": [
-        "libxrender1"
-      ],
-      "summary": "Reject impossible subpixel counts in RenderQueryPictFormats."
     }
   ]
 }

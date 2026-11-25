@@ -3,7 +3,7 @@ import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
-from audio_fingerprinter import AudioFingerprinter
+from audio_fingerprinter import FINGERPRINT_NOMINAL_FPS, AudioFingerprinter
 
 
 def _fp(monkeypatch):
@@ -21,7 +21,7 @@ def test_returns_ints_and_duration(monkeypatch):
     with patch('audio_fingerprinter.tracked_run',
                side_effect=[ffmpeg_out, fpcalc_out]) as run:
         result = fp.generate_raw_span_fingerprint('/audio/ep.mp3', 100.0, 102.5)
-    assert result == ([1, 2, 3, 4], 2.5)
+    assert result == ([1, 2, 3, 4], 4 / FINGERPRINT_NOMINAL_FPS)
     ffmpeg_cmd = run.call_args_list[0].args[0]
     assert '-ss' in ffmpeg_cmd and '100.0' in ffmpeg_cmd
     assert '-t' in ffmpeg_cmd and '2.5' in ffmpeg_cmd

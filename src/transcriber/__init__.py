@@ -4,6 +4,7 @@ import logging
 import tempfile
 import os
 import subprocess
+import contextvars
 import threading
 import time
 from contextlib import ExitStack
@@ -13,6 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import failover
 import run_context
+from status_service import StatusService
 from user_agent import download_user_agent
 import utils.audio
 from utils.errors import (
@@ -66,17 +68,33 @@ os.environ.setdefault('XDG_CACHE_HOME', cache_dir)
 logger = logging.getLogger(__name__)
 
 MB = 1024 * 1024
+CANCEL_CHECK_INTERVAL_SECONDS = 2.0
+STAGE_DETAIL_INTERVAL_SECONDS = 5.0
+# (offset, total) seconds of the chunk being decoded within the episode; None means the file is the episode.
+_progress_window: contextvars.ContextVar = contextvars.ContextVar('transcribe_progress_window', default=None)
 
 
 def _raise_if_cancelled():
-    """Raise the run's cancel exception if the user cancelled this episode.
-
-    Local decodes run for minutes on CPU; without these checks a Cancel click
-    is only honoured after the whole transcription finishes.
-    """
+    """Raise the run's cancel exception if the user cancelled this episode."""
     ctx = run_context.current()
     if ctx is not None:
         ctx.llm_cancel_check()
+
+
+def _publish_stage_detail(processed, total, unit, force=False, now=None):
+    """Publish sub-stage progress to the job status, at most once per interval unless forced; never raises."""
+    ctx = run_context.current()
+    if ctx is None or not total or total < 0:
+        return
+    now = time.monotonic() if now is None else now
+    if not force and now - ctx.stage_detail_at < STAGE_DETAIL_INTERVAL_SECONDS:
+        return
+    ctx.stage_detail_at = now
+    try:
+        StatusService().update_job_stage_detail(
+            ctx.slug, ctx.episode_id, min(processed, total), total, unit, run_id=ctx.run_id)
+    except Exception as e:
+        logger.debug("Could not publish transcription progress: %s", e)
 
 
 def _is_cancellation(exc: BaseException) -> bool:
@@ -583,7 +601,7 @@ class Transcriber:
                 '-vn',           # ignore embedded cover art (#556)
                 '-ar', '16000',  # 16kHz (Whisper native sample rate)
                 '-ac', '1',      # Mono
-                '-af', settings.PREPROCESS_AUDIO_FILTERS,
+                '-af', settings.preprocess_filters_for(input_path),
                 output_path
             ]
             # Scale timeout by file size: 10s per MB (~1MB/min for podcasts)
@@ -792,8 +810,7 @@ class Transcriber:
         """Transcribe with OOM retries; explicit settings pin the backend.
         language_override replaces the global language; preprocessed skips filtering.
         vad_filter is forwarded to either backend."""
-        # A cancel that arrived during download/preparation or between chunks
-        # must stop the run before another decode starts.
+        # Stop before another decode starts if a cancel arrived during preparation or between chunks.
         _raise_if_cancelled()
         whisper_settings = whisper_settings or settings.active_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
@@ -940,14 +957,18 @@ class Transcriber:
                     result = []
                     segment_count = 0
                     last_log_time = 0
+                    last_cancel_check = float('-inf')
 
                     non_english_count = 0
                     for segment in segments_generator:
-                        # The generator decodes lazily, so this loop is where the
-                        # decode spends its time; check between batches.
-                        if segment_count % 5 == 0:
+                        # The generator decodes lazily; the check is a DB query, so throttle it by time.
+                        now = time.monotonic()
+                        if now - last_cancel_check >= CANCEL_CHECK_INTERVAL_SECONDS:
+                            last_cancel_check = now
                             _raise_if_cancelled()
                         segment_count += 1
+                        offset, window_total = _progress_window.get() or (0.0, audio_duration)
+                        _publish_stage_detail(offset + segment.end, window_total, 'seconds', now=now)
                         # Store word-level timestamps for boundary refinement
                         words = []
                         if segment.words:
@@ -1017,6 +1038,8 @@ class Transcriber:
                     return result
 
                 except Exception as inner_e:
+                    if _is_cancellation(inner_e):
+                        raise
                     error_str = str(inner_e).lower()
                     is_oom = 'out of memory' in error_str
 
@@ -1043,8 +1066,7 @@ class Transcriber:
 
         except Exception as e:
             if _is_cancellation(e):
-                # Not a transcription failure: free the GPU and let the
-                # pipeline's cancel handling reset the episode.
+                # Not a failure: free the GPU and let the pipeline's cancel handling reset the episode.
                 try:
                     clear_gpu_memory()
                 except Exception as cleanup_err:
@@ -1165,6 +1187,8 @@ class Transcriber:
                 results[chunk_idx] = segs
                 if segs is None:
                     failed += 1
+                else:
+                    _publish_stage_detail(completed - failed, len(plan_subset), 'chunks', force=True)
                 logger.info(
                     f"{prefix}Chunk {chunk_idx + 1} complete "
                     f"({completed}/{len(plan_subset)}): "
@@ -1440,6 +1464,8 @@ class Transcriber:
                 # If transcribe returns None but didn't raise, fall through to chunked
                 logger.warning("Regular transcription returned None, falling back to chunked")
             except Exception as e:
+                if _is_cancellation(e):
+                    raise
                 error_str = str(e).lower()
                 if 'out of memory' in error_str or 'oom' in error_str or 'cuda' in error_str:
                     logger.warning(f"OOM during regular transcription, falling back to chunked: {e}")
@@ -1531,11 +1557,15 @@ class Transcriber:
 
                 try:
                     # Transcribe chunk (will handle its own batch sizing and retries)
-                    chunk_segments = self.transcribe(
-                        chunk_path,
-                        language_override=language_override, preprocessed=True,
-                        whisper_settings=whisper_settings,
-                    )
+                    window_token = _progress_window.set((chunk_start, duration))
+                    try:
+                        chunk_segments = self.transcribe(
+                            chunk_path,
+                            language_override=language_override, preprocessed=True,
+                            whisper_settings=whisper_settings,
+                        )
+                    finally:
+                        _progress_window.reset(window_token)
 
                     if chunk_segments is None:
                         error = (self.last_transcription_stats or {}).get('error', '')
@@ -1586,6 +1616,8 @@ class Transcriber:
                         f"Chunk {chunk_num} complete: {len(chunk_segments)} segments "
                         f"(total: {len(all_segments)})"
                     )
+
+                    _publish_stage_detail(chunk_end, duration, 'seconds', force=True)
 
                     # Move to next chunk
                     chunk_start = chunk_end

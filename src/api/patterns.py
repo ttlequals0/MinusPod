@@ -18,7 +18,7 @@ from database.fingerprint_matches import fingerprint_member_pattern_ids
 from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.markers import (
     clip_merge_spans, find_marker_in_list, held_review_window, parse_ad_markers,
-    restore_merge_spans, stash_merge_spans, usable_reviewer_proposal)
+    restore_merge_spans, stash_merge_spans)
 from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from utils.constants import EpisodeStatus
@@ -1218,17 +1218,16 @@ def _handle_confirm_correction(
         if held_marker is not None:
             win_start, win_end = _held_window_for(
                 db, slug, episode_id, episode, markers, held_marker, widen_s, cap, podcast)
-            if usable_reviewer_proposal(
-                    held_marker, original_start, original_end, cap) is None:
-                p_start = held_marker.get('reviewer_proposed_start')
-                p_end = held_marker.get('reviewer_proposed_end')
-                if (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
-                        and (p_end <= original_start or p_start >= original_end)
-                        and (adjusted_start < win_start or adjusted_end > win_end)):
-                    return error_response(
-                        f'Reviewer trim {p_start:.1f}-{p_end:.1f} does not overlap this '
-                        f'held span {original_start:.1f}-{original_end:.1f}; '
-                        'confirm or reject the whole span', 400)
+            p_start = held_marker.get('reviewer_proposed_start')
+            p_end = held_marker.get('reviewer_proposed_end')
+            # A proposal that misses the span has no usable window, so only the span itself is allowed.
+            if (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
+                    and (p_end <= original_start or p_start >= original_end)
+                    and (adjusted_start < win_start or adjusted_end > win_end)):
+                return error_response(
+                    f'Reviewer trim {p_start:.1f}-{p_end:.1f} does not overlap this '
+                    f'held span {original_start:.1f}-{original_end:.1f}; '
+                    'confirm or reject the whole span', 400)
         else:
             win_start, win_end = original_start - 0.5, original_end + 0.5
         if adjusted_start < win_start or adjusted_end > win_end:

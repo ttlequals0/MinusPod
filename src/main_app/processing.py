@@ -31,7 +31,7 @@ from config import (
     count_not_cut, is_pending_review, is_keep_like,
     resolve_processing_mode,
     resolve_skip_second_pass,
-    resolve_skip_transcription,
+    resolve_skip_transcription, skip_transcription_error,
     resolve_cue_only_safety,
     cue_only_missing_roles_for_feed,
     resolve_max_ad_duration_override,
@@ -458,6 +458,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # the feed also opts into that.
     cue_only = processing_mode == PROCESSING_MODE_CUE_ONLY
     skip_transcription_active = cue_only and resolve_skip_transcription(podcast_settings)
+    # Per-episode skip on a chapter match; the match itself is known only after the download.
+    chapter_trim_skip = (
+        not cue_only and resolve_skip_transcription(podcast_settings)
+        and skip_transcription_error(
+            processing_mode, (podcast_settings or {}).get('description_trim_pattern')) is None)
 
     try:
         active_phases = admission._active_phases_for_admission(
@@ -627,6 +632,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             audio_path, segments = transcribe._download_and_transcribe(
                 slug, episode_id, episode_url,
                 skip_transcription=skip_transcription_active,
+                chapter_trim_skip=chapter_trim_skip and yt_run is None,
                 podcast=podcast_settings,
                 force_transcription=force_transcription,
                 outcome=transcribe_outcome,
@@ -640,13 +646,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             transcription_stats = transcriber.last_transcription_stats
             if transcription_stats is not None:
                 run_stats['transcription'] = dict(transcription_stats)
+        chapter_trim_markers = transcribe_outcome.get('chapter_trim_markers')
+        if chapter_trim_markers:
+            skip_transcription_active = llm_off = audio_analysis_skipped = True
+            run_stats['transcription_skipped'] = True
+            run_stats['verification_skipped'] = True
+            run_stats['audio_analysis_skipped'] = True
         run_stats['transcript_source'] = transcribe_outcome.get(
             'transcript_source', 'none' if skip_transcription_active else 'whisper')
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1a: upstream transcript differential (best effort, bounded fetch).
         transcript_spans = []
-        if not detection_off:
+        if not (detection_off or chapter_trim_markers):
             transcript_diff = signals._run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
                 download_outcome=transcribe_outcome,
@@ -671,7 +683,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Both stages want the original's template cues; audio analysis owns
         # the scan and the differential waits for its result.
         primary_cue_future = Future()
-        if not detection_off:
+        if not (detection_off or chapter_trim_markers):
             # Stamp from the main thread BEFORE the worker starts: all status
             # stamps stay on the main thread, so the pass1 ordering 22 -> 25
             # is monotonic and an abandoned worker never stamps another job.
@@ -795,9 +807,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 db.clear_episode_ad_data(slug, episode_id)
                 first_pass_count = 0
                 max_ad_duration_override, cue_gate_enabled = None, False
-                ads_to_remove, all_ads_with_validation = [], []
                 keep_ads = []
-                segment_actions = {}
+                segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
+                # Only the feed's description chapter rule cuts here: no rolls, no detection.
+                ads_to_remove, all_ads_with_validation = detect._refine_and_validate(
+                    slug, episode_id, [], segments, audio_path,
+                    episode_description, episode_duration, min_cut_confidence, podcast_name,
+                    apply_heuristic_rolls=False, segment_actions=segment_actions,
+                    corrections=user_corrections, loop_runs=loop_runs,
+                    chapter_markers=chapter_trim_markers,
+                    description_trim=((podcast_settings or {}).get('description_trim_pattern'),
+                                      (podcast_settings or {}).get('description_trim_mode')))
             else:
                 # Learned positional prior (issue #360 experiment, off by
                 # default); consumed by detection and validation only.
@@ -829,31 +849,33 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     audio_logger.info(
                         f"[{slug}:{episode_id}] Pattern-only detection (SponsorBlock marks, LLM off)")
 
-                # Stage 3: First-pass detection
-                _reserve_provider()
-                provider_attempted = True
-                with common._measure_run_stage('detection'):
-                    first_pass_ads, first_pass_count, ad_result = detect._detect_ads_first_pass(
-                        ctx, segments, audio_path,
-                        skip_patterns, audio_analysis_result,
-                        detection_progress_callback,
-                        cancel_event=cancel_event,
-                        positional_prior_hint=format_prior_hint(positional_prior,
-                                                                episode_duration),
-                        recurrence_spans=recurrence_spans,
-                        dai_differential=dai_differential,
-                        # None = resolve fresh from the DB at detection time, so a
-                        # detection_mode toggle during download/transcription is honored.
-                        keep_content=None,
-                        skip_llm=llm_off,
-                        force_create_from_pairs=cue_only,
-                        strict_pair_roles=cue_only,
-                        episode_duration=episode_duration,
-                        run_stats=run_stats,
-                        action_map=segment_actions,
-                        transcript_spans=transcript_spans,
-                        loop_runs=loop_runs,
-                    )
+                # Stage 3: First-pass detection. A chapter match cuts by the rule alone: no detection, no provider.
+                first_pass_ads, first_pass_count, ad_result = [], 0, None
+                if not chapter_trim_markers:
+                    _reserve_provider()
+                    provider_attempted = True
+                    with common._measure_run_stage('detection'):
+                        first_pass_ads, first_pass_count, ad_result = detect._detect_ads_first_pass(
+                            ctx, segments, audio_path,
+                            skip_patterns, audio_analysis_result,
+                            detection_progress_callback,
+                            cancel_event=cancel_event,
+                            positional_prior_hint=format_prior_hint(positional_prior,
+                                                                    episode_duration),
+                            recurrence_spans=recurrence_spans,
+                            dai_differential=dai_differential,
+                            # None = resolve fresh from the DB at detection time, so a
+                            # detection_mode toggle during download/transcription is honored.
+                            keep_content=None,
+                            skip_llm=llm_off,
+                            force_create_from_pairs=cue_only,
+                            strict_pair_roles=cue_only,
+                            episode_duration=episode_duration,
+                            run_stats=run_stats,
+                            action_map=segment_actions,
+                            transcript_spans=transcript_spans,
+                            loop_runs=loop_runs,
+                        )
                 _check_cancel(cancel_event, slug, episode_id)
 
                 first_pass_ads = detect._exclude_opening_ads(first_pass_ads, opening_exclusion_seconds)
@@ -936,29 +958,30 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         transcript_spans=transcript_spans,
                         description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                           (podcast_settings or {}).get('description_trim_mode')),
+                        chapter_markers=chapter_trim_markers,
                         loop_runs=loop_runs,
                     )
 
                 run_stats['stage_hits']['episode_repeat'] = sum(
                     1 for ad in all_ads_with_validation if ad.get('detection_stage') == REPEAT_STAGE)
 
-                # Late keep partition: _refine_and_validate synthesizes heuristic
-                # pre/post-roll and VAD-gap markers after the early partition, so a
-                # keep-resolving one may still be unstamped here. Catch it before the
-                # reviewer's resurrection pool and terminal-snap/tail sweeps; join keep_ads.
-                late_keep_ads, all_ads_with_validation = keep_rules._partition_keep_ads(
-                    all_ads_with_validation, segment_actions, keep_override)
-                if late_keep_ads:
-                    late_keep_ids = {id(ad) for ad in late_keep_ads}
-                    ads_to_remove = [ad for ad in ads_to_remove
-                                     if id(ad) not in late_keep_ids]
-                    keep_ads = keep_ads + late_keep_ads
+            # Late keep partition: _refine_and_validate synthesizes heuristic
+            # pre/post-roll and VAD-gap markers after the early partition, so a
+            # keep-resolving one may still be unstamped here. Catch it before the
+            # reviewer's resurrection pool and terminal-snap/tail sweeps; join keep_ads.
+            late_keep_ads, all_ads_with_validation = keep_rules._partition_keep_ads(
+                all_ads_with_validation, segment_actions, keep_override)
+            if late_keep_ads:
+                late_keep_ids = {id(ad) for ad in late_keep_ads}
+                ads_to_remove = [ad for ad in ads_to_remove
+                                 if id(ad) not in late_keep_ids]
+                keep_ads = keep_ads + late_keep_ads
 
-                if yt_run and yt_run.markers:
-                    ads_to_remove, all_ads_with_validation, keep_ads, dropped = sb_stage.merge_marks(
-                        yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
-                    first_pass_count += len(yt_run.markers) - dropped
-                    run_stats['detected'] = first_pass_count
+            if not detection_off and yt_run and yt_run.markers:
+                ads_to_remove, all_ads_with_validation, keep_ads, dropped = sb_stage.merge_marks(
+                    yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
+                first_pass_count += len(yt_run.markers) - dropped
+                run_stats['detected'] = first_pass_count
             _check_cancel(cancel_event, slug, episode_id)
 
             # Model-free runs (cue_only, SponsorBlock-only, provider none) skip the reviewer.

@@ -10,7 +10,7 @@ Additional manifests under `scripts/core-security/`, `scripts/misc-security/`, `
 | --- | --- |
 | PCRE2 | Build upstream 10.49 with Ubuntu's package recipe and 8-, 16-, and 32-bit tests. This includes newer arm64 JIT fixes and Unicode 17 data; Unicode matching can differ from 10.46. |
 | GLib and cJSON | Backport destination-replacement symlink protection and escaped JSON Pointer decoding. GLib's library and architecture-independent data package ship together. |
-| p11-kit, tar, bubblewrap, and libXrender | Apply the pinned security backports or upstream release recorded in the auxiliary manifest. Bubblewrap's source recipe comes from the official Debian archive. |
+| p11-kit, tar, and bubblewrap | Apply the pinned security backports or upstream release recorded in the auxiliary manifest. Bubblewrap's source recipe comes from the official Debian archive. |
 | Cairo and x264 | Backport glyph-buffer overflow checks and encoder-open failure cleanup. The Cairo change does not fix the older Cairo CVEs still reported by the vendor tracker. |
 
 The runtime image contains each family's manifest, package checksums, build script, build logs, and complete patched source trees under `/usr/share/minuspod/<family>-security/`. Source trees include the package recipe, applied patches, and license files. Installed packages retain their copyright notices. Package versions have a `+minuspod1` suffix to identify local builds. Archive and patch SHA-256 values are verified; this does not authenticate source signatures. The glibc fix for CVE-2026-18374 comes from Ubuntu, so the image build and `scripts/check_image_runtime.py` enforce libc6 2.43-2ubuntu2.7 as the minimum version.

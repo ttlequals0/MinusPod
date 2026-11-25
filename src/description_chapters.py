@@ -39,11 +39,17 @@ def parse_description_timestamps(description_html):
     return sorted(anchors.items())
 
 
-def _trim_span(anchors, pattern, mode, episode_duration, skip=frozenset()):
-    """First anchor not in skip whose title matches pattern, as (start, end, title) or None."""
+def _snap_end(end, episode_duration):
+    """Snap an end within END_SNAP_SECONDS of the episode end onto it."""
+    return episode_duration if episode_duration - end <= END_SNAP_SECONDS else end
+
+
+def _trim_spans(anchors, pattern, mode, episode_duration, skip=frozenset()):
+    """(start, end, title) per anchor not in skip matching pattern; to_end keeps the first, to_next merges touching spans."""
     if not pattern or not anchors or not episode_duration or episode_duration <= 0:
-        return None
+        return []
     patterns_json = json.dumps([pattern])
+    spans = []
     for index, (start, title) in enumerate(anchors):
         if (start in skip or start >= episode_duration
                 or not title_matches_skip_patterns(title, patterns_json)):
@@ -51,24 +57,33 @@ def _trim_span(anchors, pattern, mode, episode_duration, skip=frozenset()):
         end = episode_duration
         if mode == TO_NEXT and index + 1 < len(anchors):
             end = min(anchors[index + 1][0], episode_duration)
-        if episode_duration - end <= END_SNAP_SECONDS:
-            end = episode_duration
-        return (start, end, title) if end > start else None
-    return None
+        if end <= start:
+            continue
+        if mode != TO_NEXT:
+            return [(start, _snap_end(end, episode_duration), title)]
+        # Mirrors merge_cut_spans but keeps titles; unsnapped ends so only truly adjacent chapters merge.
+        if spans and start <= spans[-1][1]:
+            spans[-1] = (spans[-1][0], max(spans[-1][1], end), spans[-1][2])
+        else:
+            spans.append((start, end, title))
+    if spans:
+        last = spans[-1]
+        spans[-1] = (last[0], _snap_end(last[1], episode_duration), last[2])
+    return spans
 
 
-def description_trim_span(description, pattern, mode, episode_duration):
-    """Return (start, end, title) for the first description chapter matching pattern, or None."""
-    return _trim_span(parse_description_timestamps(description), pattern, mode, episode_duration)
+def description_trim_spans(description, pattern, mode, episode_duration):
+    """Return (start, end, title) for each description chapter the rule cuts."""
+    return _trim_spans(parse_description_timestamps(description), pattern, mode, episode_duration)
 
 
-def chapter_trim_span(chapters, pattern, mode, episode_duration, skip_starts=()):
-    """description_trim_span for {startTime, title} dicts; skip_starts never match but still end the previous."""
+def chapter_trim_spans(chapters, pattern, mode, episode_duration, skip_starts=()):
+    """description_trim_spans for {startTime, title} dicts; skip_starts never match but still end the previous."""
     anchors = sorted(
         (float(ch['startTime']), ch['title']) for ch in chapters or []
         if ch.get('title') and ch.get('startTime') is not None)
-    return _trim_span(anchors, pattern, mode, episode_duration,
-                      skip={float(s) for s in skip_starts})
+    return _trim_spans(anchors, pattern, mode, episode_duration,
+                       skip={float(s) for s in skip_starts})
 
 
 def _format_like(seconds, first, second, third):

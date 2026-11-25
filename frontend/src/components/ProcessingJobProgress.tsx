@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { getStageLabel } from '../utils/processingStage';
 import { focusRing } from './fieldStyles';
-import { formatElapsed } from '../utils/format';
+import { formatElapsed, formatStageDetail } from '../utils/format';
+import type { StageDetail } from '../api/status';
 
 interface ProcessingJobProgressData {
   slug: string;
@@ -11,6 +12,7 @@ interface ProcessingJobProgressData {
   podcastName: string;
   stage: string;
   progress: number;
+  stageDetail?: StageDetail | null;
 }
 
 function clampProgress(progress: number): number {
@@ -36,6 +38,7 @@ export default function ProcessingJobProgress({
 }) {
   const stageLabel = getStageLabel(job.stage);
   const progress = clampProgress(job.progress);
+  const detailText = formatStageDetail(job.stageDetail);
   const title = linkTo ? (
     <Link to={linkTo} className={`block font-medium text-primary hover:underline sm:truncate ${compact ? 'text-sm' : ''} ${focusRing}`}>
       {job.title}
@@ -54,7 +57,7 @@ export default function ProcessingJobProgress({
         <div className="sm:shrink-0 sm:text-right">
           <p className="text-sm font-medium text-primary">{stageLabel}</p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {Math.round(progress)}% - {formatElapsed(elapsed)}
+            {detailText && `${detailText} - `}{Math.round(progress)}% - {formatElapsed(elapsed)}
           </p>
         </div>
       </div>

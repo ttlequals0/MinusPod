@@ -1211,6 +1211,50 @@ describe('FeedSettingsPanel cue-only mode controls', () => {
   });
 });
 
+describe('FeedSettingsPanel chapter trim transcription toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    mockListCueTemplates.mockResolvedValue([]);
+    localStorage.setItem('feed-settings-test-feed', 'true');
+  });
+
+  const toggle = () => screen.queryAllByRole('switch', { name: 'Skip transcription' });
+
+  it.each(['standard', 'keep_content'] as const)('shows one toggle in %s mode when a pattern is set', (mode) => {
+    renderPanel(makeFeed({ processingMode: mode, descriptionTrimPattern: '*Donations*' }));
+    expect(toggle()).toHaveLength(1);
+    expect(screen.getByText(/matching chapter skip transcription and ad detection/i)).toBeDefined();
+  });
+
+  it.each(['skip_detection', 'passthrough'] as const)('hides the toggle in %s mode', (mode) => {
+    renderPanel(makeFeed({ processingMode: mode, descriptionTrimPattern: '*Donations*' }));
+    expect(toggle()).toHaveLength(0);
+  });
+
+  it('hides the toggle when no pattern is set', () => {
+    renderPanel(makeFeed({ processingMode: 'standard', descriptionTrimPattern: null }));
+    expect(toggle()).toHaveLength(0);
+  });
+
+  it('renders only the cue-only toggle under cue_only even with a pattern', () => {
+    renderPanel(makeFeed({ processingMode: 'cue_only', descriptionTrimPattern: '*Donations*' }));
+    expect(toggle()).toHaveLength(1);
+  });
+
+  it('sends skipTranscription true and reflects the saved value', async () => {
+    const { unmount } = renderPanel(makeFeed({ processingMode: 'standard', descriptionTrimPattern: '*Donations*' }));
+    await userEvent.click(toggle()[0]);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { skipTranscription: true });
+    unmount();
+    renderPanel(makeFeed({
+      processingMode: 'standard', descriptionTrimPattern: '*Donations*', skipTranscription: true,
+    }));
+    expect(toggle()[0].getAttribute('aria-checked')).toBe('true');
+  });
+});
+
 describe('FeedSettingsPanel experimental labelling', () => {
   beforeEach(() => {
     vi.clearAllMocks();

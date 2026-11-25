@@ -52,6 +52,7 @@ class ProcessingJob:
     stage: str = "preparing"  # preparing, downloading, transcribing, detecting, processing, complete
     progress: float = 0.0  # 0-100
     run_id: str | None = None
+    stage_detail: dict | None = None  # {processed, total, unit}
 
 
 @dataclass
@@ -299,9 +300,22 @@ class StatusService:
             status = self._load()
             job = self._jobs(status).get(self._key(slug, episode_id))
             if job and (run_id is None or job.get('run_id') == run_id):
+                if job.get('stage') != stage:
+                    job.pop('stage_detail', None)
                 job['stage'] = stage
                 if progress is not None:
                     job['progress'] = progress
+                status['last_updated'] = time.time()
+                self._write_status_file(status)
+
+    def update_job_stage_detail(self, slug: str, episode_id: str, processed: float,
+                                total: float, unit: str, run_id: str = None):
+        """Record sub-stage progress ('seconds' or 'chunks') without touching overall progress."""
+        with self._status_transaction():
+            status = self._load()
+            job = self._jobs(status).get(self._key(slug, episode_id))
+            if job and (run_id is None or job.get('run_id') == run_id):
+                job['stage_detail'] = {'processed': processed, 'total': total, 'unit': unit}
                 status['last_updated'] = time.time()
                 self._write_status_file(status)
 
@@ -460,6 +474,7 @@ class StatusService:
                     stage=job.get('stage', 'preparing'),
                     progress=job.get('progress', 0.0),
                     run_id=job.get('run_id'),
+                    stage_detail=job.get('stage_detail'),
                 )
                 for job in sorted(self._jobs(status).values(), key=lambda j: j['started_at'])
             ]
@@ -497,6 +512,7 @@ class StatusService:
                 'progress': j.progress, 'startedAt': j.started_at,
                 'elapsed': time.time() - j.started_at,
                 'runId': j.run_id,
+                'stageDetail': j.stage_detail,
             }
         jobs = [job_dict(j) for j in status.jobs]
         return {

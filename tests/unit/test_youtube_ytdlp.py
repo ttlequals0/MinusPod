@@ -1,6 +1,8 @@
 import os
 import stat
 import subprocess
+import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -72,6 +74,46 @@ def test_trimmed_error_and_needs_update():
     assert ytdlp.trimmed_error(err).startswith('ERROR: [youtube] abc: Sign in')
     assert ytdlp.needs_update(err) is False
     assert ytdlp.needs_update('ERROR: Unable to extract uploader id; please report this issue') is True
+
+
+def test_needs_update_counts_a_403_only_on_an_error_line():
+    assert ytdlp.needs_update('WARNING: HTTP Error 403: Forbidden. Retrying (1/3)...\n') is False
+    assert ytdlp.needs_update('[download] Got error: HTTP Error 403: Forbidden\nERROR: Requested format') is False
+    assert ytdlp.needs_update('ERROR: unable to download video data: HTTP Error 403: Forbidden') is True
+    assert ytdlp.needs_update('WARNING: unable to extract nsig function') is True
+
+
+def _failure_db(last_check):
+    db = MagicMock()
+    db.get_setting.return_value = last_check
+    return db
+
+
+def _update_after_failure(last_check):
+    with patch.object(ytdlp, 'update_binary') as update, \
+            patch.dict(sys.modules, {'main_app': SimpleNamespace(storage=MagicMock())}):
+        ytdlp.update_after_failure(_failure_db(last_check), MagicMock())
+    return update
+
+
+def test_update_after_failure_skips_within_the_cooldown():
+    recent = (ytdlp.utc_now() - ytdlp.timedelta(minutes=5)).isoformat()
+    _update_after_failure(recent).assert_not_called()
+
+
+def test_update_after_failure_skips_when_auto_update_is_off():
+    db = _failure_db(None)
+    db.get_setting_bool.return_value = False
+    with patch.object(ytdlp, 'update_binary') as update, \
+            patch.dict(sys.modules, {'main_app': SimpleNamespace(storage=MagicMock())}):
+        ytdlp.update_after_failure(db, MagicMock())
+    update.assert_not_called()
+
+
+def test_update_after_failure_runs_when_the_check_is_old_or_missing():
+    old = (ytdlp.utc_now() - ytdlp.FAILURE_UPDATE_COOLDOWN - ytdlp.timedelta(minutes=1)).isoformat()
+    _update_after_failure(old).assert_called_once()
+    _update_after_failure(None).assert_called_once()
 
 
 _SIGNED_STDERR = 'WARNING: x\nERROR: unable to download https://objects.example.com/x?X-Amz-Signature=S\n'

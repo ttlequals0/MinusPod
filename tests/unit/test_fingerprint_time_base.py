@@ -1,9 +1,4 @@
-"""Whole-file fingerprint positions convert to seconds at Chromaprint's own point rate.
-
-fpcalc emits one point per 1365-sample hop at 11025 Hz but withholds about 21 points of every file to its filter
-windows. Pairing the points with the audio duration fpcalc reports makes points / duration run slow, so a position
-an hour into an episode landed about 2.5 s late.
-"""
+"""Whole-file fingerprint positions convert to seconds at Chromaprint's own point rate."""
 import json
 import random
 from types import SimpleNamespace

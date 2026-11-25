@@ -574,6 +574,30 @@ def test_differential_release_reaches_the_core_edges_over_wordless_audio(monkeyp
     assert filed['corrected_bounds'] is None
 
 
+def _filed_beside(monkeypatch, other=None, confirmed=None):
+    db = _approval_db(monkeypatch)
+    db.get_original_segments.return_value = _DAI_SEGMENTS
+    markers = [_differential_release(), *([other] if other else [])]
+    verify._file_corroborated_hold_approvals('s', 'e', markers, corrections=([], confirmed or []))
+    return db.create_pattern_correction.call_count
+
+
+def test_approved_span_over_a_user_trimmed_range_is_not_filed(monkeypatch):
+    trim = {'start': 3560.0, 'end': 3700.0, 'correction_type': 'confirm',
+            'confirmed_span': {'start': 3560.0, 'end': 3580.0}}
+    assert _filed_beside(monkeypatch, confirmed=[trim]) == 0
+
+
+def test_approved_span_over_a_keep_like_marker_is_not_filed(monkeypatch):
+    keep = {'start': 3620.0, 'end': 3630.0, 'action_applied': 'keep'}
+    assert _filed_beside(monkeypatch, other=keep) == 0
+
+
+def test_a_distant_keep_like_marker_does_not_block_the_approval(monkeypatch):
+    keep = {'start': 3500.0, 'end': 3510.0, 'action_applied': 'mark'}
+    assert _filed_beside(monkeypatch, other=keep) == 1
+
+
 def test_differential_release_stops_at_a_word_in_the_gap(monkeypatch):
     segments = [*_DAI_SEGMENTS, _seg(3652.0, 3652.6, (3652.0, 3652.6))]
 
@@ -613,6 +637,58 @@ def test_release_never_widens_past_the_measured_core(monkeypatch):
     [filed] = _filed_with_segments(monkeypatch, [hold], _DAI_SEGMENTS)
 
     assert filed['corrected_bounds'] == {'start': 3587.62, 'end': 3653.7}
+
+
+_FAR_WORD = [_seg(10.0, 12.0, (10.0, 12.0))]
+
+
+def _bounded_release(hold_span, released, **extra):
+    hold = _differential_release(hold_span=hold_span, released=released)
+    hold.update(extra)
+    return hold
+
+
+def test_long_measured_region_is_not_confirmed_whole_around_a_short_release(monkeypatch):
+    hold = _bounded_release((1000.0, 1200.0), (1095.0, 1105.0))
+
+    [filed] = _filed_with_segments(monkeypatch, [hold], _FAR_WORD)
+
+    assert filed['corrected_bounds'] == {'start': 1095.0, 'end': 1105.0}
+
+
+def test_gap_of_exactly_the_cap_widens(monkeypatch):
+    hold = _bounded_release((1000.0, 1040.0), (1015.0, 1025.0))
+
+    [filed] = _filed_with_segments(monkeypatch, [hold], _FAR_WORD)
+
+    assert filed['corrected_bounds'] is None
+
+
+def test_each_edge_widens_only_within_the_cap(monkeypatch):
+    hold = _bounded_release((1000.0, 1045.0), (1015.0, 1025.0))
+
+    [filed] = _filed_with_segments(monkeypatch, [hold], _FAR_WORD)
+
+    assert filed['corrected_bounds'] == {'start': 1000.0, 'end': 1025.0}
+
+
+def test_widening_does_not_cross_a_keep_or_reject(monkeypatch):
+    hold = _bounded_release((1000.0, 1040.0), (1015.0, 1025.0))
+    keep = {'start': 1005.0, 'end': 1010.0, 'action_applied': 'keep'}
+    reject = {'start': 1030.0, 'end': 1035.0, 'reviewer_verdict': 'reject', 'source': 'reviewer'}
+
+    [filed] = _filed_with_segments(monkeypatch, [hold, keep, reject], _FAR_WORD)
+
+    assert filed['corrected_bounds'] == {'start': 1015.0, 'end': 1025.0}
+
+
+def test_malformed_core_entry_is_skipped_not_fatal(monkeypatch):
+    hold = _bounded_release((1000.0, 1040.0), (1015.0, 1025.0),
+                            dai_core_spans=[{'start': 1000.0}, {'start': 1000.0, 'end': 1040.0}])
+
+    [filed] = _filed_with_segments(monkeypatch, [hold], _FAR_WORD)
+
+    assert filed['corrected_bounds'] is None
 
 
 def test_non_differential_release_keeps_its_reviewed_edges(monkeypatch):

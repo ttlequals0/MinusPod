@@ -87,3 +87,38 @@ def test_regenerating_chapters_passes_the_feed_show_notes_switch(app_client, see
                                headers=headers)
     assert resp.status_code == 202, resp.data
     assert generator.return_value.generate_chapters.call_args.kwargs['show_notes_chapters'] is False
+
+
+def _regenerate_switch(app_client, seeded, durations, cuts=None):
+    from storage import Storage
+    Storage().save_transcript_vtt(SLUG, EPISODE_ID, 'WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n')
+    seeded.upsert_episode(slug=SLUG, episode_id=EPISODE_ID, **durations)
+    if cuts is not None:
+        seeded.save_applied_cuts(SLUG, EPISODE_ID, cuts)
+    headers = _authed(app_client)
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
+         patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.embed_chapters', return_value=False), \
+         patch('main_app.pipeline.common._refresh_rss_for_slug'):
+        generator.return_value.generate_chapters.return_value = CHAPTERS
+        generator.return_value.chapters_degraded = False
+        resp = app_client.post(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+                               headers=headers)
+    assert resp.status_code == 202, resp.data
+    return generator.return_value.generate_chapters.call_args.kwargs['show_notes_chapters']
+
+
+def test_regeneration_skips_show_notes_when_audio_was_cut_without_a_stored_cut_list(app_client, seeded):
+    assert _regenerate_switch(
+        app_client, seeded, {'original_duration': 3000.0, 'new_duration': 2700.0}) is False
+
+
+def test_regeneration_keeps_show_notes_when_audio_was_not_shortened(app_client, seeded):
+    assert _regenerate_switch(
+        app_client, seeded, {'original_duration': 3000.0, 'new_duration': 3000.0}) is True
+
+
+def test_regeneration_keeps_show_notes_when_the_cut_list_is_stored(app_client, seeded):
+    assert _regenerate_switch(
+        app_client, seeded, {'original_duration': 3000.0, 'new_duration': 2700.0},
+        cuts=[{'start': 100.0, 'end': 400.0}]) is True

@@ -296,6 +296,41 @@ class TestCueOnlySafetyAndTranscription:
         assert resp.get_json()['skipTranscription'] is True
 
 
+    @pytest.mark.parametrize('mode,pattern,status', [
+        ('standard', '*Donations*', 200),
+        ('keep_content', '*Donations*', 200),
+        ('standard', None, 400),
+        ('keep_content', None, 400),
+        ('skip_detection', '*Donations*', 400),
+        ('passthrough', '*Donations*', 400),
+    ])
+    def test_skip_transcription_chapter_trim_matrix(self, app_client, seeded_feed, mode, pattern, status):
+        client = app_client; slug = seeded_feed['slug']
+        _authed(client)
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'processingMode': mode, 'descriptionTrimPattern': pattern,
+                                  'skipTranscription': True},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == status
+        if status == 400:
+            assert 'Chapter trim pattern' in resp.get_json()['error']
+
+    def test_skip_transcription_uses_stored_pattern_and_mode(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']
+        _authed(client)
+        headers = _csrf_headers(client)
+        resp = client.patch(f'/api/v1/feeds/{slug}', json={'skipTranscription': True}, headers=headers)
+        assert resp.status_code == 400
+        client.patch(f'/api/v1/feeds/{slug}', json={'descriptionTrimPattern': '*Donations*'}, headers=headers)
+        resp = client.patch(f'/api/v1/feeds/{slug}', json={'skipTranscription': True}, headers=headers)
+        assert resp.status_code == 200
+        assert resp.get_json()['skipTranscription'] is True
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'processingMode': 'skip_detection', 'skipTranscription': True},
+                            headers=headers)
+        assert resp.status_code == 400
+
+
 class TestRetryAdDetectionModeGuard:
     def test_retry_ad_detection_blocked_for_cue_only(self, app_client, seeded_feed):
         client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
