@@ -1670,9 +1670,15 @@ function EpisodeDetail() {
             requestedRating={parseRateParam(urlParams.read('rate'))}
             onRequestedRatingHandled={clearRateParam}
           />
-          {episode.sponsorBlock?.submitAllowed && (
+          {episode.sponsorBlock && (
             <div className="pt-4 border-t border-border">
-              <SponsorBlockSubmit slug={slug} episodeId={episodeId} hasOriginalAudio={episode.hasOriginalAudio} />
+              <SponsorBlockSubmit
+                slug={slug}
+                episodeId={episodeId}
+                hasOriginalAudio={episode.hasOriginalAudio}
+                submitAllowed={episode.sponsorBlock.submitAllowed}
+                blockReason={episode.sponsorBlock.submitBlockReason}
+              />
             </div>
           )}
         </div>

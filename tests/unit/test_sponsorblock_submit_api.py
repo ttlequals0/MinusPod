@@ -179,7 +179,9 @@ def test_submit_rate_limited_is_429_and_error_is_502_and_retryable(seeded):
     assert resp.headers['Retry-After'] == '120' and resp.get_json()['retryAfterSeconds'] == 120
     with patch('youtube.sponsorblock_submit.submit', return_value=('error', 'HTTP 500: x', [], None)):
         resp = _post(client, [{'start': 10.0, 'end': 40.0}])
-    assert resp.status_code == 502 and resp.get_json()['results'][0]['status'] == 'error'
+    body = resp.get_json()
+    assert resp.status_code == 502 and body['results'][0]['status'] == 'error'
+    assert body['error'] == 'HTTP 500: x'
     with patch('youtube.sponsorblock_submit.submit', return_value=('submitted', '', [{'UUID': 'ok', 'segment': [10.0, 40.0]}], None)):
         assert _post(client, [{'start': 10.0, 'end': 40.0}]).status_code == 200
 
@@ -192,3 +194,15 @@ def test_candidates_and_submit_refused_while_sponsorblock_is_unreachable(seeded)
             assert _post(client, [{'start': 10.0, 'end': 40.0}]).status_code == 400
         send.assert_not_called()
     assert _candidates(client)['reason'] is None
+
+
+def test_episode_detail_exposes_submit_block_reason(seeded):
+    client, db = seeded
+    ep = client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE}').get_json()
+    assert ep['sponsorBlock']['submitAllowed'] is True
+    assert ep['sponsorBlock']['submitBlockReason'] is None
+
+    _enable(db, False)
+    ep_disabled = client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE}').get_json()
+    assert ep_disabled['sponsorBlock']['submitAllowed'] is False
+    assert ep_disabled['sponsorBlock']['submitBlockReason'] == 'disabled'

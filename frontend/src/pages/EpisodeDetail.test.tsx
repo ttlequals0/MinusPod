@@ -2885,6 +2885,18 @@ describe('Submit to SponsorBlock dialog', () => {
     expect(screen.queryByRole('button', { name: 'Submit to SponsorBlock' })).toBeNull();
   });
 
+  it('renders a disabled button with the block reason on a blocked YouTube episode', async () => {
+    renderDetail(makeEpisode({
+      sponsorBlock: {
+        state: 'llm', attempts: 0, nextCheckAt: null, segmentCount: 0, note: null, lastError: null,
+        submissions: [], submitAllowed: false, submitBlockReason: 'disabled',
+      },
+    } as Partial<EpisodeDetailType>));
+    const btn = await screen.findByRole('button', { name: 'Submit to SponsorBlock' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(await screen.findByText(/SponsorBlock submissions are turned off/)).not.toBeNull();
+  });
+
   it('lists segments unchecked, gates the submit button and posts the chosen ones', async () => {
     const user = userEvent.setup();
     renderDetail(sbEpisode);
