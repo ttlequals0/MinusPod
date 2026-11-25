@@ -5,11 +5,12 @@ import SponsorBlockSubmit from './SponsorBlockSubmit';
 import { iconSizes } from './rowActionStyles';
 
 const mockGetCandidates = vi.fn();
+const mockSubmitSponsorBlock = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   episodeOriginalUrl: (slug: string, id: string) => `/api/v1/feeds/${slug}/episodes/${id}/original.mp3`,
   getSponsorBlockCandidates: (...args: unknown[]) => mockGetCandidates(...args),
-  submitSponsorBlock: vi.fn(),
+  submitSponsorBlock: (...args: unknown[]) => mockSubmitSponsorBlock(...args),
 }));
 
 const seg = (start: number, end: number) => ({
@@ -83,5 +84,46 @@ describe('SponsorBlockSubmit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(pause).toHaveBeenCalled();
+  });
+
+  it('keeps the dialog open and shows rejected outcome with detail', async () => {
+    mockSubmitSponsorBlock.mockReset().mockResolvedValue({
+      results: [{ start: 10, end: 40, category: 'sponsor', status: 'rejected', at: '2026-11-25T00:00:00Z', detail: 'Segment too short' }],
+    });
+    await openDialog();
+    const box = (await screen.findAllByRole('checkbox'))[0] as HTMLInputElement;
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Submit 1 segment' }));
+    expect(await screen.findByText(/Rejected: Segment too short/)).toBeTruthy();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('keeps the dialog open and shows duplicate outcome', async () => {
+    mockSubmitSponsorBlock.mockReset().mockResolvedValue({
+      results: [{ start: 10, end: 40, category: 'sponsor', status: 'duplicate', at: '2026-11-25T00:00:00Z' }],
+    });
+    await openDialog();
+    const box = (await screen.findAllByRole('checkbox'))[0] as HTMLInputElement;
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Submit 1 segment' }));
+    expect(await screen.findByText('Already on SponsorBlock')).toBeTruthy();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('renders a disabled button with the block reason when not allowed', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <SponsorBlockSubmit
+          slug="example-podcast"
+          episodeId="a1b2c3d4e5f6"
+          submitAllowed={false}
+          blockReason="community_marks"
+        />
+      </QueryClientProvider>,
+    );
+    const btn = screen.getByRole('button', { name: 'Submit to SponsorBlock' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.title).toContain('already has community SponsorBlock marks');
+    expect(screen.getByText(/already has community SponsorBlock marks/)).toBeTruthy();
   });
 });

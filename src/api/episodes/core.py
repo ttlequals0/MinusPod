@@ -395,7 +395,9 @@ def get_episode(slug, episode_id):
         episode, slug=slug, is_local=is_local, is_youtube=is_youtube_feed(podcast), storage=storage,
         filters=podcast)
     if base.get('sponsorBlock') is not None:
-        base['sponsorBlock']['submitAllowed'] = common.sponsorblock_block_reason(db, podcast, episode) is None
+        block_reason = common.sponsorblock_block_reason(db, podcast, episode)
+        base['sponsorBlock']['submitAllowed'] = block_reason is None
+        base['sponsorBlock']['submitBlockReason'] = block_reason
     # Separate from description: the local-episode editor round-trips that
     # field, and the block must never be written back (#720).
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))

@@ -293,6 +293,7 @@ export interface Episode {
     lastError: string | null;
     submissions?: SbSubmission[];
     submitAllowed?: boolean;
+    submitBlockReason?: SbCandidatesReason | null;
   } | null;
   rating?: EpisodeRating | null;
 }
