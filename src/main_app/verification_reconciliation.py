@@ -12,7 +12,7 @@ from config import (
     HOLD_REASON_VERIFICATION_MISS,
     MIN_AD_DURATION,
     MIN_AD_DURATION_FOR_REMOVAL,
-    PASS2_AUTOAPPROVE_HOLD_REASONS,
+    pass2_may_autoapprove,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PASS2_COVERAGE_ONLY_HOLD_REASONS,
@@ -166,8 +166,7 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
     stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
-            or overlapping[0].get('hold_reason')
-            not in PASS2_AUTOAPPROVE_HOLD_REASONS):
+            or not pass2_may_autoapprove(overlapping[0])):
         return False
     hold = overlapping[0]
     ad_inside = overlap_ratio(hold['start'], hold['end'],

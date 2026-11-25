@@ -333,6 +333,21 @@ PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_ESTIMATED_PATTERN,
 })
 
+
+
+def pass2_may_autoapprove(hold: dict) -> bool:
+    """Whether a pass-2 re-detection may auto-approve this held marker.
+
+    The allowlist above, plus a reviewer_reject_conflict hold whose span the
+    reviewer saw without transcript words (reviewer_saw_no_text): that reject
+    judged no speech, so a confident pass-2 detection on the re-transcribed
+    audio is the first read of it, beside the measured evidence that held it."""
+    reason = hold.get('hold_reason')
+    return (reason in PASS2_AUTOAPPROVE_HOLD_REASONS
+            or (reason == HOLD_REASON_REVIEWER_REJECT_CONFLICT
+                and hold.get('reviewer_saw_no_text') is True))
+
+
 # Holds a reviewed pass-2 subspan may release: the auto-approve set plus the reviewer
 # abstentions and transcript gaps, where a review of the narrower span is the missing second look.
 PASS2_REVIEWED_RELEASE_HOLD_REASONS = PASS2_AUTOAPPROVE_HOLD_REASONS | frozenset({

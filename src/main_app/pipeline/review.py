@@ -621,6 +621,8 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         if v.reject_hold_reason:
             ad['held_for_review'] = True
             ad['hold_reason'] = v.reject_hold_reason
+            if v.reject_saw_no_text:
+                ad['reviewer_saw_no_text'] = True
     elif v.verdict == 'resurrect':
         ad['was_cut'] = True
         ad['source'] = 'reviewer'
