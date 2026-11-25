@@ -807,9 +807,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 db.clear_episode_ad_data(slug, episode_id)
                 first_pass_count = 0
                 max_ad_duration_override, cue_gate_enabled = None, False
-                ads_to_remove, all_ads_with_validation = [], []
                 keep_ads = []
-                segment_actions = {}
+                segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
+                # Only the feed's description chapter rule cuts here: no rolls, no detection.
+                ads_to_remove, all_ads_with_validation = detect._refine_and_validate(
+                    slug, episode_id, [], segments, audio_path,
+                    episode_description, episode_duration, min_cut_confidence, podcast_name,
+                    apply_heuristic_rolls=False, segment_actions=segment_actions,
+                    corrections=user_corrections, loop_runs=loop_runs,
+                    description_trim=((podcast_settings or {}).get('description_trim_pattern'),
+                                      (podcast_settings or {}).get('description_trim_mode')))
             else:
                 # Learned positional prior (issue #360 experiment, off by
                 # default); consumed by detection and validation only.
@@ -957,23 +964,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['stage_hits']['episode_repeat'] = sum(
                     1 for ad in all_ads_with_validation if ad.get('detection_stage') == REPEAT_STAGE)
 
-                # Late keep partition: _refine_and_validate synthesizes heuristic
-                # pre/post-roll and VAD-gap markers after the early partition, so a
-                # keep-resolving one may still be unstamped here. Catch it before the
-                # reviewer's resurrection pool and terminal-snap/tail sweeps; join keep_ads.
-                late_keep_ads, all_ads_with_validation = keep_rules._partition_keep_ads(
-                    all_ads_with_validation, segment_actions, keep_override)
-                if late_keep_ads:
-                    late_keep_ids = {id(ad) for ad in late_keep_ads}
-                    ads_to_remove = [ad for ad in ads_to_remove
-                                     if id(ad) not in late_keep_ids]
-                    keep_ads = keep_ads + late_keep_ads
+            # Late keep partition: _refine_and_validate synthesizes heuristic
+            # pre/post-roll and VAD-gap markers after the early partition, so a
+            # keep-resolving one may still be unstamped here. Catch it before the
+            # reviewer's resurrection pool and terminal-snap/tail sweeps; join keep_ads.
+            late_keep_ads, all_ads_with_validation = keep_rules._partition_keep_ads(
+                all_ads_with_validation, segment_actions, keep_override)
+            if late_keep_ads:
+                late_keep_ids = {id(ad) for ad in late_keep_ads}
+                ads_to_remove = [ad for ad in ads_to_remove
+                                 if id(ad) not in late_keep_ids]
+                keep_ads = keep_ads + late_keep_ads
 
-                if yt_run and yt_run.markers:
-                    ads_to_remove, all_ads_with_validation, keep_ads, dropped = sb_stage.merge_marks(
-                        yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
-                    first_pass_count += len(yt_run.markers) - dropped
-                    run_stats['detected'] = first_pass_count
+            if yt_run and yt_run.markers:
+                ads_to_remove, all_ads_with_validation, keep_ads, dropped = sb_stage.merge_marks(
+                    yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
+                first_pass_count += len(yt_run.markers) - dropped
+                run_stats['detected'] = first_pass_count
             _check_cancel(cancel_event, slug, episode_id)
 
             # Model-free runs (cue_only, SponsorBlock-only, provider none) skip the reviewer.
