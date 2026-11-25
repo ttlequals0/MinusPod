@@ -16279,6 +16279,10 @@ components:
             submitAllowed:
               type: boolean
               description: True when the episode detail may offer manual SponsorBlock submission. Absent in list payloads.
+            submitBlockReason:
+              type: [string, 'null']
+              enum: [not_youtube, not_completed, community_marks, no_video_id, marks_unverified, disabled, no_user_id, service_down, null]
+              description: Why submitAllowed is false, null when it is true. Absent in list payloads.
             submissions:
               type: array
               description: Outcomes of segments a person submitted to SponsorBlock for this episode.
@@ -17108,6 +17112,9 @@ components:
       type: object
       required: [results]
       properties:
+        error:
+          type: string
+          description: Short failure message when the SponsorBlock request failed. Present on a 502.
         results:
           type: array
           items:
