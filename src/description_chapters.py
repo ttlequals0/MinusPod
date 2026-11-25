@@ -13,9 +13,12 @@ END_SNAP_SECONDS = 1.0
 
 _LINE = re.compile(r'^\s*[(\[]?(\d{1,2}:\d{2}(?::\d{2})?)[)\]]?\s*[-:\u2013\u2014]*\s*(.+?)\s*$')
 
-# Chapter-line position only (as _LINE); "10:00 AM" clock times are not episode offsets.
+# What follows a "10:00 AM" clock time, which is not an episode offset.
+CLOCK_TIME_SUFFIX = r'\s*[AaPp]\.?[Mm]\b'
+
+# Chapter-line position only (as _LINE); clock times are left alone.
 _TOKEN = re.compile(
-    r'((?:^|[\n>])\s*[(\[]?)(\d{1,2}):(\d{2})(?::(\d{2}))?(?![\d:])(?!\s*[AaPp]\.?[Mm]\b)')
+    r'((?:^|[\n>])\s*[(\[]?)(\d{1,2}):(\d{2})(?::(\d{2}))?(?![\d:])(?!' + CLOCK_TIME_SUFFIX + ')')
 
 
 def has_chapter_timestamp(description) -> bool:
@@ -36,13 +39,14 @@ def parse_description_timestamps(description_html):
     return sorted(anchors.items())
 
 
-def _trim_span(anchors, pattern, mode, episode_duration):
-    """First anchor whose title matches pattern, as (start, end, title) or None."""
+def _trim_span(anchors, pattern, mode, episode_duration, skip=frozenset()):
+    """First anchor not in skip whose title matches pattern, as (start, end, title) or None."""
     if not pattern or not anchors or not episode_duration or episode_duration <= 0:
         return None
     patterns_json = json.dumps([pattern])
     for index, (start, title) in enumerate(anchors):
-        if start >= episode_duration or not title_matches_skip_patterns(title, patterns_json):
+        if (start in skip or start >= episode_duration
+                or not title_matches_skip_patterns(title, patterns_json)):
             continue
         end = episode_duration
         if mode == TO_NEXT and index + 1 < len(anchors):
@@ -58,12 +62,13 @@ def description_trim_span(description, pattern, mode, episode_duration):
     return _trim_span(parse_description_timestamps(description), pattern, mode, episode_duration)
 
 
-def chapter_trim_span(chapters, pattern, mode, episode_duration):
-    """Same as description_trim_span for a chapters list of {startTime, title} dicts."""
+def chapter_trim_span(chapters, pattern, mode, episode_duration, skip_starts=()):
+    """description_trim_span for {startTime, title} dicts; skip_starts never match but still end the previous."""
     anchors = sorted(
         (float(ch['startTime']), ch['title']) for ch in chapters or []
         if ch.get('title') and ch.get('startTime') is not None)
-    return _trim_span(anchors, pattern, mode, episode_duration)
+    return _trim_span(anchors, pattern, mode, episode_duration,
+                      skip={float(s) for s in skip_starts})
 
 
 def _format_like(seconds, first, second, third):

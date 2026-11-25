@@ -729,6 +729,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             # Operator hints appended to the LLM prompt for this feed (#709).
             ('detection_notes', 'TEXT'),
             ('chapter_notes', 'TEXT'),
+            # Description timestamps become the chapters; NULL/1 = on, 0 = off.
+            ('show_notes_chapters', 'INTEGER'),
             # Durable artwork negative cache: JSON map of candidate URL -> {status, at},
             # so a broken cover is not retried before its backoff elapses, even after a restart.
             ('artwork_failure_state', 'TEXT'),

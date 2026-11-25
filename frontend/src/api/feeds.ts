@@ -470,7 +470,7 @@ type FeedPatchKey =
   | 'sourceUrl' | 'title' | 'description' | 'p20' | 'networkId' | 'daiPlatform'
   | 'networkIdOverride' | 'autoProcessOverride' | 'autoProcessMaxAgeHoursOverride'
   | 'languageOverride' | 'downloadUserAgentOverride' | 'feedUserAgentOverride' | 'titleOverride'
-  | 'descriptionOverride' | 'detectionNotes' | 'chapterNotes' | 'detectionMode' | 'chaptersMode'
+  | 'descriptionOverride' | 'detectionNotes' | 'chapterNotes' | 'showNotesChapters' | 'detectionMode' | 'chaptersMode'
   | 'differentialFetchMode' | 'chaptersInNotes' | 'reviewLinksInNotes' | 'queuePriority'
   | 'queueOrder' | 'lowAdYieldAction' | 'episodeLogs' | 'cueTemplateScoreOverride'
   | 'cueCreateFromPairsOverride' | 'cueCutMatchesOverride' | 'cuePairMinBreakOverride'

@@ -1146,6 +1146,12 @@ def resolve_chapters_mode(podcast_row, db=None):
     return CHAPTERS_MODE_AUTO if mode == CHAPTERS_MODE_GENERATE and llm_disabled() else mode
 
 
+def resolve_show_notes_chapters(podcast_row) -> bool:
+    """Whether description timestamps become the feed's chapters; NULL means on."""
+    value = (podcast_row or {}).get('show_notes_chapters')
+    return value is None or bool(value)
+
+
 # Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL
 # follows the global chapters_in_notes setting.
 CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES

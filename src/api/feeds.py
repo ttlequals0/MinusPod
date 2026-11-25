@@ -36,7 +36,7 @@ from config import (
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
     apply_ad_chapter_compat, ad_chapter_compat_view,
-    resolve_differential_fetch_mode,
+    resolve_differential_fetch_mode, resolve_show_notes_chapters,
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
     resolve_segment_category_actions_map,
@@ -930,6 +930,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'p20': _deserialize_p20_channel(podcast.get('p20_channel_json')),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
+        'showNotesChapters': resolve_show_notes_chapters(podcast),
         'differentialFetchMode': (
             podcast.get('differential_fetch_mode')
             if podcast.get('differential_fetch_mode') in ('auto', 'on', 'off')
@@ -2165,6 +2166,11 @@ def update_feed(slug):
             if chapters_error:
                 return error_response(chapters_error, 400)
         updates['chapters_mode'] = chapters_val
+
+    if 'showNotesChapters' in data:
+        if not isinstance(data['showNotesChapters'], bool):
+            return error_response('showNotesChapters must be a boolean', 400)
+        updates['show_notes_chapters'] = 1 if data['showNotesChapters'] else 0
 
     for key, column in (('chaptersInNotes', 'chapters_in_notes'),
                         ('reviewLinksInNotes', 'review_links_in_notes')):

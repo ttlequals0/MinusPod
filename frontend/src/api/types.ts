@@ -96,6 +96,8 @@ export interface Feed {
   descriptionOverride?: string | null;
   detectionNotes?: string | null;
   chapterNotes?: string | null;
+  // Description timestamps become the generated chapters; true unless switched off.
+  showNotesChapters?: boolean;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;

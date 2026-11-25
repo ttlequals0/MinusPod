@@ -70,3 +70,20 @@ def test_regenerating_chapters_force_refreshes_the_served_feed(app_client, seede
                                headers=headers)
     assert resp.status_code == 202, resp.data
     refresh.assert_called_once_with(SLUG, EPISODE_ID)
+
+
+def test_regenerating_chapters_passes_the_feed_show_notes_switch(app_client, seeded):
+    from storage import Storage
+    Storage().save_transcript_vtt(SLUG, EPISODE_ID, 'WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n')
+    seeded.update_podcast(SLUG, show_notes_chapters=0)
+    headers = _authed(app_client)
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
+         patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.embed_chapters', return_value=False), \
+         patch('main_app.pipeline.common._refresh_rss_for_slug'):
+        generator.return_value.generate_chapters.return_value = CHAPTERS
+        generator.return_value.chapters_degraded = False
+        resp = app_client.post(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
+                               headers=headers)
+    assert resp.status_code == 202, resp.data
+    assert generator.return_value.generate_chapters.call_args.kwargs['show_notes_chapters'] is False
