@@ -815,6 +815,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     episode_description, episode_duration, min_cut_confidence, podcast_name,
                     apply_heuristic_rolls=False, segment_actions=segment_actions,
                     corrections=user_corrections, loop_runs=loop_runs,
+                    chapter_marker=chapter_trim_marker,
                     description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                       (podcast_settings or {}).get('description_trim_mode')))
             else:
@@ -976,7 +977,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                  if id(ad) not in late_keep_ids]
                 keep_ads = keep_ads + late_keep_ads
 
-            if yt_run and yt_run.markers:
+            if not detection_off and yt_run and yt_run.markers:
                 ads_to_remove, all_ads_with_validation, keep_ads, dropped = sb_stage.merge_marks(
                     yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
                 first_pass_count += len(yt_run.markers) - dropped

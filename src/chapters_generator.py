@@ -59,22 +59,14 @@ SHOW_NOTES_ALIGN_PROMPT = (
     "Topics:\n{topics}\n\nTranscript:\n{transcript}"
 )
 
-# A title that starts with an AM/PM clock suffix (not a word like "Am I Wrong").
-_CLOCK_TITLE = re.compile(r'^[AaPp]\.?[Mm]\.?(?:\s*$|\s*[-:,.)])')
-_CLOCK_TOKEN = re.compile(r'^(?:am|pm|a\.m\.|p\.m\.)$', re.IGNORECASE)
-# URLs, domains, promo/discount codes, percent-off and free-trial sponsor lines.
+# A title that starts with a clock suffix (AM, pm, a.m.); mixed case such as "Am I Wrong" is a word.
+_CLOCK_TITLE = re.compile(r'^(?:[AP]\.?M|[ap]\.?m)\b')
+# Sponsor lines: a URL, a domain with a path or after "visit"/"go to", a promo code, percent off or a free trial.
+_DOMAIN = r'[\w-]+\.(?:com|net|org|io|co|tv|fm|ai|app|dev)\b'
 _PROMO_TITLE = re.compile(
-    r'https?://|\bwww\.|\b[\w-]+\.(?:com|net|org|io|co|tv|fm|ai|app|dev)\b'
-    r'|(?i:\b(?:use|promo|coupon|discount)\s+code\b|\d+\s?%\s*off\b|\bfree\s+trial\b)'
-    r'|\bcode\s+[A-Z0-9]{3,}\b')
-
-
-def _is_clock_title(title: str) -> bool:
-    """True when the title starts with an AM/PM clock suffix."""
-    if _CLOCK_TITLE.match(title):
-        return True
-    words = title.split()
-    return bool(words) and bool(_CLOCK_TOKEN.match(words[0])) and len(words) <= 3
+    r'https?://|\bwww\.|\b' + _DOMAIN + r'/\S|(?i:\b(?:visit|go\s+to|head\s+to)\s+)' + _DOMAIN +
+    r'|(?i:\b(?:promo|coupon|discount)\s+code\b|\d+\s?%\s*off\b|\bfree\s+trial\b)'
+    r'|\bcode\s+(?:[A-Z0-9]{3,}\b|\w*\d\w*)')
 
 _ALIGN_LINE = re.compile(
     r'^\W*(\d{1,3})\s*[.):\-]?\s+(\d{1,3}:\d{2}(?::\d{2})?|-)(?:\s|$)')
@@ -112,7 +104,7 @@ def _show_notes_anchors(description: str | None, cuts: list[dict] | None,
     """Listed (original-audio) times shifted by the cuts like the served description, or [] off the gate."""
     listed = [(parse_timestamp(ts), title)
               for ts, title in _parse_description_anchors(description or '')
-              if not _is_clock_title(title) and not _PROMO_TITLE.search(title)]
+              if not _CLOCK_TITLE.match(title) and not _PROMO_TITLE.search(title)]
     merged = merge_cut_spans(cuts or [], default_replacement=replacement_duration)
     inside = [(t, shift_for_merged_cuts(t, merged), title) for t, title in listed]
     inside = [a for a in inside if a[1] < episode_duration]

@@ -176,8 +176,8 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     segment_markers = common._markers_from_row(episode)
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
     # Audio shortened but no cut list stored: listed times cannot be shifted, so skip show notes.
-    cuts_unknown = marker_cuts is None and (
-        (episode.get('original_duration') or 0) - (episode.get('new_duration') or 0) > 1.0)
+    original_s, new_s = episode.get('original_duration'), episode.get('new_duration')
+    cuts_unknown = marker_cuts is None and bool(original_s and new_s) and original_s - new_s > 1.0
 
     # Reuse the job context so route, usage, and logs share one run ID.
     from main_app.pipeline.admission import _resolve_or_load_route_snapshot
