@@ -17779,15 +17779,28 @@ components:
           description: >-
             Set on pendingReviewMarkers only. The earliest start and latest end, in seconds,
             a human may confirm this held marker at. With heldWidenSeconds 0 (default) this is the
-            span, widened to the reviewer's proposal when it has a usable one, +/- 0.5 s; above 0,
+            span, widened to usableProposal when there is one, +/- 0.5 s; above 0,
             its span (and first-detected span) widened by up to that many
-            seconds each way, stopped at cut, approved, kept or rejected neighbours and at 0 and the
+            seconds each way. Either way it stops at cut, approved, kept or rejected neighbours and at 0 and the
             episode end. The corrections API enforces exactly this window for a
             trimmed confirm.
           properties:
             min:
               type: number
             max:
+              type: number
+        usableProposal:
+          type: [object, 'null']
+          description: >-
+            Set on pendingReviewMarkers only. The reviewer's proposed bounds as a human may
+            confirm them: each edge stops at cut, approved, kept or rejected neighbours, and an
+            edge that moves more than reviewMaxBoundaryShift falls back to the marker's own edge.
+            Null when the marker has no proposal, it does not overlap the marker, or nothing of it
+            is left after those limits.
+          properties:
+            start:
+              type: number
+            end:
               type: number
         reviewer_proposed_start:
           type: [number, 'null']

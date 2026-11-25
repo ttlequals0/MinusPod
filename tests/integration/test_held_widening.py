@@ -4,6 +4,7 @@ import json
 import pytest
 
 from api import get_database
+from database import Database
 from main_app import processing
 from main_app.pipeline import recut
 from tests.unit.pass2_test_utils import _user_corrections
@@ -258,3 +259,50 @@ def test_recut_after_retrim_then_grow_back_cuts_latest_span(seed, monkeypatch):
     assert _confirm(ref, (1000.0, 1100.0), 1030.0, 1070.0).status_code == 200
     assert _confirm(ref, (1030.0, 1070.0), 990.0, 1140.0).status_code == 200
     assert _recut_ads(ref, monkeypatch) == [(990.0, 1140.0)]
+
+
+def _pending(ref, start, end):
+    for m in _payload(ref)['pendingReviewMarkers']:
+        if abs(m['start'] - start) < 0.01 and abs(m['end'] - end) < 0.01:
+            return m
+    raise AssertionError('marker not pending')
+
+
+@pytest.fixture
+def widen_off(monkeypatch):
+    patched = Database.get_setting
+    monkeypatch.setattr(
+        Database, 'get_setting',
+        lambda self, key: '0' if key == 'held_widen_seconds' else patched(self, key))
+
+
+def _contradiction_hold_beside_cut():
+    """A held start of a read whose rest was already cut; the reviewer's end runs 60.056 s into the cut."""
+    cut = _marker(1100.0, 1300.0, was_cut=True, held_for_review=False)
+    cut.pop('hold_reason')
+    held = _marker(1000.0, 1100.0, hold_reason='reviewer_contradiction',
+                   reviewer_proposed_start=997.8, reviewer_proposed_end=1160.056)
+    return [held, cut]
+
+
+def test_proposal_into_a_cut_neighbour_keeps_its_start_with_widening_off(seed, widen_off):
+    ref = seed(_contradiction_hold_beside_cut())
+    marker = _pending(ref, 1000.0, 1100.0)
+    assert marker['usableProposal'] == {'start': 997.8, 'end': 1100.0}
+    assert marker['allowedBounds'] == {'min': 997.3, 'max': 1100.5}
+    assert _confirm(ref, (1000.0, 1100.0), 997.8, 1160.056).status_code == 400
+    assert _confirm(ref, (1000.0, 1100.0), 997.8, 1100.0).status_code == 200
+    stored = _stored(ref)[0]
+    assert (stored['start'], stored['end'], stored['approved']) == (997.8, 1100.0, True)
+
+
+def test_proposal_into_a_cut_neighbour_is_clipped_with_widening_on(seed):
+    ref = seed(_contradiction_hold_beside_cut())
+    marker = _pending(ref, 1000.0, 1100.0)
+    assert marker['usableProposal'] == {'start': 997.8, 'end': 1100.0}
+    assert marker['allowedBounds'] == {'min': 939.5, 'max': 1100.0}
+
+
+def test_payload_usable_proposal_is_null_without_a_proposal(seed):
+    ref = seed([_marker(1000.0, 1100.0)])
+    assert _pending(ref, 1000.0, 1100.0)['usableProposal'] is None

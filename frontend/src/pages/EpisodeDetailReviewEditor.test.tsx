@@ -459,6 +459,93 @@ describe('Open in editor: held rows', () => {
   });
 });
 
+describe('Held rows: server-clipped usableProposal', () => {
+  // Real case: the raw proposal reaches 419.856, into an already-cut neighbour at 359.8-560.7.
+  const clipped = {
+    ...heldMarker,
+    start: 259.616,
+    end: 359.8,
+    reviewer_proposed_start: 257.4,
+    reviewer_proposed_end: 419.856,
+    allowedBounds: { min: 256.9, max: 359.8 },
+    usableProposal: { start: 257.4, end: 359.8 },
+  };
+  type Posted = { type: string; adjusted_start?: number; adjusted_end?: number };
+
+  it('seeds the modal correctedBounds from usableProposal, not the raw proposal', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [clipped] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-item-corrected-start')).toBe('257.4');
+    expect(modal.getAttribute('data-item-corrected-end')).toBe('359.8');
+  });
+
+  it('leaves correctedBounds null and hides the trimmed button when usableProposal is null', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarkerWithProposal, usableProposal: null },
+    ] }));
+
+    await screen.findByTestId('held-for-review-section');
+    expect(screen.queryByTestId('approve-trimmed-0')).toBeNull();
+    await user.click(screen.getByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-item-corrected-start')).toBe('');
+    expect(modal.getAttribute('data-item-corrected-end')).toBe('');
+  });
+
+  it('posts the usableProposal bounds from the row button and labels it as an adjustment', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [clipped] }));
+
+    const btn = await screen.findByTestId('approve-trimmed-0');
+    expect(btn.textContent).toMatch(/^Confirm adjusted \(/);
+    expect(btn.getAttribute('title')).toContain('the audio it adds is cut too');
+    await user.click(btn);
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as [string, string, Posted];
+    expect(payload.type).toBe('confirm');
+    expect(payload.adjusted_start).toBe(257.4);
+    expect(payload.adjusted_end).toBe(359.8);
+  });
+
+  it('labels a pure trim "Confirm trimmed" with the rest-stays-in-episode title', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, usableProposal: { start: 130, end: 300 } },
+    ] }));
+
+    const btn = await screen.findByTestId('approve-trimmed-0');
+    expect(btn.textContent).toMatch(/^Confirm trimmed \(/);
+    expect(btn.getAttribute('title')).toContain('the rest of this marker stays in the episode');
+    await user.click(btn);
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as [string, string, Posted];
+    expect(payload.adjusted_start).toBe(130);
+    expect(payload.adjusted_end).toBe(300);
+  });
+
+  it('falls back to the raw overlapping proposal when the backend sends no usableProposal', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarkerWithProposal] }));
+
+    const btn = await screen.findByTestId('approve-trimmed-0');
+    expect(btn.textContent).toMatch(/^Confirm trimmed \(/);
+    await user.click(btn);
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as [string, string, Posted];
+    expect(payload.adjusted_start).toBe(130);
+    expect(payload.adjusted_end).toBe(300);
+  });
+});
+
 describe('Open in editor: rejected rows', () => {
   it('renders the button and maps confirm to a confirm correction without recut', async () => {
     const user = userEvent.setup();

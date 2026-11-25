@@ -150,11 +150,33 @@ function correctionResultText(correction?: EpisodeCorrection): string | null {
   return null;
 }
 
-type ProposedAdSegment = AdSegment & { reviewer_proposed_start: number; reviewer_proposed_end: number };
+// The reviewer proposal a human may confirm on a held marker: the server's usableProposal, or on
+// older backends that do not send it, the raw proposal when it overlaps the marker.
+function reviewerProposal(seg: AdSegment): { start: number; end: number } | null {
+  if (seg.usableProposal !== undefined) return seg.usableProposal;
+  const { reviewer_proposed_start: start, reviewer_proposed_end: end } = seg;
+  if (start == null || end == null || !(start < seg.end && end > seg.start)) return null;
+  return { start, end };
+}
 
-function proposalOverlaps(seg: AdSegment): seg is ProposedAdSegment {
-  return seg.reviewer_proposed_start != null && seg.reviewer_proposed_end != null
-    && seg.reviewer_proposed_start < seg.end && seg.reviewer_proposed_end > seg.start;
+// Label and tooltip for the button that confirms the reviewer's bounds: a trim leaves the rest of
+// the marker in the episode, a widening also cuts audio outside it.
+function proposalButtonText(seg: AdSegment, proposal: { start: number; end: number }) {
+  const range = `${formatTimestamp(proposal.start)} - ${formatTimestamp(proposal.end)}`;
+  const trims = proposal.start > seg.start || proposal.end < seg.end;
+  const widens = proposal.start < seg.start || proposal.end > seg.end;
+  if (!widens) {
+    return {
+      label: `Confirm trimmed (${range})`,
+      title: 'Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode',
+    };
+  }
+  return {
+    label: `Confirm adjusted (${range})`,
+    title: trims
+      ? 'Approve the span the reviewer identified as ad content instead of this marker; the part it leaves out stays in the episode and the audio it adds is cut too'
+      : 'Approve the span the reviewer identified as ad content, which reaches past this marker; the audio it adds is cut too',
+  };
 }
 
 // Row-identity payload the corrections API keys on. One builder so the
@@ -1688,10 +1710,7 @@ function EpisodeDetail() {
               confidence: seg.confidence,
               detectionStage: seg.detection_stage || 'first_pass',
               patternId: null,
-              correctedBounds:
-                proposalOverlaps(seg)
-                  ? { start: seg.reviewer_proposed_start, end: seg.reviewer_proposed_end }
-                  : null,
+              correctedBounds: reviewerProposal(seg),
               category: seg.category ?? null,
               actionApplied: seg.actionApplied ?? null,
             }}
@@ -1798,6 +1817,8 @@ function EpisodeDetail() {
               const confirmStatus = rowSaveStatus(segment, 'confirm');
               const trimmedStatus = rowSaveStatus(segment, 'confirm-trimmed');
               const rejectStatus = rowSaveStatus(segment, 'reject');
+              const proposal = reviewerProposal(segment);
+              const proposalText = proposal && proposalButtonText(segment, proposal);
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
               const originalAd = toOriginalAd(segment);
@@ -1960,7 +1981,7 @@ function EpisodeDetail() {
                           {btnLabel(confirmStatus, oneTapRecut ? 'Confirm and recut' : confirmLabel(segment.category))}
                         </button>
                       </DemoDisabled>
-                      {proposalOverlaps(segment) && (
+                      {proposal && proposalText && (
                         <DemoDisabled>
                           <button
                             onClick={() => {
@@ -1970,17 +1991,16 @@ function EpisodeDetail() {
                               handleCorrection({
                                 type: 'confirm',
                                 originalAd,
-                                adjustedStart: segment.reviewer_proposed_start,
-                                adjustedEnd: segment.reviewer_proposed_end,
+                                adjustedStart: proposal.start,
+                                adjustedEnd: proposal.end,
                               });
                             }}
                             disabled={correctionMutation.isPending || reprocessBlocked}
                             data-testid={`approve-trimmed-${index}`}
-                            title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
+                            title={proposalText.title}
                             className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(trimmedStatus, btnSecondary)} ${focusRing}`}
                           >
-                            {btnLabel(trimmedStatus,
-                              `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
+                            {btnLabel(trimmedStatus, proposalText.label)}
                           </button>
                         </DemoDisabled>
                       )}

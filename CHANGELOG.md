@@ -13,6 +13,7 @@ release notes.
 ### Fixed
 
 - A feed in Skip detection mode applies its Chapter trim rule again. 2.102.16 turned the rule off for that mode, so chapters that matched the pattern stayed in the episode. To trim an episode that 2.102.16 or 2.102.17 handled, reprocess it.
+- A held marker could not be confirmed with the reviewer's proposed start when the proposal's other edge ran into an already-cut neighbour. With the end 60.056 s into the cut, past the 60 s per-edge shift cap, the whole proposal was dropped, so the confirm window stayed at the span +/- 0.5 s, while the held row's Confirm trimmed button still sent the raw proposal and the API rejected it. Each proposal edge now stops at cut, approved, kept or rejected neighbours and at not-an-ad spans, and an edge still over the cap falls back to the marker's own edge instead of dropping the other one. The episode payload carries the result as `usableProposal` next to `allowedBounds`. The row button and the editor start from it, and the button reads Confirm adjusted, with a tooltip that says the added audio is cut too, when the proposal reaches past the marker. Only what a human may confirm changes; automatic cuts are unchanged.
 
 ## [2.102.17] - 2026-11-24
 
