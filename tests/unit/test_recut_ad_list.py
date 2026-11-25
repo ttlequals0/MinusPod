@@ -567,6 +567,7 @@ def test_build_recut_ad_list_drops_rejected(monkeypatch):
     monkeypatch.setattr(
         processing.db, 'get_confirmed_corrections', lambda podcast_id, eid: [])
     segments = [
+        {'start': 5.0, 'end': 25.0, 'text': 'welcome to the show'},
         {'start': 30.0, 'end': 90.0, 'text': 'sponsor a'},
         {'start': 300.0, 'end': 360.0, 'text': 'sponsor b'},
     ]
