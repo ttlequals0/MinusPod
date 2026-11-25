@@ -534,16 +534,17 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 continue
             released = m.get('pass2_released_spans') or []
             spans = released if len(released) > 1 else [_pass2_confirm_span(m)]
-            spans = _extend_to_dai_core(
-                m, spans, segments, [*barriers, *((k['start'], k['end']) for k in kept if k is not m)])
+            blocked = [*barriers, *((k['start'], k['end']) for k in kept if k is not m)]
+            spans = _extend_to_dai_core(m, spans, segments, blocked)
+            # Protected audio must not be cut, not only kept out of the widening.
             spans = [span for span in spans if not any(
-                overlap_seconds((span or m)['start'], (span or m)['end'],
-                                r['start'], r['end']) > 0 for r in reviewer_rejects)]
+                overlap_seconds((span or m)['start'], (span or m)['end'], lo, hi) > 0
+                for lo, hi in blocked)]
             if not spans:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Not auto-approving hold "
-                    f"{m['start']:.1f}s-{m['end']:.1f}s: the reviewer "
-                    f"rejected overlapping audio")
+                    f"{m['start']:.1f}s-{m['end']:.1f}s: a reject, a kept span "
+                    f"or a user trim overlaps the approved audio")
                 continue
             approvable.append((m, spans))
         if not approvable:

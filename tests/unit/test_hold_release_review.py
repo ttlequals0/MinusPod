@@ -574,6 +574,30 @@ def test_differential_release_reaches_the_core_edges_over_wordless_audio(monkeyp
     assert filed['corrected_bounds'] is None
 
 
+def _filed_beside(monkeypatch, other=None, confirmed=None):
+    db = _approval_db(monkeypatch)
+    db.get_original_segments.return_value = _DAI_SEGMENTS
+    markers = [_differential_release(), *([other] if other else [])]
+    verify._file_corroborated_hold_approvals('s', 'e', markers, corrections=([], confirmed or []))
+    return db.create_pattern_correction.call_count
+
+
+def test_approved_span_over_a_user_trimmed_range_is_not_filed(monkeypatch):
+    trim = {'start': 3560.0, 'end': 3700.0, 'correction_type': 'confirm',
+            'confirmed_span': {'start': 3560.0, 'end': 3580.0}}
+    assert _filed_beside(monkeypatch, confirmed=[trim]) == 0
+
+
+def test_approved_span_over_a_keep_like_marker_is_not_filed(monkeypatch):
+    keep = {'start': 3620.0, 'end': 3630.0, 'action_applied': 'keep'}
+    assert _filed_beside(monkeypatch, other=keep) == 0
+
+
+def test_a_distant_keep_like_marker_does_not_block_the_approval(monkeypatch):
+    keep = {'start': 3500.0, 'end': 3510.0, 'action_applied': 'mark'}
+    assert _filed_beside(monkeypatch, other=keep) == 1
+
+
 def test_differential_release_stops_at_a_word_in_the_gap(monkeypatch):
     segments = [*_DAI_SEGMENTS, _seg(3652.0, 3652.6, (3652.0, 3652.6))]
 
