@@ -34,6 +34,27 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
+# Show-notes chapters: at least this many in-range timestamps in the episode
+# description replace LLM topic detection.
+MIN_SHOW_NOTES_CHAPTERS = 2
+# The transcript is searched this far either side of a listed time, and a
+# snapped time further away than this is rejected.
+SNAP_RADIUS_SECONDS = 300.0
+# A first show-notes chapter starting at or after this gets an "Intro" before it.
+SHOW_NOTES_INTRO_MIN_SECONDS = 5.0
+
+SHOW_NOTES_ALIGN_PROMPT = (
+    "These topics are listed in the episode's show notes with approximate "
+    "start times. For each topic, find the transcript line where the "
+    "discussion of that topic begins. Reply with one line per topic, exactly "
+    "`<number> MM:SS`, using a timestamp from the [MM:SS] markers. If a topic "
+    "cannot be found, reply `<number> -`.\n\n"
+    "Topics:\n{topics}\n\nTranscript:\n{transcript}"
+)
+
+_ALIGN_LINE = re.compile(
+    r'^\W*(\d{1,3})\s*[.):\-]?\s+(\d{1,3}:\d{2}(?::\d{2})?|-)(?:\s|$)')
+
 # Patterns for MM:SS timestamps embedded in episode descriptions.
 _TIMESTAMP_PATTERNS = (
     re.compile(r'(?:^|\n)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-:]*\s*(.+?)(?=\n|$)'),
@@ -765,6 +786,212 @@ class ChaptersGenerator:
             self._topic_detection_failed = True
         return found[:max_boundaries]
 
+    def _align_show_notes_group(
+        self,
+        segments: list[dict],
+        group: list[tuple[int, float, str]],
+        episode_duration: float,
+    ) -> dict[int, float] | None:
+        """Ask the LLM where each topic of one anchor group starts.
+
+        group: (index, anchor_seconds, title). Returns {index: seconds} for the
+        topics the model located, or None when the call failed. Rate-limit,
+        cancel and account errors propagate.
+        """
+        start = max(0.0, group[0][1] - SNAP_RADIUS_SECONDS)
+        end = min(episode_duration, group[-1][1] + SNAP_RADIUS_SECONDS)
+        transcript = self._get_full_transcript_range(segments, start, end)
+        if not transcript:
+            return None
+        topics = '\n'.join(
+            f"{n}. (about {_format_mmss(t)}) {title}"
+            for n, (_, t, title) in enumerate(group, 1))
+        prompt = SHOW_NOTES_ALIGN_PROMPT.format(
+            topics=topics, transcript=transcript)
+        if self._chapter_notes:
+            prompt += f"\n\nFeed notes:\n{self._chapter_notes}"
+        try:
+            live = live_route_params('chapters')
+            model = live.model if live.route else get_chapters_model()
+            max_tokens, temperature, reasoning = resolve_stage_tunables(
+                'chapter_boundary', provider=live.provider, model=model)
+            response, last_error = call_llm(
+                llm_client=self._client_for(live.route),
+                model=model,
+                system_prompt="",
+                prompt=prompt,
+                llm_timeout=live.timeout,
+                max_retries=live.max_retries,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                reasoning_effort=reasoning,
+                slug=self._slug,
+                episode_id=self._episode_id,
+                call_label="chapter show-notes alignment",
+                pass_name=PASS_CHAPTER_GENERATION,
+                phase_key='chapters',
+                provider=live.provider,
+                credential_slot=live.credential_slot,
+                stage_tunable_prefix='chapter_boundary',
+            )
+            if response is None:
+                if isinstance(last_error, ProviderRateLimitedError):
+                    raise last_error
+                logger.warning(f"Show-notes alignment failed: {last_error}")
+                return None
+            found: dict[int, float] = {}
+            for line in response.content.strip().split('\n'):
+                match = _ALIGN_LINE.match(line.strip())
+                if not match or match.group(2) == '-':
+                    continue
+                number = int(match.group(1))
+                if 1 <= number <= len(group):
+                    try:
+                        found.setdefault(
+                            group[number - 1][0], parse_timestamp(match.group(2)))
+                    except (ValueError, IndexError):
+                        continue
+            return found
+        except ModelNotConfiguredError as e:
+            logger.warning(f"Show-notes alignment skipped: {e}")
+            return None
+        except (ProviderRateLimitedError, ProviderAccountChangedError, LLMDisabledError,
+                ProcessingCancelled, ProcessingOwnershipLost):
+            raise
+        except Exception as e:
+            logger.warning(f"Show-notes alignment failed: {e}")
+            return None
+
+    def _extra_llm_chapters(
+        self,
+        segments: list[dict],
+        episode_duration: float,
+        listed: list[dict],
+        window_span: float,
+        episode_description: str | None,
+        hints: list[dict] | None,
+        target: float,
+        max_boundaries: int,
+        min_duration: float,
+    ) -> list[dict]:
+        """Major topics the show notes do not list, found by LLM topic detection.
+
+        A boundary is kept when it has a title and sits at least min_duration
+        from every listed chapter and from the previous kept one. A failed
+        detection adds nothing and never degrades the run.
+        """
+        if episode_duration <= MIN_DURATION_FOR_AI:
+            return []
+        self._initialize_client()
+        if not self._llm_client:
+            return []
+        saved = (self._topic_detection_failed, self._model_not_configured_message,
+                 self._context_overflow_message)
+        try:
+            found = self._detect_boundaries_windowed(
+                segments, episode_duration, target, window_span, max_boundaries,
+                episode_description=episode_description, hints=hints)
+        finally:
+            (self._topic_detection_failed, self._model_not_configured_message,
+             self._context_overflow_message) = saved
+        starts = [c['startTime'] for c in listed]
+        extras: list[dict] = []
+        for ch in sorted(found, key=lambda c: c['original_time']):
+            t, title = ch['original_time'], (ch.get('title') or '').strip()
+            if not title:
+                continue
+            if any(abs(t - s) < min_duration for s in starts):
+                continue
+            # Like the generate path, no chapter shorter than min_duration at the end.
+            if episode_duration - t < min_duration:
+                continue
+            if extras and t - extras[-1]['startTime'] < min_duration:
+                continue
+            extras.append({'startTime': t, 'title': title})
+        return extras
+
+    def _chapters_from_show_notes(
+        self,
+        segments: list[dict],
+        episode_duration: float,
+        anchors: list[tuple[float, str]],
+        window_span: float,
+        episode_description: str | None = None,
+        hints: list[dict] | None = None,
+        target: float = 600.0,
+        max_boundaries: int = 20,
+        min_duration: float = 180.0,
+    ) -> list[dict]:
+        """One chapter per show-notes anchor, titles verbatim.
+
+        anchors: time-sorted (seconds, title) pairs inside the episode. The LLM
+        only moves each time to where the topic starts in the transcript; when
+        it is unavailable or its answer is unusable the listed time stands.
+        """
+        # Anchors at the very start stay at 0; the rest are grouped so each
+        # group's transcript span fits one chapter window.
+        movable = [(i, t, title) for i, (t, title) in enumerate(anchors)
+                   if t >= SHOW_NOTES_INTRO_MIN_SECONDS]
+        groups: list[list[tuple[int, float, str]]] = []
+        for item in movable:
+            if groups:
+                span = (min(episode_duration, item[1] + SNAP_RADIUS_SECONDS)
+                        - max(0.0, groups[-1][0][1] - SNAP_RADIUS_SECONDS))
+                if span <= window_span:
+                    groups[-1].append(item)
+                    continue
+            groups.append([item])
+
+        snapped: dict[int, float] = {}
+        if groups:
+            self._initialize_client()
+        if groups and self._llm_client:
+            for group in groups:
+                snapped.update(self._align_show_notes_group(
+                    segments, group, episode_duration) or {})
+        elif groups:
+            logger.info("No LLM client; show-notes chapters keep their listed times")
+
+        times: list[float] = []
+        aligned = 0
+        for i, (raw, _title) in enumerate(anchors):
+            candidate = snapped.get(i)
+            upper = anchors[i + 1][0] if i + 1 < len(anchors) else episode_duration
+            if (candidate is not None
+                    and abs(candidate - raw) <= SNAP_RADIUS_SECONDS
+                    and (not times or candidate > times[-1])
+                    and candidate < upper):
+                times.append(candidate)
+                aligned += 1
+            else:
+                times.append(raw)
+        if times[0] < SHOW_NOTES_INTRO_MIN_SECONDS:
+            times[0] = 0.0
+
+        chapters = [{'startTime': t, 'title': title}
+                    for t, (_, title) in zip(times, anchors, strict=True)]
+        if chapters[0]['startTime'] >= SHOW_NOTES_INTRO_MIN_SECONDS:
+            chapters.insert(0, {'startTime': 0, 'title': 'Intro'})
+
+        extras = self._extra_llm_chapters(
+            segments, episode_duration, chapters, window_span, episode_description,
+            hints, target, max_boundaries, min_duration)
+        if extras:
+            logger.info(f"Added {len(extras)} LLM chapter(s) the show notes do not list")
+            chapters = sorted(chapters + extras, key=lambda c: c['startTime'])
+
+        # Whole seconds, strictly increasing, first at 1 or later (the output
+        # convention for chapter start times).
+        previous = 0
+        for ch in chapters:
+            previous = max(previous + 1, int(round(ch['startTime'])))
+            ch['startTime'] = previous
+
+        logger.info(
+            f"Built {len(anchors)} chapter(s) from show notes "
+            f"({aligned} time(s) aligned to the transcript)")
+        return chapters
+
     def generate_chapters(
         self,
         segments: list[dict],
@@ -844,7 +1071,21 @@ class ChaptersGenerator:
         # see different geometry mid-run.
         target, window_span, max_boundaries, min_duration = resolve_chapter_geometry()
 
-        if episode_duration > MIN_DURATION_FOR_AI:
+        # Timestamps listed in the show notes are the chapters when there are enough.
+        show_notes_anchors = [
+            (t, title) for ts, title in _parse_description_anchors(episode_description or '')
+            if (t := parse_timestamp(ts)) < episode_duration
+        ]
+        show_notes_chapters = None
+        if len(show_notes_anchors) >= MIN_SHOW_NOTES_CHAPTERS:
+            show_notes_chapters = self._chapters_from_show_notes(
+                segments, episode_duration, show_notes_anchors, window_span,
+                episode_description=episode_description, hints=hints, target=target,
+                max_boundaries=max_boundaries, min_duration=min_duration)
+
+        if show_notes_chapters is not None:
+            chapters = show_notes_chapters
+        elif episode_duration > MIN_DURATION_FOR_AI:
             self._initialize_client()
             if self._llm_client:
                 for ch in self._detect_boundaries_windowed(
@@ -861,24 +1102,25 @@ class ChaptersGenerator:
                 self._topic_detection_failed = True
                 self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
 
-        chapters.sort(key=lambda x: x['startTime'])
+        if show_notes_chapters is None:
+            chapters.sort(key=lambda x: x['startTime'])
 
-        deduplicated = []
-        for ch in chapters:
-            if not deduplicated or ch['startTime'] - deduplicated[-1]['startTime'] >= MIN_DEDUP_WINDOW:
-                deduplicated.append(ch)
-            elif len(deduplicated) > 1:
-                # A sub-minute chapter is usually a promo or transition; keep the topic after it.
-                deduplicated[-1] = ch
-        chapters = deduplicated
+            deduplicated = []
+            for ch in chapters:
+                if not deduplicated or ch['startTime'] - deduplicated[-1]['startTime'] >= MIN_DEDUP_WINDOW:
+                    deduplicated.append(ch)
+                elif len(deduplicated) > 1:
+                    # A sub-minute chapter is usually a promo or transition; keep the topic after it.
+                    deduplicated[-1] = ch
+            chapters = deduplicated
 
-        chapters = self._enforce_min_duration(
-            chapters, episode_duration, min_duration)
+            chapters = self._enforce_min_duration(
+                chapters, episode_duration, min_duration)
 
-        chapters = self.generate_chapter_titles(
-            chapters, segments, podcast_name, episode_title
-        )
-        if (episode_duration <= MIN_DURATION_FOR_AI and len(chapters) == 1
+            chapters = self.generate_chapter_titles(
+                chapters, segments, podcast_name, episode_title
+            )
+        if (show_notes_chapters is None and episode_duration <= MIN_DURATION_FOR_AI and len(chapters) == 1
                 and self._missing_client_for_titles and not self._topic_detection_failed):
             self._title_generation_failed = False
             self._model_not_configured_message = None

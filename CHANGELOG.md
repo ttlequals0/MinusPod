@@ -12,6 +12,7 @@ release notes.
 
 ### Changed
 
+- Timestamps in the episode description become the chapters, with the show notes' own titles, when there are at least two; the LLM moves each to where the topic starts in the transcript and also adds chapters for major topics the show notes do not list, at least three minutes from the listed ones.
 - Documentation links in the README and the Docs button on the Settings page now open the pages on docs.minuspod.app instead of the Markdown files in the repository.
 - The audio download logs its progress once a minute, and its final log line reports the size, the time taken and the average speed.
 - Dependency updates: anthropic 2.11.0, openai 3.56.0, python-slugify 9.2.0, soupsieve 4.1.2, nh3 0.3.8, lucide-react 1.76.0, vite 8.3.8, @vitejs/plugin-react 6.3.0, eslint 10.15.0 and @playwright/test 1.65.1 (#1046 to #1055).
