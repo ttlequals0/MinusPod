@@ -174,7 +174,8 @@ def test_failed_crosspass_rerender_preserves_pass1_output(monkeypatch):
 
 def _crosspass_run(render_result):
     audio = MagicMock()
-    audio.get_audio_duration.side_effect = [400.0, 500.0]
+    # Processed length, then the original's twice: the reviewer bound and the rerender.
+    audio.get_audio_duration.side_effect = [400.0, 500.0, 500.0]
     audio.process_episode.return_value = render_result
     segments = [{'start': 0.0, 'end': 90.0, 'text': 'show content'}]
     return drive_verification_pass(
