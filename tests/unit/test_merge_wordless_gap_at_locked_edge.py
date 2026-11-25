@@ -52,3 +52,16 @@ def test_a_long_wordless_gap_at_a_locked_edge_stays():
 
 def test_no_transcript_keeps_the_gap():
     assert _merge([]) == [(394.19, 416.3), (418.192, 448.11)]
+
+
+def test_a_segment_without_word_timings_running_into_the_gap_keeps_it():
+    untimed = {'start': 412.06, 'end': 417.5, 'text': 'the obvious choice for contracts'}
+
+    assert _merge([untimed, SEGMENTS[1]]) == [(394.19, 416.3), (418.192, 448.11)]
+
+
+def test_a_word_ending_within_slop_of_the_gap_start_does_not_block():
+    tail = {'start': 412.06, 'end': 416.5, 'text': 'contracts',
+            'words': [{'start': 412.06, 'end': 416.5}]}
+
+    assert _merge([tail, SEGMENTS[1]]) == [(394.19, 448.11)]

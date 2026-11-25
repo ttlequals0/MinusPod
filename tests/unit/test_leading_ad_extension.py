@@ -28,12 +28,30 @@ def test_first_ad_runs_from_zero_over_wordless_audio():
     assert _extend([_ad_words(), _show()]) == 0.0
 
 
-def test_extension_reaches_thirty_seconds():
-    assert _extend([_ad_words(30.0)], start=30.0) == 0.0
+def test_extension_reaches_five_seconds():
+    assert _extend([_ad_words(5.0)], start=5.0) == 0.0
 
 
-def test_no_extension_past_thirty_seconds():
-    assert _extend([_ad_words(30.5)], start=30.5) == 30.5
+def test_no_extension_past_five_seconds():
+    assert _extend([_ad_words(5.5)], start=5.5) == 5.5
+
+
+def test_no_extension_without_a_transcript():
+    assert _extend([]) == 1.136
+
+
+def test_no_extension_when_the_transcript_has_no_text():
+    assert _extend([{'start': 0.0, 'end': 20.0, 'text': ' '}]) == 1.136
+
+
+def test_no_extension_when_the_opening_is_excluded():
+    validator = AdValidator(episode_duration=1140.5, segments=[_ad_words(3.0), _show()],
+                            opening_excluded=True)
+    head = {'start': 3.0, 'end': 22.18}
+
+    validator._extend_leading_ad([head], ValidationResult(ads=[]))
+
+    assert head['start'] == 3.0
 
 
 def test_extension_stops_at_speech_before_the_ad():

@@ -9,7 +9,8 @@ from ad_detector.cue_boundary_snap import snap_split_edge
 from audio_processor import get_replacement_duration
 from ad_validator import user_trimmed_keep_ranges
 from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
-                           dai_core_spans, finite_number, fold_marker_pair, foldable_twin, merge_runs,
+                           dai_core_spans, finite_number, fold_marker_pair, foldable_twin,
+                           locked_gap_bridgeable, merge_runs, reviewer_edge_locked,
                            reviewer_reject_stands, speech_units)
 
 from utils.time import (
@@ -671,7 +672,7 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
             for protected in protected_ranges or [])
 
     def locked_at(cut, edge):
-        return any(
+        return reviewer_edge_locked(cut, edge) or any(
             (locked := finite_number(marker.get(f'reviewer_locked_{edge}'))) is not None
             and abs(locked - cut[edge]) <= EDGE_TOLERANCE
             and _covered_by_cuts(marker, [cut])
@@ -688,13 +689,14 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         same_action = current['action_applied'] == candidate['action_applied']
         combines_passes = current['_crosspass_sources'] != candidate['_crosspass_sources']
         gap = candidate['start'] - current['end']
-        speech = (_content_duration_in_range(
-            original_segments, current['end'], candidate['start'])
-            if gap > 0 and original_segments else 0.0)
-        # A gap next to a reviewer-locked pass-1 edge is audio the reviewer kept.
-        eligible = gap <= 0 or (
-            bool(original_segments) and min_content > 0 and speech < min_content
-            and not locked_at(current, 'end') and not locked_at(candidate, 'start'))
+        if gap <= 0:
+            eligible = True
+        elif locked_at(current, 'end') or locked_at(candidate, 'start'):
+            # A gap beside a reviewer-locked edge is audio the reviewer kept unless it is short and wordless.
+            eligible = locked_gap_bridgeable(original_segments, current['end'], candidate['start'])
+        else:
+            eligible = (bool(original_segments) and min_content > 0 and _content_duration_in_range(
+                original_segments, current['end'], candidate['start']) < min_content)
         if (same_action and combines_passes and eligible
                 and end - start <= MAX_MERGED_DURATION
                 and not crosses_protected(start, end)):

@@ -94,7 +94,7 @@ def test_crosspass_plan_keeps_reviewer_locked_pass1_edges():
     start_locked = [_cut(2802.09, 2959.57, reviewer_locked_start=2802.09)]
     assert verify._crosspass_cut_plan(
         [_cut(2802.09, 2959.57, replacement_duration=1.0)], start_locked,
-        [_cut(2790.0, 2800.0)], show, [], 12.0) is None
+        [_cut(2780.0, 2795.0)], show, [], 12.0) is None
 
     unlocked = verify._crosspass_cut_plan(
         [_cut(2802.09, 2959.57, replacement_duration=1.0)], [_cut(2802.09, 2959.57)],

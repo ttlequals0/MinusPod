@@ -25,6 +25,7 @@ from config import (
     HOLD_REASON_NO_CUE,
     is_cue_backed, resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
+    resolve_ad_detection_exclude_start_seconds,
     resolve_max_ad_duration,
     resolve_max_ad_duration_confirmed,
     REPEAT_STAGE, REPEAT_MIN_SOURCE_S, REPEAT_MAX_SOURCE_S, REPEAT_MAX_OVERLAP_S,
@@ -634,6 +635,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         transcript_spans=transcript_spans,
         loop_runs=loop_runs,
         cue_snap_settings=cue_snap_settings,
+        opening_excluded=resolve_ad_detection_exclude_start_seconds(db, podcast_id) > 0,
         **splice_kwargs,
     )
 

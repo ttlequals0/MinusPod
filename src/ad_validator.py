@@ -58,6 +58,8 @@ from utils.markers import (
     note_fold,
     precise_edge,
     recorded_member_spans,
+    SPEECH_SLOP_S,
+    locked_gap_bridgeable,
     reviewer_edge_locked,
     reviewer_reject_stands,
     SILENT_ABSORBED_SPANS,
@@ -87,8 +89,8 @@ from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 TRAILING_AD_MAX_GAP = 30.0  # seconds; a last ad ending this close to the file end runs to it
-TRAILING_SPEECH_SLOP_S = 0.25  # seconds; a word starting this soon after the ad's end is timing slop
-LEADING_AD_MAX_GAP = TRAILING_AD_MAX_GAP  # seconds; a first ad starting this close to the file start runs from it
+TRAILING_SPEECH_SLOP_S = SPEECH_SLOP_S  # seconds; a word starting this soon after the ad's end is timing slop
+LEADING_AD_MAX_GAP = 5.0  # seconds; a first ad starting this close to the file start runs from it
 
 logger = logging.getLogger(__name__)
 
@@ -388,7 +390,8 @@ class AdValidator:
                  podcast_name: str = None,
                  transcript_spans: list[dict] = None,
                  loop_runs: list[tuple[float, float, int]] = None,
-                 cue_snap_settings: dict | None = None):
+                 cue_snap_settings: dict | None = None,
+                 opening_excluded: bool = False):
         """Initialize validator.
 
         episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
@@ -406,7 +409,9 @@ class AdValidator:
         Whisper repetition runs of segments when the caller already computed them; found here when None.
         cue_snap_settings are the feed's cue snap knobs (snap_split_edge keywords); with them, an edge an
         estimated-span split creates snaps onto a removed break cue the way detection snaps the others.
+        opening_excluded is True when the feed excludes its opening from ad detection; the leading rule then stays off.
         """
+        self.opening_excluded = opening_excluded
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
         self.episode_duration = episode_duration
@@ -2072,7 +2077,8 @@ class AdValidator:
     def _extend_leading_ad(self, ads: list[dict], result: ValidationResult,
                            max_gap: float = LEADING_AD_MAX_GAP) -> list[dict]:
         """Start the first ad at 0 if it starts within max_gap seconds and nobody speaks before it."""
-        if not ads:
+        has_transcript = any((seg.get('text') or '').strip() for seg in self.segments)
+        if not ads or self.opening_excluded or not has_transcript:
             return ads
         first_ad = min(ads, key=lambda x: (x['start'], x['end']))
         # Same guards as the trailing rule. A precise start is extended on purpose: it marks the ad's first
@@ -2100,15 +2106,8 @@ class AdValidator:
                 yield start
 
     def _speech_starts_after(self, edge: float) -> bool:
-        """Whether a word starts after `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop.
-
-        A word already running at `edge` belongs to the ad that ends there.
-        """
+        """Whether a word starts after `edge`, ignoring timing slop."""
         return any(start > edge + TRAILING_SPEECH_SLOP_S for start in self._word_starts())
-
-    def _speech_starts_between(self, start: float, end: float) -> bool:
-        """Whether a word starts inside (start, end), ignoring TRAILING_SPEECH_SLOP_S of timing slop at both edges."""
-        return any(start + TRAILING_SPEECH_SLOP_S < s < end - TRAILING_SPEECH_SLOP_S for s in self._word_starts())
 
     def _speech_starts_before(self, edge: float) -> bool:
         """Whether a word starts before `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop."""
@@ -2211,9 +2210,8 @@ class AdValidator:
 
             # A gap past a reviewer-locked edge stays in the audio, unless it is a short gap nobody speaks in.
             if gap > 0 and (reviewer_edge_locked(last, 'end')
-                            or reviewer_edge_locked(current, 'start')) and not (
-                    gap < MERGE_GAP_THRESHOLD and self.segments
-                    and not self._speech_starts_between(last['end'], current['start'])):
+                            or reviewer_edge_locked(current, 'start')) and not locked_gap_bridgeable(
+                    self.segments, last['end'], current['start']):
                 merged.append(current.copy())
                 continue
 

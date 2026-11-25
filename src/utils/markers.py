@@ -7,7 +7,7 @@ import uuid
 from bisect import bisect_left, bisect_right
 from itertools import accumulate, pairwise
 
-from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
+from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE, MERGE_GAP_THRESHOLD,
                     REVIEWER_HOLD_REASONS, pass2_may_release,
                     is_keep_like, is_pending_review, repair_segment_category)
 from utils.constants import EpisodeStatus
@@ -64,6 +64,18 @@ def speech_units(segments) -> list[tuple[float, float]]:
     """(start, end) of every timed word, or of the segment when it has none."""
     spans = (timed_span(unit) for seg in segments or [] for unit in seg.get('words') or [seg])
     return [span for span in spans if span]
+
+
+SPEECH_SLOP_S = 0.25  # seconds; word timing slop at a gap's edges
+
+
+def locked_gap_bridgeable(segments, start, end) -> bool:
+    """Whether a gap beside a reviewer-locked edge may be cut: under the merge gap, with a transcript and no speech in it."""
+    if not 0 < end - start < MERGE_GAP_THRESHOLD:
+        return False
+    spoken = [seg for seg in segments or [] if (seg.get('text') or '').strip()]
+    return bool(spoken) and not any(
+        lo < end - SPEECH_SLOP_S and hi > start + SPEECH_SLOP_S for lo, hi in speech_units(spoken))
 
 
 class TimedWords:
