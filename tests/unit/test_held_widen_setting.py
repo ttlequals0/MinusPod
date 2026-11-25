@@ -4,7 +4,8 @@ import pytest
 
 import config
 from database.settings import registry_get_default
-from utils.markers import held_marker_window
+from utils.markers import (held_marker_window, held_review_proposal, held_review_window,
+                           usable_reviewer_proposal)
 
 MARKER = {'start': 100.0, 'end': 140.0, 'held_for_review': True}
 
@@ -99,3 +100,68 @@ class TestWindow:
     def test_widened_ignores_a_neighbour_strictly_inside_the_span(self):
         assert held_marker_window(
             [MARKER, _cut(110.0, 120.0)], MARKER, 3600.0, True, widen_s=10.0) == (89.5, 150.5)
+
+
+def _proposed(start, end, p_start, p_end):
+    return {'start': start, 'end': end, 'held_for_review': True,
+            'reviewer_proposed_start': p_start, 'reviewer_proposed_end': p_end}
+
+
+class TestUsableProposal:
+    def test_an_edge_inside_a_cut_neighbour_stops_at_it(self):
+        marker = _proposed(100.0, 140.0, 88.0, 170.0)
+        assert usable_reviewer_proposal(
+            marker, 100.0, 140.0, 60.0, [(140.0, 200.0)]) == (88.0, 140.0)
+
+    def test_the_clip_comes_before_the_shift_cap(self):
+        # The end moves 60.056 s, past the cap, but the neighbour stops it first.
+        marker = _proposed(259.616, 359.8, 257.4, 419.856)
+        assert usable_reviewer_proposal(
+            marker, 259.616, 359.8, 60.0, [(359.8, 560.7)]) == (257.4, 359.8)
+
+    def test_an_edge_over_the_cap_falls_back_to_the_marker_edge(self):
+        marker = _proposed(100.0, 140.0, 30.0, 131.0)
+        assert usable_reviewer_proposal(marker, 100.0, 140.0, 60.0) == (100.0, 131.0)
+
+    def test_nothing_left_after_the_limits_is_no_proposal(self):
+        marker = _proposed(100.0, 140.0, 30.0, 210.0)
+        assert usable_reviewer_proposal(marker, 100.0, 140.0, 60.0) is None
+        widened_into_cut = _proposed(100.0, 140.0, 100.0, 170.0)
+        assert usable_reviewer_proposal(
+            widened_into_cut, 100.0, 140.0, 60.0, [(140.0, 200.0)]) is None
+
+    def test_a_blocker_overlapping_the_start_stops_the_start_at_the_marker_edge(self):
+        marker = _proposed(100.0, 140.0, 85.0, 135.0)
+        assert usable_reviewer_proposal(
+            marker, 100.0, 140.0, 60.0, [(90.0, 110.0)]) == (100.0, 135.0)
+
+    def test_a_disjoint_proposal_is_still_none(self):
+        marker = _proposed(100.0, 140.0, 0.0, 12.0)
+        assert usable_reviewer_proposal(marker, 100.0, 140.0, 60.0) is None
+
+
+class TestHeldReviewProposal:
+    EPISODE = {'status': 'processed', 'original_duration': 3600.0}
+
+    def _markers(self):
+        held = dict(_proposed(259.616, 359.8, 257.4, 419.856),
+                    was_cut=False, hold_reason='reviewer_contradiction')
+        return held, [{'start': 0.0, 'end': 146.7}, held, {'start': 359.8, 'end': 560.7}]
+
+    def test_a_cut_neighbour_clips_the_proposal_with_widening_off(self):
+        # Markers without was_cut on a processed episode were cut.
+        held, markers = self._markers()
+        assert held_review_proposal(self.EPISODE, markers, held, [], 60.0) == (257.4, 359.8)
+        assert held_review_window(self.EPISODE, markers, held, [], 0.0, 60.0) == (256.9, 360.3)
+
+    def test_an_undecided_held_neighbour_does_not_clip(self):
+        held, markers = self._markers()
+        held['reviewer_proposed_end'] = 400.0
+        assert held_review_proposal(self.EPISODE, markers, held, [], 60.0) == (257.4, 359.8)
+        markers[2] = dict(markers[2], was_cut=False, held_for_review=True)
+        assert held_review_proposal(self.EPISODE, markers, held, [], 60.0) == (257.4, 400.0)
+
+    def test_a_not_an_ad_span_clips_the_proposal(self):
+        held = dict(_proposed(100.0, 140.0, 88.0, 170.0), was_cut=False)
+        assert held_review_proposal(
+            self.EPISODE, [held], held, [{'start': 150.0, 'end': 180.0}], 60.0) == (88.0, 150.0)

@@ -375,6 +375,43 @@ class TestTrimmedConfirmValidation:
 
         assert _status(resp) == 400
 
+    def test_proposal_reaching_into_a_cut_neighbour_confirms_up_to_it(self, temp_db):
+        # The reviewer found the earlier start, but its end runs 60.056 s into
+        # the already-cut rest of the read: past the shift cap, so the whole
+        # proposal used to be dropped and the start could not be confirmed.
+        marker = _held(1000.0, 1100.0)
+        marker['hold_reason'] = 'reviewer_contradiction'
+        marker['reviewer_proposed_start'] = 997.8
+        marker['reviewer_proposed_end'] = 1160.056
+        cut = {'start': 1100.0, 'end': 1300.0, 'confidence': 0.95, 'was_cut': True}
+        slug, eid = _seed(temp_db, [marker, cut])
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 1000.0, 'end': 1100.0},
+                            {'adjusted_start': 997.8, 'adjusted_end': 1160.056})
+        assert _status(resp) == 400
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 1000.0, 'end': 1100.0},
+                            {'adjusted_start': 997.8, 'adjusted_end': 1100.0})
+        assert _status(resp) == 200
+        saved, _ = _markers(temp_db, slug, eid)
+        assert (saved[0]['start'], saved[0]['end']) == (997.8, 1100.0)
+        assert saved[0]['approved'] is True
+
+    def test_an_over_cap_edge_does_not_drop_the_other_edge(self, temp_db):
+        marker = _held(1000.0, 1100.0)
+        marker['hold_reason'] = 'reviewer_boundary_conflict'
+        marker['reviewer_proposed_start'] = 990.0
+        marker['reviewer_proposed_end'] = 1200.0
+        slug, eid = _seed(temp_db, [marker])
+
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 1000.0, 'end': 1100.0},
+                            {'adjusted_start': 990.0, 'adjusted_end': 1100.0})
+
+        assert _status(resp) == 200
+
     def test_confirm_over_the_confirmed_duration_cap_is_rejected(self, temp_db):
         markers = [_held(100.0, 1200.0)]
         slug, eid = _seed(temp_db, markers)
