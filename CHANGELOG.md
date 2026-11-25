@@ -19,6 +19,7 @@ release notes.
 
 ### Fixed
 
+- A recut split two back-to-back ads when the first ended at a reviewer-locked edge, leaving the music between them and an extra replacement sound in the episode, while the first run had joined them. A locked edge still keeps a gap with speech in it, but no longer a gap shorter than 5 seconds that no transcript word starts in.
 - A pre-roll ad was cut from its first spoken word, so the music bed before it stayed at the start of the episode. The first ad now runs from the start of the file when it starts within 30 seconds and the transcript has no words before it, the same window the last ad already gets at the end. A pass-2 approval keeps the extension, an operator-approved start still wins.
 - A dynamically inserted ad bracketed by ad-break cues stayed held for review when the first transcription had no words in it. The reviewer read an empty span and rejected it, the cues turned the reject into a `reviewer_reject_conflict` hold, and that reason was not one pass 2 may approve, so a confident pass-2 detection of the ad on the re-transcribed audio changed nothing. A reject hold now records when its span had no transcript words while the rest of the transcript has text, and pass 2 may approve such a hold like the other evidence holds. Reject holds over spans with words still wait for a human.
 - Chapter titles and learned patterns follow `WHISPER_LANGUAGE` from the environment when the Whisper language setting was never saved, instead of falling back to English.
