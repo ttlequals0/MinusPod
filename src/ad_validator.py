@@ -2105,6 +2105,10 @@ class AdValidator:
         """
         return any(start > edge + TRAILING_SPEECH_SLOP_S for start in self._word_starts())
 
+    def _speech_starts_between(self, start: float, end: float) -> bool:
+        """Whether a word starts inside (start, end), ignoring TRAILING_SPEECH_SLOP_S of timing slop at both edges."""
+        return any(start + TRAILING_SPEECH_SLOP_S < s < end - TRAILING_SPEECH_SLOP_S for s in self._word_starts())
+
     def _speech_starts_before(self, edge: float) -> bool:
         """Whether a word starts before `edge`, ignoring TRAILING_SPEECH_SLOP_S of timing slop."""
         return any(start < edge - TRAILING_SPEECH_SLOP_S for start in self._word_starts())
@@ -2204,9 +2208,11 @@ class AdValidator:
                 merged.append(current.copy())
                 continue
 
-            # A gap past a reviewer-locked edge stays in the audio.
+            # A gap past a reviewer-locked edge stays in the audio, unless it is a short gap nobody speaks in.
             if gap > 0 and (reviewer_edge_locked(last, 'end')
-                            or reviewer_edge_locked(current, 'start')):
+                            or reviewer_edge_locked(current, 'start')) and not (
+                    gap < MERGE_GAP_THRESHOLD and self.segments
+                    and not self._speech_starts_between(last['end'], current['start'])):
                 merged.append(current.copy())
                 continue
 
