@@ -416,7 +416,7 @@ When a timestamp line in the description matches, that span becomes an Outro mar
 
 User corrections win: a keep range or a Not ad on an overlapping marker can carve the trimmed span, and with the Outro action set to keep or mark the span is not cut. Matching reads the upstream description, not the served one with MinusPod's chapter list appended.
 
-The pattern also matches the episode's chapters, whether the feed publishes them or MinusPod generates them. `Cut until the next chapter` ends at the next chapter start, and the last chapter runs to the end of the episode. Generated chapters only exist after a run. When one matches and no marker already covers its span, the run adds the marker and recuts the episode once. This needs the retained original; without it no recut is queued. A recut never triggers another. The marker's reason reads `Chapter: <title>`. On a later recut, a chapter-derived marker stays while the pattern still matches its title. Changing the mode re-ends it: to the episode end, or the stored span for the next-chapter mode. The automatic trim runs only when chapters are enabled for the feed (mode not off), and the manual Regenerate Chapters action does not queue a trim.
+The pattern also matches the episode's chapters, whether the feed publishes them or MinusPod generates them. Chapters built from the description's own timestamp lines (see Show-notes chapters below) are left out, since the description match above already covers them; chapters the LLM adds beside them still count. `Cut until the next chapter` ends at the next chapter start, and the last chapter runs to the end of the episode. Generated chapters only exist after a run. When one matches and no marker already covers its span, the run adds the marker and recuts the episode once. This needs the retained original; without it no recut is queued. A recut never triggers another. The marker's reason reads `Chapter: <title>`. On a later recut, a chapter-derived marker stays while the pattern still matches its title. Changing the mode re-ends it: to the episode end, or the stored span for the next-chapter mode. The automatic trim runs only when chapters are enabled for the feed (mode not off), and the manual Regenerate Chapters action does not queue a trim.
 
 Timestamp lines accepted at the start of a line: `(mm:ss)`, `(h:mm:ss)`, `mm:ss -`, `[mm:ss]`.
 
@@ -427,6 +427,12 @@ API: `descriptionTrimPattern` (string up to 200 characters, or null) and `descri
 Under **Chapters > Chapter notes**, enter up to 1000 characters sent with every chapter request for the feed as a final `Feed notes:` paragraph, for example: Always make the listener donation and producer thank-you segment its own chapter titled Donations. Pair it with a trim pattern such as `Donations` to cut that segment automatically.
 
 API: `chapterNotes` (string up to 1000 characters, or null) on `PATCH /api/v1/feeds/{slug}`.
+
+### Show-notes chapters
+
+When MinusPod generates chapters and the episode description lists timestamps, those lines become the chapters with the show's own titles, as described in [How It Works](how-it-works.md#chapter-generation). Turn off **Chapters > Chapters from show notes** for a feed whose timestamp lines are not a topic list; its chapters then come from LLM topic detection, which still gets the listed timestamps as hints. On by default.
+
+API: `showNotesChapters` (boolean) on `PATCH /api/v1/feeds/{slug}`.
 
 ### Episode duration filters
 

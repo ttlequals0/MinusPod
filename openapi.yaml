@@ -956,6 +956,9 @@ paths:
                     - 'null'
                   maxLength: 1000
                   description: Per-feed notes sent as a final Feed notes paragraph with every chapter generation request. Null or blank clears it.
+                showNotesChapters:
+                  type: boolean
+                  description: When true (the default), an episode whose description lists at least three timestamps, the first within 10 minutes of the start and each at least a minute after the previous one, gets those lines as its generated chapters, with the listed titles. The listed times are shifted by the cuts and then aligned to the transcript. When false, chapters come from LLM topic detection, with the listed timestamps only as hints.
                 detectionMode:
                   type:
                     - string
@@ -15735,6 +15738,9 @@ components:
             - string
             - 'null'
           description: Per-feed notes sent with every chapter generation request; null when unset.
+        showNotesChapters:
+          type: boolean
+          description: Whether timestamps listed in an episode description become its generated chapters. True unless switched off for this feed.
         detectionMode:
           type:
             - string

@@ -73,6 +73,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     description_override TEXT,
     detection_notes TEXT,
     chapter_notes TEXT,
+    -- Description timestamps become the chapters (NULL/1 = on, 0 = off).
+    show_notes_chapters INTEGER,
     detection_mode TEXT,
     cue_template_score_override REAL,
     cue_create_from_pairs_override INTEGER,

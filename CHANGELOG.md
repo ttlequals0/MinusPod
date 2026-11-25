@@ -12,7 +12,7 @@ release notes.
 
 ### Changed
 
-- Timestamps in the episode description become the chapters, with the show notes' own titles, when there are at least two; the LLM moves each to where the topic starts in the transcript and also adds chapters for major topics the show notes do not list, at least three minutes from the listed ones.
+- Timestamps in the episode description become the generated chapters, with the show notes' own titles, when there are at least three, the first within ten minutes of the start and each at least a minute after the previous one. Each listed time is shifted by the cuts and then moved by the LLM to where the topic starts in the transcript; the LLM also adds chapters for major topics the show notes do not list. These chapters never trigger a chapter trim, a failed alignment marks the chapters as degraded, and Feed Settings > Chapters > Chapters from show notes (`showNotesChapters`) turns them off for a feed.
 - Documentation links in the README and the Docs button on the Settings page now open the pages on docs.minuspod.app instead of the Markdown files in the repository.
 - The audio download logs its progress once a minute, and its final log line reports the size, the time taken and the average speed.
 - Dependency updates: anthropic 2.11.0, openai 3.56.0, python-slugify 9.2.0, soupsieve 4.1.2, nh3 0.3.8, lucide-react 1.76.0, vite 8.3.8, @vitejs/plugin-react 6.3.0, eslint 10.15.0 and @playwright/test 1.65.1 (#1046 to #1055).

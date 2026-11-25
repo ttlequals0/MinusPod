@@ -2,6 +2,7 @@
 import logging
 import math
 import re
+from itertools import pairwise
 
 from config import (
     ModelNotConfiguredError,
@@ -12,7 +13,11 @@ from database import Database, DEFAULT_CHAPTER_PROMPT
 from utils.prompt import (
     render_prompt_once, apply_override, strip_html, strip_comments_from_prompt
 )
-from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
+from utils.time import (
+    parse_timestamp, adjust_timestamp, merge_cut_spans, shift_for_merged_cuts,
+    span_inside_any_cut,
+)
+from description_chapters import CLOCK_TIME_SUFFIX
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
@@ -34,9 +39,15 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
-# Show-notes chapters: at least this many in-range timestamps in the episode
-# description replace LLM topic detection.
-MIN_SHOW_NOTES_CHAPTERS = 2
+# Show-notes gate: description timestamps replace LLM topic detection when at
+# least this many fall inside the episode, the first is listed within the
+# first-seconds limit (original audio) and consecutive ones are at least the
+# spacing apart.
+MIN_SHOW_NOTES_CHAPTERS = 3
+SHOW_NOTES_MAX_FIRST_SECONDS = 600.0
+SHOW_NOTES_MIN_SPACING_SECONDS = 60.0
+# Internal source of a show-notes chapter; such chapters never trigger a chapter trim.
+SHOW_NOTES_SOURCE = 'show_notes'
 # The transcript is searched this far either side of a listed time, and a
 # snapped time further away than this is rejected.
 SNAP_RADIUS_SECONDS = 300.0
@@ -51,6 +62,8 @@ SHOW_NOTES_ALIGN_PROMPT = (
     "cannot be found, reply `<number> -`.\n\n"
     "Topics:\n{topics}\n\nTranscript:\n{transcript}"
 )
+
+_CLOCK_TITLE = re.compile(CLOCK_TIME_SUFFIX)
 
 _ALIGN_LINE = re.compile(
     r'^\W*(\d{1,3})\s*[.):\-]?\s+(\d{1,3}:\d{2}(?::\d{2})?|-)(?:\s|$)')
@@ -80,6 +93,25 @@ def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
                 continue
             seen.setdefault(ts, title)
     return sorted(seen.items(), key=lambda kv: parse_timestamp(kv[0]))
+
+
+def _show_notes_anchors(description: str | None, cuts: list[dict] | None,
+                        replacement_duration: float,
+                        episode_duration: float) -> list[tuple[float, str]]:
+    """Listed (original-audio) times shifted by the cuts like the served description, or [] off the gate."""
+    listed = [(parse_timestamp(ts), title)
+              for ts, title in _parse_description_anchors(description or '')
+              if not _CLOCK_TITLE.match(title)]
+    merged = merge_cut_spans(cuts or [], default_replacement=replacement_duration)
+    inside = [(t, shift_for_merged_cuts(t, merged), title) for t, title in listed]
+    inside = [a for a in inside if a[1] < episode_duration]
+    if len(inside) < MIN_SHOW_NOTES_CHAPTERS:
+        return []
+    if inside[0][0] > SHOW_NOTES_MAX_FIRST_SECONDS:
+        return []
+    if any(b[0] - a[0] < SHOW_NOTES_MIN_SPACING_SECONDS for a, b in pairwise(inside)):
+        return []
+    return [(shifted, title) for _, shifted, title in inside]
 
 
 def _hint_time(hint: dict) -> float:
@@ -219,6 +251,7 @@ class ChaptersGenerator:
         self._topic_detection_failed: bool = False
         self._title_generation_failed: bool = False
         self._missing_client_for_titles: bool = False
+        self._show_notes_alignment_failed: bool = False
         # Set when get_chapters_model() raises; appended to the degradation
         # reason below instead of just the generic "... failed" text.
         self._model_not_configured_message: str | None = None
@@ -226,6 +259,8 @@ class ChaptersGenerator:
         self._context_overflow_message: str | None = None
         self.chapters_degraded: bool = False
         self.chapters_degradation_reason: str | None = None
+        # Output start times of show-notes chapters, kept out of the chapter trim.
+        self.show_notes_starts: frozenset[int] = frozenset()
 
     @property
     def api_key(self) -> str | None:
@@ -792,17 +827,12 @@ class ChaptersGenerator:
         group: list[tuple[int, float, str]],
         episode_duration: float,
     ) -> dict[int, float] | None:
-        """Ask the LLM where each topic of one anchor group starts.
-
-        group: (index, anchor_seconds, title). Returns {index: seconds} for the
-        topics the model located, or None when the call failed. Rate-limit,
-        cancel and account errors propagate.
-        """
+        """{index: seconds} for the (index, seconds, title) topics the LLM located, or None when the call failed."""
         start = max(0.0, group[0][1] - SNAP_RADIUS_SECONDS)
         end = min(episode_duration, group[-1][1] + SNAP_RADIUS_SECONDS)
         transcript = self._get_full_transcript_range(segments, start, end)
         if not transcript:
-            return None
+            return {}
         topics = '\n'.join(
             f"{n}. (about {_format_mmss(t)}) {title}"
             for n, (_, t, title) in enumerate(group, 1))
@@ -837,6 +867,10 @@ class ChaptersGenerator:
             if response is None:
                 if isinstance(last_error, ProviderRateLimitedError):
                     raise last_error
+                if isinstance(last_error, OllamaContextOverflowError):
+                    self._context_overflow_message = (
+                        f"prompt exceeded Ollama num_ctx={last_error.num_ctx} "
+                        f"(about {last_error.estimated_tokens} tokens); raise num_ctx")
                 logger.warning(f"Show-notes alignment failed: {last_error}")
                 return None
             found: dict[int, float] = {}
@@ -854,6 +888,7 @@ class ChaptersGenerator:
             return found
         except ModelNotConfiguredError as e:
             logger.warning(f"Show-notes alignment skipped: {e}")
+            self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             return None
         except (ProviderRateLimitedError, ProviderAccountChangedError, LLMDisabledError,
                 ProcessingCancelled, ProcessingOwnershipLost):
@@ -874,12 +909,7 @@ class ChaptersGenerator:
         max_boundaries: int,
         min_duration: float,
     ) -> list[dict]:
-        """Major topics the show notes do not list, found by LLM topic detection.
-
-        A boundary is kept when it has a title and sits at least min_duration
-        from every listed chapter and from the previous kept one. A failed
-        detection adds nothing and never degrades the run.
-        """
+        """Titled LLM topic boundaries at least min_duration from listed chapters and each other; failure adds none."""
         if episode_duration <= MIN_DURATION_FOR_AI:
             return []
         self._initialize_client()
@@ -907,7 +937,7 @@ class ChaptersGenerator:
                 continue
             if extras and t - extras[-1]['startTime'] < min_duration:
                 continue
-            extras.append({'startTime': t, 'title': title})
+            extras.append({'startTime': t, 'title': title, 'source': 'ai'})
         return extras
 
     def _chapters_from_show_notes(
@@ -922,12 +952,7 @@ class ChaptersGenerator:
         max_boundaries: int = 20,
         min_duration: float = 180.0,
     ) -> list[dict]:
-        """One chapter per show-notes anchor, titles verbatim.
-
-        anchors: time-sorted (seconds, title) pairs inside the episode. The LLM
-        only moves each time to where the topic starts in the transcript; when
-        it is unavailable or its answer is unusable the listed time stands.
-        """
+        """One chapter per (processed seconds, title) anchor, titles verbatim, each time aligned to the transcript."""
         # Anchors at the very start stay at 0; the rest are grouped so each
         # group's transcript span fits one chapter window.
         movable = [(i, t, title) for i, (t, title) in enumerate(anchors)
@@ -942,15 +967,21 @@ class ChaptersGenerator:
                     continue
             groups.append([item])
 
+        # Unaligned listed times stand; a failed or impossible call degrades the run.
         snapped: dict[int, float] = {}
         if groups:
             self._initialize_client()
         if groups and self._llm_client:
             for group in groups:
-                snapped.update(self._align_show_notes_group(
-                    segments, group, episode_duration) or {})
+                found = self._align_show_notes_group(segments, group, episode_duration)
+                if found is None:
+                    self._show_notes_alignment_failed = True
+                else:
+                    snapped.update(found)
         elif groups:
-            logger.info("No LLM client; show-notes chapters keep their listed times")
+            logger.warning("No LLM client; show-notes chapters keep their listed times")
+            self._show_notes_alignment_failed = True
+            self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
 
         times: list[float] = []
         aligned = 0
@@ -968,10 +999,10 @@ class ChaptersGenerator:
         if times[0] < SHOW_NOTES_INTRO_MIN_SECONDS:
             times[0] = 0.0
 
-        chapters = [{'startTime': t, 'title': title}
+        chapters = [{'startTime': t, 'title': title, 'source': SHOW_NOTES_SOURCE}
                     for t, (_, title) in zip(times, anchors, strict=True)]
         if chapters[0]['startTime'] >= SHOW_NOTES_INTRO_MIN_SECONDS:
-            chapters.insert(0, {'startTime': 0, 'title': 'Intro'})
+            chapters.insert(0, {'startTime': 0, 'title': 'Intro', 'source': SHOW_NOTES_SOURCE})
 
         extras = self._extra_llm_chapters(
             segments, episode_duration, chapters, window_span, episode_description,
@@ -1006,6 +1037,7 @@ class ChaptersGenerator:
         slug: str | None = None,
         chapter_notes: str | None = None,
         language: str | None = None,
+        show_notes_chapters: bool = True,
     ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -1021,9 +1053,10 @@ class ChaptersGenerator:
         segment_markers: optional detected markers (each with 'start', 'end', 'category',
             'action_applied') used for topic-boundary hints (see build_segment_hints); None or empty
             leaves the prompt unchanged.
-        marker_cuts: applied cut list mapping segment_markers onto the processed timeline; defaults to
-            `ads_removed`. regenerate-chapters must pass it explicitly: its segments are already on the
-            processed timeline but hints need the original applied-cut list to map from marker coordinates.
+        marker_cuts: applied cut list mapping segment_markers and description timestamps onto the
+            processed timeline; defaults to `ads_removed`. regenerate-chapters must pass it explicitly: its
+            segments are already on the processed timeline but hints need the original applied-cut list to
+            map from marker coordinates.
         chapter_notes: per-feed notes appended to the topic-detection prompt as a final "Feed notes:"
             paragraph; None or blank adds nothing.
         language: ISO 639 code the chapter titles are written in (the feed's language override, else
@@ -1031,6 +1064,8 @@ class ChaptersGenerator:
             language line to the prompts.
         slug: podcast slug for the llm_call_usage ledger's podcast linkage; omitted call sites still
             ledger the attempt, without a resolved podcast_id.
+        show_notes_chapters: the feed's switch for building chapters from description timestamps
+            (see _show_notes_anchors); False always uses topic detection.
 
         Returns {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}.
         """
@@ -1042,10 +1077,12 @@ class ChaptersGenerator:
         self._topic_detection_failed = False
         self._title_generation_failed = False
         self._missing_client_for_titles = False
+        self._show_notes_alignment_failed = False
         self._model_not_configured_message = None
         self._context_overflow_message = None
         self.chapters_degraded = False
         self.chapters_degradation_reason = None
+        self.show_notes_starts = frozenset()
 
         if not segments:
             return {'version': '1.2.0', 'chapters': []}
@@ -1055,8 +1092,8 @@ class ChaptersGenerator:
             if not segments:
                 return {'version': '1.2.0', 'chapters': []}
 
-        hint_cuts = marker_cuts if marker_cuts is not None else ads_removed
-        hints = build_segment_hints(segment_markers, hint_cuts, replacement_duration)
+        applied_cuts = marker_cuts if marker_cuts is not None else ads_removed
+        hints = build_segment_hints(segment_markers, applied_cuts, replacement_duration)
 
         episode_duration = segments[-1].get('end', 0)
 
@@ -1071,20 +1108,19 @@ class ChaptersGenerator:
         # see different geometry mid-run.
         target, window_span, max_boundaries, min_duration = resolve_chapter_geometry()
 
-        # Timestamps listed in the show notes are the chapters when there are enough.
-        show_notes_anchors = [
-            (t, title) for ts, title in _parse_description_anchors(episode_description or '')
-            if (t := parse_timestamp(ts)) < episode_duration
-        ]
-        show_notes_chapters = None
-        if len(show_notes_anchors) >= MIN_SHOW_NOTES_CHAPTERS:
-            show_notes_chapters = self._chapters_from_show_notes(
+        # Timestamps listed in the show notes are the chapters when they pass the gate.
+        show_notes_anchors = _show_notes_anchors(
+            episode_description, applied_cuts, replacement_duration,
+            episode_duration) if show_notes_chapters else []
+        listed_chapters = None
+        if show_notes_anchors:
+            listed_chapters = self._chapters_from_show_notes(
                 segments, episode_duration, show_notes_anchors, window_span,
                 episode_description=episode_description, hints=hints, target=target,
                 max_boundaries=max_boundaries, min_duration=min_duration)
 
-        if show_notes_chapters is not None:
-            chapters = show_notes_chapters
+        if listed_chapters is not None:
+            chapters = listed_chapters
         elif episode_duration > MIN_DURATION_FOR_AI:
             self._initialize_client()
             if self._llm_client:
@@ -1102,7 +1138,7 @@ class ChaptersGenerator:
                 self._topic_detection_failed = True
                 self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
 
-        if show_notes_chapters is None:
+        if listed_chapters is None:
             chapters.sort(key=lambda x: x['startTime'])
 
             deduplicated = []
@@ -1120,7 +1156,7 @@ class ChaptersGenerator:
             chapters = self.generate_chapter_titles(
                 chapters, segments, podcast_name, episode_title
             )
-        if (show_notes_chapters is None and episode_duration <= MIN_DURATION_FOR_AI and len(chapters) == 1
+        if (listed_chapters is None and episode_duration <= MIN_DURATION_FOR_AI and len(chapters) == 1
                 and self._missing_client_for_titles and not self._topic_detection_failed):
             self._title_generation_failed = False
             self._model_not_configured_message = None
@@ -1131,13 +1167,19 @@ class ChaptersGenerator:
                 'startTime': max(1, int(round(chapter['startTime']))),
                 'title': chapter.get('title', 'Untitled'),
             })
+        self.show_notes_starts = frozenset(
+            out['startTime'] for out, chapter in zip(output_chapters, chapters, strict=True)
+            if chapter.get('source') == SHOW_NOTES_SOURCE)
 
         logger.info(f"Generated {len(output_chapters)} chapters")
 
-        if self._topic_detection_failed or self._title_generation_failed:
+        if (self._topic_detection_failed or self._title_generation_failed
+                or self._show_notes_alignment_failed):
             reasons = []
             if self._topic_detection_failed:
                 reasons.append('chapter topic detection failed')
+            if self._show_notes_alignment_failed:
+                reasons.append('chapter show-notes alignment failed')
             if self._title_generation_failed:
                 reasons.append('chapter title generation failed')
             if self._model_not_configured_message:

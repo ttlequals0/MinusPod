@@ -26,7 +26,7 @@ from config import (
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
     is_pending_review, is_keep_like,
-    resolve_chapters_mode,
+    resolve_chapters_mode, resolve_show_notes_chapters,
 )
 
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
@@ -134,25 +134,26 @@ def pending_chapter_trim(markers):
 
 def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
                         replacement_duration, audio_duration, original_duration,
-                        markers, source, original_timeline=False):
+                        markers, source, original_timeline=False, skip_starts=()):
     """Add the trim marker for the first chapter matching the feed rule; True when added.
 
     chapters are on the processed timeline unless original_timeline is set, so
     the span maps back through this run's cut list. The caller's recut applies it.
+    Chapters starting at a time in skip_starts never match.
     """
     pattern = (podcast_row or {}).get('description_trim_pattern')
     mode = (podcast_row or {}).get('description_trim_mode') or TO_END
     if not pattern or markers is None or not original_duration:
         return False
     if original_timeline:
-        span = chapter_trim_span(chapters, pattern, mode, original_duration)
+        span = chapter_trim_span(chapters, pattern, mode, original_duration, skip_starts)
         if span is None:
             return False
         start, end, title = span
     else:
         processed_duration = audio_duration or adjust_timestamp(
             original_duration, all_cuts or [], replacement_duration)
-        span = chapter_trim_span(chapters, pattern, mode, processed_duration)
+        span = chapter_trim_span(chapters, pattern, mode, processed_duration, skip_starts)
         if span is None:
             return False
         start_p, end_p, title = span
@@ -613,6 +614,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                             slug=slug,
                             chapter_notes=(podcast_row or {}).get('chapter_notes'),
                             language=get_pattern_language(db, slug) or 'auto',
+                            show_notes_chapters=resolve_show_notes_chapters(podcast_row),
                         )
                     except ProviderRateLimitedError as e:
                         # The audio is already cut, so hold the queue and publish ad
@@ -646,9 +648,12 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                         run_stats['chapters_degraded'] = True
                         run_stats['chapters_degraded_reason'] = chapters_degraded_reason
                     topic = (chapters or {}).get('chapters') or []
+                    # Show-notes titles are the hosts' own and would match trim rules too often.
                     _queue_chapter_trim(slug, episode_id, topic, podcast_row, all_cuts,
                                         replacement_duration, audio_duration,
-                                        original_duration, markers, 'generated_chapter')
+                                        original_duration, markers, 'generated_chapter',
+                                        skip_starts=chapters_gen.show_notes_starts
+                                        if chapters is not None else ())
                     merged = merge_ad_chapters(topic, markers, all_cuts or [],
                                                audio_duration, replacement_duration,
                                                ad_config)

@@ -1016,6 +1016,36 @@ describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {
   });
 });
 
+describe('FeedSettingsPanel chapters from show notes toggle', () => {
+  const TOGGLE_NAME = 'Chapters from show notes';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders on when showNotesChapters is unset', () => {
+    renderPanel(makeFeed());
+    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('turning it off fires updateFeed with showNotesChapters false', async () => {
+    renderPanel(makeFeed({ showNotesChapters: true }));
+    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { showNotesChapters: false });
+  });
+
+  it('turning it on fires updateFeed with showNotesChapters true', async () => {
+    renderPanel(makeFeed({ showNotesChapters: false }));
+    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    await userEvent.click(toggle);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { showNotesChapters: true });
+  });
+});
+
 describe('FeedSettingsPanel skip verification toggle (#599)', () => {
   const TOGGLE_NAME = 'Verification pass';
 
