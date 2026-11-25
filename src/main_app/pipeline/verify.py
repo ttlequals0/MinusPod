@@ -10,7 +10,7 @@ from audio_processor import get_replacement_duration
 from ad_validator import user_trimmed_keep_ranges
 from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm,
                            dai_core_spans, finite_number, fold_marker_pair, foldable_twin, merge_runs,
-                           reviewer_reject_stands, timed_span)
+                           reviewer_reject_stands, speech_units)
 
 from utils.time import (
     merge_cut_spans, overlap_seconds,
@@ -270,7 +270,9 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
             if audio_analysis_result else [])
     if not cues:
         return
-    units = _speech_units(segments)
+    units = speech_units(segments)
+    # Hard protected audio is not checked here: the caller's split clips it afterwards.
+    blockers = [*(pass1_cuts or []), *holds]
     for processed, original in zip(processed_cuts, original_cuts, strict=True):
         records = {}
         for edge, other in (('start', 'end'), ('end', 'start')):
@@ -283,7 +285,7 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
             if (new_value > value) if edge == 'start' else (new_value < value):
                 continue
             lo, hi = sorted((value, new_value))
-            if any(cut['start'] < hi and cut['end'] > lo for cut in [*(pass1_cuts or []), *holds]):
+            if any(cut['start'] < hi and cut['end'] > lo for cut in blockers):
                 continue
             # The audio before the cue must be wordless, so a cut never swallows speech.
             gap = ((record['cue_end'], value) if edge == 'start' else (value, record['cue_start']))
@@ -451,19 +453,13 @@ def _wordless(units, lo, hi, edge):
     return True
 
 
-def _speech_units(segments):
-    """(start, end) of every timed word, or of the segment when it has no words."""
-    return [span for span in (timed_span(unit) for seg in segments or []
-                              for unit in seg.get('words') or [seg]) if span]
-
-
 def _extend_to_dai_core(hold, spans, segments, barriers=()):
     """Widen a differential hold's released spans to its measured core over wordless audio, short of barriers."""
     if (hold.get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
             or not spans or spans[0] is None):
         return spans
     cores = merge_runs(dai_core_spans(hold), gap=EDGE_TOLERANCE)
-    units = _speech_units(segments)
+    units = speech_units(segments)
     spans = [dict(s) for s in spans]
     first, last = spans[0], spans[-1]
 
@@ -1199,14 +1195,14 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
                 # Stamped only now: a candidate diverted to a hold or reject must not advertise a cut.
                 keep_rules._partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
+                protection = current_protection()
                 # After every hold decision, before the splits that clip protected audio.
                 if audio_analysis_result:
                     _snap_pass2_cuts_to_cues(v_ads_to_cut, v_ads_for_ui, audio_analysis_result,
                                              pass1_cuts, detect._cue_snap_settings(ctx.podcast_id),
-                                             original_segments, current_protection().holds_orig)
+                                             original_segments, protection.holds_orig)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
-                protection = current_protection()
                 v_ads_to_cut, v_ads_for_ui = _split_pass2_candidates_around_spans(
                     v_ads_to_cut, v_ads_for_ui, protection.hard_proc,
                     pass1_cuts, 'protected audio',

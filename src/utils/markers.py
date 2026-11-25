@@ -60,6 +60,12 @@ def timed_span(unit: dict) -> tuple[float, float] | None:
     return (lo, hi) if lo is not None and hi is not None and hi >= lo else None
 
 
+def speech_units(segments) -> list[tuple[float, float]]:
+    """(start, end) of every timed word, or of the segment when it has none."""
+    spans = (timed_span(unit) for seg in segments or [] for unit in seg.get('words') or [seg])
+    return [span for span in spans if span]
+
+
 class TimedWords:
     """A transcript's timed word spans in input order, shared by the word-edge lookups."""
 
