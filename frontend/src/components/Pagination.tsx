@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { btnBase, btnPrimary, btnSecondary } from './buttonStyles';
 
 /** First, last, and `neighbours` pages either side of the current one. */
@@ -37,12 +38,13 @@ function pageButtons(
   )));
 }
 export function Pagination({
-  page, totalPages, total, onPage,
+  page, totalPages, total, onPage, footer,
 }: {
   page: number;
   totalPages: number;
   total: number;
   onPage: (p: number) => void;
+  footer?: ReactNode;
 }) {
   if (totalPages <= 1) return null;
   const pages = pageWindow(page, totalPages, 1);
@@ -50,27 +52,34 @@ export function Pagination({
   // overflows a phone, so narrow screens drop to first/current/last.
   const narrowPages = pageWindow(page, totalPages, 0);
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 mt-4 bg-card rounded-lg border border-border">
-      <div className="text-sm text-muted-foreground">Page {page} of {totalPages} ({total} total)</div>
-      <div className="flex items-center gap-1 sm:gap-2 justify-center">
-        <button
-          onClick={() => onPage(Math.max(1, page - 1))}
-          disabled={page === 1}
-          className={`${btnBase} ${btnSecondary}`}
-        >
-          <span className="sm:hidden">Prev</span>
-          <span className="hidden sm:inline">Previous</span>
-        </button>
-        {pageButtons(narrowPages, page, onPage, 'sm:hidden')}
-        {pageButtons(pages, page, onPage, 'max-sm:hidden')}
-        <button
-          onClick={() => onPage(Math.min(totalPages, page + 1))}
-          disabled={page === totalPages}
-          className={`${btnBase} ${btnSecondary}`}
-        >
-          Next
-        </button>
+    <div className="px-4 py-3 mt-4 bg-card rounded-lg border border-border space-y-2.5">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground">Page {page} of {totalPages} ({total} total)</div>
+        <div className="flex items-center gap-1 sm:gap-2 justify-center">
+          <button
+            onClick={() => onPage(Math.max(1, page - 1))}
+            disabled={page === 1}
+            className={`${btnBase} ${btnSecondary}`}
+          >
+            <span className="sm:hidden">Prev</span>
+            <span className="hidden sm:inline">Previous</span>
+          </button>
+          {pageButtons(narrowPages, page, onPage, 'sm:hidden')}
+          {pageButtons(pages, page, onPage, 'max-sm:hidden')}
+          <button
+            onClick={() => onPage(Math.min(totalPages, page + 1))}
+            disabled={page === totalPages}
+            className={`${btnBase} ${btnSecondary}`}
+          >
+            Next
+          </button>
+        </div>
       </div>
+      {footer && (
+        <div className="pt-2.5 border-t border-border/60">
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
+import EpisodeRowActions from '../components/EpisodeRowActions';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
@@ -113,8 +114,8 @@ function useEpisodeListParams() {
   };
 }
 
-// Bulk actions pair up per line on a phone.
-const bulkActionBtn = `${btnBase} flex-1 sm:flex-none min-w-[8rem]`;
+// Bulk actions pair up in a 2-column grid on phones and wrap cleanly from sm up.
+const bulkActionBtn = `${btnBase} w-full sm:w-auto`;
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -561,8 +562,8 @@ function FeedDetail() {
       </div>
 
       <div className={`bg-card rounded-lg border border-border p-4 sm:${sectionPad} mb-6`}>
-        <div className="flex flex-col sm:flex-row gap-6">
-          <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
+        <div className="flex items-start gap-4 sm:gap-6">
+          <div className="w-16 h-16 sm:w-32 sm:h-32 shrink-0">
             {feed.websiteUrl ? (
               <a
                 href={feed.websiteUrl}
@@ -720,9 +721,9 @@ function FeedDetail() {
             <CopyButton
               text={feed.feedUrl}
               label="Copy feed URL"
-              className={`max-[359px]:w-full px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`max-[359px]:w-full px-2.5 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-1.5 sm:gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
-              labelClassName="hidden sm:inline text-sm"
+              labelClassName="text-xs sm:text-sm"
             />
           </div>
           {/* Below sm: one row (copy first), a 2x2 grid under 360 px; from sm it wraps so nowrap buttons never overflow. */}
@@ -832,6 +833,7 @@ function FeedDetail() {
         {!isRecents && (
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
+            aria-label="Filter episodes by status"
             value={statusFilter}
             onChange={(e) => changeFilter({ status: e.target.value })}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
@@ -847,6 +849,7 @@ function FeedDetail() {
             <option value="deferred">Queued (offline)</option>
           </select>
           <select
+            aria-label="Sort episodes"
             value={`${sortBy}:${sortDir}`}
             onChange={(e) => changeFilter({ sort: e.target.value })}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
@@ -883,9 +886,17 @@ function FeedDetail() {
 
       {/* Bulk action toolbar */}
       {hasSelection && (
-        <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{effectiveSelectedIds.size} selected</span>
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
+        <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border space-y-2.5 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+          <div className="flex items-center justify-between gap-2 sm:contents">
+            <span className="text-sm font-medium text-foreground">{effectiveSelectedIds.size} selected</span>
+            <button
+              onClick={clearSelection}
+              className={`${btnBase} ${btnGhost} sm:order-last`}
+            >
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:ml-auto">
             {discoveredCount + pendingCount > 0 && (
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
@@ -945,20 +956,14 @@ function FeedDetail() {
               <button
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnDestructive}`}
+                className={`${bulkActionBtn} ${btnDestructive} min-[380px]:max-sm:col-span-2`}
               >
                 Delete ({processedCount})
               </button>
             )}
             {selectionNote && (
-              <span className="text-xs text-muted-foreground">{selectionNote}</span>
+              <span className="text-xs text-muted-foreground min-[380px]:max-sm:col-span-2">{selectionNote}</span>
             )}
-            <button
-              onClick={clearSelection}
-              className={`${btnBase} ${btnGhost}`}
-            >
-              Clear
-            </button>
           </div>
         </div>
       )}
@@ -973,26 +978,41 @@ function FeedDetail() {
           selectedIds={isRecents ? undefined : effectiveSelectedIds}
           onToggle={isRecents ? undefined : handleToggleSelect}
           onSelectAll={isRecents ? undefined : handleSelectAll}
+          renderActions={isRecents ? undefined : (ep) => (
+            <EpisodeRowActions
+              feedSlug={slug!}
+              episodeId={ep.id}
+              status={ep.status}
+              jobState={ep.jobState}
+              hasBeenProcessed={ep.hasBeenProcessed}
+              feedType={feed.feedType}
+            />
+          )}
         />
       )}
 
       {/* Pagination controls (shared Pagination renders nothing at 1 page) */}
-      <Pagination page={page} totalPages={totalPages} total={totalEpisodes} onPage={handlePageChange} />
-      {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-end gap-2">
-          <span className="text-sm text-muted-foreground">Per page</span>
-          {PAGE_SIZES.map(size => (
-            <button
-              key={size}
-              onClick={() => changeFilter({ size: String(size) })}
-              className={`${btnBase} ${pageSize === size ? btnPrimary : btnSecondary}`}
-              aria-pressed={pageSize === size}
-            >
-              {size}
-            </button>
-          ))}
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={totalEpisodes}
+        onPage={handlePageChange}
+        footer={(
+          <div className="flex items-center justify-center sm:justify-end gap-2">
+            <span className="text-sm text-muted-foreground">Per page</span>
+            {PAGE_SIZES.map(size => (
+              <button
+                key={size}
+                onClick={() => changeFilter({ size: String(size) })}
+                className={`${btnBase} ${pageSize === size ? btnPrimary : btnSecondary}`}
+                aria-pressed={pageSize === size}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        )}
+      />
 
       {showReprocessConfirm && (
         <Modal

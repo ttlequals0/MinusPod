@@ -1189,7 +1189,7 @@ function AdReviewModal({
         )}
 
         {/* Waveform + pin overlay. Hidden when text mode is active. */}
-        <div className={`px-6 py-4 ${textModeActive ? 'hidden' : ''}`}>
+        <div className={`px-3 sm:px-6 py-3 sm:py-4 ${textModeActive ? 'hidden' : ''}`}>
           <div className="bg-secondary/40 rounded-lg p-3 min-h-[180px]">
             {peaksError ? (
               <WaveformError onRetry={retryPeaks} />
@@ -1198,7 +1198,7 @@ function AdReviewModal({
             ) : (
               <div
                 ref={waveformScrollRef}
-                className="overflow-hidden"
+                className="overflow-hidden pt-2"
               >
                 <div className="relative w-full" ref={overlayRef}>
                   {/* Header strip: gives the pinheads room inside the overlay's box so they are not clipped. */}
@@ -1722,10 +1722,8 @@ function AdReviewModal({
                         : 'Confirm will record this ad as-detected.'}
                 </div>
               </div>
-              {/* Equal-width buttons across viewports. Short labels
-                  on mobile (so 3 fit on a 320-360px viewport), full
-                  "& Next" labels on sm: where there's room. */}
-              <div className="flex items-stretch gap-1.5 sm:gap-2 w-full sm:w-auto">
+              {/* Equal-width buttons across viewports; 4-button held review wraps to a 2x2 grid on phones. */}
+              <div className={`${!keptByCategory && heldContext ? 'grid grid-cols-2 sm:flex sm:items-stretch' : 'flex items-stretch'} gap-1.5 sm:gap-2 w-full sm:w-auto`}>
                 <button type="button" onClick={onSkip}
                   className={`${btnBase} ${btnOutline} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
                   title={keptByCategory

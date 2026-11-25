@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import type {
   DetectionReviewerFilter, DetectionSort, DetectionStatusFilter,
 } from '../../api/detections';
@@ -166,8 +166,9 @@ export function DetectionFilterBar({
             className={`${btnBase} ${btnSecondary} shrink-0`}
           >
             {order === 'desc'
-              ? <ChevronDown className="w-4 h-4" aria-hidden />
-              : <ChevronUp className="w-4 h-4" aria-hidden />}
+              ? <ArrowDown className="w-4 h-4" aria-hidden />
+              : <ArrowUp className="w-4 h-4" aria-hidden />}
+            <span className="text-xs sm:text-sm">{order === 'desc' ? 'Desc' : 'Asc'}</span>
           </button>
         </div>
       </div>

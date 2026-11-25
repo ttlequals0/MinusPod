@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
@@ -12,7 +13,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { Pagination } from '../../components/Pagination';
 import QueryError from '../../components/QueryError';
 import { btnBase, btnPrimary, touchTarget } from '../../components/buttonStyles';
-import { tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
+import { rowCard, tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
 import { formatTimeAgo } from '../../utils/format';
@@ -135,7 +136,7 @@ function ReviewSection({ id, title, blurb, query, emptyText, errorTitle, rows, c
           </div>
           <ul className="space-y-2 xl:hidden">
             {rows.map((row) => (
-              <li key={rowKey(row)} className="rounded-lg bg-secondary/50 p-3 flex items-start gap-3">
+              <li key={rowKey(row)} className={`${rowCard} flex items-center justify-between gap-3`}>
                 {renderRow(row)}
               </li>
             ))}
@@ -271,7 +272,17 @@ function HeldDetections() {
       errorTitle="Could not load held detections."
       page={page}
       onPage={setPage}
-      renderRow={(row) => rowBody(row, `${episodePath(row)}#held-for-review-section`)}
+      renderRow={(row) => (
+        <>
+          {rowBody(row, `${episodePath(row)}#held-for-review-section`)}
+          <span
+            aria-hidden="true"
+            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-primary/15 text-primary shrink-0"
+          >
+            Review <ChevronRight className="w-3.5 h-3.5" />
+          </span>
+        </>
+      )}
     />
   );
 }

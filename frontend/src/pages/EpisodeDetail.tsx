@@ -57,7 +57,7 @@ import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
-import { iconSizes, iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
+import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
@@ -856,7 +856,7 @@ function EpisodeDetail() {
     return (
     <div
       key={index}
-      className="p-3 bg-secondary/50 rounded-lg"
+      className="p-3.5 bg-secondary/35 border border-border rounded-lg"
     >
       {/* Row 1: Time, badges, jump button, confidence */}
       <div className="flex flex-wrap items-center gap-2">
@@ -1515,7 +1515,6 @@ function EpisodeDetail() {
                   Spotted an ad the detector missed? Mark it manually so the pattern matcher learns it.
                 </p>
               </div>
-              {/* Icon-only on mobile, full label on sm:+. Mirrors AdReviewModal. */}
               <button
                 type="button"
                 onClick={() => openEditorFresh(true)}
@@ -1524,7 +1523,7 @@ function EpisodeDetail() {
                 className={`${btnBase} ${btnPrimary} shrink-0`}
               >
                 <Plus className="w-4 h-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Add ad</span>
+                <span>Add ad</span>
               </button>
             </div>
           )}
@@ -1547,11 +1546,10 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className={iconSizes.base.target}
+                    className={`${btnBase} ${btnSecondary}`}
                   >
-                    <span className={`${iconSizes.base.visual} ${btnSecondary}`}>
-                      <Pencil className="w-4 h-4" aria-hidden="true" />
-                    </span>
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
+                    <span>{showEditor ? 'Hide editor' : 'Edit ads'}</span>
                   </button>
                   <button
                     onClick={() => openEditorFresh(true)}
@@ -1560,7 +1558,7 @@ function EpisodeDetail() {
                     className={`${btnBase} ${btnPrimary}`}
                   >
                     <Plus className="w-4 h-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Add ad</span>
+                    <span>Add ad</span>
                   </button>
                 </div>
               )}

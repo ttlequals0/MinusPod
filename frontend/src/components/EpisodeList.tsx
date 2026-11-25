@@ -20,9 +20,12 @@ interface EpisodeListProps {
   selectedIds?: Set<string>;
   onToggle?: (id: string, shiftKey: boolean) => void;
   onSelectAll?: (checked: boolean) => void;
+  renderActions?: (episode: Episode) => ReactNode;
 }
 
-function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle, onSelectAll }: EpisodeListProps) {
+function EpisodeList({
+  episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle, onSelectAll, renderActions,
+}: EpisodeListProps) {
   if (episodes.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -55,6 +58,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
           feedArtworkUrl={feedArtworkUrl}
           selected={selectedIds?.has(episode.id) ?? false}
           onToggle={onToggle}
+          renderActions={renderActions}
         />
       ))}
     </div>
@@ -122,14 +126,14 @@ function EpisodeRow({
           className="hidden sm:block sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+          <h3 className="font-medium text-foreground line-clamp-2 sm:truncate">{episode.title}</h3>
           {sbLabel && <p className="text-xs text-muted-foreground">{sbLabel}</p>}
           {episode.feedTitle && (
             <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
           )}
           {/* Fixed description and badge slots keep rows aligned; the meta
               line wraps on a narrow phone rather than clipping. */}
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2 sm:min-h-10">
             {episode.description ? stripHtml(episode.description, { collapse: true }) : ''}
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">

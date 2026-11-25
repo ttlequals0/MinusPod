@@ -4,6 +4,8 @@ import { getFinalSegments, getOriginalSegments, getOriginalTranscript, type Orig
 import type { AdSegment, EpisodeDetail } from '../api/types';
 import { ApiError, getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
+import CloseButton from './CloseButton';
+import Checkbox from './Checkbox';
 import { SkeletonRows } from './Skeleton';
 import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
@@ -359,12 +361,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
           <h2 className="text-lg font-semibold">Transcript</h2>
           <p className="text-sm text-muted-foreground truncate">{episode.title}</p>
         </div>
-        <button
-          onClick={onClose}
-          className={`${btnBase} ${btnGhost}`}
-        >
-          Close
-        </button>
+        <CloseButton onClick={onClose} />
       </div>
 
       <div className="grid gap-4 p-4 border-b border-border">
@@ -456,15 +453,13 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
             </span>
           )}
           {source === 'original' && markers.length > 0 && (
-            <label className="flex items-center gap-2 min-h-11 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={highlight}
-                onChange={(e) => setHighlight(e.target.checked)}
-                className={focusRing}
-              />
-              Highlight ads
-            </label>
+            <Checkbox
+              checked={highlight}
+              onChange={setHighlight}
+              label="Highlight ads"
+              className="min-h-11"
+              labelClassName="text-sm text-muted-foreground"
+            />
           )}
         </div>
       </div>

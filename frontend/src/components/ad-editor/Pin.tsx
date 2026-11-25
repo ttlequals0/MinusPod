@@ -159,10 +159,10 @@ export function Pin({
           dragging ? `ring-4 ${ringColor} scale-125 motion-reduce:scale-100` : ''
         } transition-transform motion-reduce:transition-none`}
       />
-      {/* Time label: only visible while dragging or on hover. */}
+      {/* Time label: visible on touch devices and while dragging or hovered. */}
       <div
-        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
-          dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        className={`absolute -top-4 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
+          dragging ? 'opacity-100' : 'opacity-0 pointer-coarse:opacity-100 group-hover:opacity-100'
         }`}
       >
         {labelText} {formatTime(boundary)}

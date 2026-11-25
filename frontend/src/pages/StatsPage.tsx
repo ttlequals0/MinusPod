@@ -53,9 +53,10 @@ function SortDirButton({ sortDir, onClick, noun }: { sortDir: 'asc' | 'desc'; on
       type="button"
       onClick={onClick}
       aria-label={noun ? `Sort ${noun} ${target}` : `Sort ${target}`}
-      className={`${btnBase} ${btnSecondary} min-w-11`}
+      className={`${btnBase} ${btnSecondary} min-w-11 shrink-0`}
     >
       {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
+      <span className="text-xs sm:text-sm">{sortDir === 'asc' ? 'Ascending' : 'Descending'}</span>
     </button>
   );
 }
@@ -225,6 +226,7 @@ function ModelUsageTable({
 
       <div className="sm:hidden space-y-3">
         <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0">Sort by</span>
           <select
             aria-label="Sort model usage by"
             value={sortField}
@@ -513,6 +515,7 @@ function EpisodeCostTable({
 
       <div className="xl:hidden space-y-3">
         <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0">Sort by</span>
           <select
             aria-label="Sort episode costs by"
             value={sortField}
@@ -1513,39 +1516,65 @@ export default function StatsPage() {
 
       {/* Podcast Stats Table */}
       <div id="stats-podcasts" className="scroll-mt-28" />
-      {/* Mobile Card Layout */}
+      {/* Mobile and Tablet Card Layout */}
       {sortedPodcasts.length > 0 && (
-        <div className="sm:hidden space-y-3">
-          <h2 className={cardTitle}>All podcasts</h2>
-          {sortedPodcasts.map((p) => (
-            <div key={p.podcastSlug} className={rowCard}>
-              <p className="text-sm font-semibold text-foreground mb-2">{p.podcastTitle}</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <span className="text-muted-foreground">Episodes</span>
-                <span className="text-foreground text-right tabular-nums">{p.episodeCount}</span>
-                <span className="text-muted-foreground">Runs</span>
-                <span className="text-foreground text-right tabular-nums">{p.runCount}</span>
-                <span className="text-muted-foreground">Total ads</span>
-                <span className="text-foreground text-right tabular-nums">{p.totalAds}</span>
-                <span className="text-muted-foreground">Avg ads</span>
-                <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
-                <span className="text-muted-foreground">Avg time saved</span>
-                <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</span>
-                <span className="text-muted-foreground">Avg length</span>
-                <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgEpisodeLengthSeconds)}</span>
-                <span className="text-muted-foreground">Total cost</span>
-                <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
-                <span className="text-muted-foreground">Tokens (In/Out)</span>
-                <span className="text-foreground text-right tabular-nums">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
-              </div>
+        <div className="lg:hidden space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className={cardTitle}>All podcasts</h2>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-sm text-muted-foreground shrink-0">Sort by</span>
+              <select
+                aria-label="Sort podcasts by"
+                value={sortField}
+                onChange={(e) => handleSort(e.target.value as PodcastSortField)}
+                className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
+              >
+                <option value="podcastTitle">Podcast</option>
+                <option value="episodeCount">Episodes</option>
+                <option value="runCount">Runs</option>
+                <option value="totalAds">Total ads</option>
+                <option value="avgAds">Avg ads</option>
+                <option value="avgTimeSavedSeconds">Avg time saved</option>
+                <option value="avgEpisodeLengthSeconds">Avg length</option>
+                <option value="totalCost">Total cost</option>
+                <option value="avgTokensPerEpisode">Avg tokens per run</option>
+              </select>
+              <SortDirButton sortDir={sortDir} onClick={() => handleSort(sortField)} noun="podcasts" />
             </div>
-          ))}
+          </div>
+          <div className="grid grid-cols-1 min-[600px]:grid-cols-2 gap-3">
+            {sortedPodcasts.map((p) => (
+              <div key={p.podcastSlug} className={rowCard}>
+                <Link to={`/feeds/${p.podcastSlug}`} className={`${tableLink} text-sm font-semibold block mb-2 truncate`} title={p.podcastTitle}>
+                  {p.podcastTitle}
+                </Link>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Episodes</span>
+                  <span className="text-foreground text-right tabular-nums">{p.episodeCount}</span>
+                  <span className="text-muted-foreground">Runs</span>
+                  <span className="text-foreground text-right tabular-nums">{p.runCount}</span>
+                  <span className="text-muted-foreground">Total ads</span>
+                  <span className="text-foreground text-right tabular-nums">{p.totalAds}</span>
+                  <span className="text-muted-foreground">Avg ads</span>
+                  <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
+                  <span className="text-muted-foreground">Avg time saved</span>
+                  <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</span>
+                  <span className="text-muted-foreground">Avg length</span>
+                  <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgEpisodeLengthSeconds)}</span>
+                  <span className="text-muted-foreground">Total cost</span>
+                  <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
+                  <span className="text-muted-foreground">Tokens (In/Out)</span>
+                  <span className="text-foreground text-right tabular-nums">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Desktop Table Layout */}
       {sortedPodcasts.length > 0 && (
-        <div className={`hidden sm:block ${tableCard}`}>
+        <div className={`hidden lg:block ${tableCard}`}>
           <h2 className={`${cardTitle} p-4 pb-2`}>All podcasts</h2>
           <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
             <table aria-label="Podcast totals" className="w-full">
