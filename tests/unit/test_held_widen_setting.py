@@ -51,10 +51,11 @@ class TestWindow:
     def test_default_is_the_reviewed_span_plus_tolerance(self):
         assert held_marker_window([MARKER], MARKER, 3600.0, True) == (99.5, 140.5)
 
-    def test_default_ignores_neighbours_and_episode_edges(self):
-        # The +/-0.5 s tolerance is never limited by a neighbour.
+    def test_default_ignores_neighbours_but_not_the_episode_end(self):
+        # The +/-0.5 s tolerance is never limited by a neighbour; the API rejects off-episode bounds.
         near = _cut(140.2, 160.0)
-        assert held_marker_window([MARKER, near], MARKER, 140.3, True) == (99.5, 140.5)
+        assert held_marker_window([MARKER, near], MARKER, 3600.0, True) == (99.5, 140.5)
+        assert held_marker_window([MARKER, near], MARKER, 140.3, True) == (99.5, 140.3)
 
     def test_default_ignores_the_first_detected_bounds(self):
         trimmed = dict(MARKER, start=110.0, end=130.0,
@@ -178,3 +179,8 @@ class TestHeldReviewProposal:
     def test_a_proposal_start_below_zero_clamps_to_zero(self):
         held = dict(_proposed(0.5, 40.0, -3.0, 30.0), was_cut=False)
         assert held_review_proposal(self.EPISODE, [held], held, [], 60.0) == (0.0, 30.0)
+
+
+def test_window_stays_inside_the_episode_with_widening_off():
+    marker = {'start': 0.3, 'end': 59.8}
+    assert held_marker_window([marker], marker, 60.0, True) == (0.0, 60.0)

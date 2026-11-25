@@ -17788,8 +17788,8 @@ components:
             a human may confirm this held marker at. With heldWidenSeconds 0 (default) this is the
             span, widened to usableProposal when there is one, +/- 0.5 s; above 0,
             its span (and first-detected span) widened by up to that many
-            seconds each way. Either way it stops at cut, approved, kept or rejected neighbours and at 0 and the
-            episode end. The corrections API enforces exactly this window for a
+            seconds each way, stopping at cut, approved, kept or rejected neighbours. Either way it stays
+            within 0 and the episode end. The corrections API enforces exactly this window for a
             trimmed confirm.
           properties:
             min:

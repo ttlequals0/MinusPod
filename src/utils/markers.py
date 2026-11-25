@@ -287,12 +287,10 @@ def held_marker_window(markers, marker, episode_duration, default_was_cut,
         lo, hi = min(lo, proposal[0]), max(hi, proposal[1])
     lo -= HELD_WINDOW_TOLERANCE_S
     hi += HELD_WINDOW_TOLERANCE_S
-    if widen_s <= 0:
-        # The +/-0.5 s tolerance is never limited by a neighbour; the proposal already stops at them.
-        return lo, hi
-
-    blockers = held_window_blockers(markers, marker, default_was_cut, blocked_spans)
-    lo, hi = _clamp_to_blockers(lo, hi, base_start, base_end, blockers)
+    # With widening off, the +/-0.5 s tolerance is not limited by neighbours; the proposal already stops at them.
+    if widen_s > 0:
+        blockers = held_window_blockers(markers, marker, default_was_cut, blocked_spans)
+        lo, hi = _clamp_to_blockers(lo, hi, base_start, base_end, blockers)
 
     lo = max(lo, 0.0)
     if episode_duration and episode_duration > 0:

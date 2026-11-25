@@ -37,6 +37,8 @@ const STATUS_TEXT: Record<string, string> = {
 
 // Matches the backend's 0.05 s span match so close candidates keep their own outcome.
 const SEGMENT_MATCH_TOLERANCE_S = 0.05;
+const sameSpan = (a: { start: number; end: number }, b: { start: number; end: number }) =>
+  Math.abs(a.start - b.start) < SEGMENT_MATCH_TOLERANCE_S && Math.abs(a.end - b.end) < SEGMENT_MATCH_TOLERANCE_S;
 
 const keyOf = (c: SbCandidate) => `${c.start}-${c.end}`;
 
@@ -78,7 +80,7 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
         for (const r of results) {
           if (r.status === 'submitted' || r.status === 'duplicate') {
             for (const c of data?.segments ?? []) {
-              if (Math.abs(r.start - c.start) < SEGMENT_MATCH_TOLERANCE_S && Math.abs(r.end - c.end) < SEGMENT_MATCH_TOLERANCE_S) {
+              if (sameSpan(r, c)) {
                 next.delete(keyOf(c));
               }
             }
@@ -152,7 +154,7 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
             {data.segments.map((c) => {
               const key = keyOf(c);
               const latest = lastResults?.find(
-                (r) => Math.abs(r.start - c.start) < SEGMENT_MATCH_TOLERANCE_S && Math.abs(r.end - c.end) < SEGMENT_MATCH_TOLERANCE_S,
+                (r) => sameSpan(r, c),
               );
               const submission = latest ?? c.submission;
               const done = submission?.status === 'submitted' || submission?.status === 'duplicate';
