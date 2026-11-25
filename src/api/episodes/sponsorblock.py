@@ -16,7 +16,6 @@ from youtube import sponsorblock_submit as sbs
 logger = logging.getLogger('podcast.api')
 
 MAX_SUBMIT_SEGMENTS = 20
-_STATUS_CODES = {'error': 502}
 
 
 def _confirmed_markers(db, podcast, episode_id, markers) -> list[dict]:
@@ -104,4 +103,6 @@ def sponsorblock_submit(slug, episode_id):
     if status == 'rate_limited':
         return retry_after_response('SponsorBlock rate limited the submission', retry_after, 429,
                                     in_body=True, extra={'results': results})
-    return json_response({'results': results}, _STATUS_CODES.get(status, 200))
+    if status == 'error':
+        return json_response({'error': detail or 'SponsorBlock submission failed', 'results': results}, 502)
+    return json_response({'results': results}, 200)
