@@ -264,18 +264,13 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
 
 
 def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_result,
-                             pass1_cuts, snap_settings):
-    """Snap pass-2 cut edges onto removable break cues, as pass-1 detection does.
-
-    Runs in original time on the pass-1 analysis cues, after gating, so a hold
-    decision never sees it; the caller's protected-span split still clips the
-    result. An edge moves only onto a cue removed with the ad, and not across
-    a pass-1 cut, so the processed twin shifts by the same amount.
-    """
+                             pass1_cuts, snap_settings, segments=(), holds=()):
+    """Snap pass-2 cut edges outward onto removable cues across wordless, unheld audio, in original time."""
     cues = (audio_analysis_result.get_signals_by_type('audio_cue')
             if audio_analysis_result else [])
     if not cues:
         return
+    units = _speech_units(segments)
     for processed, original in zip(processed_cuts, original_cuts, strict=True):
         records = {}
         for edge, other in (('start', 'end'), ('end', 'start')):
@@ -284,8 +279,15 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
             if snapped is None:
                 continue
             new_value, record = snapped
+            # Outward only: pass 2 already justified the audio inside the edge.
+            if (new_value > value) if edge == 'start' else (new_value < value):
+                continue
             lo, hi = sorted((value, new_value))
-            if any(cut['start'] < hi and cut['end'] > lo for cut in pass1_cuts or []):
+            if any(cut['start'] < hi and cut['end'] > lo for cut in [*(pass1_cuts or []), *holds]):
+                continue
+            # The audio before the cue must be wordless, so a cut never swallows speech.
+            gap = ((record['cue_end'], value) if edge == 'start' else (value, record['cue_start']))
+            if gap[0] < gap[1] and not _wordless(units, *gap, edge):
                 continue
             # One cue cannot bound both edges.
             if edge == 'end' and records.get('start', {}).get('cue_start') == record['cue_start']:
@@ -449,14 +451,19 @@ def _wordless(units, lo, hi, edge):
     return True
 
 
+def _speech_units(segments):
+    """(start, end) of every timed word, or of the segment when it has no words."""
+    return [span for span in (timed_span(unit) for seg in segments or []
+                              for unit in seg.get('words') or [seg]) if span]
+
+
 def _extend_to_dai_core(hold, spans, segments, barriers=()):
     """Widen a differential hold's released spans to its measured core over wordless audio, short of barriers."""
     if (hold.get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
             or not spans or spans[0] is None):
         return spans
     cores = merge_runs(dai_core_spans(hold), gap=EDGE_TOLERANCE)
-    units = [span for span in (timed_span(unit) for seg in segments or []
-                               for unit in seg.get('words') or [seg]) if span]
+    units = _speech_units(segments)
     spans = [dict(s) for s in spans]
     first, last = spans[0], spans[-1]
 
@@ -1195,7 +1202,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 # After every hold decision, before the splits that clip protected audio.
                 if audio_analysis_result:
                     _snap_pass2_cuts_to_cues(v_ads_to_cut, v_ads_for_ui, audio_analysis_result,
-                                             pass1_cuts, detect._cue_snap_settings(ctx.podcast_id))
+                                             pass1_cuts, detect._cue_snap_settings(ctx.podcast_id),
+                                             original_segments, current_protection().holds_orig)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
                 protection = current_protection()

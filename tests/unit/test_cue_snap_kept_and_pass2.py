@@ -9,7 +9,7 @@ from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 from config import is_cue_backed
 from main_app import processing
 from main_app.pipeline import detect
-from tests.unit.pass2_test_utils import _spans, drive_verification_pass
+from tests.unit.pass2_test_utils import _hold, _spans, drive_verification_pass
 
 ACTIONS = {'sponsor': 'remove', 'recap': 'keep'}
 
@@ -95,6 +95,31 @@ class TestPass2CutsSnapToCues:
                                       segment_actions=ACTIONS,
                                       audio_analysis_result=_audio(_jingle(1432.01, 1433.97)))
         assert _spans(run.output[1]) == [(1300.0, 1432.0)]
+
+    def test_word_in_the_gap_blocks_the_snap(self):
+        words = [{'start': 1435.0, 'end': 1436.0, 'text': 'Acme'}]
+        run = drive_verification_pass([(1409.4, 1432.0)], segment_actions=ACTIONS,
+                                      original_segments=words,
+                                      audio_analysis_result=_audio(_jingle(1438.0, 1439.0)))
+        assert _spans(run.output[1]) == [(1409.4, 1432.0)]
+        assert 'pass2_cue_snap' not in run.output[1][0]
+
+    def test_wordless_gap_snaps_onto_the_cue(self):
+        run = drive_verification_pass([(1409.4, 1432.0)], segment_actions=ACTIONS,
+                                      audio_analysis_result=_audio(_jingle(1438.0, 1439.0)))
+        assert _spans(run.output[1])[0][1] > 1432.0
+        assert run.output[1][0]['pass2_cue_snap']['end']['cue_end'] == 1439.0
+
+    def test_cue_inside_the_cut_end_does_not_shrink_it(self):
+        run = drive_verification_pass([(1409.4, 1432.0)], segment_actions=ACTIONS,
+                                      audio_analysis_result=_audio(_jingle(1429.0, 1430.0)))
+        assert _spans(run.output[1]) == [(1409.4, 1432.0)]
+
+    def test_held_span_in_the_gap_blocks_the_snap(self):
+        run = drive_verification_pass([(1409.4, 1432.0)], segment_actions=ACTIONS,
+                                      holds=[_hold(1434.0, 1436.0)],
+                                      audio_analysis_result=_audio(_jingle(1438.0, 1439.0)))
+        assert _spans(run.output[1]) == [(1409.4, 1432.0)]
 
     def test_cue_gate_still_holds_every_pass2_finding(self):
         def cue_gated_validate(*args, **kwargs):
