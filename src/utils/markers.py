@@ -8,7 +8,7 @@ from bisect import bisect_left, bisect_right
 from itertools import accumulate, pairwise
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
-                    PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
+                    REVIEWER_HOLD_REASONS, pass2_may_release,
                     is_keep_like, is_pending_review, repair_segment_category)
 from utils.constants import EpisodeStatus
 from utils.correction_guard import MIN_CORRECTION_SPAN_S
@@ -186,7 +186,7 @@ def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
     if (not marker.get('held_for_review') or marker.get('was_cut')
             or reason not in REVIEWER_HOLD_REASONS or explicit_override(marker, confirmed)):
         return False
-    return not (reason in PASS2_REVIEWED_RELEASE_HOLD_REASONS and covering_confirm(
+    return not (pass2_may_release(marker) and covering_confirm(
         marker['start'], marker['end'], confirmed,
         where=lambda c: auto_confirm_releases(c, reason)) is not None)
 

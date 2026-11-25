@@ -464,6 +464,12 @@ def _boundary_conflict_hold(ad: dict, verdict: "ReviewVerdict") -> dict:
     return held
 
 
+def span_lacks_words(segments, start: float, end: float) -> bool:
+    """True when the transcript has text, but none in a segment overlapping [start, end]."""
+    worded = [seg for seg in segments or [] if (seg.get('text') or '').strip()]
+    return bool(worded) and not any(seg['end'] > start and seg['start'] < end for seg in worded)
+
+
 def reject_hold_evidence(ad: dict) -> str | None:
     """What a reviewer reject would discard on this ad, or None when the
     reviewer's own opinion is the only signal on the span."""
@@ -948,6 +954,8 @@ class ReviewVerdict:
     # Set on a reject the evidence floor turned into a hold; the apply path
     # stamps it as the marker's hold_reason instead of dropping the ad.
     reject_hold_reason: str | None = None
+    # That held reject judged a span the transcript had no words in.
+    reject_saw_no_text: bool = False
     # Held because the review abstained or failed and no evidence backs the bounds.
     inconclusive_hold: bool = False
     # Adjust edges the model gave as numbers that survived the clamp; later stages may not widen them.
@@ -1515,6 +1523,8 @@ class AdReviewer:
                     # human rules on it. The apply path stamps the hold.
                     verdict.reject_hold_reason = (
                         HOLD_REASON_REVIEWER_REJECT_CONFLICT)
+                    verdict.reject_saw_no_text = span_lacks_words(
+                        segments, updated_ad['start'], updated_ad['end'])
                     logger.warning(
                         f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
                         f"Reviewer reject held @ "
@@ -1524,6 +1534,8 @@ class AdReviewer:
                     held = dict(updated_ad)
                     mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_REJECT_CONFLICT,
                                        replace=True)
+                    if verdict.reject_saw_no_text:
+                        held['reviewer_saw_no_text'] = True
                     result.held_by_reject_evidence.append(held)
                     continue
                 marked = dict(updated_ad)
