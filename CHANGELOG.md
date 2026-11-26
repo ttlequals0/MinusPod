@@ -14,6 +14,10 @@ release notes.
 
 - MartLLM pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://api.martllm.com/v1`, the pricing refresh reads input, output and cache-read rates from MartLLM's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. Before, calls through that endpoint were priced only when LiteLLM happened to know the model. The LLM providers guide gains a MartLLM setup section.
 
+### Changed
+
+- Show-notes chapters are read by the chapters LLM, which gets the whole episode description once and lists the parts with start times and a short title for each. Timestamps written inside a sentence (`Then the companies: Acme (56:15); Globex (65:35)`) and minutes above 99 (`113:40`) now work, and clock times, dates and sponsor lines are left out by the model instead of by pattern rules. A time the notes do not contain is dropped. The first listed time no longer has to be within ten minutes of the start; at least three entries a minute apart are still needed. The listed times are also the timestamp hints for topic detection, shifted by the cuts. With no LLM, show-notes chapters are no longer built, and chapter generation behaves as it did before them. A failed extraction marks the chapters as degraded and falls back to topic detection. The chapters the LLM adds beside the listed ones are asked for with the listed chapters in view: a subtopic inside a listed chapter is titled `Interview: subtopic`, so a long interview does not read as unrelated topics, and a segment the notes leave out gets a plain title.
+
 ### Fixed
 
 - The validator checked the sponsor-name boost before the vague-reason penalty, and the sponsor names match inside ordinary words such as "keeps", "indeed" or "himself". A vague reason such as "Sponsor segment that keeps going" therefore gained 0.10 confidence instead of losing 0.10. The vague-reason penalty is checked first again, and a reason that names its advertiser is still exempt.

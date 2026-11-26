@@ -39,12 +39,12 @@ class ScriptedBoundaries:
 
     def __call__(self, transcript, start, end, num_splits,
                  episode_description=None, anchors=None, hints=None,
-                 previous_title=None):
+                 previous_title=None, listed=None):
         index = len(self.calls)
         self.calls.append({
             'start': start, 'end': end, 'num_splits': num_splits,
             'episode_description': episode_description, 'anchors': anchors,
-            'hints': hints, 'previous_title': previous_title,
+            'hints': hints, 'previous_title': previous_title, 'listed': listed,
         })
         if index in self.fail_on:
             return None
@@ -125,7 +125,8 @@ def test_description_anchors_reach_their_window():
     window gets only its own range."""
     _clear_geometry()
     detector = ScriptedBoundaries()
-    _windowed(_generator(detector), episode_description='55:00 Late Topic')
+    _windowed(_generator(detector), episode_description='55:00 Late Topic',
+              description_anchors=[(3300.0, 'Late Topic')])
     anchors_by_call = [c['anchors'] for c in detector.calls]
     assert anchors_by_call[0] == []
     assert ('55:00', 'Late Topic') in anchors_by_call[1]
