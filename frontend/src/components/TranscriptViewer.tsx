@@ -361,7 +361,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
           <h2 className="text-lg font-semibold">Transcript</h2>
           <p className="text-sm text-muted-foreground truncate">{episode.title}</p>
         </div>
-        <CloseButton onClick={onClose} />
+        <CloseButton onClick={onClose} label="Close dialog" />
       </div>
 
       <div className="grid gap-4 p-4 border-b border-border">

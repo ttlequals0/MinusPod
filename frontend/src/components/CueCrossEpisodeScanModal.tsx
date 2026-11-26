@@ -173,7 +173,7 @@ export default function CueCrossEpisodeScanModal({
                 Select {CROSS_EPISODE_MIN}-{CROSS_EPISODE_MAX} episodes. Results are shown in the first selected episode's time.
               </p>
             </div>
-            <CloseButton onClick={onClose} />
+            <CloseButton onClick={onClose} label="Close dialog" />
           </div>
 
           <div className="flex-1 overflow-y-auto border border-border rounded">
@@ -288,7 +288,7 @@ export default function CueCrossEpisodeScanModal({
                 </p>
               )}
             </div>
-            <CloseButton onClick={onClose} />
+            <CloseButton onClick={onClose} label="Close dialog" />
           </div>
 
           <div className="flex flex-wrap gap-2 mb-3">

@@ -181,7 +181,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
             Pick the patterns to include, then choose where they go.
           </p>
         </div>
-        <CloseButton onClick={handleClose} />
+        <CloseButton onClick={handleClose} label="Close dialog" />
       </div>
 
       <div className="px-6 py-3 border-b border-border space-y-2 text-sm">

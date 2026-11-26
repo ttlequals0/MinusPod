@@ -261,7 +261,7 @@ describe('AdReviewModal multi-span submission', () => {
     await user.click(screen.getByRole('button', { name: 'keep only saved run' }));
     await user.click(screen.getByRole('button', { name: 'By audio' }));
     await user.click(screen.getByRole('button', { name: 'By text' }));
-    await user.click(screen.getAllByRole('button', { name: 'Close' }).find(b => b.textContent === 'Close')!);
+    await user.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(onCreate).toHaveBeenCalledTimes(2);
     expect(onCreateDone).toHaveBeenCalledTimes(1);

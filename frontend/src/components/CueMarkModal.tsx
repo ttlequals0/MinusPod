@@ -574,7 +574,7 @@ function CueMarkModal({
               {episodeTitle}
             </p>
           </div>
-          <CloseButton onClick={requestClose} />
+          <CloseButton onClick={requestClose} label="Close dialog" />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">

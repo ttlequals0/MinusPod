@@ -73,7 +73,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             Select feeds to export as ad-free subscription URLs.
           </p>
         </div>
-        <CloseButton onClick={onClose} />
+        <CloseButton onClick={onClose} label="Close dialog" />
       </div>
 
       <div className="px-6 py-2 border-b border-border flex items-center justify-between text-sm">

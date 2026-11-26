@@ -1079,6 +1079,7 @@ function AdReviewModal({
               <CloseButton
                 onClick={requestClose}
                 disabled={(caps.createFields && multiSubmitting) || spanSaving}
+                label="Close dialog"
               />
             </div>
           </div>

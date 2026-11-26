@@ -80,7 +80,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
   return (
     <Modal ariaLabel={isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`} onClose={requestClose} panelClassName="max-w-lg w-full"
       header={(
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="min-w-0 truncate text-lg font-semibold text-foreground" title={isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`}>
           {isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`}
         </h2>
       )}

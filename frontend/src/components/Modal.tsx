@@ -139,15 +139,15 @@ type ModalProps = ({ ariaLabelledBy: string; ariaLabel?: never } | { ariaLabel: 
   panelClassName?: string;
   // Fixed above/below the scrolling body; with either set, only children scroll.
   header?: ReactNode;
-  // Skip the built-in close button when the header carries its own (for example a draft-guarded close).
-  hideClose?: boolean;
+  // Disables the built-in header close button (for example while a request is pending).
+  closeDisabled?: boolean;
   footer?: ReactNode;
   children: ReactNode;
 }
 
 export function Modal({
   onClose, closeOnEscape = true, closeOnBackdrop = false, ariaLabelledBy, ariaLabel,
-  panelClassName = '', header, hideClose = false, footer, children,
+  panelClassName = '', header, closeDisabled = false, footer, children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose, closeOnEscape, panelRef);
@@ -172,7 +172,7 @@ export function Modal({
             {header !== undefined && (
               <div className="shrink-0 flex items-start justify-between gap-3 p-4 border-b border-border">
                 {header}
-                {!hideClose && <CloseButton onClick={onClose} disabled={!closeOnEscape} className="shrink-0" />}
+                <CloseButton onClick={onClose} label="Close dialog" disabled={closeDisabled} className="shrink-0" />
               </div>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
@@ -202,7 +202,7 @@ export function ConfirmModal({
   const titleId = useId();
   return (
     <Modal
-      onClose={onCancel} closeOnEscape={!pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full"
+      onClose={onCancel} closeOnEscape={!pending} closeDisabled={pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full"
       header={(
         <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
       )}

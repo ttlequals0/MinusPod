@@ -65,7 +65,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
     <Modal ariaLabel="Import patterns" onClose={onClose} closeOnEscape={!busy} panelClassName="w-full max-w-md p-6 text-card-foreground">
       <div className="flex items-start justify-between gap-3 mb-2">
         <h2 className="text-lg font-semibold">Import patterns</h2>
-        <CloseButton onClick={onClose} />
+        <CloseButton onClick={onClose} label="Close dialog" />
       </div>
       <p id="pattern-import-file-help" className="text-sm text-muted-foreground mb-4">
         Upload a JSON file exported from MinusPod, or a single community-pattern JSON.
