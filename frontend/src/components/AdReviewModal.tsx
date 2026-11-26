@@ -41,6 +41,7 @@ import {
   SEGMENT_CATEGORY_LABELS,
   confirmLabel,
   isKeepLike,
+  isKeptByCategory,
   rejectLabel,
   resolveCategoryAction,
   type SegmentCategory,
@@ -900,9 +901,8 @@ function AdReviewModal({
   const pickedAction = resolveCategoryAction(reviewCategory, segmentActions);
   // A pattern or a differential cuts a marker whatever its category says, and
   // stamps it remove or beep, so until the category is changed the stamp wins.
-  const stampedCut = item.actionApplied === 'remove' || item.actionApplied === 'beep';
   const categoryUnchanged = (item.category ?? '') === reviewCategory;
-  const keptByPick = isKeepLike(pickedAction) && !(stampedCut && categoryUnchanged);
+  const keptByPick = isKeptByCategory(reviewCategory, item.actionApplied, segmentActions, categoryUnchanged);
   const keptByCategory = verdictRefused || keptByPick;
   // The review footer names the category picked above, not the create-mode
   // field, so an intro or a self-promo is not confirmed or rejected as an ad.

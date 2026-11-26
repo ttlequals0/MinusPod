@@ -89,6 +89,21 @@ export function resolveCategoryAction(
   return actions[known] ?? null;
 }
 
+// True when the category's current action for the feed leaves the marker in
+// the audio, so a confirm or reject verdict would not change it: a recut sorts
+// markers by their category's action before it reads any verdict. A pattern
+// or a differential cuts a marker whatever its category says and stamps it
+// remove or beep, so that stamp wins until the category is changed.
+export function isKeptByCategory(
+  category: string | null | undefined,
+  actionApplied: string | null | undefined,
+  actions: Partial<Record<SegmentCategory, SegmentAction>> | null | undefined,
+  categoryUnchanged = true,
+): boolean {
+  const stampedCut = actionApplied === 'remove' || actionApplied === 'beep';
+  return isKeepLike(resolveCategoryAction(category, actions)) && !(stampedCut && categoryUnchanged);
+}
+
 // Filter value for markers no detection stage classified. Not a member of
 // SegmentCategory: unset is the absence of a category, not a category. Matches
 // detection_review.UNSET_CATEGORY on the backend.
