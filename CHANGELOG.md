@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- MartLLM pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://api.martllm.com/v1`, the pricing refresh reads input, output and cache-read rates from MartLLM's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. Before, calls through that endpoint were priced only when LiteLLM happened to know the model. The LLM providers guide gains a MartLLM setup section.
+
 ## [2.102.20] - 2026-11-25
 
 ### Fixed
