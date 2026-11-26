@@ -2,12 +2,12 @@
  * Podping coverage metadata line on FeedDetail; the heavy feature panels are stubbed.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
-import { refreshFeed, reprocessAllEpisodes, updateFeed } from '../api/feeds';
+import { refreshFeed, updateFeed } from '../api/feeds';
 import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
@@ -44,7 +44,6 @@ vi.mock('../api/feeds', () => ({
   getEpisodes: (...a: unknown[]) => mockGetEpisodes(...a),
   refreshFeed: vi.fn(),
   updateFeed: vi.fn(),
-  reprocessAllEpisodes: vi.fn(),
   bulkEpisodeAction: (...a: unknown[]) => mockBulkEpisodeAction(...a),
   setEpisodesPassthrough: (...a: unknown[]) => mockSetEpisodesPassthrough(...a),
 }));
@@ -87,30 +86,6 @@ beforeEach(() => {
 });
 
 describe('FeedDetail: podping metadata line', () => {
-  it('uses YouTube processing descriptions in the feed menu and confirmation', async () => {
-    renderFeedDetail(makeFeed({ feedType: 'youtube' }));
-    await userEvent.click(await screen.findByRole('button', { name: /Reprocess all/ }));
-    expect(screen.getByText('SponsorBlock marks + patterns')).toBeTruthy();
-    await userEvent.click(screen.getByRole('menuitem', { name: /Full reprocess/ }));
-    const dialog = screen.getByRole('dialog', { name: 'Reprocess all episodes' });
-    expect(dialog.textContent).toContain('Also run pass 1 LLM detection');
-    expect(dialog.textContent).not.toContain('re-transcribed');
-  });
-
-  it('describes model-free reprocessing in the menu and confirmation under LLM provider None', async () => {
-    mockGetSettings.mockResolvedValue({ llmEnabled: false });
-    renderFeedDetail(makeFeed());
-    await userEvent.click(await screen.findByRole('button', { name: /Reprocess all/ }));
-    await waitFor(() => expect(screen.getByText('Use patterns and the other model-free detectors')).toBeTruthy());
-    expect(screen.queryByText(/AI/)).toBeNull();
-    await userEvent.click(screen.getByRole('menuitem', { name: /Full reprocess/ }));
-    const dialog = screen.getByRole('dialog', { name: 'Reprocess all episodes' });
-    expect(dialog.textContent).toContain('Same as Reprocess while the LLM provider is set to None');
-    vi.mocked(reprocessAllEpisodes).mockResolvedValue({ queued: 2, skipped: 0, mode: 'full' } as never);
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Reprocess all episodes' }));
-    expect(await screen.findByText(/queued for pattern-assisted reprocessing/)).toBeTruthy();
-  });
-
   it('shows the last ping time when one arrived', async () => {
     renderFeedDetail(makeFeed({
       podpingCoverage: 'received',
@@ -184,10 +159,8 @@ describe('FeedDetail: artwork URL', () => {
 });
 
 // #718: the copy control shrinks to an icon below sm to stay in the left group.
-// Label is hidden directly, not via hideLabelOnMobile: its sm:px-2/h-8 lose to
-// this call site's desktop padding since Tailwind orders same-utility conflicts by scale, not source.
 describe('FeedDetail: pending action labels', () => {
-  it('shows the full Refresh feed and Refreshing... labels across viewports in the 2-column mobile grid', async () => {
+  it('keeps the full Refresh feed and Refreshing... labels', async () => {
     vi.mocked(refreshFeed).mockReturnValue(new Promise(() => {}));
     renderFeedDetail(makeFeed({}));
     const trigger = await screen.findByTitle('Refresh feed');
@@ -196,6 +169,20 @@ describe('FeedDetail: pending action labels', () => {
     fireEvent.click(await screen.findByText('Check for new episodes'));
     await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(true));
     expect(trigger.textContent).toBe('Refreshing...');
+  });
+});
+
+describe('FeedDetail: header actions', () => {
+  it('has no Reprocess all control and spans Copy feed URL only when Refresh feed shares the row', async () => {
+    const { unmount } = renderFeedDetail(makeFeed());
+    const copy = await screen.findByRole('button', { name: /Copy feed URL/ });
+    expect(screen.queryByRole('button', { name: /Reprocess all/ })).toBeNull();
+    expect(copy.parentElement?.className).toContain('max-sm:col-span-2');
+    unmount();
+    renderFeedDetail(makeFeed({ feedType: 'local' }));
+    const localCopy = await screen.findByRole('button', { name: /Copy feed URL/ });
+    expect(screen.queryByRole('button', { name: /Reprocess all/ })).toBeNull();
+    expect(localCopy.parentElement?.className).not.toContain('max-sm:col-span-2');
   });
 });
 

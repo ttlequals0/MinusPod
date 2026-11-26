@@ -17,10 +17,10 @@ import { uiUrl } from '../urlPrefix';
 import { IS_DEMO } from '../demo/flag';
 
 // `tab` puts a route in the phone tab bar: its icon and its position there (Queue sits before History).
-type NavItem = { to: string; label: string; tab?: { Icon: LucideIcon; order: number } };
+type NavItem = { to: string; label: string; tab?: { Icon: LucideIcon; order: number }; phoneMenu?: false };
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Feeds', tab: { Icon: LayoutGrid, order: 1 } },
-  { to: '/add', label: 'Add feed' },
+  { to: '/add', label: 'Add feed', phoneMenu: false },
   { to: '/patterns', label: 'Patterns', tab: { Icon: FingerprintPattern, order: 2 } },
   { to: '/history', label: 'History', tab: { Icon: Clock, order: 4 } },
   { to: '/stats', label: 'Stats', tab: { Icon: ChartColumn, order: 5 } },
@@ -28,6 +28,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings' },
   ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
 ];
+// Phone menu lists items that are neither tab-bar entries nor opted out.
+const onPhoneMenu = (item: NavItem) => !item.tab && item.phoneMenu !== false;
 const TAB_ITEMS = NAV_ITEMS.flatMap(({ to, label, tab }) => (tab ? [{ to, label, ...tab }] : [])).sort((a, b) => a.order - b.order);
 const navItemBase = `touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing}`;
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
@@ -101,7 +103,7 @@ function Layout() {
     setMobileMenuOpen(false);
   }
 
-  const phoneCount = NAV_ITEMS.filter((i) => !i.tab && i.to !== '/add').length + (isPasswordSet ? 1 : 0);
+  const phoneCount = NAV_ITEMS.filter(onPhoneMenu).length + (isPasswordSet ? 1 : 0);
   const tabletCount = NAV_ITEMS.length + (isPasswordSet ? 1 : 0);
   const lastSpan = `${phoneCount % 2 === 1 ? 'max-md:col-span-2' : ''} ${tabletCount % 2 === 1 ? 'md:col-span-2' : ''}`.trim();
 
@@ -179,7 +181,7 @@ function Layout() {
             <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
               {NAV_ITEMS.map((item, idx) => {
                 const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
-                const hideOnPhone = Boolean(item.tab) || item.to === '/add';
+                const hideOnPhone = !onPhoneMenu(item);
                 return (
                   <NavLink
                     key={item.to}

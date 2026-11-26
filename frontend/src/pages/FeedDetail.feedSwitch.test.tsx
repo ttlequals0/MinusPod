@@ -36,7 +36,6 @@ vi.mock('../api/feeds', () => ({
   getNetworks: () => Promise.resolve([]),
   refreshFeed: vi.fn(),
   updateFeed: vi.fn(),
-  reprocessAllEpisodes: vi.fn(),
   bulkEpisodeAction: vi.fn(),
   setEpisodesPassthrough: vi.fn(),
   rerenderSegments: vi.fn(),

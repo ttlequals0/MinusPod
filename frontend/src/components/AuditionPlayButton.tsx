@@ -22,9 +22,9 @@ export function AuditionPlayButton({ playing, onClick, label = 'this ad', disabl
       disabled={disabled}
       aria-label={playing ? `Pause ${label}` : `Play ${label}`}
       title={title ?? (playing ? 'Pause' : `Play ${label}`)}
-      className={`${target} disabled:opacity-50 ${className}`.trim()}
+      className={`${target} disabled:opacity-50 ${className}`}
     >
-      <span className={`${visual} ${className ? 'max-sm:w-full' : ''} ${btnPrimary}`.trim()}>
+      <span className={`${visual} max-sm:w-full ${btnPrimary}`}>
         {/* Play reads left-heavy; nudge it 1px right to center optically. */}
         {playing ? <Pause className="w-3.5 h-3.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5 translate-x-px" aria-hidden="true" />}
       </span>

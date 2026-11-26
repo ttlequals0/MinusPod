@@ -539,27 +539,6 @@ export async function importOpml(file: File): Promise<OpmlImportResult> {
   });
 }
 
-export interface ReprocessAllResult {
-  message: string;
-  queued: number;
-  skipped: number;
-  mode: string;
-  episodes: {
-    queued: Array<{ episodeId: string; title: string }>;
-    skipped: Array<{ episodeId: string; reason: string }>;
-  };
-}
-
-export async function reprocessAllEpisodes(
-  slug: string,
-  mode: 'reprocess' | 'full' | 'llm' = 'reprocess'
-): Promise<ReprocessAllResult> {
-  return apiRequest<ReprocessAllResult>(`/feeds/${slug}/reprocess-all`, {
-    method: 'POST',
-    body: { mode },
-  });
-}
-
 // The run is started in the background; the episode reports its outcome.
 interface RegenerateChaptersResult {
   message: string;
@@ -584,7 +563,7 @@ export interface RerenderSegmentsResult {
 
 // Re-cut every processed episode of a feed against the current segment-
 // category action maps (issue #565). Reuses the recut queue, so the result
-// shape mirrors reprocessAllEpisodes/bulkEpisodeAction.
+// shape mirrors bulkEpisodeAction.
 export async function rerenderSegments(slug: string): Promise<RerenderSegmentsResult> {
   return apiRequest<RerenderSegmentsResult>(`/feeds/${slug}/rerender-segments`, {
     method: 'POST',
