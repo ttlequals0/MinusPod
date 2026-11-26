@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- The validator checked the sponsor-name boost before the vague-reason penalty, and the sponsor names match inside ordinary words such as "keeps", "indeed" or "himself". A vague reason such as "Sponsor segment that keeps going" therefore gained 0.10 confidence instead of losing 0.10. The vague-reason penalty is checked first again, and a reason that names its advertiser is still exempt.
+
 ## [2.102.23] - 2026-11-26
 
 ### Changed
