@@ -35,7 +35,7 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 min-w-0 accent-primary max-sm:min-h-11"
+        className="flex-1 min-w-0 accent-primary max-sm:min-h-11 sm:pointer-coarse:min-h-11"
         title="Zoom"
       />
       <button

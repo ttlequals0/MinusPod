@@ -133,7 +133,7 @@ export function SponsorsSection() {
             />
           </div>
           <Checkbox
-            className="min-h-11"
+            className="min-h-11 self-end pb-1"
             checked={showInactive}
             onChange={(v) => write({ inactive: v ? '1' : '' })}
             label="Show inactive"
@@ -157,7 +157,7 @@ export function SponsorsSection() {
         { value: 'created_at', label: 'Created' }, { value: 'last_matched_at', label: 'Last matched' },
       ]} />
       {/* Card layout: the 8-column table needs about 1100 CSS px with touch-sized controls */}
-      <div className="xl:hidden space-y-3 mb-4">
+      <div className="xl:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
         {paginated?.map((s) => (
           <div key={s.id} className={rowCard}>
             <div className="flex items-start justify-between gap-2 mb-2">
@@ -188,7 +188,7 @@ export function SponsorsSection() {
           </div>
         ))}
         {paginated?.length === 0 && (
-          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>No sponsors yet.</div>
+          <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>No sponsors yet.</div>
         )}
       </div>
 

@@ -568,7 +568,7 @@ function OmitTemperatureToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="bg-muted/40 rounded-lg p-3">
+    <div className="bg-muted/40 rounded-lg border border-border p-3">
       <label className="flex items-center gap-3 cursor-pointer">
         <ToggleSwitch
           checked={checked}
@@ -579,7 +579,7 @@ function OmitTemperatureToggle({
           Do not send temperature
         </span>
       </label>
-      <p className="mt-2 text-sm text-muted-foreground ml-14">
+      <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
         Some newer models reject the temperature parameter and fail the request. Turn
         this on to leave it out of every LLM call. MinusPod already skips it for models
         known to reject it, and Anthropic never receives it.

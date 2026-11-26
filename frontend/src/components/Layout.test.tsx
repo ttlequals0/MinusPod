@@ -92,7 +92,7 @@ describe('Layout queue badge', () => {
 });
 
 describe('Layout phone tab bar', () => {
-  it('links the five primary routes and marks the active one', () => {
+  it('links the five primary routes and marks the active one', async () => {
     renderLayout('/queue');
     const bar = screen.getByRole('navigation', { name: 'Primary' });
     const links = within(bar).getAllByRole('link');
@@ -100,5 +100,11 @@ describe('Layout phone tab bar', () => {
     expect(within(bar).getByRole('link', { name: /^Queue/ }).getAttribute('aria-current')).toBe('page');
     expect(within(bar).getByRole('link', { name: 'Feeds' }).getAttribute('aria-current')).toBeNull();
     expect(bar.className).toContain('md:hidden');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Toggle menu' }));
+    const drawer = screen.getByRole('navigation', { name: 'Mobile navigation' });
+    expect(within(drawer).getByRole('link', { name: 'Feeds' }).className).toContain('hidden md:flex');
+    expect(within(drawer).getByRole('link', { name: 'Add feed' }).className).not.toContain('hidden md:flex');
+    expect(within(drawer).getByRole('link', { name: 'Settings' }).className).not.toContain('hidden md:flex');
   });
 });

@@ -138,7 +138,7 @@ function DownloadsTab({ tabs }: Props) {
       {tabs}
       <div role="tabpanel" id="history-panel-downloads" aria-labelledby="history-tab-downloads" tabIndex={0}>
 
-      <div className={`${filterGrid} sm:grid-cols-2 lg:grid-cols-5 mb-6`}>
+      <div className={`bg-card rounded-lg border border-border p-4 ${filterGrid} sm:grid-cols-2 lg:grid-cols-5 mb-6`}>
         <div className="min-w-0">
           <label htmlFor="downloads-podcast" className={filterLabel}>Podcast</label>
           <select
@@ -211,9 +211,9 @@ function DownloadsTab({ tabs }: Props) {
       {!isLoading && data && (
         <>
           {/* Mobile cards */}
-          <div className="md:hidden space-y-3 mb-4">
+          <div className="md:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
             {rows.length === 0 ? (
-              <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
+              <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
                 No downloads yet.
               </div>
             ) : rows.map((row) => (

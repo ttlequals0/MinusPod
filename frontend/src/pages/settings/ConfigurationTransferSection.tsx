@@ -121,7 +121,7 @@ function ConfigurationTransferSection() {
   };
 
   return (
-    <section className="mt-4 rounded-lg bg-muted/40 p-4" aria-labelledby="config-transfer-title">
+    <section className="mt-4 rounded-lg border border-border bg-muted/40 p-4" aria-labelledby="config-transfer-title">
       <h4 id="config-transfer-title" className={subHeading}>
         Configuration import and export
       </h4>

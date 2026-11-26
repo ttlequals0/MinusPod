@@ -106,7 +106,7 @@ function RateLimitFields({
       {/* Both blocks repeat the same three labels, so the legend is what tells
           a screen reader which provider they belong to. */}
       <legend className="text-sm font-medium text-foreground mb-2">{legend}</legend>
-      <div className="flex flex-wrap gap-6">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
         <div>
           <label htmlFor={`${idPrefix}Rpm`} className={labelBase}>
             Requests per minute
@@ -342,7 +342,7 @@ function LLMProviderSection({
                   {SLOT_LABELS.secondary}
                 </span>
               </label>
-              <p className="mt-2 text-sm text-muted-foreground ml-14">
+              <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
                 A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers. Use the Failover card below for automatic switching when one is down.
               </p>
             </div>

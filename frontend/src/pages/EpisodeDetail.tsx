@@ -1525,7 +1525,7 @@ function EpisodeDetail() {
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
           <div className="mb-4">
             {/* Row 1: Title + Edit button */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className={cardTitle}>
                 {`Detected ads (${adBlocks.length === episode.adMarkers.length
                   ? episode.adMarkers.length

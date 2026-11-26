@@ -576,7 +576,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           className={`flex-1 min-w-0 ${inputBase}`}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground pl-[4.5rem]">
+                      <p className="text-xs text-muted-foreground sm:pl-[4.5rem]">
                         Feeds with the same name share cues.
                       </p>
                     </>
@@ -593,8 +593,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>Feed cap</label>
+                    <label htmlFor={`feed-cap-${slug}`} className={`${labelBase} mb-0 w-16 shrink-0`}>Feed cap</label>
                     <DraftNumberInput
+                      id={`feed-cap-${slug}`}
                       value={parseOptionalNumber(editMaxEpisodes)}
                       fallback={null}
                       parse={parseOptionalNumber}
@@ -608,7 +609,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     />
                   </div>
                   {isLocal && (
-                    <p className="text-xs text-muted-foreground pl-[4.5rem]">
+                    <p className="text-xs text-muted-foreground sm:pl-[4.5rem]">
                       0 or empty serves every episode.
                     </p>
                   )}

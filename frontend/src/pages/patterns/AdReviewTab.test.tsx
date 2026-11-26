@@ -186,7 +186,7 @@ describe('AdReviewTab', () => {
     expect(row.contains(category)).toBe(true);
     expect(buttons[4].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(category.className).toContain('flex-1');
-    expect(category.className).toContain('sm:w-48');
+    expect(category.className).toContain('sm:w-44');
     expect(category.title).toBe('Uncategorized');
     expect(row.style.getPropertyValue('--btn-row')).toBe('252px');
     // Below sm the buttons are 44px square icons (label in the accessible name and title).

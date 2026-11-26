@@ -153,9 +153,9 @@ export function DetectionFilterBar({
           ))}
         </select>
       </div>
-      {/* Sorting lives here at every width. Half width clips "Confidence" below sm,
+      {/* Sorting lives here at every width. Half width clips "Confidence" below 560px,
           so the cell spans both columns there. */}
-      <div className="min-w-0 min-[375px]:max-sm:col-span-2">
+      <div className="min-w-0 min-[375px]:max-[559px]:col-span-2">
         <label htmlFor={`${idPrefix}-sort`} className={filterLabel}>Sort by</label>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <select

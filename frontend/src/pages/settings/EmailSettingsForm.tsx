@@ -133,7 +133,7 @@ function EmailSettingsForm() {
   }
 
   return (
-    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className="space-y-4 p-4 rounded-lg bg-muted/40">
+    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-muted/40">
       <fieldset disabled={saveMutation.isPending} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">

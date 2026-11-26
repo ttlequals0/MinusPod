@@ -69,7 +69,7 @@ function TroubleshootingSection() {
         <DemoExplainer title="Diagnostics and config export">Exports need a running instance.</DemoExplainer>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-4">
-          <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
+          <div className="p-4 rounded-lg border border-border bg-muted/40 flex flex-col">
             <div className="flex items-start gap-3 mb-3">
               <div className="p-2 rounded bg-secondary shrink-0">
                 <FileDown className="w-5 h-5 text-foreground" aria-hidden="true" />
@@ -91,7 +91,7 @@ function TroubleshootingSection() {
             {renderStatusIndicator(configStatus, configError)}
           </div>
 
-          <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
+          <div className="p-4 rounded-lg border border-border bg-muted/40 flex flex-col">
             <div className="flex items-start gap-3 mb-3">
               <div className="p-2 rounded bg-secondary shrink-0">
                 <FileDown className="w-5 h-5 text-foreground" aria-hidden="true" />

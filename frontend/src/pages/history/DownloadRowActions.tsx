@@ -5,6 +5,7 @@ import { getSettings, updateSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
 import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
 import CopyButton from '../../components/CopyButton';
+import CloseButton from '../../components/CloseButton';
 import { ConfirmModal, Modal, dialogFooterBtn } from '../../components/Modal';
 import { useSubscriberKeyActions } from '../../hooks/useSubscriberKeyActions';
 import { blockPatternFor } from '../../utils/userAgent';
@@ -27,7 +28,10 @@ function DetailModal({ title, text, onClose }: { title: string; text: string; on
     <Modal
       ariaLabel="Download request details" onClose={onClose} closeOnBackdrop panelClassName="max-w-lg w-full text-left"
       header={(
-        <h2 className={cardTitle}>{title}</h2>
+        <>
+          <h2 className={cardTitle}>{title}</h2>
+          <CloseButton onClick={onClose} label="Close dialog" />
+        </>
       )}
       footer={(
         <>

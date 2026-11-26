@@ -154,7 +154,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="bg-card rounded-lg border border-border p-4 flex flex-col sm:flex-row gap-4 mb-6">
         <div className={`${filterGrid} w-full sm:flex-1`}>
           <div className="min-w-0">
           <label htmlFor="history-status" className={filterLabel}>Status</label>
@@ -201,18 +201,18 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
         { value: 'reprocessNumber', label: 'Reprocess number' }, { value: 'appVersion', label: 'Version' },
       ]} />
       {/* Mobile Card Layout */}
-      <div className="xl:hidden space-y-3 mb-4">
+      <div className="xl:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
         {history.length === 0 ? (
-          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
+          <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
             No processing history yet.
           </div>
         ) : (
           history.map((entry: ProcessingHistoryEntry) => (
             <div key={entry.id} className={rowCard}>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <Link
                   to={`/feeds/${entry.podcastSlug}`}
-                  className={`${tableLink} text-sm font-medium truncate max-w-[200px]`}
+                  className={`${tableLink} text-sm font-medium truncate min-w-0`}
                   title={entry.podcastTitle}
                 >
                   {entry.podcastTitle}
@@ -243,7 +243,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span>{formatDateTime(entry.processedAt)}</span>
                 <span>{elapsedOrDash(entry.processingDurationSeconds)}</span>
                 {entry.downloadedDuration != null && (

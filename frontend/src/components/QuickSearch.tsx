@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { modalBackdrop, modalPanel, useEscape, useFocusTrap } from './Modal';
+import CloseButton from './CloseButton';
 import SearchResults from './SearchResults';
 import type { SearchResultRow } from './SearchResults';
 import { useUnifiedSearch } from '../hooks/useUnifiedSearch';
@@ -51,7 +52,7 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
         className={`${modalPanel} w-full max-w-xl overflow-hidden`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="relative border-b border-border">
+        <div className="relative flex items-center border-b border-border pr-2">
           <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -68,8 +69,9 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => onKeyDown(e, go)}
             placeholder="Search shows, episodes and transcripts"
-            className="h-auto w-full bg-transparent py-3 pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground outline-hidden"
+            className="h-auto min-w-0 flex-1 bg-transparent py-3 pl-12 pr-2 text-base text-foreground placeholder:text-muted-foreground outline-hidden"
           />
+          <CloseButton onClick={onClose} label="Close search" />
         </div>
         <ul id="quick-search-results" role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto py-1">
           <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={go} ready={ready} loading={loading} failed={isError} />

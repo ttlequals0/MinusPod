@@ -217,7 +217,7 @@ function ProcessingQueueSection({
               {active.map((episode) => (
                 <div
                   key={episodeKey(episode)}
-                  className="bg-secondary/50 rounded-lg p-4 flex justify-between items-center gap-3"
+                  className="bg-secondary/50 rounded-lg border border-border p-4 flex justify-between items-center gap-3"
                 >
                   <div className="flex-1 min-w-0">
                     <Link
@@ -284,7 +284,7 @@ function ProcessingQueueSection({
                   className="bg-secondary/30 rounded-lg border border-border px-4 py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"
                 >
                   <div className="flex items-center gap-3 min-w-0 sm:flex-1">
-                    <span className="text-sm text-muted-foreground tabular-nums w-10 shrink-0 text-right">
+                    <span className="text-sm text-muted-foreground tabular-nums min-w-6 shrink-0 text-right">
                       {episode.queuePosition}
                     </span>
                     <div className="min-w-0">

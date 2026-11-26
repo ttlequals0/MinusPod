@@ -63,7 +63,7 @@ function TimezoneSettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-3 p-4 rounded-lg bg-muted/40">
+    <form onSubmit={handleSave} className="space-y-3 p-4 rounded-lg border border-border bg-muted/40">
       <p id="notification-timezone-help" className="text-xs text-muted-foreground">
         Notifications also show times in this timezone, alongside UTC.
       </p>

@@ -233,7 +233,7 @@ function AdDetectionSection({
             />
             <span className="text-sm font-medium text-foreground">Hold long cuts without splice evidence</span>
           </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
+          <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
             A long cut found only in the transcript is held for review unless the audio shows an edit point at its edges. Each feed can override this.
           </p>
         </div>
@@ -246,12 +246,12 @@ function AdDetectionSection({
             />
             <span className="text-sm font-medium text-foreground">Compare with the publisher transcript</span>
           </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
+          <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
             When an episode links the publisher's own transcript and it leaves the ads out, speech missing from it backs up detected ads and flags missed ones for review. It never cuts on its own. Each feed can override this.
           </p>
         </div>
 
-        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+        <div className="bg-muted/40 rounded-lg border border-border p-3 space-y-3">
           <div>
             <h4 className={subHeading}>Verification pass</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -275,11 +275,11 @@ function AdDetectionSection({
                   />
                   <span className="text-sm font-medium text-foreground">Autocut</span>
                 </label>
-                <p className="mt-2 text-sm text-muted-foreground ml-14">
+                <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
                   Cut a verification catch automatically once it reaches a set confidence, instead of holding it for review. Off by default. Catches then only ever hold or drop.
                 </p>
                 {verificationMissAutocutMinConfidence > 0 && (
-                  <div className="mt-3 ml-14">
+                  <div className="mt-3 sm:ml-14">
                     {numRow(
                       verificationMissAutocutMinConfidence, onVerificationMissAutocutMinConfidenceChange,
                       'verificationMissAutocutMinConfidence', 'Autocut floor', 0.5, 1, 0.05, 0.5,
@@ -316,7 +316,7 @@ function AdDetectionSection({
           </div>
         </div>
 
-        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+        <div className="bg-muted/40 rounded-lg border border-border p-3 space-y-3">
           <div>
             <h4 className={subHeading}>Differential detection</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -363,7 +363,7 @@ function AdDetectionSection({
                 />
                 <span className="text-sm font-medium text-foreground">Cut inserted ads in kept categories</span>
               </label>
-              <p className="mt-2 text-sm text-muted-foreground ml-14">
+              <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
                 Cut dynamically inserted ads even when their category is set to Keep. Turn off to let category actions control them.
               </p>
             </div>

@@ -529,8 +529,9 @@ function EpisodeCostTable({
           </select>
           <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} />
         </div>
+        <div className="grid grid-cols-1 min-[600px]:grid-cols-2 gap-3">
         {items.length === 0 ? (
-          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
+          <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
             No episode costs match these filters.
           </div>
         ) : items.map((stat) => {
@@ -539,7 +540,7 @@ function EpisodeCostTable({
           const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
           return (
           <div key={key} className={rowCard}>
-            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate max-w-[200px] block`} title={stat.podcastTitle}>
+            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate block`} title={stat.podcastTitle}>
               {stat.podcastTitle}
             </Link>
             <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
@@ -576,6 +577,7 @@ function EpisodeCostTable({
           </div>
           );
         })}
+        </div>
       </div>
     </>
   );

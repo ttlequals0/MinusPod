@@ -258,7 +258,7 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
   if (!status.transcriber && !status.podping && !status.feedRefresh && !status.failover) return null;
   const overall = rollupHealth(status);
   return (
-    <div className="mt-4 rounded-lg bg-muted/40">
+    <div className="mt-4 rounded-lg border border-border bg-muted/40">
       <button
         type="button"
         aria-expanded={open}
