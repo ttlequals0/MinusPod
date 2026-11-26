@@ -271,6 +271,12 @@ class TestGetPricingSources:
         chain = get_pricing_sources('openai-compatible', 'https://api.openai.com/v1')
         assert [s['type'] for s in chain] == ['pricepertoken', 'litellm']
 
+    def test_martllm_domain_chain_uses_its_model_list_then_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openai-compatible', 'https://api.martllm.com/v1')
+        assert [s['type'] for s in chain] == ['openrouter_api', 'litellm']
+        assert chain[0]['url'] == 'https://api.martllm.com/v1/models'
+
     def test_unknown_public_domain_chain_is_litellm_unfiltered(self):
         from config import get_pricing_sources
         chain = get_pricing_sources('openai-compatible', 'https://mystery.example.com/v1')
@@ -561,6 +567,40 @@ class TestOpenRouterFetcher:
         assert results[1]['raw_model_id'] == 'free/model'
         assert results[1]['input_cost_per_mtok'] == 0.0
         assert results[1]['output_cost_per_mtok'] == 0.0
+
+
+    def test_openrouter_format_list_fetched_from_source_url(self):
+        from pricing_fetcher import _fetch_single_source
+
+        mock_data = {
+            'data': [
+                {
+                    'id': 'deepseek/deepseek-v4-flash',
+                    'display_name': 'DeepSeek V4 Flash',
+                    'pricing': {
+                        'prompt': '0.0000001',       # $0.10/Mtok
+                        'completion': '0.0000002',   # $0.20/Mtok
+                        'input_cache_read': '0.00000001',
+                    }
+                },
+            ]
+        }
+
+        with patch('pricing_fetcher.safe_get') as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.iter_content = MagicMock(return_value=[json.dumps(mock_data).encode()])
+            mock_resp.raise_for_status = MagicMock()
+            mock_get.return_value = mock_resp
+
+            results = _fetch_single_source(
+                {'type': 'openrouter_api', 'url': 'https://api.martllm.com/v1/models'})
+
+        assert mock_get.call_args.args[0] == 'https://api.martllm.com/v1/models'
+        assert len(results) == 1
+        assert results[0]['raw_model_id'] == 'deepseek/deepseek-v4-flash'
+        assert results[0]['input_cost_per_mtok'] == 0.1
+        assert results[0]['output_cost_per_mtok'] == 0.2
+        assert results[0]['cache_read_cost_per_mtok'] == 0.01
 
 
 class TestSeedDefaultPricing:

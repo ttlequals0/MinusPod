@@ -10,6 +10,7 @@
 - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
+- [Using MartLLM](#using-martllm)
 - [Using System One](#using-system-one)
 - [Running without an LLM](#running-without-an-llm)
 - [Per-Stage Providers](#per-stage-providers)
@@ -260,6 +261,38 @@ The `openrouter/free` and `openrouter/auto` aliases are not in OpenRouter's `/ap
 
 All of these can be changed at runtime from the Settings UI. No container restart needed.
 
+## Using MartLLM
+
+[MartLLM](https://martllm.com) (formerly UberLLM) is an OpenAI-compatible API that reaches Claude, GPT, Gemini, DeepSeek, Qwen, Kimi, GLM and other models with one API key, billed from prepaid credit. It runs through the `openai-compatible` provider; no extra code path is involved. Configure transcription separately (see [Transcription](transcription.md)).
+
+### Setup
+
+1. Create an API key at [martllm.com](https://martllm.com/signup)
+2. Add these to your `.env`, then start with `docker-compose.yml` (GPU) or `docker-compose.cpu.yml` (no GPU):
+
+```bash
+LLM_PROVIDER=openai-compatible
+OPENAI_BASE_URL=https://api.martllm.com/v1
+OPENAI_API_KEY=your-martllm-key
+```
+
+The same values can be entered under Settings > AI and processing > LLM Provider by choosing OpenAI Compatible. **Test connection** works against `https://api.martllm.com/v1/models`, which needs no key.
+
+### Model Selection
+
+The model dropdown lists the models MartLLM currently serves. IDs use the `vendor/model` form, for example:
+
+- `anthropic/claude-haiku-4.5`
+- `anthropic/claude-sonnet-4.6`
+- `google/gemini-3-flash`
+- `deepseek/deepseek-v4-flash`
+
+The full list with prices is at [martllm.com/models](https://martllm.com/models). Any ID can also be seeded with `OPENAI_MODEL`.
+
+### Pricing
+
+When `OPENAI_BASE_URL` points at `api.martllm.com`, MinusPod reads per-token input, output and cache-read rates from MartLLM's own `/v1/models` list (the same format as OpenRouter's), with LiteLLM filling any gaps. An operator override still wins; see [LLM Pricing](#llm-pricing).
+
 ## Using System One
 
 Select TypeSafe or System One compatible under Settings > AI and processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
@@ -364,6 +397,7 @@ Pricing is fetched automatically based on your configured provider:
 |----------|--------|--------|
 | Anthropic | [pricepertoken.com](https://pricepertoken.com) | HTML scrape |
 | OpenRouter | OpenRouter API (`/api/v1/models`) | JSON API |
+| MartLLM (`api.martllm.com`) | MartLLM API (`/v1/models`) | JSON API |
 | OpenAI, Groq, Mistral, DeepSeek, xAI, Together, Fireworks, Perplexity, Google | [pricepertoken.com](https://pricepertoken.com) | HTML scrape |
 | Ollama / localhost | N/A | Always $0 |
 | TypeSafe | Fixed official Jev pricing | $0.042 USD per 1 million input tokens; output tokens are free |

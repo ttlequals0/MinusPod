@@ -10,6 +10,10 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- MartLLM pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://api.martllm.com/v1`, the pricing refresh reads input, output and cache-read rates from MartLLM's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. Before, calls through that endpoint were priced only when LiteLLM happened to know the model. The LLM providers guide gains a MartLLM setup section.
+
 ### Fixed
 
 - The validator checked the sponsor-name boost before the vague-reason penalty, and the sponsor names match inside ordinary words such as "keeps", "indeed" or "himself". A vague reason such as "Sponsor segment that keeps going" therefore gained 0.10 confidence instead of losing 0.10. The vague-reason penalty is checked first again, and a reason that names its advertiser is still exempt.
