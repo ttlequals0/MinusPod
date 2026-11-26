@@ -122,7 +122,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-20 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-input bg-background shadow-lg"
+          className="absolute z-20 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
         >
           {options.map((opt, i) => {
             const selected = opt.code === (value || 'en').toLowerCase();
@@ -137,7 +137,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
                   e.preventDefault();
                   commit(opt.code);
                 }}
-                className={`flex items-baseline justify-between px-3 py-1.5 cursor-pointer text-sm ${
+                className={`flex items-center justify-between px-3 py-1.5 cursor-pointer text-sm ${
                   active ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
                 }`}
               >
@@ -155,7 +155,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
                 e.preventDefault();
                 commit(query.trim());
               }}
-              className={`px-3 py-1.5 cursor-pointer text-sm ${
+              className={`flex items-center px-3 py-1.5 cursor-pointer text-sm ${
                 highlight === options.length ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
               }`}
             >

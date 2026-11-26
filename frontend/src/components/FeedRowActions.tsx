@@ -46,9 +46,12 @@ interface FeedDeleteButtonProps {
   slug: string;
   onDelete: (slug: string) => void;
   iconClassName: string;
+  labelClassName?: string;
 }
 
-export function FeedDeleteButton({ slug, onDelete, iconClassName }: FeedDeleteButtonProps) {
+export function FeedDeleteButton({
+  slug, onDelete, iconClassName, labelClassName = 'hidden sm:inline',
+}: FeedDeleteButtonProps) {
   return (
     <DemoDisabled>
       <button
@@ -58,7 +61,7 @@ export function FeedDeleteButton({ slug, onDelete, iconClassName }: FeedDeleteBu
         aria-label="Delete feed"
       >
         <Trash2 className={iconClassName} aria-hidden="true" />
-        <span className="hidden sm:inline">Delete</span>
+        <span className={labelClassName}>Delete</span>
       </button>
     </DemoDisabled>
   );

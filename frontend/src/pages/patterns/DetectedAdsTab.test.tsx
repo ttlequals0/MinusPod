@@ -119,7 +119,7 @@ describe('DetectedAdsTab', () => {
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(true);
     expect(buttons[3].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.className).toContain('sm:w-48');
+    expect(category.className).toContain('sm:w-44');
   });
 
   it('sizes table row tracks without a Confirm column', async () => {

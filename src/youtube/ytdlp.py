@@ -336,29 +336,35 @@ def update_binary(storage, db, target: Path | None = None) -> dict:
         _update_lock.release()
 
 
+def _update_failed(db, version, error) -> dict:
+    """Store and log an update failure; error is already redacted."""
+    db.set_setting('youtube_ytdlp_last_error', error, is_default=False)
+    logger.warning(f"yt-dlp update failed (version {version}): {error}")
+    return {'updated': False, 'version': version, 'error': error}
+
+
 def _update_binary_locked(storage, db, target) -> dict:
     now = utc_now_iso()
     db.set_setting('youtube_ytdlp_last_check_at', now, is_default=False)
     target = target or ensure_runtime_binary(storage, db)
     if str(target) == BAKED_PATH:
+        # ensure_runtime_binary already stored and logged this.
         return {'updated': False, 'version': baked_version(), 'error': RUNTIME_NOT_EXECUTABLE}
     before = binary_version(target)
     result = run(['-U'], timeout=300, storage=storage, db=db, extra_args=False)
     if result.returncode != 0:
-        error = trimmed_error(result.stderr or result.stdout)
-        db.set_setting('youtube_ytdlp_last_error', error, is_default=False)
-        return {'updated': False, 'version': before, 'error': error}
+        return _update_failed(db, before, trimmed_error(result.stderr or result.stdout))
     after = binary_version(target)
     if after is None:
-        error = 'version probe failed after update'
-        db.set_setting('youtube_ytdlp_last_error', error, is_default=False)
-        return {'updated': False, 'version': before, 'error': error}
+        return _update_failed(db, before, 'version probe failed after update')
     updated = after != before or 'updated yt-dlp' in (result.stdout or '').lower()
     db.set_setting('youtube_ytdlp_version', after, is_default=False)
     db.set_setting('youtube_ytdlp_last_error', '', is_default=False)
     if updated:
         db.set_setting('youtube_ytdlp_last_update_at', now, is_default=False)
         logger.info(f"yt-dlp updated {before} -> {after}")
+    else:
+        logger.info(f"yt-dlp is current ({after})")
     return {'updated': updated, 'version': after, 'error': None}
 
 

@@ -736,3 +736,25 @@ def test_build_validator_passes_the_feed_cue_snap_settings():
     assert validator.cue_snap_settings == {
         'max_boundary_shift_s': 60, 'snap_lead_s': 10.0, 'snap_lag_s': 4.0,
         'min_confidence': 0.65}
+
+
+# ---------------------------------------------------------------------------
+# show_cue_within
+# ---------------------------------------------------------------------------
+
+def test_show_cue_within_true_for_non_ad_template_cue_inside_range():
+    from ad_detector.cue_boundary_snap import show_cue_within
+    cues = [_show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.98)]
+    assert show_cue_within(cues, 232.62, 241.74, 0.8)
+
+
+def test_show_cue_within_ignores_low_confidence_partial_and_boundary_cues():
+    from ad_detector.cue_boundary_snap import show_cue_within
+    show = _show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.5)
+    assert not show_cue_within([show], 232.62, 241.74, 0.8)
+    show = _show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.98)
+    assert not show_cue_within([show], 234.0, 241.74, 0.8)
+    assert not show_cue_within([show], 232.62, 238.0, 0.8)
+    boundary = _typed_cue(233.08, 238.58, 'boundary', conf=0.98)
+    assert not show_cue_within([boundary], 232.62, 241.74, 0.8)
+    assert not show_cue_within([], 232.62, 241.74, 0.8)

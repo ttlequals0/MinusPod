@@ -172,3 +172,22 @@ test('icon-only controls center their icon', async ({ page }) => {
   }
   expect(failures.join('\n')).toBe('');
 });
+
+test('phone tab bar shows below 768 px, marks the route and keeps 44 px targets', async ({ page }) => {
+  await page.goto('');
+  const bar = page.getByRole('navigation', { name: 'Primary' });
+  const width = page.viewportSize()!.width;
+  if (width >= 768) {
+    await expect(bar).toBeHidden();
+    return;
+  }
+  await expect(bar.getByRole('link')).toHaveCount(5);
+  await expect(bar.getByRole('link', { name: 'Feeds' })).toHaveAttribute('aria-current', 'page');
+  for (const link of await bar.getByRole('link').all()) {
+    const box = (await link.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+  }
+  const barBox = (await bar.boundingBox())!;
+  expect(Math.round(barBox.y + barBox.height)).toBe(page.viewportSize()!.height);
+});

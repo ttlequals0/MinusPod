@@ -416,7 +416,7 @@ describe('StatsPage LLM cost ledger', () => {
     await waitFor(() => {
       expect(lastMainListParams()).toMatchObject({ page: 1, sortBy: 'calls', sortDir: 'desc' });
     });
-    await user.click(screen.getByRole('button', { name: 'Sort model usage ascending' }));
+    await user.click(screen.getByRole('button', { name: 'Descending, switch to ascending (model usage)' }));
     await waitFor(() => {
       expect(lastMainListParams()).toMatchObject({ sortBy: 'calls', sortDir: 'asc' });
     });

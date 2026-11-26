@@ -66,6 +66,14 @@ def cue_removal_enabled(details) -> bool:
     )
 
 
+def show_cue_within(cues, start, end, min_confidence) -> bool:
+    """True when a confident non-ad template cue (show music) lies wholly inside [start, end]."""
+    return any(
+        is_template_cue(c.details) and _cue_role(c) == AUDIO_CUE_ROLE_NON_AD
+        and c.confidence >= min_confidence and start <= c.start and c.end <= end
+        for c in cues)
+
+
 def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
     """Allow the removed cue's length in the boundary-shift cap (#832)."""
     return (end - start) if removed else 0.0

@@ -4,7 +4,8 @@ import logging
 import os
 from dataclasses import dataclass, replace
 from ad_detector.boundaries import _content_duration_in_range
-from ad_detector.cue_boundary_snap import snap_split_edge
+from ad_detector.cue_boundary_snap import (
+    MIN_CUE_CONFIDENCE_FOR_SNAP, show_cue_within, snap_split_edge)
 
 from audio_processor import get_replacement_duration
 from ad_validator import user_trimmed_keep_ranges
@@ -287,6 +288,10 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
                 continue
             lo, hi = sorted((value, new_value))
             if any(cut['start'] < hi and cut['end'] > lo for cut in blockers):
+                continue
+            # Show intro/outro music is content: an edge never moves across it.
+            if show_cue_within(cues, lo, hi, snap_settings.get(
+                    'min_confidence', MIN_CUE_CONFIDENCE_FOR_SNAP)):
                 continue
             # The audio before the cue must be wordless, so a cut never swallows speech.
             gap = ((record['cue_end'], value) if edge == 'start' else (value, record['cue_start']))
@@ -642,8 +647,12 @@ def _pass1_action_for_applied_cut(cut, pass1_markers):
 
 
 def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
-                        original_segments, protected_ranges, min_content):
-    """Return a safe original-coordinate rerender plan when pass boundaries join."""
+                        original_segments, protected_ranges, min_content,
+                        cues=(), cue_min_confidence=MIN_CUE_CONFIDENCE_FOR_SNAP):
+    """Return a safe original-coordinate rerender plan when pass boundaries join.
+
+    A gap holding a show intro/outro cue (non-ad template cue) is never bridged.
+    """
     if not pass1_cuts or not pass2_original_cuts:
         return None
     candidates = []
@@ -691,6 +700,8 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         gap = candidate['start'] - current['end']
         if gap <= 0:
             eligible = True
+        elif show_cue_within(cues, current['end'], candidate['start'], cue_min_confidence):
+            eligible = False
         elif locked_at(current, 'end') or locked_at(candidate, 'start'):
             # A gap beside a reviewer-locked edge is audio the reviewer kept unless it is short and wordless.
             eligible = locked_gap_bridgeable(original_segments, current['end'], candidate['start'])
@@ -1199,9 +1210,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 keep_rules._partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
                 protection = current_protection()
                 # After every hold decision, before the splits that clip protected audio.
+                cue_snap_settings = (detect._cue_snap_settings(ctx.podcast_id)
+                                     if audio_analysis_result else None)
                 if audio_analysis_result:
                     _snap_pass2_cuts_to_cues(v_ads_to_cut, v_ads_for_ui, audio_analysis_result,
-                                             pass1_cuts, detect._cue_snap_settings(ctx.podcast_id),
+                                             pass1_cuts, cue_snap_settings,
                                              original_segments, protection.holds_orig)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
@@ -1220,7 +1233,12 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         original_segments, protection.barriers_orig(),
                         common._setting_float(
                             db, 'min_content_between_ads_seconds',
-                            MIN_CONTENT_BETWEEN_ADS_SECONDS, allow_zero=True))
+                            MIN_CONTENT_BETWEEN_ADS_SECONDS, allow_zero=True),
+                        cues=(audio_analysis_result.get_signals_by_type('audio_cue')
+                              if audio_analysis_result else []),
+                        cue_min_confidence=(cue_snap_settings['min_confidence']
+                                            if cue_snap_settings
+                                            else MIN_CUE_CONFIDENCE_FOR_SNAP))
                     if crosspass_plan and original_audio_path:
                         original_render_duration = local_audio_processor.get_audio_duration(
                             original_audio_path)

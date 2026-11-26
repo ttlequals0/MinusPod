@@ -12,7 +12,7 @@ import {
 import { getErrorMessage } from '../../api/client';
 import { btnBase, btnSecondary, btnGhost } from '../../components/buttonStyles';
 import { focusRing, selectBase, labelBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 
 type Scope = 'everything' | 'global' | 'feeds';
 
@@ -121,7 +121,7 @@ function ConfigurationTransferSection() {
   };
 
   return (
-    <section className="mt-4 rounded-lg bg-muted/40 p-4" aria-labelledby="config-transfer-title">
+    <section className={`${subCard} mt-4 p-4`} aria-labelledby="config-transfer-title">
       <h4 id="config-transfer-title" className={subHeading}>
         Configuration import and export
       </h4>

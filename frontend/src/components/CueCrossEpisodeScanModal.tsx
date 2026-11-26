@@ -173,7 +173,7 @@ export default function CueCrossEpisodeScanModal({
                 Select {CROSS_EPISODE_MIN}-{CROSS_EPISODE_MAX} episodes. Results are shown in the first selected episode's time.
               </p>
             </div>
-            <CloseButton onClick={onClose} />
+            <CloseButton onClick={onClose} label="Close dialog" />
           </div>
 
           <div className="flex-1 overflow-y-auto border border-border rounded">
@@ -288,7 +288,7 @@ export default function CueCrossEpisodeScanModal({
                 </p>
               )}
             </div>
-            <CloseButton onClick={onClose} />
+            <CloseButton onClick={onClose} label="Close dialog" />
           </div>
 
           <div className="flex flex-wrap gap-2 mb-3">
@@ -349,7 +349,7 @@ export default function CueCrossEpisodeScanModal({
                       <DemoDisabled when={!audioAvailable} title={DEMO_AUDIO_TOOLTIP}>
                       <button
                         type="button"
-                        className={`shrink-0 ${ghostBtn}`}
+                        className={`shrink-0 pointer-coarse:min-h-11 pointer-coarse:min-w-11 inline-flex items-center justify-center ${ghostBtn}`}
                         onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
                         disabled={!targetEpId || !audioAvailable}
                         title={audioAvailable ? (playingKey === rowPlayKey ? 'Stop' : 'Play candidate') : undefined}
@@ -358,8 +358,8 @@ export default function CueCrossEpisodeScanModal({
                         {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
                       </button>
                       </DemoDisabled>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-mono text-sm">
+                      <div className="flex-1 min-w-28">
+                        <span className="font-mono text-sm whitespace-nowrap">
                           {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
                         </span>
                         <span className="ml-2 text-xs text-muted-foreground">
@@ -375,7 +375,7 @@ export default function CueCrossEpisodeScanModal({
                       {c.episodes && (
                         <button
                           type="button"
-                          className={`shrink-0 p-1 rounded text-muted-foreground hover:text-foreground ${focusRing}`}
+                          className={`shrink-0 p-1 pointer-coarse:min-h-11 pointer-coarse:min-w-11 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground ${focusRing}`}
                           onClick={() => setExpandedKey(expanded ? null : rowKey)}
                           aria-label={expanded ? 'Hide per-episode matches' : 'Show per-episode matches'}
                           aria-expanded={expanded}
@@ -411,7 +411,7 @@ export default function CueCrossEpisodeScanModal({
                                     <button
                                       key={mKey}
                                       type="button"
-                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border font-mono hover:bg-muted/50 ${focusRing}`}
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 pointer-coarse:min-h-11 pointer-coarse:px-2.5 rounded border border-border font-mono hover:bg-muted/50 ${focusRing}`}
                                       onClick={() => playWindow(epm.episodeId, m.start, m.end)}
                                       disabled={!audioAvailable}
                                       title={audioAvailable ? undefined : DEMO_AUDIO_TOOLTIP}

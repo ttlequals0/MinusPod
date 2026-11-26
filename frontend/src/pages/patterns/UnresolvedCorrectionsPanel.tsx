@@ -14,6 +14,7 @@ import { focusRing, selectBase } from '../../components/fieldStyles';
 import { ConfirmModal } from '../../components/Modal';
 import { countPill, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
+import { rowCard } from '../../components/tableStyles';
 import { uiUrl } from '../../urlPrefix';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
@@ -44,7 +45,7 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
   const selectedCandidate = correction.candidates.find((candidate) => candidate.slug === slug);
 
   return (
-    <li className="rounded bg-muted/40 p-4">
+    <li className={rowCard}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex gap-3">
           <Checkbox
@@ -85,14 +86,14 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
                 slug === candidate.slug ? 'border-primary bg-primary/5' : 'border-border'
               }`}
             >
-              <label className="flex min-w-0 flex-1 cursor-pointer gap-3">
+              <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 pointer-coarse:min-h-11">
                 <input
                   type="radio"
                   name={`correction-${correction.id}`}
                   value={candidate.slug}
                   checked={slug === candidate.slug}
                   onChange={() => { setSlug(candidate.slug); setConfirmed(false); }}
-                  className="mt-1"
+                  className={`mt-1 accent-primary ${focusRing}`}
                 />
                 <span className="min-w-0">
                   <span className={`block text-sm font-medium text-foreground ${candidate.episode_available ? 'truncate' : 'break-words'}`}>
@@ -130,17 +131,14 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
       )}
 
       {slug && (
-        <label className="mt-4 flex items-start gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-            className="mt-1"
-          />
-          <span>{selectedCandidate?.episode_available
+        <Checkbox
+          className="mt-4 items-start"
+          checked={confirmed}
+          onChange={setConfirmed}
+          label={selectedCandidate?.episode_available
             ? 'I checked the episode and confirm this feed.'
-            : 'I reviewed the historical record and confirm this feed.'}</span>
-        </label>
+            : 'I reviewed the historical record and confirm this feed.'}
+        />
       )}
 
       <div className="mt-4 flex items-center gap-3">

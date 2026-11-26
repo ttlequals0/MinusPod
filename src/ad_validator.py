@@ -1302,15 +1302,18 @@ class AdValidator:
         # Whole phrase only: "impossible ad" is not a hedge.
         hedged = any(re.search(rf'(?<![a-z]){re.escape(phrase)}', reason) for phrase in self.HEDGED_REASONS)
 
-        # Sponsor name in reason = boost
-        if not hedged and self.SPONSOR_PATTERNS.search(reason):
-            return min(1.0, confidence + 0.1)
-
-        # Substring match ("sponsored" holds "sponsor"), so a reason that names its advertiser is not vague.
+        # Vague reason = penalize. The phrases match as substrings ("sponsored" holds
+        # "sponsor"), so a reason that also names its advertiser is not vague. This runs
+        # before the sponsor boost: SPONSOR_PATTERNS matches inside ordinary words
+        # ("keeps", "indeed", "himself"), so it cannot tell a named advertiser on its own.
         if hedged or (any(vague in reason for vague in self.VAGUE_REASONS)
                       and not self._reason_names_advertiser(ad.get('reason', ''))):
             flags.append("WARN: Vague reason")
             return max(0.0, confidence - 0.1)
+
+        # Sponsor name in reason = boost
+        if self.SPONSOR_PATTERNS.search(reason):
+            return min(1.0, confidence + 0.1)
 
         return confidence
 

@@ -25,7 +25,7 @@ export default function PrevNextLink({ to, side, label, title }: {
         title={title}
       >
         {side === 'prev' && icon}
-        <span className="hidden sm:inline">{label}</span>
+        <span className="text-xs sm:text-sm">{label}</span>
         {side === 'next' && icon}
       </span>
     );
@@ -38,7 +38,7 @@ export default function PrevNextLink({ to, side, label, title }: {
       aria-label={title}
     >
       {side === 'prev' && icon}
-      <span className="hidden sm:inline">{label}</span>
+      <span className="text-xs sm:text-sm">{label}</span>
       {side === 'next' && icon}
     </Link>
   );

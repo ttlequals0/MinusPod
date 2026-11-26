@@ -3,7 +3,6 @@ import { DEMO_AUDIO_TOOLTIP, DEMO_DOWNLOAD_TOOLTIP } from '../../demo/copy';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
-import CloseButton from '../../components/CloseButton';
 import StatTile from '../../components/StatTile';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -817,15 +816,12 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
       ariaLabel="Pick an episode"
       panelClassName="text-foreground w-full max-w-2xl max-h-[85vh]"
       header={(
-        <>
-          <div>
-            <h3 className={cardTitle}>Pick an episode</h3>
-            <p className="text-xs text-muted-foreground">
-              Any episode with retained original audio. A cue applies to the whole feed.
-            </p>
-          </div>
-          <CloseButton onClick={onClose} />
-        </>
+        <div>
+          <h3 className={cardTitle}>Pick an episode</h3>
+          <p className="text-xs text-muted-foreground">
+            Any episode with retained original audio. A cue applies to the whole feed.
+          </p>
+        </div>
       )}
       footer={totalPages > 1 ? (
         <div className="flex items-center justify-between w-full text-sm">
@@ -988,13 +984,10 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       ariaLabel="Cue scan"
       panelClassName="text-foreground w-full max-w-3xl max-h-[90vh]"
       header={(
-        <>
-          <div className="min-w-0">
-            <h3 className={cardTitle}>Cue scan</h3>
-            <p className="text-xs text-muted-foreground truncate max-w-xl">{selectedEpisode?.title}</p>
-          </div>
-          <CloseButton onClick={onClose} />
-        </>
+        <div className="min-w-0">
+          <h3 className={cardTitle}>Cue scan</h3>
+          <p className="text-xs text-muted-foreground truncate max-w-xl">{selectedEpisode?.title}</p>
+        </div>
       )}
     >
       <div className="p-4">

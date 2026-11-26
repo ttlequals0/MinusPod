@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { usePeaks } from './ad-editor/usePeaks';
 import { usePeakSlice } from './ad-editor/usePeakSlice';
-import { Pin } from './ad-editor/Pin';
+import { Pin, shiftLabelInward } from './ad-editor/Pin';
 import { snapToOnset } from './ad-editor/snapToOnset';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
@@ -169,6 +169,7 @@ function CueMarkModal({
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  const cursorPillRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const startInputRef = useRef<HTMLInputElement | null>(null);
   const endInputRef = useRef<HTMLInputElement | null>(null);
@@ -347,6 +348,7 @@ function CueMarkModal({
         if (rel >= 0 && rel <= 1) {
           cursor.style.left = `${rel * 100}%`;
           cursor.style.display = '';
+          if (cursorPillRef.current && cursor.parentElement) shiftLabelInward(cursorPillRef.current, cursor.parentElement, rel * 100);
         } else {
           cursor.style.display = 'none';
         }
@@ -566,13 +568,13 @@ function CueMarkModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 flex items-start justify-between px-4 sm:px-5 pt-4 sm:pt-5 pb-3">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold">Mark audio cue</h2>
             <p className="text-sm text-muted-foreground truncate max-w-2xl">
               {episodeTitle}
             </p>
           </div>
-          <CloseButton onClick={requestClose} />
+          <CloseButton onClick={requestClose} label="Close dialog" />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
@@ -581,7 +583,8 @@ function CueMarkModal({
         </p>
 
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
-        <div ref={scrollRef} className="overflow-hidden border border-border rounded-lg bg-secondary/40 min-h-[140px]">
+        <div ref={scrollRef} className="overflow-hidden pt-2 border border-border rounded-lg bg-secondary/40 min-h-[140px]">
+          <div className="h-9" />
           <div ref={overlayRef} className="relative">
             {peaksLoading && <WaveformLoading className="absolute left-3 top-3" />}
             <div ref={waveformRef} />
@@ -606,7 +609,7 @@ function CueMarkModal({
               aria-hidden
             >
               <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-card bg-warning shadow-md" />
-              <div className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-warning text-warning-foreground text-[10px] font-bold whitespace-nowrap shadow-md">
+              <div ref={cursorPillRef} className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-warning text-warning-foreground text-[10px] font-bold whitespace-nowrap shadow-md">
                 {formatTime(playheadTime)}
               </div>
               <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-warning shadow-[0_0_4px_rgba(245,158,11,0.8)]" />

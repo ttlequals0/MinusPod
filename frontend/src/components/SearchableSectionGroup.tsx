@@ -46,7 +46,11 @@ export default function SearchableSectionGroup({
         clearLabel={clearLabel}
       />
 
-      <SectionBulkControls disabled={matchKeys !== null} onToggleAll={triggerBulkCollapse} />
+      <SectionBulkControls
+        disabled={matchKeys !== null}
+        onToggleAll={triggerBulkCollapse}
+        matchCount={matchKeys ? matchKeys.size : null}
+      />
 
       <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
         <SettingsSearchContext.Provider value={matchKeys}>
