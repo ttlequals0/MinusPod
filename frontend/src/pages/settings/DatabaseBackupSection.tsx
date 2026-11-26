@@ -126,7 +126,7 @@ function DatabaseBackupSection() {
           )}
 
           <div className="space-y-1">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <label
                 htmlFor="db-backup-dest"
                 className="text-sm text-muted-foreground whitespace-nowrap"
@@ -158,7 +158,7 @@ function DatabaseBackupSection() {
           </div>
 
           <div className="space-y-1">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <label
                 htmlFor="db-backup-keep"
                 className="text-sm text-muted-foreground whitespace-nowrap"
@@ -192,7 +192,7 @@ function DatabaseBackupSection() {
             <p className="text-sm text-destructive">{saveError}</p>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => save.mutate()}

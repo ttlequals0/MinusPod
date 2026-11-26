@@ -1,5 +1,5 @@
 import { pageHeader, pageTitle, cardTitle, sectionPad, summaryValue } from '../components/pageStyles';
-import { Fragment, useState, useMemo, type ReactNode } from 'react';
+import { Fragment, useState, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useUrlParams } from '../hooks/useUrlParams';
@@ -25,7 +25,7 @@ import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import DateField from '../components/DateField';
 import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../components/tableStyles';
+import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard, cardGrid } from '../components/tableStyles';
 import { SLOT_LABELS } from '../api/types';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tabStrip, tabItem } from '../components/PageTabs';
@@ -47,15 +47,17 @@ const CLEANUP_ACTION_LABELS: Record<string, string> = {
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
 function SortDirButton({ sortDir, onClick, noun }: { sortDir: 'asc' | 'desc'; onClick: () => void; noun?: string }) {
+  const current = sortDir === 'asc' ? 'Ascending' : 'Descending';
   const target = sortDir === 'asc' ? 'descending' : 'ascending';
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={noun ? `Sort ${noun} ${target}` : `Sort ${target}`}
-      className={`${btnBase} ${btnSecondary} min-w-11`}
+      aria-label={`${current}, switch to ${target}${noun ? ` (${noun})` : ''}`}
+      className={`${btnBase} ${btnSecondary} min-w-11 shrink-0`}
     >
       {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
+      <span className="text-xs sm:text-sm">{current}</span>
     </button>
   );
 }
@@ -225,6 +227,7 @@ function ModelUsageTable({
 
       <div className="sm:hidden space-y-3">
         <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0">Sort by</span>
           <select
             aria-label="Sort model usage by"
             value={sortField}
@@ -513,6 +516,7 @@ function EpisodeCostTable({
 
       <div className="xl:hidden space-y-3">
         <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0">Sort by</span>
           <select
             aria-label="Sort episode costs by"
             value={sortField}
@@ -525,53 +529,55 @@ function EpisodeCostTable({
           </select>
           <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} />
         </div>
-        {items.length === 0 ? (
-          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
-            No episode costs match these filters.
-          </div>
-        ) : items.map((stat) => {
-          const key = episodeCostKey(stat);
-          const isOpen = expanded.has(key);
-          const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
-          return (
-          <div key={key} className={rowCard}>
-            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate max-w-[200px] block`} title={stat.podcastTitle}>
-              {stat.podcastTitle}
-            </Link>
-            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
-              {stat.episodeTitle}
-            </Link>
-            <p className="text-xs text-muted-foreground truncate mb-1">
-              Models: <ModelsSummary stat={stat} />
-            </p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-              <span>{stat.runCount} runs</span>
-              <span>Latest: <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} /></span>
-              <span>Cumulative: <CostAmount
-                amount={parseFloat(stat.cumulativeCostUsd)}
-                unpriced={stat.hasUnknownCost}
-                unpricedCount={stat.unknownCostCount}
-                onInspect={() => toggleAttemptRows(key)}
-                inspectExpanded={attemptRows.has(key)}
-              /></span>
-              <span>{formatDateTime(stat.lastActivityAt)}</span>
+        <div className={cardGrid}>
+          {items.length === 0 ? (
+            <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
+              No episode costs match these filters.
             </div>
-            {attemptRows.has(key) && (
-              <div className="mt-2">
-                <SpendAttemptsPanel slug={stat.podcastSlug} episodeId={stat.episodeId} />
+          ) : items.map((stat) => {
+            const key = episodeCostKey(stat);
+            const isOpen = expanded.has(key);
+            const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
+            return (
+              <div key={key} className={rowCard}>
+                <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate block`} title={stat.podcastTitle}>
+                  {stat.podcastTitle}
+                </Link>
+                <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
+                  {stat.episodeTitle}
+                </Link>
+                <p className="text-xs text-muted-foreground truncate mb-1">
+                  Models: <ModelsSummary stat={stat} />
+                </p>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                  <span>{stat.runCount} runs</span>
+                  <span>Latest: <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} /></span>
+                  <span>Cumulative: <CostAmount
+                    amount={parseFloat(stat.cumulativeCostUsd)}
+                    unpriced={stat.hasUnknownCost}
+                    unpricedCount={stat.unknownCostCount}
+                    onInspect={() => toggleAttemptRows(key)}
+                    inspectExpanded={attemptRows.has(key)}
+                  /></span>
+                  <span>{formatDateTime(stat.lastActivityAt)}</span>
+                </div>
+                {attemptRows.has(key) && (
+                  <div className="mt-2">
+                    <SpendAttemptsPanel slug={stat.podcastSlug} episodeId={stat.episodeId} />
+                  </div>
+                )}
+                <div className="mt-2">
+                  <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
+                </div>
+                {isOpen && (
+                  <div className="mt-2">
+                    <EpisodeRunsDetail slug={stat.podcastSlug} episodeId={stat.episodeId} />
+                  </div>
+                )}
               </div>
-            )}
-            <div className="mt-2">
-              <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
-            </div>
-            {isOpen && (
-              <div className="mt-2">
-                <EpisodeRunsDetail slug={stat.podcastSlug} episodeId={stat.episodeId} />
-              </div>
-            )}
-          </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </>
   );
@@ -588,9 +594,22 @@ function useExpandedKeys(): [Set<string>, (key: string) => void] {
   return [keys, toggle];
 }
 
+// Near-miss series colour, shared by the cue histogram bars and their legend swatch.
+const NEAR_MISS_COLOR = '#f59e0b';
+const NEAR_MISS_OPACITY = 0.7;
+const NARROW_QUERY = '(max-width: 639px)';
+const subscribeNarrow = (cb: () => void) => {
+  const mq = window.matchMedia(NARROW_QUERY);
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+};
+const isNarrow = () => typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches;
+
 export default function StatsPage() {
   const llmEnabled = useLlmEnabled();
   const theme = useThemeColors();
+  const narrow = useSyncExternalStore(typeof window.matchMedia === 'function' ? subscribeNarrow : () => () => {}, isNarrow);
+  const podcastLabelMax = narrow ? 13 : 15;
   const [podcastFilter, setPodcastFilter] = useState('');
 
   // itemStyle matters: without it the value line keeps recharts' dark default
@@ -970,15 +989,15 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <h2 className={`${cardTitle} mb-4`}>Top podcasts by ads removed</h2>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={topPodcasts} layout="vertical" margin={{ left: 20, right: 20 }}>
+              <BarChart data={topPodcasts} layout="vertical" margin={{ left: 4, right: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
                 <XAxis type="number" tick={{ fill: theme.foreground, fontSize: 12 }} />
                 <YAxis
                   dataKey="podcastTitle"
                   type="category"
-                  width={130}
+                  width={116}
                   tick={{ fill: theme.foreground, fontSize: 12 }}
-                  tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 16) + '..' : v}
+                  tickFormatter={(v: string) => v.length > podcastLabelMax + 1 ? v.slice(0, podcastLabelMax) + '..' : v}
                 />
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
@@ -1101,21 +1120,33 @@ export default function StatsPage() {
             <StatTile label="Near-misses" value={cueStats.nearMissTotal} />
           </div>
           {cueHistogram.length > 0 && (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={cueHistogram} margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
-                <XAxis
-                  dataKey="scoreFrom"
-                  tick={{ fill: theme.foreground, fontSize: 12 }}
-                />
-                <YAxis tick={{ fill: theme.foreground, fontSize: 12 }} />
-                <Tooltip {...tooltipStyle} />
-                <Bar dataKey="matches" name="Matches (affected cuts)"
-                     fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
-                     fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs bg-primary/85 shrink-0" aria-hidden="true" />
+                  Matches (affected cuts)
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: NEAR_MISS_COLOR, opacity: NEAR_MISS_OPACITY }} aria-hidden="true" />
+                  Near-misses (never affected cuts)
+                </span>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={cueHistogram} margin={{ left: 0, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
+                  <XAxis
+                    dataKey="scoreFrom"
+                    tick={{ fill: theme.foreground, fontSize: 12 }}
+                  />
+                  <YAxis tick={{ fill: theme.foreground, fontSize: 12 }} />
+                  <Tooltip {...tooltipStyle} />
+                  <Bar dataKey="matches" name="Matches (affected cuts)"
+                       fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
+                       fill={NEAR_MISS_COLOR} fillOpacity={NEAR_MISS_OPACITY} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </>
           )}
           {cueUnusedReasons.length > 0 && (
             <div className="mt-6">
@@ -1446,7 +1477,7 @@ export default function StatsPage() {
               </div>
               <div className="sm:hidden space-y-3">
                 {Object.entries(cleanupStats.actions).map(([action, counts]) => (
-                  <div key={action} className="rounded bg-muted/40 p-3">
+                  <div key={action} className="rounded-lg border border-border bg-muted/40 p-3">
                     <h5 className="text-sm font-semibold text-foreground mb-2">{CLEANUP_ACTION_LABELS[action] ?? action}</h5>
                     <dl className="text-sm space-y-1">
                       {(['proposed', 'accepted', 'applied', 'reverted'] as const).map((kind) => (
@@ -1513,39 +1544,65 @@ export default function StatsPage() {
 
       {/* Podcast Stats Table */}
       <div id="stats-podcasts" className="scroll-mt-28" />
-      {/* Mobile Card Layout */}
+      {/* Mobile and Tablet Card Layout */}
       {sortedPodcasts.length > 0 && (
-        <div className="sm:hidden space-y-3">
-          <h2 className={cardTitle}>All podcasts</h2>
-          {sortedPodcasts.map((p) => (
-            <div key={p.podcastSlug} className={rowCard}>
-              <p className="text-sm font-semibold text-foreground mb-2">{p.podcastTitle}</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <span className="text-muted-foreground">Episodes</span>
-                <span className="text-foreground text-right tabular-nums">{p.episodeCount}</span>
-                <span className="text-muted-foreground">Runs</span>
-                <span className="text-foreground text-right tabular-nums">{p.runCount}</span>
-                <span className="text-muted-foreground">Total ads</span>
-                <span className="text-foreground text-right tabular-nums">{p.totalAds}</span>
-                <span className="text-muted-foreground">Avg ads</span>
-                <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
-                <span className="text-muted-foreground">Avg time saved</span>
-                <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</span>
-                <span className="text-muted-foreground">Avg length</span>
-                <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgEpisodeLengthSeconds)}</span>
-                <span className="text-muted-foreground">Total cost</span>
-                <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
-                <span className="text-muted-foreground">Tokens (In/Out)</span>
-                <span className="text-foreground text-right tabular-nums">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
-              </div>
+        <div className="lg:hidden space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className={cardTitle}>All podcasts</h2>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-sm text-muted-foreground shrink-0">Sort by</span>
+              <select
+                aria-label="Sort podcasts by"
+                value={sortField}
+                onChange={(e) => handleSort(e.target.value as PodcastSortField)}
+                className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
+              >
+                <option value="podcastTitle">Podcast</option>
+                <option value="episodeCount">Episodes</option>
+                <option value="runCount">Runs</option>
+                <option value="totalAds">Total ads</option>
+                <option value="avgAds">Avg ads</option>
+                <option value="avgTimeSavedSeconds">Avg time saved</option>
+                <option value="avgEpisodeLengthSeconds">Avg length</option>
+                <option value="totalCost">Total cost</option>
+                <option value="avgTokensPerEpisode">Avg tokens per run</option>
+              </select>
+              <SortDirButton sortDir={sortDir} onClick={() => handleSort(sortField)} noun="podcasts" />
             </div>
-          ))}
+          </div>
+          <div className={cardGrid}>
+            {sortedPodcasts.map((p) => (
+              <div key={p.podcastSlug} className={rowCard}>
+                <Link to={`/feeds/${p.podcastSlug}`} className={`${tableLink} text-sm font-semibold block mb-2 truncate`} title={p.podcastTitle}>
+                  {p.podcastTitle}
+                </Link>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Episodes</span>
+                  <span className="text-foreground text-right tabular-nums">{p.episodeCount}</span>
+                  <span className="text-muted-foreground">Runs</span>
+                  <span className="text-foreground text-right tabular-nums">{p.runCount}</span>
+                  <span className="text-muted-foreground">Total ads</span>
+                  <span className="text-foreground text-right tabular-nums">{p.totalAds}</span>
+                  <span className="text-muted-foreground">Avg ads</span>
+                  <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
+                  <span className="text-muted-foreground">Avg time saved</span>
+                  <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</span>
+                  <span className="text-muted-foreground">Avg length</span>
+                  <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgEpisodeLengthSeconds)}</span>
+                  <span className="text-muted-foreground">Total cost</span>
+                  <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
+                  <span className="text-muted-foreground">Tokens (In/Out)</span>
+                  <span className="text-foreground text-right tabular-nums">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Desktop Table Layout */}
       {sortedPodcasts.length > 0 && (
-        <div className={`hidden sm:block ${tableCard}`}>
+        <div className={`hidden lg:block ${tableCard}`}>
           <h2 className={`${cardTitle} p-4 pb-2`}>All podcasts</h2>
           <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
             <table aria-label="Podcast totals" className="w-full">

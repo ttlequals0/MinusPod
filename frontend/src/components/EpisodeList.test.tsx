@@ -76,6 +76,19 @@ describe('EpisodeList', () => {
     expect(screen.getByLabelText('Select episode')).toBeTruthy();
   });
 
+  it('leaves taps to the select button so the checkbox input is never clicked itself', () => {
+    const episode = {
+      id: 'ep9', title: 'Tap me', published: '2026-09-10T00:00:00Z', status: 'completed', jobState: 'idle',
+    } as Episode;
+    render(
+      <MemoryRouter>
+        <EpisodeList feedSlug="show" episodes={[episode]} selectedIds={new Set()} onToggle={() => {}} />
+      </MemoryRouter>
+    );
+    const input = screen.getByRole('checkbox', { name: 'Select Tap me' });
+    expect(input.parentElement?.className).toContain('pointer-events-none');
+  });
+
   it('shows a Pass-through chip when passthroughEnabled is true', () => {
     const episode = {
       id: 'ep7', title: 'Relayed', published: '2026-09-10T00:00:00Z', status: 'completed', passthroughEnabled: true,

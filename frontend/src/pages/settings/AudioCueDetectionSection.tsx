@@ -4,7 +4,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { labelBase, inputBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 
 export interface AudioCueState {
   enabled: boolean;
@@ -61,7 +61,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
   ) => (
     <div>
       <label htmlFor={id} className={labelBase}>{label}</label>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <NumberInput
           id={id}
           value={audioCue[key]}
@@ -102,7 +102,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
 
         {audioCue.enabled && (
           <div className="space-y-3 pt-2">
-            <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+            <div className={`${subCard} p-3 space-y-3`}>
               <div>
                 <h4 className={subHeading}>Finding cues</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -112,7 +112,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
               <div className="space-y-5">
                 <div>
                   <span className="block text-sm font-medium text-foreground mb-2">Frequency band</span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <NumberInput
                       ariaLabel="Band low edge in Hz"
                       value={audioCue.freqMinHz}
@@ -147,7 +147,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                   <label htmlFor="audioCueProminence" className={labelBase}>
                     Prominence threshold
                   </label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <NumberInput
                       id="audioCueProminence"
                       value={audioCue.prominenceDb}
@@ -168,7 +168,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                   <label htmlFor="audioCueMinConfidence" className={labelBase}>
                     Minimum confidence
                   </label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <NumberInput
                       id="audioCueMinConfidence"
                       value={audioCue.minConfidence}
@@ -196,7 +196,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
               </div>
             </div>
 
-            <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+            <div className={`${subCard} p-3 space-y-3`}>
               <div>
                 <h4 className={subHeading}>Matching templates</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -208,7 +208,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                   <label htmlFor="audioCueTemplateScore" className={labelBase}>
                     Template match score
                   </label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <NumberInput
                       id="audioCueTemplateScore"
                       value={audioCue.templateScore}
@@ -232,7 +232,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
               </div>
             </div>
 
-            <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+            <div className={`${subCard} p-3 space-y-3`}>
               <div>
                 <h4 className={subHeading}>Ad cutting</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">

@@ -141,7 +141,7 @@ function CommunityPatternsSection() {
               rather than deleting them; re-checking it reactivates them on the next sync.
               Locally created patterns are never affected.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 gap-2">
               {SEGMENT_CATEGORIES.map((cat) => (
                 <div key={cat} className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -158,7 +158,7 @@ function CommunityPatternsSection() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DemoDisabled>
               <button
                 type="button"
@@ -219,7 +219,7 @@ function CommunityPatternsSection() {
               If sync is on, the next tick repopulates.
             </p>
             {confirmPurge ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => purge.mutate()}

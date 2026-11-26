@@ -21,6 +21,7 @@ export const tdNum = `${tdMuted} text-right tabular-nums`;
 export const tdEmpty = 'px-4 py-8 text-center text-muted-foreground';
 // Card fallback for a table row below its table breakpoint.
 export const rowCard = 'bg-card rounded-lg border border-border p-4';
+export const cardGrid = 'grid grid-cols-1 min-[600px]:grid-cols-2 gap-3';
 // Podcast and episode links in data tables and card fallbacks.
 export const tableLink =
   `text-foreground underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground ${focusRing}`;

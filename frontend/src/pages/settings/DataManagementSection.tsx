@@ -14,7 +14,7 @@ import { BYTES_PER_MB, formatStorage } from './settingsUtils';
 import ConfigurationTransferSection from './ConfigurationTransferSection';
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { labelBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -109,7 +109,7 @@ function DataManagementSection({
     <CollapsibleSection title="Data management" storageKey="settings-section-data-management">
       <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
         {/* OPML Export Card */}
-        <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
+        <div className={`${subCard} p-4 flex flex-col`}>
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
               <FileDown className="w-5 h-5 text-foreground" aria-hidden="true" />
@@ -155,7 +155,7 @@ function DataManagementSection({
         </div>
 
         {/* Database Backup Card */}
-        <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
+        <div className={`${subCard} p-4 flex flex-col`}>
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
               <Database className="w-5 h-5 text-foreground" aria-hidden="true" />

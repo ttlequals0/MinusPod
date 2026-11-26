@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Pin } from './Pin';
 
 function renderPin(over: Partial<React.ComponentProps<typeof Pin>> = {}) {
@@ -164,5 +164,40 @@ describe('Pin divider kind', () => {
     expect(pin.getAttribute('aria-label')).toContain('SPLIT');
     expect(pin.getAttribute('aria-valuemin')).toBe('21');
     expect(pin.getAttribute('aria-valuemax')).toBe('79');
+  });
+});
+
+describe('Pin time pill edge shift', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const stub = () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 1000 } as DOMRect);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(80);
+  };
+  const pill = () => screen.getByText(/^START/);
+  // The container ref is attached after child layout effects, so hand Pin a live element.
+  const renderAt = (boundary: number, otherBoundary = 90) => {
+    const containerRef = { current: document.createElement('div') };
+    render(
+      <Pin kind="start" boundary={boundary} windowStart={0} windowDuration={100}
+        containerRef={containerRef} onChange={vi.fn()} otherBoundary={otherBoundary} />,
+    );
+  };
+
+  it('shifts right at the left edge', () => {
+    stub();
+    renderAt(1);
+    expect(pill().style.marginLeft).toBe('30px');
+  });
+
+  it('shifts left at the right edge', () => {
+    stub();
+    renderAt(99, 120);
+    expect(pill().style.marginLeft).toBe('-30px');
+  });
+
+  it('does not shift in the middle', () => {
+    stub();
+    renderAt(50);
+    expect(pill().style.marginLeft).toBe('0px');
   });
 });

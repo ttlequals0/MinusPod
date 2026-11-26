@@ -73,7 +73,7 @@ function ActiveQueue({
               job={job}
               elapsed={job.elapsed}
               linkTo={`/feeds/${job.slug}/episodes/${job.episodeId}`}
-              className="rounded-lg bg-secondary/50 p-4"
+              className="rounded-lg border border-border bg-secondary/50 p-4"
               actions={(
                 <DemoDisabled>
                   <button
@@ -92,7 +92,7 @@ function ActiveQueue({
       ) : activeEpisodes.length > 0 ? (
         <div className="space-y-2">
           {activeEpisodes.map((episode) => (
-            <div key={`${episode.slug}:${episode.episodeId}`} className="rounded-lg bg-secondary/50 p-4 flex items-center justify-between gap-3">
+            <div key={`${episode.slug}:${episode.episodeId}`} className="rounded-lg border border-border bg-secondary/50 p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <Link
                   to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}

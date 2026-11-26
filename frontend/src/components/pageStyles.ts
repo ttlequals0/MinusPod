@@ -3,6 +3,7 @@ export const pageTitle = 'min-w-0 break-words text-2xl font-bold text-foreground
 export const cardTitle = 'text-lg font-semibold text-foreground';
 export const subHeading = 'text-sm font-semibold text-foreground';
 export const cardPad = 'p-4';
+export const subCard = 'rounded-lg border border-border bg-muted/40';
 export const sectionPad = 'p-6';
 export const pageDescription = 'mt-1 text-sm text-muted-foreground';
 export const summaryCard = 'row-span-3 grid min-w-0 grid-rows-subgrid justify-items-start gap-y-0 rounded-lg border p-4 text-left';

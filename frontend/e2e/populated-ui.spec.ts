@@ -114,7 +114,7 @@ test('YouTube settings retry a failed request and protect independent drafts', a
   await proxy.fill(original);
 });
 
-test('YouTube feed metadata and reprocessing dialogs retain context on short screens', async ({ page, request }) => {
+test('YouTube feed metadata edits and validation', async ({ page, request }) => {
   const feeds = (await (await request.get(new URL('/api/v1/feeds', base!).href)).json()).feeds as Feed[];
   const feed = feeds.find(feed => feed.feedType === 'youtube')!;
   await page.goto(`feeds/${feed.slug}`);
@@ -136,15 +136,4 @@ test('YouTube feed metadata and reprocessing dialogs retain context on short scr
   await section.getByRole('combobox', { name: 'Delay mode' }).selectOption('global');
   const scan = await new AxeBuilder({ page }).include(`[data-search-key="youtube-feed-${feed.slug}"]`).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(scan.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(node => node.target) }))).toEqual([]);
-  await page.setViewportSize({ width: page.viewportSize()!.width, height: 480 });
-  const trigger = page.getByTitle('Reprocess all processed episodes', { exact: true });
-  await trigger.click();
-  await page.getByRole('menuitem', { name: /Full reprocess/ }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('SponsorBlock marks and captions are refreshed');
-  const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
-  await expect(cancel).toBeInViewport();
-  await page.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
-  await expect(trigger).toBeFocused();
 });

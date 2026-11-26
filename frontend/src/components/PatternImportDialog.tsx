@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { apiRequest, getErrorMessage } from '../api/client';
 import { Modal, ConfirmModal, dialogFooterBtn } from './Modal';
+import CloseButton from './CloseButton';
 import { btnOutline, btnPrimary } from './buttonStyles';
-import { selectBase } from './fieldStyles';
+import { fileInputBase, selectBase } from './fieldStyles';
 import { DemoDisabled } from './DemoDisabled';
 
 interface Props {
@@ -62,7 +63,10 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
 
   return (
     <Modal ariaLabel="Import patterns" onClose={onClose} closeOnEscape={!busy} panelClassName="w-full max-w-md p-6 text-card-foreground">
-      <h2 className="text-lg font-semibold mb-3">Import patterns</h2>
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <h2 className="text-lg font-semibold">Import patterns</h2>
+        <CloseButton onClick={onClose} label="Close dialog" />
+      </div>
       <p id="pattern-import-file-help" className="text-sm text-muted-foreground mb-4">
         Upload a JSON file exported from MinusPod, or a single community-pattern JSON.
       </p>
@@ -74,7 +78,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         type="file"
         accept="application/json,.json"
         disabled={busy}
-        className="block w-full mb-4 text-sm py-2"
+        className={`mb-4 ${fileInputBase}`}
         aria-describedby="pattern-import-file-help"
       />
 

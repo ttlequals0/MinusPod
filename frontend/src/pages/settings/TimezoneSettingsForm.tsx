@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../api/client';
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { subCard } from '../../components/pageStyles';
 
 const FALLBACK_ZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -63,7 +64,7 @@ function TimezoneSettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-3 p-4 rounded-lg bg-muted/40">
+    <form onSubmit={handleSave} className={`${subCard} space-y-3 p-4`}>
       <p id="notification-timezone-help" className="text-xs text-muted-foreground">
         Notifications also show times in this timezone, alongside UTC.
       </p>
