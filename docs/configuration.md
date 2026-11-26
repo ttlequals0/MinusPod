@@ -432,7 +432,7 @@ API: `chapterNotes` (string up to 1000 characters, or null) on `PATCH /api/v1/fe
 
 ### Show-notes chapters
 
-When MinusPod generates chapters and the episode description lists timestamps, those lines become the chapters with the show's own titles, as described in [How It Works](how-it-works.md#chapter-generation). Turn off **Chapters > Chapters from show notes** for a feed whose timestamp lines are not a topic list; its chapters then come from LLM topic detection, which still gets the listed timestamps as hints. On by default.
+When MinusPod generates chapters and the chapters LLM finds parts of the episode with start times in the description, they become the chapters with short titles from the notes' own wording, as described in [How It Works](how-it-works.md#chapter-generation). Turn off **Chapters > Chapters from show notes** for a feed whose timestamp lines are not a topic list; its chapters then come from LLM topic detection, which still gets the listed times as hints. On by default.
 
 API: `showNotesChapters` (boolean) on `PATCH /api/v1/feeds/{slug}`.
 

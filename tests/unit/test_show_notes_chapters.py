@@ -1,4 +1,5 @@
-"""Chapters built from timestamps in the episode description (show notes)."""
+"""Chapters built from timestamps the LLM reads out of the episode description (show notes)."""
+import re
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
@@ -58,14 +59,45 @@ def _gen():
     return gen
 
 
-def _run(gen, description=DESCRIPTION, duration=3190, reply=''):
-    """Run generate_chapters with call_llm answering `reply`; return (chapters, call_llm mock)."""
-    mock = MagicMock(return_value=(_Response(reply), None))
+EXTRACT = 'chapter show-notes extraction'
+ALIGN = 'chapter show-notes alignment'
+_NOTE_LINE = re.compile(r'^[(\[]?(\d{1,3}:\d{2}(?::\d{2})?)[)\]]?\s*[-:]*\s*(.+)$')
+
+
+def _notes_reply(description):
+    """What a well-behaved model answers to the extraction prompt for line-format notes."""
+    found = [f'{m.group(1)} {m.group(2)}' for line in (description or '').split('\n')
+             if (m := _NOTE_LINE.match(line.strip()))]
+    return '\n'.join(found) or 'NONE'
+
+
+def _llm(reply='', description=DESCRIPTION, extract=None):
+    """call_llm stand-in: the extraction call gets `extract` (default: the notes' own lines), the
+    alignment and any other call gets `reply`. Calls are recorded in .labels."""
+    labels = []
+
+    def fake(**kwargs):
+        labels.append(kwargs['call_label'])
+        if kwargs['call_label'] == EXTRACT:
+            return _Response(_notes_reply(description) if extract is None else extract), None
+        return _Response(reply), None
+
+    fake.labels = labels
+    return fake
+
+
+def _run(gen, description=DESCRIPTION, duration=3190, reply='', extract=None):
+    """Run generate_chapters with a mocked LLM; return (chapters, call_llm mock)."""
+    mock = MagicMock(side_effect=_llm(reply, description, extract))
     with patch('chapters_generator.call_llm', mock):
         out = gen.generate_chapters(
             _segments(duration), episode_description=description,
             podcast_name='Show', episode_title='Ep')
     return out['chapters'], mock
+
+
+def _labels(mock):
+    return [c.kwargs['call_label'] for c in mock.call_args_list]
 
 
 def _starts(chapters):
@@ -83,28 +115,32 @@ def test_six_anchor_example_gets_intro_and_verbatim_titles():
     assert _starts(chapters)[1:] == ANCHOR_TIMES
     assert 'Contoso Health $CTSO' in [c['title'] for c in chapters]
     assert gen.chapters_degraded is False
-    # Only alignment calls here: no title generation.
-    assert {c.kwargs['call_label'] for c in mock.call_args_list} == {
-        'chapter show-notes alignment'}
+    # Extraction and alignment only: no title generation.
+    assert set(_labels(mock)) == {EXTRACT, ALIGN}
+
+
+def _align_prompt(mock):
+    return next(c.kwargs['prompt'] for c in mock.call_args_list
+                if c.kwargs['call_label'] == ALIGN)
 
 
 def test_alignment_prompt_lists_topics_transcript_and_feed_notes():
     gen = _gen()
     _, mock = _run(gen, description=DESCRIPTION)
-    prompt = mock.call_args_list[0].kwargs['prompt']
+    prompt = _align_prompt(mock)
     assert '1. (about 01:00) Shipping and drone' in prompt
     assert '<number> MM:SS' in prompt
     assert '[00:00] segment 0' in prompt
 
     gen = _gen()
-    with patch('chapters_generator.call_llm',
-               return_value=(_Response(''), None)) as mock:
+    mock = MagicMock(side_effect=_llm())
+    with patch('chapters_generator.call_llm', mock):
         gen.generate_chapters(
             _segments(), episode_description=DESCRIPTION,
             podcast_name='Show', episode_title='Ep',
             chapter_notes='Swedish finance show')
-    assert mock.call_args_list[0].kwargs['prompt'].endswith(
-        'Feed notes:\nSwedish finance show')
+    for call in mock.call_args_list:
+        assert call.kwargs['prompt'].endswith('Feed notes:\nSwedish finance show')
 
 
 def test_snapped_times_within_radius_are_accepted():
@@ -158,34 +194,55 @@ def _no_client_run(description=DESCRIPTION, segments=None, **kwargs):
     return gen, out['chapters']
 
 
-def test_no_llm_client_keeps_anchor_times_and_degrades():
+def test_no_llm_client_means_no_extraction_and_the_output_of_a_run_without_notes():
     gen, chapters = _no_client_run()
-    assert _starts(chapters)[1:] == ANCHOR_TIMES
-    assert [c['title'] for c in chapters[1:]] == TITLES
-    assert gen.chapters_degraded is True
+    base_gen, base = _no_client_run(description=None)
+    assert chapters == base
+    assert gen.chapters_degraded == base_gen.chapters_degraded
+    assert gen.chapters_degradation_reason == base_gen.chapters_degradation_reason
     assert chapters_generator.CHAPTERS_AI_UNAVAILABLE in gen.chapters_degradation_reason
 
 
-def test_llm_call_returning_none_keeps_anchor_times_and_degrades():
+def test_llm_call_returning_none_degrades_and_uses_topic_detection():
     gen = _gen()
-    with patch('chapters_generator.call_llm',
-               return_value=(None, RuntimeError('boom'))):
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', return_value=(None, RuntimeError('boom'))):
+        gen.generate_chapters(
+            _segments(), episode_description=DESCRIPTION,
+            podcast_name='Show', episode_title='Ep')
+    windowed.assert_called_once()
+    assert gen.show_notes_starts == frozenset()
+    assert gen.chapters_degraded is True
+    assert 'show-notes alignment failed' in gen.chapters_degradation_reason
+
+
+def test_llm_exception_in_extraction_degrades_and_uses_topic_detection():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', side_effect=RuntimeError('boom')):
+        gen.generate_chapters(
+            _segments(), episode_description=DESCRIPTION,
+            podcast_name='Show', episode_title='Ep')
+    windowed.assert_called_once()
+    assert gen.chapters_degraded is True
+
+
+def test_failed_alignment_keeps_the_listed_times_and_degrades():
+    gen = _gen()
+
+    def fake(**kwargs):
+        if kwargs['call_label'] == EXTRACT:
+            return _Response(_notes_reply(DESCRIPTION)), None
+        return None, RuntimeError('boom')
+
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]), \
+         patch('chapters_generator.call_llm', side_effect=fake):
         out = gen.generate_chapters(
             _segments(), episode_description=DESCRIPTION,
             podcast_name='Show', episode_title='Ep')
     assert _starts(out['chapters'])[1:] == ANCHOR_TIMES
     assert gen.chapters_degraded is True
     assert 'show-notes alignment failed' in gen.chapters_degradation_reason
-
-
-def test_llm_exception_keeps_anchor_times_and_degrades():
-    gen = _gen()
-    with patch('chapters_generator.call_llm', side_effect=RuntimeError('boom')):
-        out = gen.generate_chapters(
-            _segments(), episode_description=DESCRIPTION,
-            podcast_name='Show', episode_title='Ep')
-    assert _starts(out['chapters'])[1:] == ANCHOR_TIMES
-    assert gen.chapters_degraded is True
 
 
 def test_rejected_or_unlocated_times_do_not_degrade():
@@ -217,14 +274,12 @@ def test_single_in_range_anchor_uses_the_llm_topic_path():
     description = '05:00 First\n90:00 Way past the end'
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
-         patch('chapters_generator.call_llm',
-               return_value=(_Response('Opening'), None)) as call:
+         patch('chapters_generator.call_llm', side_effect=_llm('Opening', description)) as call:
         gen.generate_chapters(
             _segments(1800), episode_description=description,
             podcast_name='Show', episode_title='Ep')
     windowed.assert_called_once()
-    assert all(c.kwargs['call_label'] != 'chapter show-notes alignment'
-               for c in call.call_args_list)
+    assert ALIGN not in _labels(call)
 
 
 SHORT_NOTES = '01:00 First\n02:30 Second\n04:00 Third'
@@ -238,9 +293,10 @@ def test_short_episode_still_gets_show_notes_chapters():
 def test_times_shifted_into_one_cut_are_made_strictly_increasing():
     # 03:00 and 04:00 sit inside the 150-300 s cut, so both shift to 150 s.
     gen = _gen()
-    with patch('chapters_generator.call_llm', return_value=(_Response(''), None)):
+    notes = '01:00 Alpha\n03:00 Bravo\n04:00 Charlie'
+    with patch('chapters_generator.call_llm', side_effect=_llm('', notes)):
         out = gen.generate_chapters(
-            _segments(1800), episode_description='01:00 Alpha\n03:00 Bravo\n04:00 Charlie',
+            _segments(1800), episode_description=notes,
             ads_removed=[{'start': 150, 'end': 300}], podcast_name='Show', episode_title='Ep')
     assert _starts(out['chapters']) == [1, 60, 150, 151]
 
@@ -255,14 +311,31 @@ def test_rate_limit_propagates():
                 podcast_name='Show', episode_title='Ep')
 
 
+def test_rate_limit_in_alignment_propagates():
+    gen = _gen()
+
+    def fake(**kwargs):
+        if kwargs['call_label'] == EXTRACT:
+            return _Response(_notes_reply(DESCRIPTION)), None
+        return None, ProviderRateLimitedError('slow down', 60)
+
+    with patch('chapters_generator.call_llm', side_effect=fake):
+        with pytest.raises(ProviderRateLimitedError):
+            gen.generate_chapters(
+                _segments(), episode_description=DESCRIPTION,
+                podcast_name='Show', episode_title='Ep')
+
+
 def test_anchors_are_grouped_by_window_span():
     gen = _gen()
     prompts = []
 
+    base = _llm()
+
     def fake(**kwargs):
-        if kwargs['call_label'] == 'chapter show-notes alignment':
+        if kwargs['call_label'] == ALIGN:
             prompts.append(kwargs['prompt'])
-        return _Response(''), None
+        return base(**kwargs)
 
     with patch('chapters_generator.call_llm', side_effect=fake), \
          patch.object(chapters_generator, 'resolve_chapter_geometry',
@@ -303,7 +376,11 @@ def test_llm_adds_only_extras_far_from_listed_chapters():
         {'startTime': 2300, 'title': 'Guest interview'},
     ]
     kwargs = detector.call_args.kwargs
-    assert kwargs['episode_description'] == NOTES3
+    # The listed chapters replace the description and its anchors in the extras call.
+    assert kwargs['episode_description'] is None
+    assert kwargs['description_anchors'] is None
+    assert [c['title'] for c in kwargs['listed_chapters']] == [
+        'Intro', 'Alpha topic', 'Bravo topic', 'Charlie topic']
     assert gen.chapters_degraded is False
 
 
@@ -374,8 +451,18 @@ SHIFT_NOTES = '00:00 Opening\n10:00 Alpha\n20:00 Bravo'
 CUT = [{'start': 300, 'end': 420}]  # 120 s removed before both topics
 
 
-def test_no_llm_client_falls_back_to_the_shifted_time():
-    _, chapters = _no_client_run(SHIFT_NOTES, segments=_segments(1800), ads_removed=CUT)
+def _shift_run(reply='', segments=None, **kwargs):
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]), \
+         patch('chapters_generator.call_llm', side_effect=_llm(reply, SHIFT_NOTES)) as mock:
+        out = gen.generate_chapters(
+            segments or _segments(1800), episode_description=SHIFT_NOTES,
+            podcast_name='Show', episode_title='Ep', **kwargs)
+    return out['chapters'], mock
+
+
+def test_unaligned_times_fall_back_to_the_shifted_time():
+    chapters, _ = _shift_run(ads_removed=CUT)
     assert chapters == [
         {'startTime': 1, 'title': 'Opening'},
         {'startTime': 480, 'title': 'Alpha'},
@@ -384,58 +471,47 @@ def test_no_llm_client_falls_back_to_the_shifted_time():
 
 
 def test_alignment_hint_uses_the_shifted_time():
-    gen = _gen()
-    with patch('chapters_generator.call_llm', return_value=(_Response(''), None)) as mock:
-        out = gen.generate_chapters(
-            _segments(1800), episode_description=SHIFT_NOTES, ads_removed=CUT,
-            podcast_name='Show', episode_title='Ep')
-    prompt = mock.call_args_list[0].kwargs['prompt']
+    chapters, mock = _shift_run(ads_removed=CUT)
+    prompt = _align_prompt(mock)
     assert '(about 08:00) Alpha' in prompt and '(about 18:00) Bravo' in prompt
-    assert _starts(out['chapters']) == [1, 480, 1080]
+    assert _starts(chapters) == [1, 480, 1080]
 
 
 def test_snap_radius_is_measured_from_the_shifted_time():
     # Shifted Alpha is 08:00; 12:30 is 270 s from it, so it stands.
-    gen = _gen()
-    with patch('chapters_generator.call_llm',
-               return_value=(_Response('1 12:30'), None)):
-        out = gen.generate_chapters(
-            _segments(1800), episode_description=SHIFT_NOTES, ads_removed=CUT,
-            podcast_name='Show', episode_title='Ep')
-    assert _starts(out['chapters']) == [1, 750, 1080]
+    chapters, _ = _shift_run('1 12:30', ads_removed=CUT)
+    assert _starts(chapters) == [1, 750, 1080]
 
 
 def test_regeneration_shifts_by_marker_cuts():
     # Regeneration passes processed segments and the applied cuts as marker_cuts.
-    _, chapters = _no_client_run(SHIFT_NOTES, segments=_segments(1680), marker_cuts=CUT)
+    chapters, _ = _shift_run(segments=_segments(1680), marker_cuts=CUT)
     assert _starts(chapters) == [1, 480, 1080]
 
 
 def test_beep_replacement_shortens_the_shift():
-    _, chapters = _no_client_run(SHIFT_NOTES, segments=_segments(1800), ads_removed=CUT,
-                                 replacement_duration=2.0)
+    chapters, _ = _shift_run(ads_removed=CUT, replacement_duration=2.0)
     assert _starts(chapters) == [1, 482, 1082]
 
 
 # The gate that switches to show-notes chapters.
 
-def _uses_show_notes(description, duration=3000, **kwargs):
+def _uses_show_notes(description, duration=3000, extract=None, **kwargs):
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
          patch('chapters_generator.call_llm',
-               return_value=(_Response('Opening'), None)) as call:
+               side_effect=_llm('Opening', description, extract)) as call:
         out = gen.generate_chapters(
             _segments(duration), episode_description=description,
             podcast_name='Show', episode_title='Ep', **kwargs)
-    aligned = any(c.kwargs['call_label'] == 'chapter show-notes alignment'
-                  for c in call.call_args_list)
+    aligned = ALIGN in _labels(call)
     if not aligned:
         windowed.assert_called_once()
     return aligned, out['chapters']
 
 
 def test_gate_accepts_three_entries_at_the_limits():
-    # First at exactly 600 s and a pair exactly 60 s apart.
+    # A pair exactly 60 s apart; a first entry after ten minutes no longer matters.
     aligned, chapters = _uses_show_notes('10:00 Alpha\n11:00 Bravo\n20:00 Charlie')
     assert aligned
     assert [c['title'] for c in chapters] == ['Intro', 'Alpha', 'Bravo', 'Charlie']
@@ -445,47 +521,52 @@ def test_gate_rejects_two_entries():
     assert _uses_show_notes('01:00 Alpha\n10:00 Bravo')[0] is False
 
 
-def test_gate_rejects_first_entry_after_ten_minutes():
-    assert _uses_show_notes('10:01 Alpha\n20:00 Bravo\n30:00 Charlie')[0] is False
-
-
-def test_gate_measures_the_first_entry_in_original_audio():
-    # A cut moves 11:00 to 09:00 on the processed timeline; the listed time still decides.
-    description = '11:00 Alpha\n20:00 Bravo\n30:00 Charlie'
-    assert _uses_show_notes(description, ads_removed=CUT)[0] is False
+def test_first_entry_after_ten_minutes_passes():
+    aligned, chapters = _uses_show_notes('10:01 Alpha\n20:00 Bravo\n30:00 Charlie')
+    assert aligned and chapters[0]['title'] == 'Intro'
 
 
 def test_gate_rejects_entries_closer_than_a_minute():
     assert _uses_show_notes('01:00 Alpha\n01:59 Bravo\n10:00 Charlie')[0] is False
+
+
+def test_equal_times_are_one_entry():
     assert _uses_show_notes('5:00 Alpha\n05:00 Bravo\n10:00 Charlie')[0] is False
 
 
-def test_gate_ignores_clock_times():
-    description = '10:00 AM Doors open\n11:00 a.m. Keynote\n12:30 PM Lunch break'
-    assert _uses_show_notes(description)[0] is False
-
-
-def test_clock_times_do_not_become_chapters():
-    description = ('Live from the conference, doors at\n9:30 AM Registration\n'
-                   '00:00 Opening\n10:00 Alpha\n20:00 Bravo')
-    aligned, chapters = _uses_show_notes(description)
-    assert aligned
-    assert [c['title'] for c in chapters] == ['Opening', 'Alpha', 'Bravo']
-
-
-def test_feed_switch_off_uses_topic_detection_with_anchor_hints():
+def test_feed_switch_off_still_extracts_for_hints_but_builds_no_chapters():
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
-         patch('chapters_generator.call_llm',
-               return_value=(_Response('Opening'), None)) as call:
+         patch('chapters_generator.call_llm', side_effect=_llm('Opening')) as call:
         gen.generate_chapters(
             _segments(), episode_description=DESCRIPTION,
             podcast_name='Show', episode_title='Ep', show_notes_chapters=False)
     windowed.assert_called_once()
-    assert windowed.call_args.kwargs['episode_description'] == DESCRIPTION
-    assert all(c.kwargs['call_label'] != 'chapter show-notes alignment'
-               for c in call.call_args_list)
+    assert EXTRACT in _labels(call) and ALIGN not in _labels(call)
+    hints = windowed.call_args.kwargs['description_anchors']
+    assert [t for t, _ in hints] == ANCHOR_TIMES
+    assert [title for _, title in hints] == TITLES
     assert gen.show_notes_starts == frozenset()
+
+
+def test_fewer_than_three_entries_are_hints_only():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', side_effect=_llm('Opening', '01:00 A\n10:00 B')):
+        gen.generate_chapters(
+            _segments(), episode_description='01:00 A\n10:00 B',
+            podcast_name='Show', episode_title='Ep')
+    assert windowed.call_args.kwargs['description_anchors'] == [(60.0, 'A'), (600.0, 'B')]
+
+
+def test_hints_are_shifted_by_the_cuts():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', side_effect=_llm('Opening', SHIFT_NOTES)):
+        gen.generate_chapters(
+            _segments(1800), episode_description='10:00 Alpha\n20:00 Bravo',
+            ads_removed=CUT, podcast_name='Show', episode_title='Ep')
+    assert windowed.call_args.kwargs['description_anchors'] == [(480.0, 'Alpha'), (1080.0, 'Bravo')]
 
 
 # Show-notes chapters are reported so the chapter trim can skip them.
@@ -496,50 +577,165 @@ def test_show_notes_starts_cover_listed_chapters_and_intro_not_extras():
     assert gen.show_notes_starts == frozenset({1, 480, 630, 1980})
 
 
-def test_clock_suffix_titles_are_dropped():
-    assert _uses_show_notes('10:30 AM\n11:30 PM show\n12:30 p.m. Lunch')[0] is False
+def test_an_extra_titled_with_a_listed_name_comes_through_as_given():
+    _, chapters, _ = _with_detection([_b('38:20', 'Interview: Nuclear power')])
+    assert chapters[-1]['title'] == 'Interview: Nuclear power'
 
 
-def test_a_word_that_starts_with_am_is_kept():
-    aligned, chapters = _uses_show_notes(
-        '00:00 Opening\n12:00 Am I Wrong About AI\n30:00 Closing')
-    assert aligned
-    assert [c['title'] for c in chapters] == ['Opening', 'Am I Wrong About AI', 'Closing']
+def _topic_prompts(window_span, **kwargs):
+    """Topic-detection prompts of a NOTES3 run on a 3000 s episode (listed times stand)."""
+    gen = _gen()
+    prompts = []
+    base = _llm('', NOTES3)
+
+    def fake(**kw):
+        if kw['call_label'] == 'chapter topic detection':
+            prompts.append(kw['prompt'])
+        return base(**kw)
+
+    with patch('chapters_generator.call_llm', side_effect=fake), \
+         patch.object(chapters_generator, 'resolve_chapter_geometry',
+                      return_value=(600, window_span, 20, 180)):
+        gen.generate_chapters(_segments(3000), episode_description=NOTES3,
+                              podcast_name='Show', episode_title='Ep', **kwargs)
+    return prompts
 
 
-@pytest.mark.parametrize('description', [
-    '(2:30) use code ACME for 20% off\n(12:30) Visit example.com/show\n(25:00) Free trial at Acme',
-])
-def test_promo_only_lists_fall_back_to_topic_detection(description):
-    assert _uses_show_notes(description)[0] is False
+def test_each_window_lists_only_the_overlapping_chapters():
+    first, second = _topic_prompts(1500)[:2]
+    assert '00:00-08:00 Intro\n08:00-10:30 Alpha topic\n10:30-35:30 Bravo topic' in first
+    assert 'Charlie topic' not in first
+    assert '10:30-35:30 Bravo topic\n35:30-50:00 Charlie topic' in second
+    assert 'Intro' not in second.split('already list')[1]
+    assert 'Do not emit a boundary at the start of a listed chapter' in first
+    assert '`<short name>: <subtopic>`' in first and 'plain title' in first
 
 
-def test_promo_line_is_not_a_chapter_or_counted():
-    description = ('01:00 One\n05:00 Two\n10:00 Three\n15:00 Four\n20:00 Five\n'
-                   '25:00 Use code ACME for 20% off')
-    aligned, chapters = _uses_show_notes(description)
-    assert aligned
-    titles = [c['title'] for c in chapters]
-    assert [t for t in titles if t != 'Intro'] == ['One', 'Two', 'Three', 'Four', 'Five']
-    assert not any('ACME' in t for t in titles)
+def test_a_long_window_lists_every_chapter_it_spans():
+    (prompt,) = _topic_prompts(3000)
+    assert ('00:00-08:00 Intro\n08:00-10:30 Alpha topic\n10:30-35:30 Bravo topic\n'
+            '35:30-50:00 Charlie topic') in prompt
 
 
-@pytest.mark.parametrize('title', [
-    'Am I Wrong About AI', 'Amazing Grace', 'Acme.com acquisition news',
-    'Why AI.dev tools matter', 'Deploying to Vercel.app', 'Use code review to ship faster',
-    'Listener mail and discount codes explained'])
-def test_real_titles_are_not_filtered(title):
-    assert not chapters_generator._CLOCK_TITLE.match(title)
-    assert not chapters_generator._PROMO_TITLE.search(title)
+def test_plain_topic_detection_has_no_listed_block():
+    prompts = _topic_prompts(1500, show_notes_chapters=False)
+    assert prompts and all('already list' not in p for p in prompts)
 
 
-@pytest.mark.parametrize('title', ['AM', 'AM Registration', 'PM show', 'p.m. Lunch', 'pm - doors'])
-def test_clock_suffix_titles_are_filtered(title):
-    assert chapters_generator._CLOCK_TITLE.match(title)
+# The LLM reads the notes: prose, invented times, NONE, no time token.
+
+PROSE = ("Some intro sentence. First some news since last time (06:25). Then the companies this "
+         "time: Acme (56:15); Globex (65:35); Initech (80:50) and finally an interview with "
+         "Jane Doe, CEO of Umbrella (113:40). Enjoy!")
+PROSE_REPLY = ('06:25 News since last time\n56:15 Acme\n65:35 Globex\n80:50 Initech\n'
+               '113:40 Interview with Jane Doe')
+PROSE_SHUFFLED = ("Some intro. News since last time can be found from (24:00). Today's companies "
+                  "are Acme (05:45); Globex (64:46); Initech (78:40); Hooli (92:00) and the "
+                  "interview with CEO John Smith (104:00). Welcome!")
+SHUFFLED_REPLY = ('24:00 News since last time\n5:45 Acme\n64:46 Globex\n78:40 Initech\n'
+                  '92:00 Hooli\n104:00 Interview with John Smith')
 
 
-@pytest.mark.parametrize('title', [
-    'use code ACME for 20% off', 'use code save20', 'Visit example.com', 'example.com/show',
-    'Free trial at Acme', 'https://example.com'])
-def test_promo_titles_are_filtered(title):
-    assert chapters_generator._PROMO_TITLE.search(title)
+def _prose_run(description, extract, duration=7200, reply=''):
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]):
+        chapters, mock = _run(gen, description, duration, reply, extract)
+    return gen, chapters, mock
+
+
+def test_prose_notes_become_chapters_with_the_llm_titles():
+    # The first listed time is past ten minutes in the second example; that no longer matters.
+    _, chapters, mock = _prose_run(PROSE, PROSE_REPLY)
+    assert [c['title'] for c in chapters] == [
+        'Intro', 'News since last time', 'Acme', 'Globex', 'Initech', 'Interview with Jane Doe']
+    assert _starts(chapters)[1:] == [385, 3375, 3935, 4850, 6820]
+    assert EXTRACT in _labels(mock)
+
+
+def test_extraction_prompt_carries_the_stripped_notes():
+    _, _, mock = _prose_run('<p>' + PROSE + '</p>', PROSE_REPLY)
+    prompt = mock.call_args_list[0].kwargs['prompt']
+    assert prompt == chapters_generator.SHOW_NOTES_EXTRACT_PROMPT.format(notes=PROSE)
+
+
+def test_prose_notes_out_of_order_are_sorted_and_short_minutes_match():
+    _, chapters, _ = _prose_run(PROSE_SHUFFLED, SHUFFLED_REPLY)
+    assert _starts(chapters)[1:] == [345, 1440, 3886, 4720, 5520, 6240]
+    assert [c['title'] for c in chapters][1:3] == ['Acme', 'News since last time']
+
+
+def test_invented_times_are_dropped():
+    extract = PROSE_REPLY + '\n99:00 Something the notes never listed'
+    _, chapters, _ = _prose_run(PROSE, extract)
+    assert len(chapters) == 6
+    assert 99 * 60 not in _starts(chapters)
+
+
+def test_entries_with_a_bad_time_or_no_title_are_skipped():
+    gen = _gen()
+    with patch('chapters_generator.call_llm',
+               return_value=(_Response('06:25\nsoon Acme\n56:15 Acme\n99:99 Typo'), None)):
+        assert gen._extract_show_notes_entries(PROSE) == [(3375.0, 'Acme')]
+
+
+def test_list_markers_and_markdown_around_the_time_are_read():
+    gen = _gen()
+    reply = '- 06:25 News\n2. `56:15` Acme\n* **65:35** - Globex\n(80:50) Initech'
+    with patch('chapters_generator.call_llm', return_value=(_Response(reply), None)):
+        assert gen._extract_show_notes_entries(PROSE) == [
+            (385.0, 'News'), (3375.0, 'Acme'), (3935.0, 'Globex'), (4850.0, 'Initech')]
+
+
+def test_duplicate_times_keep_the_first_title():
+    gen = _gen()
+    with patch('chapters_generator.call_llm',
+               return_value=(_Response('56:15 First\n56:15 Second\n6:25 News'), None)):
+        assert gen._extract_show_notes_entries(PROSE) == [
+            (385.0, 'News'), (3375.0, 'First')]
+
+
+def test_none_reply_goes_to_topic_detection_with_the_raw_description():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', side_effect=_llm('', PROSE, 'NONE')):
+        gen.generate_chapters(_segments(), episode_description=PROSE,
+                              podcast_name='Show', episode_title='Ep')
+    windowed.assert_called_once()
+    assert windowed.call_args.kwargs['episode_description'] == PROSE
+    assert not windowed.call_args.kwargs['description_anchors']
+    assert gen.show_notes_starts == frozenset()
+
+
+def test_raw_description_goes_to_window_zero_only_without_entries():
+    gen = _gen()
+    prompts = []
+    with patch.object(gen, '_detect_topic_boundaries', side_effect=lambda *a, **k: prompts.append(
+            k['episode_description']) or []):
+        gen._detect_boundaries_windowed(
+            _segments(3000), 3000, 600, 1200, 20, episode_description=PROSE)
+    assert prompts[0] == PROSE and all(p is None for p in prompts[1:])
+
+
+@pytest.mark.parametrize('description', [None, '', 'No times here, just prose (about 5 minutes).',
+                                         'Release 1.2.3 on 2026-11-26'])
+def test_no_time_token_means_no_extraction_call(description):
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]), \
+         patch('chapters_generator.call_llm', side_effect=_llm('Opening', description)) as call:
+        gen.generate_chapters(_segments(), episode_description=description,
+                              podcast_name='Show', episode_title='Ep')
+    assert EXTRACT not in _labels(call)
+
+
+def test_extraction_rate_limit_propagates():
+    gen = _gen()
+    with patch('chapters_generator.call_llm',
+               return_value=(None, ProviderRateLimitedError('slow down', 60))):
+        with pytest.raises(ProviderRateLimitedError):
+            gen._extract_show_notes_entries(PROSE)
+
+
+def test_time_token_ignores_parts_of_longer_numbers():
+    tokens = chapters_generator._TIME_TOKEN
+    assert [m.group(1) for m in tokens.finditer('at 5:45 and (104:00) 1:02:03 12:345 9:5')] == [
+        '5:45', '104:00', '1:02:03']

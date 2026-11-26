@@ -14,7 +14,7 @@ bootstrap('chapters_generator_test_')
 
 import chapters_generator
 from chapters_generator import (
-    ChaptersGenerator, _parse_description_anchors,
+    ChaptersGenerator,
     build_segment_hints,
 )
 from llm_client import ProviderRateLimitedError
@@ -185,10 +185,11 @@ class TestDetectTopicBoundariesDescription:
             num_splits=3,
             episode_description='00:00 Intro\n05:30 Main\n15:00 Guest',
         )
-        # Description contains parseable anchors -> candidate-boundary path.
+        # No extracted anchors were passed -> the raw description is injected.
         assert '00:00 Intro' in stub.last_prompt
         assert '15:00 Guest' in stub.last_prompt
-        assert 'Candidate boundaries from show notes' in stub.last_prompt
+        assert 'Episode description:' in stub.last_prompt
+        assert 'Candidate boundaries from show notes' not in stub.last_prompt
 
     def test_no_description_block_when_empty(self):
         gen, stub = _make_generator_with_stub(canned_text='')
@@ -306,60 +307,8 @@ class TestGenerateChaptersUnifiedEntryPoint:
         assert 'ad body should be dropped' not in topic_prompt
 
 
-class TestParseDescriptionAnchors:
-    """Deterministic show-note timestamp extraction."""
-
-    def test_extracts_plain_mmss_lines(self):
-        desc = "00:00 Intro\n05:30 Main topic\n15:00 Guest interview"
-        assert _parse_description_anchors(desc) == [
-            ('00:00', 'Intro'),
-            ('05:30', 'Main topic'),
-            ('15:00', 'Guest interview'),
-        ]
-
-    def test_extracts_bracketed_format(self):
-        desc = "Show notes:\n[00:30] Welcome\n[12:45] Deep dive"
-        result = dict(_parse_description_anchors(desc))
-        assert result['00:30'] == 'Welcome'
-        assert result['12:45'] == 'Deep dive'
-
-    def test_extracts_parenthesized_format(self):
-        desc = "(0:00) Intro\n(5:30) Topic A"
-        result = dict(_parse_description_anchors(desc))
-        assert result['0:00'] == 'Intro'
-        assert result['5:30'] == 'Topic A'
-
-    def test_strips_html_wrappers(self):
-        desc = "<p>00:00 Intro</p><br/>05:30 Main<br>15:00 Guest"
-        result = dict(_parse_description_anchors(desc))
-        assert result['00:00'] == 'Intro'
-        assert result['05:30'] == 'Main'
-        assert result['15:00'] == 'Guest'
-
-    def test_empty_when_no_timestamps(self):
-        desc = "Just a regular description with no timestamps."
-        assert _parse_description_anchors(desc) == []
-
-    def test_empty_for_none_or_blank(self):
-        assert _parse_description_anchors(None) == []
-        assert _parse_description_anchors('') == []
-        assert _parse_description_anchors('   \n  ') == []
-
-    def test_sorted_by_time(self):
-        desc = "15:00 Late\n05:30 Mid\n00:00 Start"
-        anchors = _parse_description_anchors(desc)
-        assert [ts for ts, _ in anchors] == ['00:00', '05:30', '15:00']
-
-    def test_drops_too_short_or_numeric_titles(self):
-        desc = "00:00 A\n05:30 12345\n10:00 Real Title"
-        result = dict(_parse_description_anchors(desc))
-        assert '00:00' not in result  # title too short
-        assert '05:30' not in result  # title is digits only
-        assert result['10:00'] == 'Real Title'
-
-
 class TestDescriptionAnchorPromptInjection:
-    """Anchors found in the description go into the prompt as candidate boundaries."""
+    """Anchors extracted from the description go into the prompt as candidate boundaries."""
 
     def test_anchors_inject_candidate_block(self):
         gen, stub = _make_generator_with_stub(canned_text='')
@@ -369,6 +318,7 @@ class TestDescriptionAnchorPromptInjection:
             end_time=1800.0,
             num_splits=3,
             episode_description="00:00 Intro\n05:30 Main\n15:00 Guest",
+            anchors=[('00:00', 'Intro'), ('05:30', 'Main'), ('15:00', 'Guest')],
         )
         prompt = stub.last_prompt
         assert 'Candidate boundaries from show notes:' in prompt
