@@ -36,7 +36,8 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence, formatConfidenceTitle } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
-import { confirmLabel, isKeepLike, rejectLabel } from '../utils/segmentCategory';
+import { confirmLabel, isKeepLike, isKeptByCategory, rejectLabel, resolveCategoryAction } from '../utils/segmentCategory';
+import { useFeedSegmentActions } from '../hooks/useFeedSegmentActions';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
@@ -810,6 +811,10 @@ function EpisodeDetail() {
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
   const markerPlayProps = markerAudioUrl ? {} : { disabled: true, title: DEMO_AUDIO_TOOLTIP };
+
+  // Same rule as the review modal: a keep or mark stamp refuses a verdict, and a
+  // category the feed leaves in makes one moot, so the row offers no buttons.
+  const segmentActions = useFeedSegmentActions(slug);
 
   const description = episode?.description;
   const chapterNotes = episode?.chapterNotes;
@@ -2113,6 +2118,10 @@ function EpisodeDetail() {
                   const rejectedKey = `rejected-${segment.start}-${segment.end}`;
                   const originalAd = toOriginalAd(segment);
                   const rejectedPlaying = markerAudition.playingKey === rejectedKey;
+                  const verdictRefused = isKeepLike(segment.actionApplied);
+                  const keptByPick = isKeptByCategory(segment.category, segment.actionApplied, segmentActions);
+                  const categoryLeftIn = keptByPick
+                    || (verdictRefused && resolveCategoryAction(segment.category, segmentActions) === null);
                   return (
                     <>
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -2175,7 +2184,14 @@ function EpisodeDetail() {
                           {segment.reason}
                         </ExpandableText>
                       )}
-                      {!correction && (
+                      {!correction && (keptByPick || verdictRefused) && (
+                        <p className="text-sm text-muted-foreground mt-2" data-testid={`rejected-kept-hint-${index}`}>
+                          {categoryLeftIn
+                            ? 'Left in by its category. Change it in the editor to cut this span.'
+                            : 'This category is not left in. Recut the episode to apply it.'}
+                        </p>
+                      )}
+                      {!correction && !keptByPick && !verdictRefused && (
                         <div className="flex flex-col sm:flex-row gap-2 mt-3">
                           <DemoDisabled>
                             <button

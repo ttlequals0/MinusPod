@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- The Detections not cut list on the episode page offered Confirm and Keep on a marker whose category the feed leaves in the audio, such as an intro after it was recategorized in the review dialog. The dialog already hid those buttons, since a recut sorts markers by their category's action before it reads any verdict, and a keep or mark marker refuses a verdict. The list now applies the same rule and shows the dialog's hint in place of the buttons.
+
 ## [2.102.20] - 2026-11-25
 
 ### Fixed
