@@ -8,6 +8,7 @@ import {
 import { PatternExportEditRow } from './PatternExportEditRow';
 import { getErrorMessage } from '../api/client';
 import { Modal, dialogFooterBtn } from './Modal';
+import CloseButton from './CloseButton';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
@@ -173,21 +174,24 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
       closeOnBackdrop
       panelClassName="w-full max-w-2xl max-h-[80vh] flex flex-col text-card-foreground"
     >
-      <div className="p-6 pb-3 border-b border-border">
-        <h2 className="text-lg font-semibold mb-1">Export patterns</h2>
-        <p className="text-sm text-muted-foreground">
-          Pick the patterns to include, then choose where they go.
-        </p>
+      <div className="p-6 pb-3 border-b border-border flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold mb-1">Export patterns</h2>
+          <p className="text-sm text-muted-foreground">
+            Pick the patterns to include, then choose where they go.
+          </p>
+        </div>
+        <CloseButton onClick={handleClose} label="Close dialog" />
       </div>
 
       <div className="px-6 py-3 border-b border-border space-y-2 text-sm">
-        <label className="flex items-start gap-2 cursor-pointer">
+        <label className="flex items-start gap-2 cursor-pointer pointer-coarse:min-h-11">
           <input
             type="radio"
             name="export-destination"
             checked={destination === 'download'}
             onChange={() => changeDestination('download')}
-            className="mt-0.5"
+            className={`mt-0.5 accent-primary ${focusRing}`}
           />
           <span>
             <span className="font-medium">Download as JSON</span>
@@ -196,13 +200,13 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
             </span>
           </span>
         </label>
-        <label className="flex items-start gap-2 cursor-pointer">
+        <label className="flex items-start gap-2 cursor-pointer pointer-coarse:min-h-11">
           <input
             type="radio"
             name="export-destination"
             checked={destination === 'community'}
             onChange={() => changeDestination('community')}
-            className="mt-0.5"
+            className={`mt-0.5 accent-primary ${focusRing}`}
           />
           <span>
             <span className="font-medium">Submit to community</span>
@@ -320,7 +324,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
 
           <div className="p-6 pt-3 border-t border-border space-y-3">
             {destination === 'download' && (
-              <div className="flex items-center gap-4 text-sm">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                 <Checkbox
                   checked={includeDisabled}
                   onChange={setIncludeDisabled}

@@ -478,7 +478,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
     <div>
       {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
 
-      <div role="region" aria-label="Processing runs; scroll for more columns" tabIndex={0} className="hidden sm:block overflow-x-auto" style={{ containerType: 'inline-size' }}>
+      <div role="region" aria-label="Processing runs; scroll for more columns" tabIndex={0} className="hidden lg:block overflow-x-auto" style={{ containerType: 'inline-size' }}>
         <table className="w-full text-sm">
           <thead className={tableHead}>
             <tr>
@@ -531,7 +531,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
         </table>
       </div>
 
-      <div className="sm:hidden space-y-3">
+      <div className="lg:hidden space-y-3">
         {runs.map((run) => {
           const key = runKey(run);
           const expanded = expandedRuns.has(key);

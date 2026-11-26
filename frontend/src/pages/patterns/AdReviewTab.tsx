@@ -104,7 +104,7 @@ export default function AdReviewTab() {
   return (
     <div>
       {counts && (
-        <section aria-label="Detection statistics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <section aria-label="Detection statistics" className="grid grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4 mb-6">
           <StatTile label="Total" value={counts.total} />
           <StatTile label="Needs review" value={counts.needsReview} tone={counts.needsReview > 0 ? 'warning' : 'default'} />
           <StatTile label={STATUS_BADGE.rejected[0]} value={counts.rejected} />

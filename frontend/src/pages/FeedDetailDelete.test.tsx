@@ -37,7 +37,6 @@ vi.mock('../api/feeds', () => ({
   deleteFeed: (...a: unknown[]) => mockDeleteFeed(...a),
   refreshFeed: vi.fn(),
   updateFeed: vi.fn(),
-  reprocessAllEpisodes: vi.fn(),
   bulkEpisodeAction: vi.fn(),
 }));
 

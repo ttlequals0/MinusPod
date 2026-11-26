@@ -349,8 +349,8 @@ function Dashboard() {
             title="Add feed"
             aria-label="Add feed"
           >
-            <Plus className="w-5 h-5 md:w-4 md:h-4" aria-hidden="true" />
-            <span className="hidden md:inline">Add feed</span>
+            <Plus className="w-5 h-5 min-[600px]:w-4 min-[600px]:h-4" aria-hidden="true" />
+            <span className="hidden min-[600px]:inline">Add feed</span>
           </Link>
           </div>
         </div>

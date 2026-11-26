@@ -169,12 +169,12 @@ function CategorySelect({ d, onCategory, busy, className = '', title }: {
   );
 }
 
-// Below sm a card button is a 44px square icon; from sm it is the text button.
-const cardBtn = `${cardActionBtn} max-sm:h-11 max-sm:w-11 max-sm:px-0 leading-tight`;
+// Below sm a card button is a 44px icon that grows to fill the row evenly; from sm it is the text button.
+const cardBtn = `${cardActionBtn} max-sm:h-11 max-sm:w-11 max-sm:grow max-sm:px-0 leading-tight`;
 const cardCategoryClass = 'min-h-[44px] text-left min-w-0';
-// Cards: the select fills the space beside the buttons (6rem floor) or wraps, capped at the button-row width (--btn-row, 12rem minimum).
-// From sm it is a fixed 12rem so selects line up from card to card.
-const cardSelectClass = 'flex-1 basis-24 truncate max-w-[max(var(--btn-row),12rem)] sm:flex-none sm:w-48';
+// Cards: the select fills the space beside the buttons (9rem floor) or wraps to full width on phones.
+// From sm it is a fixed 11rem so selects line up from card to card.
+const cardSelectClass = 'flex-1 basis-36 truncate max-w-full sm:flex-none sm:w-44';
 
 // Fixed columns after the title in a table row, in render order. A tab gets a track only for a control it can show, so
 // each control starts at the same x in every row. Button tracks grow to the 44px target on coarse pointers (--tap).
@@ -245,6 +245,7 @@ function DetectionActions({ d, variant, keepLike, playing, onTogglePlay, actions
   const noAudio = IS_DEMO;
   const play = d.hasOriginalAudio && (
     <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'full' : 'row'}
+      className={isCard ? 'max-sm:grow' : ''}
       disabled={noAudio} title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined} />
   );
   const categorySelect = actions.onCategory && (

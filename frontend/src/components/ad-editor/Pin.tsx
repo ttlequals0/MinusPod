@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { formatTime } from '../../utils/adReviewHelpers';
 
 // Vertical drag handle above the waveform that controls an ad boundary. Pins are the user's drag interface;
@@ -11,6 +11,14 @@ const DEFAULT_MIN_SEPARATION = 1.0;
 // Keyboard nudge per Arrow press, and the coarser step Shift applies.
 const NUDGE_SECONDS = 0.1;
 const NUDGE_SECONDS_COARSE = 1.0;
+
+// Shift a time pill inward so it is not clipped at the container edges.
+export function shiftLabelInward(label: HTMLElement, container: HTMLElement, leftPct: number) {
+  const half = label.offsetWidth / 2;
+  const w = container.getBoundingClientRect().width;
+  const x = (w * leftPct) / 100;
+  label.style.marginLeft = `${Math.min(Math.max(x, half), w - half) - x}px`;
+}
 
 interface PinProps {
   kind: 'start' | 'end' | 'divider';
@@ -42,6 +50,7 @@ export function Pin({
   totalDuration,
 }: PinProps) {
   const [dragging, setDragging] = useState(false);
+  const labelRef = useRef<HTMLDivElement>(null);
 
   const relX = (boundary - windowStart) / windowDuration;
   // Tolerate slightly outside [0, 1]: post-roll ads often have adEnd a hair past the audio's end (relX ~1.0001),
@@ -76,6 +85,18 @@ export function Pin({
     neighboursValid ? rawUpper : Number.POSITIVE_INFINITY,
   );
   const clamp = (t: number) => Math.min(Math.max(t, lowerBound), upperBound);
+
+  useLayoutEffect(() => {
+    const label = labelRef.current;
+    const container = containerRef.current;
+    if (!label || !container) return;
+    const shift = () => shiftLabelInward(label, container, leftPct);
+    shift();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(shift);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, leftPct, labelText, boundary, visible]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -159,10 +180,11 @@ export function Pin({
           dragging ? `ring-4 ${ringColor} scale-125 motion-reduce:scale-100` : ''
         } transition-transform motion-reduce:transition-none`}
       />
-      {/* Time label: only visible while dragging or on hover. */}
+      {/* Time label: visible on touch devices and while dragging or hovered. */}
       <div
-        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
-          dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        ref={labelRef}
+        className={`absolute -top-4 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
+          dragging ? 'opacity-100' : 'opacity-0 pointer-coarse:opacity-100 group-hover:opacity-100'
         }`}
       >
         {labelText} {formatTime(boundary)}
