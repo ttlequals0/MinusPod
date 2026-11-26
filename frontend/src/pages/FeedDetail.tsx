@@ -707,7 +707,7 @@ function FeedDetail() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 min-[360px]:flex gap-2 sm:gap-4 items-center sm:flex-wrap sm:justify-between">
+        <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-4 items-center sm:justify-between">
           <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
             <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
@@ -719,19 +719,17 @@ function FeedDetail() {
             <CopyButton
               text={feed.feedUrl}
               label="Copy feed URL"
-              className={`shrink-0 max-[359px]:w-full px-2.5 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-1.5 sm:gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`shrink-0 max-sm:w-full justify-center px-2.5 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-1.5 sm:gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
               labelClassName="text-xs sm:text-sm whitespace-nowrap"
             />
           </div>
-          {/* Below sm: one row (copy first), a 2x2 grid under 360 px; from sm it wraps so nowrap buttons never overflow. */}
-          <div className="contents min-[360px]:flex min-[360px]:flex-1 min-w-0 gap-2 [&>div]:flex-1 sm:flex-none sm:flex-wrap sm:justify-end sm:[&>div]:flex-none">
+          {/* Below sm: a 2x2 grid so full labels and dropdown carets fit without clipping; from sm it wraps. */}
+          <div className="contents sm:flex sm:flex-none sm:flex-wrap sm:justify-end min-w-0 gap-2">
             {!isRecents && (
             <DropdownMenu
-              triggerLabel={
-                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">{reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all'}</span></>
-              }
-              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
+              triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all'}
+              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto justify-center`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
               align="left"
@@ -765,10 +763,8 @@ function FeedDetail() {
             )}
             {feedHasUpstream(feed) && (
               <DropdownMenu
-                triggerLabel={
-                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">{refreshMutation.isPending ? 'Refreshing...' : 'Refresh feed'}</span></>
-                }
-                triggerClassName={`${btnBase} ${btnPrimaryOutline} w-full sm:w-auto`}
+                triggerLabel={refreshMutation.isPending ? 'Refreshing...' : 'Refresh feed'}
+                triggerClassName={`${btnBase} ${btnPrimaryOutline} w-full sm:w-auto justify-center`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
@@ -790,12 +786,12 @@ function FeedDetail() {
               <button
                 onClick={handleDeleteFeed}
                 disabled={deleteMutation.isPending}
-                className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-[359px]:w-full`}
+                className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-sm:w-full justify-center gap-1.5`}
                 title="Delete feed"
                 aria-label="Delete feed"
               >
                 <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Delete</span>
+                <span>Delete</span>
               </button>
             </DemoDisabled>
           </div>

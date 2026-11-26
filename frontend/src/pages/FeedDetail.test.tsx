@@ -187,17 +187,15 @@ describe('FeedDetail: artwork URL', () => {
 // Label is hidden directly, not via hideLabelOnMobile: its sm:px-2/h-8 lose to
 // this call site's desktop padding since Tailwind orders same-utility conflicts by scale, not source.
 describe('FeedDetail: pending action labels', () => {
-  it('keeps the phone Refresh label fixed and moves the pending wording to sm and up', async () => {
+  it('shows the full Refresh feed and Refreshing... labels across viewports in the 2-column mobile grid', async () => {
     vi.mocked(refreshFeed).mockReturnValue(new Promise(() => {}));
     renderFeedDetail(makeFeed({}));
     const trigger = await screen.findByTitle('Refresh feed');
+    expect(trigger.textContent).toBe('Refresh feed');
     fireEvent.click(trigger);
     fireEvent.click(await screen.findByText('Check for new episodes'));
     await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(true));
-    const phone = trigger.querySelector('span.sm\\:hidden');
-    expect(phone?.textContent).toBe('Refresh');
-    const wide = trigger.querySelector('span.hidden.sm\\:inline');
-    expect(wide?.textContent).toBe('Refreshing...');
+    expect(trigger.textContent).toBe('Refreshing...');
   });
 });
 

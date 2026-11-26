@@ -117,7 +117,7 @@ describe('Layout phone tab bar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Toggle menu' }));
     const drawer = screen.getByRole('navigation', { name: 'Mobile navigation' });
     expect(within(drawer).getByRole('link', { name: 'Feeds' }).className).toContain('hidden md:flex');
-    expect(within(drawer).getByRole('link', { name: 'Add feed' }).className).not.toContain('hidden md:flex');
+    expect(within(drawer).getByRole('link', { name: 'Add feed' }).className).toContain('hidden md:flex');
     expect(within(drawer).getByRole('link', { name: 'Settings' }).className).not.toContain('hidden md:flex');
   });
 });

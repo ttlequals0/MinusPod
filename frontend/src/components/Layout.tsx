@@ -101,7 +101,7 @@ function Layout() {
     setMobileMenuOpen(false);
   }
 
-  const phoneCount = NAV_ITEMS.filter((i) => !i.tab).length + (isPasswordSet ? 1 : 0);
+  const phoneCount = NAV_ITEMS.filter((i) => !i.tab && i.to !== '/add').length + (isPasswordSet ? 1 : 0);
   const tabletCount = NAV_ITEMS.length + (isPasswordSet ? 1 : 0);
   const lastSpan = `${phoneCount % 2 === 1 ? 'max-md:col-span-2' : ''} ${tabletCount % 2 === 1 ? 'md:col-span-2' : ''}`.trim();
 
@@ -179,6 +179,7 @@ function Layout() {
             <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
               {NAV_ITEMS.map((item, idx) => {
                 const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
+                const hideOnPhone = Boolean(item.tab) || item.to === '/add';
                 return (
                   <NavLink
                     key={item.to}
@@ -187,7 +188,7 @@ function Layout() {
                     active={isPathActive(location.pathname, item.to)}
                     onClick={() => setMobileMenuOpen(false)}
                     count={item.to === '/queue' ? queueCount : undefined}
-                    className={`${item.tab ? 'hidden md:flex' : ''} ${isLast ? lastSpan : ''}`.trim()}
+                    className={`${hideOnPhone ? 'hidden md:flex' : ''} ${isLast ? lastSpan : ''}`.trim()}
                   />
                 );
               })}

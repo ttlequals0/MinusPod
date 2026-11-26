@@ -91,7 +91,7 @@ function DropdownMenu({
         aria-haspopup="menu"
       >
         {triggerLabel}
-        <ChevronDown className={`${chevronClassName} transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`${chevronClassName} shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       <Popover
         open={isOpen}
