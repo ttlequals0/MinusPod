@@ -14,8 +14,8 @@ import { LlmGate } from './LlmGate';
 import DraftNumberInput from '../../components/DraftNumberInput';
 import { isSystemOneRoute } from './systemoneWarnings';
 import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonStyles';
-import { selectBase, labelBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
+import { selectBase, labelBase, underToggle } from '../../components/fieldStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
@@ -336,7 +336,7 @@ function StageBlockEditor({
   const levelDraft = draft[block.levelKey] as ReasoningLevel | null;
 
   return (
-    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+    <div className={`${subCard} p-3 space-y-3`}>
       <div>
         <h4 className={subHeading}>{block.label}</h4>
         <p className="text-xs text-muted-foreground mt-0.5">{block.description}</p>
@@ -458,7 +458,7 @@ function WindowConfigBlock({
   const overlapDraft = draft.windowOverlapSeconds as number | null;
 
   return (
-    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+    <div className={`${subCard} p-3 space-y-3`}>
       <div>
         <h4 className={subHeading}>Detection window</h4>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -523,7 +523,7 @@ function ConcurrencyConfigBlock({
   setField: (key: string, value: DraftValue) => void;
 }) {
   return (
-    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+    <div className={`${subCard} p-3 space-y-3`}>
       <div>
         <h4 className={subHeading}>Detection concurrency</h4>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -568,7 +568,7 @@ function OmitTemperatureToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="bg-muted/40 rounded-lg border border-border p-3">
+    <div className={`${subCard} p-3`}>
       <label className="flex items-center gap-3 cursor-pointer">
         <ToggleSwitch
           checked={checked}
@@ -579,7 +579,7 @@ function OmitTemperatureToggle({
           Do not send temperature
         </span>
       </label>
-      <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
+      <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
         Some newer models reject the temperature parameter and fail the request. Turn
         this on to leave it out of every LLM call. MinusPod already skips it for models
         known to reject it, and Anthropic never receives it.

@@ -1,5 +1,6 @@
 import { ReactNode, type SyntheticEvent, useEffect, useId, useRef } from 'react';
 import { btnBase, btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
+import CloseButton from './CloseButton';
 import { focusRing } from './fieldStyles';
 
 // Shared modal recipes; everything else renders through <Modal>.
@@ -138,13 +139,15 @@ type ModalProps = ({ ariaLabelledBy: string; ariaLabel?: never } | { ariaLabel: 
   panelClassName?: string;
   // Fixed above/below the scrolling body; with either set, only children scroll.
   header?: ReactNode;
+  // Skip the built-in close button when the header carries its own (for example a draft-guarded close).
+  hideClose?: boolean;
   footer?: ReactNode;
   children: ReactNode;
 }
 
 export function Modal({
   onClose, closeOnEscape = true, closeOnBackdrop = false, ariaLabelledBy, ariaLabel,
-  panelClassName = '', header, footer, children,
+  panelClassName = '', header, hideClose = false, footer, children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose, closeOnEscape, panelRef);
@@ -166,7 +169,12 @@ export function Modal({
       >
         {split ? (
           <>
-            {header !== undefined && <div className="shrink-0 flex items-start justify-between gap-3 p-4 border-b border-border">{header}</div>}
+            {header !== undefined && (
+              <div className="shrink-0 flex items-start justify-between gap-3 p-4 border-b border-border">
+                {header}
+                {!hideClose && <CloseButton onClick={onClose} disabled={!closeOnEscape} className="shrink-0" />}
+              </div>
+            )}
             <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
             {footer !== undefined && <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 p-4 border-t border-border">{footer}</div>}
           </>

@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Modal } from './Modal';
 import { SkeletonRows } from './Skeleton';
-import CloseButton from './CloseButton';
 import { episodeRunLogDownloadUrl, getEpisodeRunLog } from '../api/feeds';
 import type { RunLogLine } from '../api/types';
 import { usePagedList } from '../hooks/usePagedList';
@@ -89,10 +88,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
       <Modal
         ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-lg flex flex-col text-foreground"
         header={(
-          <div className="flex flex-1 items-start justify-between gap-3">
-            <h2 className={cardTitle}>Run {runNumber} log</h2>
-            <CloseButton onClick={onClose} />
-          </div>
+          <h2 className={cardTitle}>Run {runNumber} log</h2>
         )}
       >
         <div className="p-4">
@@ -107,14 +103,11 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
       ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground"
       header={(
         <div className="flex-1 min-w-0 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className={cardTitle}>Run {runNumber} log</h2>
-              <p className="text-sm text-muted-foreground">
-                {data ? `${lines.length} lines, ${formatBytes(data.bytes)}` : 'Pipeline log for this run'}
-              </p>
-            </div>
-            <CloseButton onClick={onClose} />
+          <div>
+            <h2 className={cardTitle}>Run {runNumber} log</h2>
+            <p className="text-sm text-muted-foreground">
+              {data ? `${lines.length} lines, ${formatBytes(data.bytes)}` : 'Pipeline log for this run'}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

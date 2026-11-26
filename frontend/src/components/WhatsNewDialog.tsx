@@ -1,7 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import type { ChangelogSection } from '../api/types';
 import { Modal, dialogFooterBtn } from './Modal';
-import CloseButton from './CloseButton';
 import { btnSecondary } from './buttonStyles';
 import { tableLink } from './tableStyles';
 import LoadingSpinner from './LoadingSpinner';
@@ -71,10 +70,7 @@ function WhatsNewDialog({ current, sections, isError = false, onClose }: WhatsNe
       ariaLabelledBy="whats-new-title"
       panelClassName="w-full max-w-lg max-h-[85dvh] flex flex-col text-card-foreground"
       header={(
-        <>
-          <h2 id="whats-new-title" className="text-lg font-semibold">What's new in {current}</h2>
-          <CloseButton onClick={onClose} label="Close dialog" />
-        </>
+        <h2 id="whats-new-title" className="text-lg font-semibold">What's new in {current}</h2>
       )}
       footer={(
         <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2">

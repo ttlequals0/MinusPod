@@ -17,7 +17,7 @@ import { SortHeader } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
 import SortControls from '../../components/SortControls';
 import QueryError from '../../components/QueryError';
-import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../../components/tableStyles';
+import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard, cardGrid } from '../../components/tableStyles';
 import { inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { pageHeader, pageTitle } from '../../components/pageStyles';
@@ -211,7 +211,7 @@ function DownloadsTab({ tabs }: Props) {
       {!isLoading && data && (
         <>
           {/* Mobile cards */}
-          <div className="md:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
+          <div className={`md:hidden ${cardGrid} mb-4`}>
             {rows.length === 0 ? (
               <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
                 No downloads yet.

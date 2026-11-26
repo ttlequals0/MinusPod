@@ -14,7 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thCompact, padCompact, tdCompact, tdCompactNum, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thCompact, padCompact, tdCompact, tdCompactNum, rowCard, cardGrid } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import SortControls from '../components/SortControls';
 import { ScopeBadge } from '../components/ScopeBadge';
@@ -465,7 +465,7 @@ function PatternsPage() {
         { value: 'confirmation_count', label: 'Confirmed' }, { value: 'false_positive_count', label: 'False positives' },
       ]} />
       {/* Card layout: the 11-column table needs about 1140 CSS px with touch-sized controls */}
-      <div className="xl:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
+      <div className={`xl:hidden ${cardGrid} mb-4`}>
         {paginatedPatterns?.map((pattern) => (
           <div
             key={pattern.id}

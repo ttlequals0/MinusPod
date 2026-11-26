@@ -11,7 +11,7 @@ import { TagChips } from '../components/TagChips';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, th, thBase, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, th, thBase, rowCard, cardGrid } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import SortControls from '../components/SortControls';
 import { formatDate } from '../utils/format';
@@ -157,7 +157,7 @@ export function SponsorsSection() {
         { value: 'created_at', label: 'Created' }, { value: 'last_matched_at', label: 'Last matched' },
       ]} />
       {/* Card layout: the 8-column table needs about 1100 CSS px with touch-sized controls */}
-      <div className="xl:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
+      <div className={`xl:hidden ${cardGrid} mb-4`}>
         {paginated?.map((s) => (
           <div key={s.id} className={rowCard}>
             <div className="flex items-start justify-between gap-2 mb-2">

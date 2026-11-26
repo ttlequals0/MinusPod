@@ -156,7 +156,7 @@ mark,
 /* iOS Safari zooms the page when a focused field is under 16px. Gated on touch input, not width, so landscape phones count; unlayered so it beats text-sm utilities. */
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px; }
-  button, summary, [role="switch"], .touch-target { min-height: 44px; }
+  button, summary, [role="switch"], [role="option"], .touch-target { min-height: 44px; }
   @media (max-width: 639.98px) { .touch-compact { min-height: 36px; } }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
   summary:not(.flex) { padding-block: 12px; }

@@ -100,7 +100,7 @@ function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true, loa
               aria-selected={isActive}
               onMouseMove={() => onHover(i)}
               onClick={() => onSelect(row)}
-              className={`cursor-pointer border-l-2 px-4 py-2 pointer-coarse:min-h-11 ${isActive ? 'border-primary bg-accent font-medium text-accent-foreground' : 'border-transparent'}`}
+              className={`cursor-pointer border-l-2 px-4 py-2 ${isActive ? 'border-primary bg-accent font-medium text-accent-foreground' : 'border-transparent'}`}
             >
               <div className="flex items-start gap-2">
                 {row.timestamp != null && (

@@ -61,7 +61,7 @@ function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className =
                 disabled={disabled}
                 aria-current={r === playbackRate}
                 onClick={() => { onChange(r); setOpen(false); triggerRef.current?.focus(); }}
-                className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'} ${focusRing} max-sm:min-h-11 max-sm:min-w-11 sm:pointer-coarse:min-h-11 sm:pointer-coarse:min-w-11`}
+                className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'} ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
               >
                 {r}&times;
               </button>

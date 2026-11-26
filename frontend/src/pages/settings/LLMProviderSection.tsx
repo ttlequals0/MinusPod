@@ -9,7 +9,7 @@ import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestRe
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { selectBase, labelBase } from '../../components/fieldStyles';
+import { selectBase, labelBase, underToggle } from '../../components/fieldStyles';
 import { LlmGate, NONE_SAVED_NOTE } from './LlmGate';
 import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
@@ -342,7 +342,7 @@ function LLMProviderSection({
                   {SLOT_LABELS.secondary}
                 </span>
               </label>
-              <p className="mt-2 text-sm text-muted-foreground sm:ml-14">
+              <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
                 A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers. Use the Failover card below for automatic switching when one is down.
               </p>
             </div>

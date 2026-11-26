@@ -24,7 +24,7 @@ import StatusBadge from '../components/StatusBadge';
 import DownloadsTab from './history/DownloadsTab';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { tableLink, tableCard, tableHead, th, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../components/tableStyles';
+import { tableLink, tableCard, tableHead, th, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard, cardGrid } from '../components/tableStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
@@ -201,7 +201,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
         { value: 'reprocessNumber', label: 'Reprocess number' }, { value: 'appVersion', label: 'Version' },
       ]} />
       {/* Mobile Card Layout */}
-      <div className="xl:hidden grid grid-cols-1 min-[600px]:grid-cols-2 gap-3 mb-4">
+      <div className={`xl:hidden ${cardGrid} mb-4`}>
         {history.length === 0 ? (
           <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
             No processing history yet.

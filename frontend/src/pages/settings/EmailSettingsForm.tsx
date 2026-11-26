@@ -13,6 +13,7 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost } from '../../components/buttonStyles';
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { subCard } from '../../components/pageStyles';
 
 interface EmailDraft {
   enabled: boolean;
@@ -133,7 +134,7 @@ function EmailSettingsForm() {
   }
 
   return (
-    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-muted/40">
+    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className={`${subCard} space-y-4 p-4`}>
       <fieldset disabled={saveMutation.isPending} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">

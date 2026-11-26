@@ -95,7 +95,7 @@ export function SponsorInput({ value, onChange, sponsors, placeholder, inputClas
                 e.preventDefault();
                 commit(s.name);
               }}
-              className="px-3 py-1.5 pointer-coarse:min-h-11 flex items-center cursor-pointer hover:bg-accent text-foreground"
+              className="px-3 py-1.5 flex items-center cursor-pointer hover:bg-accent text-foreground"
             >
               {s.name}
             </li>
@@ -107,7 +107,7 @@ export function SponsorInput({ value, onChange, sponsors, placeholder, inputClas
                 e.preventDefault();
                 commit(trimmed);
               }}
-              className="px-3 py-1.5 pointer-coarse:min-h-11 flex items-center cursor-pointer hover:bg-accent text-primary border-t border-border"
+              className="px-3 py-1.5 flex items-center cursor-pointer hover:bg-accent text-primary border-t border-border"
             >
               <Plus className="inline w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />
               Add <strong className="font-semibold">{trimmed}</strong>

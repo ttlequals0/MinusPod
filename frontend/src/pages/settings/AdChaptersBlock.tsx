@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { formatPercent } from '../../utils/format';
 import NumberInput from '../../components/NumberInput';
 import { ToggleRow } from './Podcasting20Section';
-import { focusRing, inputBase, labelBase } from '../../components/fieldStyles';
+import { focusRing, inputBase, labelBase, underToggle } from '../../components/fieldStyles';
 
 export interface AdChaptersBlockProps {
   chaptersEnabled: boolean;
@@ -59,7 +59,7 @@ function AdChaptersBlock({
 }: AdChaptersBlockProps) {
   const disabled = !chaptersEnabled;
   return (
-    <div className={`sm:ml-14 space-y-4 ${disabled ? 'opacity-50' : ''}`}>
+    <div className={`${underToggle} space-y-4 ${disabled ? 'opacity-50' : ''}`}>
       <div>
         <p className="text-sm font-medium text-foreground">Ad chapters</p>
         <p className="mt-2 text-sm text-muted-foreground">

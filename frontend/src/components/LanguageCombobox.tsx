@@ -137,7 +137,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
                   e.preventDefault();
                   commit(opt.code);
                 }}
-                className={`flex items-center justify-between px-3 py-1.5 pointer-coarse:min-h-11 cursor-pointer text-sm ${
+                className={`flex items-center justify-between px-3 py-1.5 cursor-pointer text-sm ${
                   active ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
                 }`}
               >
@@ -155,7 +155,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
                 e.preventDefault();
                 commit(query.trim());
               }}
-              className={`flex items-center px-3 py-1.5 pointer-coarse:min-h-11 cursor-pointer text-sm ${
+              className={`flex items-center px-3 py-1.5 cursor-pointer text-sm ${
                 highlight === options.length ? 'bg-secondary text-secondary-foreground' : 'text-foreground'
               }`}
             >

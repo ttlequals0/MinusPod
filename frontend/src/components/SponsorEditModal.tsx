@@ -8,7 +8,6 @@ import { getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
-import CloseButton from './CloseButton';
 import SaveCancelFooter from './SaveCancelFooter';
 import { focusRing, inputBase, labelBase, selectBase } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
@@ -81,12 +80,9 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
   return (
     <Modal ariaLabel={isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`} onClose={requestClose} panelClassName="max-w-lg w-full"
       header={(
-        <>
-          <h2 className="text-lg font-semibold text-foreground">
-            {isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`}
-          </h2>
-          <CloseButton onClick={requestClose} />
-        </>
+        <h2 className="text-lg font-semibold text-foreground">
+          {isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`}
+        </h2>
       )}
       footer={(
         <SaveCancelFooter

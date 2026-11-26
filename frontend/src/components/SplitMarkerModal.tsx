@@ -8,7 +8,6 @@ import { episodeOriginalUrl } from '../api/feeds';
 import { getSponsors } from '../api/sponsors';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { Modal, modalPanel, dialogFooterBtn } from './Modal';
-import CloseButton from './CloseButton';
 import { SkeletonRows } from './Skeleton';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { Pin } from './ad-editor/Pin';
@@ -286,15 +285,12 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
       closeOnEscape
       panelClassName={`${modalPanel} max-w-4xl w-full`}
       header={(
-        <>
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add or drag dividers between ads.
-            </p>
-          </div>
-          <CloseButton onClick={onClose} />
-        </>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Add or drag dividers between ads.
+          </p>
+        </div>
       )}
       footer={!isLoading && !isError ? (
         <div className="flex items-center gap-2 flex-wrap max-sm:w-full max-sm:grid max-sm:grid-cols-2">

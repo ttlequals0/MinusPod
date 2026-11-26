@@ -35,7 +35,7 @@ describe('WhatsNewDialog', () => {
   it('calls onClose from Close', async () => {
     const onClose = vi.fn();
     render(<WhatsNewDialog current="2.101.17" sections={SECTIONS} onClose={onClose} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

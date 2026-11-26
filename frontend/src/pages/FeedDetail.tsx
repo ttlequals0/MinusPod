@@ -37,7 +37,6 @@ import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
-import CloseButton from '../components/CloseButton';
 import { Modal, ConfirmModal, dialogFooterBtn } from '../components/Modal';
 import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive, btnPrimaryOutline, btnDestructiveOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase } from '../components/fieldStyles';
@@ -1009,10 +1008,7 @@ function FeedDetail() {
           onClose={() => setShowReprocessConfirm(false)}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 className={cardTitle}>Reprocess all episodes?</h2>
-              <CloseButton onClick={() => setShowReprocessConfirm(false)} label="Close dialog" />
-            </>
+            <h2 className={cardTitle}>Reprocess all episodes?</h2>
           )}
           footer={(
             <>
@@ -1061,10 +1057,7 @@ function FeedDetail() {
           onClose={closeReprocessModal}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 className={cardTitle}>Reprocess queued</h2>
-              <CloseButton onClick={closeReprocessModal} label="Close dialog" />
-            </>
+            <h2 className={cardTitle}>Reprocess queued</h2>
           )}
           footer={(
             <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
@@ -1092,10 +1085,7 @@ function FeedDetail() {
           onClose={closeReprocessModal}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 className={cardTitle}>Could not reprocess episodes</h2>
-              <CloseButton onClick={closeReprocessModal} label="Close dialog" />
-            </>
+            <h2 className={cardTitle}>Could not reprocess episodes</h2>
           )}
           footer={(
             <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
@@ -1115,12 +1105,9 @@ function FeedDetail() {
           onClose={() => setShowBulkDeleteConfirm(false)}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 className={cardTitle}>
-                Delete {effectiveSelectedIds.size} episode{effectiveSelectedIds.size > 1 ? 's' : ''}?
-              </h2>
-              <CloseButton onClick={() => setShowBulkDeleteConfirm(false)} label="Close dialog" />
-            </>
+            <h2 className={cardTitle}>
+              Delete {effectiveSelectedIds.size} episode{effectiveSelectedIds.size > 1 ? 's' : ''}?
+            </h2>
           )}
           footer={(
             <>
@@ -1156,10 +1143,7 @@ function FeedDetail() {
           onClose={() => setBulkResult(null)}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 className={cardTitle}>Bulk action complete</h2>
-              <CloseButton onClick={() => setBulkResult(null)} label="Close dialog" />
-            </>
+            <h2 className={cardTitle}>Bulk action complete</h2>
           )}
           footer={(
             <button onClick={() => setBulkResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
@@ -1194,12 +1178,9 @@ function FeedDetail() {
           onClose={() => setPassthroughResult(null)}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 className={cardTitle}>
-                {passthroughResult.enabled ? 'Pass-through set' : 'Pass-through cleared'}
-              </h2>
-              <CloseButton onClick={() => setPassthroughResult(null)} label="Close dialog" />
-            </>
+            <h2 className={cardTitle}>
+              {passthroughResult.enabled ? 'Pass-through set' : 'Pass-through cleared'}
+            </h2>
           )}
           footer={(
             <button onClick={() => setPassthroughResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>

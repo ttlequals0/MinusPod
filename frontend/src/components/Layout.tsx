@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
 ];
 const TAB_ITEMS = NAV_ITEMS.flatMap(({ to, label, tab }) => (tab ? [{ to, label, ...tab }] : [])).sort((a, b) => a.order - b.order);
+const navItemBase = `touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing}`;
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 
 interface NavLinkProps {
@@ -46,7 +47,7 @@ function NavLink({ to, label, active, onClick, count, className = '' }: NavLinkP
       to={to}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
+      className={`${navItemBase} ${
         active
           ? 'bg-primary text-primary-foreground'
           : btnGhost
@@ -100,6 +101,10 @@ function Layout() {
     setMobileMenuOpen(false);
   }
 
+  const phoneCount = NAV_ITEMS.filter((i) => !i.tab).length + (isPasswordSet ? 1 : 0);
+  const tabletCount = NAV_ITEMS.length + (isPasswordSet ? 1 : 0);
+  const lastSpan = `${phoneCount % 2 === 1 ? 'max-md:col-span-2' : ''} ${tabletCount % 2 === 1 ? 'md:col-span-2' : ''}`.trim();
+
   return (
     <div className="min-h-screen bg-background">
       <a
@@ -151,7 +156,7 @@ function Layout() {
               {isPasswordSet && (
                 <button
                   onClick={handleLogout}
-                  className={`hidden xl:inline-flex ${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                  className={`max-xl:hidden ${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                   aria-label="Log out"
                   title="Log out"
                 >
@@ -169,41 +174,36 @@ function Layout() {
             </div>
           </div>
         </div>
-        {mobileMenuOpen && (() => {
-          const phoneCount = NAV_ITEMS.filter((i) => !i.tab).length + (isPasswordSet ? 1 : 0);
-          const tabletCount = NAV_ITEMS.length + (isPasswordSet ? 1 : 0);
-          const lastSpan = `${phoneCount % 2 === 1 ? 'max-md:col-span-2' : ''} ${tabletCount % 2 === 1 ? 'md:col-span-2' : ''}`.trim();
-          return (
-            <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
-              <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
-                {NAV_ITEMS.map((item, idx) => {
-                  const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      label={item.label}
-                      active={isPathActive(location.pathname, item.to)}
-                      onClick={() => setMobileMenuOpen(false)}
-                      count={item.to === '/queue' ? queueCount : undefined}
-                      className={`${item.tab ? 'hidden md:flex' : ''} ${isLast ? lastSpan : ''}`.trim()}
-                    />
-                  );
-                })}
-                {isPasswordSet && (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className={`touch-target flex min-h-11 items-center gap-2 px-3 py-2 text-sm font-medium transition-colors rounded-md ${btnGhost} ${focusRing} ${lastSpan}`}
-                  >
-                    <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
-                    Log out
-                  </button>
-                )}
-              </nav>
-            </div>
-          );
-        })()}
+        {mobileMenuOpen && (
+          <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
+            <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
+              {NAV_ITEMS.map((item, idx) => {
+                const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    label={item.label}
+                    active={isPathActive(location.pathname, item.to)}
+                    onClick={() => setMobileMenuOpen(false)}
+                    count={item.to === '/queue' ? queueCount : undefined}
+                    className={`${item.tab ? 'hidden md:flex' : ''} ${isLast ? lastSpan : ''}`.trim()}
+                  />
+                );
+              })}
+              {isPasswordSet && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className={`${navItemBase} gap-2 ${btnGhost} ${lastSpan}`}
+                >
+                  <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  Log out
+                </button>
+              )}
+            </nav>
+          </div>
+        )}
       </header>
       <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
         <UpdateBanner />

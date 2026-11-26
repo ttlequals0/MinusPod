@@ -244,7 +244,7 @@ describe('Footer actions', () => {
   it('shows Split, Delete, Close and Edit as text buttons at every width', () => {
     renderModal(makePattern());
     for (const name of ['Split', 'Delete', 'Close', 'Edit']) {
-      const button = screen.getByRole('button', { name });
+      const button = screen.getAllByRole('button', { name }).find(b => b.textContent === name)!;
       expect(button.textContent).toBe(name);
       expect(button.querySelector('svg')).toBeNull();
     }

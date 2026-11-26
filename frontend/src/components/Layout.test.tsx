@@ -11,8 +11,9 @@ import Layout from './Layout';
 vi.mock('../context/ThemeContext', () => ({
   useTheme: () => ({ theme: 'light', toggleTheme: vi.fn() }),
 }));
+const auth = vi.hoisted(() => ({ isPasswordSet: false }));
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ isPasswordSet: false, logout: vi.fn() }),
+  useAuth: () => ({ isPasswordSet: auth.isPasswordSet, logout: vi.fn() }),
 }));
 vi.mock('./UpdateBanner', () => ({ default: () => null }));
 
@@ -37,6 +38,18 @@ describe('Layout header search', () => {
     const link = screen.getByRole('link', { name: 'Search' });
     expect(link.tagName).toBe('A');
     expect(link.getAttribute('href')).toBe('/search');
+  });
+});
+
+describe('Layout header log out', () => {
+  it('hides the header button below xl, where the menu carries Log out', () => {
+    auth.isPasswordSet = true;
+    try {
+      renderLayout();
+      expect(screen.getByRole('button', { name: 'Log out' }).className).toContain('max-xl:hidden');
+    } finally {
+      auth.isPasswordSet = false;
+    }
   });
 });
 

@@ -25,7 +25,7 @@ import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import DateField from '../components/DateField';
 import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../components/tableStyles';
+import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard, cardGrid } from '../components/tableStyles';
 import { SLOT_LABELS } from '../api/types';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tabStrip, tabItem } from '../components/PageTabs';
@@ -529,54 +529,54 @@ function EpisodeCostTable({
           </select>
           <SortDirButton sortDir={sortDir} onClick={() => onSort(sortField)} />
         </div>
-        <div className="grid grid-cols-1 min-[600px]:grid-cols-2 gap-3">
-        {items.length === 0 ? (
-          <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
-            No episode costs match these filters.
-          </div>
-        ) : items.map((stat) => {
-          const key = episodeCostKey(stat);
-          const isOpen = expanded.has(key);
-          const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
-          return (
-          <div key={key} className={rowCard}>
-            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate block`} title={stat.podcastTitle}>
-              {stat.podcastTitle}
-            </Link>
-            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
-              {stat.episodeTitle}
-            </Link>
-            <p className="text-xs text-muted-foreground truncate mb-1">
-              Models: <ModelsSummary stat={stat} />
-            </p>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-              <span>{stat.runCount} runs</span>
-              <span>Latest: <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} /></span>
-              <span>Cumulative: <CostAmount
-                amount={parseFloat(stat.cumulativeCostUsd)}
-                unpriced={stat.hasUnknownCost}
-                unpricedCount={stat.unknownCostCount}
-                onInspect={() => toggleAttemptRows(key)}
-                inspectExpanded={attemptRows.has(key)}
-              /></span>
-              <span>{formatDateTime(stat.lastActivityAt)}</span>
+        <div className={cardGrid}>
+          {items.length === 0 ? (
+            <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
+              No episode costs match these filters.
             </div>
-            {attemptRows.has(key) && (
-              <div className="mt-2">
-                <SpendAttemptsPanel slug={stat.podcastSlug} episodeId={stat.episodeId} />
+          ) : items.map((stat) => {
+            const key = episodeCostKey(stat);
+            const isOpen = expanded.has(key);
+            const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
+            return (
+              <div key={key} className={rowCard}>
+                <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate block`} title={stat.podcastTitle}>
+                  {stat.podcastTitle}
+                </Link>
+                <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
+                  {stat.episodeTitle}
+                </Link>
+                <p className="text-xs text-muted-foreground truncate mb-1">
+                  Models: <ModelsSummary stat={stat} />
+                </p>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                  <span>{stat.runCount} runs</span>
+                  <span>Latest: <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} /></span>
+                  <span>Cumulative: <CostAmount
+                    amount={parseFloat(stat.cumulativeCostUsd)}
+                    unpriced={stat.hasUnknownCost}
+                    unpricedCount={stat.unknownCostCount}
+                    onInspect={() => toggleAttemptRows(key)}
+                    inspectExpanded={attemptRows.has(key)}
+                  /></span>
+                  <span>{formatDateTime(stat.lastActivityAt)}</span>
+                </div>
+                {attemptRows.has(key) && (
+                  <div className="mt-2">
+                    <SpendAttemptsPanel slug={stat.podcastSlug} episodeId={stat.episodeId} />
+                  </div>
+                )}
+                <div className="mt-2">
+                  <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
+                </div>
+                {isOpen && (
+                  <div className="mt-2">
+                    <EpisodeRunsDetail slug={stat.podcastSlug} episodeId={stat.episodeId} />
+                  </div>
+                )}
               </div>
-            )}
-            <div className="mt-2">
-              <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
-            </div>
-            {isOpen && (
-              <div className="mt-2">
-                <EpisodeRunsDetail slug={stat.podcastSlug} episodeId={stat.episodeId} />
-              </div>
-            )}
-          </div>
-          );
-        })}
+            );
+          })}
         </div>
       </div>
     </>
@@ -1570,7 +1570,7 @@ export default function StatsPage() {
               <SortDirButton sortDir={sortDir} onClick={() => handleSort(sortField)} noun="podcasts" />
             </div>
           </div>
-          <div className="grid grid-cols-1 min-[600px]:grid-cols-2 gap-3">
+          <div className={cardGrid}>
             {sortedPodcasts.map((p) => (
               <div key={p.podcastSlug} className={rowCard}>
                 <Link to={`/feeds/${p.podcastSlug}`} className={`${tableLink} text-sm font-semibold block mb-2 truncate`} title={p.podcastTitle}>

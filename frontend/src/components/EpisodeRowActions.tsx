@@ -7,7 +7,6 @@ import type { BulkActionResult, JobState } from '../api/types';
 import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
-import CloseButton from './CloseButton';
 import { Modal, dialogFooterBtn } from './Modal';
 import { btnBase, rowActionsTrigger, btnSecondary, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
@@ -131,10 +130,7 @@ function EpisodeRowActions({
           ariaLabelledBy={deleteTitleId}
           panelClassName="max-w-md w-full"
           header={(
-            <>
-              <h2 id={deleteTitleId} className={cardTitle}>Delete downloaded files?</h2>
-              <CloseButton onClick={() => setConfirmDelete(false)} />
-            </>
+            <h2 id={deleteTitleId} className={cardTitle}>Delete downloaded files?</h2>
           )}
           footer={(
             <>

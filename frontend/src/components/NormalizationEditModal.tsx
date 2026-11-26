@@ -4,7 +4,6 @@ import { addNormalization, updateNormalization } from '../api/sponsors';
 import { SponsorNormalization, NormalizationCategory } from '../api/types';
 import { getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
-import CloseButton from './CloseButton';
 import SaveCancelFooter from './SaveCancelFooter';
 import { inputBase, labelBase, selectBase } from './fieldStyles';
 
@@ -50,12 +49,9 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
   return (
     <Modal ariaLabel="Edit normalization" onClose={onClose} panelClassName="max-w-lg w-full"
       header={(
-        <>
-          <h2 className="text-lg font-semibold text-foreground">
-            {isNew ? 'Add normalization' : 'Edit normalization'}
-          </h2>
-          <CloseButton onClick={onClose} />
-        </>
+        <h2 className="text-lg font-semibold text-foreground">
+          {isNew ? 'Add normalization' : 'Edit normalization'}
+        </h2>
       )}
       footer={(
         <SaveCancelFooter
