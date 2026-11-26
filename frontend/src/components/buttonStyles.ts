@@ -33,5 +33,7 @@ const forcedOutline = 'forced-colors:outline forced-colors:outline-1 forced-colo
 // Accent action that should not dominate its surface (Refresh on feed cards, rows and page).
 // 80 percent keeps the border above the 3:1 non-text floor on every theme.
 export const btnPrimaryOutline = 'shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.8)] text-primary hover:bg-primary/10 ' + forcedOutline;
+// Episode row Actions trigger: neutral secondary fill below sm (three-dot icon), quiet primary outline from sm.
+export const rowActionsTrigger = 'max-sm:bg-secondary max-sm:text-secondary-foreground max-sm:hover:bg-secondary/80 sm:shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.8)] sm:text-primary sm:hover:bg-primary/10 sm:forced-colors:outline sm:forced-colors:outline-1 sm:forced-colors:-outline-offset-1';
 // Destructive action that is not the primary one in its group (Delete beside Edit).
 export const btnDestructiveOutline = 'shadow-[inset_0_0_0_1px_hsl(var(--destructive)/0.8)] text-destructive hover:bg-destructive/10 ' + forcedOutline;

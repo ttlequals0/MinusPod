@@ -1555,6 +1555,32 @@ describe('Segment category chips (#565)', () => {
     expect(screen.getByText('Kept')).not.toBeNull();
   });
 
+  it('offers no verdict on a Detections not cut row its category leaves in', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, segmentCategoryActions: { value: { intro: 'keep' } },
+    } as Settings);
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{ start: 0, end: 5.5, confidence: 0.4, category: 'intro' }],
+    }));
+    expect(await screen.findByTestId('rejected-kept-hint-0')).not.toBeNull();
+    expect(screen.getByTestId('rejected-kept-hint-0').textContent).toMatch(/^Left in by its category/);
+    expect(screen.queryByRole('button', { name: 'Confirm intro' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
+  });
+
+  it('offers a verdict on a Detections not cut row its category cuts', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, segmentCategoryActions: { value: { intro: 'remove' } },
+    } as Settings);
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{ start: 0, end: 5.5, confidence: 0.4, category: 'intro' }],
+    }));
+    expect(await screen.findByRole('button', { name: 'Confirm intro' })).not.toBeNull();
+    expect(screen.queryByTestId('rejected-kept-hint-0')).toBeNull();
+  });
+
   it('names the detection a carved fragment came from', async () => {
     const carvedFrom = { start: 60, end: 120 };
     const hint = `Split from detection ${formatTimestamp(60)} - ${formatTimestamp(120)}`;

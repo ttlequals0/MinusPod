@@ -3,7 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import ActionToastStack from '../components/ActionToastStack';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
+import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
 import type { EpisodeSelection } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import { getErrorMessage, jobStateOf } from '../api/client';
@@ -12,7 +12,6 @@ import { applyEpisodeJobState } from '../utils/jobStateCache';
 import { PendingRecutsBar } from './patterns/PendingRecutsBar';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useUrlParams } from '../hooks/useUrlParams';
-import { useLlmEnabled } from '../hooks/useLlmEnabled';
 import { SEARCH_DEBOUNCE_MS } from '../hooks/useDebouncedValue';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import PrevNextLink from '../components/PrevNextLink';
@@ -21,6 +20,7 @@ import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
+import EpisodeRowActions from '../components/EpisodeRowActions';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
@@ -42,28 +42,9 @@ import { focusRing, inputBase, selectBase, textareaBase } from '../components/fi
 import { badgeBase, tint } from '../components/badgeStyles';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
-import { reprocessMenuCopy, reprocessModeKey } from '../utils/reprocessMenu';
 import { DemoDisabled } from '../components/DemoDisabled';
 
-function reprocessModeLabel(mode: string, feedType?: string, llmEnabled = true): string {
-  if (mode === 'full') return 'Full reprocess';
-  if (mode === 'llm') return 'Re-detect ads';
-  if (feedType === 'youtube') return 'SponsorBlock and patterns';
-  return llmEnabled ? 'Patterns + AI' : 'Patterns and other detectors';
-}
-
-function reprocessModeDescription(mode: string, feedType?: string, llmEnabled = true): string {
-  if (feedType === 'youtube' || !llmEnabled) {
-    const copy = reprocessMenuCopy(feedType, llmEnabled);
-    return copy[reprocessModeKey(mode)].tooltip;
-  }
-  if (mode === 'full') return 'Fresh analysis without pattern database';
-  if (mode === 'llm') return 'Reuses saved transcripts (skips re-transcription); re-cuts audio';
-  return 'Uses learned patterns for faster ad detection';
-}
-
-// Queued/skipped stats grid shared by the reprocess and bulk-action result
-// modals (only the left-cell label differs).
+// Queued/skipped stats grid for the bulk-action result modal.
 function ResultStatsGrid({ queued, skipped, queuedLabel }: {
   queued: number;
   skipped: number;
@@ -81,13 +62,6 @@ function ResultStatsGrid({ queued, skipped, queuedLabel }: {
       </div>
     </div>
   );
-}
-
-function reprocessModeVerb(mode: string, feedType?: string, llmEnabled = true): string {
-  if (feedType === 'youtube') return mode === 'reprocess' || !llmEnabled ? 'SponsorBlock and pattern' : 'pass 1 LLM';
-  if (mode === 'full') return llmEnabled ? 'full AI' : 'pattern-assisted';
-  if (mode === 'llm') return 'transcript-reuse';
-  return 'pattern-assisted';
 }
 
 const EPISODE_PARAM_DEFAULTS = {
@@ -113,20 +87,13 @@ function useEpisodeListParams() {
   };
 }
 
-// Bulk actions pair up per line on a phone.
-const bulkActionBtn = `${btnBase} flex-1 sm:flex-none min-w-[8rem]`;
-
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const llmEnabled = useLlmEnabled();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const [editing, setEditing] = useState<'title' | 'description' | null>(null);
   const [draft, setDraft] = useState('');
-  const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
-  const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full' | 'llm'>('reprocess');
-  const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
 
   // Pagination state
   const { page, pageSize, statusFilter, episodeSearch, sortBy, sortDir, writeParams } = useEpisodeListParams();
@@ -311,19 +278,6 @@ function FeedDetail() {
     onError: (err) => setActionError(getErrorMessage(err, 'Could not save this feed.')),
   });
 
-  const reprocessAllMutation = useMutation({
-    mutationFn: (mode: 'reprocess' | 'full' | 'llm') => reprocessAllEpisodes(slug!, mode),
-    onSuccess: (result) => {
-      setReprocessResult(result);
-      setShowReprocessConfirm(false);
-      queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
-    },
-    onError: (err) => {
-      setShowReprocessConfirm(false);
-      setActionError(getErrorMessage(err, 'Could not start reprocessing.'));
-    },
-  });
-
   const bulkMutation = useMutation({
     // Process accepts only rows the server can queue; other actions preserve
     // the full manual selection.
@@ -381,12 +335,6 @@ function FeedDetail() {
     },
     onError: (err) => setActionError(getErrorMessage(err, 'Could not update pass-through.')),
   });
-
-  const closeReprocessModal = () => {
-    setShowReprocessConfirm(false);
-    setReprocessResult(null);
-    reprocessAllMutation.reset();
-  };
 
   const startEditing = (field: 'title' | 'description') => {
     setDraft((field === 'title' ? feed?.titleOverride : feed?.descriptionOverride) || '');
@@ -466,6 +414,7 @@ function FeedDetail() {
   ).length;
   const hasSelection = effectiveSelectedIds.size > 0;
   const selectionOverLimit = effectiveSelectedIds.size > 500;
+  const selectionBusy = bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit;
   const selectionTruncated = matchedSelection?.scope === selectionScope && matchedSelection.truncated;
   // Keyed on jobState, not status: the run buttons key on jobState too, so the
   // note can never claim a selection is busy while those buttons stay live.
@@ -514,8 +463,6 @@ function FeedDetail() {
     />
   );
 
-  const copy = reprocessMenuCopy(feed.feedType, llmEnabled);
-
   const saveCancelButtons = (
     <>
       <DemoDisabled>
@@ -561,8 +508,8 @@ function FeedDetail() {
       </div>
 
       <div className={`bg-card rounded-lg border border-border p-4 sm:${sectionPad} mb-6`}>
-        <div className="flex flex-col sm:flex-row gap-6">
-          <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
+        <div className="flex items-start gap-4 sm:gap-6">
+          <div className="w-16 h-16 sm:w-32 sm:h-32 shrink-0">
             {feed.websiteUrl ? (
               <a
                 href={feed.websiteUrl}
@@ -708,8 +655,8 @@ function FeedDetail() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 min-[360px]:flex gap-2 sm:gap-4 items-center sm:flex-wrap sm:justify-between">
-          <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
+        <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-4 items-center sm:justify-between">
+          <div className={`flex items-center gap-2 min-w-0 shrink-0 sm:shrink ${feedHasUpstream(feed) ? 'max-sm:col-span-2' : ''}`}>
             <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
@@ -720,55 +667,16 @@ function FeedDetail() {
             <CopyButton
               text={feed.feedUrl}
               label="Copy feed URL"
-              className={`max-[359px]:w-full px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`shrink-0 max-sm:w-full justify-center px-2.5 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-1.5 sm:gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
-              labelClassName="hidden sm:inline text-sm"
+              labelClassName="text-xs sm:text-sm whitespace-nowrap"
             />
           </div>
-          {/* Below sm: one row (copy first), a 2x2 grid under 360 px; from sm it wraps so nowrap buttons never overflow. */}
-          <div className="contents min-[360px]:flex min-[360px]:flex-1 min-w-0 gap-2 [&>div]:flex-1 sm:flex-none sm:flex-wrap sm:justify-end sm:[&>div]:flex-none">
-            {!isRecents && (
-            <DropdownMenu
-              triggerLabel={
-                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">{reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all'}</span></>
-              }
-              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
-              disabled={reprocessAllMutation.isPending}
-              title="Reprocess all processed episodes"
-              align="left"
-              items={[
-                {
-                  title: reprocessModeLabel('reprocess', feed.feedType, llmEnabled),
-                  subtitle: copy.reprocess.subtitle,
-                  onClick: () => {
-                    setSelectedReprocessMode('reprocess');
-                    setShowReprocessConfirm(true);
-                  },
-                },
-                {
-                  title: 'Full reprocess',
-                  subtitle: copy.full.subtitle,
-                  onClick: () => {
-                    setSelectedReprocessMode('full');
-                    setShowReprocessConfirm(true);
-                  },
-                },
-                {
-                  title: 'Re-detect ads',
-                  subtitle: copy.redetect.subtitle,
-                  onClick: () => {
-                    setSelectedReprocessMode('llm');
-                    setShowReprocessConfirm(true);
-                  },
-                },
-              ]}
-            />
-            )}
+          {/* Below sm: a 2-column grid, Copy feed URL spans both when Refresh feed is present; from sm it wraps. */}
+          <div className="contents sm:flex sm:flex-none sm:flex-wrap sm:justify-end sm:gap-2">
             {feedHasUpstream(feed) && (
               <DropdownMenu
-                triggerLabel={
-                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">{refreshMutation.isPending ? 'Refreshing...' : 'Refresh feed'}</span></>
-                }
+                triggerLabel={refreshMutation.isPending ? 'Refreshing...' : 'Refresh feed'}
                 triggerClassName={`${btnBase} ${btnPrimaryOutline} w-full sm:w-auto`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
@@ -791,12 +699,12 @@ function FeedDetail() {
               <button
                 onClick={handleDeleteFeed}
                 disabled={deleteMutation.isPending}
-                className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-[359px]:w-full`}
+                className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-sm:w-full`}
                 title="Delete feed"
                 aria-label="Delete feed"
               >
                 <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Delete</span>
+                Delete
               </button>
             </DemoDisabled>
           </div>
@@ -804,7 +712,6 @@ function FeedDetail() {
       </div>
 
       {refreshMutation.isPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Refreshing feed...</p>}
-      {reprocessAllMutation.isPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Queuing episodes...</p>}
 
       {slug && !isRecents && <FeedStatsCards feed={feed} slug={slug} />}
 
@@ -832,6 +739,7 @@ function FeedDetail() {
         {!isRecents && (
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
+            aria-label="Filter episodes by status"
             value={statusFilter}
             onChange={(e) => changeFilter({ status: e.target.value })}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
@@ -847,6 +755,7 @@ function FeedDetail() {
             <option value="deferred">Queued (offline)</option>
           </select>
           <select
+            aria-label="Sort episodes"
             value={`${sortBy}:${sortDir}`}
             onChange={(e) => changeFilter({ sort: e.target.value })}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
@@ -883,83 +792,78 @@ function FeedDetail() {
 
       {/* Bulk action toolbar */}
       {hasSelection && (
-        <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{effectiveSelectedIds.size} selected</span>
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
+        <div className="mb-4 p-4 bg-card rounded-lg border border-primary/40 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-foreground">
+              {effectiveSelectedIds.size} {effectiveSelectedIds.size === 1 ? 'episode' : 'episodes'} selected
+            </span>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className={`touch-target text-sm text-primary hover:underline rounded ${focusRing}`}
+            >
+              Clear selection
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
             {discoveredCount + pendingCount > 0 && (
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
-                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnPrimary}`}
+                disabled={selectionBusy}
+                className={`${btnBase} ${btnPrimary} col-span-2 sm:col-auto`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
               </button>
             )}
             {processedCount > 0 && (
-              <>
-                <button
-                  onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
-                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary}`}
-                >
-                  Reprocess ({processedCount})
-                </button>
-                <button
-                  onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
-                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary}`}
-                >
-                  Full reprocess ({processedCount})
-                </button>
-                <button
-                  onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
-                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary}`}
-                  title="Re-detect ads using existing transcripts (skips re-transcription)"
-                >
-                  Re-detect ads ({processedCount})
-                </button>
-              </>
+              <DropdownMenu
+                triggerLabel={`Reprocess (${processedCount})`}
+                triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
+                disabled={selectionBusy}
+                items={[
+                  { title: 'Reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess' }) },
+                  { title: 'Full reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess_full' }) },
+                  {
+                    title: 'Re-detect ads',
+                    subtitle: 'Uses existing transcripts',
+                    tooltip: 'Re-detect ads using existing transcripts (skips re-transcription)',
+                    onClick: () => bulkMutation.mutate({ action: 'reprocess_llm' }),
+                  },
+                ]}
+              />
             )}
             {/* Pass-through applies regardless of episode status; only actively
                 processing rows are excluded from selection in the first place. */}
-            <button
-              onClick={() => passthroughMutation.mutate({ enabled: true })}
-              disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-              title="Serve these episodes unmodified, with no ad processing"
-              className={`${bulkActionBtn} ${btnSecondary}`}
-            >
-              {passthroughMutation.isPending && passthroughMutation.variables?.enabled
-                ? 'Setting...' : `Set pass-through (${effectiveSelectedIds.size})`}
-            </button>
-            <button
-              onClick={() => passthroughMutation.mutate({ enabled: false })}
-              disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-              title="Resume normal ad processing for these episodes"
-              className={`${bulkActionBtn} ${btnSecondary}`}
-            >
-              {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
-                ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
-            </button>
-            {processedCount > 0 && (
-              <button
-                onClick={() => setShowBulkDeleteConfirm(true)}
-                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnDestructive}`}
-              >
-                Delete ({processedCount})
-              </button>
-            )}
-            {selectionNote && (
-              <span className="text-xs text-muted-foreground">{selectionNote}</span>
-            )}
-            <button
-              onClick={clearSelection}
-              className={`${btnBase} ${btnGhost}`}
-            >
-              Clear
-            </button>
+            <DropdownMenu
+              triggerLabel={`Pass-through (${effectiveSelectedIds.size})`}
+              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
+              disabled={selectionBusy}
+              items={[
+                {
+                  title: 'Set pass-through',
+                  subtitle: 'Serve these episodes unmodified',
+                  tooltip: 'Serve these episodes unmodified, with no ad processing',
+                  onClick: () => passthroughMutation.mutate({ enabled: true }),
+                },
+                {
+                  title: 'Clear pass-through',
+                  subtitle: 'Resume normal ad processing',
+                  tooltip: 'Resume normal ad processing for these episodes',
+                  onClick: () => passthroughMutation.mutate({ enabled: false }),
+                },
+              ]}
+            />
           </div>
+          {processedCount > 0 && (
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              disabled={selectionBusy}
+              className={`${btnBase} ${btnDestructiveOutline} w-full sm:w-auto`}
+            >
+              Delete selected ({processedCount})
+            </button>
+          )}
+          {selectionNote && <p className="text-xs text-muted-foreground">{selectionNote}</p>}
         </div>
       )}
 
@@ -973,123 +877,38 @@ function FeedDetail() {
           selectedIds={isRecents ? undefined : effectiveSelectedIds}
           onToggle={isRecents ? undefined : handleToggleSelect}
           onSelectAll={isRecents ? undefined : handleSelectAll}
+          renderActions={isRecents ? undefined : (ep) => (
+            <EpisodeRowActions
+              feedSlug={slug!}
+              episodeId={ep.id}
+              status={ep.status}
+              jobState={ep.jobState}
+              hasBeenProcessed={ep.hasBeenProcessed}
+              feedType={feed.feedType}
+            />
+          )}
         />
       )}
 
       {/* Pagination controls (shared Pagination renders nothing at 1 page) */}
-      <Pagination page={page} totalPages={totalPages} total={totalEpisodes} onPage={handlePageChange} />
-      {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-end gap-2">
-          <span className="text-sm text-muted-foreground">Per page</span>
-          {PAGE_SIZES.map(size => (
-            <button
-              key={size}
-              onClick={() => changeFilter({ size: String(size) })}
-              className={`${btnBase} ${pageSize === size ? btnPrimary : btnSecondary}`}
-              aria-pressed={pageSize === size}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={totalEpisodes}
+        onPage={handlePageChange}
+        footer={(
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Per page
+            <select
+              value={pageSize}
+              onChange={(e) => changeFilter({ size: e.target.value })}
+              className={`${selectBase} w-auto`}
             >
-              {size}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {showReprocessConfirm && (
-        <Modal
-          ariaLabel="Reprocess all episodes"
-          onClose={() => setShowReprocessConfirm(false)}
-          panelClassName="max-w-md w-full"
-          header={(
-            <h2 className={cardTitle}>Reprocess all episodes?</h2>
-          )}
-          footer={(
-            <>
-              <button
-                onClick={() => setShowReprocessConfirm(false)}
-                className={`${dialogFooterBtn} ${btnSecondary}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => reprocessAllMutation.mutate(selectedReprocessMode)}
-                disabled={reprocessAllMutation.isPending}
-                className={`${dialogFooterBtn} ${btnDestructive}`}
-              >
-                {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all episodes'}
-              </button>
-            </>
-          )}
-        >
-          <div className="p-4">
-            <div className="mb-4 p-3 rounded-lg bg-accent/50">
-              <p className="text-sm font-medium text-foreground">
-                Mode: {reprocessModeLabel(selectedReprocessMode, feed.feedType, llmEnabled)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {reprocessModeDescription(selectedReprocessMode, feed.feedType, llmEnabled)}
-              </p>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              {selectedReprocessMode === 'llm'
-                ? 'This will queue all processed episodes that have a saved transcript. The transcript is reused (no re-transcription); audio is re-analyzed and re-cut. Episodes without a transcript are skipped.'
-                : feed.feedType === 'youtube'
-                ? 'This will queue all processed episodes. SponsorBlock marks and captions are refreshed, and audio is re-cut using this mode.'
-                : 'This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.'}
-            </p>
-            <p className="text-sm text-warning">
-              This operation cannot be undone. Episodes currently processing will be skipped.
-            </p>
-          </div>
-        </Modal>
-      )}
-
-      {reprocessResult && (
-        <Modal
-          ariaLabel="Reprocess queued"
-          onClose={closeReprocessModal}
-          panelClassName="max-w-md w-full"
-          header={(
-            <h2 className={cardTitle}>Reprocess queued</h2>
-          )}
-          footer={(
-            <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
-              Close
-            </button>
-          )}
-        >
-          <div className="p-4">
-            <p className="text-xs text-muted-foreground mb-4">
-              Mode: {reprocessModeLabel(reprocessResult.mode, feed.feedType, llmEnabled)}
-            </p>
-            <ResultStatsGrid queued={reprocessResult.queued} skipped={reprocessResult.skipped} queuedLabel="Queued" />
-            {reprocessResult.queued > 0 && (
-              <p className="text-sm text-muted-foreground">
-                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode, feed.feedType, llmEnabled)} reprocessing. They will be processed in the background.
-              </p>
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {reprocessAllMutation.error && (
-        <Modal
-          ariaLabel="Could not reprocess episodes"
-          onClose={closeReprocessModal}
-          panelClassName="max-w-md w-full"
-          header={(
-            <h2 className={cardTitle}>Could not reprocess episodes</h2>
-          )}
-          footer={(
-            <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
-              Close
-            </button>
-          )}
-        >
-          <p className="p-4 text-sm text-muted-foreground">
-            {(reprocessAllMutation.error as Error).message}
-          </p>
-        </Modal>
-      )}
+              {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
+        )}
+      />
 
       {showBulkDeleteConfirm && (
         <Modal

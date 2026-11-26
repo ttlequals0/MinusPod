@@ -41,6 +41,7 @@ import {
   SEGMENT_CATEGORY_LABELS,
   confirmLabel,
   isKeepLike,
+  isKeptByCategory,
   rejectLabel,
   resolveCategoryAction,
   type SegmentCategory,
@@ -206,6 +207,7 @@ function AdReviewModal({
   hideConfirm = false, onSplitSaved, heldContext,
 }: Props) {
   const caps = MODE_CAPABILITIES[mode];
+  const heading = mode === 'review' && heldContext ? `Held for review: ${heldContext.reasonLabel}` : caps.heading;
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, true);
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
@@ -899,9 +901,8 @@ function AdReviewModal({
   const pickedAction = resolveCategoryAction(reviewCategory, segmentActions);
   // A pattern or a differential cuts a marker whatever its category says, and
   // stamps it remove or beep, so until the category is changed the stamp wins.
-  const stampedCut = item.actionApplied === 'remove' || item.actionApplied === 'beep';
   const categoryUnchanged = (item.category ?? '') === reviewCategory;
-  const keptByPick = isKeepLike(pickedAction) && !(stampedCut && categoryUnchanged);
+  const keptByPick = isKeptByCategory(reviewCategory, item.actionApplied, segmentActions, categoryUnchanged);
   const keptByCategory = verdictRefused || keptByPick;
   // The review footer names the category picked above, not the create-mode
   // field, so an intro or a self-promo is not confirmed or rejected as an ad.
@@ -1024,11 +1025,12 @@ function AdReviewModal({
         {/* Header: action chrome up top (one row on mobile), title only at sm:+, detection metadata wrapping onto
             its own line below. */}
         <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className={`${caps.headingOnPhone ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground truncate min-w-0`}>
-              {mode === 'review' && heldContext ? `Held for review: ${heldContext.reasonLabel}` : caps.heading}
+          <div className="flex items-start justify-between gap-2">
+            <h2 className={`${caps.headingOnPhone ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground my-auto line-clamp-2 sm:line-clamp-1 min-w-0`}
+              title={heading}>
+              {heading}
             </h2>
-            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
               {/* Processed / Original toggle. Hidden in create mode (always original). */}
               {caps.audioToggle && onAudioModeChange && (
                 <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
@@ -1189,7 +1191,7 @@ function AdReviewModal({
         )}
 
         {/* Waveform + pin overlay. Hidden when text mode is active. */}
-        <div className={`px-6 py-4 ${textModeActive ? 'hidden' : ''}`}>
+        <div className={`px-3 sm:px-6 py-3 sm:py-4 ${textModeActive ? 'hidden' : ''}`}>
           <div className="bg-secondary/40 rounded-lg p-3 min-h-[180px]">
             {peaksError ? (
               <WaveformError onRetry={retryPeaks} />
@@ -1198,7 +1200,7 @@ function AdReviewModal({
             ) : (
               <div
                 ref={waveformScrollRef}
-                className="overflow-hidden"
+                className="overflow-hidden pt-5"
               >
                 <div className="relative w-full" ref={overlayRef}>
                   {/* Header strip: gives the pinheads room inside the overlay's box so they are not clipped. */}
@@ -1722,10 +1724,8 @@ function AdReviewModal({
                         : 'Confirm will record this ad as-detected.'}
                 </div>
               </div>
-              {/* Equal-width buttons across viewports. Short labels
-                  on mobile (so 3 fit on a 320-360px viewport), full
-                  "& Next" labels on sm: where there's room. */}
-              <div className="flex items-stretch gap-1.5 sm:gap-2 w-full sm:w-auto">
+              {/* Equal-width buttons across viewports; 4-button held review wraps to a 2x2 grid on phones. */}
+              <div className={`${!keptByCategory && heldContext ? 'grid grid-cols-2 sm:flex sm:items-stretch' : 'flex items-stretch'} gap-1.5 sm:gap-2 w-full sm:w-auto`}>
                 <button type="button" onClick={onSkip}
                   className={`${btnBase} ${btnOutline} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
                   title={keptByCategory

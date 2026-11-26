@@ -8,6 +8,7 @@ import { FAILOVER_TARGETS, FAILOVER_TARGET_LABELS, type FailoverTargetName } fro
 import { btnBase, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
+import { subCard } from './pageStyles';
 
 const NODE_STALE_MS = 10 * 60 * 1000;
 
@@ -258,7 +259,7 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
   if (!status.transcriber && !status.podping && !status.feedRefresh && !status.failover) return null;
   const overall = rollupHealth(status);
   return (
-    <div className="mt-4 rounded-lg bg-muted/40">
+    <div className={`${subCard} mt-4`}>
       <button
         type="button"
         aria-expanded={open}

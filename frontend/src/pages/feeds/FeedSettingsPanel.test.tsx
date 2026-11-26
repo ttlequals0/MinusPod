@@ -659,6 +659,12 @@ describe('FeedSettingsPanel source URL row (#484)', () => {
     expect(screen.getByRole('button', { name: 'Copy source URL' })).toBeDefined();
   });
 
+  it('names the source URL input in edit mode', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('textbox', { name: 'Source feed URL' })).toBeDefined();
+  });
+
   it('saving a changed URL calls updateFeed with sourceUrl', async () => {
     renderPanel(makeFeed());
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));

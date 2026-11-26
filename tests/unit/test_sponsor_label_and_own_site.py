@@ -359,3 +359,30 @@ class TestAdvertisersListedAfterAColon:
         assert self._extract(
             'Dynamically inserted pre-roll ads with no named brand at all'
         ) is None
+
+
+class TestBrandWithNonAsciiLetters:
+    """A brand spelled with letters outside A-Z must come out whole. The
+    capitalized-run pattern only knew A-Z, so "Fjällmark" was cut to "Fj"
+    and a brand opening with "Ö" was not seen at all."""
+
+    def _extract(self, text):
+        from sponsor_service import SponsorService
+        return SponsorService.extract_sponsor_from_reason(text)
+
+    def test_an_accented_letter_inside_the_brand_is_kept(self):
+        assert self._extract(
+            'Fjällmark paid offer for listeners, including three months at '
+            'half price and an explicit sponsor thank-you.'
+        ) == 'Fjällmark'
+
+    def test_a_brand_opening_with_an_accented_capital_is_found(self):
+        assert self._extract('Örngruppen sponsor read') == 'Örngruppen'
+
+    def test_a_multi_word_brand_with_accents_stays_one_run(self):
+        assert self._extract(
+            'Host-read sponsor segment: Café Brûlé Société promo code'
+        ) == 'Café Brûlé Société'
+
+    def test_a_lowercase_accented_opening_is_still_not_a_brand(self):
+        assert self._extract('ärligt talat a sponsor read') is None

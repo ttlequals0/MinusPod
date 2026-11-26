@@ -81,7 +81,7 @@ describe('EpisodeRowActions: equal-width trigger', () => {
     const reprocessClass = triggerButton().className;
     expect(processClass).toBe(reprocessClass);
     // The floor only equalizes widths while the type stays text-sm.
-    expect(processClass).toMatch(/(^|\s)min-w-24(\s|$)/);
+    expect(processClass).toMatch(/(^|\s)sm:min-w-24(\s|$)/);
     expect(processClass).toMatch(/(^|\s)text-sm(\s|$)/);
   });
 });
@@ -304,5 +304,21 @@ describe('EpisodeRowActions: menu wording follows the feed type', () => {
     await user.click(triggerButton());
     expect(screen.getByText('Use patterns + AI')).toBeTruthy();
     expect(screen.getByText('Skip patterns, AI only')).toBeTruthy();
+  });
+});
+
+describe('EpisodeRowActions: failed state', () => {
+  it('shows a Failed alert and stacks it below the trigger on phones', async () => {
+    reprocessMock.mockRejectedValueOnce(new ApiError('boom', 500));
+    const user = userEvent.setup();
+    const { container } = renderTrigger({ status: 'completed' });
+    await user.click(triggerButton());
+    await user.click(screen.getByRole('menuitem', { name: /^Reprocess/ }));
+    const badge = await screen.findByRole('alert');
+    expect(badge.textContent).toBe('Failed');
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain('max-sm:flex-col-reverse');
+    expect(wrapper.contains(badge)).toBe(true);
+    expect(wrapper.contains(triggerButton())).toBe(true);
   });
 });

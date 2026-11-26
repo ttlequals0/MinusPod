@@ -27,7 +27,7 @@ function Checkbox({
   const Wrapper = id ? 'span' : 'label';
   return (
     <Wrapper
-      className={`relative inline-flex items-center ${label ? 'gap-2' : ''} ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'} ${className}`}
+      className={`relative inline-flex items-center ${label ? 'gap-2 pointer-coarse:min-h-11' : 'pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center'} ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'} ${className}`}
       title={title}
     >
       <input
@@ -38,7 +38,7 @@ function Checkbox({
         disabled={disabled}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
-        className="sr-only peer"
+        className="absolute inset-0 m-0 h-full w-full opacity-0 cursor-pointer disabled:cursor-default peer z-10"
       />
       <span className={`h-4 w-4 shrink-0 rounded-sm border-2 transition-colors flex items-center justify-center ${
         checked

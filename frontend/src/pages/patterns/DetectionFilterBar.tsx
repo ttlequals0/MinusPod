@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import type {
   DetectionReviewerFilter, DetectionSort, DetectionStatusFilter,
 } from '../../api/detections';
@@ -6,6 +6,12 @@ import { SEGMENT_CATEGORY_FILTER_OPTIONS } from '../../utils/segmentCategory';
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, selectBase, filterLabel, filterControl } from '../../components/fieldStyles';
 
+// Direction words per sort field: [descending, ascending].
+const DIRECTION_LABELS: Record<DetectionSort, [string, string]> = {
+  date: ['Newest', 'Oldest'],
+  confidence: ['Highest', 'Lowest'],
+  podcast: ['Z to A', 'A to Z'],
+};
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
   ['confidence', 'Confidence'],
@@ -71,6 +77,9 @@ export function DetectionFilterBar({
   reviewer, onReviewerChange, q, onQChange, sort, onSortChange, order, onOrderChange, status,
   holdReason,
 }: Props) {
+  const [descLabel, ascLabel] = DIRECTION_LABELS[sort];
+  const dirLabel = order === 'desc' ? descLabel : ascLabel;
+  const otherLabel = (order === 'desc' ? ascLabel : descLabel).toLowerCase();
   return (
     <div className="bg-card rounded-lg border border-border p-4 mb-6 grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
       {status && (
@@ -144,10 +153,10 @@ export function DetectionFilterBar({
           ))}
         </select>
       </div>
-      {/* Sorting lives here at every width. Half width clips "Confidence" below sm,
+      {/* Sorting lives here at every width. Half width clips "Confidence" below 560px,
           so the cell spans both columns there. */}
-      <div className="min-w-0 min-[375px]:max-sm:col-span-2">
-        <label htmlFor={`${idPrefix}-sort`} className={filterLabel}>Sort</label>
+      <div className="min-w-0 min-[375px]:max-[559px]:col-span-2">
+        <label htmlFor={`${idPrefix}-sort`} className={filterLabel}>Sort by</label>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <select
             id={`${idPrefix}-sort`}
@@ -162,12 +171,13 @@ export function DetectionFilterBar({
           <button
             type="button"
             onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
-            aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
+            aria-label={`${dirLabel}, switch to ${otherLabel}`}
             className={`${btnBase} ${btnSecondary} shrink-0`}
           >
             {order === 'desc'
-              ? <ChevronDown className="w-4 h-4" aria-hidden />
-              : <ChevronUp className="w-4 h-4" aria-hidden />}
+              ? <ArrowDown className="w-4 h-4" aria-hidden />
+              : <ArrowUp className="w-4 h-4" aria-hidden />}
+            <span className="text-xs sm:text-sm">{dirLabel}</span>
           </button>
         </div>
       </div>

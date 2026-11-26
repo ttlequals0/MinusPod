@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { EllipsisVertical } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { bulkEpisodeAction, reprocessEpisode } from '../api/feeds';
 import { getErrorMessage, jobStateOf } from '../api/client';
@@ -7,7 +8,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
 import { Modal, dialogFooterBtn } from './Modal';
-import { btnBase, btnPrimaryOutline, btnSecondary, btnDestructive } from './buttonStyles';
+import { btnBase, rowActionsTrigger, btnSecondary, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { cardTitle } from './pageStyles';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
@@ -81,7 +82,7 @@ function EpisodeRowActions({
     : null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 max-sm:flex-col-reverse max-sm:items-end max-sm:gap-0.5">
       {errorMessage && (
         <span
           role="alert"
@@ -93,10 +94,15 @@ function EpisodeRowActions({
       )}
       <DemoDisabled>
         <DropdownMenu
-          // The 6rem floor aligns row actions; flex-1 centers the label beside the chevron.
-          triggerLabel={<span className="flex-1 text-center">Actions</span>}
-          triggerClassName={`${btnBase} ${btnPrimaryOutline} gap-1 min-w-24`}
-          chevronClassName="w-3 h-3"
+          // Below sm a three-dot icon replaces the label; from sm the 6rem floor aligns rows.
+          triggerLabel={(
+            <>
+              <EllipsisVertical className="h-5 w-5 sm:hidden" aria-hidden="true" />
+              <span className="flex-1 text-center max-sm:sr-only">Actions</span>
+            </>
+          )}
+          triggerClassName={`${btnBase} ${rowActionsTrigger} gap-1 max-sm:min-w-11 max-sm:px-0 sm:min-w-24`}
+          chevronClassName="w-3 h-3 max-sm:hidden"
           disabled={blocked}
           title="Episode actions"
           items={[

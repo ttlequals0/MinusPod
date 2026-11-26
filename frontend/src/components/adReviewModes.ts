@@ -28,7 +28,7 @@ export const MODE_CAPABILITIES: Record<AdReviewMode, ModeCapabilities> = {
   review: {
     ariaLabel: 'Review ad',
     heading: 'Detected ad',
-    headingOnPhone: false,
+    headingOnPhone: true,
     followsAudioMode: true,
     fullEpisodeWindow: false,
     audioToggle: true,
@@ -46,7 +46,7 @@ export const MODE_CAPABILITIES: Record<AdReviewMode, ModeCapabilities> = {
   create: {
     ariaLabel: 'Add new ad',
     heading: 'Add new ad',
-    headingOnPhone: false,
+    headingOnPhone: true,
     followsAudioMode: false,
     fullEpisodeWindow: true,
     audioToggle: false,

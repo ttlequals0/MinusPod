@@ -30,12 +30,13 @@ afterEach(() => {
 describe('DropdownMenu', () => {
   it('renders an href item as a link and a destructive item in the destructive colour', async () => {
     renderMenu({ items: [
-      { title: 'Export', href: '/export/1', onClick: vi.fn() },
+      { title: 'Export', href: '/export/1', download: true, onClick: vi.fn() },
       { title: 'Delete', destructive: true, onClick: vi.fn() },
     ] });
     await openMenu();
     expect(item('Export').tagName).toBe('A');
     expect(item('Export').getAttribute('href')).toBe('/export/1');
+    expect(item('Export').hasAttribute('download')).toBe(true);
     expect(item('Delete').innerHTML).toContain('text-destructive');
   });
 

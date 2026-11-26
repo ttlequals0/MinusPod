@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { ChartColumn, Clock, FingerprintPattern, LayoutGrid, ListOrdered, LogOut, Menu, Moon, Search, Sun, X, type LucideIcon } from 'lucide-react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
@@ -16,16 +16,22 @@ import { countPill, tint } from './badgeStyles';
 import { uiUrl } from '../urlPrefix';
 import { IS_DEMO } from '../demo/flag';
 
-const NAV_ITEMS: { to: string; label: string }[] = [
-  { to: '/', label: 'Feeds' },
-  { to: '/add', label: 'Add feed' },
-  { to: '/patterns', label: 'Patterns' },
-  { to: '/history', label: 'History' },
-  { to: '/stats', label: 'Stats' },
-  { to: '/queue', label: 'Queue' },
+// `tab` puts a route in the phone tab bar: its icon and its position there (Queue sits before History).
+type NavItem = { to: string; label: string; tab?: { Icon: LucideIcon; order: number }; phoneMenu?: false };
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'Feeds', tab: { Icon: LayoutGrid, order: 1 } },
+  { to: '/add', label: 'Add feed', phoneMenu: false },
+  { to: '/patterns', label: 'Patterns', tab: { Icon: FingerprintPattern, order: 2 } },
+  { to: '/history', label: 'History', tab: { Icon: Clock, order: 4 } },
+  { to: '/stats', label: 'Stats', tab: { Icon: ChartColumn, order: 5 } },
+  { to: '/queue', label: 'Queue', tab: { Icon: ListOrdered, order: 3 } },
   { to: '/settings', label: 'Settings' },
   ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
 ];
+// Phone menu lists items that are neither tab-bar entries nor opted out.
+const onPhoneMenu = (item: NavItem) => !item.tab && item.phoneMenu !== false;
+const TAB_ITEMS = NAV_ITEMS.flatMap(({ to, label, tab }) => (tab ? [{ to, label, ...tab }] : [])).sort((a, b) => a.order - b.order);
+const navItemBase = `touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing}`;
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 
 interface NavLinkProps {
@@ -34,19 +40,20 @@ interface NavLinkProps {
   active: boolean;
   onClick?: () => void;
   count?: number;
+  className?: string;
 }
 
-function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
+function NavLink({ to, label, active, onClick, count, className = '' }: NavLinkProps) {
   return (
     <Link
       to={to}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
+      className={`${navItemBase} ${
         active
           ? 'bg-primary text-primary-foreground'
           : btnGhost
-      }`}
+      } ${className}`}
     >
       {label}
       {count ? (
@@ -95,6 +102,10 @@ function Layout() {
     setLastPath(location.pathname);
     setMobileMenuOpen(false);
   }
+
+  const phoneCount = NAV_ITEMS.filter(onPhoneMenu).length + (isPasswordSet ? 1 : 0);
+  const tabletCount = NAV_ITEMS.length + (isPasswordSet ? 1 : 0);
+  const lastSpan = `${phoneCount % 2 === 1 ? 'max-md:col-span-2' : ''} ${tabletCount % 2 === 1 ? 'md:col-span-2' : ''}`.trim();
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,7 +158,7 @@ function Layout() {
               {isPasswordSet && (
                 <button
                   onClick={handleLogout}
-                  className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                  className={`max-xl:hidden ${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                   aria-label="Log out"
                   title="Log out"
                 >
@@ -167,25 +178,68 @@ function Layout() {
         </div>
         {mobileMenuOpen && (
           <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
-            <nav className="safe-x flex flex-col py-2 gap-1">
-              {NAV_ITEMS.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  label={item.label}
-                  active={isPathActive(location.pathname, item.to)}
-                  onClick={() => setMobileMenuOpen(false)}
-                  count={item.to === '/queue' ? queueCount : undefined}
-                />
-              ))}
+            <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
+              {NAV_ITEMS.map((item, idx) => {
+                const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
+                const hideOnPhone = !onPhoneMenu(item);
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    label={item.label}
+                    active={isPathActive(location.pathname, item.to)}
+                    onClick={() => setMobileMenuOpen(false)}
+                    count={item.to === '/queue' ? queueCount : undefined}
+                    className={`${hideOnPhone ? 'hidden md:flex' : ''} ${isLast ? lastSpan : ''}`.trim()}
+                  />
+                );
+              })}
+              {isPasswordSet && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className={`${navItemBase} gap-2 ${btnGhost} ${lastSpan}`}
+                >
+                  <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  Log out
+                </button>
+              )}
             </nav>
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
         <UpdateBanner />
         <Outlet />
       </main>
+      <nav
+        aria-label="Primary"
+        data-viewport-inset="bottom"
+        className="safe-x safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
+      >
+        <ul className="grid grid-cols-5">
+          {TAB_ITEMS.map(({ to, label, Icon }) => {
+            const active = isPathActive(location.pathname, to);
+            return (
+              <li key={to}>
+                <Link
+                  to={to}
+                  aria-current={active ? 'page' : undefined}
+                  className={`touch-target relative flex h-14 flex-col items-center justify-center gap-0.5 rounded-md text-xs font-medium transition-colors ${focusRing} ${
+                    active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                  {label}
+                  {to === '/queue' && queueCount > 0 && (
+                    <span className={`absolute right-1/2 top-1 -mr-5 ${countPill} ${tint.primary}`}>{queueCount}</span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
       <QuickSearch seed={searchSeed} onClose={closeSearch} />
       {whatsNew.open && (
         <WhatsNewDialog current={whatsNew.current} sections={whatsNew.sections} onClose={whatsNew.close} />

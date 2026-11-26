@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { btnBase, btnSecondary } from './buttonStyles';
 import { selectBase } from './fieldStyles';
 import type { SortDirection } from './SortHeader';
@@ -17,6 +18,9 @@ export default function SortControls<T extends string>({ options, field, directi
       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
     <button type="button" onClick={() => onSort(field)} className={`${btnBase} ${btnSecondary}`} title={`Switch to ${direction === 'asc' ? 'descending' : 'ascending'}`}>
+      {direction === 'asc'
+        ? <ArrowUp className="w-4 h-4" aria-hidden="true" />
+        : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
       {direction === 'asc' ? 'Ascending' : 'Descending'}
     </button>
   </div>;

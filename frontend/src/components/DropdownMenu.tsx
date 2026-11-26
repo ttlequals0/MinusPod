@@ -15,6 +15,8 @@ export interface DropdownMenuItem {
   tooltip?: string;
   /** Renders a link instead of a button; onClick still runs when set. */
   href?: string;
+  /** Adds the download attribute to a link item. */
+  download?: boolean;
   /** Destructive text colour. */
   destructive?: boolean;
 }
@@ -89,7 +91,7 @@ function DropdownMenu({
         aria-haspopup="menu"
       >
         {triggerLabel}
-        <ChevronDown className={`${chevronClassName} transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`${chevronClassName} shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       <Popover
         open={isOpen}
@@ -121,6 +123,7 @@ function DropdownMenu({
               role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
               aria-checked={item.checked}
               href={asLink ? item.href : undefined}
+              download={asLink && item.download ? true : undefined}
               disabled={asLink ? undefined : item.disabled}
               aria-labelledby={item.disabled && item.subtitle ? `${menuId}-title-${i}` : undefined}
               aria-describedby={item.disabled && item.subtitle ? `${menuId}-sub-${i}` : undefined}

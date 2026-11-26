@@ -1838,6 +1838,13 @@ PROVIDER_PRICING_SLUGS = {
     'openrouter.ai':                      None,  # Native API
 }
 
+# OpenAI-compatible gateways whose own /models list carries OpenRouter-format
+# per-token pricing (pricing.prompt, pricing.completion, pricing.input_cache_read).
+# Fetched with the OpenRouter parser from the given URL.
+OPENROUTER_FORMAT_PRICING_URLS = {
+    'api.martllm.com': 'https://api.martllm.com/v1/models',
+}
+
 # Pricing cache TTL (seconds) - how often to re-fetch pricing data
 PRICING_CACHE_TTL = 86400  # 24 hours
 
@@ -2061,7 +2068,7 @@ def get_pricing_sources(provider: str, base_url: str = '') -> list:
     """Ordered pricing-source chain for the active provider.
 
     Each element is a source dict: 'type' ('openrouter_api' | 'pricepertoken' | 'litellm' | 'free'), 'url' (fetch URL
-    for openrouter_api and pricepertoken) and optional 'provider_filter' (litellm_provider, litellm only). Fetch each
+    for openrouter_api and pricepertoken; an openrouter_api URL may be any OpenRouter-format model list) and optional 'provider_filter' (litellm_provider, litellm only). Fetch each
     source in order: the first source with a key wins, later sources only fill gaps. Address locality never implies
     cost; use pricing_source_mode='free' explicitly for self-hosted local models.
     """
@@ -2089,6 +2096,10 @@ def get_pricing_sources(provider: str, base_url: str = '') -> list:
 
     # openai-compatible: resolve by base_url domain.
     domain = urlparse(base_url or '').hostname or ''
+
+    for known_domain, models_url in OPENROUTER_FORMAT_PRICING_URLS.items():
+        if domain == known_domain or domain.endswith('.' + known_domain):
+            return [{'type': 'openrouter_api', 'url': models_url}, dict(_LITELLM_SOURCE)]
 
     for known_domain, slug_info in PROVIDER_PRICING_SLUGS.items():
         if domain == known_domain or domain.endswith('.' + known_domain):
