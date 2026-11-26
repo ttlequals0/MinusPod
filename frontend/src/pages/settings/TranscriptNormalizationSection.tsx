@@ -10,6 +10,7 @@ import NormalizationEditModal from '../../components/NormalizationEditModal';
 import { ConfirmModal } from '../../components/Modal';
 import { SkeletonRows } from '../../components/Skeleton';
 import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
+import { tableActionBtn } from '../../components/rowActionStyles';
 import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, th, thBase } from '../../components/tableStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
@@ -70,7 +71,7 @@ function TranscriptNormalizationSection() {
           </div>
 
           {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
+          <div className="sm:hidden space-y-3">
             {norms?.map((n) => (
               <div key={n.id} className="bg-muted/40 rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -94,7 +95,7 @@ function TranscriptNormalizationSection() {
           </div>
 
           {/* Desktop table */}
-          <div className={`hidden md:block ${tableCard}`}>
+          <div className={`hidden sm:block ${tableCard}`}>
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
                 <colgroup>
@@ -121,9 +122,9 @@ function TranscriptNormalizationSection() {
                       </td>
                       <td className="px-2 py-3 whitespace-nowrap text-xs">
                         <div className="flex gap-1">
-                          <button onClick={() => setEditing(n)} className={`${btnBase} ${btnOutline}`}>Edit</button>
+                          <button onClick={() => setEditing(n)} className={`${tableActionBtn} ${btnOutline}`}>Edit</button>
                           <DemoDisabled>
-                            <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+                            <button onClick={() => setDeleteId(n.id)} className={`${tableActionBtn} ${btnDestructiveOutline}`}>Delete</button>
                           </DemoDisabled>
                         </div>
                       </td>

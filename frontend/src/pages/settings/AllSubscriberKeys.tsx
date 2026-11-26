@@ -71,7 +71,7 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
         )
       ) : (
         <>
-          <div className={`hidden lg:block ${tableCard}`}>
+          <div className={`hidden sm:block ${tableCard}`}>
             <div role="region" aria-label="Subscriber feeds; scroll for more columns" tabIndex={0} className="overflow-x-auto">
             <table className="w-full">
               <thead className={tableHead}>
@@ -99,7 +99,7 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
             </table>
             </div>
           </div>
-          <div className="lg:hidden space-y-2">
+          <div className="sm:hidden space-y-2">
             {keys.map((key) => (
               <div key={key.id} className="bg-muted/40 rounded-lg border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between gap-2">
