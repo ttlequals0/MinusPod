@@ -35,7 +35,7 @@ function SystemStatusSection({
       {statusLoading ? (
         <LoadingSpinner size="sm" />
       ) : status ? (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Version</p>
             <button
@@ -62,18 +62,16 @@ function SystemStatusSection({
             <p className="text-sm text-muted-foreground">Uptime</p>
             <p className="font-medium text-foreground">{formatUptime(status.uptime ?? 0)}</p>
           </div>
+          <label className="flex items-center gap-3 cursor-pointer self-center max-[360px]:col-span-2 lg:col-span-2">
+            <ToggleSwitch
+              checked={whatsNewOnUpgrade}
+              onChange={onWhatsNewOnUpgradeChange}
+              ariaLabel="Show what's new after an upgrade"
+            />
+            <span className="text-sm font-medium text-foreground">Show what's new after an upgrade</span>
+          </label>
         </div>
       ) : null}
-      {status && (
-        <label className="mt-4 flex items-center gap-3 cursor-pointer">
-          <ToggleSwitch
-            checked={whatsNewOnUpgrade}
-            onChange={onWhatsNewOnUpgradeChange}
-            ariaLabel="Show what's new after an upgrade"
-          />
-          <span className="text-sm font-medium text-foreground">Show what's new after an upgrade</span>
-        </label>
-      )}
       {status && showWhatsNew && (
         <WhatsNewDialog
           current={status.version}

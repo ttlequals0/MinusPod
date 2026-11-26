@@ -2,7 +2,7 @@
 // input inside the gesture, which only the Dashboard field can do; the
 // palette can no longer be the mobile entry point.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,8 +11,9 @@ import Layout from './Layout';
 vi.mock('../context/ThemeContext', () => ({
   useTheme: () => ({ theme: 'light', toggleTheme: vi.fn() }),
 }));
+const auth = vi.hoisted(() => ({ isPasswordSet: false }));
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ isPasswordSet: false, logout: vi.fn() }),
+  useAuth: () => ({ isPasswordSet: auth.isPasswordSet, logout: vi.fn() }),
 }));
 vi.mock('./UpdateBanner', () => ({ default: () => null }));
 
@@ -37,6 +38,18 @@ describe('Layout header search', () => {
     const link = screen.getByRole('link', { name: 'Search' });
     expect(link.tagName).toBe('A');
     expect(link.getAttribute('href')).toBe('/search');
+  });
+});
+
+describe('Layout header log out', () => {
+  it('hides the header button below xl, where the menu carries Log out', () => {
+    auth.isPasswordSet = true;
+    try {
+      renderLayout();
+      expect(screen.getByRole('button', { name: 'Log out' }).className).toContain('max-xl:hidden');
+    } finally {
+      auth.isPasswordSet = false;
+    }
   });
 });
 
@@ -85,8 +98,26 @@ describe('Layout queue badge', () => {
   it('keeps the count readable when Queue is selected', () => {
     renderLayout('/queue', 2);
 
-    const badge = screen.getByText('2');
+    const badge = screen.getAllByText('2')[0];
     expect(badge.classList.contains('bg-primary-foreground/20')).toBe(true);
     expect(badge.classList.contains('text-primary-foreground')).toBe(true);
+  });
+});
+
+describe('Layout phone tab bar', () => {
+  it('links the five primary routes and marks the active one', async () => {
+    renderLayout('/queue');
+    const bar = screen.getByRole('navigation', { name: 'Primary' });
+    const links = within(bar).getAllByRole('link');
+    expect(links.map((l) => l.textContent?.trim())).toEqual(['Feeds', 'Patterns', 'Queue', 'History', 'Stats']);
+    expect(within(bar).getByRole('link', { name: /^Queue/ }).getAttribute('aria-current')).toBe('page');
+    expect(within(bar).getByRole('link', { name: 'Feeds' }).getAttribute('aria-current')).toBeNull();
+    expect(bar.className).toContain('md:hidden');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Toggle menu' }));
+    const drawer = screen.getByRole('navigation', { name: 'Mobile navigation' });
+    expect(within(drawer).getByRole('link', { name: 'Feeds' }).className).toContain('hidden md:flex');
+    expect(within(drawer).getByRole('link', { name: 'Add feed' }).className).toContain('hidden md:flex');
+    expect(within(drawer).getByRole('link', { name: 'Settings' }).className).not.toContain('hidden md:flex');
   });
 });

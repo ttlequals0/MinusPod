@@ -32,7 +32,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
       <div className="flex flex-1">
         <FeedArtworkLink
           slug={feed.slug}
-          className="block w-24 h-24 shrink-0 overflow-hidden rounded-tl-lg cursor-pointer"
+          className="block w-20 h-20 min-[600px]:max-md:w-16 min-[600px]:max-md:h-16 md:w-24 md:h-24 shrink-0 overflow-hidden rounded-tl-lg cursor-pointer"
         >
           <Artwork
             src={artworkUrl}
@@ -95,7 +95,12 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           {hasUpstream && (
             <FeedRefreshMenu slug={feed.slug} onRefresh={onRefresh} isRefreshing={isRefreshing} />
           )}
-          <FeedDeleteButton slug={feed.slug} onDelete={onDelete} iconClassName="w-4 h-4 sm:hidden" />
+          <FeedDeleteButton
+            slug={feed.slug}
+            onDelete={onDelete}
+            iconClassName="w-4 h-4 md:hidden"
+            labelClassName="hidden md:inline"
+          />
         </div>
       </div>
     </div>

@@ -534,8 +534,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {isEditingNetwork ? (
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>Network</label>
+                    <label htmlFor={`feed-network-${slug}`} className={`${labelBase} mb-0 w-16 shrink-0`}>Network</label>
                     <select
+                      id={`feed-network-${slug}`}
                       value={customNetwork ? '__custom__' : editNetworkOverride}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -565,8 +566,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   {customNetwork && (
                     <>
                       <div className="flex items-center gap-2">
-                        <label className={`${labelBase} mb-0 w-16 shrink-0`}>Name</label>
+                        <label htmlFor={`feed-network-name-${slug}`} className={`${labelBase} mb-0 w-16 shrink-0`}>Name</label>
                         <input
+                          id={`feed-network-name-${slug}`}
                           type="text"
                           value={editNetworkOverride}
                           onChange={(e) => setEditNetworkOverride(e.target.value)}
@@ -574,14 +576,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           className={`flex-1 min-w-0 ${inputBase}`}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground pl-[4.5rem]">
+                      <p className="text-xs text-muted-foreground sm:pl-[4.5rem]">
                         Feeds with the same name share cues.
                       </p>
                     </>
                   )}
                   <div className="flex items-center gap-2">
-                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>DAI</label>
+                    <label htmlFor={`feed-dai-${slug}`} className={`${labelBase} mb-0 w-16 shrink-0`}>DAI</label>
                     <input
+                      id={`feed-dai-${slug}`}
                       type="text"
                       value={editDaiPlatform}
                       onChange={(e) => setEditDaiPlatform(e.target.value)}
@@ -590,8 +593,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>Feed cap</label>
+                    <label htmlFor={`feed-cap-${slug}`} className={`${labelBase} mb-0 w-16 shrink-0`}>Feed cap</label>
                     <DraftNumberInput
+                      id={`feed-cap-${slug}`}
                       value={parseOptionalNumber(editMaxEpisodes)}
                       fallback={null}
                       parse={parseOptionalNumber}
@@ -605,7 +609,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     />
                   </div>
                   {isLocal && (
-                    <p className="text-xs text-muted-foreground pl-[4.5rem]">
+                    <p className="text-xs text-muted-foreground sm:pl-[4.5rem]">
                       0 or empty serves every episode.
                     </p>
                   )}
@@ -667,6 +671,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <input
                       type="url"
+                      aria-label="Source feed URL"
                       value={editSourceUrl}
                       onChange={(e) => setEditSourceUrl(e.target.value)}
                       placeholder="https://example.com/feed.xml"
@@ -793,9 +798,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Auto-Process Control */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className={rowLabel}>Auto-Process</span>
+                <label htmlFor={`feed-autoprocess-${slug}`} className={rowLabel}>Auto-Process</label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
+                    id={`feed-autoprocess-${slug}`}
+                    ariaLabel="Auto-Process"
                     value={feed.autoProcessOverride}
                     onChange={(next) => updateMutation.mutate({ autoProcessOverride: next })}
                     disabled={updateMutation.isPending}
@@ -987,9 +994,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed transcription language override */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className={rowLabel}>Language</span>
+                <label htmlFor={`feed-language-${slug}`} className={rowLabel}>Language</label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <select
+                    id={`feed-language-${slug}`}
+                    aria-label="Language"
                     value={feed.languageOverride ?? ''}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -1390,9 +1399,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   local feed: nothing is served until it finishes processing. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className={rowLabel}>Hide unprocessed</span>
+                <label htmlFor={`feed-hide-unprocessed-${slug}`} className={rowLabel}>Hide unprocessed</label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
+                    id={`feed-hide-unprocessed-${slug}`}
+                    ariaLabel="Hide unprocessed"
                     value={feed.onlyExposeProcessedEpisodes}
                     onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
                     disabled={updateMutation.isPending}
@@ -1756,9 +1767,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   select stays first in the column, sharing the left edge every
                   other control in this section uses. */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground sm:w-32 shrink-0">Create ads from cue pairs</span>
+                <label htmlFor={`feed-cue-pairs-${slug}`} className="text-muted-foreground sm:w-32 shrink-0">Create ads from cue pairs</label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
+                    id={`feed-cue-pairs-${slug}`}
+                    ariaLabel="Create ads from cue pairs"
                     value={feed.cueCreateFromPairsOverride}
                     onChange={(next) => updateMutation.mutate({ cueCreateFromPairsOverride: next })}
                     disabled={updateMutation.isPending}
@@ -1775,9 +1788,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground sm:w-32 shrink-0">Cut matched cue audio</span>
+                <label htmlFor={`feed-cue-cut-${slug}`} className="text-muted-foreground sm:w-32 shrink-0">Cut matched cue audio</label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
+                    id={`feed-cue-cut-${slug}`}
+                    ariaLabel="Cut matched cue audio"
                     value={feed.cueCutMatchesOverride}
                     onChange={(next) => updateMutation.mutate({ cueCutMatchesOverride: next })}
                     disabled={updateMutation.isPending}

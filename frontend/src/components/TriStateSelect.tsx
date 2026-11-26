@@ -1,13 +1,14 @@
-import { inputBase } from './fieldStyles';
+import { selectBase } from './fieldStyles';
 
 interface TriStateSelectProps {
   /** Tri-state: true = override-on, false = override-off, null = use the site-wide default. */
   value: boolean | null | undefined;
   onChange: (value: boolean | null) => void;
   id?: string;
+  ariaLabel?: string;
   ariaDescribedBy?: string;
   disabled?: boolean;
-  /** Tailwind classes; falls back to the project's standard input shape. */
+  /** Tailwind classes; falls back to the project's standard select shape. */
   className?: string;
   /** Custom labels for the three options. Defaults match per-feed override UX. */
   globalLabel?: string;
@@ -19,6 +20,7 @@ function TriStateSelect({
   value,
   onChange,
   id,
+  ariaLabel,
   ariaDescribedBy,
   disabled,
   className,
@@ -32,6 +34,7 @@ function TriStateSelect({
   return (
     <select
       id={id}
+      aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
       value={stringValue}
       disabled={disabled}
@@ -43,7 +46,7 @@ function TriStateSelect({
       }}
       className={
         className ??
-        `${inputBase} w-full`
+        `${selectBase} w-full`
       }
     >
       <option value="global">{globalLabel}</option>

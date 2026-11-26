@@ -78,16 +78,19 @@ def _cache_rate_per_mtok(per_token) -> float | None:
     return round(value * 1_000_000, 4)
 
 
-def fetch_openrouter_pricing() -> list[dict]:
-    """Fetch pricing from OpenRouter's /api/v1/models endpoint.
+OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models'
+
+
+def fetch_openrouter_pricing(url: str = OPENROUTER_MODELS_URL) -> list[dict]:
+    """Fetch pricing from an OpenRouter-format model list (OpenRouter's /api/v1/models by default).
 
     Rows: match_key, raw_model_id, display_name, input/output/cache_read_cost_per_mtok.
     """
     try:
-        body = _fetch_capped_body('https://openrouter.ai/api/v1/models')
+        body = _fetch_capped_body(url)
     except (SSRFError, requests.RequestException, ResponseTooLargeError,
             IncompleteResponseError) as exc:
-        raise ConnectionError(f"Failed to fetch OpenRouter pricing: {exc}") from exc
+        raise ConnectionError(f"Failed to fetch OpenRouter-format pricing from {url}: {exc}") from exc
 
     results = []
     for model in json.loads(body).get('data', []):
@@ -291,7 +294,7 @@ def _fetch_single_source(source: dict) -> list[dict]:
         return []
     try:
         if source_type == 'openrouter_api':
-            return fetch_openrouter_pricing()
+            return fetch_openrouter_pricing(source.get('url') or OPENROUTER_MODELS_URL)
         if source_type == 'pricepertoken':
             return fetch_pricepertoken_pricing(source.get('url', ''))
         if source_type == 'litellm':

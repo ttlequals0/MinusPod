@@ -8,7 +8,6 @@ import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { formatTimestamp } from '../utils/format';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnBase, btnPrimary, btnSecondary } from './buttonStyles';
-import CloseButton from './CloseButton';
 import Checkbox from './Checkbox';
 import LoadingSpinner from './LoadingSpinner';
 import { Modal, dialogFooterBtn } from './Modal';
@@ -110,15 +109,12 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
       ariaLabelledBy={titleId}
       panelClassName="w-full max-w-2xl max-h-[85vh] flex flex-col"
       header={(
-        <>
-          <div className="min-w-0">
-            <h2 id={titleId} className={cardTitle}>Submit to SponsorBlock</h2>
-            <p className="text-sm text-muted-foreground">
-              Review each segment against the video. Only checked segments are sent.
-            </p>
-          </div>
-          <CloseButton onClick={onClose} />
-        </>
+        <div className="min-w-0">
+          <h2 id={titleId} className={cardTitle}>Submit to SponsorBlock</h2>
+          <p className="text-sm text-muted-foreground">
+            Review each segment against the video. Only checked segments are sent.
+          </p>
+        </div>
       )}
       footer={(
         <>

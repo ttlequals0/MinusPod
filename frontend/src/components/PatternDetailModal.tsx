@@ -18,7 +18,6 @@ import {
 } from '../utils/segmentCategory';
 import { btnBase, btnPrimary, btnOutline, btnDestructive, btnDestructiveOutline } from './buttonStyles';
 import { focusRing, inputBase, labelBase, selectBase, textareaBase } from './fieldStyles';
-import CloseButton from './CloseButton';
 import StatTile from './StatTile';
 import { DemoDisabled } from './DemoDisabled';
 import PatternAudioSection from './PatternAudioSection';
@@ -137,16 +136,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   return (
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full"
       header={(
-        <div className="w-full min-w-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-              <h2 className="text-lg font-semibold text-foreground">
-                Pattern #{pattern.id}
-              </h2>
-              <ScopeBadge pattern={pattern} />
-              <SegmentCategoryBadge category={pattern.category} />
-            </div>
-            <CloseButton onClick={requestClose} label="Close dialog" className="shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+            <h2 className="text-lg font-semibold text-foreground">
+              Pattern #{pattern.id}
+            </h2>
+            <ScopeBadge pattern={pattern} />
+            <SegmentCategoryBadge category={pattern.category} />
           </div>
           {/* -mb-[17px] lays the tab rule over the header rule below the 16px padding */}
           <div className="mt-3 -mb-[17px]">
