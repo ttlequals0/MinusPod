@@ -47,16 +47,17 @@ const CLEANUP_ACTION_LABELS: Record<string, string> = {
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
 function SortDirButton({ sortDir, onClick, noun }: { sortDir: 'asc' | 'desc'; onClick: () => void; noun?: string }) {
+  const current = sortDir === 'asc' ? 'Ascending' : 'Descending';
   const target = sortDir === 'asc' ? 'descending' : 'ascending';
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={noun ? `Sort ${noun} ${target}` : `Sort ${target}`}
+      aria-label={`${current}, switch to ${target}${noun ? ` (${noun})` : ''}`}
       className={`${btnBase} ${btnSecondary} min-w-11 shrink-0`}
     >
       {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
-      <span className="text-xs sm:text-sm">{sortDir === 'asc' ? 'Ascending' : 'Descending'}</span>
+      <span className="text-xs sm:text-sm">{current}</span>
     </button>
   );
 }

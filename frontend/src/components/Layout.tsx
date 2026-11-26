@@ -167,7 +167,7 @@ function Layout() {
         </div>
         {mobileMenuOpen && (
           <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
-            <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
+            <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5 [&>a:last-child:nth-child(odd)]:col-span-2">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}

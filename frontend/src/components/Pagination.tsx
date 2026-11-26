@@ -2,19 +2,22 @@ import type { ReactNode } from 'react';
 import { btnBase, btnPrimary, btnSecondary } from './buttonStyles';
 
 /** First, last, and `neighbours` pages either side of the current one. */
-function pageWindow(page: number, totalPages: number, neighbours: number) {
+export function pageWindow(page: number, totalPages: number, neighbours: number) {
   const span = 3 + neighbours * 2;
   const out: (number | 'ellipsis')[] = [];
-  if (totalPages <= span + 2) {
+  if (totalPages <= span + (neighbours ? 2 : 0)) {
     for (let i = 1; i <= totalPages; i++) out.push(i);
     return out;
   }
   out.push(1);
-  if (page > 2 + neighbours) out.push('ellipsis');
   const from = Math.max(2, page - neighbours);
   const to = Math.min(totalPages - 1, page + neighbours);
+  // An ellipsis never stands in for a single page: show that page instead.
+  if (from === 3) out.push(2);
+  else if (from > 3) out.push('ellipsis');
   for (let i = from; i <= to; i++) out.push(i);
-  if (page < totalPages - 1 - neighbours) out.push('ellipsis');
+  if (to === totalPages - 2) out.push(totalPages - 1);
+  else if (to < totalPages - 2) out.push('ellipsis');
   out.push(totalPages);
   return out;
 }
@@ -24,7 +27,7 @@ function pageButtons(
   onPage: (p: number) => void, visibility: string,
 ) {
   return pages.map((p, i) => (p === 'ellipsis' ? (
-    <span key={`e${i}`} className={`px-1 text-muted-foreground ${visibility}`}>...</span>
+    <span key={`e${i}`} aria-hidden="true" className={`px-1 text-muted-foreground ${visibility}`}>...</span>
   ) : (
     <button
       key={p}
@@ -55,7 +58,7 @@ export function Pagination({
     <div className="px-4 py-3 mt-4 bg-card rounded-lg border border-border space-y-2.5">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="text-sm text-muted-foreground">Page {page} of {totalPages} ({total} total)</div>
-        <div className="flex items-center gap-1 sm:gap-2 justify-center">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2 justify-center">
           <button
             onClick={() => onPage(Math.max(1, page - 1))}
             disabled={page === 1}

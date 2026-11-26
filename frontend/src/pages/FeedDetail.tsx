@@ -721,9 +721,9 @@ function FeedDetail() {
             <CopyButton
               text={feed.feedUrl}
               label="Copy feed URL"
-              className={`max-[359px]:w-full px-2.5 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-1.5 sm:gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`shrink-0 max-[359px]:w-full px-2.5 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-1.5 sm:gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
-              labelClassName="text-xs sm:text-sm"
+              labelClassName="text-xs sm:text-sm whitespace-nowrap"
             />
           </div>
           {/* Below sm: one row (copy first), a 2x2 grid under 360 px; from sm it wraps so nowrap buttons never overflow. */}

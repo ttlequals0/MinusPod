@@ -249,7 +249,7 @@ describe('AdReviewTab', () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getByRole('button', { name: 'Switch to ascending order' }));
+    await user.click(screen.getByRole('button', { name: 'Desc, switch to ascending' }));
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ order: 'asc' });
     });

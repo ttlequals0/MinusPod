@@ -206,6 +206,7 @@ function AdReviewModal({
   hideConfirm = false, onSplitSaved, heldContext,
 }: Props) {
   const caps = MODE_CAPABILITIES[mode];
+  const heading = mode === 'review' && heldContext ? `Held for review: ${heldContext.reasonLabel}` : caps.heading;
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, true);
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
@@ -1024,11 +1025,12 @@ function AdReviewModal({
         {/* Header: action chrome up top (one row on mobile), title only at sm:+, detection metadata wrapping onto
             its own line below. */}
         <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className={`${caps.headingOnPhone ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground truncate min-w-0`}>
-              {mode === 'review' && heldContext ? `Held for review: ${heldContext.reasonLabel}` : caps.heading}
+          <div className="flex items-start justify-between gap-2">
+            <h2 className={`${caps.headingOnPhone ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground my-auto line-clamp-2 sm:line-clamp-1 min-w-0`}
+              title={heading}>
+              {heading}
             </h2>
-            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
               {/* Processed / Original toggle. Hidden in create mode (always original). */}
               {caps.audioToggle && onAudioModeChange && (
                 <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
@@ -1198,7 +1200,7 @@ function AdReviewModal({
             ) : (
               <div
                 ref={waveformScrollRef}
-                className="overflow-hidden pt-2"
+                className="overflow-hidden pt-5"
               >
                 <div className="relative w-full" ref={overlayRef}>
                   {/* Header strip: gives the pinheads room inside the overlay's box so they are not clipped. */}

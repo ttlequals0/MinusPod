@@ -162,7 +162,7 @@ export function DetectionFilterBar({
           <button
             type="button"
             onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
-            aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
+            aria-label={order === 'desc' ? 'Desc, switch to ascending' : 'Asc, switch to descending'}
             className={`${btnBase} ${btnSecondary} shrink-0`}
           >
             {order === 'desc'

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { formatTime } from '../../utils/adReviewHelpers';
 
 // Vertical drag handle above the waveform that controls an ad boundary. Pins are the user's drag interface;
@@ -42,6 +42,7 @@ export function Pin({
   totalDuration,
 }: PinProps) {
   const [dragging, setDragging] = useState(false);
+  const labelRef = useRef<HTMLDivElement>(null);
 
   const relX = (boundary - windowStart) / windowDuration;
   // Tolerate slightly outside [0, 1]: post-roll ads often have adEnd a hair past the audio's end (relX ~1.0001),
@@ -76,6 +77,24 @@ export function Pin({
     neighboursValid ? rawUpper : Number.POSITIVE_INFINITY,
   );
   const clamp = (t: number) => Math.min(Math.max(t, lowerBound), upperBound);
+
+  // Shift the time pill inward so it is not clipped at the waveform edges.
+  useLayoutEffect(() => {
+    const label = labelRef.current;
+    const container = containerRef.current;
+    if (!label || !container) return;
+    const shift = () => {
+      const half = label.offsetWidth / 2;
+      const w = container.getBoundingClientRect().width;
+      const x = (w * leftPct) / 100;
+      label.style.marginLeft = `${Math.min(Math.max(x, half), w - half) - x}px`;
+    };
+    shift();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(shift);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, leftPct, labelText, boundary, visible]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -161,6 +180,7 @@ export function Pin({
       />
       {/* Time label: visible on touch devices and while dragging or hovered. */}
       <div
+        ref={labelRef}
         className={`absolute -top-4 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
           dragging ? 'opacity-100' : 'opacity-0 pointer-coarse:opacity-100 group-hover:opacity-100'
         }`}
