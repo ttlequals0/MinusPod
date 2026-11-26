@@ -365,7 +365,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             )}
 
             {/* Waveform plus the dividers laid over it. */}
-            <div ref={containerRef} className="relative">
+            <div ref={containerRef} className="relative mt-4">
               <PeakStrip peaks={windowPeaks} />
               {peaksLoading && (
                 <WaveformLoading className="absolute left-2 top-2 z-20 rounded bg-secondary/90 px-1 pointer-events-none" />
@@ -393,7 +393,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
             {/* The piece strip: one segment per resulting ad, gapped so the
                 boundaries read as boundaries rather than a colour change. */}
-            <div className="flex gap-0.5 h-6" data-testid="piece-strip">
+            <div className="flex gap-0.5 min-h-6 pointer-coarse:min-h-11" data-testid="piece-strip">
               {pieces.map((p, i) => {
                 const width = pctOf(p.end) - pctOf(p.start);
                 // Off-window pieces get no segment; their rows below remain.

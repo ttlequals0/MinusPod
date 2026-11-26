@@ -59,7 +59,7 @@ function AdChaptersBlock({
 }: AdChaptersBlockProps) {
   const disabled = !chaptersEnabled;
   return (
-    <div className={`ml-14 space-y-4 ${disabled ? 'opacity-50' : ''}`}>
+    <div className={`sm:ml-14 space-y-4 ${disabled ? 'opacity-50' : ''}`}>
       <div>
         <p className="text-sm font-medium text-foreground">Ad chapters</p>
         <p className="mt-2 text-sm text-muted-foreground">

@@ -111,7 +111,12 @@ function EpisodeRow({
           onTouchEnd={(e) => { e.stopPropagation(); }}
           className={`absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center ${focusRing}`}
         >
-          <Checkbox id={`select-${episode.id}`} checked={selected} onChange={() => {}} />
+          <Checkbox
+            id={`select-${episode.id}`}
+            ariaLabel={selected ? `Deselect ${episode.title}` : `Select ${episode.title}`}
+            checked={selected}
+            onChange={() => {}}
+          />
         </button>
       )}
       <Link

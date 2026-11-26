@@ -123,7 +123,7 @@ function AdDetectionSection({
             step="0.05"
             value={minCutConfidence}
             onChange={(e) => onMinCutConfidenceChange(parseFloat(e.target.value))}
-            className={`w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary ${focusRing}`}
+            className={`w-full h-2 pointer-coarse:h-11 max-sm:h-11 bg-transparent cursor-pointer accent-primary ${focusRing}`}
             aria-describedby="minCutConfidence-help"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">

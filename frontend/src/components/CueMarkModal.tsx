@@ -581,7 +581,8 @@ function CueMarkModal({
         </p>
 
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
-        <div ref={scrollRef} className="overflow-hidden border border-border rounded-lg bg-secondary/40 min-h-[140px]">
+        <div ref={scrollRef} className="overflow-hidden pt-2 border border-border rounded-lg bg-secondary/40 min-h-[140px]">
+          <div className="h-9" />
           <div ref={overlayRef} className="relative">
             {peaksLoading && <WaveformLoading className="absolute left-3 top-3" />}
             <div ref={waveformRef} />

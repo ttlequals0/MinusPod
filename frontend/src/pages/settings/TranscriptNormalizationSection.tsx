@@ -70,9 +70,9 @@ function TranscriptNormalizationSection() {
           </div>
 
           {/* Mobile cards */}
-          <div className="sm:hidden space-y-3">
+          <div className="md:hidden space-y-3">
             {norms?.map((n) => (
-              <div key={n.id} className="bg-muted/40 rounded-lg p-4">
+              <div key={n.id} className="bg-muted/40 rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="text-sm font-mono text-foreground break-all">{n.terms}</span>
                   <span className={`${badgeBase} shrink-0 ${tint.neutral}`}>{n.category}</span>
@@ -94,7 +94,7 @@ function TranscriptNormalizationSection() {
           </div>
 
           {/* Desktop table */}
-          <div className={`hidden sm:block ${tableCard}`}>
+          <div className={`hidden md:block ${tableCard}`}>
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
                 <colgroup>

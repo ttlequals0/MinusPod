@@ -974,15 +974,15 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <h2 className={`${cardTitle} mb-4`}>Top podcasts by ads removed</h2>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={topPodcasts} layout="vertical" margin={{ left: 20, right: 20 }}>
+              <BarChart data={topPodcasts} layout="vertical" margin={{ left: 4, right: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
                 <XAxis type="number" tick={{ fill: theme.foreground, fontSize: 12 }} />
                 <YAxis
                   dataKey="podcastTitle"
                   type="category"
-                  width={130}
+                  width={116}
                   tick={{ fill: theme.foreground, fontSize: 12 }}
-                  tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 16) + '..' : v}
+                  tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '..' : v}
                 />
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
@@ -1105,21 +1105,33 @@ export default function StatsPage() {
             <StatTile label="Near-misses" value={cueStats.nearMissTotal} />
           </div>
           {cueHistogram.length > 0 && (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={cueHistogram} margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
-                <XAxis
-                  dataKey="scoreFrom"
-                  tick={{ fill: theme.foreground, fontSize: 12 }}
-                />
-                <YAxis tick={{ fill: theme.foreground, fontSize: 12 }} />
-                <Tooltip {...tooltipStyle} />
-                <Bar dataKey="matches" name="Matches (affected cuts)"
-                     fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
-                     fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs bg-primary/85 shrink-0" aria-hidden="true" />
+                  Matches (affected cuts)
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: 'rgba(245, 158, 11, 0.7)' }} aria-hidden="true" />
+                  Near-misses (never affected cuts)
+                </span>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={cueHistogram} margin={{ left: 0, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
+                  <XAxis
+                    dataKey="scoreFrom"
+                    tick={{ fill: theme.foreground, fontSize: 12 }}
+                  />
+                  <YAxis tick={{ fill: theme.foreground, fontSize: 12 }} />
+                  <Tooltip {...tooltipStyle} />
+                  <Bar dataKey="matches" name="Matches (affected cuts)"
+                       fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
+                       fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </>
           )}
           {cueUnusedReasons.length > 0 && (
             <div className="mt-6">
@@ -1450,7 +1462,7 @@ export default function StatsPage() {
               </div>
               <div className="sm:hidden space-y-3">
                 {Object.entries(cleanupStats.actions).map(([action, counts]) => (
-                  <div key={action} className="rounded bg-muted/40 p-3">
+                  <div key={action} className="rounded-lg border border-border bg-muted/40 p-3">
                     <h5 className="text-sm font-semibold text-foreground mb-2">{CLEANUP_ACTION_LABELS[action] ?? action}</h5>
                     <dl className="text-sm space-y-1">
                       {(['proposed', 'accepted', 'applied', 'reverted'] as const).map((kind) => (

@@ -118,7 +118,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1" role="group" aria-label="Filter by level">
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by level">
               {LEVELS.map((level) => (
                 <button
                   key={level}

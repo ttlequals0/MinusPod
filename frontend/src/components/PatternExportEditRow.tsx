@@ -4,6 +4,7 @@ import { getTagVocabulary } from '../api/community';
 import type { PatternOverride } from '../api/patterns';
 import { expectedFilename } from '../api/communitySlug';
 import { TagChips } from './TagChips';
+import { focusRing } from './fieldStyles';
 
 interface Props {
   patternId: number;
@@ -74,8 +75,7 @@ export function PatternExportEditRow({
   }
 
   const inputClass =
-    'h-auto flex-1 rounded border border-border bg-background px-2 py-1 text-xs ' +
-    'focus:outline-none focus:ring-1 focus:ring-ring';
+    `h-auto flex-1 rounded border border-input bg-background px-2 py-1 text-xs ${focusRing}`;
 
   return (
     <div className="ml-6 mt-1 mb-2 p-3 rounded border border-border bg-muted/30 space-y-2 text-xs">
@@ -122,8 +122,7 @@ export function PatternExportEditRow({
             id={`tags-${patternId}`}
             type="text"
             placeholder="comma-separated, e.g. universal, business"
-            className={'h-auto w-full rounded border border-border bg-background px-2 py-1 text-xs ' +
-              'focus:outline-none focus:ring-1 focus:ring-ring'}
+            className={`h-auto w-full rounded border border-input bg-background px-2 py-1 text-xs ${focusRing}`}
             value={tags.join(', ')}
             onChange={(e) => update({ sponsor_tags: chips(e.target.value) })}
           />

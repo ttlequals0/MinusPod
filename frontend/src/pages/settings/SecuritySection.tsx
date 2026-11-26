@@ -432,7 +432,7 @@ function SecuritySection({
               </div>
               <div className="sm:hidden space-y-2">
                 {blockedAgents.map((agent) => (
-                  <div key={agent} className="bg-muted/40 rounded-lg p-4 flex items-center justify-between gap-3">
+                  <div key={agent} className="bg-muted/40 rounded-lg border border-border p-4 flex items-center justify-between gap-3">
                     <span className="min-w-0 break-all font-mono text-sm text-foreground">{agent}</span>
                     {removeAgentButton(agent)}
                   </div>

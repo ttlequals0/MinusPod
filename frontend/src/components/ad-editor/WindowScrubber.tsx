@@ -50,21 +50,23 @@ export function WindowScrubber({
         aria-valuenow={Math.round(windowCenter)}
         tabIndex={0}
         onPointerDown={onPointerDown}
-        className={`relative h-3 rounded-full bg-background border border-border cursor-pointer touch-none ${focusRing}`}
+        className={`relative flex items-center min-h-6 pointer-coarse:min-h-11 cursor-pointer touch-none ${focusRing}`}
       >
-        <div
-          className="absolute inset-y-0 bg-primary/30 rounded-full pointer-events-none"
-          style={{
-            left: `${(windowStart / totalDuration) * 100}%`,
-            width: `${Math.max(1, ((windowEnd - windowStart) / totalDuration) * 100)}%`,
-          }}
-          aria-hidden
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-warning pointer-events-none"
-          style={{ left: `${(playheadTime / totalDuration) * 100}%` }}
-          aria-hidden
-        />
+        <div className="relative w-full h-3 rounded-full bg-background border border-border">
+          <div
+            className="absolute inset-y-0 bg-primary/30 rounded-full pointer-events-none"
+            style={{
+              left: `${(windowStart / totalDuration) * 100}%`,
+              width: `${Math.max(1, ((windowEnd - windowStart) / totalDuration) * 100)}%`,
+            }}
+            aria-hidden
+          />
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-warning pointer-events-none"
+            style={{ left: `${(playheadTime / totalDuration) * 100}%` }}
+            aria-hidden
+          />
+        </div>
       </div>
       <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 tabular-nums">
         <span>{formatTime(windowStart)}</span>

@@ -68,10 +68,11 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
     >
       <div className="p-4 space-y-4">
         <div>
-          <label className={labelBase}>
+          <label htmlFor="norm-pattern" className={labelBase}>
             Pattern <span className="text-muted-foreground font-normal">(regex)</span>
           </label>
           <input
+            id="norm-pattern"
             type="text"
             value={terms}
             onChange={(e) => setTerms(e.target.value)}
@@ -81,8 +82,9 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
         </div>
 
         <div>
-          <label className={labelBase}>Replacement</label>
+          <label htmlFor="norm-replacement" className={labelBase}>Replacement</label>
           <input
+            id="norm-replacement"
             type="text"
             value={canonical}
             onChange={(e) => setCanonical(e.target.value)}
@@ -92,8 +94,9 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
         </div>
 
         <div>
-          <label className={labelBase}>Category</label>
+          <label htmlFor="norm-category" className={labelBase}>Category</label>
           <select
+            id="norm-category"
             value={category}
             onChange={(e) => setCategory(e.target.value as NormalizationCategory)}
             className={`w-full ${selectBase}`}
