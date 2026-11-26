@@ -81,7 +81,7 @@ describe('EpisodeRowActions: equal-width trigger', () => {
     const reprocessClass = triggerButton().className;
     expect(processClass).toBe(reprocessClass);
     // The floor only equalizes widths while the type stays text-sm.
-    expect(processClass).toMatch(/(^|\s)min-w-24(\s|$)/);
+    expect(processClass).toMatch(/(^|\s)sm:min-w-24(\s|$)/);
     expect(processClass).toMatch(/(^|\s)text-sm(\s|$)/);
   });
 });

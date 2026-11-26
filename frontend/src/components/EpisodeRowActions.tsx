@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { EllipsisVertical } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { bulkEpisodeAction, reprocessEpisode } from '../api/feeds';
 import { getErrorMessage, jobStateOf } from '../api/client';
@@ -93,10 +94,15 @@ function EpisodeRowActions({
       )}
       <DemoDisabled>
         <DropdownMenu
-          // The 6rem floor aligns row actions; flex-1 centers the label beside the chevron.
-          triggerLabel={<span className="flex-1 text-center">Actions</span>}
-          triggerClassName={`${btnBase} ${btnPrimaryOutline} gap-1 min-w-24`}
-          chevronClassName="w-3 h-3"
+          // Below sm a three-dot icon replaces the label; from sm the 6rem floor aligns rows.
+          triggerLabel={(
+            <>
+              <EllipsisVertical className="h-5 w-5 sm:hidden" aria-hidden="true" />
+              <span className="flex-1 text-center max-sm:sr-only">Actions</span>
+            </>
+          )}
+          triggerClassName={`${btnBase} ${btnPrimaryOutline} gap-1 max-sm:min-w-11 max-sm:px-0 sm:min-w-24`}
+          chevronClassName="w-3 h-3 max-sm:hidden"
           disabled={blocked}
           title="Episode actions"
           items={[

@@ -249,11 +249,11 @@ describe('AdReviewTab', () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getByRole('button', { name: 'Desc, switch to ascending' }));
+    await user.click(screen.getByRole('button', { name: 'Newest, switch to oldest' }));
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ order: 'asc' });
     });
-    await user.selectOptions(screen.getByLabelText('Sort'), 'confidence');
+    await user.selectOptions(screen.getByLabelText('Sort by'), 'confidence');
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
         sort: 'confidence', order: 'desc', page: 1,

@@ -115,7 +115,6 @@ function useEpisodeListParams() {
 }
 
 // Bulk actions pair up in a 2-column grid on phones and wrap cleanly from sm up.
-const bulkActionBtn = `${btnBase} w-full sm:w-auto`;
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -467,6 +466,7 @@ function FeedDetail() {
   ).length;
   const hasSelection = effectiveSelectedIds.size > 0;
   const selectionOverLimit = effectiveSelectedIds.size > 500;
+  const selectionBusy = bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit;
   const selectionTruncated = matchedSelection?.scope === selectionScope && matchedSelection.truncated;
   // Keyed on jobState, not status: the run buttons key on jobState too, so the
   // note can never claim a selection is busy while those buttons stay live.
@@ -886,85 +886,78 @@ function FeedDetail() {
 
       {/* Bulk action toolbar */}
       {hasSelection && (
-        <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border space-y-2.5 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
-          <div className="flex items-center justify-between gap-2 sm:contents">
-            <span className="text-sm font-medium text-foreground">{effectiveSelectedIds.size} selected</span>
+        <div className="mb-4 p-4 bg-card rounded-lg border border-primary/40 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-foreground">
+              {effectiveSelectedIds.size} {effectiveSelectedIds.size === 1 ? 'episode' : 'episodes'} selected
+            </span>
             <button
+              type="button"
               onClick={clearSelection}
-              className={`${btnBase} ${btnGhost} sm:order-last`}
+              className={`touch-target text-sm text-primary hover:underline rounded ${focusRing}`}
             >
-              Clear
+              Clear selection
             </button>
           </div>
-          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:ml-auto">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
             {discoveredCount + pendingCount > 0 && (
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
-                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnPrimary}`}
+                disabled={selectionBusy}
+                className={`${btnBase} ${btnPrimary} col-span-2 sm:col-auto`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
               </button>
             )}
             {processedCount > 0 && (
-              <>
-                <button
-                  onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
-                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary}`}
-                >
-                  Reprocess ({processedCount})
-                </button>
-                <button
-                  onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
-                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary}`}
-                >
-                  Full reprocess ({processedCount})
-                </button>
-                <button
-                  onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
-                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary}`}
-                  title="Re-detect ads using existing transcripts (skips re-transcription)"
-                >
-                  Re-detect ads ({processedCount})
-                </button>
-              </>
+              <DropdownMenu
+                triggerLabel={`Reprocess (${processedCount})`}
+                triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
+                disabled={selectionBusy}
+                items={[
+                  { title: 'Reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess' }) },
+                  { title: 'Full reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess_full' }) },
+                  {
+                    title: 'Re-detect ads',
+                    subtitle: 'Uses existing transcripts',
+                    tooltip: 'Re-detect ads using existing transcripts (skips re-transcription)',
+                    onClick: () => bulkMutation.mutate({ action: 'reprocess_llm' }),
+                  },
+                ]}
+              />
             )}
             {/* Pass-through applies regardless of episode status; only actively
                 processing rows are excluded from selection in the first place. */}
-            <button
-              onClick={() => passthroughMutation.mutate({ enabled: true })}
-              disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-              title="Serve these episodes unmodified, with no ad processing"
-              className={`${bulkActionBtn} ${btnSecondary}`}
-            >
-              {passthroughMutation.isPending && passthroughMutation.variables?.enabled
-                ? 'Setting...' : `Set pass-through (${effectiveSelectedIds.size})`}
-            </button>
-            <button
-              onClick={() => passthroughMutation.mutate({ enabled: false })}
-              disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-              title="Resume normal ad processing for these episodes"
-              className={`${bulkActionBtn} ${btnSecondary}`}
-            >
-              {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
-                ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
-            </button>
-            {processedCount > 0 && (
-              <button
-                onClick={() => setShowBulkDeleteConfirm(true)}
-                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnDestructive} min-[380px]:max-sm:col-span-2`}
-              >
-                Delete ({processedCount})
-              </button>
-            )}
-            {selectionNote && (
-              <span className="text-xs text-muted-foreground min-[380px]:max-sm:col-span-2">{selectionNote}</span>
-            )}
+            <DropdownMenu
+              triggerLabel={`Pass-through (${effectiveSelectedIds.size})`}
+              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
+              disabled={selectionBusy}
+              items={[
+                {
+                  title: 'Set pass-through',
+                  subtitle: 'Serve these episodes unmodified',
+                  tooltip: 'Serve these episodes unmodified, with no ad processing',
+                  onClick: () => passthroughMutation.mutate({ enabled: true }),
+                },
+                {
+                  title: 'Clear pass-through',
+                  subtitle: 'Resume normal ad processing',
+                  tooltip: 'Resume normal ad processing for these episodes',
+                  onClick: () => passthroughMutation.mutate({ enabled: false }),
+                },
+              ]}
+            />
           </div>
+          {processedCount > 0 && (
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              disabled={selectionBusy}
+              className={`${btnBase} ${btnDestructiveOutline} w-full sm:w-auto`}
+            >
+              Delete selected ({processedCount})
+            </button>
+          )}
+          {selectionNote && <p className="text-xs text-muted-foreground">{selectionNote}</p>}
         </div>
       )}
 
@@ -998,19 +991,16 @@ function FeedDetail() {
         total={totalEpisodes}
         onPage={handlePageChange}
         footer={(
-          <div className="flex items-center justify-center sm:justify-end gap-2">
-            <span className="text-sm text-muted-foreground">Per page</span>
-            {PAGE_SIZES.map(size => (
-              <button
-                key={size}
-                onClick={() => changeFilter({ size: String(size) })}
-                className={`${btnBase} ${pageSize === size ? btnPrimary : btnSecondary}`}
-                aria-pressed={pageSize === size}
-              >
-                {size}
-              </button>
-            ))}
-          </div>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Per page
+            <select
+              value={pageSize}
+              onChange={(e) => changeFilter({ size: e.target.value })}
+              className={`${selectBase} w-auto`}
+            >
+              {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
         )}
       />
 

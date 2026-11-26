@@ -99,7 +99,7 @@ function EpisodeRow({
     : filterRules[0];
 
   return (
-    <div className="relative flex flex-col sm:flex-row sm:items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
+    <div className="relative flex sm:items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
       {onToggle && canSelect && (
         // 44x44 tap zone (iOS HIG minimum); visible checkbox centered inside.
         // onClick + onTouchEnd both stopPropagation so the underlying Link
@@ -121,7 +121,7 @@ function EpisodeRow({
       )}
       <Link
         to={`/feeds/${rowSlug}/episodes/${episode.id}`}
-        className={`sm:flex-1 min-w-0 flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
+        className={`sm:flex-1 min-w-0 flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${renderActions ? 'max-sm:pr-14' : ''} ${focusRing}`}
       >
         <Artwork
           // A recents row falls back to its source feed's cover, not this feed's.
@@ -185,7 +185,7 @@ function EpisodeRow({
         </div>
       </Link>
       {renderActions && (
-        <div className="flex items-center justify-end px-4 pb-4 sm:justify-start sm:p-0 sm:pr-4 sm:shrink-0">
+        <div className="absolute right-1 top-1 flex items-center sm:static sm:pr-4 sm:shrink-0">
           {renderActions(episode)}
         </div>
       )}

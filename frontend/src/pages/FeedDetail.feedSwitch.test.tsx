@@ -129,11 +129,11 @@ it('clears selections on feed changes without restoring them when returning', as
   const user = userEvent.setup();
   renderFeed(client);
   await user.click(await screen.findByRole('button', { name: 'Select episode' }));
-  expect(screen.getByText('1 selected')).toBeTruthy();
+  expect(screen.getByText('1 episode selected')).toBeTruthy();
   await user.click(await feedLink('Feed B'));
   await screen.findByRole('button', { name: 'Select episode' });
-  expect(screen.queryByText('1 selected')).toBeNull();
+  expect(screen.queryByText('1 episode selected')).toBeNull();
   await user.click(await feedLink('Feed A'));
   await screen.findByRole('button', { name: 'Select episode' });
-  expect(screen.queryByText('1 selected')).toBeNull();
+  expect(screen.queryByText('1 episode selected')).toBeNull();
 });

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { ChartColumn, Clock, FingerprintPattern, LayoutGrid, ListOrdered, LogOut, Menu, Moon, Search, Sun, X, type LucideIcon } from 'lucide-react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
@@ -25,6 +25,14 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/queue', label: 'Queue' },
   { to: '/settings', label: 'Settings' },
   ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
+];
+// The five primary routes for the phone tab bar; Add feed and Settings stay in the menu.
+const TAB_ITEMS: { to: string; label: string; Icon: LucideIcon }[] = [
+  { to: '/', label: 'Feeds', Icon: LayoutGrid },
+  { to: '/patterns', label: 'Patterns', Icon: FingerprintPattern },
+  { to: '/queue', label: 'Queue', Icon: ListOrdered },
+  { to: '/history', label: 'History', Icon: Clock },
+  { to: '/stats', label: 'Stats', Icon: ChartColumn },
 ];
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 
@@ -182,10 +190,38 @@ function Layout() {
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 max-md:pb-[calc(2rem+var(--bottom-nav-height))]">
         <UpdateBanner />
         <Outlet />
       </main>
+      <nav
+        aria-label="Primary"
+        data-viewport-inset="bottom"
+        className="safe-x safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
+      >
+        <ul className="grid grid-cols-5">
+          {TAB_ITEMS.map(({ to, label, Icon }) => {
+            const active = isPathActive(location.pathname, to);
+            return (
+              <li key={to}>
+                <Link
+                  to={to}
+                  aria-current={active ? 'page' : undefined}
+                  className={`touch-target relative flex h-14 flex-col items-center justify-center gap-0.5 rounded-md text-xs font-medium transition-colors ${focusRing} ${
+                    active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                  {label}
+                  {to === '/queue' && queueCount > 0 && (
+                    <span className={`absolute right-1/2 top-1 -mr-5 ${countPill} ${tint.primary}`}>{queueCount}</span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
       <QuickSearch seed={searchSeed} onClose={closeSearch} />
       {whatsNew.open && (
         <WhatsNewDialog current={whatsNew.current} sections={whatsNew.sections} onClose={whatsNew.close} />

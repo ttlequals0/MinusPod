@@ -396,7 +396,6 @@ function blockedRunReason(jobState?: JobState): string {
   return 'A run is already starting.';
 }
 
-const downloadChip = btnBase;
 
 // ?rate=up|down (or legacy 1-5) from a feed description link; stripped once applied.
 const URL_PARAM_DEFAULTS = { rate: '' };
@@ -1083,6 +1082,20 @@ function EpisodeDetail() {
     downloadItems.push({ title: 'Original audio', subtitle: 'As published, before any cuts',
       onClick: downloadTo('original') });
   }
+  const showVttDownload = !!(episode?.transcriptVttAvailable && episode.transcriptVttUrl);
+  const showChaptersDownload = !!(episode?.chaptersAvailable && episode.chaptersUrl && !IS_DEMO);
+  if (showVttDownload) {
+    downloadItems.push({ title: 'Transcript (VTT)', subtitle: 'Timed text file', href: episode?.transcriptVttUrl, download: true });
+  }
+  if (showChaptersDownload) {
+    downloadItems.push({ title: 'Chapters', subtitle: 'Chapter markers file', href: episode?.chaptersUrl, download: true });
+  }
+  const downloadKinds = [
+    ...(episode?.processedAt || episode?.hasOriginalAudio ? ['audio'] : []),
+    ...(showVttDownload ? ['VTT'] : []),
+    ...(showChaptersDownload ? ['chapters'] : []),
+  ];
+  const downloadLabel = downloadKinds.length > 1 ? `Download (${downloadKinds.join(', ')})` : 'Download';
 
   // Detected-Ads header row 2: pass counts and time saved.
   const showPassCounts = episode.adsRemovedFirstPass !== undefined
@@ -1292,10 +1305,10 @@ function EpisodeDetail() {
               {downloadItems.length > 0 && (
                 <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                   <DropdownMenu
-                    triggerLabel="Download"
+                    triggerLabel={downloadLabel}
                     triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
                     chevronClassName="w-3 h-3"
-                    title="Download audio"
+                    title="Download files"
                     items={downloadItems}
                   />
                 </DemoDisabled>
@@ -1444,28 +1457,6 @@ function EpisodeDetail() {
               src={audioUrl}
               chaptersUrl={episode.chaptersAvailable && !IS_DEMO ? episode.chaptersUrl : undefined}
             />
-            {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {episode.transcriptVttAvailable && episode.transcriptVttUrl && (
-                  <a
-                    href={episode.transcriptVttUrl}
-                    download
-                    className={`${downloadChip} ${tint.blue} hover:bg-c-blue/30`}
-                  >
-                    Download VTT
-                  </a>
-                )}
-                {episode.chaptersAvailable && episode.chaptersUrl && !IS_DEMO && (
-                  <a
-                    href={episode.chaptersUrl}
-                    download
-                    className={`${downloadChip} ${tint.purple} hover:bg-c-purple/30`}
-                  >
-                    Download chapters
-                  </a>
-                )}
-              </div>
-            )}
           </div>
         )}
 
