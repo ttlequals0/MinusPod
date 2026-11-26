@@ -168,6 +168,25 @@ describe('Popover placement', () => {
     expect(panel()!.className).toContain('left-1/2 -translate-x-1/2');
   });
 
+  it('anchors to the trigger segment on a dual-segment foldable instead of centering across the fold', () => {
+    setViewport(626, 793, 626);
+    stubPanelSize(PANEL.width, PANEL.height);
+    const origMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+      matches: q === '(horizontal-viewport-segments: 2)',
+      media: q,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    try {
+      render(<Harness anchorRect={rect({ left: 400, right: 600, top: 100, bottom: 140 })} />);
+      expect(panel()!.className).not.toContain('left-1/2 -translate-x-1/2');
+      expect(panel()!.style.right).toBe('26px');
+    } finally {
+      window.matchMedia = origMatchMedia;
+    }
+  });
+
   it('spreads the caller attributes onto the panel without losing the placement', () => {
     render(<Harness data-testid="speed-menu" aria-label="Speed" anchorRect={rect({ left: 300, right: 500, top: 20, bottom: 40 })} />);
     expect(screen.getByTestId('speed-menu')).toBe(panel());

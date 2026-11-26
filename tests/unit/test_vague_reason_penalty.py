@@ -62,7 +62,31 @@ def test_a_hedged_reason_is_penalised_even_when_it_names_a_brand(reason):
     assert 'WARN: Vague reason' in flags
 
 
+@pytest.mark.parametrize('reason', [
+    'Sponsor segment that keeps going after the break',
+    'Advertisement, indeed a typical read',
+    'Sponsor read where the host talks about himself',
+    'Promotional content with a calm voice',
+])
+def test_a_vague_reason_holding_a_brand_substring_is_still_penalised(reason):
+    adjusted, flags = _check(reason)
+    assert adjusted == pytest.approx(0.7)
+    assert 'WARN: Vague reason' in flags
+
+
 def test_a_hedge_phrase_inside_another_word_is_not_a_hedge():
     adjusted, flags = _check('Impossible ad-free offer from Acme Tools read by the host')
     assert 'WARN: Vague reason' not in flags
     assert adjusted >= 0.8
+
+
+def test_a_known_sponsor_that_is_also_a_word_gets_the_boost_when_named():
+    adjusted, flags = _check('Sponsor read for Indeed')
+    assert adjusted == pytest.approx(0.9)
+    assert 'WARN: Vague reason' not in flags
+
+
+def test_a_known_sponsor_inside_a_url_still_gets_the_boost():
+    adjusted, flags = _check('Host read ending with visitsquarespace.com/show')
+    assert adjusted == pytest.approx(0.9)
+    assert flags == []

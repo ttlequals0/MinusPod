@@ -2,8 +2,8 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import { formatPercent } from '../../utils/format';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
-import { focusRing, labelBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
+import { focusRing, labelBase, underToggle } from '../../components/fieldStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 import { LlmGate } from './LlmGate';
 import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
@@ -123,7 +123,7 @@ function AdDetectionSection({
             step="0.05"
             value={minCutConfidence}
             onChange={(e) => onMinCutConfidenceChange(parseFloat(e.target.value))}
-            className={`w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary ${focusRing}`}
+            className={`w-full h-2 pointer-coarse:h-11 max-sm:h-11 bg-transparent cursor-pointer accent-primary ${focusRing}`}
             aria-describedby="minCutConfidence-help"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
@@ -233,7 +233,7 @@ function AdDetectionSection({
             />
             <span className="text-sm font-medium text-foreground">Hold long cuts without splice evidence</span>
           </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
+          <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
             A long cut found only in the transcript is held for review unless the audio shows an edit point at its edges. Each feed can override this.
           </p>
         </div>
@@ -246,12 +246,12 @@ function AdDetectionSection({
             />
             <span className="text-sm font-medium text-foreground">Compare with the publisher transcript</span>
           </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
+          <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
             When an episode links the publisher's own transcript and it leaves the ads out, speech missing from it backs up detected ads and flags missed ones for review. It never cuts on its own. Each feed can override this.
           </p>
         </div>
 
-        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+        <div className={`${subCard} p-3 space-y-3`}>
           <div>
             <h4 className={subHeading}>Verification pass</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -275,11 +275,11 @@ function AdDetectionSection({
                   />
                   <span className="text-sm font-medium text-foreground">Autocut</span>
                 </label>
-                <p className="mt-2 text-sm text-muted-foreground ml-14">
+                <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
                   Cut a verification catch automatically once it reaches a set confidence, instead of holding it for review. Off by default. Catches then only ever hold or drop.
                 </p>
                 {verificationMissAutocutMinConfidence > 0 && (
-                  <div className="mt-3 ml-14">
+                  <div className={`${underToggle} mt-3`}>
                     {numRow(
                       verificationMissAutocutMinConfidence, onVerificationMissAutocutMinConfidenceChange,
                       'verificationMissAutocutMinConfidence', 'Autocut floor', 0.5, 1, 0.05, 0.5,
@@ -316,7 +316,7 @@ function AdDetectionSection({
           </div>
         </div>
 
-        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+        <div className={`${subCard} p-3 space-y-3`}>
           <div>
             <h4 className={subHeading}>Differential detection</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -363,7 +363,7 @@ function AdDetectionSection({
                 />
                 <span className="text-sm font-medium text-foreground">Cut inserted ads in kept categories</span>
               </label>
-              <p className="mt-2 text-sm text-muted-foreground ml-14">
+              <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
                 Cut dynamically inserted ads even when their category is set to Keep. Turn off to let category actions control them.
               </p>
             </div>

@@ -86,7 +86,11 @@ function place(anchor: HTMLElement, panel: HTMLElement, align: PopoverAlign, cen
     maxHeight: height,
   };
   // The phone test reads window.innerWidth, the box Tailwind's sm: breakpoint sees.
-  if (window.innerWidth < PHONE_MAX_WIDTH_PX && centerOnMobile) return { ...common, centered: true };
+  // Dual-segment foldables anchor to the trigger side instead of centering over the hinge.
+  const dualSegment = typeof window.matchMedia === 'function'
+    && (window.matchMedia('(horizontal-viewport-segments: 2)').matches
+      || window.matchMedia('(vertical-viewport-segments: 2)').matches);
+  if (!dualSegment && window.innerWidth < PHONE_MAX_WIDTH_PX && centerOnMobile) return { ...common, centered: true };
 
   const span = panel.offsetWidth;
   const rightEdgeFits = rect.right - span >= VIEWPORT_MARGIN_PX;

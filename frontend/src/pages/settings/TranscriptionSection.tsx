@@ -238,7 +238,7 @@ function TranscriptionSection({
             <div className="pt-2 border-t border-border">
               <h4 className={`${subHeading} mb-3`}>Parallel chunked transcription</h4>
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="transcribeMaxChunkSeconds" className={`${labelBase} mb-0! w-44`}>
                     Max chunk seconds
                   </label>
@@ -253,7 +253,7 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">600 for Whisper, 28 for Parakeet</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="transcribeConcurrentChunks" className={`${labelBase} mb-0! w-44`}>
                     Concurrent chunks
                   </label>
@@ -268,7 +268,7 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">match backend's worker count</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="transcribeChunkOverlapSeconds" className={`${labelBase} mb-0! w-44`}>
                     Chunk overlap seconds
                   </label>
@@ -283,7 +283,7 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">for word-boundary dedupe</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="whisperApiTimeoutSeconds" className={`${labelBase} mb-0! w-44`}>
                     Request timeout
                   </label>
@@ -298,7 +298,7 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">seconds to wait per chunk</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="whisperMaxAttempts" className={`${labelBase} mb-0! w-44`}>
                     Max upload attempts
                   </label>
@@ -338,7 +338,7 @@ function TranscriptionSection({
                 requests to the backend. Set the cap to what your backend accepts.
               </p>
               <div className="space-y-3 mt-3">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="whisperPoolMaxRequests" className={`${labelBase} mb-0! w-44`}>
                     Max requests to backend
                   </label>
@@ -355,7 +355,7 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">across all running episodes</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <label htmlFor="whisperPoolMaxEpisodes" className={`${labelBase} mb-0! w-44`}>
                     Episodes at once
                   </label>
@@ -457,7 +457,7 @@ function TranscriptionSection({
         )}
 
         <div className="pt-2 border-t border-border space-y-3">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <label htmlFor="softTimeoutMinutes" className={`${labelBase} mb-0! w-36`}>
               Soft timeout
             </label>
@@ -472,7 +472,7 @@ function TranscriptionSection({
             />
             <span className="text-sm text-muted-foreground">minutes (default 60)</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <label htmlFor="hardTimeoutMinutes" className={`${labelBase} mb-0! w-36`}>
               Hard timeout
             </label>

@@ -15,6 +15,7 @@ export const textareaBase = fieldChrome;
 export const invalidField = 'aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive aria-invalid:focus-visible:ring-destructive';
 export const labelBase = 'block text-sm font-medium text-foreground mb-1.5';
 export const filterGrid = 'grid grid-cols-1 min-[375px]:grid-cols-2 gap-4';
+export const underToggle = 'sm:ml-14';
 export const filterLabel = 'mb-1 block text-sm text-muted-foreground';
 export const filterControl = 'min-h-11 min-w-0 w-full';
 // Native file input styled as a secondary button.

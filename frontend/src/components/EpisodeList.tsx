@@ -20,9 +20,12 @@ interface EpisodeListProps {
   selectedIds?: Set<string>;
   onToggle?: (id: string, shiftKey: boolean) => void;
   onSelectAll?: (checked: boolean) => void;
+  renderActions?: (episode: Episode) => ReactNode;
 }
 
-function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle, onSelectAll }: EpisodeListProps) {
+function EpisodeList({
+  episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle, onSelectAll, renderActions,
+}: EpisodeListProps) {
   if (episodes.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -55,6 +58,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
           feedArtworkUrl={feedArtworkUrl}
           selected={selectedIds?.has(episode.id) ?? false}
           onToggle={onToggle}
+          renderActions={renderActions}
         />
       ))}
     </div>
@@ -95,7 +99,7 @@ function EpisodeRow({
     : filterRules[0];
 
   return (
-    <div className="relative flex items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
+    <div className="relative flex sm:items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
       {onToggle && canSelect && (
         // 44x44 tap zone (iOS HIG minimum); visible checkbox centered inside.
         // onClick + onTouchEnd both stopPropagation so the underlying Link
@@ -107,12 +111,18 @@ function EpisodeRow({
           onTouchEnd={(e) => { e.stopPropagation(); }}
           className={`absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center ${focusRing}`}
         >
-          <Checkbox id={`select-${episode.id}`} checked={selected} onChange={() => {}} />
+          <Checkbox
+            id={`select-${episode.id}`}
+            className="pointer-events-none"
+            ariaLabel={selected ? `Deselect ${episode.title}` : `Select ${episode.title}`}
+            checked={selected}
+            onChange={() => {}}
+          />
         </button>
       )}
       <Link
         to={`/feeds/${rowSlug}/episodes/${episode.id}`}
-        className={`flex-1 min-w-0 flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
+        className={`sm:flex-1 min-w-0 flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${renderActions ? 'max-sm:pr-14' : ''} ${focusRing}`}
       >
         <Artwork
           // A recents row falls back to its source feed's cover, not this feed's.
@@ -122,14 +132,14 @@ function EpisodeRow({
           className="hidden sm:block sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+          <h3 className="font-medium text-foreground line-clamp-2 sm:truncate">{episode.title}</h3>
           {sbLabel && <p className="text-xs text-muted-foreground">{sbLabel}</p>}
           {episode.feedTitle && (
             <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
           )}
           {/* Fixed description and badge slots keep rows aligned; the meta
               line wraps on a narrow phone rather than clipping. */}
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2 sm:min-h-10">
             {episode.description ? stripHtml(episode.description, { collapse: true }) : ''}
           </p>
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
@@ -176,7 +186,7 @@ function EpisodeRow({
         </div>
       </Link>
       {renderActions && (
-        <div className="flex items-center pr-4 shrink-0">
+        <div className="absolute right-1 top-1 flex items-center sm:static sm:pr-4 sm:shrink-0">
           {renderActions(episode)}
         </div>
       )}

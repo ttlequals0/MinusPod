@@ -186,7 +186,7 @@ describe('AdReviewTab', () => {
     expect(row.contains(category)).toBe(true);
     expect(buttons[4].compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(category.className).toContain('flex-1');
-    expect(category.className).toContain('sm:w-48');
+    expect(category.className).toContain('sm:w-44');
     expect(category.title).toBe('Uncategorized');
     expect(row.style.getPropertyValue('--btn-row')).toBe('252px');
     // Below sm the buttons are 44px square icons (label in the accessible name and title).
@@ -249,11 +249,11 @@ describe('AdReviewTab', () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getByRole('button', { name: 'Switch to ascending order' }));
+    await user.click(screen.getByRole('button', { name: 'Newest, switch to oldest' }));
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ order: 'asc' });
     });
-    await user.selectOptions(screen.getByLabelText('Sort'), 'confidence');
+    await user.selectOptions(screen.getByLabelText('Sort by'), 'confidence');
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
         sort: 'confidence', order: 'desc', page: 1,

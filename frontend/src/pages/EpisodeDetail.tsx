@@ -57,7 +57,7 @@ import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
-import { iconSizes, iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
+import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
@@ -396,7 +396,6 @@ function blockedRunReason(jobState?: JobState): string {
   return 'A run is already starting.';
 }
 
-const downloadChip = btnBase;
 
 // ?rate=up|down (or legacy 1-5) from a feed description link; stripped once applied.
 const URL_PARAM_DEFAULTS = { rate: '' };
@@ -856,7 +855,7 @@ function EpisodeDetail() {
     return (
     <div
       key={index}
-      className="p-3 bg-secondary/50 rounded-lg"
+      className="p-3.5 bg-secondary/35 border border-border rounded-lg"
     >
       {/* Row 1: Time, badges, jump button, confidence */}
       <div className="flex flex-wrap items-center gap-2">
@@ -1083,6 +1082,20 @@ function EpisodeDetail() {
     downloadItems.push({ title: 'Original audio', subtitle: 'As published, before any cuts',
       onClick: downloadTo('original') });
   }
+  const showVttDownload = !!(episode?.transcriptVttAvailable && episode.transcriptVttUrl);
+  const showChaptersDownload = !!(episode?.chaptersAvailable && episode.chaptersUrl && !IS_DEMO);
+  if (showVttDownload) {
+    downloadItems.push({ title: 'Transcript (VTT)', subtitle: 'Timed text file', href: episode?.transcriptVttUrl, download: true });
+  }
+  if (showChaptersDownload) {
+    downloadItems.push({ title: 'Chapters', subtitle: 'Chapter markers file', href: episode?.chaptersUrl, download: true });
+  }
+  const downloadKinds = [
+    ...(episode?.processedAt || episode?.hasOriginalAudio ? ['audio'] : []),
+    ...(showVttDownload ? ['VTT'] : []),
+    ...(showChaptersDownload ? ['chapters'] : []),
+  ];
+  const downloadLabel = downloadKinds.length > 1 ? `Download (${downloadKinds.join(', ')})` : 'Download';
 
   // Detected-Ads header row 2: pass counts and time saved.
   const showPassCounts = episode.adsRemovedFirstPass !== undefined
@@ -1292,10 +1305,10 @@ function EpisodeDetail() {
               {downloadItems.length > 0 && (
                 <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                   <DropdownMenu
-                    triggerLabel="Download"
+                    triggerLabel={downloadLabel}
                     triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
                     chevronClassName="w-3 h-3"
-                    title="Download audio"
+                    title="Download files"
                     items={downloadItems}
                   />
                 </DemoDisabled>
@@ -1444,28 +1457,6 @@ function EpisodeDetail() {
               src={audioUrl}
               chaptersUrl={episode.chaptersAvailable && !IS_DEMO ? episode.chaptersUrl : undefined}
             />
-            {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {episode.transcriptVttAvailable && episode.transcriptVttUrl && (
-                  <a
-                    href={episode.transcriptVttUrl}
-                    download
-                    className={`${downloadChip} ${tint.blue} hover:bg-c-blue/30`}
-                  >
-                    Download VTT
-                  </a>
-                )}
-                {episode.chaptersAvailable && episode.chaptersUrl && !IS_DEMO && (
-                  <a
-                    href={episode.chaptersUrl}
-                    download
-                    className={`${downloadChip} ${tint.purple} hover:bg-c-purple/30`}
-                  >
-                    Download chapters
-                  </a>
-                )}
-              </div>
-            )}
           </div>
         )}
 
@@ -1515,7 +1506,6 @@ function EpisodeDetail() {
                   Spotted an ad the detector missed? Mark it manually so the pattern matcher learns it.
                 </p>
               </div>
-              {/* Icon-only on mobile, full label on sm:+. Mirrors AdReviewModal. */}
               <button
                 type="button"
                 onClick={() => openEditorFresh(true)}
@@ -1524,7 +1514,7 @@ function EpisodeDetail() {
                 className={`${btnBase} ${btnPrimary} shrink-0`}
               >
                 <Plus className="w-4 h-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Add ad</span>
+                <span>Add ad</span>
               </button>
             </div>
           )}
@@ -1535,7 +1525,7 @@ function EpisodeDetail() {
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
           <div className="mb-4">
             {/* Row 1: Title + Edit button */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className={cardTitle}>
                 {`Detected ads (${adBlocks.length === episode.adMarkers.length
                   ? episode.adMarkers.length
@@ -1547,11 +1537,10 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className={iconSizes.base.target}
+                    className={`${btnBase} ${btnSecondary}`}
                   >
-                    <span className={`${iconSizes.base.visual} ${btnSecondary}`}>
-                      <Pencil className="w-4 h-4" aria-hidden="true" />
-                    </span>
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
+                    <span>{showEditor ? 'Hide editor' : 'Edit ads'}</span>
                   </button>
                   <button
                     onClick={() => openEditorFresh(true)}
@@ -1560,7 +1549,7 @@ function EpisodeDetail() {
                     className={`${btnBase} ${btnPrimary}`}
                   >
                     <Plus className="w-4 h-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Add ad</span>
+                    <span>Add ad</span>
                   </button>
                 </div>
               )}
