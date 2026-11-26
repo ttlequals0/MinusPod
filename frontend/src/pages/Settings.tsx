@@ -1865,7 +1865,7 @@ function Settings() {
       {(hasChanges || hasInvalidField) && (
         <div
           data-viewport-inset="bottom"
-          className="pb-[env(safe-area-inset-bottom)] max-md:pb-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed bottom-[var(--bottom-nav-height)] left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
+          className="pb-[env(safe-area-inset-bottom)] max-md:pb-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed above-bottom-nav left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
         >
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
             <ConfirmResetButton

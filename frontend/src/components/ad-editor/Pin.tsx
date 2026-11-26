@@ -12,6 +12,14 @@ const DEFAULT_MIN_SEPARATION = 1.0;
 const NUDGE_SECONDS = 0.1;
 const NUDGE_SECONDS_COARSE = 1.0;
 
+// Shift a time pill inward so it is not clipped at the container edges.
+export function shiftLabelInward(label: HTMLElement, container: HTMLElement, leftPct: number) {
+  const half = label.offsetWidth / 2;
+  const w = container.getBoundingClientRect().width;
+  const x = (w * leftPct) / 100;
+  label.style.marginLeft = `${Math.min(Math.max(x, half), w - half) - x}px`;
+}
+
 interface PinProps {
   kind: 'start' | 'end' | 'divider';
   boundary: number;
@@ -78,17 +86,11 @@ export function Pin({
   );
   const clamp = (t: number) => Math.min(Math.max(t, lowerBound), upperBound);
 
-  // Shift the time pill inward so it is not clipped at the waveform edges.
   useLayoutEffect(() => {
     const label = labelRef.current;
     const container = containerRef.current;
     if (!label || !container) return;
-    const shift = () => {
-      const half = label.offsetWidth / 2;
-      const w = container.getBoundingClientRect().width;
-      const x = (w * leftPct) / 100;
-      label.style.marginLeft = `${Math.min(Math.max(x, half), w - half) - x}px`;
-    };
+    const shift = () => shiftLabelInward(label, container, leftPct);
     shift();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(shift);

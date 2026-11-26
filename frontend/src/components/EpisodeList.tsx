@@ -113,6 +113,7 @@ function EpisodeRow({
         >
           <Checkbox
             id={`select-${episode.id}`}
+            className="pointer-events-none"
             ariaLabel={selected ? `Deselect ${episode.title}` : `Select ${episode.title}`}
             checked={selected}
             onChange={() => {}}

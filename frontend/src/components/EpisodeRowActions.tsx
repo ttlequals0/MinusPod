@@ -8,7 +8,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
 import { Modal, dialogFooterBtn } from './Modal';
-import { btnBase, btnPrimaryOutline, btnSecondary, btnDestructive } from './buttonStyles';
+import { btnBase, rowActionsTrigger, btnSecondary, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { cardTitle } from './pageStyles';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
@@ -82,7 +82,7 @@ function EpisodeRowActions({
     : null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 max-sm:flex-col-reverse max-sm:items-end max-sm:gap-0.5">
       {errorMessage && (
         <span
           role="alert"
@@ -101,7 +101,7 @@ function EpisodeRowActions({
               <span className="flex-1 text-center max-sm:sr-only">Actions</span>
             </>
           )}
-          triggerClassName={`${btnBase} ${btnPrimaryOutline} gap-1 max-sm:min-w-11 max-sm:px-0 sm:min-w-24`}
+          triggerClassName={`${btnBase} ${rowActionsTrigger} gap-1 max-sm:min-w-11 max-sm:px-0 sm:min-w-24`}
           chevronClassName="w-3 h-3 max-sm:hidden"
           disabled={blocked}
           title="Episode actions"

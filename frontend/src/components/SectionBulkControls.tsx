@@ -8,7 +8,7 @@ interface SectionBulkControlsProps {
 }
 
 export default function SectionBulkControls({ disabled, onToggleAll, matchCount }: SectionBulkControlsProps) {
-  const className = `${btnBase} ${btnSecondary} text-xs px-2.5 py-1 disabled:opacity-100!`;
+  const className = `${btnBase} ${btnSecondary} text-xs px-2.5 py-1`;
   return (
     <div className="flex items-center justify-end gap-2">
       {matchCount != null && matchCount > 0 && (

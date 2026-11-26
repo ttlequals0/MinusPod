@@ -670,6 +670,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <input
                       type="url"
+                      aria-label="Source feed URL"
                       value={editSourceUrl}
                       onChange={(e) => setEditSourceUrl(e.target.value)}
                       placeholder="https://example.com/feed.xml"

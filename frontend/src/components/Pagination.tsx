@@ -76,24 +76,23 @@ export function Pagination({
       </button>
     </div>
   );
-  // With a footer the card reads: info and footer on one header row, a rule, then the page buttons.
-  if (footer) {
-    return (
-      <div className="px-4 py-3 mt-4 bg-card rounded-lg border border-border space-y-2.5">
-        <div className="flex items-center justify-between gap-3">
-          {info}
-          {footer}
-        </div>
-        <div className="pt-2.5 border-t border-border/60">{controls}</div>
-      </div>
-    );
-  }
+  // With a footer the card reads: info and footer on one wrapping header row, a rule, then the page buttons.
   return (
-    <div className="px-4 py-3 mt-4 bg-card rounded-lg border border-border">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        {info}
-        {controls}
-      </div>
+    <div className={`px-4 py-3 mt-4 bg-card rounded-lg border border-border ${footer ? 'space-y-2.5' : ''}`}>
+      {footer ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            {info}
+            {footer}
+          </div>
+          <div className="pt-2.5 border-t border-border/60">{controls}</div>
+        </>
+      ) : (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          {info}
+          {controls}
+        </div>
+      )}
     </div>
   );
 }

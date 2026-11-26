@@ -114,8 +114,6 @@ function useEpisodeListParams() {
   };
 }
 
-// Bulk actions pair up in a 2-column grid on phones and wrap cleanly from sm up.
-
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const llmEnabled = useLlmEnabled();

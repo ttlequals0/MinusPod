@@ -1,5 +1,5 @@
 import { pageHeader, pageTitle, cardTitle, sectionPad, summaryValue } from '../components/pageStyles';
-import { Fragment, useState, useMemo, type ReactNode } from 'react';
+import { Fragment, useState, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useUrlParams } from '../hooks/useUrlParams';
@@ -592,9 +592,22 @@ function useExpandedKeys(): [Set<string>, (key: string) => void] {
   return [keys, toggle];
 }
 
+// Near-miss series colour, shared by the cue histogram bars and their legend swatch.
+const NEAR_MISS_COLOR = '#f59e0b';
+const NEAR_MISS_OPACITY = 0.7;
+const NARROW_QUERY = '(max-width: 639px)';
+const subscribeNarrow = (cb: () => void) => {
+  const mq = window.matchMedia(NARROW_QUERY);
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+};
+const isNarrow = () => typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches;
+
 export default function StatsPage() {
   const llmEnabled = useLlmEnabled();
   const theme = useThemeColors();
+  const narrow = useSyncExternalStore(typeof window.matchMedia === 'function' ? subscribeNarrow : () => () => {}, isNarrow);
+  const podcastLabelMax = narrow ? 13 : 15;
   const [podcastFilter, setPodcastFilter] = useState('');
 
   // itemStyle matters: without it the value line keeps recharts' dark default
@@ -982,7 +995,7 @@ export default function StatsPage() {
                   type="category"
                   width={116}
                   tick={{ fill: theme.foreground, fontSize: 12 }}
-                  tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '..' : v}
+                  tickFormatter={(v: string) => v.length > podcastLabelMax + 1 ? v.slice(0, podcastLabelMax) + '..' : v}
                 />
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
@@ -1112,7 +1125,7 @@ export default function StatsPage() {
                   Matches (affected cuts)
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: 'rgba(245, 158, 11, 0.7)' }} aria-hidden="true" />
+                  <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: NEAR_MISS_COLOR, opacity: NEAR_MISS_OPACITY }} aria-hidden="true" />
                   Near-misses (never affected cuts)
                 </span>
               </div>
@@ -1128,7 +1141,7 @@ export default function StatsPage() {
                   <Bar dataKey="matches" name="Matches (affected cuts)"
                        fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
                   <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
-                       fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                       fill={NEAR_MISS_COLOR} fillOpacity={NEAR_MISS_OPACITY} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </>

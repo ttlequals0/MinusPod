@@ -39,6 +39,16 @@ export function WindowScrubber({
     window.addEventListener('pointercancel', end);
   };
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = (windowEnd - windowStart) / 4;
+    const next = e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? windowCenter - step
+      : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? windowCenter + step
+      : e.key === 'Home' ? 0 : e.key === 'End' ? totalDuration : null;
+    if (next === null) return;
+    e.preventDefault();
+    onPan(Math.max(0, Math.min(totalDuration, next)));
+  };
+
   return (
     <div className={className}>
       <div
@@ -50,6 +60,7 @@ export function WindowScrubber({
         aria-valuenow={Math.round(windowCenter)}
         tabIndex={0}
         onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
         className={`relative flex items-center min-h-6 pointer-coarse:min-h-11 cursor-pointer touch-none ${focusRing}`}
       >
         <div className="relative w-full h-3 rounded-full bg-background border border-border">

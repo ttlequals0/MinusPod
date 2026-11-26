@@ -358,8 +358,8 @@ export default function CueCrossEpisodeScanModal({
                         {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
                       </button>
                       </DemoDisabled>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-mono text-sm">
+                      <div className="flex-1 min-w-28">
+                        <span className="font-mono text-sm whitespace-nowrap">
                           {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
                         </span>
                         <span className="ml-2 text-xs text-muted-foreground">

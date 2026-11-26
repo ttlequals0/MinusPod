@@ -200,9 +200,11 @@ input[type="time"]::-webkit-date-and-time-value { text-align: left; }
 [role="dialog"][aria-modal="true"] { max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
 [role="dialog"][data-split] { display: flex; flex-direction: column; overflow: hidden; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-/* Height of the phone tab bar (Layout), so fixed bars and page content clear it. */
+/* Height of the phone tab bar (Layout: 56 px links plus its 1 px top border), so fixed bars and content clear it. */
 :root { --bottom-nav-height: 0px; }
-@media (max-width: 767px) { :root { --bottom-nav-height: calc(3.5rem + env(safe-area-inset-bottom)); } }
+@media (width < 48rem) { :root { --bottom-nav-height: calc(3.5rem + 1px + env(safe-area-inset-bottom)); } }
+.above-bottom-nav { bottom: var(--bottom-nav-height); }
+.clear-bottom-nav { padding-bottom: calc(2rem + var(--bottom-nav-height)); }
 /* Side gutters that grow with the horizontal safe-area insets (foldable outer display, landscape). */
 .safe-x { --safe-gutter: 1rem; padding-left: max(var(--safe-gutter), env(safe-area-inset-left)); padding-right: max(var(--safe-gutter), env(safe-area-inset-right)); }
 @media (min-width: 640px) { .safe-x-wide { --safe-gutter: 1.5rem; } }

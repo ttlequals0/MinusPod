@@ -16,24 +16,19 @@ import { countPill, tint } from './badgeStyles';
 import { uiUrl } from '../urlPrefix';
 import { IS_DEMO } from '../demo/flag';
 
-const NAV_ITEMS: { to: string; label: string }[] = [
-  { to: '/', label: 'Feeds' },
+// `tab` puts a route in the phone tab bar: its icon and its position there (Queue sits before History).
+type NavItem = { to: string; label: string; tab?: { Icon: LucideIcon; order: number } };
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'Feeds', tab: { Icon: LayoutGrid, order: 1 } },
   { to: '/add', label: 'Add feed' },
-  { to: '/patterns', label: 'Patterns' },
-  { to: '/history', label: 'History' },
-  { to: '/stats', label: 'Stats' },
-  { to: '/queue', label: 'Queue' },
+  { to: '/patterns', label: 'Patterns', tab: { Icon: FingerprintPattern, order: 2 } },
+  { to: '/history', label: 'History', tab: { Icon: Clock, order: 4 } },
+  { to: '/stats', label: 'Stats', tab: { Icon: ChartColumn, order: 5 } },
+  { to: '/queue', label: 'Queue', tab: { Icon: ListOrdered, order: 3 } },
   { to: '/settings', label: 'Settings' },
   ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
 ];
-// The five primary routes for the phone tab bar; Add feed and Settings stay in the menu.
-const TAB_ITEMS: { to: string; label: string; Icon: LucideIcon }[] = [
-  { to: '/', label: 'Feeds', Icon: LayoutGrid },
-  { to: '/patterns', label: 'Patterns', Icon: FingerprintPattern },
-  { to: '/queue', label: 'Queue', Icon: ListOrdered },
-  { to: '/history', label: 'History', Icon: Clock },
-  { to: '/stats', label: 'Stats', Icon: ChartColumn },
-];
+const TAB_ITEMS = NAV_ITEMS.flatMap(({ to, label, tab }) => (tab ? [{ to, label, ...tab }] : [])).sort((a, b) => a.order - b.order);
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 
 interface NavLinkProps {
@@ -190,7 +185,7 @@ function Layout() {
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 max-md:pb-[calc(2rem+var(--bottom-nav-height))]">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
         <UpdateBanner />
         <Outlet />
       </main>

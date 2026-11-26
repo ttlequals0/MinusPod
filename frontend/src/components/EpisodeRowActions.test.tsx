@@ -306,3 +306,19 @@ describe('EpisodeRowActions: menu wording follows the feed type', () => {
     expect(screen.getByText('Skip patterns, AI only')).toBeTruthy();
   });
 });
+
+describe('EpisodeRowActions: failed state', () => {
+  it('shows a Failed alert and stacks it below the trigger on phones', async () => {
+    reprocessMock.mockRejectedValueOnce(new ApiError('boom', 500));
+    const user = userEvent.setup();
+    const { container } = renderTrigger({ status: 'completed' });
+    await user.click(triggerButton());
+    await user.click(screen.getByRole('menuitem', { name: /^Reprocess/ }));
+    const badge = await screen.findByRole('alert');
+    expect(badge.textContent).toBe('Failed');
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain('max-sm:flex-col-reverse');
+    expect(wrapper.contains(badge)).toBe(true);
+    expect(wrapper.contains(triggerButton())).toBe(true);
+  });
+});
