@@ -62,7 +62,7 @@ function SystemStatusSection({
             <p className="text-sm text-muted-foreground">Uptime</p>
             <p className="font-medium text-foreground">{formatUptime(status.uptime ?? 0)}</p>
           </div>
-          <label className="flex items-center gap-3 cursor-pointer self-center max-[359px]:col-span-2 lg:col-span-2">
+          <label className="flex items-center gap-3 cursor-pointer self-center max-[360px]:col-span-2 lg:col-span-2">
             <ToggleSwitch
               checked={whatsNewOnUpgrade}
               onChange={onWhatsNewOnUpgradeChange}

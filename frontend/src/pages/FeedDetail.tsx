@@ -656,7 +656,7 @@ function FeedDetail() {
         </div>
 
         <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-4 items-center sm:justify-between">
-          <div className={`flex items-center gap-2 min-w-0 shrink-0 sm:shrink${feedHasUpstream(feed) ? ' max-sm:col-span-2' : ''}`}>
+          <div className={`flex items-center gap-2 min-w-0 shrink-0 sm:shrink ${feedHasUpstream(feed) ? 'max-sm:col-span-2' : ''}`}>
             <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
