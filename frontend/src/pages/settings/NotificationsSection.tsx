@@ -16,7 +16,7 @@ import Checkbox from '../../components/Checkbox';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, btnDestructive } from '../../components/buttonStyles';
 import { inputBase, textareaBase, labelBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
-import { subHeading } from '../../components/pageStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
@@ -185,7 +185,7 @@ function WebhooksBlock() {
           {webhooks.map((wh) => (
             <div
               key={wh.id}
-              className="flex flex-col items-stretch justify-between gap-3 p-3 rounded-lg bg-muted/40 sm:flex-row sm:items-center"
+              className={`${subCard} flex flex-col items-stretch justify-between gap-3 p-3 sm:flex-row sm:items-center`}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -235,7 +235,7 @@ function WebhooksBlock() {
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-end sm:self-auto">
                 <button
                   onClick={() => testMutation.mutate(wh.id)}
                   disabled={testMutation.isPending}
@@ -281,7 +281,7 @@ function WebhooksBlock() {
 
       {/* Form */}
       {showForm && (
-        <form aria-describedby={createMutation.isError || updateMutation.isError ? "webhook-save-error" : undefined} onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg bg-muted/40">
+        <form aria-describedby={createMutation.isError || updateMutation.isError ? "webhook-save-error" : undefined} onSubmit={handleSubmit} className={`${subCard} space-y-4 p-4`}>
       <fieldset disabled={isSaving} className="space-y-4">
           <h3 className={subHeading}>
             {editingId ? 'Edit webhook' : 'New webhook'}
@@ -419,7 +419,7 @@ function WebhooksBlock() {
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DemoDisabled>
               <button
                 type="submit"

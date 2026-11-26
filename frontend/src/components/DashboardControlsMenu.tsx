@@ -50,9 +50,9 @@ function DashboardControlsMenu({
         title="Layout and sort"
         aria-label="View options"
       >
-        <SlidersHorizontal className="w-5 h-5 md:hidden" aria-hidden="true" />
-        <span className="hidden md:inline">View</span>
-        <ChevronDown aria-hidden="true" className={`w-4 h-4 hidden md:block transition-transform ${open ? 'rotate-180' : ''}`} />
+        <SlidersHorizontal className="w-5 h-5 min-[600px]:hidden" aria-hidden="true" />
+        <span className="hidden min-[600px]:inline">View</span>
+        <ChevronDown aria-hidden="true" className={`w-4 h-4 hidden min-[600px]:block transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <Popover
         open={open}

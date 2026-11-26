@@ -14,7 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thCompact, padCompact, tdCompact, tdCompactNum, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, tableLink, tdEmpty, thCompact, padCompact, tdCompact, tdCompactNum, rowCard, cardGrid } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import SortControls from '../components/SortControls';
 import { ScopeBadge } from '../components/ScopeBadge';
@@ -418,7 +418,7 @@ function PatternsPage() {
           </div>
 
           {/* Audio filter */}
-          <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-1">
+          <div className="min-w-0">
             <label htmlFor="patterns-audio" className={filterLabel}>Audio</label>
             <select
               id="patterns-audio"
@@ -434,6 +434,15 @@ function PatternsPage() {
             </select>
           </div>
 
+          {/* Show inactive toggle */}
+          <Checkbox
+            className="min-h-11 self-end pb-1"
+            checked={showInactive}
+            onChange={(v) => write({ inactive: v ? '1' : '' })}
+            label="Show inactive"
+            labelClassName="text-sm text-muted-foreground"
+          />
+
           {/* Search */}
           <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-4">
             <label htmlFor="patterns-search" className={filterLabel}>Search</label>
@@ -447,15 +456,6 @@ function PatternsPage() {
               className={`${filterControl} ${inputBase}`}
             />
           </div>
-
-          {/* Show inactive toggle */}
-          <Checkbox
-            className="min-h-11"
-            checked={showInactive}
-            onChange={(v) => write({ inactive: v ? '1' : '' })}
-            label="Show inactive"
-            labelClassName="text-sm text-muted-foreground"
-          />
         </div>
       </div>
 
@@ -465,7 +465,7 @@ function PatternsPage() {
         { value: 'confirmation_count', label: 'Confirmed' }, { value: 'false_positive_count', label: 'False positives' },
       ]} />
       {/* Card layout: the 11-column table needs about 1140 CSS px with touch-sized controls */}
-      <div className="xl:hidden space-y-3 mb-4">
+      <div className={`xl:hidden ${cardGrid} mb-4`}>
         {paginatedPatterns?.map((pattern) => (
           <div
             key={pattern.id}
@@ -520,8 +520,9 @@ function PatternsPage() {
               </div>
             )}
             {/* Stops the card click: the select is its own control */}
-            <div className="mb-3" onClick={(e) => e.stopPropagation()}>
-              {categorySelect(pattern, 'w-full')}
+            <div className="mb-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <span className="text-xs text-muted-foreground shrink-0">Category</span>
+              {categorySelect(pattern, 'min-w-0 flex-1 max-w-[11rem]')}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="text-success">
@@ -539,7 +540,7 @@ function PatternsPage() {
           </div>
         ))}
         {paginatedPatterns?.length === 0 && (
-          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
+          <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
             {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
           </div>
         )}

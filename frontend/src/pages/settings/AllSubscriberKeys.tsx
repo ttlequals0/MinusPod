@@ -101,13 +101,13 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
           </div>
           <div className="sm:hidden space-y-2">
             {keys.map((key) => (
-              <div key={key.id} className="bg-muted/40 rounded-lg p-4 space-y-2">
+              <div key={key.id} className="bg-muted/40 rounded-lg border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-sm font-medium text-foreground">{key.feedTitle}</span>
                   <StatusBadge revoked={Boolean(key.revokedAt)} />
                 </div>
                 <p className="text-sm text-foreground">{keyLabel(key)}</p>
-                <div className="flex gap-4 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>Created {formatDateTime(key.createdAt)}</span>
                   <span>Last used {formatDateTime(key.lastUsedAt ?? null)}</span>
                 </div>

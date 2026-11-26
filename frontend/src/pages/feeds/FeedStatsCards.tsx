@@ -35,7 +35,7 @@ function FeedStatsCards({ feed, slug }: Props) {
   return (
     <div className="mb-6 space-y-3">
       {counts && (
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
           {statusKeys.map((key) => (
             <StatTile
               key={key}

@@ -13,7 +13,7 @@ import {
 import AdChaptersBlock, { type AdChaptersBlockProps } from './AdChaptersBlock';
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
+import { subHeading, subCard } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from './LlmGate';
 import { useLlmEnabled } from '../../hooks/useLlmEnabled';
@@ -84,7 +84,7 @@ function ChapterGeometryBlock({
   }
 
   return (
-    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
+    <div className={`${subCard} p-3 space-y-3`}>
       <div>
         <h4 className={subHeading}>Chapter density</h4>
         <p className="text-xs text-muted-foreground mt-0.5">

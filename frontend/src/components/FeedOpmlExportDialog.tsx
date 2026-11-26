@@ -4,6 +4,7 @@ import { feedsQueryOptions } from '../api/feeds';
 import { exportOpml } from '../api/settings';
 import { getErrorMessage } from '../api/client';
 import { Modal, dialogFooterBtn } from './Modal';
+import CloseButton from './CloseButton';
 import Checkbox from './Checkbox';
 import { btnBase, btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { feedDisplayTitle } from '../utils/feedTitle';
@@ -65,11 +66,14 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
       ariaLabelledBy="feed-opml-export-title"
       panelClassName="w-full max-w-lg max-h-[80vh] flex flex-col text-card-foreground"
     >
-      <div className="p-6 pb-3 border-b border-border">
-        <h2 id="feed-opml-export-title" className="text-lg font-semibold mb-1">Export OPML</h2>
-        <p className="text-sm text-muted-foreground">
-          Select feeds to export as ad-free subscription URLs.
-        </p>
+      <div className="p-6 pb-3 border-b border-border flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="feed-opml-export-title" className="text-lg font-semibold mb-1">Export OPML</h2>
+          <p className="text-sm text-muted-foreground">
+            Select feeds to export as ad-free subscription URLs.
+          </p>
+        </div>
+        <CloseButton onClick={onClose} label="Close dialog" />
       </div>
 
       <div className="px-6 py-2 border-b border-border flex items-center justify-between text-sm">

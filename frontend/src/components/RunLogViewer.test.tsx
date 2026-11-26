@@ -145,7 +145,7 @@ describe('RunLogViewer', () => {
     const onClose = vi.fn();
     renderViewer(onClose);
     await screen.findByText('Starting sweep');
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
     expect(onClose).toHaveBeenCalled();
   });
 });

@@ -17,7 +17,7 @@ import { SortHeader } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
 import SortControls from '../../components/SortControls';
 import QueryError from '../../components/QueryError';
-import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../../components/tableStyles';
+import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard, cardGrid } from '../../components/tableStyles';
 import { inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { pageHeader, pageTitle } from '../../components/pageStyles';
@@ -138,7 +138,7 @@ function DownloadsTab({ tabs }: Props) {
       {tabs}
       <div role="tabpanel" id="history-panel-downloads" aria-labelledby="history-tab-downloads" tabIndex={0}>
 
-      <div className={`${filterGrid} sm:grid-cols-2 lg:grid-cols-5 mb-6`}>
+      <div className={`bg-card rounded-lg border border-border p-4 ${filterGrid} sm:grid-cols-2 lg:grid-cols-5 mb-6`}>
         <div className="min-w-0">
           <label htmlFor="downloads-podcast" className={filterLabel}>Podcast</label>
           <select
@@ -211,9 +211,9 @@ function DownloadsTab({ tabs }: Props) {
       {!isLoading && data && (
         <>
           {/* Mobile cards */}
-          <div className="md:hidden space-y-3 mb-4">
+          <div className={`md:hidden ${cardGrid} mb-4`}>
             {rows.length === 0 ? (
-              <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
+              <div className={`${rowCard} min-[600px]:col-span-2 p-8 text-center text-muted-foreground`}>
                 No downloads yet.
               </div>
             ) : rows.map((row) => (

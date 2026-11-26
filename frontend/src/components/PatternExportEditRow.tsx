@@ -4,6 +4,7 @@ import { getTagVocabulary } from '../api/community';
 import type { PatternOverride } from '../api/patterns';
 import { expectedFilename } from '../api/communitySlug';
 import { TagChips } from './TagChips';
+import { inputBase } from './fieldStyles';
 
 interface Props {
   patternId: number;
@@ -74,11 +75,10 @@ export function PatternExportEditRow({
   }
 
   const inputClass =
-    'h-auto flex-1 rounded border border-border bg-background px-2 py-1 text-xs ' +
-    'focus:outline-none focus:ring-1 focus:ring-ring';
+    `flex-1 min-w-0 ${inputBase}`;
 
   return (
-    <div className="ml-6 mt-1 mb-2 p-3 rounded border border-border bg-muted/30 space-y-2 text-xs">
+    <div className="sm:ml-6 mt-1 mb-2 p-3 rounded border border-border bg-muted/30 space-y-2 text-xs">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <label
           className="w-24 shrink-0 text-muted-foreground"
@@ -122,8 +122,7 @@ export function PatternExportEditRow({
             id={`tags-${patternId}`}
             type="text"
             placeholder="comma-separated, e.g. universal, business"
-            className={'h-auto w-full rounded border border-border bg-background px-2 py-1 text-xs ' +
-              'focus:outline-none focus:ring-1 focus:ring-ring'}
+            className={`w-full ${inputBase}`}
             value={tags.join(', ')}
             onChange={(e) => update({ sponsor_tags: chips(e.target.value) })}
           />
@@ -137,7 +136,7 @@ export function PatternExportEditRow({
       </div>
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <label className="w-24 shrink-0 text-muted-foreground">Filename</label>
-        <code className="flex-1 font-mono text-xs px-2 py-1 rounded bg-background border border-border text-muted-foreground">
+        <code className="flex-1 font-mono text-xs px-2 py-1 rounded bg-background border border-border text-muted-foreground break-all">
           {filename}
         </code>
       </div>

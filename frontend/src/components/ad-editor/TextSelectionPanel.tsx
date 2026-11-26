@@ -458,7 +458,7 @@ function TextSelectionPanel({
       </div>
 
       {/* Selection readout */}
-      <div className="flex items-center justify-between text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
         <span className="text-muted-foreground">
           Original transcript - highlight the ad copy
         </span>
