@@ -38,8 +38,12 @@ __all__ = ['SponsorService', 'SEED_SPONSORS', 'SEED_NORMALIZATIONS']
 
 # A brand is a capitalized run. Dot and slash are outside the character class,
 # so "Patreon.com/Show" breaks into "Patreon" and "Show" rather than one run.
-_BRAND_RUN_RE = re.compile(
-    r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
+# Letters are not limited to A-Z: an ASCII-only class cut "Fj\u00e4llmark" to "Fj".
+# `re` has no \p{Lu}, so the capitals are the Latin ones from Latin-1 through
+# Latin Extended-B; [^\W_] is any letter or digit.
+_UPPER = 'A-Z' + ''.join(c for c in map(chr, range(0xC0, 0x250)) if c.isupper())
+_BRAND_WORD = r"[%s](?:[^\W_]|[&'\u2019-])*" % _UPPER
+_BRAND_RUN_RE = re.compile(r"%s(?:\s+%s)*" % (_BRAND_WORD, _BRAND_WORD))
 # Bounded quantifier: an unbounded run of [A-Za-z0-9-] here is the
 # py/polynomial-redos shape fixed in 1.1.1. 63 is the DNS label limit.
 _DOMAIN_RE = re.compile(
