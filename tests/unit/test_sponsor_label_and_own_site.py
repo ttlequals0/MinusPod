@@ -4,6 +4,8 @@ import json
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.prompts import parse_ads_from_response
@@ -383,6 +385,17 @@ class TestBrandWithNonAsciiLetters:
         assert self._extract(
             'Host-read sponsor segment: Café Brûlé Société promo code'
         ) == 'Café Brûlé Société'
+
+    @pytest.mark.parametrize('brand', ['Звездоград', 'Αστρόπολις'], ids=['cyrillic', 'greek'])
+    def test_a_non_latin_brand_is_read_whole(self, brand):
+        assert self._extract(f'{brand} sponsor read') == brand
+
+    def test_a_mixed_script_multi_word_brand_stays_one_run(self):
+        assert self._extract('Host-read sponsor segment: Звезда Αστρο Corp promo code') \
+            == 'Звезда Αστρο Corp'
+
+    def test_a_lowercase_cyrillic_opening_is_still_not_a_brand(self):
+        assert self._extract('звезда a sponsor read') is None
 
     def test_a_lowercase_accented_opening_is_still_not_a_brand(self):
         assert self._extract('ärligt talat a sponsor read') is None

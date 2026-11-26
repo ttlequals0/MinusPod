@@ -84,7 +84,7 @@ from utils.short_asks import floor_for
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
-from ad_detector.cue_boundary_snap import snap_split_edge
+from ad_detector.cue_boundary_snap import show_cue_within, snap_min_confidence, snap_split_edge
 from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
@@ -446,6 +446,7 @@ class AdValidator:
         self.max_ad_duration = min(max_ad_duration, max_ad_duration_confirmed)
         self.max_ad_duration_confirmed = max_ad_duration_confirmed
         self._audio_analysis = None
+        self._audio_cue_cache = None
         self._variant_index = None
 
         if self.false_positive_corrections:
@@ -739,6 +740,7 @@ class AdValidator:
             the merge step will not fold ads whose categories resolve to different actions.
         """
         self._audio_analysis = audio_analysis
+        self._audio_cue_cache = None
         # Rebuilt per run so a registry edit between runs is seen.
         self._variant_index = None
 
@@ -1712,9 +1714,15 @@ class AdValidator:
     def _gap_merges(self, left_end: float, right_start: float) -> bool:
         """Whether the merge step folds two ads across this gap."""
         gap = right_start - left_end
-        return gap < MERGE_GAP_THRESHOLD or (
+        return (gap < MERGE_GAP_THRESHOLD or (
             gap < MAX_SILENT_GAP
             and not self._has_speech_in_range(left_end, right_start))
+        ) and not self._show_cue_within(left_end, right_start)
+
+    def _show_cue_within(self, start: float, end: float) -> bool:
+        """Whether a confident show intro/outro cue lies wholly inside [start, end]."""
+        return show_cue_within(self._audio_cue_signals(), start, end,
+                               snap_min_confidence(self.cue_snap_settings))
 
     def _measured_cover(self, spans: list[tuple[float, float]],
                         anchors: list[tuple[float, float]], start: float,
@@ -1922,7 +1930,9 @@ class AdValidator:
         return lo, hi, records
 
     def _audio_cue_signals(self) -> list[AudioSegmentSignal]:
-        """Stored audio cue signals as the objects the cue snap reads."""
+        """Stored audio cue signals as the objects the cue snap reads, built once per analysis."""
+        if self._audio_cue_cache is not None:
+            return self._audio_cue_cache
         cues = []
         for sig in (self._audio_analysis or {}).get('signals') or []:
             start, end = finite_number(sig.get('start')), finite_number(sig.get('end'))
@@ -1931,6 +1941,7 @@ class AdValidator:
                     and None not in (start, end, confidence)):
                 cues.append(AudioSegmentSignal(start, end, 'audio_cue', confidence,
                                                sig.get('details') or {}))
+        self._audio_cue_cache = cues
         return cues
 
     def _measured_extent(self, ad: dict) -> tuple[float, float]:
@@ -2060,7 +2071,8 @@ class AdValidator:
 
         # Only extend if gap is positive and within threshold, and nobody speaks in it: the rule
         # covers inserted post-roll tails, not a closing line after the last ad.
-        if 0 < gap_to_end <= max_gap and not self._speech_starts_after(last_ad['end']):
+        if (0 < gap_to_end <= max_gap and not self._speech_starts_after(last_ad['end'])
+                and not self._show_cue_within(last_ad['end'], self.episode_duration)):
             original_end = last_ad['end']
             last_ad['end'] = self.episode_duration
             # Read by _validate_ad: a pass-2 approval ending here keeps the extension.
@@ -2087,7 +2099,8 @@ class AdValidator:
         if (first_ad.get('_user_kept_by_trim') or first_ad.get('held_for_review')
                 or first_ad.get('vad_gap_requires_review')):
             return ads
-        if 0 < first_ad['start'] <= max_gap and not self._speech_starts_before(first_ad['start']):
+        if (0 < first_ad['start'] <= max_gap and not self._speech_starts_before(first_ad['start'])
+                and not self._show_cue_within(0.0, first_ad['start'])):
             original_start = first_ad['start']
             first_ad['start'] = 0.0
             # Read by _validate_ad: a pass-2 approval starting here keeps the extension.

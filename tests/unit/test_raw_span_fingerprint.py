@@ -20,11 +20,11 @@ def test_returns_ints_and_duration(monkeypatch):
     ffmpeg_out = MagicMock(returncode=0)
     with patch('audio_fingerprinter.tracked_run',
                side_effect=[ffmpeg_out, fpcalc_out]) as run:
-        result = fp.generate_raw_span_fingerprint('/audio/ep.mp3', 100.0, 102.5)
+        result = fp.generate_raw_span_fingerprint('/audio/ep.mp3', 100.0, 103.5)
     assert result == ([1, 2, 3, 4], 4 / FINGERPRINT_NOMINAL_FPS)
     ffmpeg_cmd = run.call_args_list[0].args[0]
     assert '-ss' in ffmpeg_cmd and '100.0' in ffmpeg_cmd
-    assert '-t' in ffmpeg_cmd and '2.5' in ffmpeg_cmd
+    assert '-t' in ffmpeg_cmd and '3.5' in ffmpeg_cmd
     fpcalc_cmd = run.call_args_list[1].args[0]
     assert '-raw' in fpcalc_cmd
 

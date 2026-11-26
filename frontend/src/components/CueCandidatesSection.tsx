@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { getErrorMessage } from '../api/client';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import CollapsibleSection from './CollapsibleSection';
@@ -90,7 +91,7 @@ function CueCandidatesSection({
   });
   const undoMutation = useMutation({
     mutationFn: (id: number) => undoCueCandidateDismissal(id),
-    onSuccess: invalidate,
+    onSuccess: () => { dismissMutation.reset(); invalidate(); },
   });
 
   const candidates = (data?.candidates ?? []).filter((c) => !c.dismissed);
@@ -99,6 +100,10 @@ function CueCandidatesSection({
   // Include kind: an intro and a recurring hit can share start/end on short
   // episodes, and a bare start-end key would collide (dup React keys + preview state).
   const candidateKey = (c: CueCandidate) => `${c.kind ?? 'recurring'}-${c.start}-${c.end}`;
+
+  // Pending and error state belong to the row whose Hide was clicked.
+  const dismissVars = dismissMutation.variables;
+  const isDismissRow = (c: CueCandidate) => !!dismissVars && candidateKey(dismissVars) === candidateKey(c);
 
   const stopPreview = () => {
     reqRef.current += 1;
@@ -254,7 +259,7 @@ function CueCandidatesSection({
                     <DemoDisabled>
                       <button
                         onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
-                        disabled={dismissMutation.isPending}
+                        disabled={dismissMutation.isPending && isDismissRow(c)}
                         title="Not a cue: hide this sound in every episode of this feed"
                         className={`${secondaryBtn} flex-1 sm:flex-none`}
                       >
@@ -263,6 +268,11 @@ function CueCandidatesSection({
                     </DemoDisabled>
                   </div>
                 </div>
+                {dismissMutation.isError && isDismissRow(c) && (
+                  <p role="alert" className="text-sm text-destructive mt-2">
+                    {getErrorMessage(dismissMutation.error, 'Could not hide this sound.')}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -304,6 +314,11 @@ function CueCandidatesSection({
                       </DemoDisabled>
                     </div>
                   ))}
+                  {undoMutation.isError && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {getErrorMessage(undoMutation.error, 'Could not restore this sound.')}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

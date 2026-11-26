@@ -38,8 +38,10 @@ CHAPTERS_AI_UNAVAILABLE = (
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
 
-# Show-notes gate: >= MIN entries inside the episode, spaced apart (original audio).
+# Show-notes gate: >= MIN entries inside the episode, spaced apart (original audio). Entries read by pattern
+# rules instead of the LLM must also start within the limit.
 MIN_SHOW_NOTES_CHAPTERS = 3
+SHOW_NOTES_MAX_FIRST_SECONDS = 600.0
 SHOW_NOTES_MIN_SPACING_SECONDS = 60.0
 # Internal source of a show-notes chapter; such chapters never trigger a chapter trim.
 SHOW_NOTES_SOURCE = 'show_notes'
@@ -90,14 +92,55 @@ _EXTRACT_LINE = re.compile(
     r'^\W*(?:\d{1,3}[.)]\s+)?\W*?(\d{1,3}:\d{2}(?::\d{2})?)[`*\])]*\s*[-:\u2013\u2014]?\s*(.*)$')
 
 
+# A title that starts with a clock suffix (AM, pm, a.m.); mixed case such as "Am I Wrong" is a word.
+_CLOCK_TITLE = re.compile(r'^(?:[AP]\.?M|[ap]\.?m)\b')
+# Sponsor lines: a URL, a domain with a path or after "visit"/"go to", a promo code, percent off or a free trial.
+_DOMAIN = r'[\w-]+\.(?:com|net|org|io|co|tv|fm|ai|app|dev)\b'
+_PROMO_TITLE = re.compile(
+    r'https?://|\bwww\.|\b' + _DOMAIN + r'/\S|(?i:\b(?:visit|go\s+to|head\s+to)\s+)' + _DOMAIN +
+    r'|(?i:\b(?:promo|coupon|discount)\s+code\b|\d+\s?%\s*off\b|\bfree\s+trial\b)'
+    r'|\bcode\s+(?:[A-Z0-9]{3,}\b|\w*\d\w*)')
+
+# Patterns for MM:SS timestamps embedded in episode descriptions.
+_TIMESTAMP_PATTERNS = (
+    re.compile(r'(?:^|\n)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-:]*\s*(.+?)(?=\n|$)'),
+    re.compile(r'\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+?)(?=\n|$)'),
+    re.compile(r'\((\d{1,2}:\d{2}(?::\d{2})?)\)\s*(.+?)(?=\n|$)'),
+)
+
+
+def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
+    """(timestamp, title) pairs of a description's timestamp lines, deduplicated and time-sorted."""
+    if not description:
+        return []
+    text = strip_html(description)
+    seen: dict[str, str] = {}
+    for pattern in _TIMESTAMP_PATTERNS:
+        for ts, title in pattern.findall(text):
+            title = title.strip().rstrip('-:').strip()
+            if not title or len(title) < 2 or title.isdigit():
+                continue
+            seen.setdefault(ts, title)
+    return sorted(seen.items(), key=lambda kv: parse_timestamp(kv[0]))
+
+
+def _pattern_show_notes_entries(description: str | None) -> list[tuple[float, str]]:
+    """(seconds, title) timestamp lines of a description, without clock or sponsor titles."""
+    return [(parse_timestamp(ts), title)
+            for ts, title in _parse_description_anchors(description or '')
+            if not _CLOCK_TITLE.match(title) and not _PROMO_TITLE.search(title)]
+
+
 def _show_notes_anchors(entries: list[tuple[float, str]], cuts: list[dict] | None,
-                        replacement_duration: float,
-                        episode_duration: float) -> list[tuple[float, str]]:
+                        replacement_duration: float, episode_duration: float,
+                        first_within_limit: bool = False) -> list[tuple[float, str]]:
     """Listed (original-audio) times shifted by the cuts like the served description, or [] off the gate."""
     merged = merge_cut_spans(cuts or [], default_replacement=replacement_duration)
     inside = [(t, shift_for_merged_cuts(t, merged), title) for t, title in entries]
     inside = [a for a in inside if a[1] < episode_duration]
     if len(inside) < MIN_SHOW_NOTES_CHAPTERS:
+        return []
+    if first_within_limit and inside[0][0] > SHOW_NOTES_MAX_FIRST_SECONDS:
         return []
     if any(b[0] - a[0] < SHOW_NOTES_MIN_SPACING_SECONDS for a, b in pairwise(inside)):
         return []
@@ -1159,14 +1202,16 @@ class ChaptersGenerator:
         # The LLM reads the description once: its entries are the chapters when the feed allows it
         # and they pass the gate, and otherwise hints for topic detection.
         entries = self._extract_show_notes_entries(episode_description)
-        if entries is None:
-            self._show_notes_alignment_failed = True
-            entries = []
+        # Without the LLM (no client, or a failed call) the timestamp lines are read by pattern rules
+        by_pattern = entries is None or not self._llm_client
+        self._show_notes_alignment_failed = entries is None
+        if by_pattern:
+            entries = _pattern_show_notes_entries(episode_description)
         hint_anchors = _hint_anchors(
             entries, applied_cuts, replacement_duration, episode_duration)
         show_notes_anchors = _show_notes_anchors(
             entries, applied_cuts, replacement_duration,
-            episode_duration) if show_notes_chapters else []
+            episode_duration, first_within_limit=by_pattern) if show_notes_chapters else []
         listed_chapters = None
         if show_notes_anchors:
             listed_chapters = self._chapters_from_show_notes(

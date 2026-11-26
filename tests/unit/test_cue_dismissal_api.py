@@ -53,6 +53,18 @@ def test_dismiss_happy_path(client, db):
     assert stamped[0]['dismissalId'] == did
 
 
+def test_dismiss_fpcalc_unavailable_is_503(client, db):
+    ep = 'abcdef123458'
+    db.create_podcast('dfeed8', 'http://x/rss', 'Feed')
+    with patch('api.cue_templates._resolve_original_audio',
+               return_value=(f'/audio/{ep}.mp3', None)), \
+         patch('api.cue_templates.AudioFingerprinter') as FP:
+        FP.return_value.generate_raw_span_fingerprint.return_value = None
+        r = client.post(f'/api/v1/feeds/dfeed8/episodes/{ep}/cue-candidates/dismiss',
+                        json={'start_s': 8.0, 'end_s': 9.5})
+    assert r.status_code == 503
+
+
 def test_dismiss_invalid_span(client, db):
     db.create_podcast('dfeed2', 'http://x/rss', 'Feed')
     r = client.post(

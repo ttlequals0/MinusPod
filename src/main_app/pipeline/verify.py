@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass, replace
 from ad_detector.boundaries import _content_duration_in_range
 from ad_detector.cue_boundary_snap import (
-    MIN_CUE_CONFIDENCE_FOR_SNAP, show_cue_within, snap_split_edge)
+    MIN_CUE_CONFIDENCE_FOR_SNAP, show_cue_within, snap_min_confidence, snap_split_edge)
 
 from audio_processor import get_replacement_duration
 from ad_validator import user_trimmed_keep_ranges
@@ -290,8 +290,7 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
             if any(cut['start'] < hi and cut['end'] > lo for cut in blockers):
                 continue
             # Show intro/outro music is content: an edge never moves across it.
-            if show_cue_within(cues, lo, hi, snap_settings.get(
-                    'min_confidence', MIN_CUE_CONFIDENCE_FOR_SNAP)):
+            if show_cue_within(cues, lo, hi, snap_min_confidence(snap_settings)):
                 continue
             # The audio before the cue must be wordless, so a cut never swallows speech.
             gap = ((record['cue_end'], value) if edge == 'start' else (value, record['cue_start']))
@@ -1236,9 +1235,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             MIN_CONTENT_BETWEEN_ADS_SECONDS, allow_zero=True),
                         cues=(audio_analysis_result.get_signals_by_type('audio_cue')
                               if audio_analysis_result else []),
-                        cue_min_confidence=(cue_snap_settings['min_confidence']
-                                            if cue_snap_settings
-                                            else MIN_CUE_CONFIDENCE_FOR_SNAP))
+                        cue_min_confidence=snap_min_confidence(cue_snap_settings))
                     if crosspass_plan and original_audio_path:
                         original_render_duration = local_audio_processor.get_audio_duration(
                             original_audio_path)

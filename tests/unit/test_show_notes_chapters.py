@@ -195,7 +195,7 @@ def _no_client_run(description=DESCRIPTION, segments=None, **kwargs):
 
 
 def test_no_llm_client_means_no_extraction_and_the_output_of_a_run_without_notes():
-    gen, chapters = _no_client_run()
+    gen, chapters = _no_client_run(description=PROSE)
     base_gen, base = _no_client_run(description=None)
     assert chapters == base
     assert gen.chapters_degraded == base_gen.chapters_degraded
@@ -203,12 +203,34 @@ def test_no_llm_client_means_no_extraction_and_the_output_of_a_run_without_notes
     assert chapters_generator.CHAPTERS_AI_UNAVAILABLE in gen.chapters_degradation_reason
 
 
+def test_no_llm_client_still_reads_line_format_notes_by_pattern():
+    gen, chapters = _no_client_run()
+    assert _starts(chapters)[1:] == ANCHOR_TIMES
+    assert [c['title'] for c in chapters[1:]] == TITLES
+    assert gen.show_notes_starts == frozenset([1, *ANCHOR_TIMES])
+
+
+def test_pattern_path_keeps_the_ten_minute_first_entry_gate():
+    description = '15:00 Opening\n25:00 Middle\n35:00 End'
+    gen, chapters = _no_client_run(description=description)
+    assert gen.show_notes_starts == frozenset()
+    assert all(c['title'] != 'Middle' for c in chapters)
+
+
+def test_pattern_path_drops_clock_and_sponsor_titles():
+    description = ('01:00 Opening\n05:00 pm tickets\n10:00 Visit acme.com for a deal\n'
+                   '20:00 Middle\n30:00 End')
+    gen, chapters = _no_client_run(description=description)
+    assert [c['title'] for c in chapters if c['startTime'] in gen.show_notes_starts] == [
+        'Intro', 'Opening', 'Middle', 'End']
+
+
 def test_llm_call_returning_none_degrades_and_uses_topic_detection():
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
          patch('chapters_generator.call_llm', return_value=(None, RuntimeError('boom'))):
         gen.generate_chapters(
-            _segments(), episode_description=DESCRIPTION,
+            _segments(), episode_description=PROSE,
             podcast_name='Show', episode_title='Ep')
     windowed.assert_called_once()
     assert gen.show_notes_starts == frozenset()
@@ -216,12 +238,50 @@ def test_llm_call_returning_none_degrades_and_uses_topic_detection():
     assert 'show-notes alignment failed' in gen.chapters_degradation_reason
 
 
+def test_failed_extraction_falls_back_to_line_format_notes_and_degrades():
+    gen = _gen()
+
+    def fake(**kwargs):
+        if kwargs['call_label'] == EXTRACT:
+            return None, RuntimeError('boom')
+        return _Response(''), None
+
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]), \
+         patch('chapters_generator.call_llm', side_effect=fake):
+        out = gen.generate_chapters(
+            _segments(), episode_description=DESCRIPTION,
+            podcast_name='Show', episode_title='Ep')
+    assert _starts(out['chapters'])[1:] == ANCHOR_TIMES
+    assert gen.show_notes_starts == frozenset([1, *ANCHOR_TIMES])
+    assert gen.chapters_degraded is True
+    assert 'show-notes alignment failed' in gen.chapters_degradation_reason
+
+
+def test_successful_extraction_never_consults_the_pattern_parser():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator._pattern_show_notes_entries') as by_pattern:
+        _run(gen, extract='NONE')
+    by_pattern.assert_not_called()
+    windowed.assert_called_once()
+    assert gen.show_notes_starts == frozenset()
+    assert gen._show_notes_alignment_failed is False
+
+
+def test_extraction_ignores_the_ten_minute_gate():
+    description = '15:00 Opening\n25:00 Middle\n35:00 End'
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]):
+        _run(gen, description=description)
+    assert gen.show_notes_starts == frozenset({1, 900, 1500, 2100})
+
+
 def test_llm_exception_in_extraction_degrades_and_uses_topic_detection():
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
          patch('chapters_generator.call_llm', side_effect=RuntimeError('boom')):
         gen.generate_chapters(
-            _segments(), episode_description=DESCRIPTION,
+            _segments(), episode_description=PROSE,
             podcast_name='Show', episode_title='Ep')
     windowed.assert_called_once()
     assert gen.chapters_degraded is True

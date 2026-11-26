@@ -45,6 +45,11 @@ SNAP_GAP_SECONDS = 0.05
 MIN_CUE_CONFIDENCE_FOR_SNAP = AUDIO_CUE_SNAP_CONFIDENCE
 
 
+def snap_min_confidence(settings) -> float:
+    """A feed's cue snap min confidence, or the default when it has no snap settings."""
+    return (settings or {}).get('min_confidence', MIN_CUE_CONFIDENCE_FOR_SNAP)
+
+
 def _cue_role(cue) -> str:
     """Matching role carried in a cue's details.
 
