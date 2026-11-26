@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- Pass 2 no longer joins its cut to a pass-1 cut, or snaps a cut edge, across show intro/outro music detected by a show cue template. A wordless gap holding that music used to count as filler, so a self-promo cut, the show outro and a sponsor read became one cut and the music was removed.
+
 ## [2.102.20] - 2026-11-25
 
 ### Fixed

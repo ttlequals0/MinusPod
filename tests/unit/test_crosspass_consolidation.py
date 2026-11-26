@@ -319,3 +319,47 @@ def test_crosspass_rerender_clips_a_pass1_cut_at_a_false_positive():
     applied = AudioProcessor().compute_applied_cuts(
         audio.process_episode.call_args.args[1], 1000.0, hard_barriers=hard)
     assert [(c['start'], c['end']) for c in applied] == [(100.0, 185.0), (400.0, 480.0)]
+
+
+# A show-outro template cue (role non_ad) sits in the wordless gap between a
+# pass-1 cut and a pass-2 cut; joining the cuts would remove the show music.
+def _show_cue(start, end, conf=0.98, role='non_ad'):
+    from audio_analysis.base import AudioSegmentSignal
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=conf,
+        details={'source': 'template', 'label': 'outro', 'role': role,
+                 'cue_type': 'show_outro', 'template_id': 3})
+
+
+def _outro_plan(cues, **kwargs):
+    return verify._crosspass_cut_plan(
+        [_cut(228.0, 232.62, replacement_duration=1.0)], [_cut(228.0, 232.62)],
+        [_cut(241.74, 264.04)],
+        [{'start': 0.0, 'end': 200.0, 'text': 'content'}], [], 12.0,
+        cues=cues, cue_min_confidence=0.8, **kwargs)
+
+
+def test_crosspass_plan_keeps_show_outro_cue_between_cuts():
+    assert _outro_plan([_show_cue(233.08, 238.58)]) is None
+
+
+def test_crosspass_plan_still_joins_wordless_gap_without_cue():
+    plan = _outro_plan([])
+    assert [(cut['start'], cut['end']) for cut in plan] == [(228.0, 264.04)]
+
+
+def test_crosspass_plan_ignores_low_confidence_partial_and_boundary_cues():
+    for cue in (_show_cue(233.08, 238.58, conf=0.5),
+                _show_cue(230.0, 238.58),
+                _show_cue(233.08, 238.58, role='boundary')):
+        plan = _outro_plan([cue])
+        assert [(c['start'], c['end']) for c in plan] == [(228.0, 264.04)]
+
+
+def test_crosspass_plan_show_cue_blocks_reviewer_locked_gap_too():
+    pass1 = [_cut(228.0, 232.62, replacement_duration=1.0, reviewer_locked_end=232.62)]
+    plan = verify._crosspass_cut_plan(
+        pass1, [dict(pass1[0])], [_cut(241.74, 264.04)],
+        [{'start': 0.0, 'end': 200.0, 'text': 'content'}], [], 12.0,
+        cues=[_show_cue(233.08, 238.58)], cue_min_confidence=0.8)
+    assert plan is None
