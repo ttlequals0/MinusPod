@@ -13,6 +13,7 @@ release notes.
 ### Fixed
 
 - The validator checked the sponsor-name boost before the vague-reason penalty, and the sponsor names match inside ordinary words such as "keeps", "indeed" or "himself". A vague reason such as "Sponsor segment that keeps going" therefore gained 0.10 confidence instead of losing 0.10. The vague-reason penalty is checked first again, and a reason that names its advertiser is still exempt.
+- Pass 2 no longer joins its cut to a pass-1 cut, or snaps a cut edge, across show intro/outro music detected by a show cue template. A wordless gap holding that music used to count as filler, so a self-promo cut, the show outro and a sponsor read became one cut and the music was removed.
 
 ## [2.102.23] - 2026-11-26
 
