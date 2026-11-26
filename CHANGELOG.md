@@ -8,6 +8,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+- A sponsor name read from the ad reason keeps letters outside A-Z. The brand pattern only knew A-Z, so a brand like "Fjällmark" was stored as "Fj" and a brand starting with "Ö" was skipped.
+
 ## [2.102.20] - 2026-11-25
 
 ### Fixed
