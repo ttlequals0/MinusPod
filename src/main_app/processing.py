@@ -1259,7 +1259,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                 or publish.pending_chapter_trim(all_ads_with_validation))
             # Pass 2 and the approvals read holds as barriers and evidence; an in-run recut closes its own.
             if not in_run_recut:
-                finalize_holds(all_ads_with_validation, user_corrections, hold_for_review)
+                finalize_holds(all_ads_with_validation, user_corrections, hold_for_review,
+                               tag=f"[{slug}:{episode_id}]")
             storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             # Stage 8: Finalize. ads_removed counts rendered cuts, so markers
@@ -1318,7 +1319,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # The in-run recut that would have closed the holds did not run; close them here.
             if in_run_recut and finalize_holds(
                     all_ads_with_validation,
-                    detect._load_user_corrections(slug, episode_id, db), hold_for_review):
+                    detect._load_user_corrections(slug, episode_id, db), hold_for_review,
+                    tag=f"[{slug}:{episode_id}]"):
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
                 run_stats['markers'] = common.marker_stats(all_ads_with_validation)
                 held_count = run_stats['markers']['held']

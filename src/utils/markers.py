@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import logging
 import math
 import uuid
 from bisect import bisect_left, bisect_right
@@ -14,6 +15,8 @@ from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE, HOLD_REASON_
 from utils.constants import EpisodeStatus
 from utils.correction_guard import MIN_CORRECTION_SPAN_S
 from utils.time import overlap_ratio
+
+logger = logging.getLogger(__name__)
 
 
 # DAI core: the region measured as differing across fetches; it answers whether the audio is an ad.
@@ -240,9 +243,12 @@ def close_holds(markers, corrections=((), ())) -> int:
     return closed
 
 
-def finalize_holds(markers, corrections, hold_for_review: bool) -> int:
+def finalize_holds(markers, corrections, hold_for_review: bool, tag: str = '') -> int:
     """Close pending holds when the feed does not hold for review; returns how many closed."""
-    return 0 if hold_for_review else close_holds(markers, corrections)
+    closed = 0 if hold_for_review else close_holds(markers, corrections)
+    if closed:
+        logger.info(f"{tag} Closed {closed} held detection(s) as not cut (hold for review is off)".strip())
+    return closed
 
 
 def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:

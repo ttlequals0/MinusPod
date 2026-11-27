@@ -644,6 +644,7 @@ def register_routes(app):
                 mimetype='application/rss+xml',
             )
             response.headers['Referrer-Policy'] = 'no-referrer'
+            response.headers['Cache-Control'] = 'private, no-cache'
             return response
         else:
             feed_logger.error(f"[{slug}] RSS feed not available")
@@ -895,6 +896,7 @@ def register_routes(app):
         # No credentials are involved; the endpoint carries no session.
         response = Response(vtt_content, mimetype='text/vtt')
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Cache-Control'] = 'private, no-cache'
         return response
 
     @app.route('/episodes/<slug>/<episode_id>/chapters.json')
@@ -927,6 +929,7 @@ def register_routes(app):
         body['chapters'] = entries
         response = Response(json.dumps(body), mimetype='application/json+chapters')
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Cache-Control'] = 'private, no-cache'
         return response
 
     @app.route('/episodes/<slug>/<episode_id>/chapter-images/<filename>')
@@ -995,7 +998,9 @@ def register_routes(app):
         feed_logger.info(f"Served OPML via URL (mode={mode})")
         # mimetype (not content_type): Werkzeug appends charset=utf-8 for
         # text/*; passing the charset here too would double it.
-        return Response(xml, mimetype='text/xml')
+        response = Response(xml, mimetype='text/xml')
+        response.headers['Cache-Control'] = 'private, no-cache'
+        return response
 
     @app.route('/<slug>/cover-minuspod.jpg')
     @app.route('/<slug>/cover-minuspod-<token>.jpg')
