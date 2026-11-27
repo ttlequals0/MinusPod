@@ -74,9 +74,6 @@ def test_split_edge_start_refuses_widening_over_show_cue():
     assert snap_split_edge('start', 100.0, 160.0, cues[:1], 15.0)[0] == 97.95
 
 
-# --- validator and pass 2 ----------------------------------------------------
-
-
 def test_end_snap_into_a_show_cue_straddling_the_edge_stays_put():
     ad = _snap({'start': 228.0, 'end': 232.62}, _cue(241.0, 243.75), _show(232.0, 235.0))
     assert ad['end'] == 232.62

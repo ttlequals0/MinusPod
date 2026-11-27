@@ -370,12 +370,9 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     _log_reviewer_verdicts(slug, episode_id, 2, effective_verdicts)
 
 
-# A reviewed read may reach this far into a span already released from the same
-# hold and still be released, clipped to abut it. Back-to-back reads put each
-# reviewer edge on the same boundary, so the two edges disagree by boundary
-# jitter. MERGE_GAP_SECONDS (1.0) already joins cuts this close into one cut, so
-# clipping at this size never changes the audio, and the clip only shrinks the
-# read: nothing outside what the reviewer marked is cut.
+# Back-to-back reads place their shared boundary independently, so a read may reach this far
+# into a span released from the same hold and be clipped to abut it. Matches MERGE_GAP_SECONDS,
+# so the audio is unchanged; the clip only shrinks the read.
 RELEASED_EDGE_JITTER = 1.0
 
 
@@ -392,11 +389,7 @@ def _clip_to_released(lo, hi, released):
 
 
 def _released_span(v, sub, hold, barriers, released=()):
-    """(released span, outside pieces) for a successful review of a hold subspan, or None.
-
-    ``released`` are spans already released from the same hold; they are among
-    ``barriers`` too, and a read reaching only a jitter into one is clipped to abut it.
-    """
+    """(released span, outside pieces) for a successful review of a hold subspan, or None."""
     if (not v.success or v.inconclusive_hold or v.boundary_conflict
             or is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad)):
         return None

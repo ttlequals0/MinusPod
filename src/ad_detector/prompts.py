@@ -128,11 +128,8 @@ def create_windows(segments: list[dict], window_size: float = None,
     return windows
 
 
-# Appended to a window's user prompt when the call runs in json_object mode, which
-# forces a top-level object while the system prompt asks for a bare array. Left to
-# resolve that alone, models answer with a single bare ad object and drop the rest.
-# Sent with the window rather than in the system prompt so it holds for operator
-# prompt overrides too; extract_json_ads_array reads the "ads" key.
+# json_object mode forces an object while the system prompt asks for an array, so models
+# drop all but one ad. Sent with the window so operator prompt overrides get it too.
 JSON_OBJECT_ADS_INSTRUCTION = (
     "\n\nRESPONSE SHAPE: this response must be a single JSON object. Put the JSON "
     'array described above under the key "ads": {"ads": [ ... ]}. Include every '
