@@ -1049,6 +1049,12 @@ def mark_distinct_merge(target: dict, other: dict) -> None:
     target['merged_distinct_ads'] = True
 
 
+def carry_transcript_span(target: dict, other: dict) -> None:
+    """Keep a folded-in marker's confirmed transcript span when the target has none."""
+    if other.get(TRANSCRIPT_SPAN):
+        target.setdefault(TRANSCRIPT_SPAN, other[TRANSCRIPT_SPAN])
+
+
 def note_fold(target: dict, other: dict) -> None:
     """Bookkeeping every fold owes: touching or gapped spans are distinct ads
     and stay expand-only."""
