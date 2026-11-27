@@ -130,12 +130,17 @@ def create_windows(segments: list[dict], window_size: float = None,
 
 # json_object mode forces an object while the system prompt asks for an array, so models
 # drop all but one ad. Sent with the window so operator prompt overrides get it too.
-JSON_OBJECT_ADS_INSTRUCTION = (
-    "\n\nRESPONSE SHAPE: this response must be a single JSON object. Put the JSON "
-    'array described above under the key "ads": {"ads": [ ... ]}. Include every '
-    "entry you found in this window, not only the first, and return "
-    '{"ads": []} when there are none.\n'
-)
+def json_object_list_instruction(key: str) -> str:
+    """Envelope instruction asking for the array under ``key`` in json_object mode."""
+    return (
+        "\n\nRESPONSE SHAPE: this response must be a single JSON object. Put the JSON "
+        f'array described above under the key "{key}": {{"{key}": [ ... ]}}. Include every '
+        "entry you found in this window, not only the first, and return "
+        f'{{"{key}": []}} when there are none.\n'
+    )
+
+
+JSON_OBJECT_ADS_INSTRUCTION = json_object_list_instruction('ads')
 
 
 def format_window_prompt(

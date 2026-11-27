@@ -78,18 +78,6 @@ def show_cue_overlapping(cues, start, end, min_confidence) -> bool:
                and c.start < end and c.end > start for c in cues)
 
 
-def _widens_over_show_cue(edge, original, proposed, cues, min_confidence) -> bool:
-    """True when moving ``edge`` from ``original`` to ``proposed`` widens the ad over show music."""
-    if edge == 'start':
-        crossed = proposed < original and show_cue_overlapping(cues, proposed, original, min_confidence)
-    else:
-        crossed = proposed > original and show_cue_overlapping(cues, original, proposed, min_confidence)
-    if crossed:
-        logger.info(f"Cue snap ({edge}): {original:.3f}s -> {proposed:.3f}s skipped, "
-                    f"would cut a show intro/outro cue")
-    return crossed
-
-
 def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
     """Allow the removed cue's length in the boundary-shift cap (#832)."""
     return (end - start) if removed else 0.0
@@ -132,7 +120,7 @@ def cue_snap_edge_limit(record: dict, edge: str) -> float | None:
 
 
 def _start_proposal(cue, original_start: float, ad_end: float,
-                    max_shift_s: float) -> float | None:
+                    max_shift_s: float, cues, min_confidence) -> float | None:
     """Proposed start for an accepted start cue, else None."""
     if cue is None:
         return None
@@ -144,12 +132,17 @@ def _start_proposal(cue, original_start: float, ad_end: float,
     # cap by the cue's own length or a long sting gets rejected (#832).
     allowed = max_shift_s + removed_cue_cap_allowance(cue.start, cue.end, removed)
     if proposed < ad_end and 0.01 <= shift <= allowed:
+        if proposed < original_start and show_cue_overlapping(
+                cues, proposed, original_start, min_confidence):
+            logger.info(f"Cue snap (start): {original_start:.3f}s -> {proposed:.3f}s skipped, "
+                        f"would cut a show intro/outro cue")
+            return None
         return proposed
     return None
 
 
 def _end_proposal(cue, original_end: float, ad_start: float, content_end,
-                  max_shift_s: float):
+                  max_shift_s: float, cues, min_confidence):
     """(proposed_end, within_content_span) for an accepted end cue, else None."""
     if cue is None:
         return None
@@ -160,6 +153,11 @@ def _end_proposal(cue, original_end: float, ad_start: float, content_end,
     # The content match already covered a cue inside it, so the cap does not apply.
     in_span = content_end is not None and original_end < proposed <= content_end
     if proposed > ad_start and shift >= 0.01 and (shift <= allowed or in_span):
+        if proposed > original_end and show_cue_overlapping(
+                cues, original_end, proposed, min_confidence):
+            logger.info(f"Cue snap (end): {original_end:.3f}s -> {proposed:.3f}s skipped, "
+                        f"would cut a show intro/outro cue")
+            return None
         return proposed, in_span
     return None
 
@@ -185,14 +183,14 @@ def snap_split_edge(
             if c.confidence >= min_confidence and is_template_cue(c.details)]
     if edge == 'start':
         cue, n = _pick_cue_for_start(cues, value, other, snap_lead_s, snap_lag_s)
-        proposed = _start_proposal(cue, value, other, max_boundary_shift_s)
+        proposed = _start_proposal(cue, value, other, max_boundary_shift_s,
+                                  cues, min_confidence)
     else:
         cue, n = _pick_cue_for_end(cues, value, other, snap_lead_s, snap_lag_s,
                                    exclude_ids=set())
-        proposal = _end_proposal(cue, value, other, None, max_boundary_shift_s)
+        proposal = _end_proposal(cue, value, other, None, max_boundary_shift_s,
+                                cues, min_confidence)
         proposed = None if proposal is None else proposal[0]
-    if proposed is not None and _widens_over_show_cue(edge, value, proposed, cues, min_confidence):
-        proposed = None
     if proposed is None or not cue_removal_enabled(cue.details):
         return None
     return round(proposed, 3), snap_record(value, proposed, cue, n_candidates=n)
@@ -240,10 +238,7 @@ def snap_ad_boundaries_to_cues(
         )
         new_start = original_start
         proposed_start = _start_proposal(start_cue, original_start, original_end,
-                                         max_boundary_shift_s)
-        if proposed_start is not None and _widens_over_show_cue(
-                'start', original_start, proposed_start, cues, min_confidence):
-            proposed_start = None
+                                         max_boundary_shift_s, cues, min_confidence)
         if proposed_start is not None:
             new_start = round(proposed_start, 3)
             new_snap['start'] = snap_record(
@@ -263,10 +258,8 @@ def snap_ad_boundaries_to_cues(
             exclude_ids=used_cue_ids,
             allow_transition=allow_transition,
         )
-        proposal = _end_proposal(end_cue, original_end, new_start, content_end, max_boundary_shift_s)
-        if proposal is not None and _widens_over_show_cue(
-                'end', original_end, proposal[0], cues, min_confidence):
-            proposal = None
+        proposal = _end_proposal(end_cue, original_end, new_start, content_end,
+                                 max_boundary_shift_s, cues, min_confidence)
         if proposal is None and content_end is not None and content_end > original_end:
             # Nothing usable in the lead/lag band: an end cue the text match
             # already covered may bound the edge instead (#838).
@@ -275,10 +268,8 @@ def snap_ad_boundaries_to_cues(
                 exclude_ids=used_cue_ids, allow_transition=allow_transition,
                 window=(original_end, content_end),
             )
-            proposal = _end_proposal(end_cue, original_end, new_start, content_end, max_boundary_shift_s)
-            if proposal is not None and _widens_over_show_cue(
-                    'end', original_end, proposal[0], cues, min_confidence):
-                proposal = None
+            proposal = _end_proposal(end_cue, original_end, new_start, content_end,
+                                     max_boundary_shift_s, cues, min_confidence)
         new_end = original_end
         if proposal is not None:
             proposed_end, end_in_span = proposal

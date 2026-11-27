@@ -164,7 +164,7 @@ from .prompts import (
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
     AD_DETECTION_JSON_SCHEMA,
-    JSON_OBJECT_ADS_INSTRUCTION,
+    json_object_list_instruction,
     ad_detection_json_schema,
     format_category_repair_prompt,
     log_assembled_system_prompt,
@@ -176,6 +176,7 @@ from .prompts import (
 # laundering it through prompts.py; re-exported below for backward-compat
 # (tests import it as ad_detector._find_json_array_candidates).
 from utils.llm_response import find_json_array_candidates as _find_json_array_candidates
+from utils.llm_response import extract_json_object
 
 # Public surface re-exported from the pre-split module. External callers
 # (production and tests) import these names from ``ad_detector``; declaring them
@@ -1218,14 +1219,15 @@ class AdDetector:
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
                               max_retries, slug, episode_id, window_label, pass_name,
-                              response_schema=AD_DETECTION_JSON_SCHEMA):
+                              response_schema=AD_DETECTION_JSON_SCHEMA,
+                              json_object_key='ads'):
         """Thin wrapper over utils.llm_call.call_llm_for_window with per-stage tunables.
 
         ``pass_name`` selects which config keys (DETECTION_* vs VERIFICATION_*)
         supply temperature/max_tokens/reasoning, and is forwarded to the LLM
         client for per-pass fallback flag scoping. ``response_schema`` is sent
         only where schema output is enabled; in json_object mode the prompt
-        instead asks for the array wrapped as {"ads": [...]}.
+        instead asks for the array wrapped as {json_object_key: [...]}.
         """
         phase = _phase_for_pass(pass_name)
         live = live_route_params(phase, model, llm_timeout, max_retries)
@@ -1237,7 +1239,7 @@ class AdDetector:
             model, 'ad_detection', response_schema,
             'Ad segments detected in this window.', provider=provider)
         if response_format.get('type') == 'json_object':
-            prompt = prompt + JSON_OBJECT_ADS_INSTRUCTION
+            prompt = prompt + json_object_list_instruction(json_object_key)
 
         return call_llm_for_window(
             llm_client=self._client_for_pass(pass_name, live.route),
@@ -2189,6 +2191,7 @@ class AdDetector:
             llm_timeout=llm_timeout, max_retries=max_retries,
             slug=slug, episode_id=episode_id,
             window_label=f"Content {window_idx + 1}", pass_name=PASS_AD_DETECTION_1,
+            json_object_key='content',
         )
         win_start, win_end = window['start'], window['end']
         if not response:
@@ -2197,7 +2200,10 @@ class AdDetector:
                 window_end=win_end, ads=[], raw_response=None,
                 failed=True, last_error=last_error,
             )
-        items, _method = extract_json_ads_array(response.content, slug, episode_id)
+        obj, _ = extract_json_object(response.content, slug, episode_id)
+        items = obj.get('content') if isinstance(obj, dict) else None
+        if not isinstance(items, list):
+            items, _method = extract_json_ads_array(response.content, slug, episode_id)
         spans = []
         for item in items or []:
             try:

@@ -18,7 +18,7 @@ from utils.time import (
 )
 
 from config import (
-    MIN_AD_DURATION, HOLD_REASON_REVIEWER_CONTRADICTION,
+    MIN_AD_DURATION, MERGE_GAP_SECONDS, HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
     resolve_max_boundary_shift,
 )
@@ -370,10 +370,9 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     _log_reviewer_verdicts(slug, episode_id, 2, effective_verdicts)
 
 
-# Back-to-back reads place their shared boundary independently, so a read may reach this far
-# into a span released from the same hold and be clipped to abut it. Matches MERGE_GAP_SECONDS,
-# so the audio is unchanged; the clip only shrinks the read.
-RELEASED_EDGE_JITTER = 1.0
+# Back-to-back reads place their shared boundary independently; cuts this close merge anyway,
+# so clipping a read to abut a released span only shrinks the read.
+RELEASED_EDGE_JITTER = MERGE_GAP_SECONDS
 
 
 def _clip_to_released(lo, hi, released):
