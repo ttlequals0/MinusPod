@@ -6,6 +6,7 @@
 
 ## Contents
 
+- [Hardware for a fully local setup](#hardware-for-a-fully-local-setup)
 - [Using Anthropic directly](#using-anthropic-directly)
 - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
@@ -17,6 +18,24 @@
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
 - [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
+
+MinusPod uses an LLM to find ads in the transcript, to check the cut audio for leftovers, and to write chapters. The model can be a hosted API, a model on your own hardware through Ollama, or [none at all](#running-without-an-llm).
+
+## Hardware for a fully local setup
+
+No GPU is required. The CPU image transcribes on the CPU, and ad detection can run without an LLM or against a hosted API.
+
+To run the LLM on your own GPU through Ollama, size the card for the detection model, which is the largest one MinusPod loads:
+
+| GPU VRAM | Detection model |
+|----------|-----------------|
+| 8 GB | `qwen3:8b` Q4_K_M, entry level |
+| 12 GB | `qwen3:14b` Q4_K_M, recommended |
+| 24 GB | `qwen3.5:27b` or `qwen3.5:35b` Q4_K_M |
+
+The verification and chapter models are smaller and load one at a time, so they do not add to that figure. These sizes come from author testing, not a benchmark. The full tables are in [Local Ollama Models](#local-ollama-models-by-vram-tier).
+
+Local transcription on the same card needs room too: about 2 GB for faster-whisper `small` and 5 to 6 GB for `large-v3` ([Memory Requirements](installation.md#memory-requirements)). The transcription model stays loaded for 5 minutes after its last use by default, so budget for both at once, or transcribe on the CPU or a remote backend.
 
 Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Portrait cut and the file itself in [Videos](videos/README.md).
 

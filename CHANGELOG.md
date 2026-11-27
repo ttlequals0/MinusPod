@@ -16,6 +16,7 @@ release notes.
 
 ### Changed
 
+- The LLM Providers doc opens with the hardware a fully local setup needs. No GPU is required, and the VRAM sizes for the Ollama detection model are listed first.
 - Show-notes chapters are read by the chapters LLM, which gets the whole episode description once and lists the parts with start times and a short title for each. Timestamps written inside a sentence (`Then the companies: Acme (56:15); Globex (65:35)`) and minutes above 99 (`113:40`) now work, and clock times, dates and sponsor lines are left out by the model instead of by pattern rules. A time the notes do not contain is dropped. The first listed time no longer has to be within ten minutes of the start; at least three entries a minute apart are still needed. The listed times are also the timestamp hints for topic detection, shifted by the cuts. With no LLM, show-notes chapters are no longer built, and chapter generation behaves as it did before them. A failed extraction marks the chapters as degraded and falls back to topic detection. The chapters the LLM adds beside the listed ones are asked for with the listed chapters in view: a subtopic inside a listed chapter is titled `Interview: subtopic`, so a long interview does not read as unrelated topics, and a segment the notes leave out gets a plain title.
 
 ### Fixed
