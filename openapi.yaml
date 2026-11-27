@@ -6958,8 +6958,10 @@ paths:
         or all feeds. A closed hold stays in the audio and is never reviewed.
         A hold with an approval or a correction on file, a cue-gating hold and
         a max_duration hold caused by the feed's own cap stay pending. Stored
-        markers and pending counts are updated; nothing is recut. Only processed episodes are in scope. An episode whose markers changed while the close ran is left alone and counted as skipped. Works
-        whatever the holdForReview setting is.
+        markers and pending counts are updated; nothing is recut. Only processed episodes are in scope. An episode whose markers changed while the close ran is left alone and counted as skipped. Only
+        feeds where holdForReview resolves to off are touched (the global
+        setting, or a per-feed override of false); a feed that holds is out of
+        scope, so a request naming one returns zeros.
       operationId: closePendingDetections
       requestBody:
         required: false

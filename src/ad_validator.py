@@ -52,6 +52,7 @@ from utils.markers import (
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
+    carry_transcript_span,
     mark_distinct_merge,
     measured_member_spans,
     merge_runs,
@@ -84,7 +85,7 @@ from utils.short_asks import floor_for
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
-from ad_detector.cue_boundary_snap import show_cue_within, snap_min_confidence, snap_split_edge
+from ad_detector.cue_boundary_snap import show_cue_overlapping, snap_min_confidence, snap_split_edge
 from audio_analysis.base import AudioSegmentSignal
 
 CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
@@ -1731,12 +1732,12 @@ class AdValidator:
         return (gap < MERGE_GAP_THRESHOLD or (
             gap < MAX_SILENT_GAP
             and not self._has_speech_in_range(left_end, right_start))
-        ) and not self._show_cue_within(left_end, right_start)
+        ) and not self._show_cue_overlaps(left_end, right_start)
 
-    def _show_cue_within(self, start: float, end: float) -> bool:
-        """Whether a confident show intro/outro cue lies wholly inside [start, end]."""
-        return show_cue_within(self._audio_cue_signals(), start, end,
-                               snap_min_confidence(self.cue_snap_settings))
+    def _show_cue_overlaps(self, start: float, end: float) -> bool:
+        """Whether a confident show intro/outro cue overlaps [start, end]."""
+        return show_cue_overlapping(self._audio_cue_signals(), start, end,
+                                    snap_min_confidence(self.cue_snap_settings))
 
     def _measured_cover(self, spans: list[tuple[float, float]],
                         anchors: list[tuple[float, float]], start: float,
@@ -2094,7 +2095,7 @@ class AdValidator:
         # Only extend if gap is positive and within threshold, and nobody speaks in it: the rule
         # covers inserted post-roll tails, not a closing line after the last ad.
         if (0 < gap_to_end <= max_gap and not self._speech_starts_after(last_ad['end'])
-                and not self._show_cue_within(last_ad['end'], self.episode_duration)):
+                and not self._show_cue_overlaps(last_ad['end'], self.episode_duration)):
             original_end = last_ad['end']
             last_ad['end'] = self.episode_duration
             # Read by _validate_ad: a pass-2 approval ending here keeps the extension.
@@ -2122,7 +2123,7 @@ class AdValidator:
                 or first_ad.get('vad_gap_requires_review')):
             return ads
         if (0 < first_ad['start'] <= max_gap and not self._speech_starts_before(first_ad['start'])
-                and not self._show_cue_within(0.0, first_ad['start'])):
+                and not self._show_cue_overlaps(0.0, first_ad['start'])):
             original_start = first_ad['start']
             first_ad['start'] = 0.0
             # Read by _validate_ad: a pass-2 approval starting here keeps the extension.
@@ -2258,6 +2259,7 @@ class AdValidator:
             # Small gaps always merge; larger ones only across silence.
             if 0 <= gap and self._gap_merges(last['end'], current['start']):
                 mark_distinct_merge(last, current)
+                carry_transcript_span(last, current)
                 merge_original_twins(last, current)
                 _adopt_later_marker_end(last, current)
                 if adjacency_extension:

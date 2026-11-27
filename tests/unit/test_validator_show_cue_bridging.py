@@ -15,7 +15,7 @@ VARIANTS = [
     ('below_confidence', {'confidence': 0.2}, None, False, False),
     ('below_feed_min', {}, {'min_confidence': 0.95}, False, False),
     ('boundary_role', {'role': 'boundary'}, None, False, False),
-    ('partly_inside', {}, None, True, False),
+    ('partly_inside', {}, None, True, True),
 ]
 
 

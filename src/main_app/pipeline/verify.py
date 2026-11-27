@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass, replace
 from ad_detector.boundaries import _content_duration_in_range
 from ad_detector.cue_boundary_snap import (
-    MIN_CUE_CONFIDENCE_FOR_SNAP, show_cue_within, snap_min_confidence, snap_split_edge)
+    MIN_CUE_CONFIDENCE_FOR_SNAP, show_cue_overlapping, snap_min_confidence, snap_split_edge)
 
 from audio_processor import get_replacement_duration
 from ad_validator import user_trimmed_keep_ranges
@@ -21,7 +21,7 @@ from utils.time import (
 
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
-    MIN_CONTENT_BETWEEN_ADS_SECONDS,
+    MIN_CONTENT_BETWEEN_ADS_SECONDS, is_show_cue,
     MAX_MERGED_DURATION,
     pass2_may_autoapprove, pass2_may_release,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
@@ -290,7 +290,7 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
             if any(cut['start'] < hi and cut['end'] > lo for cut in blockers):
                 continue
             # Show intro/outro music is content: an edge never moves across it.
-            if show_cue_within(cues, lo, hi, snap_min_confidence(snap_settings)):
+            if show_cue_overlapping(cues, lo, hi, snap_min_confidence(snap_settings)):
                 continue
             # The audio before the cue must be wordless, so a cut never swallows speech.
             gap = ((record['cue_end'], value) if edge == 'start' else (value, record['cue_start']))
@@ -310,6 +310,20 @@ def _snap_pass2_cuts_to_cues(processed_cuts, original_cuts, audio_analysis_resul
                 ad['pass2_cue_snap'] = {**(ad.get('pass2_cue_snap') or {}), **records}
 
 
+def _show_cues_in_processed_time(audio_analysis_result, ts_map, beep):
+    """Analysis dict holding only the show intro/outro cues that survive the pass-1 cuts, in processed time."""
+    cues = (audio_analysis_result.get_signals_by_type('audio_cue')
+            if audio_analysis_result else [])
+    signals = []
+    for cue in cues:
+        if not is_show_cue(cue.details):
+            continue
+        mapped = _map_correction_to_processed(cue.start, cue.end, ts_map, beep)
+        if mapped:
+            signals.append({**cue.to_dict(), 'start': mapped[0], 'end': mapped[1]})
+    return {'signals': signals} if signals else None
+
+
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
@@ -320,7 +334,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 segment_actions=None,
                                 keep_barriers_processed=None, ledger=None,
                                 false_positive_corrections=(), podcast_name=None,
-                                hold_for_review=None):
+                                hold_for_review=None, audio_analysis_result=None):
     """Validate pass-2 ad candidates against the processed-coordinate validator.
 
     Maps the run's user FP corrections from original to processed coordinates,
@@ -333,6 +347,9 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     per-feed resolvers (read once by the caller). Verification ads never carry
     cue evidence (their cue snap runs after gating), so on a cue-gated feed
     every pass-2 proposal is held, intentionally.
+
+    ``audio_analysis_result`` is the pass-1 analysis (original time); only its show intro/outro cues reach
+    the validator, mapped onto the processed timeline, so merges and extensions stop at the music.
 
     ``keep_barriers_processed`` holds hard protected ranges on the processed
     timeline. Validator-only copies stay in the ordered span list so a removable
@@ -347,10 +364,10 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # Pass-1 cut user-rejections in original time; verification
     # operates on cut audio, so map them to processed coordinates
     # before the validator can use them to auto-reject overlaps.
+    ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else []
+    beep = get_replacement_duration()
     fp_corrections_processed = []
     if false_positive_corrections:
-        ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else []
-        beep = get_replacement_duration()
         for c in false_positive_corrections:
             proc = _map_correction_to_processed(c['start'], c['end'], ts_map, beep)
             if proc is not None:
@@ -398,7 +415,9 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         validation_input.append(barrier)
 
     v_validation = v_validator.validate(
-        validation_input, actions_map=segment_actions)
+        validation_input, audio_analysis=_show_cues_in_processed_time(
+            audio_analysis_result, ts_map, beep),
+        actions_map=segment_actions)
 
     # validate() worked on copies; strip the key from the input dicts too so
     # no later consumer of the raw verification result can serialize it.
@@ -702,7 +721,7 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         gap = candidate['start'] - current['end']
         if gap <= 0:
             eligible = True
-        elif show_cue_within(cues, current['end'], candidate['start'], cue_min_confidence):
+        elif show_cue_overlapping(cues, current['end'], candidate['start'], cue_min_confidence):
             eligible = False
         elif locked_at(current, 'end') or locked_at(candidate, 'start'):
             # A gap beside a reviewer-locked edge is audio the reviewer kept unless it is short and wordless.
@@ -713,6 +732,7 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         if (same_action and combines_passes and eligible
                 and end - start <= MAX_MERGED_DURATION
                 and not crosses_protected(start, end)):
+            # Render cuts, not markers: the plan only feeds the audio rerender, never a reviewer clamp.
             current['end'] = max(current['end'], candidate['end'])
             current['_crosspass_sources'].update(candidate['_crosspass_sources'])
             current['_measured_split_fragment'] = bool(
@@ -1131,6 +1151,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     false_positive_corrections=false_positive_corrections,
                     podcast_name=ctx.podcast_name,
                     hold_for_review=hold_for_review,
+                    audio_analysis_result=audio_analysis_result,
                 )
 
             def gate(processed, original, held_markers, hold_overlaps):

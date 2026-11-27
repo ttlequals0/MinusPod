@@ -10,6 +10,7 @@ from config import (
     resolve_stage_tunables,
 )
 from database import Database, DEFAULT_CHAPTER_PROMPT
+from description_chapters import parse_description_timestamps
 from utils.prompt import (
     render_prompt_once, apply_override, strip_html, strip_comments_from_prompt
 )
@@ -101,34 +102,12 @@ _PROMO_TITLE = re.compile(
     r'|(?i:\b(?:promo|coupon|discount)\s+code\b|\d+\s?%\s*off\b|\bfree\s+trial\b)'
     r'|\bcode\s+(?:[A-Z0-9]{3,}\b|\w*\d\w*)')
 
-# Patterns for MM:SS timestamps embedded in episode descriptions.
-_TIMESTAMP_PATTERNS = (
-    re.compile(r'(?:^|\n)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-:]*\s*(.+?)(?=\n|$)'),
-    re.compile(r'\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+?)(?=\n|$)'),
-    re.compile(r'\((\d{1,2}:\d{2}(?::\d{2})?)\)\s*(.+?)(?=\n|$)'),
-)
-
-
-def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
-    """(timestamp, title) pairs of a description's timestamp lines, deduplicated and time-sorted."""
-    if not description:
-        return []
-    text = strip_html(description)
-    seen: dict[str, str] = {}
-    for pattern in _TIMESTAMP_PATTERNS:
-        for ts, title in pattern.findall(text):
-            title = title.strip().rstrip('-:').strip()
-            if not title or len(title) < 2 or title.isdigit():
-                continue
-            seen.setdefault(ts, title)
-    return sorted(seen.items(), key=lambda kv: parse_timestamp(kv[0]))
-
 
 def _pattern_show_notes_entries(description: str | None) -> list[tuple[float, str]]:
-    """(seconds, title) timestamp lines of a description, without clock or sponsor titles."""
-    return [(parse_timestamp(ts), title)
-            for ts, title in _parse_description_anchors(description or '')
-            if not _CLOCK_TITLE.match(title) and not _PROMO_TITLE.search(title)]
+    """(seconds, title) lines that start with a time, without clock or sponsor titles."""
+    return [(seconds, title) for seconds, title in parse_description_timestamps(description or '')
+            if len(title) >= 2 and not title.isdigit()
+            and not _CLOCK_TITLE.match(title) and not _PROMO_TITLE.search(title)]
 
 
 def _show_notes_anchors(entries: list[tuple[float, str]], cuts: list[dict] | None,

@@ -376,7 +376,7 @@ These holds are never closed:
 
 Episode-level queue holds are a separate mechanism and are not affected.
 
-`POST /api/v1/detections/close-pending` closes every pending hold the same rule would close, for one feed (body `{"feed": "<slug>"}`) or for all feeds, and returns `{closed, episodes, skipped}`. It changes stored markers and counts and never recuts audio. Only processed episodes are touched. An episode whose markers change while the close runs is left alone and counted in `skipped`. The endpoint works whether holding is on or off. In the UI it is **Close all needing review** on the Ad review tab.
+`POST /api/v1/detections/close-pending` closes every pending hold the same rule would close, for one feed (body `{"feed": "<slug>"}`) or for all feeds, and returns `{closed, episodes, skipped}`. It changes stored markers and counts and never recuts audio. Only processed episodes are touched. An episode whose markers change while the close runs is left alone and counted in `skipped`. It closes holds only on feeds where holding is off, so turn holding off first. In the UI it is **Close all needing review** on the Ad review tab.
 
 ### Queue priority
 

@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    HELD_WIDEN_MAX_SECONDS,
+    HELD_WIDEN_MAX_SECONDS, global_hold_for_review,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -132,7 +132,7 @@ def update_ad_detection_settings():
     if 'snipShortAsks' in data:
         response['snipShortAsks'] = db.get_setting_bool('snip_short_asks')
     if 'holdForReview' in data:
-        response['holdForReview'] = db.get_setting_bool('hold_for_review')
+        response['holdForReview'] = global_hold_for_review(db)
     return json_response(response)
 
 

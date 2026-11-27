@@ -78,7 +78,7 @@ def apply_override(prompt: str, override: str) -> str:
 def strip_html(text: str|None) -> str:
     """Convert simple HTML to plain text for show-note timestamp parsing.
 
-    Block-level tags become newlines so `_TIMESTAMP_PATTERNS` sees each
+    Block-level tags become newlines so the timestamp parsers see each
     timestamp on its own line; a bare tag-stripper (nh3) would collapse
     `<p>00:00 A</p><p>05:30 B</p>` into `00:00 A05:30 B`.
     """

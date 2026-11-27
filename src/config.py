@@ -1476,11 +1476,19 @@ def resolve_max_boundary_shift(db) -> int:
         return REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT
 
 
+def global_hold_for_review(db) -> bool:
+    """Global hold-for-review value; on until the upgrade migration recorded itself."""
+    return coerce_bool_setting(db.get_setting('hold_for_review')) or not db.hold_for_review_upgrade_done()
+
+
 def resolve_hold_for_review(db, slug_or_row) -> bool:
     """Whether uncertain detections are held for review: the feed's override, else the global setting."""
     row = slug_or_row if isinstance(slug_or_row, dict) else None
     slug = row.get('slug') if row else slug_or_row
-    return db.resolve_feed_bool(slug, 'hold_for_review', 'hold_for_review', row)
+    if row is None and slug is not None:
+        row = db.get_podcast_row(slug)
+    override = (row or {}).get('hold_for_review')
+    return bool(override) if override is not None else global_hold_for_review(db)
 
 
 def resolve_cue_gated_approval(db, podcast_id) -> bool:
@@ -1611,6 +1619,11 @@ AUDIO_CUE_SOURCE_SPECTRAL = 'spectral'
 def is_template_cue(details):
     """True if a cue's ``details`` mark it as a precise template match."""
     return (details or {}).get('source') == AUDIO_CUE_SOURCE_TEMPLATE
+
+
+def is_show_cue(details):
+    """True if a cue's ``details`` mark a template show intro/outro (role non_ad)."""
+    return is_template_cue(details) and (details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT) == AUDIO_CUE_ROLE_NON_AD
 
 
 def is_transition_cue(details):

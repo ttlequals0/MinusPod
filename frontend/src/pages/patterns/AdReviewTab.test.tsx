@@ -8,6 +8,7 @@ import type { ReviewDetection } from '../../api/detections';
 
 const mockGetDetections = vi.fn();
 const mockClosePending = vi.fn();
+const mockGetSettings = vi.fn();
 // Deliberately unsorted: the dropdown must sort by title.
 const mockGetFeedsResponse = vi.fn().mockResolvedValue({
   feeds: [
@@ -26,6 +27,10 @@ const mockReprocess = vi.fn().mockResolvedValue({ message: '', mode: 'recut' });
 vi.mock('../../api/detections', () => ({
   getDetections: (...a: unknown[]) => mockGetDetections(...a),
   closePendingDetections: (...a: unknown[]) => mockClosePending(...a),
+}));
+vi.mock('../../api/settings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/settings')>()),
+  getSettings: (...a: unknown[]) => mockGetSettings(...a),
 }));
 vi.mock('../../api/feeds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/feeds')>()),
@@ -536,6 +541,36 @@ describe('AdReviewTab: Close all needing review', () => {
   beforeEach(() => {
     mockClosePending.mockReset();
     mockGetDetections.mockImplementation(listWith(3));
+    mockGetSettings.mockResolvedValue({ holdForReview: { value: false, isDefault: true } });
+  });
+
+  it('is hidden while the global setting holds and no feed is selected', async () => {
+    mockGetSettings.mockResolvedValue({ holdForReview: { value: true, isDefault: false } });
+    renderTab();
+    await screen.findByTestId('detection-row');
+    await waitFor(() => expect(mockGetSettings).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: BUTTON })).toBeNull();
+  });
+
+  it('shows for a feed overridden off even when the global setting holds', async () => {
+    mockGetSettings.mockResolvedValue({ holdForReview: { value: true, isDefault: false } });
+    mockGetFeedsResponse.mockResolvedValueOnce({
+      feeds: [{ slug: 'feed-a', title: 'Feed A', holdForReview: false }], lastRefreshCompletedAt: null,
+    });
+    mockGetDetections.mockImplementation(listWith(3, 2));
+    renderTab('/?feed=feed-a');
+    expect(await screen.findByRole('button', { name: BUTTON })).toBeTruthy();
+  });
+
+  it('is hidden for a feed overridden on even when the global setting is off', async () => {
+    mockGetFeedsResponse.mockResolvedValueOnce({
+      feeds: [{ slug: 'feed-a', title: 'Feed A', holdForReview: true }], lastRefreshCompletedAt: null,
+    });
+    mockGetDetections.mockImplementation(listWith(3, 2));
+    renderTab('/?feed=feed-a');
+    await screen.findByTestId('detection-row');
+    await waitFor(() => expect(mockGetFeedsResponse).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: BUTTON })).toBeNull();
   });
 
   it('is hidden when nothing is pending', async () => {
@@ -558,7 +593,7 @@ describe('AdReviewTab: Close all needing review', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Close all detections needing review?')).toBeTruthy();
     expect(within(dialog).getByText(/Up to 3 detections across all feeds will be closed and listed as Not cut/)).toBeTruthy();
-    expect(within(dialog).getByText(/Detections you already approved, and those on feeds set to require review, stay open/)).toBeTruthy();
+    expect(within(dialog).getByText(/Detections you already approved, and those on feeds that hold for review, stay open/)).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: BUTTON }));
     await waitFor(() => expect(mockClosePending).toHaveBeenCalledWith(undefined));
     expect((await screen.findByRole('status')).textContent).toBe('3 detections closed in 2 episodes.');

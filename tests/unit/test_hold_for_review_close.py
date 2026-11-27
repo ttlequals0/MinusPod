@@ -161,13 +161,12 @@ STORED_SEGMENTS = [{'start': float(t), 'end': float(t + 5), 'text': 'this episod
 def _stored_episode(monkeypatch, markers, confirmed=(), hold_for_review=False):
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'ad_markers_json': json.dumps(markers), 'podcast_title': 'Example'})
-    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42, 'slug': slug})
+    monkeypatch.setattr(processing.db, 'get_podcast_row', lambda slug: {'id': 42, 'slug': slug, 'hold_for_review': int(hold_for_review)})
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42, 'slug': slug})
     monkeypatch.setattr(processing.db, 'get_podcast_cue_settings_overrides', lambda pid: {})
     monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda pid, eid: [])
     monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda pid, eid: list(confirmed))
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections', lambda pid, eid: [])
-    monkeypatch.setattr(processing.db, 'resolve_feed_bool', lambda *a, **k: hold_for_review)
     monkeypatch.setattr(processing.db, 'get_episode_audio_analysis', lambda s, e: None)
     monkeypatch.setattr(processing.db, 'get_episode_upstream_transcript', lambda s, e: {})
     monkeypatch.setattr(recut.keep_rules, '_load_stored_dai_differential', lambda s, e: None)
@@ -306,12 +305,15 @@ class TestResolver:
     class _Db:
         def __init__(self, glob):
             self.glob = glob
-            self.calls = []
 
-        def resolve_feed_bool(self, slug, column, setting_key, podcast=None):
-            self.calls.append((slug, column, setting_key, podcast))
-            override = (podcast or {}).get(column)
-            return bool(override) if override is not None else self.glob
+        def get_podcast_row(self, slug):
+            return {'slug': slug}
+
+        def hold_for_review_upgrade_done(self):
+            return True
+
+        def get_setting(self, key):
+            return 'true' if self.glob else 'false'
 
     @pytest.mark.parametrize('glob,override,expected', [
         (False, None, False), (True, None, True), (False, 1, True), (True, 0, False)])
@@ -322,7 +324,6 @@ class TestResolver:
     def test_a_slug_is_passed_through(self):
         db = self._Db(True)
         assert resolve_hold_for_review(db, 'example-podcast') is True
-        assert db.calls == [('example-podcast', 'hold_for_review', 'hold_for_review', None)]
 
 
 class TestRecutFinalSave:
@@ -340,7 +341,7 @@ class TestRecutFinalSave:
             db, storage, local_ap = stub_recut(
                 stack, [], markers, episode_row={'podcast_id': 1, 'processed_version': 0},
                 duration=60.0, confirmed=confirmed)
-            db.resolve_feed_bool.return_value = hold_for_review
+            db.get_podcast_row.return_value = {'id': 1, 'slug': 'example-podcast', 'hold_for_review': int(hold_for_review)}
             stack.enter_context(patch.object(publish, '_generate_assets'))
             finalize_mock = stack.enter_context(patch.object(finalize, '_finalize_episode'))
             stack.enter_context(patch.object(processing.shutil, 'move'))
@@ -377,7 +378,8 @@ class TestRunEnd:
         from main_app.pipeline import common, cuts, detect, finalize, publish, review, signals, transcribe, verify
 
         podcast_row = {'id': 1, 'slug': 'example-podcast', 'description': None, 'tags': None,
-                       'dai_platform': None, 'passthrough_enabled': None, 'skip_ad_detection': None}
+                       'dai_platform': None, 'passthrough_enabled': None, 'skip_ad_detection': None,
+                       'hold_for_review': int(hold_for_review)}
         with ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))  # noqa: E731
             db = p(processing, 'db')
@@ -415,7 +417,6 @@ class TestRunEnd:
             db.get_podcast_row.return_value = podcast_row
             db.get_setting.return_value = 'false'
             db.get_all_settings.return_value = {}
-            db.resolve_feed_bool.return_value = hold_for_review
             db.get_false_positive_corrections.return_value = []
             db.get_confirmed_corrections.return_value = []
             audio_processor.get_audio_duration.return_value = 100.0

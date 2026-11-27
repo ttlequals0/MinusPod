@@ -1629,8 +1629,8 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retai
         p(publish, 'resolve_ad_chapter_config', return_value=None)
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
-        db.get_podcast_by_slug.return_value = {'id': 1}
-        db.get_podcast_row.return_value = {'id': 1}
+        db.get_podcast_by_slug.return_value = {'id': 1, 'hold_for_review': 1}
+        db.get_podcast_row.return_value = {'id': 1, 'hold_for_review': 1}
         db.get_original_segments.return_value = [
             {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
             for t in range(0, 60, 5)]

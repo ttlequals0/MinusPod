@@ -14,7 +14,7 @@ bootstrap('chapters_generator_test_')
 
 import chapters_generator
 from chapters_generator import (
-    ChaptersGenerator, _parse_description_anchors,
+    ChaptersGenerator, _pattern_show_notes_entries,
     build_segment_hints,
 )
 from llm_client import ProviderRateLimitedError
@@ -307,56 +307,37 @@ class TestGenerateChaptersUnifiedEntryPoint:
         assert 'ad body should be dropped' not in topic_prompt
 
 
-class TestParseDescriptionAnchors:
-    """Deterministic show-note timestamp extraction."""
+class TestPatternShowNotesEntries:
+    """Deterministic show-note timestamp extraction (start-of-line times only)."""
 
     def test_extracts_plain_mmss_lines(self):
         desc = "00:00 Intro\n05:30 Main topic\n15:00 Guest interview"
-        assert _parse_description_anchors(desc) == [
-            ('00:00', 'Intro'),
-            ('05:30', 'Main topic'),
-            ('15:00', 'Guest interview'),
-        ]
+        assert _pattern_show_notes_entries(desc) == [
+            (0, 'Intro'), (330, 'Main topic'), (900, 'Guest interview')]
 
-    def test_extracts_bracketed_format(self):
-        desc = "Show notes:\n[00:30] Welcome\n[12:45] Deep dive"
-        result = dict(_parse_description_anchors(desc))
-        assert result['00:30'] == 'Welcome'
-        assert result['12:45'] == 'Deep dive'
-
-    def test_extracts_parenthesized_format(self):
-        desc = "(0:00) Intro\n(5:30) Topic A"
-        result = dict(_parse_description_anchors(desc))
-        assert result['0:00'] == 'Intro'
-        assert result['5:30'] == 'Topic A'
+    def test_extracts_bracketed_and_parenthesized_leading_times(self):
+        result = dict(_pattern_show_notes_entries("[00:30] Welcome\n(12:45) Deep dive"))
+        assert result == {30: 'Welcome', 765: 'Deep dive'}
 
     def test_strips_html_wrappers(self):
         desc = "<p>00:00 Intro</p><br/>05:30 Main<br>15:00 Guest"
-        result = dict(_parse_description_anchors(desc))
-        assert result['00:00'] == 'Intro'
-        assert result['05:30'] == 'Main'
-        assert result['15:00'] == 'Guest'
+        assert dict(_pattern_show_notes_entries(desc)) == {0: 'Intro', 330: 'Main', 900: 'Guest'}
 
     def test_empty_when_no_timestamps(self):
-        desc = "Just a regular description with no timestamps."
-        assert _parse_description_anchors(desc) == []
+        assert _pattern_show_notes_entries("Just a regular description.") == []
 
     def test_empty_for_none_or_blank(self):
-        assert _parse_description_anchors(None) == []
-        assert _parse_description_anchors('') == []
-        assert _parse_description_anchors('   \n  ') == []
+        assert _pattern_show_notes_entries(None) == []
+        assert _pattern_show_notes_entries('') == []
+        assert _pattern_show_notes_entries('   \n  ') == []
 
     def test_sorted_by_time(self):
         desc = "15:00 Late\n05:30 Mid\n00:00 Start"
-        anchors = _parse_description_anchors(desc)
-        assert [ts for ts, _ in anchors] == ['00:00', '05:30', '15:00']
+        assert [t for t, _ in _pattern_show_notes_entries(desc)] == [0, 330, 900]
 
     def test_drops_too_short_or_numeric_titles(self):
-        desc = "00:00 A\n05:30 12345\n10:00 Real Title"
-        result = dict(_parse_description_anchors(desc))
-        assert '00:00' not in result  # title too short
-        assert '05:30' not in result  # title is digits only
-        assert result['10:00'] == 'Real Title'
+        result = dict(_pattern_show_notes_entries("00:00 A\n05:30 12345\n10:00 Real Title"))
+        assert result == {600: 'Real Title'}
 
 
 class TestDescriptionAnchorPromptInjection:

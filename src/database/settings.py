@@ -1237,8 +1237,24 @@ def iter_refreshable_defaults():
             for key, spec in SETTINGS_REGISTRY.items() if spec.refresh_default]
 
 
+HOLD_FOR_REVIEW_UPGRADE_MARKER = 'hold_for_review_default_upgrade'
+
+
+def migration_recorded(conn, name: str) -> bool:
+    """Whether schema_migrations holds a row for `name`."""
+    return conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone() is not None
+
+
 class SettingsMixin:
     """Settings management methods."""
+
+    def hold_for_review_upgrade_done(self) -> bool:
+        """Whether the hold_for_review upgrade migration has run; only a True answer is cached."""
+        if getattr(self, '_hold_upgrade_done', False):
+            return True
+        done = migration_recorded(self.get_connection(), HOLD_FOR_REVIEW_UPGRADE_MARKER)
+        self._hold_upgrade_done = done
+        return done
 
     @contextmanager
     def settings_transaction(self):

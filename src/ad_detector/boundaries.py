@@ -18,6 +18,7 @@ from utils.markers import (
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
+    carry_transcript_span,
     mark_distinct_merge,
     note_fold,
     note_merged_members,
@@ -1261,6 +1262,7 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     the merged reason when set (filler-gap pass).
     """
     mark_distinct_merge(current_ad, next_ad)
+    carry_transcript_span(current_ad, next_ad)
     # A fold is a union: a nested next_ad must not pull the measured end inward.
     extends = next_ad['end'] > current_ad['end']
     if extends:

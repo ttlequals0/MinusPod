@@ -10,6 +10,7 @@ import {
   type ReviewDetection,
 } from '../../api/detections';
 import { feedsQueryOptions } from '../../api/feeds';
+import { getSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
 import { DemoDisabled } from '../../components/DemoDisabled';
@@ -121,6 +122,12 @@ export default function AdReviewTab() {
 
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
   const sortedFeeds = feeds ? sortFeeds(feeds, 'title') : undefined;
+  const { data: globalHold } = useQuery({
+    queryKey: ['settings'], queryFn: getSettings, select: (s) => s.holdForReview?.value,
+  });
+  // The endpoint only closes on feeds where holding is off; offer it where that is true.
+  const feedHold = feed ? feeds?.find((f) => f.slug === feed)?.holdForReview : null;
+  const holdingOff = globalHold !== undefined && !(feedHold ?? globalHold);
 
   const counts = data?.counts;
   const pendingTotal = (feed ? feedPending : counts?.pending) ?? 0;
@@ -173,7 +180,7 @@ export default function AdReviewTab() {
       />
 
       <PendingRecutsBar />
-      {pendingTotal > 0 && (
+      {pendingTotal > 0 && holdingOff && (
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <DemoDisabled>
             <button
@@ -244,7 +251,7 @@ export default function AdReviewTab() {
           <p>
             Up to {pendingTotal} {pendingTotal === 1 ? 'detection' : 'detections'} {feed ? 'in this feed' : 'across all feeds'} will
             be closed and listed as Not cut. The audio is not changed, and you can still cut each one later.
-            Detections you already approved, and those on feeds set to require review, stay open.
+            Detections you already approved, and those on feeds that hold for review, stay open.
           </p>
         </ConfirmModal>
       )}

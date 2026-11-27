@@ -10,7 +10,7 @@ from api import (
 )
 from api.audio_state import add_pattern_audio_state
 import config
-from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES, count_pending_review
+from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES, count_pending_review, resolve_hold_for_review
 from detection_review import (
     UNSET_CATEGORY, filter_detections, flatten_detections, paginate,
     sort_detections, summarize_cut_detections, summarize_detections,
@@ -110,7 +110,7 @@ def list_detections():
 @limiter.limit("10 per minute")
 @log_request
 def close_pending_detections():
-    """Close every pending hold the automatic rule would close, for one feed or all; no recut."""
+    """Close pending holds on feeds where holding is off, for one feed or all; no recut."""
     db = get_database()
     payload = request.get_json(silent=True)
     if payload is None:
@@ -129,7 +129,12 @@ def close_pending_detections():
         (fps if c['correction_type'] == 'false_positive' else confirmed).append(c)
 
     closed_total, episodes, skipped = 0, 0, 0
+    holds = {}
     for row in db.get_held_episodes(slug or None):
+        if row['slug'] not in holds:
+            holds[row['slug']] = resolve_hold_for_review(db, row['slug'])
+        if holds[row['slug']]:
+            continue
         markers = parse_ad_markers(row['ad_markers_json'])
         if not markers:
             continue

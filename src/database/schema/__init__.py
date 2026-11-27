@@ -37,10 +37,6 @@ _SEARCH_CHANGE_TRIGGER_NAMES = (
 )
 _SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
 
-def _migration_done(conn, name: str) -> bool:
-    return conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone() is not None
-
-
 # The hold reason inside the snippet _file_corroborated_hold_approvals writes.
 _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
@@ -58,6 +54,7 @@ from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
 from database.schema.deferred import DeferredUpgradeMixin
 from database.patterns import _parse_bounds
 from database.podcasts import normalize_network_id
+from database.settings import HOLD_FOR_REVIEW_UPGRADE_MARKER, migration_recorded as _migration_done
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -3234,9 +3231,8 @@ class SchemaMixin(DeferredUpgradeMixin):
 
     def _run_hold_for_review_upgrade_migration(self, conn):
         """Existing installs keep holding for review as an explicit value; fresh ones take the default."""
-        marker = 'hold_for_review_default_upgrade'
-        if conn.execute(
-                "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)).fetchone():
+        marker = HOLD_FOR_REVIEW_UPGRADE_MARKER
+        if _migration_done(conn, marker):
             return
         if not getattr(self, '_fresh_schema', False):
             # A seeded default row is overwritten; a value the operator already set is not.

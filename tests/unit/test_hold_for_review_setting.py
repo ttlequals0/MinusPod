@@ -209,11 +209,36 @@ class TestBulkClose:
         assert resp.status_code == 200
         assert resp.get_json()['closed'] == 2
 
-    def test_works_whatever_the_setting_is(self, client, db, two_feeds):
+    def test_global_on_closes_nothing(self, client, db, two_feeds):
+        feed, other = two_feeds
+        db.set_setting('hold_for_review', 'true', is_default=False)
+        resp = client.post('/api/v1/detections/close-pending', json={})
+        assert resp.get_json() == {'closed': 0, 'episodes': 0, 'skipped': 0}
+        assert db.get_episode(feed, 'a1b2c3d4e5f6')['pending_review_count'] == 2
+
+    def test_global_on_with_one_feed_overridden_off_closes_only_that_feed(self, client, db, two_feeds):
+        feed, other = two_feeds
+        db.set_setting('hold_for_review', 'true', is_default=False)
+        db.update_podcast(other, hold_for_review=0)
+        resp = client.post('/api/v1/detections/close-pending', json={})
+        assert resp.get_json() == {'closed': 1, 'episodes': 1, 'skipped': 0}
+        assert db.get_episode(other, 'b1c2d3e4f5a6')['pending_review_count'] == 0
+        assert db.get_episode(feed, 'a1b2c3d4e5f6')['pending_review_count'] == 2
+
+    def test_global_off_with_one_feed_overridden_on_leaves_that_feed(self, client, db, two_feeds):
+        feed, other = two_feeds
+        db.set_setting('hold_for_review', 'false', is_default=False)
+        db.update_podcast(other, hold_for_review=1)
+        resp = client.post('/api/v1/detections/close-pending', json={})
+        assert resp.get_json() == {'closed': 1, 'episodes': 1, 'skipped': 0}
+        assert db.get_episode(other, 'b1c2d3e4f5a6')['pending_review_count'] == 1
+
+    def test_a_feed_filter_on_a_holding_feed_is_a_200_no_op(self, client, db, two_feeds):
         feed, _ = two_feeds
         db.set_setting('hold_for_review', 'true', is_default=False)
-        assert client.post('/api/v1/detections/close-pending',
-                           json={'feed': feed}).get_json()['closed'] == 1
+        resp = client.post('/api/v1/detections/close-pending', json={'feed': feed})
+        assert resp.status_code == 200
+        assert resp.get_json() == {'closed': 0, 'episodes': 0, 'skipped': 0}
 
     def test_a_confirm_on_file_keeps_the_hold(self, client, db, two_feeds):
         feed, _ = two_feeds
@@ -286,3 +311,56 @@ class TestConfigTransfer:
         import config_transfer
         assert 'hold_for_review' in config_transfer.FEED_COLUMNS
         assert 'hold_for_review' in config_transfer.FEED_BOOL_COLUMNS
+
+
+class TestUpgradeMarkerFailsTowardHolding:
+    MARKER = 'hold_for_review_default_upgrade'
+
+    @staticmethod
+    def _drop_marker(db):
+        conn = db.get_connection()
+        conn.execute("DELETE FROM schema_migrations WHERE name = ?", (TestUpgradeMarkerFailsTowardHolding.MARKER,))
+        conn.commit()
+        db._hold_upgrade_done = False
+
+    def _resolve(self, db, slug_or_row):
+        from config import resolve_hold_for_review
+        return resolve_hold_for_review(db, slug_or_row)
+
+    def test_marker_absent_resolves_on_even_with_the_default_off_row(self, db, feed_slug):
+        db.set_setting('hold_for_review', '0', is_default=True)
+        self._drop_marker(db)
+        try:
+            assert self._resolve(db, feed_slug) is True
+        finally:
+            db._run_hold_for_review_upgrade_migration(db.get_connection())
+
+    def test_marker_present_resolves_the_stored_value(self, db, feed_slug):
+        db.set_setting('hold_for_review', 'false', is_default=False)
+        assert self._resolve(db, feed_slug) is False
+
+    def test_fresh_database_resolves_off(self, temp_db):
+        temp_db.create_podcast('fresh-feed', 'https://example.com/f.xml', title='Fresh')
+        assert temp_db.hold_for_review_upgrade_done() is True
+        assert self._resolve(temp_db, 'fresh-feed') is False
+
+    def test_an_explicit_false_after_a_successful_migration_is_respected(self, temp_db):
+        temp_db.set_setting('hold_for_review', 'true', is_default=False)
+        temp_db.set_setting('hold_for_review', 'false', is_default=False)
+        assert self._resolve(temp_db, None) is False
+
+    def test_a_per_feed_override_is_respected_while_the_marker_is_absent(self, db, feed_slug):
+        db.update_podcast(feed_slug, hold_for_review=0)
+        self._drop_marker(db)
+        try:
+            assert self._resolve(db, feed_slug) is False
+        finally:
+            db._run_hold_for_review_upgrade_migration(db.get_connection())
+
+    def test_the_settings_api_shows_on_while_the_marker_is_absent(self, client, db, feed_slug):
+        db.set_setting('hold_for_review', '0', is_default=True)
+        self._drop_marker(db)
+        try:
+            assert client.get('/api/v1/settings').get_json()['holdForReview']['value'] is True
+        finally:
+            db._run_hold_for_review_upgrade_migration(db.get_connection())

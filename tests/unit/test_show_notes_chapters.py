@@ -225,6 +225,32 @@ def test_pattern_path_drops_clock_and_sponsor_titles():
         'Intro', 'Opening', 'Middle', 'End']
 
 
+TITLE_FIRST = 'Acme (05:45)\nGlobex (14:46)\nInitech (28:40)\nHooli (42:00)'
+INLINE = 'Acme (05:45); Globex (14:46); Initech (28:40)'
+
+
+@pytest.mark.parametrize('notes', [TITLE_FIRST, INLINE])
+def test_pattern_fallback_leaves_title_first_and_inline_notes_to_the_llm(notes):
+    assert chapters_generator._pattern_show_notes_entries(notes) == []
+
+
+@pytest.mark.parametrize('notes', [TITLE_FIRST, INLINE])
+def test_failed_extraction_on_title_first_or_inline_notes_degrades(notes):
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]), \
+         patch('chapters_generator.call_llm', return_value=(None, RuntimeError('boom'))):
+        gen.generate_chapters(
+            _segments(), episode_description=notes, podcast_name='Show', episode_title='Ep')
+    assert gen.show_notes_starts == frozenset()
+    assert gen.chapters_degraded is True
+
+
+def test_pattern_fallback_reads_start_of_line_times_with_their_own_titles():
+    notes = '(05:45) Acme\n[14:46] Globex\n28:40 - Initech\n42:00: Hooli'
+    assert chapters_generator._pattern_show_notes_entries(notes) == [
+        (345, 'Acme'), (886, 'Globex'), (1720, 'Initech'), (2520, 'Hooli')]
+
+
 def test_llm_call_returning_none_degrades_and_uses_topic_detection():
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \

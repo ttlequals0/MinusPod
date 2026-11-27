@@ -8,6 +8,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.25] - 2026-11-27
+
+### Fixed
+
+- The 2.102.24 fix for a reviewer trim on a dynamically inserted pre-roll did not apply when a later boundary step joined the detections. Two more merges dropped the transcript comparison's span, so the cut still ran into the show's spoken intro. All four merges that join those detections now keep it.
+- The show-notes pattern fallback gave a time the title of the line after it when the notes put the title first, as in `Acme (05:45)`, and several times on one line became a single chapter. The fallback now reads only a time at the start of a line. Other formats are left to the chapters LLM, and a failed extraction on them is marked as degraded.
+- Show intro/outro music was only protected when it lay wholly inside a gap or an extension, so a jingle crossing the edge was partly cut. Any overlap now stops a validator merge or extension, the second-pass cue snap, and the join of a first-pass cut with a second-pass cut. The second-pass validator did not apply the guard at all and now does.
+- **Close all needing review** closed holds on a feed that still holds for review, and the next recut put them back. It now closes holds only on feeds where holding is off, and the button shows only when holding is off for the feeds in view.
+- If the upgrade step that keeps holding on for an existing install failed, that start ran with holding off. Holding is now treated as on until the step has completed. A feed with its own setting keeps it.
+
 ## [2.102.24] - 2026-11-27
 
 ### Added
