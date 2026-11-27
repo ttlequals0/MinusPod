@@ -202,12 +202,12 @@ class PodcastMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def get_podcast_last_checked_at(self, slug: str) -> str | None:
-        """Return only the RSS freshness timestamp for a feed."""
+    def get_podcast_rss_freshness(self, slug: str) -> tuple[str | None, str | None]:
+        """Return (last_checked_at, last_refresh_attempt_at) for a feed, both None when it is unknown."""
         row = self.get_connection().execute(
-            "SELECT last_checked_at FROM podcasts WHERE slug = ?", (slug,)
+            "SELECT last_checked_at, last_refresh_attempt_at FROM podcasts WHERE slug = ?", (slug,)
         ).fetchone()
-        return row['last_checked_at'] if row else None
+        return (row['last_checked_at'], row['last_refresh_attempt_at']) if row else (None, None)
 
     def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
         """Subscribed feeds not attempted within interval_seconds, oldest attempt first, capped at limit.
