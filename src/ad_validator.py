@@ -31,7 +31,7 @@ from config import (
     HOLD_REASON_LARGE_VAD_GAP, HOLD_REASON_NO_TRANSCRIPT_EVIDENCE, HOLD_REASON_TRANSCRIPT_LOOP,
     EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE, measured_evidence, repair_segment_category,
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
-    REVIEWER_REJECT_PRESERVED_FLAG, is_keep_like,
+    REVIEWER_REJECT_PRESERVED_FLAG, is_keep_like, OVER_LENGTH_ACCEPT_CONFIDENCE,
 )
 from transcript_differential import spans_overlapping
 from utils.markers import (
@@ -390,7 +390,8 @@ class AdValidator:
                  transcript_spans: list[dict] = None,
                  loop_runs: list[tuple[float, float, int]] = None,
                  cue_snap_settings: dict | None = None,
-                 opening_excluded: bool = False):
+                 opening_excluded: bool = False,
+                 hold_for_review: bool = True):
         """Initialize validator.
 
         episode_duration is in seconds; segments are transcript dicts with start/end/text. false_positive_corrections /
@@ -409,7 +410,9 @@ class AdValidator:
         cue_snap_settings are the feed's cue snap knobs (snap_split_edge keywords); with them, an edge an
         estimated-span split creates snaps onto a removed break cue the way detection snaps the others.
         opening_excluded is True when the feed excludes its opening from ad detection; the leading rule then stays off.
+        hold_for_review is the resolved setting; off, a confident LLM over-length ad is cut, not held.
         """
+        self.hold_for_review = hold_for_review
         self.opening_excluded = opening_excluded
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
@@ -1033,6 +1036,8 @@ class AdValidator:
                             else None)
         ad.pop('held_for_review', None)
         ad.pop('hold_reason', None)
+        ad.pop('feed_cap_hold', None)
+        ad.pop('closed_hold_reason', None)
         ad.pop('corroborated_by', None)
         ad.pop('transcript_corroborated', None)
 
@@ -1557,6 +1562,7 @@ class AdValidator:
                 and duration > self.max_ad_duration_override
                 and decision == Decision.ACCEPT):
             self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
+            ad['feed_cap_hold'] = True
             return Decision.REVIEW
 
         # Rule 1b: a reject whose only fault is length is held, not dropped,
@@ -1565,8 +1571,16 @@ class AdValidator:
         if decision == Decision.REJECT and confidence >= REJECT_CONFIDENCE:
             error_flags = [f for f in flags if 'ERROR' in f]
             if error_flags and all('Very long' in f for f in error_flags):
-                self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
-                return Decision.REVIEW
+                feed_capped = (self.max_ad_duration_override is not None
+                               and duration > self.max_ad_duration_override)
+                if not feed_capped and self._accept_confident_over_length(ad, duration):
+                    flags.append("INFO: Accepted over-length ad (holds off, confident LLM detection)")
+                    decision = Decision.ACCEPT
+                else:
+                    self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
+                    if feed_capped:
+                        ad['feed_cap_hold'] = True
+                    return Decision.REVIEW
 
         # Rule 5: evidence-only stages are held, never solo-cut (#541). Ordered before the cue
         # gate so the hold carries its specific reason.
@@ -1985,6 +1999,14 @@ class AdValidator:
                                      for span in analysis.get('silence_spans') or [])
                  if a is not None and b is not None]
         return hi > lo and _covered_seconds(spans, lo, hi) >= SILENT_REMAINDER_MIN_COVERAGE * (hi - lo)
+
+    def _accept_confident_over_length(self, ad: dict, duration: float) -> bool:
+        """With holds off, an LLM ad above 0.95 raw confidence and within the confirmed cap is cut, not held."""
+        raw = ad.get('confidence')
+        return (not self.hold_for_review
+                and ad.get('detection_stage') in self.EVIDENCE_GATE_STAGES
+                and isinstance(raw, (int, float)) and raw > OVER_LENGTH_ACCEPT_CONFIDENCE
+                and duration <= self.max_ad_duration_confirmed)
 
     def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:
         """Set held_for_review state on the ad dict and append a flag entry."""

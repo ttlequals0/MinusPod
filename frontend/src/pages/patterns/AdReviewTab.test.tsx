@@ -7,6 +7,7 @@ import AdReviewTab from './AdReviewTab';
 import type { ReviewDetection } from '../../api/detections';
 
 const mockGetDetections = vi.fn();
+const mockClosePending = vi.fn();
 // Deliberately unsorted: the dropdown must sort by title.
 const mockGetFeedsResponse = vi.fn().mockResolvedValue({
   feeds: [
@@ -24,6 +25,7 @@ const mockReprocess = vi.fn().mockResolvedValue({ message: '', mode: 'recut' });
 
 vi.mock('../../api/detections', () => ({
   getDetections: (...a: unknown[]) => mockGetDetections(...a),
+  closePendingDetections: (...a: unknown[]) => mockClosePending(...a),
 }));
 vi.mock('../../api/feeds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/feeds')>()),
@@ -483,7 +485,7 @@ describe('AdReviewTab list state in the URL', () => {
   it('requests the page named by ?page=2', async () => {
     renderTab('/?page=2');
     await screen.findAllByRole('link', { name: 'Episode One' });
-    expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 2 });
+    expect(mockGetDetections.mock.calls.some(([p]) => p.page === 2)).toBe(true);
   });
 
   it('resets to page 1 when a filter changes', async () => {
@@ -492,5 +494,124 @@ describe('AdReviewTab list state in the URL', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     await user.selectOptions(screen.getByLabelText('Status'), 'all');
     await waitFor(() => expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 1, status: 'all' }));
+  });
+});
+
+describe('AdReviewTab: auto-closed rows', () => {
+  it('notes the closing reason and keeps Confirm and Not ad', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ autoClosed: true, closedHoldReason: 'max_duration' })],
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab('/?status=rejected');
+    const row = (await screen.findByTestId('detection-row'));
+    expect(within(row).getByTestId('auto-closed-note').textContent).toBe('Closed automatically: Over max duration');
+    expect(within(row).getByRole('button', { name: /^Confirm/ })).toBeTruthy();
+    expect(within(row).getByRole('button', { name: 'Not ad' })).toBeTruthy();
+  });
+
+  it('shows no note without the fields', async () => {
+    renderTab('/?status=rejected');
+    await screen.findByTestId('detection-row');
+    expect(screen.queryByTestId('auto-closed-note')).toBeNull();
+  });
+
+  it('falls back to a bare note when the reason is missing', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ autoClosed: true, closedHoldReason: null })],
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
+    });
+    renderTab('/?status=rejected');
+    expect((await screen.findByTestId('detection-row')).textContent).toContain('Closed automatically');
+  });
+});
+
+describe('AdReviewTab: Close all needing review', () => {
+  const BUTTON = 'Close all needing review';
+  const listWith = (pending: number, feedTotal = 0) => (p: { status?: string }) => Promise.resolve({
+    detections: [detection()], total: p.status === 'pending' ? feedTotal : 1, page: 1, totalPages: 1, limit: 20,
+    counts: { ...COUNTS, pending },
+  });
+
+  beforeEach(() => {
+    mockClosePending.mockReset();
+    mockGetDetections.mockImplementation(listWith(3));
+  });
+
+  it('is hidden when nothing is pending', async () => {
+    mockGetDetections.mockImplementation(listWith(0));
+    renderTab();
+    await screen.findByTestId('detection-row');
+    expect(screen.queryByRole('button', { name: BUTTON })).toBeNull();
+  });
+
+  it('uses the list counts and makes no extra query without a feed filter', async () => {
+    renderTab();
+    expect(await screen.findByText('3 detections need review')).toBeTruthy();
+    expect(mockGetDetections.mock.calls.some(([p]) => p.limit === 1)).toBe(false);
+  });
+
+  it('confirms with an upper bound, closes every feed, and reports the result', async () => {
+    mockClosePending.mockResolvedValue({ closed: 3, episodes: 2 });
+    renderTab();
+    await userEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Close all detections needing review?')).toBeTruthy();
+    expect(within(dialog).getByText(/Up to 3 detections across all feeds will be closed and listed as Not cut/)).toBeTruthy();
+    expect(within(dialog).getByText(/Detections you already approved, and those on feeds set to require review, stay open/)).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole('button', { name: BUTTON }));
+    await waitFor(() => expect(mockClosePending).toHaveBeenCalledWith(undefined));
+    expect((await screen.findByRole('status')).textContent).toBe('3 detections closed in 2 episodes.');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('adds the skipped episodes to the result', async () => {
+    mockClosePending.mockResolvedValue({ closed: 1, episodes: 1, skipped: 2 });
+    renderTab();
+    await userEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: BUTTON }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      '1 detection closed in 1 episode. 2 episodes were skipped because they changed during the close.',
+    );
+  });
+
+  it('uses the singular for one skipped episode', async () => {
+    mockClosePending.mockResolvedValue({ closed: 1, episodes: 1, skipped: 1 });
+    renderTab();
+    await userEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: BUTTON }));
+    expect((await screen.findByRole('status')).textContent).toContain('1 episode was skipped because it changed during the close.');
+  });
+
+  it('scopes to the filtered feed with that feed\'s own pending total', async () => {
+    mockGetDetections.mockImplementation(listWith(3000, 2));
+    mockClosePending.mockResolvedValue({ closed: 1, episodes: 1 });
+    renderTab('/?feed=feed-a');
+    await userEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Up to 2 detections in this feed will be closed/)).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole('button', { name: BUTTON }));
+    await waitFor(() => expect(mockClosePending).toHaveBeenCalledWith('feed-a'));
+  });
+
+  it('disables the confirm button while the request runs', async () => {
+    mockClosePending.mockReturnValue(new Promise(() => {}));
+    renderTab();
+    await userEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: BUTTON }));
+    const busy = await within(dialog).findByRole('button', { name: 'Closing...' });
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows the server message on failure and clears it on the next attempt', async () => {
+    mockClosePending.mockRejectedValueOnce(new Error('Close failed on the server'));
+    renderTab();
+    await userEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: BUTTON }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Close failed on the server');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: BUTTON }));
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

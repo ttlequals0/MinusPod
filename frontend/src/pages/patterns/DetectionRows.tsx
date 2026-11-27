@@ -16,6 +16,7 @@ import { formatTimestamp, formatDate, formatPercent } from '../../utils/format';
 import { btnSuccess, btnOutline, btnDestructive } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { AutoClosedNote } from '../../components/AutoClosedNote';
 import AddAudioToPatternButton from '../../components/AddAudioToPatternButton';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
@@ -330,6 +331,7 @@ function DetectionActions({ d, variant, keepLike, playing, onTogglePlay, actions
         {play}{approve}{dismiss}{split}{edit}{category}
       </div>
       {keepLike && <p className="mt-2 text-xs text-muted-foreground">{KEPT_NOTE}</p>}
+      {d.autoClosed && <AutoClosedNote reason={d.closedHoldReason} className="mt-2 block text-xs text-muted-foreground" />}
       <AddAudio d={d} showAddAudio={showAddAudio && !keepLike} className="mt-2"
         buttonClassName={`${cardActionBtn} ${outlineBtn} w-full`} />
     </div>
@@ -393,6 +395,7 @@ export function DetectionRows({
                   <DetectionMeta d={d} showCategory={showCategory} />
                   <SecondaryBadges d={d} showCategory={showCategory} />
                   {keepLike && <span>{KEPT_NOTE}</span>}
+                  {d.autoClosed && <AutoClosedNote reason={d.closedHoldReason} />}
                   <AddAudio d={d} showAddAudio={showAddAudio && !keepLike}
                     buttonClassName={`${tableActionBtn} ${outlineBtn}`} />
                 </div>

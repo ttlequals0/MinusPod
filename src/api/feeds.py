@@ -610,6 +610,7 @@ _NULLABLE_BOOL_FIELDS = [
     ('skipAdDetection', 'skip_ad_detection'),
     ('detectShowSegments', 'detect_show_segments'),
     ('snipShortAsks', 'snip_short_asks'),
+    ('holdForReview', 'hold_for_review'),
     ('ownEpisodeGuids', 'own_episode_guids'),
     ('skipSecondPass', 'skip_second_pass'),
     ('skipTranscription', 'skip_transcription'),

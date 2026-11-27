@@ -55,6 +55,7 @@ CONFIDENCE_STRING_MAP = {
 LOW_CONFIDENCE = 0.50           # Warn/flag for review
 REJECT_CONFIDENCE = 0.30        # Auto-reject as false positive
 HIGH_CONFIDENCE_OVERRIDE = 0.90 # Override duration limits if above this
+OVER_LENGTH_ACCEPT_CONFIDENCE = 0.95  # With holds off, an LLM over-length ad above this is cut, not held
 MIN_CUT_CONFIDENCE = 0.80       # Minimum to actually remove from audio
 
 # ============================================================
@@ -1473,6 +1474,13 @@ def resolve_max_boundary_shift(db) -> int:
                 else REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT)
     except (TypeError, ValueError):
         return REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT
+
+
+def resolve_hold_for_review(db, slug_or_row) -> bool:
+    """Whether uncertain detections are held for review: the feed's override, else the global setting."""
+    row = slug_or_row if isinstance(slug_or_row, dict) else None
+    slug = row.get('slug') if row else slug_or_row
+    return db.resolve_feed_bool(slug, 'hold_for_review', 'hold_for_review', row)
 
 
 def resolve_cue_gated_approval(db, podcast_id) -> bool:

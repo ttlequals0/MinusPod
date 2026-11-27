@@ -80,7 +80,8 @@ def test_build_validator_reads_the_stored_global(monkeypatch, stored_global, fee
     try:
         validator = detect._build_validator(
             600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
-            max_ad_duration_override=None, cue_gate_enabled=False, podcast_id=1)
+            max_ad_duration_override=None, cue_gate_enabled=False, podcast_id=1,
+            hold_for_review=True)
     finally:
         processing.db.set_setting('splice_veto_enabled', original or 'true', is_default=True)
     assert validator.splice_veto_enabled is expected
@@ -91,7 +92,7 @@ def test_build_validator_passes_the_show_name(name):
     validator = detect._build_validator(
         600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
         max_ad_duration_override=None, cue_gate_enabled=False, splice_veto=False,
-        podcast_name=name)
+        podcast_name=name, hold_for_review=True)
     assert validator.podcast_name == name
 
 

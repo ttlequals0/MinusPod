@@ -591,6 +591,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'snip_short_asks': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='snipShortAsks', payload_kind='bool'),
+    # Global default for holding uncertain detections for review. Per-feed
+    # hold_for_review (INTEGER): NULL inherits this, 0 off, 1 on.
+    'hold_for_review': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='holdForReview', payload_kind='bool'),
     # Seed-sponsors toggles (issue: hushpod adoption). One per prompt that
     # takes the dynamic sponsor block; off renders that prompt with an empty
     # {sponsor_database}. All default on to preserve current behavior.

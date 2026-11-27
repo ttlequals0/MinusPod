@@ -67,6 +67,7 @@ SEED_SNAPSHOT = {
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
     'snip_short_asks': '0',
+    'hold_for_review': '0',
     'seed_sponsors_detection': 'true',
     'seed_sponsors_verification': 'true',
     'seed_sponsors_reviewer': 'true',
@@ -533,7 +534,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 189
+        assert len(payload_keys) == 190
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

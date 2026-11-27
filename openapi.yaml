@@ -1350,6 +1350,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in to detect short host-spoken asks, self-promotion and sponsor thank-yous (2 to 40 seconds, sentence edges only). Each flagged marker follows the action set for its category. true/false override the global snipShortAsks setting for this feed; null falls back to it.
+                holdForReview:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override for holding uncertain detections for review. true/false override the global holdForReview setting for this feed; null falls back to it.
                 skipSecondPass:
                   type:
                     - boolean
@@ -6943,6 +6948,53 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /detections/close-pending:
+    post:
+      tags:
+        - Patterns
+      summary: Close pending holds without a decision
+      description: >
+        Closes every pending hold the automatic rule would close, for one feed
+        or all feeds. A closed hold stays in the audio and is never reviewed.
+        A hold with an approval or a correction on file, a cue-gating hold and
+        a max_duration hold caused by the feed's own cap stay pending. Stored
+        markers and pending counts are updated; nothing is recut. Only processed episodes are in scope. An episode whose markers changed while the close ran is left alone and counted as skipped. Works
+        whatever the holdForReview setting is.
+      operationId: closePendingDetections
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                feed:
+                  type: string
+                  description: Feed slug. Omit to close pending holds in every feed.
+      responses:
+        '200':
+          description: How many holds were closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  closed:
+                    type: integer
+                    description: Markers closed
+                  episodes:
+                    type: integer
+                    description: Episodes touched
+                  skipped:
+                    type: integer
+                    description: Processed episodes with closable holds that were left alone because their markers changed during the close
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /history:
     get:
       tags:
@@ -8129,6 +8181,9 @@ paths:
                 snipShortAsks:
                   type: [boolean, 'null']
                   description: Global default for detecting short host asks and sponsor thanks (2 to 40 seconds, sentence edges only). Each flagged marker follows the action set for its category. Overridden by per-feed snipShortAsks when set. null resets it to the default, false. Any other type is a 400.
+                holdForReview:
+                  type: [boolean, 'null']
+                  description: Global default for holding uncertain detections for review. Off, a hold is closed automatically when a run or recut ends, so the span stays in the audio without waiting for a decision; over-length LLM ads above 0.95 confidence and within the confirmed cap are cut instead. Overridden by per-feed holdForReview when set. null resets it to the default, false (installs upgraded from before this setting keep true until it is changed). Any other type is a 400.
                 seedSponsorsDetection:
                   type: boolean
                   description: Whether the detection pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
@@ -8942,6 +8997,9 @@ paths:
                   snipShortAsks:
                     type: boolean
                     description: Stored global value, present only when snipShortAsks was sent.
+                  holdForReview:
+                    type: boolean
+                    description: Stored global value, present only when holdForReview was sent.
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -16130,6 +16188,11 @@ components:
             - boolean
             - 'null'
           description: Whether this feed detects short host asks and sponsor thanks; each flagged marker follows the action set for its category. Null means use the global snipShortAsks setting. true/false override the global for this feed.
+        holdForReview:
+          type:
+            - boolean
+            - 'null'
+          description: Whether this feed holds uncertain detections for review. Null means use the global holdForReview setting. true/false override the global for this feed.
         ownEpisodeGuids:
           type:
             - boolean
@@ -17693,6 +17756,18 @@ components:
         held_for_review:
           type: boolean
           description: True when this marker remains in the audio pending a human decision.
+        closed_hold_reason:
+          type: [string, 'null']
+          description: Set when holdForReview was off and the hold was closed automatically; the value is the hold reason it had. The marker stayed in the audio and was never reviewed, and a person's confirm cuts it on the next recut.
+        feed_cap_hold:
+          type: boolean
+          description: True on a max_duration hold caused by the feed's own max ad duration cap; such a hold is never closed automatically.
+        autoClosed:
+          type: boolean
+          description: Episode detail only. True on an uncut marker whose hold was closed automatically.
+        closedHoldReason:
+          type: [string, 'null']
+          description: Episode detail only. The hold reason of an automatically closed marker, else null.
         carved_from:
           type: object
           description: Set on a fragment of a marker the render removed only in part; names the detected span.
@@ -17920,6 +17995,12 @@ components:
           type: [string, 'null']
           description: Why the detection is held for review; null unless status is pending
           enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed, transcript_loop, null]
+        autoClosed:
+          type: boolean
+          description: True when holdForReview was off and the pipeline closed the hold itself. The status is rejected, the resolution stays unresolved, and no correction is recorded.
+        closedHoldReason:
+          type: [string, 'null']
+          description: The hold reason the detection had when it was closed automatically; null otherwise.
         status:
           type: string
           enum: [accepted, rejected, pending]
@@ -19032,6 +19113,14 @@ components:
               description: Global default for detecting short host asks and sponsor thanks (per-feed snipShortAsks overrides when set)
             isDefault:
               type: boolean
+        holdForReview:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Global default for holding uncertain detections for review (per-feed holdForReview overrides when set)
+            isDefault:
+              type: boolean
         seedSponsorsDetection:
           type: object
           properties:
@@ -20115,6 +20204,8 @@ components:
             detectShowSegments:
               type: boolean
             snipShortAsks:
+              type: boolean
+            holdForReview:
               type: boolean
             seedSponsorsDetection:
               type: boolean

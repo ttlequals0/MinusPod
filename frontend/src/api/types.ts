@@ -188,6 +188,8 @@ export interface Feed {
   // Detect short host asks and sponsor thanks. Null inherits the global
   // snipShortAsks default.
   snipShortAsks?: boolean | null;
+  // Hold uncertain detections for review. Null inherits the global holdForReview default.
+  holdForReview?: boolean | null;
   // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass
   // upstream GUIDs through; new feeds are created with true.
   ownEpisodeGuids?: boolean | null;
@@ -720,6 +722,9 @@ export interface AdSegment {
     | 'no_transcript_evidence'
     | 'transcript_differential_unreviewed'
     | 'transcript_loop';
+  // Set when processing closed this hold automatically (holdForReview off); the audio was left in.
+  autoClosed?: boolean;
+  closedHoldReason?: string | null;
   // Detected span this fragment was carved from when the render removed only part of it.
   carved_from?: { start: number; end: number };
   // Set when a confirm correction matched this held marker (issue #509);
@@ -966,6 +971,7 @@ export interface Settings {
   whatsNewOnUpgrade?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
   snipShortAsks?: SettingValueBoolean;
+  holdForReview?: SettingValueBoolean;
   textRecurrenceHints: SettingValueBoolean;
   adAddressingMode: SettingValue;
   processNewEpisodesFirst: SettingValueBoolean;
@@ -1171,6 +1177,7 @@ export interface Settings {
     whatsNewOnUpgrade?: boolean;
     detectShowSegments: boolean;
     snipShortAsks?: boolean;
+    holdForReview?: boolean;
     textRecurrenceHints: boolean;
     adAddressingMode: string;
     processNewEpisodesFirst: boolean;
@@ -1333,6 +1340,7 @@ export interface UpdateSettingsPayload {
   whatsNewOnUpgrade?: boolean;
   detectShowSegments?: boolean;
   snipShortAsks?: boolean;
+  holdForReview?: boolean;
   textRecurrenceHints?: boolean;
   adAddressingMode?: string;
   processNewEpisodesFirst?: boolean;

@@ -57,7 +57,11 @@ vi.mock('./settings/StageTunablesSection', () => ({ default: () => <div data-tes
 vi.mock('./settings/TranscriptionSection', () => ({ default: () => null }));
 vi.mock('./settings/AudioSection', () => ({ default: () => null }));
 vi.mock('./settings/CoverArtSection', () => ({ default: () => null }));
-vi.mock('./settings/AdDetectionSection', () => ({ default: () => null }));
+vi.mock('./settings/AdDetectionSection', () => ({
+  default: (p: { holdForReview: boolean; onHoldForReviewChange: (v: boolean) => void }) => (
+    <button onClick={() => p.onHoldForReviewChange(!p.holdForReview)}>hold-for-review {String(p.holdForReview)}</button>
+  ),
+}));
 vi.mock('./settings/GlobalDefaultsSection', () => ({ default: () => null }));
 vi.mock('./settings/SegmentActionsSection', () => ({ default: () => null }));
 vi.mock('./settings/Podcasting20Section', () => ({ default: () => null }));
@@ -638,5 +642,22 @@ describe('Settings: audio fingerprinting entries', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(updateSettings).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(field);
+  });
+});
+
+describe('Settings: hold for review', () => {
+  it('reads the saved value and saves a change through the settings endpoint', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({ holdForReview: { value: true, isDefault: false } }));
+    vi.mocked(updateSettings).mockResolvedValue({ message: 'ok' });
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole('button', { name: 'hold-for-review true' }));
+    expect(updateSettings).toHaveBeenCalledWith({ holdForReview: false });
+  });
+
+  it('defaults to off when the server omits the setting', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({ holdForReview: undefined }));
+    renderSettings();
+    expect(await screen.findByRole('button', { name: 'hold-for-review false' })).toBeDefined();
   });
 });

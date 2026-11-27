@@ -683,6 +683,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             ('detect_show_segments', 'INTEGER'),
             # Per-feed opt-in for removing short host asks; NULL inherits the snip_short_asks global.
             ('snip_short_asks', 'INTEGER'),
+            # Per-feed override for holding uncertain detections; NULL inherits the hold_for_review global.
+            ('hold_for_review', 'INTEGER'),
             # Cue-only mode: transcription opt-out and safety policy
             ('skip_transcription', 'INTEGER'),
             ('cue_only_safety', 'TEXT'),
@@ -1934,6 +1936,12 @@ class SchemaMixin(DeferredUpgradeMixin):
         except Exception as e:
             conn.rollback()
             logger.error(f"feed processing defaults migration failed: {e}")
+
+        try:
+            self._run_hold_for_review_upgrade_migration(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"hold_for_review upgrade migration failed: {e}")
 
         # Episodes a pre-2.96.2 rate-limit hold parked as deferred go back
         # to the queue they were claimed from.
@@ -3221,6 +3229,21 @@ class SchemaMixin(DeferredUpgradeMixin):
                END
              WHERE differential_fetch_mode IS NULL"""
         )
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
+        conn.commit()
+
+    def _run_hold_for_review_upgrade_migration(self, conn):
+        """Existing installs keep holding for review as an explicit value; fresh ones take the default."""
+        marker = 'hold_for_review_default_upgrade'
+        if conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)).fetchone():
+            return
+        if not getattr(self, '_fresh_schema', False):
+            # A seeded default row is overwritten; a value the operator already set is not.
+            conn.execute(
+                """INSERT INTO settings (key, value, is_default) VALUES ('hold_for_review', 'true', 0)
+                   ON CONFLICT(key) DO UPDATE SET value = 'true', is_default = 0
+                   WHERE settings.is_default = 1""")
         conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
         conn.commit()
 

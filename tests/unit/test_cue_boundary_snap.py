@@ -731,7 +731,7 @@ def test_build_validator_passes_the_feed_cue_snap_settings():
         validator = detect._build_validator(
             600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.85,
             max_ad_duration_override=None, cue_gate_enabled=False,
-            splice_veto=False, podcast_id=42)
+            splice_veto=False, podcast_id=42, hold_for_review=True)
     assert resolve.call_args.args[1] == 42
     assert validator.cue_snap_settings == {
         'max_boundary_shift_s': 60, 'snap_lead_s': 10.0, 'snap_lag_s': 4.0,

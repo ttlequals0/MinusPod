@@ -270,7 +270,8 @@ def _validate(eid):
     validator = detect._build_validator(
         ep['duration'], ep['segments'], ep['description'],
         false_positive_corrections=fp, min_cut_confidence=MIN_CONF,
-        max_ad_duration_override=None, cue_gate_enabled=False, podcast_id=None)
+        max_ad_duration_override=None, cue_gate_enabled=False, podcast_id=None,
+        hold_for_review=True)
     audio = {'dai_differential': ep['dai_differential']} if ep.get('dai_differential') else None
     return validator.validate(ads, audio_analysis=audio, actions_map=dict(ACTIONS)).ads
 

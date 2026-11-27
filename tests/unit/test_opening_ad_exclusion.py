@@ -28,7 +28,8 @@ def _built_validator(monkeypatch, seconds):
                  'words': [{'start': 3.0, 'end': 4.0}]}]
     return detect._build_validator(
         600.0, segments, '', false_positive_corrections=[], min_cut_confidence=0.8,
-        max_ad_duration_override=None, cue_gate_enabled=False)
+        max_ad_duration_override=None, cue_gate_enabled=False,
+        hold_for_review=True)
 
 
 def test_leading_extension_is_off_when_the_feed_excludes_its_opening(monkeypatch):

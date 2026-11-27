@@ -38,6 +38,9 @@ export interface ReviewDetection {
   reviewerMoved: boolean;
   // Null unless the detection is pending review.
   holdReason: HoldReason | null;
+  // Closed automatically at the end of processing (holdForReview off); closedHoldReason is why it was held.
+  autoClosed?: boolean;
+  closedHoldReason?: string | null;
   episodeDuration: number | null;
   status: DetectionStatus;
   resolution: DetectionResolution;
@@ -91,4 +94,18 @@ export async function getDetections(
   params: DetectionListParams = {},
 ): Promise<DetectionListResponse> {
   return apiRequest<DetectionListResponse>(`/detections${buildQueryString(params)}`);
+}
+
+export interface ClosePendingResult {
+  closed: number;
+  episodes: number;
+  // Episodes left alone because their markers changed during the close; absent means none.
+  skipped?: number;
+}
+
+export async function closePendingDetections(feed?: string): Promise<ClosePendingResult> {
+  return apiRequest<ClosePendingResult>('/detections/close-pending', {
+    method: 'POST',
+    body: feed ? { feed } : {},
+  });
 }

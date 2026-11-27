@@ -13,6 +13,9 @@ release notes.
 ### Added
 
 - MartLLM pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://api.martllm.com/v1`, the pricing refresh reads input, output and cache-read rates from MartLLM's own `/v1/models` list, which uses OpenRouter's pricing format. LiteLLM fills the gaps. Before, calls through that endpoint were priced only when LiteLLM happened to know the model. The LLM providers guide gains a MartLLM setup section.
+- **Hold uncertain detections for review** setting, in Settings under Ad detection and per feed. It is off on new installs, so a detection the pipeline is unsure about no longer waits in Ad review. It is left in the audio and listed under Not cut with the reason it would have been held, and **Confirm** still cuts it. An upgraded install keeps holding until you turn the setting off. Holds you already acted on stay open either way. So do holds on a feed with cue-gated approval, cue-only safety or its own max ad duration cap. The API field is `holdForReview` on the settings and feed endpoints.
+- With holding off, an ad over the length limit is cut when the LLM detected it with confidence above 0.95 and it is within the confirmed cap, 900 seconds by default. Before, such an ad was held unless its adjusted confidence reached 0.90.
+- **Close all needing review** on the Ad review tab closes the holds already waiting, for one feed or all feeds, without changing any audio (`POST /api/v1/detections/close-pending`). An episode whose markers change during the close is skipped and counted.
 
 ### Changed
 

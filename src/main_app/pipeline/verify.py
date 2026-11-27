@@ -30,7 +30,7 @@ from config import (
     is_pending_review, normalize_segment_category, is_keep_like, is_known_ad,
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
-    resolve_ad_detection_exclude_start_seconds,
+    resolve_ad_detection_exclude_start_seconds, resolve_hold_for_review,
 )
 
 from database.settings import registry_get_default
@@ -319,7 +319,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 cue_gate_enabled=False, podcast_id=None,
                                 segment_actions=None,
                                 keep_barriers_processed=None, ledger=None,
-                                false_positive_corrections=(), podcast_name=None):
+                                false_positive_corrections=(), podcast_name=None,
+                                hold_for_review=None):
     """Validate pass-2 ad candidates against the processed-coordinate validator.
 
     Maps the run's user FP corrections from original to processed coordinates,
@@ -377,6 +378,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         splice_veto=False,
         podcast_id=podcast_id,
         podcast_name=podcast_name,
+        hold_for_review=(resolve_hold_for_review(db, slug)
+                         if hold_for_review is None else hold_for_review),
     )
 
     # Pair each processed candidate with its original-coords twin before
@@ -900,7 +903,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             differential_override=None, run_stats=None,
                             original_audio_path=None, pass1_markers=None,
                             pass1_reviewer_rejects=None, audio_analysis_result=None, *,
-                            false_positive_corrections):
+                            false_positive_corrections, hold_for_review=None):
     """Pipeline stage: run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -1127,6 +1130,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     ledger=ledger,
                     false_positive_corrections=false_positive_corrections,
                     podcast_name=ctx.podcast_name,
+                    hold_for_review=hold_for_review,
                 )
 
             def gate(processed, original, held_markers, hold_overlaps):

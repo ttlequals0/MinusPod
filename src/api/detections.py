@@ -5,17 +5,18 @@ from collections import Counter
 from flask import request
 
 from api import (
-    api, log_request, json_response, error_response,
+    api, limiter, log_request, json_response, error_response,
     get_database, get_feed_auth_key,
 )
 from api.audio_state import add_pattern_audio_state
 import config
-from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES
+from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES, count_pending_review
 from detection_review import (
     UNSET_CATEGORY, filter_detections, flatten_detections, paginate,
     sort_detections, summarize_cut_detections, summarize_detections,
 )
 from utils.episode_paths import episode_public_url
+from utils.markers import close_holds, parse_ad_markers
 
 logger = logging.getLogger('podcast.api')
 
@@ -103,3 +104,43 @@ def list_detections():
         'counts': counts,
         'cutSummary': cut_summary,
     })
+
+
+@api.route('/detections/close-pending', methods=['POST'])
+@limiter.limit("10 per minute")
+@log_request
+def close_pending_detections():
+    """Close every pending hold the automatic rule would close, for one feed or all; no recut."""
+    db = get_database()
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return error_response('JSON object body required', 400)
+    slug = payload.get('feed')
+    if slug is not None and not isinstance(slug, str):
+        return error_response('feed must be a feed slug string', 400)
+    if slug and not db.get_podcast_row(slug):
+        return error_response('Feed not found', 404)
+
+    by_episode = {}
+    for c in db.get_review_corrections():
+        fps, confirmed = by_episode.setdefault((c['podcast_id'], c['episode_id']), ([], []))
+        (fps if c['correction_type'] == 'false_positive' else confirmed).append(c)
+
+    closed_total, episodes, skipped = 0, 0, 0
+    for row in db.get_held_episodes(slug or None):
+        markers = parse_ad_markers(row['ad_markers_json'])
+        if not markers:
+            continue
+        closed = close_holds(markers, by_episode.get((row['podcast_id'], row['episode_id']), ([], [])))
+        if not closed:
+            continue
+        if not db.replace_markers_if_unchanged(row['slug'], row['episode_id'], row['ad_markers_json'],
+                                               markers, count_pending_review(markers)):
+            skipped += 1
+            continue
+        closed_total += closed
+        episodes += 1
+    logger.info(f"Closed {closed_total} pending hold(s) in {episodes} episode(s), skipped {skipped}")
+    return json_response({'closed': closed_total, 'episodes': episodes, 'skipped': skipped})

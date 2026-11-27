@@ -401,6 +401,7 @@ class PodcastMixin:
                 'last_podping_at', 'podping_uses', 'podping_hive_accounts',
                 'podping_checked_at', 'channel_metadata_at',
                 'segment_category_actions', 'detect_show_segments', 'snip_short_asks',
+                'hold_for_review',
                 'skip_second_pass', 'transcript_differential',
                 'skip_transcription', 'cue_only_safety',
                 'queue_priority', 'queue_order', 'title_skip_patterns', 'title_include_patterns',

@@ -1636,6 +1636,8 @@ function Settings() {
         differentialHoldMinSeconds={differentialHoldMinSeconds}
         daiDifferentialOverridesKeep={daiDifferentialOverridesKeep}
         onDaiDifferentialOverridesKeepChange={setDaiDifferentialOverridesKeep}
+        holdForReview={settings?.holdForReview?.value ?? settings?.defaults?.holdForReview ?? false}
+        onHoldForReviewChange={(v) => tunableMutation.mutate({ holdForReview: v })}
         spliceVetoEnabled={spliceVetoEnabled}
         onSpliceVetoEnabledChange={setSpliceVetoEnabled}
         transcriptDifferentialEnabled={transcriptDifferentialEnabled}
