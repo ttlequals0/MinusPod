@@ -47,6 +47,7 @@ from utils.markers import (
     invalidate_word_timed_edges,
     learning_bounds,
     merge_runs,
+    carry_transcript_span,
     note_fold,
     recorded_member_spans,
     subtract_spans,
@@ -3287,6 +3288,7 @@ class AdDetector:
                         merged.append(_with_category_span(current.copy()))
                         continue
                 note_fold(last, current)
+                carry_transcript_span(last, current)
                 # The label goes to the member classifying the most audio,
                 # ties to the incumbent. A member naming nothing, or naming
                 # something outside the vocabulary, displaces nothing.
@@ -3394,11 +3396,8 @@ class AdDetector:
                     stages_seen = set(last.get(_MEMBER_STAGES) or []) | {other_stage}
                     _set_hold(last, DIFFERENTIAL_FLAG, not _hold_released(
                         DIFFERENTIAL_FLAG, diff_side, other, stages_seen, segments))
-                if release_transcript:
-                    if td_last:
-                        _set_hold(last, TRANSCRIPT_DIFF_FLAG, False)
-                    else:
-                        last.setdefault(TRANSCRIPT_SPAN, current.get(TRANSCRIPT_SPAN))
+                if release_transcript and td_last:
+                    _set_hold(last, TRANSCRIPT_DIFF_FLAG, False)
             else:
                 merged.append(_with_category_span(current.copy()))
 
@@ -3472,6 +3471,7 @@ class AdDetector:
 
                     combined = a.copy()
                     note_fold(combined, b)
+                    carry_transcript_span(combined, b)
                     # The flag is the reviewer's gate on member protection.
                     if b.get('merged_distinct_ads'):
                         combined['merged_distinct_ads'] = True

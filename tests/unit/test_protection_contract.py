@@ -144,7 +144,7 @@ def test_pattern_defined_keep_category_resolves_to_remove_in_every_helper():
               'category': 'self_promo', 'pattern_defined': True}
     assert removal_coverage_regions([region], ACTIONS) == [region]
 
-    merged = AdValidator.__new__(AdValidator)._merge_close_ads(
+    merged = AdValidator(episode_duration=3600.0, segments=[])._merge_close_ads(
         [_promo_defined(),
          {'start': 131.0, 'end': 160.0, 'confidence': 0.9, 'category': 'sponsor'}],
         ValidationResult(ads=[]), actions_map=ACTIONS)

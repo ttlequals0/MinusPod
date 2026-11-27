@@ -47,7 +47,7 @@ from youtube.feed import source_link as youtube_source_link
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.episode_paths import published_episode_version
 from utils.safe_http import URLTrust, safe_head
-from utils.time import parse_iso_datetime, utc_now_iso
+from utils.time import parse_iso_datetime, parse_iso_utc, utc_now_iso
 from utils.url import SSRFError
 from utils.validation import (
     validate_slug_param,
@@ -566,7 +566,7 @@ def register_routes(app):
 
         # Check if RSS cache exists or is stale
         cached_rss = storage.get_rss(slug)
-        last_checked = db.get_podcast_last_checked_at(slug)
+        last_checked, last_attempt = db.get_podcast_rss_freshness(slug)
 
         should_refresh = False
         force_refresh = False  # Force full fetch bypasses 304 for cache repairs
@@ -608,15 +608,20 @@ def register_routes(app):
                         f"[{slug}] cached RSS feed-auth key state mismatch, "
                         f"forcing refresh"
                     )
-        if not should_refresh and last_checked:
-            try:
-                last_time = parse_iso_datetime(last_checked)
-                age_minutes = (datetime.now(timezone.utc) - last_time).total_seconds() / 60
-                if age_minutes > 15:
-                    should_refresh = True
-                    feed_logger.info(f"[{slug}] RSS cache stale ({age_minutes:.0f}min), refreshing")
-            except (ValueError, TypeError):
+        if not should_refresh and (last_checked or last_attempt):
+            checked_at = parse_iso_utc(last_checked)
+            if last_checked and checked_at is None:
                 should_refresh = True
+            else:
+                now = datetime.now(timezone.utc)
+                # last_checked_at is success-only; count any refresh attempt so a failing feed is not refetched on every request.
+                # A timestamp ahead of the clock is ignored so it cannot hold the feed stale.
+                seen = [t for t in (checked_at, parse_iso_utc(last_attempt)) if t and t <= now]
+                age_minutes = (now - max(seen)).total_seconds() / 60 if seen else None
+                if age_minutes is None or age_minutes > 15:
+                    should_refresh = True
+                    age_text = 'unknown age' if age_minutes is None else f'{age_minutes:.0f}min'
+                    feed_logger.info(f"[{slug}] RSS cache stale ({age_text}), refreshing")
 
         if should_refresh:
             if force_refresh or not cached_rss:

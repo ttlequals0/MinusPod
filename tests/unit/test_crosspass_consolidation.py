@@ -350,10 +350,20 @@ def test_crosspass_plan_still_joins_wordless_gap_without_cue():
 
 def test_crosspass_plan_ignores_low_confidence_partial_and_boundary_cues():
     for cue in (_show_cue(233.08, 238.58, conf=0.5),
-                _show_cue(230.0, 238.58),
-                _show_cue(233.08, 238.58, role='boundary')):
+                _show_cue(233.08, 238.58, role='boundary'),
+                _show_cue(229.0, 232.0),
+                _show_cue(242.0, 250.0)):
         plan = _outro_plan([cue])
         assert [(c['start'], c['end']) for c in plan] == [(228.0, 264.04)]
+
+
+def test_crosspass_plan_keeps_show_cue_straddling_a_cut_edge():
+    for cue in (_show_cue(230.0, 238.58), _show_cue(238.58, 244.0)):
+        assert _outro_plan([cue]) is None
+
+
+def test_crosspass_plan_keeps_show_cue_covering_gap_and_both_edges():
+    assert _outro_plan([_show_cue(230.0, 244.0)]) is None
 
 
 def test_crosspass_plan_show_cue_blocks_reviewer_locked_gap_too():

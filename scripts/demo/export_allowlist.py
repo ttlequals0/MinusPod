@@ -185,7 +185,7 @@ _ALLOW_GENERAL = (
     'queue_bulk_boost', 'queue_order', 'session_lifetime_hours', 'session_remember_days',
     'podping_enabled', 'only_expose_processed_default',
     'feed_itunes_block', 'require_manual_approval_default',
-    'whats_new_on_upgrade', 'detect_show_segments', 'snip_short_asks',
+    'whats_new_on_upgrade', 'detect_show_segments', 'snip_short_asks', 'hold_for_review',
     'seed_sponsors_detection',
     'seed_sponsors_verification', 'seed_sponsors_reviewer',
     'seed_sponsors_resurrect', 'text_recurrence_hints', 'ad_addressing_mode',

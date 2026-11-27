@@ -103,6 +103,60 @@ describe('CueCandidatesSection dismissals', () => {
     }
   });
 
+  it('shows the server message when a dismiss fails', async () => {
+    vi.mocked(dismissCueCandidate).mockRejectedValue(new Error('Feed not found'));
+    renderSection();
+    await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
+    await waitFor(() => expect(screen.getByText(/Repeats 4x/)).toBeDefined());
+    await userEvent.click(screen.getByRole('button', { name: /^hide$/i }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Feed not found');
+  });
+
+  it('disables only the pending row Hide button', async () => {
+    vi.mocked(getCueCandidates).mockResolvedValue({
+      episodeId: 'ep1', status: 'ready',
+      candidates: [
+        { start: 10, end: 12, kind: 'recurring', count: 4 },
+        { start: 20, end: 22, kind: 'recurring', count: 5 },
+      ],
+    });
+    vi.mocked(dismissCueCandidate).mockReturnValue(new Promise(() => {}));
+    renderSection();
+    await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
+    await waitFor(() => expect(screen.getByText(/Repeats 5x/)).toBeDefined());
+    const [first, second] = screen.getAllByRole('button', { name: /^hide$/i });
+    await userEvent.click(first);
+    await waitFor(() => expect((first as HTMLButtonElement).disabled).toBe(true));
+    expect((second as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('resolves two in-flight dismissals independently', async () => {
+    vi.mocked(getCueCandidates).mockResolvedValue({
+      episodeId: 'ep1', status: 'ready',
+      candidates: [
+        { start: 10, end: 12, kind: 'recurring', count: 4 },
+        { start: 20, end: 22, kind: 'recurring', count: 5 },
+      ],
+    });
+    let rejectA: (e: Error) => void = () => {};
+    let resolveB: (v: unknown) => void = () => {};
+    vi.mocked(dismissCueCandidate)
+      .mockReturnValueOnce(new Promise((_, rej) => { rejectA = rej; }))
+      .mockReturnValueOnce(new Promise((res) => { resolveB = res; }) as never);
+    renderSection();
+    await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
+    await waitFor(() => expect(screen.getByText(/Repeats 5x/)).toBeDefined());
+    const [a, b] = screen.getAllByRole('button', { name: /^hide$/i }) as HTMLButtonElement[];
+    await userEvent.click(a);
+    await userEvent.click(b);
+    await waitFor(() => expect(a.disabled && b.disabled).toBe(true));
+    rejectA(new Error('Feed not found'));
+    resolveB({ id: 12, label: null, sourceEpisodeId: 'ep1', startS: 20, endS: 22 });
+    expect((await screen.findByRole('alert')).textContent).toBe('Feed not found');
+    await waitFor(() => expect(a.disabled).toBe(false));
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
   it('undo calls the API', async () => {
     vi.mocked(undoCueCandidateDismissal).mockResolvedValue(undefined);
     renderSection();

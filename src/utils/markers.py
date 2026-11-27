@@ -7,7 +7,8 @@ import uuid
 from bisect import bisect_left, bisect_right
 from itertools import accumulate, pairwise
 
-from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE, MERGE_GAP_THRESHOLD,
+from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE, HOLD_REASON_CUE_LOW_CONFIDENCE,
+                    HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_NO_CUE, MERGE_GAP_THRESHOLD,
                     REVIEWER_HOLD_REASONS, pass2_may_release,
                     is_keep_like, is_pending_review, repair_segment_category)
 from utils.constants import EpisodeStatus
@@ -195,13 +196,62 @@ def reject_barriers(markers: list[dict], confirmed: list[dict]) -> list[dict]:
                                          [(s['start'], s['end']) for s in user])]
 
 
+# Holds the operator opted a feed into (cue gating, cue-only safety); closing them would undo that choice.
+NEVER_CLOSE_HOLD_REASONS = frozenset({
+    HOLD_REASON_NO_CUE, HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
+})
+
+
+def stored_hold_reason(marker: dict) -> str | None:
+    """The reason of a pending hold, or of a hold that was closed automatically."""
+    if marker.get('held_for_review'):
+        return marker.get('hold_reason')
+    return marker.get('closed_hold_reason')
+
+
+def is_auto_closed(marker: dict) -> bool:
+    """A hold closed automatically because holding is off: uncut and never reviewed."""
+    return bool(marker.get('closed_hold_reason')) and not marker.get('was_cut', True)
+
+
+def _hold_stays_open(marker: dict, false_positives, confirmed) -> bool:
+    """Whether a pending hold must outlive the hold_for_review setting being off."""
+    start, end = marker.get('start'), marker.get('end')
+    if (not isinstance(start, (int, float)) or not isinstance(end, (int, float))
+            or marker.get('approved') or marker.get('feed_cap_hold')
+            or marker.get('hold_reason') in NEVER_CLOSE_HOLD_REASONS):
+        return True
+    if covering_confirm(start, end, confirmed) is not None:
+        return True
+    return any(overlap_ratio(fp['start'], fp['end'], start, end) >= CORRECTION_MATCH_MIN_COVERAGE
+               for fp in false_positives)
+
+
+def close_holds(markers, corrections=((), ())) -> int:
+    """Close pending holds in place as uncut markers; corrections is (false_positives, confirmed)."""
+    false_positives, confirmed = corrections or ((), ())
+    closed = 0
+    for marker in markers or []:
+        if not is_pending_review(marker) or _hold_stays_open(marker, false_positives or (), confirmed or ()):
+            continue
+        marker['closed_hold_reason'] = marker.pop('hold_reason', None) or 'unknown'
+        marker.update(held_for_review=False, was_cut=False)
+        closed += 1
+    return closed
+
+
+def finalize_holds(markers, corrections, hold_for_review: bool) -> int:
+    """Close pending holds when the feed does not hold for review; returns how many closed."""
+    return 0 if hold_for_review else close_holds(markers, corrections)
+
+
 def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
-    """Whether a pending reviewer hold survives a recut: no user override, no pass-2 release."""
-    reason = marker.get('hold_reason')
-    if (not marker.get('held_for_review') or marker.get('was_cut')
+    """Whether a pending or closed reviewer hold survives a recut."""
+    reason = stored_hold_reason(marker)
+    if (reason is None or marker.get('was_cut')
             or reason not in REVIEWER_HOLD_REASONS or explicit_override(marker, confirmed)):
         return False
-    return not (pass2_may_release(marker) and covering_confirm(
+    return not (pass2_may_release({**marker, 'hold_reason': reason}) and covering_confirm(
         marker['start'], marker['end'], confirmed,
         where=lambda c: auto_confirm_releases(c, reason)) is not None)
 
@@ -1049,6 +1099,12 @@ def mark_distinct_merge(target: dict, other: dict) -> None:
     target['merged_distinct_ads'] = True
 
 
+def carry_transcript_span(target: dict, other: dict) -> None:
+    """Keep a folded-in marker's confirmed transcript span when the target has none."""
+    if other.get(TRANSCRIPT_SPAN):
+        target.setdefault(TRANSCRIPT_SPAN, other[TRANSCRIPT_SPAN])
+
+
 def note_fold(target: dict, other: dict) -> None:
     """Bookkeeping every fold owes: touching or gapped spans are distinct ads
     and stay expand-only."""
@@ -1108,7 +1164,8 @@ def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[di
 
 # Verdict fields the winning record owns on a fold, absences included.
 # A winner never inherits the loser's hold id or pass-2 outcome.
-_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason', 'hold_id', 'pass2_outcome')
+_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason', 'hold_id', 'pass2_outcome',
+                        'feed_cap_hold')
 
 
 def _stayed_in_audio(marker: dict) -> bool:

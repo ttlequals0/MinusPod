@@ -111,6 +111,14 @@ FINGERPRINT_CONTRAST_MARGIN = 0.12
 # Chromaprint points per second at its default settings: one point per hop of 4096 - (4096 - 4096 // 3) = 1365
 # samples at 11025 Hz
 FINGERPRINT_NOMINAL_FPS = 11025 / 1365
+# fpcalc errors with an empty fingerprint on a clip shorter than this
+FPCALC_MIN_CLIP_S = 3.0
+# fpcalc withheld 21.2 to 21.8 points per clip, measured on 3 to 20 s clips; 26 adds a margin of 4
+FINGERPRINT_LOOKAHEAD_POINTS = 26
+# A clip whose decoded duration falls short of the requested length by more than this ran into the file end
+FPCALC_END_OF_FILE_TOLERANCE_S = 0.1
+# Fewest points kept for a span too short to hold more, the same floor discovery windows use
+FINGERPRINT_MIN_SPAN_POINTS = 4
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
 FINGERPRINT_NOVELTY_BITS = 3
 # Shortest remainder of a clipped match that is kept, when the caller passes no setting
@@ -1311,17 +1319,39 @@ class AudioFingerprinter:
         cmd.extend(['-ac', '1', '-ar', '16000', '-f', 'wav', tmp_path])
         tracked_run(cmd, capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT, check=True)
 
+    @staticmethod
+    def _decode_hit_file_end(data: dict, requested_s: float) -> bool:
+        """Whether fpcalc decoded a clip shorter than requested; a missing duration counts as no."""
+        duration = data.get('duration')
+        return (isinstance(duration, (int, float)) and not isinstance(duration, bool)
+                and requested_s - duration > FPCALC_END_OF_FILE_TOLERANCE_S)
+
     def generate_raw_span_fingerprint(
         self, audio_path: str, start_s: float, end_s: float,
     ) -> tuple[list[int], float] | None:
-        """Raw chromaprint ints and the seconds they span for [start_s, end_s] of a file, or None."""
-        if not self._fpcalc_path or end_s <= start_s:
+        """Raw chromaprint ints and the seconds they span for [start_s, end_s] of a file, or None.
+
+        A span under fpcalc's 3 s floor is decoded in a longer window and cut to its points of the full-file run.
+        """
+        span = end_s - start_s
+        if not self._fpcalc_path or span <= 0:
             return None
+        windowed = span < FPCALC_MIN_CLIP_S
+        decode_start, decode_len = start_s, span
+        if windowed:
+            # On the full-file hop grid, with a 3 s lead-in that keeps a span at the file end above fpcalc's floor
+            s_idx = max(0, int(round(start_s * FINGERPRINT_NOMINAL_FPS)))
+            first = max(0, s_idx - int(FPCALC_MIN_CLIP_S * FINGERPRINT_NOMINAL_FPS))
+            lo = s_idx - first
+            n_points = max(FINGERPRINT_MIN_SPAN_POINTS, int(round(span * FINGERPRINT_NOMINAL_FPS)))
+            decode_start = first / FINGERPRINT_NOMINAL_FPS
+            decode_len = max(FPCALC_MIN_CLIP_S + 0.5,
+                             (lo + n_points + FINGERPRINT_LOOKAHEAD_POINTS) / FINGERPRINT_NOMINAL_FPS)
         try:
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
                 tmp_path = tmp.name
             try:
-                self._extract_wav_segment(audio_path, tmp_path, start_s, end_s - start_s)
+                self._extract_wav_segment(audio_path, tmp_path, decode_start, decode_len)
                 result = tracked_run(
                     [self._fpcalc_path, '-raw', '-json', tmp_path],
                     capture_output=True, timeout=FPCALC_TIMEOUT,
@@ -1335,6 +1365,14 @@ class AudioFingerprinter:
             raw_ints = data.get('fingerprint', [])
             if not isinstance(raw_ints, list):
                 return None
+            if windowed:
+                chunk = raw_ints[lo:lo + n_points]
+                # A span at the file end: the full-file run has only its last points there too
+                if len(chunk) < FINGERPRINT_MIN_SPAN_POINTS and self._decode_hit_file_end(data, decode_len):
+                    chunk = raw_ints[-n_points:]
+                if len(chunk) < FINGERPRINT_MIN_SPAN_POINTS:
+                    return None
+                raw_ints = chunk
             return (raw_ints, len(raw_ints) / FINGERPRINT_NOMINAL_FPS)
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if e.stderr else ''

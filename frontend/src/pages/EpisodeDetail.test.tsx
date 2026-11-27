@@ -1555,6 +1555,26 @@ describe('Segment category chips (#565)', () => {
     expect(screen.getByText('Kept')).not.toBeNull();
   });
 
+  it('notes why an auto-closed Detections not cut row was closed and keeps its verdict buttons', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{
+        start: 0, end: 5.5, confidence: 0.4, category: 'sponsor', autoClosed: true, closedHoldReason: 'no_splice_evidence',
+      }],
+    }));
+    expect((await screen.findByTestId('rejected-auto-closed-0')).textContent).toBe('Closed automatically: No splice evidence');
+    expect(screen.getByRole('button', { name: /^Confirm/ })).not.toBeNull();
+  });
+
+  it('shows no auto-closed note on an ordinary Detections not cut row', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{ start: 0, end: 5.5, confidence: 0.4, category: 'sponsor' }],
+    }));
+    expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
+    expect(screen.queryByTestId('rejected-auto-closed-0')).toBeNull();
+  });
+
   it('offers no verdict on a Detections not cut row its category leaves in', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       llmProvider: { value: 'anthropic' }, segmentCategoryActions: { value: { intro: 'keep' } },

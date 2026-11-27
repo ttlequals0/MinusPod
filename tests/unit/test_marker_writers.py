@@ -1,4 +1,4 @@
-"""Refs follow markers only through save_episode_details, so no other code may set ad_markers_json."""
+"""Refs follow markers only through save_episode_details and replace_markers_if_unchanged, so no other code may set ad_markers_json."""
 import ast
 import re
 from pathlib import Path
@@ -7,7 +7,7 @@ SRC = Path(__file__).resolve().parents[2] / 'src'
 
 # Enclosing functions allowed to write markers: the refs-maintaining writer and two one-shot
 # migrations that run before the refs backfill.
-ALLOWED = {'save_episode_details', '_cleanup_zyn_ad_markers', '_collapse_duplicate_ad_markers'}
+ALLOWED = {'save_episode_details', 'replace_markers_if_unchanged', '_cleanup_zyn_ad_markers', '_collapse_duplicate_ad_markers'}
 
 SETS_MARKERS = re.compile(
     r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+episode_details\s*\([^)]*\bad_markers_json"

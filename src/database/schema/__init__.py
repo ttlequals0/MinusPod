@@ -37,10 +37,6 @@ _SEARCH_CHANGE_TRIGGER_NAMES = (
 )
 _SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
 
-def _migration_done(conn, name: str) -> bool:
-    return conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone() is not None
-
-
 # The hold reason inside the snippet _file_corroborated_hold_approvals writes.
 _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
@@ -58,6 +54,7 @@ from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
 from database.schema.deferred import DeferredUpgradeMixin
 from database.patterns import _parse_bounds
 from database.podcasts import normalize_network_id
+from database.settings import HOLD_FOR_REVIEW_UPGRADE_MARKER, migration_recorded as _migration_done
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -683,6 +680,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             ('detect_show_segments', 'INTEGER'),
             # Per-feed opt-in for removing short host asks; NULL inherits the snip_short_asks global.
             ('snip_short_asks', 'INTEGER'),
+            # Per-feed override for holding uncertain detections; NULL inherits the hold_for_review global.
+            ('hold_for_review', 'INTEGER'),
             # Cue-only mode: transcription opt-out and safety policy
             ('skip_transcription', 'INTEGER'),
             ('cue_only_safety', 'TEXT'),
@@ -1934,6 +1933,12 @@ class SchemaMixin(DeferredUpgradeMixin):
         except Exception as e:
             conn.rollback()
             logger.error(f"feed processing defaults migration failed: {e}")
+
+        try:
+            self._run_hold_for_review_upgrade_migration(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"hold_for_review upgrade migration failed: {e}")
 
         # Episodes a pre-2.96.2 rate-limit hold parked as deferred go back
         # to the queue they were claimed from.
@@ -3221,6 +3226,20 @@ class SchemaMixin(DeferredUpgradeMixin):
                END
              WHERE differential_fetch_mode IS NULL"""
         )
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
+        conn.commit()
+
+    def _run_hold_for_review_upgrade_migration(self, conn):
+        """Existing installs keep holding for review as an explicit value; fresh ones take the default."""
+        marker = HOLD_FOR_REVIEW_UPGRADE_MARKER
+        if _migration_done(conn, marker):
+            return
+        if not getattr(self, '_fresh_schema', False):
+            # A seeded default row is overwritten; a value the operator already set is not.
+            conn.execute(
+                """INSERT INTO settings (key, value, is_default) VALUES ('hold_for_review', 'true', 0)
+                   ON CONFLICT(key) DO UPDATE SET value = 'true', is_default = 0
+                   WHERE settings.is_default = 1""")
         conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
         conn.commit()
 

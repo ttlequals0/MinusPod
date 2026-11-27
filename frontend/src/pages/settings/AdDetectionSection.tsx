@@ -38,6 +38,8 @@ interface AdDetectionSectionProps {
   daiDifferentialOverridesKeep: boolean;
   onDifferentialHoldMinSecondsChange: (value: number) => void;
   onDaiDifferentialOverridesKeepChange: (value: boolean) => void;
+  holdForReview: boolean;
+  onHoldForReviewChange: (value: boolean) => void;
   spliceVetoEnabled: boolean;
   onSpliceVetoEnabledChange: (value: boolean) => void;
   transcriptDifferentialEnabled: boolean;
@@ -102,6 +104,8 @@ function AdDetectionSection({
   daiDifferentialOverridesKeep,
   onDifferentialHoldMinSecondsChange,
   onDaiDifferentialOverridesKeepChange,
+  holdForReview,
+  onHoldForReviewChange,
   spliceVetoEnabled,
   onSpliceVetoEnabledChange,
   transcriptDifferentialEnabled,
@@ -224,6 +228,19 @@ function AdDetectionSection({
             </p>
           </div>
         </LlmGate>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={holdForReview}
+              onChange={onHoldForReviewChange}
+              ariaLabel="Hold uncertain detections for review"
+            />
+            <span className="text-sm font-medium text-foreground">Hold uncertain detections for review</span>
+          </label>
+          <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
+            When on, uncertain detections wait in Ad review and stay in the audio until you approve them. When off, they are left in and listed as Not cut, and a long ad the model is confident about is cut instead of held. Each feed can override this.
+          </p>
+        </div>
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch

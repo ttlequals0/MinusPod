@@ -282,11 +282,11 @@ All of these can be changed at runtime from the Settings UI. No container restar
 
 ## Using MartLLM
 
-[MartLLM](https://martllm.com) (formerly UberLLM) is an OpenAI-compatible API that reaches Claude, GPT, Gemini, DeepSeek, Qwen, Kimi, GLM and other models with one API key, billed from prepaid credit. It runs through the `openai-compatible` provider; no extra code path is involved. Configure transcription separately (see [Transcription](transcription.md)).
+[MartLLM](https://martllm.com) is an OpenAI-compatible API that reaches Claude, GPT, Gemini, DeepSeek, Qwen, Kimi, GLM and other models with one API key. It runs through the `openai-compatible` provider. Configure transcription separately (see [Transcription](transcription.md)).
 
 ### Setup
 
-1. Create an API key at [martllm.com](https://martllm.com/signup)
+1. Create an API key at [martllm.com](https://martllm.com)
 2. Add these to your `.env`, then start with `docker-compose.yml` (GPU) or `docker-compose.cpu.yml` (no GPU):
 
 ```bash
@@ -310,7 +310,7 @@ The full list with prices is at [martllm.com/models](https://martllm.com/models)
 
 ### Pricing
 
-When `OPENAI_BASE_URL` points at `api.martllm.com`, MinusPod reads per-token input, output and cache-read rates from MartLLM's own `/v1/models` list (the same format as OpenRouter's), with LiteLLM filling any gaps. An operator override still wins; see [LLM Pricing](#llm-pricing).
+When `OPENAI_BASE_URL` points at `api.martllm.com`, MinusPod reads per-token input, output and cache-read rates from MartLLM's own `/v1/models` list (the same format as OpenRouter's), with LiteLLM filling any gaps. The rates are whatever that list reports. If the list cannot be fetched, LiteLLM pricing is used alone. An operator override still wins; see [LLM Pricing](#llm-pricing).
 
 ## Using System One
 

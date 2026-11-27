@@ -60,6 +60,8 @@ function defaultState(): TunablesState {
 // batched "Save changes" button (computeChangedFields -> updateSettings).
 function Harness({ onCommit, llmEnabled = true }: { onCommit: (payload: TunablesState) => void; llmEnabled?: boolean }) {
   const [state, setState] = useState<TunablesState>(defaultState());
+  // Direct-save in Settings.tsx (not part of the batched payload), so it lives outside the state object.
+  const [holdForReview, setHoldForReview] = useState(false);
   const patch = <K extends keyof TunablesState>(key: K) => (v: TunablesState[K]) =>
     setState((s) => ({ ...s, [key]: v }));
   setLlmEnabled(llmEnabled);
@@ -96,6 +98,8 @@ function Harness({ onCommit, llmEnabled = true }: { onCommit: (payload: Tunables
         onDifferentialHoldMinSecondsChange={patch('differentialHoldMinSeconds')}
         daiDifferentialOverridesKeep={state.daiDifferentialOverridesKeep}
         onDaiDifferentialOverridesKeepChange={patch('daiDifferentialOverridesKeep')}
+        holdForReview={holdForReview}
+        onHoldForReviewChange={setHoldForReview}
         spliceVetoEnabled={state.spliceVetoEnabled}
         onSpliceVetoEnabledChange={patch('spliceVetoEnabled')}
         transcriptDifferentialEnabled={state.transcriptDifferentialEnabled}
@@ -346,5 +350,23 @@ describe('AdDetectionSection: LLM provider None', () => {
     render(<Harness onCommit={() => {}} />);
     expectNotGatedByLlm(screen.getByLabelText('Longest single LLM detection (seconds)'));
     expectNotGatedByLlm(screen.getByLabelText('Hold floor'));
+  });
+});
+
+describe('AdDetectionSection: hold for review toggle', () => {
+  it('reads off by default and explains both states', () => {
+    render(<Harness onCommit={() => {}} />);
+    const sw = screen.getByRole('switch', { name: 'Hold uncertain detections for review' });
+    expect(sw.getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByText(/uncertain detections wait in Ad review and stay in the audio until you approve them/)).toBeTruthy();
+    expect(screen.getByText(/they are left in and listed as Not cut, and a long ad the model is confident about is cut instead of held/)).toBeTruthy();
+  });
+
+  it('turns on when clicked and is not gated by the LLM provider', async () => {
+    render(<Harness onCommit={() => {}} llmEnabled={false} />);
+    const sw = screen.getByRole('switch', { name: 'Hold uncertain detections for review' });
+    expectNotGatedByLlm(sw);
+    await userEvent.click(sw);
+    expect(sw.getAttribute('aria-checked')).toBe('true');
   });
 });

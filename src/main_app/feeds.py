@@ -180,7 +180,7 @@ def _record_parse_failure(slug: str, podcast=None) -> float:
         backoff = _parse_backoff_seconds(count)
         refresh_logger.warning(
             f"[{slug}] Feed body unparseable {count} time(s) in a row; "
-            f"next forced full fetch in {backoff / 60:.0f} min")
+            f"holding forced full fetches after a 304 for {backoff / 60:.0f} min")
         return backoff
     except Exception:
         refresh_logger.exception(f"[{slug}] Failed to record parse failure")
@@ -436,7 +436,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                            'may be returning an error page)')
             if record_failure:
                 backoff = _record_parse_failure(slug, podcast=podcast)
-                parse_error += f'; retrying a full fetch in {backoff / 60:.0f} min'
+                parse_error += f'; holding forced full fetches after a 304 for {backoff / 60:.0f} min'
                 _record_refresh_failure(slug, parse_error, podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)

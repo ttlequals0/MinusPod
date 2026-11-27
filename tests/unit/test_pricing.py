@@ -407,6 +407,17 @@ class TestFetchPricingChain:
             ])
         assert {m['match_key'] for m in merged} == {'b'}
 
+    def test_failing_martllm_list_fetch_still_yields_litellm_rows(self):
+        from config import get_pricing_sources
+        from pricing_fetcher import fetch_pricing_chain
+        chain = get_pricing_sources('openai-compatible', 'https://api.martllm.com/v1')
+        with patch('pricing_fetcher.safe_get', side_effect=OSError('connection refused')) as get, \
+             patch('pricing_fetcher.fetch_litellm_pricing',
+                   return_value=[self._row('b', 2.0, 2.0)]):
+            merged = fetch_pricing_chain(chain)
+        assert get.call_args.args[0] == 'https://api.martllm.com/v1/models'
+        assert [(m['match_key'], m['_source']) for m in merged] == [('b', 'litellm')]
+
 
 class TestPricePerTokenScraper:
     """Test the pricepertoken.com HTML scraper."""

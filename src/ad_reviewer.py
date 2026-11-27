@@ -595,13 +595,41 @@ def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, ol
     word-aligned edge of the span the transcript differential confirmed."""
     span = (ad or {}).get('transcript_span') or {}
     aligned = span.get(edge)
-    if (span.get('offset_confirmed') and isinstance(aligned, (int, float))
-            and _edge_matches(aligned, new)
-            and (new > old + EDGE_TOLERANCE if edge == 'start' else new < old - EDGE_TOLERANCE)):
+    inward = new > old + EDGE_TOLERANCE if edge == 'start' else new < old - EDGE_TOLERANCE
+    if (span.get('offset_confirmed') and isinstance(aligned, (int, float)) and inward
+            and not _member_past_edge(ad, edge, aligned)
+            and (_edge_matches(aligned, new) or _wordless_past_pinned_edge(index, edge, new, aligned, ad))):
         return True
     if edge == 'start':
         return _end_edge_supported(index.start, -new, -old)
     return _end_edge_supported(index.end, new, old)
+
+
+def _member_past_edge(ad: dict, edge: str, aligned: float) -> bool:
+    """Whether a merged member lies wholly beyond the aligned edge: a distinct ad the span never covered."""
+    members = [m for m in ad.get('merged_member_spans') or []
+               if isinstance(m.get('start'), (int, float)) and isinstance(m.get('end'), (int, float))]
+    if edge == 'start':
+        return any(m['end'] <= aligned + EDGE_TOLERANCE and m['start'] < aligned - EDGE_TOLERANCE
+                   for m in members)
+    return any(m['start'] >= aligned - EDGE_TOLERANCE and m['end'] > aligned + EDGE_TOLERANCE
+               for m in members)
+
+
+def _wordless_past_pinned_edge(index: TranscriptIndex, edge: str, new: float, aligned: float,
+                               ad: dict) -> bool:
+    """Whether new lies past an aligned edge a precise LLM member also pins, with no speech between."""
+    if not any(m.get('stage') in COARSE_MEMBER_STAGES and m.get('stage') != 'keep_content'
+               and m.get(f'precise_{edge}') and isinstance(m.get(edge), (int, float))
+               and _edge_matches(m[edge], aligned)
+               for m in ad.get('merged_member_spans') or []):
+        return False
+    # Starts run on the negated timeline, where the outward side is always later.
+    sign, units = (-1, index.start) if edge == 'start' else (1, index.end)
+    pinned, proposed = sign * aligned, sign * new
+    before = bisect_left(units.los, proposed - EDGE_TOLERANCE)
+    return proposed > pinned + EDGE_TOLERANCE and not (
+        before > 0 and units.max_his[before - 1] > pinned + EDGE_TOLERANCE)
 
 
 def _matching_ends(sorted_his: list[float], new: float) -> list[float]:

@@ -731,7 +731,7 @@ def test_build_validator_passes_the_feed_cue_snap_settings():
         validator = detect._build_validator(
             600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.85,
             max_ad_duration_override=None, cue_gate_enabled=False,
-            splice_veto=False, podcast_id=42)
+            splice_veto=False, podcast_id=42, hold_for_review=True)
     assert resolve.call_args.args[1] == 42
     assert validator.cue_snap_settings == {
         'max_boundary_shift_s': 60, 'snap_lead_s': 10.0, 'snap_lag_s': 4.0,
@@ -739,22 +739,22 @@ def test_build_validator_passes_the_feed_cue_snap_settings():
 
 
 # ---------------------------------------------------------------------------
-# show_cue_within
+# show_cue_overlapping
 # ---------------------------------------------------------------------------
 
-def test_show_cue_within_true_for_non_ad_template_cue_inside_range():
-    from ad_detector.cue_boundary_snap import show_cue_within
-    cues = [_show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.98)]
-    assert show_cue_within(cues, 232.62, 241.74, 0.8)
-
-
-def test_show_cue_within_ignores_low_confidence_partial_and_boundary_cues():
-    from ad_detector.cue_boundary_snap import show_cue_within
+def test_show_cue_overlapping_ignores_low_confidence_and_boundary_cues():
+    from ad_detector.cue_boundary_snap import show_cue_overlapping
     show = _show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.5)
-    assert not show_cue_within([show], 232.62, 241.74, 0.8)
-    show = _show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.98)
-    assert not show_cue_within([show], 234.0, 241.74, 0.8)
-    assert not show_cue_within([show], 232.62, 238.0, 0.8)
+    assert not show_cue_overlapping([show], 232.62, 241.74, 0.8)
     boundary = _typed_cue(233.08, 238.58, 'boundary', conf=0.98)
-    assert not show_cue_within([boundary], 232.62, 241.74, 0.8)
-    assert not show_cue_within([], 232.62, 241.74, 0.8)
+    assert not show_cue_overlapping([boundary], 232.62, 241.74, 0.8)
+    assert not show_cue_overlapping([], 232.62, 241.74, 0.8)
+
+
+def test_show_cue_overlapping_counts_partial_cues_but_not_touching_ones():
+    from ad_detector.cue_boundary_snap import show_cue_overlapping
+    show = _show_boundary_cue(233.08, 238.58, 'show_outro', conf=0.98)
+    assert show_cue_overlapping([show], 234.0, 241.74, 0.8)
+    assert show_cue_overlapping([show], 232.62, 238.0, 0.8)
+    assert not show_cue_overlapping([show], 238.58, 245.0, 0.8)
+    assert not show_cue_overlapping([show], 234.0, 241.74, 0.99)

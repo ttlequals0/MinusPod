@@ -39,7 +39,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
                    'passthrough_enabled': None, 'skip_ad_detection': None,
-                   'detection_mode': None}
+                   'detection_mode': None, 'hold_for_review': 1}
     segments = SEGMENTS if segments is None else segments
 
     held = set(held_categories or ())

@@ -36,3 +36,10 @@ def test_outward_snap_skipped_across_show_cue():
                 _cue(97.5, 98.5, 'non_ad', 'show_outro'))
     assert cut['start'] == 100.0
     assert 'pass2_cue_snap' not in cut
+
+
+def test_outward_snap_skipped_across_partially_overlapping_show_cue():
+    cut = _snap(_cue(95.0, 97.0, 'boundary', 'ad_break_boundary'),
+                _cue(94.0, 96.0, 'non_ad', 'show_outro'))
+    assert cut['start'] == 100.0
+    assert 'pass2_cue_snap' not in cut

@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    HELD_WIDEN_MAX_SECONDS,
+    HELD_WIDEN_MAX_SECONDS, global_hold_for_review,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -131,6 +131,8 @@ def update_ad_detection_settings():
     response = {'message': 'Settings updated'}
     if 'snipShortAsks' in data:
         response['snipShortAsks'] = db.get_setting_bool('snip_short_asks')
+    if 'holdForReview' in data:
+        response['holdForReview'] = global_hold_for_review(db)
     return json_response(response)
 
 
@@ -754,6 +756,15 @@ def _apply_processing_flags(db, data):
             db.set_setting('snip_short_asks', value, is_default=False)
         logger.info(f"Updated snip-short-asks default to: {value}")
 
+    if 'holdForReview' in data:
+        if data['holdForReview'] is None:
+            value = registry_default('hold_for_review')
+            db.set_setting('hold_for_review', value, is_default=True)
+        else:
+            value = 'true' if data['holdForReview'] is True else 'false'
+            db.set_setting('hold_for_review', value, is_default=False)
+        logger.info(f"Updated hold-for-review default to: {value}")
+
     if 'textRecurrenceHints' in data:
         value = 'true' if data['textRecurrenceHints'] else 'false'
         db.set_setting('text_recurrence_hints', value, is_default=False)
@@ -1360,6 +1371,13 @@ def _validate_snip_short_asks_payload(data):
     return None
 
 
+def _validate_hold_for_review_payload(data):
+    if 'holdForReview' in data and data['holdForReview'] is not None \
+            and not isinstance(data['holdForReview'], bool):
+        return 'holdForReview must be true, false, or null', 400
+    return None
+
+
 def validate_settings_payload(
         db, data, *, allow_inactive_tunables=False, prospective_feed_modes=None):
     """Return a payload validation issue without writes, network access, or Flask context."""
@@ -1379,6 +1397,7 @@ def validate_settings_payload(
         _validate_user_agent_payload,
         _validate_podcast_search_provider_payload,
         _validate_snip_short_asks_payload,
+        _validate_hold_for_review_payload,
     ):
         issue = validate(data)
         if issue is not None:

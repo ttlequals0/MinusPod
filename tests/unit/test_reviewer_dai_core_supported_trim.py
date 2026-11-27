@@ -8,7 +8,8 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_dai_core_supported_trim_test_')
 
-from ad_detector import dai_differential_ads
+from ad_detector import AdDetector, dai_differential_ads, transcript_differential_ads
+from ad_detector.boundaries import _merge_ad_pair, deduplicate_window_ads
 from ad_reviewer import (AdReviewer, TranscriptIndex,
                          _SUPPORTED_EDGE_GAP_S, _edge_transcript_supported, _negated,
                          _speech_capped_floor, speech_units)
@@ -16,6 +17,7 @@ from ad_validator import AdValidator, ValidationResult
 from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
 from main_app.pipeline import review, cuts
+from main_app.pipeline import detect as detect_stage
 from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
                            clip_dai_core_spans, drop_stale_reviewer_locks, merge_dai_core_spans,
                            reviewer_edge_locked, reviewer_independent_spans, TimedWords)
@@ -744,3 +746,214 @@ def test_inward_start_trim_aligned_with_differential_start_is_supported():
     assert start(marker, 236.0) == pytest.approx(236.0)
     marker['transcript_span']['offset_confirmed'] = False
     assert start(marker, 236.0) < 230.0
+
+
+def _speech(lo, hi):
+    return _worded_words(lo, hi, _dense_words(lo, hi))
+
+
+def _preroll_segments():
+    # Ad words end 61.58, a 9.9 s wordless stretch, then the show's own speech.
+    return [_speech(0.24, 61.58), _speech(71.5, 95.4)]
+
+
+def _preroll_marker(offset_confirmed=True):
+    return {
+        'start': 0.0, 'end': 90.82, 'confidence': 0.95,
+        'detection_stage': 'dai_differential', 'category': 'sponsor',
+        'dai_core_spans': [{'start': 0.0, 'end': 90.4}],
+        DAI_PROBE_SPANS: [{'start': 0.5, 'end': 4.5}],
+        'transcript_span': {'start': 0.0, 'end': 61.58, 'offset_confirmed': offset_confirmed},
+        'merged_distinct_ads': True,
+        'merged_member_spans': [
+            {'start': 0.0, 'end': 61.58, 'stage': 'transcript_differential'},
+            {'start': 0.24, 'end': 61.58, 'stage': 'claude', 'confidence': 0.98,
+             'precise_start': True, 'precise_end': True}],
+        'merged_protected_start': 0.24, 'merged_protected_end': 61.58,
+    }
+
+
+def _preroll_end(marker, segments=None):
+    reviewer = AdReviewer.__new__(AdReviewer)
+    return reviewer._clamp_proposed_bounds(
+        marker, 0.0, 71.5, 0.0, 90.82, 600, 'slug', 'ep',
+        segments=segments or _preroll_segments())[1]
+
+
+def test_end_trim_past_wordless_gap_keeps_proposal_when_two_sources_pin_aligned_edge():
+    assert _preroll_end(_preroll_marker()) == pytest.approx(71.5)
+
+
+def test_end_trim_without_precise_member_keeps_core_floor():
+    marker = _preroll_marker()
+    marker['merged_member_spans'][1].pop('precise_end')
+    assert _preroll_end(marker) > 85.0
+
+
+def test_end_trim_with_disagreeing_precise_member_keeps_core_floor():
+    marker = _preroll_marker()
+    marker['merged_member_spans'][1]['end'] = 62.0
+    assert _preroll_end(marker) > 85.0
+
+
+def test_end_trim_with_words_in_gap_keeps_core_floor():
+    segments = [_speech(0.24, 61.58), _speech(64.0, 66.0), _speech(71.5, 95.4)]
+    assert _preroll_end(_preroll_marker(), segments) > 85.0
+
+
+def test_end_trim_with_unconfirmed_offset_keeps_core_floor():
+    assert _preroll_end(_preroll_marker(offset_confirmed=False)) > 85.0
+
+
+def test_start_trim_past_wordless_gap_keeps_proposal_when_two_sources_pin_aligned_edge():
+    marker = {
+        'start': 0.0, 'end': 100.0, 'confidence': 0.95,
+        'detection_stage': 'dai_differential', 'category': 'sponsor',
+        'dai_core_spans': [{'start': 0.0, 'end': 100.0}],
+        DAI_PROBE_SPANS: [{'start': 95.0, 'end': 99.0}],
+        'transcript_span': {'start': 38.0, 'end': 100.0, 'offset_confirmed': True},
+        'merged_distinct_ads': True,
+        'merged_member_spans': [
+            {'start': 38.0, 'end': 100.0, 'stage': 'transcript_differential'},
+            {'start': 38.0, 'end': 99.8, 'stage': 'claude', 'confidence': 0.98,
+             'precise_start': True, 'precise_end': True}],
+        'merged_protected_start': 38.0, 'merged_protected_end': 99.8,
+    }
+    segments = [_speech(0.0, 28.0), _speech(38.0, 105.0)]
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        marker, 28.0, 100.0, 0.0, 100.0, 600, 'slug', 'ep', segments=segments)
+    assert bounds[0] == pytest.approx(27.95)
+
+
+def _gap_marker():
+    return {'start': 0.0, 'end': 90.4, 'confidence': 0.95, 'detection_stage': 'dai_differential',
+            'category': 'sponsor', 'sponsor': None, 'reason': 'Dynamically inserted',
+            'dai_core_spans': [{'start': 0.0, 'end': 90.4}],
+            DAI_PROBE_SPANS: [{'start': 0.5, 'end': 4.5}],
+            'differential_uncorroborated': True, 'held_for_review': True,
+            'hold_reason': 'differential_uncorroborated'}
+
+
+def test_merge_of_released_gap_marker_into_dai_marker_keeps_transcript_span():
+    # Two-step merge (released gap first), not the production order; covers the detector fold only.
+    detector = AdDetector.__new__(AdDetector)
+    _, gap, llm, _ = _preroll_detections()
+    segs = [_speech(0.24, 61.58)]
+    released = detector._merge_detection_results([gap[0], llm], segments=segs)
+    (merged,) = detector._merge_detection_results([_gap_marker(), *released], segments=segs)
+    assert merged['detection_stage'] == 'dai_differential'
+    assert merged['transcript_span']['offset_confirmed'] is True
+    # The LLM member's edges are quote-aligned in a real run.
+    merged['merged_member_spans'][1].update(precise_start=True, precise_end=True)
+    assert _preroll_end(merged) == pytest.approx(71.5)
+
+
+_SPAN = {'start': 1.0, 'end': 60.0, 'offset_confirmed': True}
+
+
+def _fold_pair():
+    first = {'start': 0.0, 'end': 60.0, 'confidence': 0.9, 'detection_stage': 'claude',
+             'category': 'sponsor', 'sponsor': 'Acme', 'reason': 'Acme read'}
+    return first, dict(first, start=1.0, transcript_span=dict(_SPAN))
+
+
+def _fold_merge_ad_pair():
+    first, second = _fold_pair()
+    _merge_ad_pair(first, second)
+    return first
+
+
+def _fold_validator():
+    first, second = _fold_pair()
+    second.update(start=60.5, end=100.0)
+    (merged,) = AdValidator(episode_duration=600.0, segments=[])._merge_close_ads(
+        [first, second], ValidationResult(ads=[]))
+    return merged
+
+
+def _fold_detector_main_loop():
+    (merged,) = AdDetector.__new__(AdDetector)._merge_detection_results(list(_fold_pair()))
+    return merged
+
+
+def _fold_detector_duplicates():
+    (merged,) = AdDetector.__new__(AdDetector)._merge_overlapping_accepted_duplicates(
+        list(_fold_pair()))
+    return merged
+
+
+@pytest.mark.parametrize('fold', [_fold_merge_ad_pair, _fold_validator,
+                                  _fold_detector_main_loop, _fold_detector_duplicates])
+def test_fold_keeps_later_marker_transcript_span(fold):
+    assert fold()['transcript_span']['offset_confirmed'] is True
+
+
+@pytest.mark.parametrize('stage', ['text_pattern', 'claude'])
+def test_trim_to_carried_span_edge_keeps_later_folded_ad(stage):
+    marker = _preroll_marker()
+    marker['merged_member_spans'].append(
+        {'start': 75.0, 'end': 85.0, 'stage': stage, 'confidence': 0.95,
+         'precise_start': True, 'precise_end': True})
+    marker['merged_protected_end'] = 85.0
+    segments = [_speech(0.24, 61.58), _speech(75.0, 85.0), _speech(86.0, 95.4)]
+    reviewer = AdReviewer.__new__(AdReviewer)
+    end = reviewer._clamp_proposed_bounds(
+        marker, 0.0, 61.58, 0.0, 90.82, 600, 'slug', 'ep', segments=segments)[1]
+    assert end >= 85.0
+
+
+def test_window_dedup_and_twin_merge_do_not_carry_transcript_span():
+    span = {'start': 1.0, 'end': 60.0, 'offset_confirmed': True}
+    first = {'start': 0.0, 'end': 60.0, 'confidence': 0.9, 'detection_stage': 'claude',
+             'category': 'sponsor', 'sponsor': 'Acme'}
+    (deduped,) = deduplicate_window_ads([first, dict(first, start=1.0, transcript_span=span)])
+    assert 'transcript_span' not in deduped
+    twin = {'start': 20.0, 'end': 80.0}
+    ad = {'start': 12.0, 'end': 80.0, '_orig_twin': twin}
+    later = {'start': 80.0, 'end': 85.0, '_orig_twin': {'start': 10.0, 'end': 85.0,
+                                                        'transcript_span': span}}
+    AdValidator(episode_duration=100.0, segments=[])._merge_close_ads(
+        [ad, later], ValidationResult(ads=[]))
+    assert 'transcript_span' not in twin
+
+
+def _preroll_detections():
+    """Differential region, offset-confirmed transcript gap and aligned LLM ad for the pre-roll."""
+    dd = dai_differential_ads(
+        {'regions': [{'kind': 'differential', 'corr': 0.04, 'start_s': 0.0, 'end_s': 90.4}]}, [])
+    gap = transcript_differential_ads([{'start': 0.24, 'end': 61.58, 'offset_confirmed': True}])
+    llm = {'start': 0.24, 'end': 61.58, 'confidence': 0.98, 'detection_stage': 'claude',
+           'category': 'sponsor', 'sponsor': None,
+           'reason': 'Based on transcript: Visit orderlyacme.com for details.'}
+    segments = _preroll_segments()
+    segments[0] = dict(segments[0], text='Visit orderlyacme.com for 50% off.')
+    return dd, gap, llm, segments
+
+
+def _production_preroll_marker():
+    """The opening marker as the detector merge then boundary refinement build it."""
+    dd, gap, llm, segments = _preroll_detections()
+    merged = AdDetector.__new__(AdDetector)._merge_detection_results(
+        sorted(dd + gap + [llm], key=lambda a: a['start']), segments=segments)
+    (marker,) = detect_stage._refine_boundaries(merged, segments)
+    for member in marker['merged_member_spans']:
+        if member['stage'] == 'claude':
+            member.update(precise_start=True, precise_end=True)
+    return marker
+
+
+def test_refined_preroll_marker_keeps_transcript_span():
+    marker = _production_preroll_marker()
+    assert (marker.get('transcript_span') or {}).get('offset_confirmed') is True
+
+
+# 61.6 lands at 71.5: the 9.9 s wordless gap past the ad is held in the cut by the untranscribed-audio rule.
+@pytest.mark.parametrize('proposal', [61.6, 71.5])
+def test_production_preroll_trim_is_not_floored_to_core_end(proposal):
+    marker = _production_preroll_marker()
+    reviewer = AdReviewer.__new__(AdReviewer)
+    end = reviewer._clamp_proposed_bounds(
+        marker, 0.0, proposal, 0.0, 90.4, 600, 'slug', 'ep',
+        segments=_preroll_segments())[1]
+    assert end == pytest.approx(71.5)

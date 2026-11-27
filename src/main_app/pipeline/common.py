@@ -12,7 +12,7 @@ from cancel import _check_cancel
 
 from config import (
     MIN_CUT_CONFIDENCE, ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS,
-    ModelNotConfiguredError,
+    ModelNotConfiguredError, is_pending_review,
 )
 
 from llm_client import (
@@ -276,3 +276,10 @@ def _copy_retained_original_to_temp(original_path):
     os.close(fd)
     shutil.copyfile(original_path, tmp_path)
     return tmp_path
+
+
+def marker_stats(markers) -> dict:
+    """Counts of cut, held and other uncut markers for run_stats."""
+    cut = sum(1 for m in markers if m.get('was_cut'))
+    held = sum(1 for m in markers if is_pending_review(m))
+    return {'cut': cut, 'held': held, 'not_cut': len(markers) - cut - held}

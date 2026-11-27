@@ -988,6 +988,51 @@ describe('FeedSettingsPanel short-asks tri-state control', () => {
   });
 });
 
+describe('FeedSettingsPanel hold-for-review tri-state control', () => {
+  const NAME = 'Hold uncertain detections for review';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('selects Inherit by default and shows the effective global value', async () => {
+    mockGetSettings.mockResolvedValue({ holdForReview: { value: true, isDefault: false } });
+    renderPanel(makeFeed());
+    const group = screen.getByRole('radiogroup', { name: NAME });
+    expect(within(group).getByRole('radio', { name: 'Inherit' }).getAttribute('aria-checked')).toBe('true');
+    expect(await within(group.parentElement as HTMLElement).findByText('Following the global setting (currently on).')).toBeDefined();
+  });
+
+  it('falls back to the settings defaults for the effective global value', async () => {
+    mockGetSettings.mockResolvedValue({ defaults: { holdForReview: true } });
+    renderPanel(makeFeed());
+    const group = screen.getByRole('radiogroup', { name: NAME });
+    expect(await within(group.parentElement as HTMLElement).findByText('Following the global setting (currently on).')).toBeDefined();
+  });
+
+  it('selecting On fires updateFeed with holdForReview true', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: NAME })).getByRole('radio', { name: 'On' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { holdForReview: true });
+  });
+
+  it('selecting Off fires updateFeed with holdForReview false', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: NAME })).getByRole('radio', { name: 'Off' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { holdForReview: false });
+  });
+
+  it('explicit false selects Off; Inherit fires null', async () => {
+    renderPanel(makeFeed({ holdForReview: false }));
+    const group = screen.getByRole('radiogroup', { name: NAME });
+    expect(within(group).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+    await userEvent.click(within(group).getByRole('radio', { name: 'Inherit' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { holdForReview: null });
+  });
+});
+
 describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {
   const TOGGLE_NAME = 'Serve MinusPod episode IDs';
 

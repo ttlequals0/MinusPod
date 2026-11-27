@@ -7,7 +7,7 @@ confirm and boundary_adjustment (an Edit that kept the ad) confirm.
 import math
 
 from config import SEGMENT_CATEGORIES, is_keep_like, is_pending_review, refreshed_keep_like_action
-from utils.markers import parse_ad_markers, spans_match
+from utils.markers import is_auto_closed, parse_ad_markers, spans_match
 
 # Filter value and summary key for markers no stage classified. Not a member of
 # SEGMENT_CATEGORIES: unset is the absence of a category, not a category.
@@ -66,6 +66,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict],
                 continue
             if not isinstance(marker.get('start'), (int, float)) or not isinstance(marker.get('end'), (int, float)):
                 continue
+            closed = is_auto_closed(marker)
             items.append({
                 'feedSlug': row['feed_slug'],
                 'feedTitle': row['feed_title'],
@@ -94,6 +95,8 @@ def flatten_detections(rows: list[dict], corrections: list[dict],
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),
                 'reviewerMoved': _reviewer_moved_from_marker(marker),
                 'holdReason': marker.get('hold_reason') if is_pending_review(marker) else None,
+                'autoClosed': closed,
+                'closedHoldReason': marker.get('closed_hold_reason') if closed else None,
                 'status': marker_status(marker),
                 'resolution': marker_resolution(marker, episode_corrections),
             })

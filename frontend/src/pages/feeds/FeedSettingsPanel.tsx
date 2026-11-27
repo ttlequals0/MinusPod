@@ -111,6 +111,43 @@ function CueOverrideRow({
   );
 }
 
+interface TriStateRowProps {
+  label: string;
+  description: string;
+  ariaLabel: string;
+  value: boolean | null | undefined;
+  onChange: (value: boolean | null) => void;
+  inheritNote: string;
+  disabled: boolean;
+  divided?: boolean;
+}
+
+// Inherit / On / Off override row; value null or undefined follows the global setting.
+function TriStateRow({ label, description, ariaLabel, value, onChange, inheritNote, disabled, divided = false }: TriStateRowProps) {
+  return (
+    <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm${divided ? ' pt-2 border-t border-border' : ''}`}>
+      <div className="min-w-0">
+        <span className="text-muted-foreground block">{label}</span>
+        <span className="text-xs text-muted-foreground/70 block">{description}</span>
+      </div>
+      <div className="flex flex-col items-start sm:items-end gap-1">
+        <SegmentedToggle
+          value={value == null ? 'inherit' : value ? 'on' : 'off'}
+          options={[
+            { value: 'inherit', label: 'Inherit' },
+            { value: 'on', label: 'On' },
+            { value: 'off', label: 'Off' },
+          ]}
+          onChange={(v) => onChange(v === 'inherit' ? null : v === 'on')}
+          disabled={disabled}
+          ariaLabel={ariaLabel}
+        />
+        {value == null && <p className="text-xs text-muted-foreground">{inheritNote}</p>}
+      </div>
+    </div>
+  );
+}
+
 function FeedSettingsPanel({ feed, slug }: Props) {
   const queryClient = useQueryClient();
   // Mirrors the CollapsibleSection's persisted open state (same storage key)
@@ -1424,34 +1461,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Hold new episodes out of the served feed until approved. */}
               {!isLocal && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm">
-                <div className="min-w-0">
-                  <span className="text-muted-foreground block">Require manual approval</span>
-                  <span className="text-xs text-muted-foreground/70 block">
-                    New episodes stay out of the served feed until you approve them.
-                  </span>
-                </div>
-                <div className="flex flex-col items-start sm:items-end gap-1">
-                  <SegmentedToggle
-                    value={feed.requireManualApproval == null ? 'inherit' : feed.requireManualApproval ? 'on' : 'off'}
-                    options={[
-                      { value: 'inherit', label: 'Inherit' },
-                      { value: 'on', label: 'On' },
-                      { value: 'off', label: 'Off' },
-                    ]}
-                    onChange={(v) => updateMutation.mutate({
-                      requireManualApproval: v === 'inherit' ? null : v === 'on',
-                    })}
-                    disabled={updateMutation.isPending}
-                    ariaLabel="Require manual approval"
-                  />
-                  {feed.requireManualApproval == null && (
-                    <p className="text-xs text-muted-foreground">
-                      {followingGlobalNote(settings?.requireManualApprovalDefault?.value ?? false)}
-                    </p>
-                  )}
-                </div>
-              </div>
+                <TriStateRow
+                  label="Require manual approval"
+                  description="New episodes stay out of the served feed until you approve them."
+                  ariaLabel="Require manual approval"
+                  value={feed.requireManualApproval}
+                  onChange={(v) => updateMutation.mutate({ requireManualApproval: v })}
+                  inheritNote={followingGlobalNote(settings?.requireManualApprovalDefault?.value ?? false)}
+                  disabled={updateMutation.isPending}
+                />
               )}
 
               {/* Served-feed GUID scheme (#598). Local feeds always serve their
@@ -1656,67 +1674,29 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
               {segmentActionError && <p className="text-xs text-destructive">{segmentActionError}</p>}
 
-              {/* Show-segment detection (issue #565): tri-state, inheriting
-                  the global detectShowSegments default when unset. */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
-                <div className="min-w-0">
-                  <span className="text-muted-foreground block">Show segments</span>
-                  <span className="text-xs text-muted-foreground/70 block">
-                    Finds the show&apos;s intro, outro and credits, and preview bumpers so you
-                    can keep or cut them by category. Rough edges where music dominates.
-                  </span>
-                </div>
-                <div className="flex flex-col items-start sm:items-end gap-1">
-                  <SegmentedToggle
-                    value={feed.detectShowSegments == null ? 'inherit' : feed.detectShowSegments ? 'on' : 'off'}
-                    options={[
-                      { value: 'inherit', label: 'Inherit' },
-                      { value: 'on', label: 'On' },
-                      { value: 'off', label: 'Off' },
-                    ]}
-                    onChange={(v) => updateMutation.mutate({
-                      detectShowSegments: v === 'inherit' ? null : v === 'on',
-                    })}
-                    disabled={updateMutation.isPending}
-                    ariaLabel="Show segments"
-                  />
-                  {feed.detectShowSegments == null && (
-                    <p className="text-xs text-muted-foreground">
-                      {followingGlobalNote(settings?.detectShowSegments?.value ?? false)}
-                    </p>
-                  )}
-                </div>
-              </div>
+              {/* Show-segment detection (issue #565): inherits the global detectShowSegments default. */}
+              <TriStateRow
+                divided
+                label="Show segments"
+                description="Finds the show's intro, outro and credits, and preview bumpers so you can keep or cut them by category. Rough edges where music dominates."
+                ariaLabel="Show segments"
+                value={feed.detectShowSegments}
+                onChange={(v) => updateMutation.mutate({ detectShowSegments: v })}
+                inheritNote={followingGlobalNote(settings?.detectShowSegments?.value ?? false)}
+                disabled={updateMutation.isPending}
+              />
 
-              {/* Short host asks: tri-state, inheriting the global snipShortAsks default. */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
-                <div className="min-w-0">
-                  <span className="text-muted-foreground block">Short host asks</span>
-                  <span className="text-xs text-muted-foreground/70 block">
-                    Finds short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Each one follows the action set for its category.
-                  </span>
-                </div>
-                <div className="flex flex-col items-start sm:items-end gap-1">
-                  <SegmentedToggle
-                    value={feed.snipShortAsks == null ? 'inherit' : feed.snipShortAsks ? 'on' : 'off'}
-                    options={[
-                      { value: 'inherit', label: 'Inherit' },
-                      { value: 'on', label: 'On' },
-                      { value: 'off', label: 'Off' },
-                    ]}
-                    onChange={(v) => updateMutation.mutate({
-                      snipShortAsks: v === 'inherit' ? null : v === 'on',
-                    })}
-                    disabled={updateMutation.isPending}
-                    ariaLabel="Detect short host asks and sponsor thanks"
-                  />
-                  {feed.snipShortAsks == null && (
-                    <p className="text-xs text-muted-foreground">
-                      {followingGlobalNote(settings?.snipShortAsks?.value ?? false)}
-                    </p>
-                  )}
-                </div>
-              </div>
+              {/* Short host asks: inherits the global snipShortAsks default. */}
+              <TriStateRow
+                divided
+                label="Short host asks"
+                description="Finds short host asks (subscribe, rate, the host's own promotion, sponsor thank-yous; 2-40 s). Each one follows the action set for its category."
+                ariaLabel="Detect short host asks and sponsor thanks"
+                value={feed.snipShortAsks}
+                onChange={(v) => updateMutation.mutate({ snipShortAsks: v })}
+                inheritNote={followingGlobalNote(settings?.snipShortAsks?.value ?? false)}
+                disabled={updateMutation.isPending}
+              />
 
               {/* Bulk re-render (issue #565): apply the current segment
                   actions to every already-processed episode. */}
@@ -1959,6 +1939,17 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 onBlur={() => commitFloat(maxAdDurRejectField, feed.maxAdDurationRejectOverride,
                   'maxAdDurationRejectOverride', 30, 3600)}
                 description="Ads longer than this need a confirmed sponsor. Also raises the longest single detection the LLM may report for this feed (the global Longest single LLM detection, default 7 minutes), so set it to the length of this show's longest continuous ad block." />
+
+              {/* Hold for review: inherits the global holdForReview default. */}
+              <TriStateRow
+                label="Hold uncertain detections"
+                description="On: uncertain detections wait in Ad review and stay in the audio until you approve them. Off: they are left in and listed as Not cut."
+                ariaLabel="Hold uncertain detections for review"
+                value={feed.holdForReview}
+                onChange={(v) => updateMutation.mutate({ holdForReview: v })}
+                inheritNote={followingGlobalNote(settings?.holdForReview?.value ?? settings?.defaults?.holdForReview ?? false)}
+                disabled={updateMutation.isPending}
+              />
 
               {/* Splice-veto override. Tri-state so a feed can also be held
                   to the check when the global is off. */}

@@ -27,6 +27,7 @@ from config import (
     AUDIO_CUE_SOURCE_SPECTRAL,
     AUDIO_CUE_START_EDGE_ROLES,
     AUDIO_CUE_END_EDGE_ROLES,
+    is_show_cue,
     is_template_cue,
     is_transition_cue,
 )
@@ -43,6 +44,11 @@ SNAP_GAP_SECONDS = 0.05
 # Minimum cue confidence to consider for snapping (default; DB-settable via
 # audio_cue_snap_confidence, which the caller threads in as min_confidence).
 MIN_CUE_CONFIDENCE_FOR_SNAP = AUDIO_CUE_SNAP_CONFIDENCE
+
+
+def snap_min_confidence(settings) -> float:
+    """A feed's cue snap min confidence, or the default when it has no snap settings."""
+    return (settings or {}).get('min_confidence', MIN_CUE_CONFIDENCE_FOR_SNAP)
 
 
 def _cue_role(cue) -> str:
@@ -66,12 +72,10 @@ def cue_removal_enabled(details) -> bool:
     )
 
 
-def show_cue_within(cues, start, end, min_confidence) -> bool:
-    """True when a confident non-ad template cue (show music) lies wholly inside [start, end]."""
-    return any(
-        is_template_cue(c.details) and _cue_role(c) == AUDIO_CUE_ROLE_NON_AD
-        and c.confidence >= min_confidence and start <= c.start and c.end <= end
-        for c in cues)
+def show_cue_overlapping(cues, start, end, min_confidence) -> bool:
+    """True when a confident show intro/outro cue overlaps [start, end]; touching an edge does not count."""
+    return any(is_show_cue(c.details) and c.confidence >= min_confidence
+               and c.start < end and c.end > start for c in cues)
 
 
 def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:

@@ -59,3 +59,8 @@ export function holdReasonTitle(reason?: string | null): string {
   if (!reason) return 'Held for manual review';
   return (HOLD_REASON_TITLES as Record<string, string | undefined>)[reason] ?? 'Held for manual review';
 }
+
+// Note on a detection that processing closed instead of holding it for review.
+export function autoClosedNote(reason?: string | null): string {
+  return reason ? `Closed automatically: ${holdReasonLabel(reason)}` : 'Closed automatically';
+}

@@ -11,20 +11,22 @@ from cancel import (
 )
 
 from utils.audio import get_audio_codec
-from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, held_review_window,
+from utils.markers import (EDGE_TOLERANCE, clip_merge_spans, covering_confirm, finalize_holds,
+                           held_review_window, is_auto_closed,
                            parse_ad_markers, reviewer_hold_stands,
                            reject_barriers, reviewer_reject_stands,
-                           spans_match)
+                           spans_match, stored_hold_reason)
 
 from utils.correction_guard import correction_skip_reason, id_suffix, same_span
 from utils.time import overlap_seconds
 
 from config import (
-    count_not_cut, is_pending_review, resolve_segment_category_actions_map,
+    count_not_cut, resolve_segment_category_actions_map,
     resolve_transcript_differential,
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
-    resolve_cue_gated_approval, resolve_held_widen_seconds, resolve_max_boundary_shift,
+    resolve_cue_gated_approval, resolve_held_widen_seconds, resolve_hold_for_review,
+    resolve_max_boundary_shift,
 )
 
 from utils.constants import EpisodeStatus
@@ -134,7 +136,7 @@ def _split_recut_counts(total_cut, verification_count):
 def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
                           episode_description, min_cut_confidence,
                           podcast_id=None, segment_actions=None, *, corrections,
-                          episode_row=None, podcast_row=None):
+                          episode_row=None, podcast_row=None, hold_for_review=None):
     """Build the cut list for a recut from stored detections plus the user's edits.
 
     No re-detection: manual adds already live in ad_markers_json, boundary
@@ -187,8 +189,10 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     for a in all_ads:
         if reviewer_reject_stands(a, confirmed_corrections):
             continue  # AdValidator derives and finalizes the reject
-        if reviewer_hold_stands(a, confirmed_corrections):
-            a['_reviewer_held'] = a['hold_reason']
+        if reviewer_hold_stands(a, confirmed_corrections) or (
+                is_auto_closed(a) and covering_confirm(a['start'], a['end'], confirmed_corrections) is None):
+            # A closed hold returns to its hold unless a person confirmed it; the end-of-recut close redoes it.
+            a['_reviewer_held'] = stored_hold_reason(a)
         elif a.get('was_cut'):
             a['_saved_was_cut'] = True
 
@@ -224,6 +228,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         podcast_name=episode.get('podcast_title'),
         transcript_spans=(stored_transcript_diff.get('spans')
                           if stored_transcript_diff.get('status') == 'ok' else None),
+        hold_for_review=(resolve_hold_for_review(db, podcast_row or slug)
+                         if hold_for_review is None else hold_for_review),
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
@@ -490,13 +496,14 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         segment_actions = db.resolve_segment_actions(slug, podcast=podcast_row)
         _log_segment_action_map(slug, episode_id, segment_actions, podcast_row)
         corrections = detect._load_user_corrections(slug, episode_id, db, episode=episode_data)
+        hold_for_review = resolve_hold_for_review(db, podcast_row or slug)
         (ads_to_remove, all_ads_with_validation, keep_ads,
          reviewer_rejects) = _build_recut_ad_list(
             slug, episode_id, segments, original_duration,
             episode_description, min_cut_confidence,
             podcast_id=recut_podcast_id, segment_actions=segment_actions,
             corrections=corrections, episode_row=episode_data,
-            podcast_row=podcast_row,
+            podcast_row=podcast_row, hold_for_review=hold_for_review,
         )
         # A user confirm cuts its own interval inside a reviewer reject.
         reject_spans = reject_barriers(reviewer_rejects, corrections[1])
@@ -536,7 +543,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         rendered_cuts = len(cuts._finalize_cut_state(
             all_ads_with_validation, ads_to_remove, applied_cuts, original_duration,
             tag=f"[{slug}:{episode_id}]"))
-        held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
+        finalize_holds(all_ads_with_validation, corrections, hold_for_review)
+        stats = common.marker_stats(all_ads_with_validation)
+        held_count = stats['held']
         not_cut_count = count_not_cut(all_ads_with_validation)
         first_pass_count, verification_count = _split_recut_counts(
             rendered_cuts, verification_count)
@@ -548,10 +557,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             # Recomputed here: the caller's copy predates the approvals this recut cut.
             cuts._record_cut_seconds(run_stats, applied_cuts, original_duration, new_duration)
             if isinstance(run_stats.get('markers'), dict):
-                run_stats['markers'] = dict(
-                    run_stats['markers'],
-                    cut=sum(1 for m in all_ads_with_validation if m.get('was_cut')),
-                    held=held_count, not_cut=not_cut_count)
+                run_stats['markers'] = dict(run_stats['markers'], **stats)
 
         # processed_version is unaffected by the PROCESSING upsert above, so the
         # episode row read at entry still has the prior version.

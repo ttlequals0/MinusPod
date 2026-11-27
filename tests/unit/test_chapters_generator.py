@@ -14,7 +14,7 @@ bootstrap('chapters_generator_test_')
 
 import chapters_generator
 from chapters_generator import (
-    ChaptersGenerator,
+    ChaptersGenerator, _pattern_show_notes_entries,
     build_segment_hints,
 )
 from llm_client import ProviderRateLimitedError
@@ -305,6 +305,39 @@ class TestGenerateChaptersUnifiedEntryPoint:
         # Post-adjustment: the segment originally at 560 should now start at 500 (08:20).
         assert '[08:20] post' in topic_prompt
         assert 'ad body should be dropped' not in topic_prompt
+
+
+class TestPatternShowNotesEntries:
+    """Deterministic show-note timestamp extraction (start-of-line times only)."""
+
+    def test_extracts_plain_mmss_lines(self):
+        desc = "00:00 Intro\n05:30 Main topic\n15:00 Guest interview"
+        assert _pattern_show_notes_entries(desc) == [
+            (0, 'Intro'), (330, 'Main topic'), (900, 'Guest interview')]
+
+    def test_extracts_bracketed_and_parenthesized_leading_times(self):
+        result = dict(_pattern_show_notes_entries("[00:30] Welcome\n(12:45) Deep dive"))
+        assert result == {30: 'Welcome', 765: 'Deep dive'}
+
+    def test_strips_html_wrappers(self):
+        desc = "<p>00:00 Intro</p><br/>05:30 Main<br>15:00 Guest"
+        assert dict(_pattern_show_notes_entries(desc)) == {0: 'Intro', 330: 'Main', 900: 'Guest'}
+
+    def test_empty_when_no_timestamps(self):
+        assert _pattern_show_notes_entries("Just a regular description.") == []
+
+    def test_empty_for_none_or_blank(self):
+        assert _pattern_show_notes_entries(None) == []
+        assert _pattern_show_notes_entries('') == []
+        assert _pattern_show_notes_entries('   \n  ') == []
+
+    def test_sorted_by_time(self):
+        desc = "15:00 Late\n05:30 Mid\n00:00 Start"
+        assert [t for t, _ in _pattern_show_notes_entries(desc)] == [0, 330, 900]
+
+    def test_drops_too_short_or_numeric_titles(self):
+        result = dict(_pattern_show_notes_entries("00:00 A\n05:30 12345\n10:00 Real Title"))
+        assert result == {600: 'Real Title'}
 
 
 class TestDescriptionAnchorPromptInjection:

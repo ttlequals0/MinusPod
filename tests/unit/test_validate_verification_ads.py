@@ -1410,3 +1410,49 @@ def test_auto_approve_failure_after_filing_reports_the_filed_count(monkeypatch):
 
     assert verify._file_corroborated_hold_approvals('s', 'ep1', holds, corrections=_user_corrections('s', 'ep1')) == 1
     assert db.create_pattern_correction.call_count == 2
+
+
+def _show_cue_analysis(start, end):
+    from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
+    result = AudioAnalysisResult()
+    result.signals = [AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=0.95,
+        details={'source': 'template', 'role': 'non_ad', 'cue_type': 'show_outro'})]
+    return result
+
+
+def _merge_across_cue(analysis):
+    # Pass-1 cut 100-200s removed with no replacement: original time is processed time + 100s.
+    pass1_cuts = [{'start': 100.0, 'end': 200.0, 'replacement_duration': 0.0}]
+    processed = [{'start': 380.0, 'end': 398.0, 'confidence': 0.9},
+                 {'start': 402.0, 'end': 430.0, 'confidence': 0.9}]
+    original = [{'start': 480.0, 'end': 498.0}, {'start': 502.0, 'end': 530.0}]
+    kept_proc, _ = _validate_verification_ads(
+        'show', 'ep1', processed, original, _segments(), ads_to_remove=pass1_cuts,
+        episode_description=None, min_cut_confidence=0.8, db=_db(), processed_duration=600.0,
+        audio_analysis_result=analysis)
+    return [(ad['start'], ad['end']) for ad in kept_proc]
+
+
+def test_pass2_merge_does_not_cross_a_show_cue_mapped_to_processed_time():
+    assert _merge_across_cue(None) == [(380.0, 430.0)]
+    assert _merge_across_cue(_show_cue_analysis(499.0, 500.5)) == [(380.0, 398.0), (402.0, 430.0)]
+
+
+def test_pass2_ignores_a_show_cue_in_original_time_that_lands_elsewhere_when_processed():
+    # Unmapped, 399-400.5s would sit in the gap; as original time it maps to 299-300.5s, far from it.
+    assert _merge_across_cue(_show_cue_analysis(399.0, 400.5)) == [(380.0, 430.0)]
+
+
+def test_show_cue_only_analysis_neither_corroborates_nor_snaps():
+    analysis = verify._show_cues_in_processed_time(_show_cue_analysis(299.0, 300.5), [], 0.0)
+    assert analysis and len(analysis['signals']) == 1
+    from ad_validator import AdValidator
+    settings = {'max_boundary_shift_s': 30.0, 'snap_lead_s': 5.0, 'snap_lag_s': 5.0, 'min_confidence': 0.5}
+    validator = AdValidator(episode_duration=600.0, segments=[], cue_snap_settings=settings)
+    ad = {'start': 301.0, 'end': 360.0}
+    assert validator._audio_corroboration_source(ad) is None
+    validator._audio_analysis = analysis
+    validator._audio_cue_cache = None
+    assert validator._audio_corroboration_source(ad) is None
+    assert validator._snap_split_edges(ad, 298.0, 360.0, []) == (298.0, 360.0, {})

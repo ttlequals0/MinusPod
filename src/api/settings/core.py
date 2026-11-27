@@ -17,6 +17,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     coerce_bool_setting,
+    global_hold_for_review,
     ad_chapter_compat_view,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED, MAX_AD_DURATION_WINDOW,
@@ -138,6 +139,7 @@ def _build_settings_payload():
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
     snip_short_asks_default = coerce_bool_setting(common._setting_value(
         settings, 'snip_short_asks', registry_default('snip_short_asks')))
+    hold_for_review_default = global_hold_for_review(db)
     text_recurrence_hints = coerce_bool_setting(common._setting_value(
         settings, 'text_recurrence_hints', registry_default('text_recurrence_hints')))
     ad_addressing_mode = common._setting_value(
@@ -623,6 +625,7 @@ def _build_settings_payload():
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
         'snipShortAsks': _sv('snip_short_asks', snip_short_asks_default),
+        'holdForReview': _sv('hold_for_review', hold_for_review_default),
         'textRecurrenceHints': _sv(
             'text_recurrence_hints', text_recurrence_hints),
         'adAddressingMode': _sv(

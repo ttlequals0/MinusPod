@@ -591,6 +591,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'snip_short_asks': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='snipShortAsks', payload_kind='bool'),
+    # Global default for holding uncertain detections for review. Per-feed
+    # hold_for_review (INTEGER): NULL inherits this, 0 off, 1 on.
+    'hold_for_review': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='holdForReview', payload_kind='bool'),
     # Seed-sponsors toggles (issue: hushpod adoption). One per prompt that
     # takes the dynamic sponsor block; off renders that prompt with an empty
     # {sponsor_database}. All default on to preserve current behavior.
@@ -1232,8 +1237,24 @@ def iter_refreshable_defaults():
             for key, spec in SETTINGS_REGISTRY.items() if spec.refresh_default]
 
 
+HOLD_FOR_REVIEW_UPGRADE_MARKER = 'hold_for_review_default_upgrade'
+
+
+def migration_recorded(conn, name: str) -> bool:
+    """Whether schema_migrations holds a row for `name`."""
+    return conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone() is not None
+
+
 class SettingsMixin:
     """Settings management methods."""
+
+    def hold_for_review_upgrade_done(self) -> bool:
+        """Whether the hold_for_review upgrade migration has run; only a True answer is cached."""
+        if getattr(self, '_hold_upgrade_done', False):
+            return True
+        done = migration_recorded(self.get_connection(), HOLD_FOR_REVIEW_UPGRADE_MARKER)
+        self._hold_upgrade_done = done
+        return done
 
     @contextmanager
     def settings_transaction(self):

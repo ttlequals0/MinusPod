@@ -240,7 +240,8 @@ def test_build_validator_forwards_transcript_spans():
     with patch('ad_validator.AdValidator') as validator_cls:
         detect._build_validator(
             100.0, SEGMENTS, '', false_positive_corrections=[], min_cut_confidence=0.8,
-            max_ad_duration_override=None, cue_gate_enabled=False, transcript_spans=[SPAN])
+            max_ad_duration_override=None, cue_gate_enabled=False, transcript_spans=[SPAN],
+            hold_for_review=True)
     assert validator_cls.call_args.kwargs['transcript_spans'] == [SPAN]
 
 

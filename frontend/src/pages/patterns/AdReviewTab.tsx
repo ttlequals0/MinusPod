@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useUrlParams, useUrlSearch, useUrlSort } from '../../hooks/useUrlParams';
 import {
+  closePendingDetections,
   getDetections,
   type DetectionReviewerFilter,
   type DetectionStatusFilter,
@@ -9,6 +10,11 @@ import {
   type ReviewDetection,
 } from '../../api/detections';
 import { feedsQueryOptions } from '../../api/feeds';
+import { getSettings } from '../../api/settings';
+import { getErrorMessage } from '../../api/client';
+import { ConfirmModal } from '../../components/Modal';
+import { DemoDisabled } from '../../components/DemoDisabled';
+import { btnBase, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import AdReviewModal, { type AdReviewSubmit } from '../../components/AdReviewModal';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
@@ -61,6 +67,8 @@ export default function AdReviewTab() {
   const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
   const queryClient = useQueryClient();
   const closeModal = () => setEditing(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const [closeResult, setCloseResult] = useState<string | null>(null);
 
   const {
     approve, dismiss, recategorize, adjust, busy, actionError,
@@ -91,10 +99,38 @@ export default function AdReviewTab() {
     }),
   });
 
+  // Counts ignore the feed filter, so a feed-scoped total needs its own query.
+  const { data: feedPending } = useQuery({
+    queryKey: ['detections', 'pending-scope', feed],
+    queryFn: () => getDetections({ status: 'pending', feed, limit: 1 }),
+    select: (r) => r.total,
+    enabled: feed !== '',
+  });
+
+  const closePending = useMutation({
+    mutationFn: () => closePendingDetections(feed || undefined),
+    onSuccess: ({ closed, episodes, skipped = 0 }) => {
+      setCloseResult(
+        `${closed} ${closed === 1 ? 'detection' : 'detections'} closed in ${episodes} ${episodes === 1 ? 'episode' : 'episodes'}.`
+        + (skipped > 0 ? ` ${skipped} ${skipped === 1 ? 'episode was' : 'episodes were'} skipped because ${skipped === 1 ? 'it' : 'they'} changed during the close.` : ''),
+      );
+      queryClient.invalidateQueries({ queryKey: ['detections'] });
+      queryClient.invalidateQueries({ queryKey: ['episode'] });
+    },
+    onSettled: () => setConfirmingClose(false),
+  });
+
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
   const sortedFeeds = feeds ? sortFeeds(feeds, 'title') : undefined;
+  const { data: globalHold } = useQuery({
+    queryKey: ['settings'], queryFn: getSettings, select: (s) => s.holdForReview?.value,
+  });
+  // The endpoint only closes on feeds where holding is off; offer it where that is true.
+  const feedHold = feed ? feeds?.find((f) => f.slug === feed)?.holdForReview : null;
+  const holdingOff = globalHold !== undefined && !(feedHold ?? globalHold);
 
   const counts = data?.counts;
+  const pendingTotal = (feed ? feedPending : counts?.pending) ?? 0;
   const holdReasonOptions = (Object.entries(HOLD_REASON_LABELS) as Array<[HoldReason, string]>)
     .map(([value, label]): [string, string] => {
       const n = counts?.pendingByHoldReason?.[value];
@@ -144,6 +180,31 @@ export default function AdReviewTab() {
       />
 
       <PendingRecutsBar />
+      {pendingTotal > 0 && holdingOff && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <DemoDisabled>
+            <button
+              type="button"
+              onClick={() => { closePending.reset(); setCloseResult(null); setConfirmingClose(true); }}
+              disabled={closePending.isPending}
+              className={`${btnBase} ${btnSecondary} ${touchTarget}`}
+            >
+              Close all needing review
+            </button>
+          </DemoDisabled>
+          <span className="text-sm text-muted-foreground">
+            {pendingTotal} {pendingTotal === 1 ? 'detection needs' : 'detections need'} review
+          </span>
+        </div>
+      )}
+      {closeResult && (
+        <div role="status" className="mb-3 text-sm text-foreground">{closeResult}</div>
+      )}
+      {closePending.isError && (
+        <div role="alert" className="mb-3 text-destructive text-sm">
+          {getErrorMessage(closePending.error, 'Could not close the detections needing review.')}
+        </div>
+      )}
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
       )}
@@ -177,6 +238,23 @@ export default function AdReviewTab() {
         </>
       ))}
 
+      {confirmingClose && (
+        <ConfirmModal
+          title="Close all detections needing review?"
+          confirmLabel="Close all needing review"
+          busyLabel="Closing..."
+          destructive={false}
+          pending={closePending.isPending}
+          onCancel={() => setConfirmingClose(false)}
+          onConfirm={() => closePending.mutate()}
+        >
+          <p>
+            Up to {pendingTotal} {pendingTotal === 1 ? 'detection' : 'detections'} {feed ? 'in this feed' : 'across all feeds'} will
+            be closed and listed as Not cut. The audio is not changed, and you can still cut each one later.
+            Detections you already approved, and those on feeds that hold for review, stay open.
+          </p>
+        </ConfirmModal>
+      )}
       {audition.audioElement}
       {splitting && (
         <SplitMarkerModal

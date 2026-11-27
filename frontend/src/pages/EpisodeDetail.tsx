@@ -69,6 +69,7 @@ import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu'
 import { fileInputBase, focusRing, inputBase, labelBase, textareaBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { cardTitle } from '../components/pageStyles';
+import { AutoClosedNote } from '../components/AutoClosedNote';
 import { holdReasonLabel, holdReasonTitle } from '../utils/holdReason';
 import { URL_PREFIX } from '../urlPrefix';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -2172,6 +2173,13 @@ function EpisodeDetail() {
                         >
                           {segment.reason}
                         </ExpandableText>
+                      )}
+                      {segment.autoClosed && (
+                        <AutoClosedNote
+                          reason={segment.closedHoldReason}
+                          className="mt-2 block text-sm text-muted-foreground"
+                          testId={`rejected-auto-closed-${index}`}
+                        />
                       )}
                       {!correction && (keptByPick || verdictRefused) && (
                         <p className="text-sm text-muted-foreground mt-2" data-testid={`rejected-kept-hint-${index}`}>

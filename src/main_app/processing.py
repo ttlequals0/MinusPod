@@ -18,7 +18,7 @@ from cancel import (
 
 from processing_queue import ProcessingQueue, is_processing_paused
 from processing_schedule import is_schedule_closed
-from utils.markers import (reject_barriers)
+from utils.markers import finalize_holds, reject_barriers
 from utils.pattern_catalog import pattern_catalog_scope
 from whisper_pool import get_pool, is_background_follower
 from config import (
@@ -36,7 +36,7 @@ from config import (
     cue_only_missing_roles_for_feed,
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
-    resolve_cue_gated_approval,
+    resolve_cue_gated_approval, resolve_hold_for_review,
     coerce_bool_setting,
 )
 
@@ -424,6 +424,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     podcast_settings = db.get_podcast_by_slug(slug)
     podcast_description = (podcast_settings or {}).get('description') or None
+    hold_for_review = resolve_hold_for_review(db, podcast_settings or slug)
     detection_notes = (podcast_settings or {}).get('detection_notes')
     if detection_notes:
         audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(detection_notes)} chars)")
@@ -815,7 +816,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     episode_description, episode_duration, min_cut_confidence, podcast_name,
                     apply_heuristic_rolls=False, segment_actions=segment_actions,
                     corrections=user_corrections, loop_runs=loop_runs,
-                    chapter_markers=chapter_trim_markers,
+                    chapter_markers=chapter_trim_markers, hold_for_review=hold_for_review,
                     description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                       (podcast_settings or {}).get('description_trim_mode')))
             else:
@@ -954,7 +955,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         cue_unproven_template_ids=cue_unproven_ids,
                         apply_heuristic_rolls=not llm_off,
                         segment_actions=segment_actions,
-                        corrections=user_corrections,
+                        corrections=user_corrections, hold_for_review=hold_for_review,
                         transcript_spans=transcript_spans,
                         description_trim=((podcast_settings or {}).get('description_trim_pattern'),
                                           (podcast_settings or {}).get('description_trim_mode')),
@@ -1149,6 +1150,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     original_audio_path=audio_path,
                     pass1_markers=ads_to_remove,
                     false_positive_corrections=user_corrections[0],
+                    hold_for_review=hold_for_review,
                     pass1_reviewer_rejects=pass1_reviewer_rejects,
                     audio_analysis_result=audio_analysis_result,
                 )
@@ -1247,18 +1249,24 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             _retain_original(slug, episode_id, audio_path, keep_original,
                              audio_analysis_result, original_duration)
 
+            # File the confirms before finalizing so the recut below applies them in
+            # this run (two finalizes wrote two history rows and notified twice). A
+            # matched chapter's trim marker rides the same single in-run recut.
+            approvals_filed = verify._file_corroborated_hold_approvals(
+                slug, episode_id, all_ads_with_validation,
+                corrections=user_corrections)
+            in_run_recut = bool(approvals_filed
+                                or publish.pending_chapter_trim(all_ads_with_validation))
+            # Pass 2 and the approvals read holds as barriers and evidence; an in-run recut closes its own.
+            if not in_run_recut:
+                finalize_holds(all_ads_with_validation, user_corrections, hold_for_review)
             storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             # Stage 8: Finalize. ads_removed counts rendered cuts, so markers
             # merged into one span count once and a filtered-out one not at all.
-            held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
-            cut_count = sum(1 for m in all_ads_with_validation if m.get('was_cut'))
+            run_stats['markers'] = common.marker_stats(all_ads_with_validation)
+            held_count = run_stats['markers']['held']
             not_cut_count = count_not_cut(all_ads_with_validation)
-            run_stats['markers'] = {
-                'cut': cut_count,
-                'held': held_count,
-                'not_cut': len(all_ads_with_validation) - cut_count - held_count,
-            }
             # Recorded only when the pass actually completed: a crashed or
             # skipped scan must not read as a clean one (0 would be
             # indistinguishable).
@@ -1270,13 +1278,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             usage = run.failover_usage() if run else None
             if usage:
                 run_stats['failover'] = usage
-            # File the confirms before finalizing so the recut below applies them in
-            # this run (two finalizes wrote two history rows and notified twice). A
-            # matched chapter's trim marker rides the same single in-run recut.
-            approvals_filed = verify._file_corroborated_hold_approvals(
-                slug, episode_id, all_ads_with_validation,
-                corrections=user_corrections)
-            if approvals_filed or publish.pending_chapter_trim(all_ads_with_validation):
+            if in_run_recut:
                 # No cancel_event: a cancel here reaches the background
                 # wrapper's cleanup, which deletes the finished files.
                 recut_progress = {}
@@ -1312,6 +1314,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     f"[{slug}:{episode_id}] In-run recut failed before it "
                     f"rewrote anything; finalizing this run's render"
                 )
+
+            # The in-run recut that would have closed the holds did not run; close them here.
+            if in_run_recut and finalize_holds(
+                    all_ads_with_validation,
+                    detect._load_user_corrections(slug, episode_id, db), hold_for_review):
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+                run_stats['markers'] = common.marker_stats(all_ads_with_validation)
+                held_count = run_stats['markers']['held']
+                not_cut_count = count_not_cut(all_ads_with_validation)
 
             finalize._finalize_episode(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count, first_pass_count,

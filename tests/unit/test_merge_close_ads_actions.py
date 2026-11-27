@@ -6,7 +6,7 @@ from ad_validator import AdValidator, ValidationResult
 
 
 def _validator():
-    return AdValidator.__new__(AdValidator)
+    return AdValidator(episode_duration=3600.0, segments=[])
 
 
 def test_no_merge_across_resolved_actions():

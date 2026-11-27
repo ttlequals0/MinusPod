@@ -360,6 +360,24 @@ Short host asks have their own switch on the same card, off by default: **Detect
 
 To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`). It recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 
+### Holding uncertain detections for review
+
+A detection the pipeline is unsure about can be held for review. A held detection stays in the audio until a person approves it. **Hold uncertain detections for review** turns holding on or off (`holdForReview` on `PUT /api/v1/settings/ad-detection`). A feed can override it with `holdForReview` on `PATCH /api/v1/feeds/{slug}`; `null` inherits. Holding is off on new installs. An install upgraded from an earlier version keeps holding until you turn it off: the upgrade writes `true`.
+
+With holding off, the holds left at the end of a run or a recut are closed. This happens after the second pass and its automatic approvals. A closed hold stays in the audio and is listed under Not cut (status `rejected` in the API) with `autoClosed: true` and its `closedHoldReason`. It no longer counts as pending. Closing records nothing against the detection: no false-positive correction, no dismissal and no pattern change. Confirm it later and the next recut cuts it, like any other detection that was not cut. If you turn holding back on, a closed hold becomes pending again at that episode's next recut or reprocess.
+
+An ad longer than the max ad duration (300 seconds by default) is cut when its adjusted confidence is 0.90 or more and it is within the confirmed cap (`max_ad_duration_confirmed`, 900 seconds by default). That rule does not depend on this setting. With holding off, an LLM detection with raw confidence above 0.95 is also cut up to the same cap, even when its adjusted confidence is lower. Any other over-length ad is held and then closed. A feed's own max ad duration cap still holds any ad over it.
+
+These holds are never closed:
+
+- A hold with a confirm, adjustment or approval on file, including an automatic approval waiting for a recut.
+- The cue-gating holds (`no_cue_evidence`, `cue_template_unproven`, `cue_low_confidence`) on a feed with cue-gated approval or cue-only safety.
+- A `max_duration` hold from the feed's own max ad duration cap.
+
+Episode-level queue holds are a separate mechanism and are not affected.
+
+`POST /api/v1/detections/close-pending` closes every pending hold the same rule would close, for one feed (body `{"feed": "<slug>"}`) or for all feeds, and returns `{closed, episodes, skipped}`. It changes stored markers and counts and never recuts audio. Only processed episodes are touched. An episode whose markers change while the close runs is left alone and counted in `skipped`. It closes holds only on feeds where holding is off, so turn holding off first. In the UI it is **Close all needing review** on the Ad review tab.
+
 ### Queue priority
 
 Each feed has a **Queue priority**: High, Normal (default), or Low, set on the feed's settings page. High processes ahead of other queued episodes; Low runs only once nothing else is waiting.
@@ -432,7 +450,7 @@ API: `chapterNotes` (string up to 1000 characters, or null) on `PATCH /api/v1/fe
 
 ### Show-notes chapters
 
-When MinusPod generates chapters and the chapters LLM finds parts of the episode with start times in the description, they become the chapters with short titles from the notes' own wording, as described in [How It Works](how-it-works.md#chapter-generation). Turn off **Chapters > Chapters from show notes** for a feed whose timestamp lines are not a topic list; its chapters then come from LLM topic detection, which still gets the listed times as hints. On by default.
+When MinusPod generates chapters and the chapters LLM finds parts of the episode with start times in the description, they become the chapters with short titles from the notes' own wording, as described in [How It Works](how-it-works.md#chapter-generation). With no LLM, or when its call fails, pattern rules still read a list with one time at the start of each line. Turn off **Chapters > Chapters from show notes** for a feed whose timestamp lines are not a topic list; its chapters then come from LLM topic detection, which still gets the listed times as hints. On by default.
 
 API: `showNotesChapters` (boolean) on `PATCH /api/v1/feeds/{slug}`.
 

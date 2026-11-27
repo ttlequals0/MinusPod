@@ -26,7 +26,7 @@ from config import (
     is_cue_backed, resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_ad_detection_exclude_start_seconds,
-    resolve_max_ad_duration,
+    resolve_max_ad_duration, resolve_hold_for_review,
     resolve_max_ad_duration_confirmed,
     REPEAT_STAGE, REPEAT_MIN_SOURCE_S, REPEAT_MAX_SOURCE_S, REPEAT_MAX_OVERLAP_S,
     is_keep_like, normalize_segment_category,
@@ -591,7 +591,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      confirmed_corrections=None, positional_prior=None,
                      splice_veto=True, podcast_id=None, podcast_name=None,
                      cue_only_safety=None, cue_unproven_template_ids=None,
-                     transcript_spans=None, loop_runs=None):
+                     transcript_spans=None, loop_runs=None, hold_for_review):
     """Single construction point for AdValidator; owns the splice-veto settings reads.
 
     - pass 1 passes positional_prior (original-timeline zones);
@@ -636,6 +636,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         loop_runs=loop_runs,
         cue_snap_settings=cue_snap_settings,
         opening_excluded=resolve_ad_detection_exclude_start_seconds(db, podcast_id) > 0,
+        hold_for_review=hold_for_review,
         **splice_kwargs,
     )
 
@@ -790,7 +791,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
                           corrections, transcript_spans=None, description_trim=None,
-                          loop_runs=None, chapter_markers=None):
+                          loop_runs=None, chapter_markers=None, hold_for_review=None):
     """Pipeline stage: refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are keep-partitioned markers, passed so boundary extension
@@ -849,6 +850,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         cue_unproven_template_ids=cue_unproven_template_ids,
         transcript_spans=transcript_spans,
         loop_runs=loop_runs,
+        hold_for_review=(resolve_hold_for_review(db, slug)
+                         if hold_for_review is None else hold_for_review),
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)

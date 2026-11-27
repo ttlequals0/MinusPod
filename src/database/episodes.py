@@ -1325,6 +1325,41 @@ class EpisodeMixin:
             (*params, limit, offset)).fetchall()
         return [dict(r) for r in rows], total
 
+    def get_held_episodes(self, slug: str | None = None) -> list[dict]:
+        """Processed episodes with pending holds (slug, episode_id, podcast_id, ad_markers_json), optionally one feed."""
+        rows = self.get_connection().execute(
+            "SELECT p.slug, e.episode_id, e.podcast_id, d.ad_markers_json "
+            "FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+            "LEFT JOIN episode_details d ON d.episode_id = e.id "
+            "WHERE e.pending_review_count > 0 AND e.status = ? AND (? IS NULL OR p.slug = ?) "
+            "ORDER BY e.id", (EpisodeStatus.PROCESSED.value, slug, slug)).fetchall()
+        return [dict(r) for r in rows]
+
+    def replace_markers_if_unchanged(self, slug: str, episode_id: str, previous_json: str,
+                                     ad_markers: list, pending_review_count: int) -> bool:
+        """Swap markers only while they still equal previous_json and the episode is processed."""
+        conn = self.get_connection()
+        pk = self._get_episode_db_id(slug, episode_id)
+        if not pk:
+            return False
+        try:
+            cursor = conn.execute(
+                "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ? "
+                "AND ad_markers_json = ? "
+                "AND EXISTS (SELECT 1 FROM episodes WHERE id = ? AND status = ?)",
+                (json.dumps(ad_markers), pk, previous_json, pk, EpisodeStatus.PROCESSED.value))
+            if cursor.rowcount == 0:
+                conn.rollback()
+                return False
+            conn.execute("UPDATE episodes SET pending_review_count = ? WHERE id = ?",
+                         (pending_review_count, pk))
+            replace_marker_refs(conn, pk, ad_markers)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        return True
+
     def approve_episode(self, slug: str, episode_id: str, approved_at: str) -> bool:
         """Clear the approval wait. False when the episode was not waiting."""
         conn = self.get_connection()

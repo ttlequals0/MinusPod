@@ -133,7 +133,7 @@ class TestParseFailureRecording(RefreshCase):
         self.assertEqual(len(stamped), 1)
         self.assertEqual(stamped[0].kwargs['parse_failure_count'], 2)
         self.assertIsNotNone(stamped[0].kwargs['last_parse_failure_at'])
-        self.assertIn('retrying a full fetch in', outcome.error)
+        self.assertIn('holding forced full fetches after a 304 for', outcome.error)
         self.db.clear_parse_failure_state.assert_not_called()
 
     def test_a_deferred_failure_does_not_stamp_the_parse_counter(self):
@@ -150,7 +150,7 @@ class TestParseFailureRecording(RefreshCase):
         self.assertEqual(outcome.status, 'parse_failed')
         self.assertEqual([c for c in self.db.update_podcast.call_args_list
                           if 'parse_failure_count' in c.kwargs], [])
-        self.assertNotIn('retrying a full fetch in', outcome.error)
+        self.assertNotIn('holding forced full fetches after a 304 for', outcome.error)
 
     def test_a_body_that_parses_ends_the_backoff(self):
         self._rows(parse_failure_count=2,
@@ -217,7 +217,7 @@ class TestTruncatedBodyRefetch(RefreshCase):
                   if 'parse_failure_count' in c.kwargs]
         self.assertEqual(len(stamped), 1)
         self.assertEqual(stamped[0].kwargs['parse_failure_count'], 1)
-        self.assertIn('retrying a full fetch in', outcome.error)
+        self.assertIn('holding forced full fetches after a 304 for', outcome.error)
 
 
 class TestBackoffHoldsTheFullFetch(RefreshCase):
