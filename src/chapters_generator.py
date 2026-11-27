@@ -1199,12 +1199,12 @@ class ChaptersGenerator:
         # see different geometry mid-run.
         target, window_span, max_boundaries, min_duration = resolve_chapter_geometry()
 
-        # The LLM reads the description once: its entries are the chapters when the feed allows it
-        # and they pass the gate, and otherwise hints for topic detection.
-        entries = self._extract_show_notes_entries(episode_description)
-        # Without the LLM (no client, or a failed call) the timestamp lines are read by pattern rules
+        # The LLM reads the description once, and only when the feed builds chapters from it: its entries are
+        # the chapters when they pass the gate and otherwise hints. Otherwise (switch off, no client or a
+        # failed call) the timestamp lines are read by pattern rules.
+        entries = self._extract_show_notes_entries(episode_description) if show_notes_chapters else None
+        extraction_failed = show_notes_chapters and entries is None
         by_pattern = entries is None or not self._llm_client
-        self._show_notes_alignment_failed = entries is None
         if by_pattern:
             entries = _pattern_show_notes_entries(episode_description)
         hint_anchors = _hint_anchors(
@@ -1212,6 +1212,9 @@ class ChaptersGenerator:
         show_notes_anchors = _show_notes_anchors(
             entries, applied_cuts, replacement_duration,
             episode_duration, first_within_limit=by_pattern) if show_notes_chapters else []
+        # A failed extraction degrades the run only when the pattern fallback built no show-notes chapters
+        if extraction_failed and not show_notes_anchors:
+            self._show_notes_alignment_failed = True
         listed_chapters = None
         if show_notes_anchors:
             listed_chapters = self._chapters_from_show_notes(

@@ -115,6 +115,8 @@ FINGERPRINT_NOMINAL_FPS = 11025 / 1365
 FPCALC_MIN_CLIP_S = 3.0
 # fpcalc withheld 21.2 to 21.8 points per clip, measured on 3 to 20 s clips; 26 adds a margin of 4
 FINGERPRINT_LOOKAHEAD_POINTS = 26
+# A clip whose decoded duration falls short of the requested length by more than this ran into the file end
+FPCALC_END_OF_FILE_TOLERANCE_S = 0.1
 # Fewest points kept for a span too short to hold more, the same floor discovery windows use
 FINGERPRINT_MIN_SPAN_POINTS = 4
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
@@ -1317,6 +1319,13 @@ class AudioFingerprinter:
         cmd.extend(['-ac', '1', '-ar', '16000', '-f', 'wav', tmp_path])
         tracked_run(cmd, capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT, check=True)
 
+    @staticmethod
+    def _decode_hit_file_end(data: dict, requested_s: float) -> bool:
+        """Whether fpcalc decoded a clip shorter than requested; a missing duration counts as no."""
+        duration = data.get('duration')
+        return (isinstance(duration, (int, float)) and not isinstance(duration, bool)
+                and requested_s - duration > FPCALC_END_OF_FILE_TOLERANCE_S)
+
     def generate_raw_span_fingerprint(
         self, audio_path: str, start_s: float, end_s: float,
     ) -> tuple[list[int], float] | None:
@@ -1359,7 +1368,7 @@ class AudioFingerprinter:
             if windowed:
                 chunk = raw_ints[lo:lo + n_points]
                 # A span at the file end: the full-file run has only its last points there too
-                if len(chunk) < FINGERPRINT_MIN_SPAN_POINTS:
+                if len(chunk) < FINGERPRINT_MIN_SPAN_POINTS and self._decode_hit_file_end(data, decode_len):
                     chunk = raw_ints[-n_points:]
                 if len(chunk) < FINGERPRINT_MIN_SPAN_POINTS:
                     return None

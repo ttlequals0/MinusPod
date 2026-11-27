@@ -238,7 +238,7 @@ def test_llm_call_returning_none_degrades_and_uses_topic_detection():
     assert 'show-notes alignment failed' in gen.chapters_degradation_reason
 
 
-def test_failed_extraction_falls_back_to_line_format_notes_and_degrades():
+def test_failed_extraction_with_line_format_notes_builds_show_notes_chapters_without_degrading():
     gen = _gen()
 
     def fake(**kwargs):
@@ -253,8 +253,8 @@ def test_failed_extraction_falls_back_to_line_format_notes_and_degrades():
             podcast_name='Show', episode_title='Ep')
     assert _starts(out['chapters'])[1:] == ANCHOR_TIMES
     assert gen.show_notes_starts == frozenset([1, *ANCHOR_TIMES])
-    assert gen.chapters_degraded is True
-    assert 'show-notes alignment failed' in gen.chapters_degradation_reason
+    assert gen.chapters_degraded is False
+    assert gen.chapters_degradation_reason is None
 
 
 def test_successful_extraction_never_consults_the_pattern_parser():
@@ -594,7 +594,7 @@ def test_equal_times_are_one_entry():
     assert _uses_show_notes('5:00 Alpha\n05:00 Bravo\n10:00 Charlie')[0] is False
 
 
-def test_feed_switch_off_still_extracts_for_hints_but_builds_no_chapters():
+def test_feed_switch_off_makes_no_extraction_call_and_hints_come_from_the_pattern_parser():
     gen = _gen()
     with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
          patch('chapters_generator.call_llm', side_effect=_llm('Opening')) as call:
@@ -602,11 +602,34 @@ def test_feed_switch_off_still_extracts_for_hints_but_builds_no_chapters():
             _segments(), episode_description=DESCRIPTION,
             podcast_name='Show', episode_title='Ep', show_notes_chapters=False)
     windowed.assert_called_once()
-    assert EXTRACT in _labels(call) and ALIGN not in _labels(call)
+    assert EXTRACT not in _labels(call) and ALIGN not in _labels(call)
     hints = windowed.call_args.kwargs['description_anchors']
     assert [t for t, _ in hints] == ANCHOR_TIMES
     assert [title for _, title in hints] == TITLES
     assert gen.show_notes_starts == frozenset()
+    assert gen._show_notes_alignment_failed is False
+
+
+def test_episode_under_the_ai_duration_makes_no_extraction_call_when_the_switch_is_off():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', side_effect=_llm('Opening')) as call:
+        gen.generate_chapters(
+            _segments(600), episode_description=DESCRIPTION,
+            podcast_name='Show', episode_title='Ep', show_notes_chapters=False)
+    windowed.assert_not_called()
+    assert EXTRACT not in _labels(call)
+
+
+def test_failed_extraction_with_prose_notes_uses_topic_detection_and_degrades():
+    gen = _gen()
+    with patch.object(gen, '_detect_boundaries_windowed', return_value=[]) as windowed, \
+         patch('chapters_generator.call_llm', return_value=(None, RuntimeError('boom'))):
+        gen.generate_chapters(
+            _segments(), episode_description=PROSE, podcast_name='Show', episode_title='Ep')
+    windowed.assert_called_once()
+    assert gen.chapters_degraded is True
+    assert 'show-notes alignment failed' in gen.chapters_degradation_reason
 
 
 def test_fewer_than_three_entries_are_hints_only():

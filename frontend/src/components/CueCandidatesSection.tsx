@@ -83,15 +83,9 @@ function CueCandidatesSection({
     queryClient.invalidateQueries({ queryKey: ['cue-candidates', slug, episodeId] });
     queryClient.invalidateQueries({ queryKey: ['cue-dismissals', slug] });
   };
-  const dismissMutation = useMutation({
-    mutationFn: (c: CueCandidate) => dismissCueCandidate(slug, episodeId, {
-      start_s: c.start, end_s: c.end, label: cueCandidateLabel(c),
-    }),
-    onSuccess: invalidate,
-  });
   const undoMutation = useMutation({
     mutationFn: (id: number) => undoCueCandidateDismissal(id),
-    onSuccess: () => { dismissMutation.reset(); invalidate(); },
+    onSuccess: invalidate,
   });
 
   const candidates = (data?.candidates ?? []).filter((c) => !c.dismissed);
@@ -101,9 +95,28 @@ function CueCandidatesSection({
   // episodes, and a bare start-end key would collide (dup React keys + preview state).
   const candidateKey = (c: CueCandidate) => `${c.kind ?? 'recurring'}-${c.start}-${c.end}`;
 
-  // Pending and error state belong to the row whose Hide was clicked.
-  const dismissVars = dismissMutation.variables;
-  const isDismissRow = (c: CueCandidate) => !!dismissVars && candidateKey(dismissVars) === candidateKey(c);
+  // Per-row dismiss state: 'pending' or the error message. A shared mutation
+  // would let a second click overwrite the first row's in-flight result.
+  const [dismissState, setDismissState] = useState<Record<string, 'pending' | string>>({});
+  const setRowState = (key: string, value: 'pending' | string | null) =>
+    setDismissState((prev) => {
+      const next = { ...prev };
+      if (value === null) delete next[key]; else next[key] = value;
+      return next;
+    });
+  const dismiss = async (c: CueCandidate) => {
+    const key = candidateKey(c);
+    setRowState(key, 'pending');
+    try {
+      await dismissCueCandidate(slug, episodeId, {
+        start_s: c.start, end_s: c.end, label: cueCandidateLabel(c),
+      });
+      setRowState(key, null);
+      invalidate();
+    } catch (e) {
+      setRowState(key, getErrorMessage(e, 'Could not hide this sound.'));
+    }
+  };
 
   const stopPreview = () => {
     reqRef.current += 1;
@@ -258,8 +271,8 @@ function CueCandidatesSection({
                     </button>
                     <DemoDisabled>
                       <button
-                        onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
-                        disabled={dismissMutation.isPending && isDismissRow(c)}
+                        onClick={() => { stopPreview(); void dismiss(c); }}
+                        disabled={dismissState[key] === 'pending'}
                         title="Not a cue: hide this sound in every episode of this feed"
                         className={`${secondaryBtn} flex-1 sm:flex-none`}
                       >
@@ -268,9 +281,9 @@ function CueCandidatesSection({
                     </DemoDisabled>
                   </div>
                 </div>
-                {dismissMutation.isError && isDismissRow(c) && (
+                {dismissState[key] && dismissState[key] !== 'pending' && (
                   <p role="alert" className="text-sm text-destructive mt-2">
-                    {getErrorMessage(dismissMutation.error, 'Could not hide this sound.')}
+                    {dismissState[key]}
                   </p>
                 )}
               </div>
