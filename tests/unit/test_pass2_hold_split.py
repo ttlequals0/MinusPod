@@ -436,7 +436,7 @@ def test_parent_copy_is_unaffected_by_later_fragment_mutation():
 
 # ---------- Several supported subspans of one hold ----------
 
-def _release(monkeypatch, hold, subs, verdicts):
+def _release(monkeypatch, hold, subs, verdicts, kept=()):
     pairs = [_pair(*sub) for sub in subs]
     *_rest, candidates = _gate(pairs, [hold])
     monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
@@ -447,7 +447,7 @@ def _release(monkeypatch, hold, subs, verdicts):
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
                         lambda: None)
     protection = verify.build_protection(
-        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[hold],
+        kept=list(kept), category_kept=[], user_trims=[], fp_corrections=[], holds=[hold],
         pass1_cuts=[])
     released, _pairs = review._review_hold_release_candidates(
         _ctx(), candidates, [], protection)
@@ -507,6 +507,53 @@ def test_an_adjust_into_an_already_released_subspan_is_not_released(monkeypatch)
          _verdict('adjust', 1100.0, 1150.0, adjusted=(1040.0, 1150.0))])
     assert released == 1
     assert hold['pass2_released_spans'] == [{'start': 1010.0, 'end': 1050.0}]
+
+
+def _back_to_back(monkeypatch, second_start, kept=()):
+    # Production shape: two back-to-back reads in one boundary-conflict hold, both adjusted.
+    hold = _hold(2253.3, 2372.4)
+    _candidates, released = _release(
+        monkeypatch, hold, [(2276.1, 2350.6), (2356.3, 2372.1)],
+        [_verdict('adjust', 2276.1, 2350.6, adjusted=(2276.1, 2352.7)),
+         # The gate stretches the second read's end to the hold edge 0.3 s away.
+         _verdict('adjust', 2356.3, 2372.4, adjusted=(second_start, 2372.66))],
+        kept=kept)
+    return hold, released
+
+
+def test_an_adjust_a_fraction_into_an_abutting_released_span_is_clipped_and_released(
+        monkeypatch):
+    hold, released = _back_to_back(monkeypatch, 2352.6)
+    assert released == 2
+    # The second read starts where the first released span ends, and stops at the hold.
+    assert hold['pass2_released_spans'] == [
+        {'start': 2276.1, 'end': 2352.7}, {'start': 2352.7, 'end': 2372.4}]
+
+
+def test_an_adjust_whose_end_reaches_a_fraction_into_a_released_span_is_clipped(
+        monkeypatch):
+    hold = _hold(1000.0, 1200.0)
+    _candidates, released = _release(
+        monkeypatch, hold, [(1100.0, 1150.0), (1010.0, 1090.0)],
+        [_verdict('confirmed', 1100.0, 1150.0),
+         _verdict('adjust', 1010.0, 1090.0, adjusted=(1010.0, 1100.4))])
+    assert released == 2
+    assert hold['pass2_released_spans'] == [
+        {'start': 1010.0, 'end': 1100.0}, {'start': 1100.0, 'end': 1150.0}]
+
+
+def test_an_adjust_beyond_the_jitter_into_a_released_span_stays_held(monkeypatch):
+    hold, released = _back_to_back(monkeypatch, 2352.7 - review.RELEASED_EDGE_JITTER - 0.2)
+    assert released == 1
+    assert hold['pass2_released_spans'] == [{'start': 2276.1, 'end': 2352.7}]
+
+
+def test_a_small_overlap_with_protected_audio_still_stays_held(monkeypatch):
+    # Only spans released from the same hold are clipped; a keep is never cut into.
+    hold, released = _back_to_back(
+        monkeypatch, 2352.6, kept=[{'start': 2352.7, 'end': 2353.0}])
+    assert released == 1
+    assert hold['pass2_released_spans'] == [{'start': 2276.1, 'end': 2352.7}]
 
 
 def test_a_fast_path_corroboration_still_owns_the_hold(monkeypatch):

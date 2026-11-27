@@ -14,6 +14,7 @@ release notes.
 
 - A pass-1 cue snap no longer widens an ad over show intro/outro music. A snap whose added span overlaps a show cue keeps its edge, also when a split edge is snapped.
 - Ad detection windows sent in plain JSON mode (OpenRouter, Anthropic, and OpenAI-compatible or Ollama without the JSON schema opt-in) now ask for every ad as `{"ads": [...]}`. That mode forces a JSON object while the prompt asks for an array, so models returned one bare ad object per window and back-to-back ads after the first were never cut.
+- Pass 2 left a reviewed ad inside a hold uncut when the reviewer's adjusted start or end reached a fraction of a second into a back-to-back ad just released from the same hold. Any overlap with a released span counted as cutting the same audio twice. An overlap of up to 1 s with a released span from the same hold is now treated as boundary jitter: the read is clipped to start where the released span ends (or end where it starts) and released. A larger overlap, or any overlap with protected audio or another marker, still keeps it held.
 
 ## [2.102.25] - 2026-11-27
 
