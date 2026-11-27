@@ -608,17 +608,20 @@ def register_routes(app):
                         f"[{slug}] cached RSS feed-auth key state mismatch, "
                         f"forcing refresh"
                     )
-        if not should_refresh and last_checked:
+        if not should_refresh and (last_checked or last_attempt):
             checked_at = parse_iso_utc(last_checked)
-            if checked_at is None:
+            if last_checked and checked_at is None:
                 should_refresh = True
             else:
+                now = datetime.now(timezone.utc)
                 # last_checked_at is success-only; count any refresh attempt so a failing feed is not refetched on every request.
-                last_time = max(t for t in (checked_at, parse_iso_utc(last_attempt)) if t)
-                age_minutes = (datetime.now(timezone.utc) - last_time).total_seconds() / 60
-                if age_minutes > 15:
+                # A timestamp ahead of the clock is ignored so it cannot hold the feed stale.
+                seen = [t for t in (checked_at, parse_iso_utc(last_attempt)) if t and t <= now]
+                age_minutes = (now - max(seen)).total_seconds() / 60 if seen else None
+                if age_minutes is None or age_minutes > 15:
                     should_refresh = True
-                    feed_logger.info(f"[{slug}] RSS cache stale ({age_minutes:.0f}min), refreshing")
+                    age_text = 'unknown age' if age_minutes is None else f'{age_minutes:.0f}min'
+                    feed_logger.info(f"[{slug}] RSS cache stale ({age_text}), refreshing")
 
         if should_refresh:
             if force_refresh or not cached_rss:

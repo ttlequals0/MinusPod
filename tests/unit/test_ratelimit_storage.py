@@ -54,8 +54,10 @@ def test_concurrent_restart_does_not_raise():
         dead = storage.timer
         assert _hammer(storage) == []
         # The 10 ms one-shot timer may already have fired, so check it was restarted, not that it is alive.
-        assert storage.timer is not dead
-        assert storage.timer.ident is not None
+        with storage._timer_lock:  # assignment and start() happen under this lock
+            timer = storage.timer
+        assert timer is not dead
+        assert timer.ident is not None
     finally:
         storage.timer.cancel()
 
@@ -114,8 +116,10 @@ def test_restart_is_serialized(monkeypatch):
         _stop_timer(storage)
         dead = storage.timer
         assert _force_interleave(storage, monkeypatch) == []
-        assert storage.timer is not dead
-        assert storage.timer.ident is not None
+        with storage._timer_lock:  # assignment and start() happen under this lock
+            timer = storage.timer
+        assert timer is not dead
+        assert timer.ident is not None
     finally:
         storage.timer.cancel()
 

@@ -47,9 +47,9 @@ def client():
         yield c
 
 
-def _feed(slug, attempted_min_ago, cached=True, attempt_text=None):
+def _feed(slug, attempted_min_ago, cached=True, attempt_text=None, checked=True):
     app_db.create_podcast(slug, 'https://example.com/feed.xml', 'Example Feed')
-    fields = {'last_checked_at': _ago(40)}
+    fields = {'last_checked_at': _ago(40)} if checked else {}
     if attempt_text is not None:
         fields['last_refresh_attempt_at'] = attempt_text
     elif attempted_min_ago is not None:
@@ -92,3 +92,20 @@ def test_malformed_attempt_timestamp_does_not_skip_the_freshness_check(client):
     response, kick, _ = _get(client, 'attempt-malformed')
     assert response.status_code == 200
     kick.assert_called_once()
+
+
+
+def test_attempt_timestamp_ahead_of_the_clock_does_not_hold_the_feed_stale(client):
+    _feed('attempt-future', -30)
+    response, kick, _ = _get(client, 'attempt-future')
+    assert response.status_code == 200
+    kick.assert_called_once()
+
+
+@pytest.mark.parametrize('attempted_min_ago, expect_kick', [(2, False), (20, True)])
+def test_never_checked_feed_uses_the_attempt_alone(client, attempted_min_ago, expect_kick):
+    slug = f'never-checked-{attempted_min_ago}'
+    _feed(slug, attempted_min_ago, checked=False)
+    response, kick, _ = _get(client, slug)
+    assert response.status_code == 200
+    assert kick.called is expect_kick
