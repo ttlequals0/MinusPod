@@ -13,6 +13,7 @@ release notes.
 ### Fixed
 
 - A pass-1 cue snap no longer widens an ad over show intro/outro music. A snap whose added span overlaps a show cue keeps its edge, also when a split edge is snapped.
+- Ad detection windows sent in plain JSON mode (OpenRouter, Anthropic, and OpenAI-compatible or Ollama without the JSON schema opt-in) now ask for every ad as `{"ads": [...]}`. That mode forces a JSON object while the prompt asks for an array, so models returned one bare ad object per window and back-to-back ads after the first were never cut.
 
 ## [2.102.25] - 2026-11-27
 

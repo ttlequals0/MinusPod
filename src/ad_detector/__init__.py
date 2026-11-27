@@ -164,6 +164,7 @@ from .prompts import (
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
     AD_DETECTION_JSON_SCHEMA,
+    JSON_OBJECT_ADS_INSTRUCTION,
     ad_detection_json_schema,
     format_category_repair_prompt,
     log_assembled_system_prompt,
@@ -1223,7 +1224,8 @@ class AdDetector:
         ``pass_name`` selects which config keys (DETECTION_* vs VERIFICATION_*)
         supply temperature/max_tokens/reasoning, and is forwarded to the LLM
         client for per-pass fallback flag scoping. ``response_schema`` is sent
-        only where schema output is enabled; json_object mode ignores it.
+        only where schema output is enabled; in json_object mode the prompt
+        instead asks for the array wrapped as {"ads": [...]}.
         """
         phase = _phase_for_pass(pass_name)
         live = live_route_params(phase, model, llm_timeout, max_retries)
@@ -1231,6 +1233,11 @@ class AdDetector:
         llm_timeout, max_retries = live.timeout, live.max_retries
         max_tokens, temperature, reasoning = resolve_stage_tunables(
             phase, provider=provider, model=model)
+        response_format = schema_format_for(
+            model, 'ad_detection', response_schema,
+            'Ad segments detected in this window.', provider=provider)
+        if response_format.get('type') == 'json_object':
+            prompt = prompt + JSON_OBJECT_ADS_INSTRUCTION
 
         return call_llm_for_window(
             llm_client=self._client_for_pass(pass_name, live.route),
@@ -1250,9 +1257,7 @@ class AdDetector:
             provider=provider,
             credential_slot=credential_slot,
             stage_tunable_prefix=phase,
-            response_format=schema_format_for(
-                model, 'ad_detection', response_schema,
-                'Ad segments detected in this window.', provider=provider),
+            response_format=response_format,
         )
 
     def _process_single_window(self, *, window_idx, window, total_windows,
