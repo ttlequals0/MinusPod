@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- A pass-1 cue snap no longer widens an ad over show intro/outro music. A snap whose added span overlaps a show cue keeps its edge, also when a split edge is snapped.
+
 ## [2.102.25] - 2026-11-27
 
 ### Fixed

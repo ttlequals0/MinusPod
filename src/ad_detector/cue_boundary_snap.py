@@ -78,6 +78,18 @@ def show_cue_overlapping(cues, start, end, min_confidence) -> bool:
                and c.start < end and c.end > start for c in cues)
 
 
+def _widens_over_show_cue(edge, original, proposed, cues, min_confidence) -> bool:
+    """True when moving ``edge`` from ``original`` to ``proposed`` widens the ad over show music."""
+    if edge == 'start':
+        crossed = proposed < original and show_cue_overlapping(cues, proposed, original, min_confidence)
+    else:
+        crossed = proposed > original and show_cue_overlapping(cues, original, proposed, min_confidence)
+    if crossed:
+        logger.info(f"Cue snap ({edge}): {original:.3f}s -> {proposed:.3f}s skipped, "
+                    f"would cut a show intro/outro cue")
+    return crossed
+
+
 def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
     """Allow the removed cue's length in the boundary-shift cap (#832)."""
     return (end - start) if removed else 0.0
@@ -179,6 +191,8 @@ def snap_split_edge(
                                    exclude_ids=set())
         proposal = _end_proposal(cue, value, other, None, max_boundary_shift_s)
         proposed = None if proposal is None else proposal[0]
+    if proposed is not None and _widens_over_show_cue(edge, value, proposed, cues, min_confidence):
+        proposed = None
     if proposed is None or not cue_removal_enabled(cue.details):
         return None
     return round(proposed, 3), snap_record(value, proposed, cue, n_candidates=n)
@@ -227,6 +241,9 @@ def snap_ad_boundaries_to_cues(
         new_start = original_start
         proposed_start = _start_proposal(start_cue, original_start, original_end,
                                          max_boundary_shift_s)
+        if proposed_start is not None and _widens_over_show_cue(
+                'start', original_start, proposed_start, cues, min_confidence):
+            proposed_start = None
         if proposed_start is not None:
             new_start = round(proposed_start, 3)
             new_snap['start'] = snap_record(
@@ -247,6 +264,9 @@ def snap_ad_boundaries_to_cues(
             allow_transition=allow_transition,
         )
         proposal = _end_proposal(end_cue, original_end, new_start, content_end, max_boundary_shift_s)
+        if proposal is not None and _widens_over_show_cue(
+                'end', original_end, proposal[0], cues, min_confidence):
+            proposal = None
         if proposal is None and content_end is not None and content_end > original_end:
             # Nothing usable in the lead/lag band: an end cue the text match
             # already covered may bound the edge instead (#838).
@@ -256,6 +276,9 @@ def snap_ad_boundaries_to_cues(
                 window=(original_end, content_end),
             )
             proposal = _end_proposal(end_cue, original_end, new_start, content_end, max_boundary_shift_s)
+            if proposal is not None and _widens_over_show_cue(
+                    'end', original_end, proposal[0], cues, min_confidence):
+                proposal = None
         new_end = original_end
         if proposal is not None:
             proposed_end, end_in_span = proposal
