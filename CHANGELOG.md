@@ -25,6 +25,7 @@ release notes.
 - Pass 2 no longer joins its cut to a pass-1 cut, or snaps a cut edge, across show intro/outro music detected by a show cue template. A wordless gap holding that music used to count as filler, so a self-promo cut, the show outro and a sponsor read became one cut and the music was removed.
 - The Detections not cut list on the episode page offered Confirm and Keep on a marker whose category the feed leaves in the audio, such as an intro after it was recategorized in the review dialog. The dialog already hid those buttons, since a recut sorts markers by their category's action before it reads any verdict, and a keep or mark marker refuses a verdict. The list now applies the same rule and shows the dialog's hint in place of the buttons.
 - A sponsor name read from the ad reason keeps letters outside A-Z. The brand pattern only knew A-Z, so a brand like "Fjällmark" was stored as "Fj" and a brand starting with "Ö" was skipped.
+- Ad detection windows sent in plain JSON mode (OpenRouter, Anthropic, and OpenAI-compatible or Ollama without the JSON schema opt-in) now ask for every ad as `{"ads": [...]}`. That mode forces a JSON object while the prompt asks for an array, so models returned one bare ad object per window and back-to-back ads after the first were never cut.
 
 ## [2.102.23] - 2026-11-26
 
