@@ -2,7 +2,9 @@
 
 [< Docs index](README.md) | [LLM providers](llm-providers.md) | [Project README](../README.md)
 
-MinusPod includes a native System One adapter for ad detection, verification, and review. Detection and verification are supported. The optional reviewer is experimental. The ad category pass within detection is supported. Chapter generation and Pattern Cleanup are unsupported on System One routes.
+MinusPod includes a native System One adapter for ad detection and verification. The ad category pass within detection is supported. Chapter generation and Pattern Cleanup are unsupported on System One routes.
+
+As of 2.103.1, System One and TypeSafe are no longer supported for the ad reviewer. The reviewer needs an LLM provider. If the reviewer would run on System One, it does not run, and Settings > Ad reviewer says so.
 
 ## Providers and credentials
 
@@ -17,7 +19,7 @@ System One compatible model discovery uses `<base-url>/models`. Provider A uses 
 
 Test and Test connection check the model catalog and need no stage model. Success confirms the catalog connection, not inference; a public catalog may accept any key. Automatic inference health checks still need a model selected for a supported stage on that slot.
 
-The existing `openai-compatible` route remains supported for explicitly recognized Jev model IDs: `jev-latest`, `jev-preview`, and `typesafe/jev`. MinusPod does not infer System One behavior from an unknown model name. Existing installations that route one of these IDs through an OpenAI-compatible proxy can keep that detection and review route. The proxy does not make chapters or Pattern Cleanup supported.
+The existing `openai-compatible` route remains supported for explicitly recognized Jev model IDs: `jev-latest`, `jev-preview`, and `typesafe/jev`. MinusPod does not infer System One behavior from an unknown model name. Existing installations that route one of these IDs through an OpenAI-compatible proxy can keep that detection route. The proxy does not make chapters or Pattern Cleanup supported.
 
 ## Supported phases
 
@@ -26,7 +28,7 @@ The existing `openai-compatible` route remains supported for explicitly recogniz
 | Ad detection | Supported | Uses the System One detection adapter and the selected slot's profile. |
 | Verification | Supported | Uses the verification stage's effective provider, model, slot, and profile. |
 | Ad category classification | Supported | This is part of ad detection. It can be enabled or disabled per profile. |
-| Ad Reviewer | Experimental | Confirm, adjust, reject, and resurrection review are available. The Settings page warns when either reviewed pass resolves to a known System One route. |
+| Ad Reviewer | Unsupported | The reviewer needs an LLM provider. A review stage that resolves to System One is refused when saved and does not run. |
 | Chapter generation | Unsupported | Enabled chapter generation cannot be saved or run when its effective route is System One. Choose a chat provider and model or disable chapter generation. |
 | Pattern Cleanup | Unsupported | Enabling scheduled cleanup or starting a manual run is blocked on a known System One route. Choose a chat provider and model. |
 
@@ -45,7 +47,7 @@ One detection window becomes one System One request. The whole window transcript
 
 ## Independent tuning profiles
 
-System One tuning is stored independently for each credential slot and provider type: Provider A TypeSafe, Provider A System One compatible, Provider B TypeSafe, and Provider B System One compatible. Switching providers or slots keeps each profile. Profiles also remain in configuration exports. Importing an older export merges only fields it contains, preserving newer values already saved at the destination. Reset profile restores that profile's defaults.
+System One tuning is stored independently for each credential slot and provider type: Provider A TypeSafe, Provider A System One compatible, Provider B TypeSafe, and Provider B System One compatible. Switching providers or slots keeps each profile. Profiles also remain in configuration exports. Importing an older export merges only fields it contains, preserving newer values already saved at the destination. Reviewer tuning fields in older exports are ignored; values already stored stay in place, unused. Reset profile restores that profile's defaults.
 
 Open the System One Tuneables section under AI and processing. It shows one profile for the selected slot's current native provider type. When both slots use native providers, the Provider selector switches between Provider A and Provider B. Changing a slot's provider type preserves the other profile's saved values and unsaved edits. A saved native Provider B profile remains editable while Provider B is disabled.
 
@@ -56,13 +58,7 @@ Open the System One Tuneables section under AI and processing. It shows one prof
 | Run ad category classification | On | On | Make the additional category request for detected segments. |
 | Neighboring segments for category context | 2 | 2 | Transcript segments included on either side for category classification. |
 | Default ad category | Sponsor | Sponsor | Category used when the category pass is disabled. |
-| Refine ad boundaries | Off | Off | Opt in to the source adapter's ordered refinement questions. |
 | Logical request deadline | 75 seconds | 75 seconds | One total budget for all stages of a logical adapter call. Each HTTP request also has the common slot timeout. The deadline applies per request and overrides a longer provider timeout. Local prefill on a 16k context can exceed 75 seconds, so raise it for slow local backends. |
-| Evidence enter threshold | Blank | Blank | Blank follows the detection threshold. |
-| Choice enter threshold | Blank | Blank | Blank follows the detection threshold. |
-| Programme match veto threshold | 0.85 | 0.85 | Confidence threshold for the review programme-speech veto. |
-| Maximum boundary change | 60 seconds | 60 seconds | Maximum review boundary adjustment offered. |
-| Review context | 30 seconds | 30 seconds | Transcript context included around a review candidate. |
 | Questions per API request | No limit | No limit | Optional protocol cap. Requests are split in order when a cap is set. Detection sends one question per transcript segment in a window, so uncapped requests can carry several hundred questions. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64); set the cap below that limit. This changes how many questions share one request, not the per-question context, which is the whole detection window. |
 | Prompt token budget | No limit | No limit | Optional budget in estimated tokens (4 characters per token) for one detection request. A window that estimates above it is split into the smallest number of equal parts that fit, each part is sent on its own, and the answers are merged. Set it a little under the model's context, for example about 7000 for an 8k model. Blank sends each window whole. The category pass is not split. |
 | Request size limit | No limit | No limit | Optional serialized JSON request-body cap. |
@@ -80,13 +76,13 @@ TypeSafe's known Jev price is $0.042 USD per 1 million input tokens, with free o
 
 ## Statistics
 
-The Stats page separates logical System One calls from HTTP requests. A logical call may contain multiple detection, category, review, or refinement requests. Logical diagnostics include the phase, outcome, review reason, and refinement counts. The Average call time card displays milliseconds. Average logical time covers complete adapter calls, including local waits and retries; HTTP dispatch time sums actual request attempts. Token totals include reported values. Known costs include provider-reported amounts or estimates from known pricing. Missing or partially reported usage remains unknown. `GET /api/v1/stats/systemone` supports the Stats page filters: `from`, `to`, `podcastSlug`, `provider`, and `model`. Date filters select whole UTC days.
+The Stats page separates logical System One calls from HTTP requests. A logical call may contain multiple detection or category requests. Logical diagnostics include the phase, outcome, and reason. Calls recorded by earlier versions, including reviewer calls, still count. The Average call time card displays milliseconds. Average logical time covers complete adapter calls, including local waits and retries; HTTP dispatch time sums actual request attempts. Token totals include reported values. Known costs include provider-reported amounts or estimates from known pricing. Missing or partially reported usage remains unknown. `GET /api/v1/stats/systemone` supports the Stats page filters: `from`, `to`, `podcastSlug`, `provider`, and `model`. Date filters select whole UTC days.
 
 Pattern Cleanup statistics (`GET /api/v1/stats/cleanup`) are defined in [Pattern Cleanup > Statistics](pattern-cleanup.md#statistics).
 
 ## Migration and configuration backup
 
-If an installation currently calls the TypeSafe Jev proxy through `openai-compatible`, it can keep the route when its model is one of the recognized IDs above. To move to the built-in TypeSafe provider, select TypeSafe for the credential slot, save that slot's TypeSafe API key, then select the model offered by TypeSafe and route detection, verification, or review to that slot. No `OPENAI_BASE_URL` value is reused as a System One compatible base URL.
+If an installation currently calls the TypeSafe Jev proxy through `openai-compatible`, it can keep the route when its model is one of the recognized IDs above. To move to the built-in TypeSafe provider, select TypeSafe for the credential slot, save that slot's TypeSafe API key, then select the model offered by TypeSafe and route detection or verification to that slot. No `OPENAI_BASE_URL` value is reused as a System One compatible base URL.
 
 A custom System One endpoint uses the System One compatible provider. Set its own base URL and key for the selected slot. The provider sends requests to `/systemone` and discovers models from `/models` under that base URL.
 

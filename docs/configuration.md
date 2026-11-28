@@ -101,6 +101,7 @@ Cost is one extra LLM call per detected ad, and one extra call per rejected dete
 Settings live under AI and processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
+- **LLM provider required** - System One and TypeSafe are no longer supported for the reviewer as of 2.103.1. A review provider or model that routes to System One is refused when saved. If `Same as pass` or a slot resolves to System One anyway, the reviewer does not run and Settings shows a notice; choose an LLM provider here
 - **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Provider A` or `Provider B` to run the reviewer on that slot instead, such as detection on Provider A with review on a cheaper Provider B account
 - **Review model** - only used when Review provider is not `Same as pass`. `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
 - **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says

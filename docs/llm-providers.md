@@ -344,7 +344,7 @@ When `OPENAI_BASE_URL` points at `llmtr.com`, MinusPod reads per-token input, ou
 
 Select TypeSafe or System One compatible under Settings > AI and processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
 
-Detection, verification, and the ad category pass are supported. Review is experimental, including both passes when the reviewer inherits the pass route. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
+Detection, verification, and the ad category pass are supported. System One and TypeSafe are no longer supported for the reviewer as of 2.103.1: the reviewer needs an LLM provider, and a review stage that resolves to System One is refused when saved and does not run. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
 
 ### System One request limits
 

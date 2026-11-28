@@ -291,7 +291,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Subscriber feed / subscriber key** - A credential scoped to one podcast, labelled for a person or device and revocable on its own, in the form of a 16-character key ID, a dot and a 64-character secret. Download history shows the label of the key that fetched each row. Revoking one leaves the global key and other subscribers working. [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional)
 
-**System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; review is experimental. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
+**System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; the reviewer needs an LLM provider as of 2.103.1. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
 
 **Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
 

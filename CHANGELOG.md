@@ -10,6 +10,10 @@ release notes.
 
 ## [2.103.1] - 2026-11-28
 
+### Breaking
+
+- System One and TypeSafe are no longer supported as the reviewer. The reviewer needs an LLM provider. On upgrade, a saved review provider or review model that names System One is reset to its default (Same as pass), and a standby review model that does is cleared. The reviewer can still resolve to System One, for example when detection runs on System One and the review provider is Same as pass. It then does not run, and processing continues as if it were off. The log says so once per episode, and Settings > Ad reviewer shows a notice. Choose an LLM provider there to turn review back on. Detection and verification on System One are unaffected.
+
 ### Added
 
 - Each processing run shows the MinusPod version that made it. The Processing tab on the episode page has a **Version** column, and `processingRuns[].appVersion` in the episode API carries it. Runs recorded before 2.78.4 have no version and show nothing.
@@ -17,8 +21,13 @@ release notes.
 
 ### Changed
 
+- `PUT /api/v1/settings/ad-detection` answers 400 ("System One cannot be used for the reviewer. Choose an LLM provider.") when `reviewProvider`, `reviewModel`, `failoverLlmReviewModel` or a provider change routes the reviewer to System One or TypeSafe. `GET /api/v1/settings` adds `reviewerNeedsLlm`, true when the reviewer is on but resolves to System One. The Ad reviewer picker lists only LLM providers and models.
 - `MINUSPOD_PRIVATE_FEED_HOSTS` accepts `host:port` entries (`nas.lan:8000`, `[fd00::5]:3000`) so a listed host or single IP can use one port beyond the default 80, 443, 8080 and 8443. The docs now list the port limit for feed URLs.
 - The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top and the rating card at its bottom, and a pill shows how many detections are held. A `?rate=` review link opens Ads at the rating card. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript hit in global search opens the Transcript tab at the matching line and highlights it (`?section=transcript&t=<seconds>`).
+
+### Removed
+
+- The System One reviewer tuning fields (`refineBoundaries`, `reviewEvidenceEnter`, `reviewChoiceEnter`, `reviewProgrammeVeto`, `reviewBoundaryCapSeconds`, `reviewContextSeconds`) and their System One Tuneables controls. They are gone from `GET /api/v1/settings` and from configuration exports. An older export or payload that carries them is still accepted and the fields are ignored. Values already stored stay in the database, unused. `GET /api/v1/stats/systemone` no longer returns `refinements` or `refinementSkipReasons`, and the Stats page drops the Review refinements card. Calls recorded by earlier versions still count in the other System One totals.
 
 ### Fixed
 
