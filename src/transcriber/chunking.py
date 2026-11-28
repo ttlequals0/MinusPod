@@ -34,6 +34,10 @@ WHISPER_CHUNK_SECONDS = 30.0
 # Shortest clip worth handing to the pipeline.
 MIN_CLIP_SECONDS = 0.1
 
+# Largest chunk sent to a remote API (they reject uploads near 25 MB).
+API_UPLOAD_LIMIT_BYTES = 24 * 1024 * 1024
+_oversize_copy_logged: set[str] = set()
+
 
 def extract_audio_chunk(
     audio_path: str,
@@ -85,6 +89,14 @@ def extract_audio_chunk(
         result = utils.subprocess_registry.tracked_run(cmd, capture_output=True, timeout=timeout)
 
         if result.returncode == 0 and os.path.exists(output_path):
+            if raw_copy and os.path.getsize(output_path) > API_UPLOAD_LIMIT_BYTES:
+                if len(_oversize_copy_logged) > 256:
+                    _oversize_copy_logged.clear()
+                if audio_path not in _oversize_copy_logged:
+                    _oversize_copy_logged.add(audio_path)
+                    logger.info("Raw MP3 chunk exceeds the API upload limit; re-encoding oversize chunks for this episode")
+                return extract_audio_chunk(audio_path, start_time, end_time,
+                                           preprocess=preprocess, flac=flac, raw_copy=False)
             logger.debug(f"Extracted chunk {start_time:.1f}s-{end_time:.1f}s to {output_path}")
             success = True
             return output_path

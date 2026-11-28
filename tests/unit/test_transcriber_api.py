@@ -983,6 +983,29 @@ class TestExtractAudioChunkSinglePass:
         assert path.endswith('.mp3')
         assert captured['timeout'] < FFMPEG_LONG_TIMEOUT
 
+    def test_oversize_raw_copy_falls_back_to_the_encode_and_logs_once(self, caplog):
+        from transcriber import chunking
+        chunking._oversize_copy_logged.clear()
+        cmds = []
+
+        def fake_run(cmd, **run_kwargs):
+            cmds.append(cmd)
+            if cmd[cmd.index('-c:a') + 1] == 'copy':
+                with open(cmd[-1], 'wb') as fh:
+                    fh.truncate(chunking.API_UPLOAD_LIMIT_BYTES + 1)
+            return MagicMock(returncode=0)
+
+        paths = []
+        with caplog.at_level(logging.INFO, logger='transcriber'), \
+                patch('transcriber.utils.subprocess_registry.tracked_run', side_effect=fake_run):
+            for _ in range(2):
+                paths.append(extract_audio_chunk('/tmp/in.mp3', 0.0, 30.0, preprocess=True, flac=True, raw_copy=True))
+        for path in paths:
+            assert path.endswith('.flac')
+            os.unlink(path)
+        assert [c[c.index('-c:a') + 1] for c in cmds] == ['copy', 'flac', 'copy', 'flac']
+        assert sum('exceeds the API upload limit' in r.getMessage() for r in caplog.records) == 1
+
     def test_raw_copy_ignored_for_a_non_mp3_source(self):
         captured = {}
 
