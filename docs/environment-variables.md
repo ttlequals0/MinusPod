@@ -62,7 +62,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 |----------|---------|-------------|
 | `MINUSPOD_MASTER_PASSPHRASE` | _(unset)_ | Unlocks encrypted provider-key store. Strongly recommended for production; first boot migrates any plaintext rows to `enc:v1:`. Losing it makes stored keys unrecoverable (env fallback still works). |
 | `MINUSPOD_REQUIRE_AUTH` | `true` in Compose | Refuse the API until an application password is set. Direct source runs default to `false` for development compatibility. |
-| `MINUSPOD_SETUP_TOKEN` | _(unset)_ | One-time header value for remote first-password setup when required auth is enabled. Send it as `X-MinusPod-Setup-Token`. Loopback setup does not need a token. Remove it after setup. |
+| `MINUSPOD_SETUP_TOKEN` | _(unset)_ | One-time header value for first-password setup. When set, every peer except direct loopback must send it as `X-MinusPod-Setup-Token`, including Docker bridge and other private addresses, whether or not `MINUSPOD_REQUIRE_AUTH` is on. Remove it after setup. |
 | `MINUSPOD_ALLOW_PUBLIC_PROCESSING` | `false` in Compose | Allow an unauthenticated podcast request to start processing an unprocessed episode. Authenticated feed credentials can start processing regardless. Direct source runs default to `true` for compatibility. |
 | `SESSION_COOKIE_SECURE` | `auto` in Compose | Follow `BASE_URL`. Set `true` or `false` only when proxy termination makes that result incorrect. An unset value uses the same automatic behavior. |
 | `SESSION_COOKIE_SAMESITE` | `Strict` | Override to `Lax` only if a specific integration breaks. |

@@ -122,7 +122,9 @@ def _is_public_artwork_request(path, method):
 
 
 def _remote_setup_allowed():
-    if os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() != 'true':
+    # Setting a token opts in to the gate even when required auth is off.
+    required = os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() == 'true'
+    if not required and not os.environ.get('MINUSPOD_SETUP_TOKEN'):
         return True
     peer = direct_peer(request.environ)
     forwarded = 'X-Forwarded-For' in request.headers or 'Forwarded' in request.headers
