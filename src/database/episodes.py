@@ -1659,6 +1659,18 @@ class EpisodeMixin:
         )
         conn.commit()
 
+    def mark_episode_fetched(self, slug: str, episode_id: str) -> bool:
+        """Stamp the first serve of an episode's processed audio. Later
+        fetches leave the stamp alone. Returns True when a row was written."""
+        with self.transaction(immediate=True) as conn:
+            cursor = conn.execute(
+                """UPDATE episodes SET first_fetched_at = ?
+                   WHERE podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                     AND episode_id = ? AND first_fetched_at IS NULL""",
+                (utc_now_iso(), slug, episode_id),
+            )
+            return cursor.rowcount > 0
+
     def batch_reset_episodes_to_discovered(
             self, slug: str, episode_ids: list[str], *, commit: bool = True,
     ) -> None:
@@ -1674,7 +1686,7 @@ class EpisodeMixin:
             f"""UPDATE episodes SET
                 status = 'discovered',
                 processed_file = NULL, original_file = NULL, processed_at = NULL,
-                processed_size_bytes = NULL,
+                processed_size_bytes = NULL, first_fetched_at = NULL,
                 original_duration = NULL, new_duration = NULL,
                 ads_removed = 0, ads_removed_firstpass = 0, ads_removed_secondpass = 0,
                 error_message = NULL, ad_detection_status = NULL,

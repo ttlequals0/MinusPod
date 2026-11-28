@@ -1050,6 +1050,8 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'episodeCount': recents_total if recents_total is not None else podcast.get('episode_count', 0),
         'processedCount': recents_total if recents_total is not None else podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
+        'lastFeedRequestAt': podcast.get('last_feed_request_at'),
+        'dormant': get_database().is_feed_dormant(podcast),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
         'podpingUses': declaration['uses_podping'],

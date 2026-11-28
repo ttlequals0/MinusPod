@@ -27,6 +27,7 @@ from config import (
     PODCAST_SEARCH_PROVIDERS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     resolve_download_history_retention_days,
+    resolve_dormant_feed_days,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -612,6 +613,7 @@ def _build_settings_payload():
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
         'rssRefreshIntervalMinutes': _sv(
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
+        'dormantFeedDays': _sv('dormant_feed_days', resolve_dormant_feed_days(db)),
         'queueManualBoost': _sv('queue_manual_boost', queue_manual_boost),
         'queueFreshBoost': _sv('queue_fresh_boost', queue_fresh_boost),
         'queueOrder': _sv('queue_order', queue_order),

@@ -1059,6 +1059,23 @@ DOWNLOAD_HISTORY_RETENTION_DAYS_MIN = 1
 DOWNLOAD_HISTORY_RETENTION_DAYS_MAX = 3650
 DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT = 90
 
+# Days without a served-RSS request before a feed stops auto-processing new
+# episodes; 0 turns dormancy off.
+DORMANT_FEED_DAYS_MIN = 0
+DORMANT_FEED_DAYS_MAX = 3650
+DORMANT_FEED_DAYS_DEFAULT = 0
+# Unfetched-episode retention: a processed episode no client has fetched is
+# kept up to UNFETCHED_RETENTION_DAYS (0 = off) instead of the normal window,
+# and a fetched one stays FETCHED_RETENTION_GRACE_DAYS past its first fetch.
+UNFETCHED_RETENTION_DAYS_MIN = 0
+UNFETCHED_RETENTION_DAYS_MAX = 3650
+UNFETCHED_RETENTION_DAYS_DEFAULT = 0
+FETCHED_RETENTION_GRACE_DAYS_MIN = 0
+FETCHED_RETENTION_GRACE_DAYS_MAX = 365
+FETCHED_RETENTION_GRACE_DAYS_DEFAULT = 3
+# Minimum spacing between last_feed_request_at writes for one feed.
+FEED_REQUEST_TOUCH_INTERVAL_SECONDS = 600
+
 MAX_LLM_WINDOW_AD_MIN = 60
 MAX_LLM_WINDOW_AD_MAX = 900
 
@@ -1430,6 +1447,27 @@ def resolve_download_history_retention_days(db) -> int:
                               DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT)
     return min(max(days, DOWNLOAD_HISTORY_RETENTION_DAYS_MIN),
                DOWNLOAD_HISTORY_RETENTION_DAYS_MAX)
+
+
+def resolve_dormant_feed_days(db) -> int:
+    """Idle days before a feed goes dormant, clamped; 0 means off."""
+    days = db.get_setting_int('dormant_feed_days', DORMANT_FEED_DAYS_DEFAULT)
+    return min(max(days, DORMANT_FEED_DAYS_MIN), DORMANT_FEED_DAYS_MAX)
+
+
+def resolve_unfetched_retention_days(db) -> int:
+    """Days a never-fetched processed episode is kept, clamped; 0 means off."""
+    days = db.get_setting_int('unfetched_retention_days',
+                              UNFETCHED_RETENTION_DAYS_DEFAULT)
+    return min(max(days, UNFETCHED_RETENTION_DAYS_MIN), UNFETCHED_RETENTION_DAYS_MAX)
+
+
+def resolve_fetched_retention_grace_days(db) -> int:
+    """Days a fetched episode is kept past its first fetch, clamped."""
+    days = db.get_setting_int('fetched_retention_grace_days',
+                              FETCHED_RETENTION_GRACE_DAYS_DEFAULT)
+    return min(max(days, FETCHED_RETENTION_GRACE_DAYS_MIN),
+               FETCHED_RETENTION_GRACE_DAYS_MAX)
 
 
 def resolve_max_llm_window_ad_seconds(db) -> float:

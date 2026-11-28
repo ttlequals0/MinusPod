@@ -97,7 +97,7 @@ The server includes a web-based management UI at `/ui/` (under the prefix when `
 - Outbound Requests (Settings > Data & Security): the User-Agent strings MinusPod sends when it fetches feeds, audio, and artwork, plus a toggle for URL query strings in download logs. See [Configuration > Outbound Requests](configuration.md#outbound-requests)
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
-- Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. Each feed can inherit or override them; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
+- Global Defaults group in settings: Auto-Process, the auto-process window, Pause auto-process for unrequested feeds ([Dormant feeds](configuration.md#dormant-feeds)), Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. Each feed can inherit or override them; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
 - Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance
 - Queue priority boosts in Queue > Queue Control, see [Configuration > Queue priority](configuration.md#queue-priority)
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, structural rate-limit hits, and episodes awaiting approval or holding detections for review, delivered by webhooks or native email (Settings > Notifications). See [API and Webhooks > Events](api-and-webhooks.md#events)
@@ -227,6 +227,8 @@ Original mode requires the pre-cut audio to have been retained. That's controlle
 Any single feed can override the retention window and the keep-original toggle on its own settings page; see [Configuration > Per-feed retention](configuration.md#per-feed-retention).
 
 Original audio has its own retention input under the same section: "Retain original audio for: N days". Defaults to whatever the processed retention is. Set a smaller number to drop the pre-cut copy sooner while keeping the processed file for the full retention period (useful if originals are taking too much disk but you still want the processed output around for the normal 30-day window). Capped at the processed retention by the server; the input is disabled when "Keep original audio" is off.
+
+The same section has "Keep never-downloaded episodes for" and "Keep after first download for", which keep episodes a podcast app has not downloaded yet past the normal window. See [Unfetched-episode retention](configuration.md#unfetched-episode-retention).
 
 The **Transcript** section on the Episode Detail page has one View transcript button. It opens a reader with a source select, Original for the full pre-cut text or Processed for what is served, and every segment carries its timestamps. There is a search box that marks each match, a start and end time window, and, on the original, a Highlight ads checkbox that tints the rows that were cut and names the sponsor. With a search term set, the Context control shows one or three neighbouring segments around each match, muted so the match stands out. Each match has a Show in transcript button that opens the full transcript at that segment and flashes it; a Back to matches link returns to the results. Previous and Next in the footer, or Enter in the search box, step through the matches.
 

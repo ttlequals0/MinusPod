@@ -44,6 +44,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- 1 = serve MinusPod episode ids. New feeds are created with 1.
     own_episode_guids INTEGER,
     last_checked_at TEXT,
+    -- Last time a client fetched the served RSS; feeds idle past
+    -- dormant_feed_days stop auto-processing until fetched again.
+    last_feed_request_at TEXT,
     -- Last refresh attempt, stamped on success and failure alike, so the
     -- staggered scheduler retries a failing feed on the interval rather than
     -- every tick. last_checked_at stays success-only for freshness.
@@ -188,6 +191,10 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- stamped on finalize/recut. NULL for a pre-existing row backfilled
     -- lazily on render.
     processed_size_bytes INTEGER,
+    -- First GET that served the processed audio; retention can keep
+    -- never-fetched episodes longer (unfetched_retention_days). Cleared
+    -- when retention resets the episode.
+    first_fetched_at TEXT,
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,
     new_duration REAL,

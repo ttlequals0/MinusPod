@@ -405,6 +405,18 @@ class SchemaMixin(DeferredUpgradeMixin):
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
+        # Unfetched-episode retention. Seed processed episodes from download
+        # history so episodes already downloaded do not count as unfetched.
+        if (self._add_column_if_missing(conn, 'episodes', 'first_fetched_at',
+                                        'TEXT', ep_cols)
+                and self._table_exists(conn, 'episode_downloads')):
+            conn.execute(
+                """UPDATE episodes SET first_fetched_at = (
+                       SELECT MIN(d.first_seen_at) FROM episode_downloads d
+                       WHERE d.podcast_id = episodes.podcast_id
+                         AND d.episode_id = episodes.episode_id)
+                   WHERE status = 'processed'""")
+            conn.commit()
 
     # Tables whose rows mean an episode has real state and must never be
     # deleted as an orphan duplicate. ad_reviewer_log.podcast_id has TEXT
@@ -749,6 +761,15 @@ class SchemaMixin(DeferredUpgradeMixin):
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
+        # Feed request tracking for dormant feeds. Existing feeds start as
+        # requested now so turning dormancy on gives each a full grace window
+        # instead of treating every pre-upgrade feed as never requested.
+        if self._add_column_if_missing(conn, 'podcasts', 'last_feed_request_at',
+                                       'TEXT', pod_cols):
+            conn.execute(
+                "UPDATE podcasts SET last_feed_request_at = "
+                "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')")
+            conn.commit()
 
         if self._table_exists(conn, 'episodes'):
             episode_cols = self._get_table_columns(conn, 'episodes')

@@ -22,3 +22,8 @@ export function deleteStopsProcessingMessage(processingCount: number): string | 
     ? 'An episode is processing right now. Deleting this podcast will stop it.'
     : `${processingCount} episodes are processing right now. Deleting this podcast will stop them.`;
 }
+
+// Tooltip for a feed paused by Settings > Global Defaults > dormant feeds.
+export const DORMANT_TITLE =
+  'No podcast app has fetched this feed recently, so new episodes are not auto-processed. '
+  + 'Episodes still process when played, and auto-process resumes on the next feed fetch.';

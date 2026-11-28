@@ -547,6 +547,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
+    # Days without a served-RSS request before a feed stops auto-processing
+    # new episodes; 0 (default) turns dormancy off.
+    'dormant_feed_days': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='dormantFeedDays', payload_kind='int'),
     # Queue boost sizes (#625). Manual covers single-episode user actions
     # (reprocess, JIT play); bulk covers Reprocess All and segment re-renders and
     # defaults to 0 so backlog work cannot starve them.
@@ -840,6 +845,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'download_geo_lookup_enabled': SettingSpec(
         default='false',
         payload_key='downloadGeoLookupEnabled', payload_kind='bool'),
+    # Unfetched-episode retention, edited through /settings/retention.
+    'unfetched_retention_days': SettingSpec(
+        default='0', seeded=True, resettable=False, payload_kind='int'),
+    'fetched_retention_grace_days': SettingSpec(
+        default='3', seeded=True, resettable=False, payload_kind='int'),
     'download_history_retention_days': SettingSpec(
         default='90',
         payload_key='downloadHistoryRetentionDays', payload_kind='int'),

@@ -33,6 +33,7 @@ from config import (
     DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, DOWNLOAD_HISTORY_RETENTION_DAYS_MAX,
     AUTO_PROCESS_MAX_AGE_ERROR,
     valid_auto_process_max_age,
+    DORMANT_FEED_DAYS_MIN, DORMANT_FEED_DAYS_MAX,
     MAX_LLM_WINDOW_AD_MIN, MAX_LLM_WINDOW_AD_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
@@ -988,13 +989,18 @@ def _validate_queue_boost_payload(data):
 
 
 def _apply_feed_refresh_fields(db, data):
-    """Persist the RSS refresh interval."""
+    """Persist the RSS refresh interval and the dormant-feed threshold."""
     value, issue = _rss_refresh_minutes(data)
     if issue is not None:
         return error_response(*issue)
     if value is not None:
         db.set_setting('rss_refresh_interval_minutes', str(value), is_default=False)
         logger.info(f"Updated RSS refresh interval to: {value} minutes")
+
+    if 'dormantFeedDays' in data:
+        days = data['dormantFeedDays']
+        db.set_setting('dormant_feed_days', str(days), is_default=False)
+        logger.info(f"Updated dormant feed threshold to: {days} days")
 
     if 'podpingEnabled' in data:
         value = 'true' if data['podpingEnabled'] else 'false'
@@ -1017,7 +1023,16 @@ def _rss_refresh_minutes(data):
 
 def _validate_rss_refresh_payload(data):
     _minutes, issue = _rss_refresh_minutes(data)
-    return issue
+    if issue is not None:
+        return issue
+    if 'dormantFeedDays' in data:
+        days = data['dormantFeedDays']
+        if (not isinstance(days, int) or isinstance(days, bool)
+                or days < DORMANT_FEED_DAYS_MIN or days > DORMANT_FEED_DAYS_MAX):
+            return (
+                'dormantFeedDays must be an integer between '
+                f'{DORMANT_FEED_DAYS_MIN} and {DORMANT_FEED_DAYS_MAX}', 400)
+    return None
 
 
 def _apply_segment_category_actions(db, data):

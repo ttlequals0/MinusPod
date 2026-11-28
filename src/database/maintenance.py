@@ -7,7 +7,11 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
-from config import CORRECTION_ORIGIN_USER
+from config import (
+    CORRECTION_ORIGIN_USER,
+    resolve_fetched_retention_grace_days,
+    resolve_unfetched_retention_days,
+)
 from database.fingerprint_cleanup import delete_pattern_dependents, move_matches
 from utils.text import extract_text_in_range
 from utils.time import ISO_FORMAT, utc_now
@@ -136,6 +140,30 @@ class MaintenanceMixin:
                 row['keep_original_audio_override'], global_keep)
         return groups, keep_by_slug
 
+    def _unfetched_keep_clause(self, retention_days: int):
+        """(SQL predicate, params) matching processed episodes the unfetched
+        retention keeps past the normal window, or None when it is off.
+
+        A never-fetched episode is kept until unfetched_retention_days after
+        processing. A fetched one is kept until fetched_retention_grace_days
+        after its first fetch, so a download that failed partway has time
+        to be retried. Neither ever shortens the normal window.
+        """
+        unfetched_days = resolve_unfetched_retention_days(self)
+        if unfetched_days <= 0:
+            return None
+        unfetched_cutoff = self._retention_cutoff_str(max(unfetched_days, retention_days))
+        # Every branch is NULL-safe: the caller negates this clause, and a
+        # NULL would drop the row from the sweep instead of sweeping it.
+        clause = ("(e.first_fetched_at IS NULL"
+                  " AND COALESCE(e.processed_at, e.updated_at) >= ?)")
+        params = [unfetched_cutoff]
+        grace_days = resolve_fetched_retention_grace_days(self)
+        if grace_days > 0:
+            clause += " OR (e.first_fetched_at IS NOT NULL AND e.first_fetched_at >= ?)"
+            params.append(self._retention_cutoff_str(grace_days))
+        return f"(e.status = 'processed' AND ({clause}))", tuple(params)
+
     def _resolve_original_retention(self, retention_days: int):
         """Return original_retention_days if the pre-pass should run, else None.
 
@@ -169,6 +197,10 @@ class MaintenanceMixin:
 
         original_cutoff = self._retention_cutoff_str(original_days)
         processed_cutoff = self._retention_cutoff_str(retention_days)
+        # Episodes the unfetched retention keeps past the main window still
+        # lose their original on the original schedule.
+        kept = self._unfetched_keep_clause(retention_days)
+        kept_sql, kept_params = (f" OR {kept[0]}", kept[1]) if kept else ('', ())
 
         # Original past its window, processed file still inside it; the
         # processed_cutoff bound skips rows the main pass is about to reset.
@@ -181,10 +213,10 @@ class MaintenanceMixin:
                    JOIN podcasts p ON e.podcast_id = p.id
                    WHERE e.processed_file IS NOT NULL
                      AND COALESCE(e.processed_at, e.updated_at) < ?
-                     AND COALESCE(e.processed_at, e.updated_at) >= ?
+                     AND (COALESCE(e.processed_at, e.updated_at) >= ?{kept_sql})
                      AND e.status = 'processed'
                      AND p.slug IN ({placeholders})""",  # noqa: S608
-                (original_cutoff, processed_cutoff, *chunk),
+                (original_cutoff, processed_cutoff, *kept_params, *chunk),
             ).fetchall())
 
         # Note: no original_file IS NOT NULL predicate, since episodes processed
@@ -256,6 +288,8 @@ class MaintenanceMixin:
                         retention_days, storage)
 
                 cutoff_str = self._retention_cutoff_str(retention_days)
+                kept = self._unfetched_keep_clause(retention_days)
+                kept_sql, kept_params = (f" AND NOT {kept[0]}", kept[1]) if kept else ('', ())
                 for chunk in _chunked(slugs):
                     placeholders = ','.join('?' * len(chunk))
                     episodes_to_reset.extend(conn.execute(
@@ -264,9 +298,9 @@ class MaintenanceMixin:
                            JOIN podcasts p ON e.podcast_id = p.id
                            WHERE e.processed_file IS NOT NULL
                              AND COALESCE(e.processed_at, e.updated_at) < ?
-                             AND e.status IN ('processed', 'failed', 'permanently_failed')
+                             AND e.status IN ('processed', 'failed', 'permanently_failed'){kept_sql}
                              AND p.slug IN ({placeholders})""",  # noqa: S608
-                        (cutoff_str, *chunk),
+                        (cutoff_str, *kept_params, *chunk),
                     ).fetchall())
         else:
             # An explicit wipe still honours archive mode: retention_days_override of 0

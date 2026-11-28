@@ -480,8 +480,12 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # the user explicitly reprocessed (reprocess_requested_at set).
         if not auto_process_enabled:
             if not user_requested:
-                db.close_claimed_queue_row(queue_id, 'completed', 'Auto-process disabled for this feed')
-                refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
+                if db.is_feed_dormant(podcast) and podcast.get('auto_process_override') != 'false':
+                    reason = 'Feed dormant: no recent feed requests'
+                else:
+                    reason = 'Auto-process disabled for this feed'
+                db.close_claimed_queue_row(queue_id, 'completed', reason)
+                refresh_logger.info(f"[{slug}:{episode_id}] Skipped - {reason}")
                 return 'skipped'
             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
 

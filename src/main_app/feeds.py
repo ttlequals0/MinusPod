@@ -629,6 +629,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
 
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
+        elif inserted > 0 and db.is_feed_dormant(podcast):
+            refresh_logger.info(
+                f"[{slug}] Feed dormant (no recent feed requests); "
+                f"new episodes wait for a client to fetch the feed")
 
         # Rebuild and persist the served RSS for the current feed/output settings.
         _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)

@@ -5,10 +5,11 @@ from datetime import datetime, timedelta, timezone
 
 from config import (
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
-    DEFER_SERVICE_LLM, QUEUE_ORDERS,
+    DEFER_SERVICE_LLM, QUEUE_ORDERS, resolve_dormant_feed_days,
 )
 from database.episodes import HAS_TRANSCRIPT_SQL, normalize_published_at
 from database.error_text import redact_error
+from database.podcasts import has_upstream
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -168,8 +169,24 @@ class QueueMixin:
         elif override == 'false':
             return False
         else:
-            # No override, use global setting
-            return global_enabled
+            # No override, use global setting; a dormant feed waits for a
+            # client to fetch it again.
+            return global_enabled and not self.is_feed_dormant(podcast)
+
+    def is_feed_dormant(self, podcast: dict | None) -> bool:
+        """True when dormancy is on and no client has fetched this feed's
+        served RSS within dormant_feed_days. A never-fetched feed counts from
+        its creation. Local and recents feeds never go dormant."""
+        if not has_upstream(podcast):
+            return False
+        days = resolve_dormant_feed_days(self)
+        if days <= 0:
+            return False
+        anchor = podcast.get('last_feed_request_at') or podcast.get('created_at')
+        if not anchor:
+            return False
+        cutoff = (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
+        return anchor < cutoff
 
     def get_auto_process_max_age_hours(self, podcast: dict) -> int:
         """Hours since publish within which a new episode is auto-queued."""

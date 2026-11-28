@@ -8244,6 +8244,12 @@ paths:
                   maximum: 1440
                   description: Minutes between background RSS refresh passes for every feed. A change applies after the wait already in progress finishes. Default 15.
                   example: 15
+                dormantFeedDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 3650
+                  description: Days without a client fetching a feed's served RSS before the feed goes dormant and stops auto-processing new episodes; requested episodes still process on demand. 0 (default) turns dormancy off. A feed with autoProcessOverride true is never held.
+                  example: 30
                 queueManualBoost:
                   type: integer
                   minimum: 0
@@ -10375,6 +10381,16 @@ paths:
                     description: Days to retain the pre-cut original copy of each episode. Defaults to retentionDays when never set; the server clamps to retentionDays on save so an original cannot outlive its processed peer.
                   enabled:
                     type: boolean
+                  unfetchedRetentionDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 3650
+                    description: Days a processed episode no client has downloaded is kept, measured from processing. Applies only when longer than the effective retention window (per-feed override or retentionDays). 0 (default) turns it off.
+                  fetchedRetentionGraceDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 365
+                    description: While unfetchedRetentionDays is on, a downloaded episode is kept at least this many days after its first download, so a failed download can be retried. Default 3.
     put:
       tags:
         - Settings
@@ -10398,6 +10414,16 @@ paths:
                   minimum: 1
                   maximum: 3650
                   description: Optional. Days to retain the pre-cut original copy. Server clamps to retentionDays. When omitted, the existing value is preserved.
+                unfetchedRetentionDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 3650
+                  description: Optional. Days to keep a processed episode no client has downloaded. 0 turns it off. When omitted, the existing value is preserved.
+                fetchedRetentionGraceDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 365
+                  description: Optional. Days to keep an episode after its first download while unfetchedRetentionDays is on. When omitted, the existing value is preserved.
       responses:
         '200':
           description: Retention updated
@@ -10412,6 +10438,10 @@ paths:
                     type: integer
                   enabled:
                     type: boolean
+                  unfetchedRetentionDays:
+                    type: integer
+                  fetchedRetentionGraceDays:
+                    type: integer
 
   /settings/offline-queue:
     get:
@@ -15748,6 +15778,15 @@ components:
             - 'null'
           format: date-time
           description: Last RSS refresh timestamp
+        lastFeedRequestAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Last time a client fetched this feed's served RSS, stamped at most every 10 minutes. Null for a feed never fetched since it was added.
+        dormant:
+          type: boolean
+          description: True when dormantFeedDays is on and no client has fetched the served RSS within that many days (counting from creation for a never-fetched feed). A dormant feed stops auto-processing new episodes unless its autoProcessOverride is true; local and recents feeds are never dormant.
         lastRefreshError:
           type:
             - string
@@ -19271,6 +19310,16 @@ components:
               description: Minutes between background RSS refresh passes for every feed. Default 15.
             isDefault:
               type: boolean
+        dormantFeedDays:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 0
+              maximum: 3650
+              description: Days without a served-RSS request before a feed stops auto-processing new episodes. 0 means off. Default 0.
+            isDefault:
+              type: boolean
         queueManualBoost:
           type: object
           properties:
@@ -20312,6 +20361,8 @@ components:
             processNewEpisodesFirst:
               type: boolean
             rssRefreshIntervalMinutes:
+              type: integer
+            dormantFeedDays:
               type: integer
             podpingEnabled:
               type: boolean

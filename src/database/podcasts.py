@@ -209,6 +209,20 @@ class PodcastMixin:
         ).fetchone()
         return (row['last_checked_at'], row['last_refresh_attempt_at']) if row else (None, None)
 
+    def touch_feed_request(self, slug: str, min_interval_seconds: float) -> bool:
+        """Stamp a served-RSS request unless one was stamped within
+        min_interval_seconds. Returns True when a row was written."""
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(seconds=min_interval_seconds)).strftime(ISO_FORMAT)
+        with self.transaction(immediate=True) as conn:
+            cursor = conn.execute(
+                """UPDATE podcasts SET last_feed_request_at = ?
+                   WHERE slug = ?
+                     AND (last_feed_request_at IS NULL OR last_feed_request_at < ?)""",
+                (now.strftime(ISO_FORMAT), slug, cutoff),
+            )
+            return cursor.rowcount > 0
+
     def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
         """Subscribed feeds not attempted within interval_seconds, oldest attempt first, capped at limit.
 

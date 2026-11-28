@@ -255,6 +255,7 @@ function Settings() {
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
+  const [dormantFeedDays, setDormantFeedDays] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [feedItunesBlock, setFeedItunesBlock] = useState(true);
   const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
@@ -444,6 +445,8 @@ function Settings() {
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
   const [originalRetentionDays, setOriginalRetentionDays] = useState(30);
+  const [unfetchedRetentionDays, setUnfetchedRetentionDays] = useState(0);
+  const [fetchedRetentionGraceDays, setFetchedRetentionGraceDays] = useState(3);
   const [keepOriginalAudio, setKeepOriginalAudio] = useState(true);
   const [softTimeoutMinutes, setSoftTimeoutMinutes] = useState(60);
   const [hardTimeoutMinutes, setHardTimeoutMinutes] = useState(120);
@@ -769,6 +772,8 @@ function Settings() {
     setRetentionDays(r.retentionDays || 30);
     setOriginalRetentionDays(r.originalRetentionDays ?? r.retentionDays ?? 30);
     setRetentionEnabled(r.enabled);
+    setUnfetchedRetentionDays(r.unfetchedRetentionDays ?? 0);
+    setFetchedRetentionGraceDays(r.fetchedRetentionGraceDays ?? 3);
   });
 
   useSyncFromQuery(processingTimeouts, (t, previous) => {
@@ -798,8 +803,13 @@ function Settings() {
   });
 
   const retentionMutation = useMutation({
-    mutationFn: ({ days, originalDays }: { days: number; originalDays: number }) =>
-      updateRetention(days, originalDays),
+    mutationFn: ({ days, originalDays, unfetchedDays, graceDays }: {
+      days: number; originalDays: number; unfetchedDays: number; graceDays: number;
+    }) =>
+      updateRetention(days, originalDays, {
+        unfetchedRetentionDays: unfetchedDays,
+        fetchedRetentionGraceDays: graceDays,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['retention'] });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -946,6 +956,7 @@ function Settings() {
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
+    { key: 'dormantFeedDays', kind: 'val', useDefault: true, literal: 0, value: dormantFeedDays, set: setDormantFeedDays },
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
@@ -1361,6 +1372,8 @@ function Settings() {
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         autoProcessMaxAgeHours={autoProcessMaxAgeHours}
         onAutoProcessMaxAgeHoursChange={setAutoProcessMaxAgeHours}
+        dormantFeedDays={dormantFeedDays}
+        onDormantFeedDaysChange={setDormantFeedDays}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
         podpingEnabled={podpingEnabled}
@@ -1831,9 +1844,15 @@ function Settings() {
         onRetentionDaysChange={setRetentionDays}
         originalRetentionDays={originalRetentionDays}
         onOriginalRetentionDaysChange={setOriginalRetentionDays}
+        unfetchedRetentionDays={unfetchedRetentionDays}
+        onUnfetchedRetentionDaysChange={setUnfetchedRetentionDays}
+        fetchedRetentionGraceDays={fetchedRetentionGraceDays}
+        onFetchedRetentionGraceDaysChange={setFetchedRetentionGraceDays}
         onSave={() => retentionMutation.mutate({
           days: retentionEnabled ? retentionDays : 0,
           originalDays: Math.min(originalRetentionDays, retentionDays),
+          unfetchedDays: unfetchedRetentionDays,
+          graceDays: fetchedRetentionGraceDays,
         })}
         saveIsPending={retentionMutation.isPending}
         saveIsSuccess={retentionMutation.isSuccess}

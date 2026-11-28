@@ -22,6 +22,7 @@ from werkzeug.utils import safe_join
 import config
 from api import apply_url_prefix, image_response, public_path
 from config import (
+    FEED_REQUEST_TOUCH_INTERVAL_SECONDS,
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
     JIT_RETRY_COOLDOWN_SECONDS,
@@ -402,6 +403,36 @@ def _record_download(slug, episode_id):
         feed_logger.debug(f"[{slug}:{episode_id}] download not recorded: {exc}")
 
 
+# Per-process memo of the last served-RSS stamp per slug, so a pod catcher
+# polling every few minutes costs no database write between stamps.
+_feed_request_stamped_at: dict[str, float] = {}
+
+
+def _note_feed_request(slug):
+    """Stamp a served-RSS fetch for dormant-feed tracking; never affects serving."""
+    now = time.monotonic()
+    last = _feed_request_stamped_at.get(slug)
+    if last is not None and now - last < FEED_REQUEST_TOUCH_INTERVAL_SECONDS:
+        return
+    _feed_request_stamped_at[slug] = now
+    try:
+        was_dormant = db.is_feed_dormant(db.get_podcast_row(slug))
+        if (db.touch_feed_request(slug, FEED_REQUEST_TOUCH_INTERVAL_SECONDS)
+                and was_dormant):
+            feed_logger.info(f"[{slug}] Dormant feed requested, auto-process resumes")
+    except Exception as exc:
+        feed_logger.debug(f"[{slug}] feed request not recorded: {exc}")
+
+
+def _note_episode_fetch(slug, episode_id):
+    """Stamp the first processed-audio serve for unfetched retention; never
+    affects serving."""
+    try:
+        db.mark_episode_fetched(slug, episode_id)
+    except Exception as exc:
+        feed_logger.debug(f"[{slug}:{episode_id}] fetch not recorded: {exc}")
+
+
 def _local_original_response(slug, episode_id, requested_version=None):
     """200 with the best available audio for a local-feed episode that isn't PROCESSED right now.
 
@@ -564,6 +595,8 @@ def register_routes(app):
             feed_logger.info(f"[{slug}] Feed not found (no refresh-on-miss)")
             abort(404)
 
+        _note_feed_request(slug)
+
         # Check if RSS cache exists or is stale
         cached_rss = storage.get_rss(slug)
         last_checked, last_attempt = db.get_podcast_rss_freshness(slug)
@@ -687,6 +720,8 @@ def register_routes(app):
                     f"[{slug}:{episode_id}] Cache hit for published audio"
                 )
                 _record_download(slug, episode_id)
+                if request.method == 'GET' and not episode.get('first_fetched_at'):
+                    _note_episode_fetch(slug, episode_id)
                 return send_file(file_path, mimetype='audio/mpeg')
             else:
                 feed_logger.error(

@@ -349,10 +349,17 @@ export async function getRetention(): Promise<RetentionSettings> {
 
 export async function updateRetention(
   days: number,
-  originalDays?: number
+  originalDays?: number,
+  unfetched?: Pick<RetentionSettings, 'unfetchedRetentionDays' | 'fetchedRetentionGraceDays'>,
 ): Promise<RetentionSettings> {
-  const body: { retentionDays: number; originalRetentionDays?: number } = {
+  const body: {
+    retentionDays: number;
+    originalRetentionDays?: number;
+    unfetchedRetentionDays?: number;
+    fetchedRetentionGraceDays?: number;
+  } = {
     retentionDays: days,
+    ...unfetched,
   };
   if (originalDays !== undefined) {
     body.originalRetentionDays = originalDays;

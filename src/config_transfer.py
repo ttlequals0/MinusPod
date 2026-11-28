@@ -709,11 +709,16 @@ def _validate_setting_value(key, value):
         recipients = email_service.parse_recipients(value)
         if any(_email_address_invalid(address) for address in recipients):
             raise ConfigTransferError('email_recipients contains an invalid address')
-    if key in ('retention_days', 'original_retention_days'):
+    if key in ('retention_days', 'original_retention_days', 'unfetched_retention_days'):
         if isinstance(value, bool) or not isinstance(value, int):
             raise ConfigTransferError(f'{key} must be an integer')
         if not 0 <= value <= 3650:
             raise ConfigTransferError(f'{key} must be between 0 and 3650')
+    if key == 'fetched_retention_grace_days':
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ConfigTransferError(f'{key} must be an integer')
+        if not 0 <= value <= 365:
+            raise ConfigTransferError(f'{key} must be between 0 and 365')
     if key == 'db_backup_keep_count':
         if (isinstance(value, bool) or not isinstance(value, int)
                 or not KEEP_COUNT_MIN <= value <= KEEP_COUNT_MAX):

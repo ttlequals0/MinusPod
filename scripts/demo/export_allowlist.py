@@ -181,7 +181,8 @@ _ALLOW_AD_REVIEWER = (
 _ALLOW_GENERAL = (
     'retention_period_minutes', 'keep_original_audio', 'max_feed_episodes',
     'segment_category_actions', 'community_sync_categories',
-    'rss_refresh_interval_minutes', 'queue_manual_boost', 'queue_fresh_boost',
+    'rss_refresh_interval_minutes', 'dormant_feed_days', 'unfetched_retention_days',
+    'fetched_retention_grace_days', 'queue_manual_boost', 'queue_fresh_boost',
     'queue_bulk_boost', 'queue_order', 'session_lifetime_hours', 'session_remember_days',
     'podping_enabled', 'only_expose_processed_default',
     'feed_itunes_block', 'require_manual_approval_default',

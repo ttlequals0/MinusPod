@@ -14,6 +14,8 @@ interface GlobalDefaultsSectionProps {
   onAutoProcessEnabledChange: (enabled: boolean) => void;
   autoProcessMaxAgeHours: number;
   onAutoProcessMaxAgeHoursChange: (hours: number) => void;
+  dormantFeedDays: number;
+  onDormantFeedDaysChange: (days: number) => void;
   rssRefreshIntervalMinutes: number;
   onRssRefreshIntervalMinutesChange: (value: number) => void;
   podpingEnabled: boolean;
@@ -47,6 +49,8 @@ function GlobalDefaultsSection({
   onAutoProcessEnabledChange,
   autoProcessMaxAgeHours,
   onAutoProcessMaxAgeHoursChange,
+  dormantFeedDays,
+  onDormantFeedDaysChange,
   rssRefreshIntervalMinutes,
   onRssRefreshIntervalMinutesChange,
   podpingEnabled,
@@ -152,6 +156,28 @@ function GlobalDefaultsSection({
           </div>
           <p id="autoProcessMaxAgeHours-help" className="mt-2 text-sm text-muted-foreground">
             Newly discovered episodes older than this are left as discovered until you process them. If this instance runs only now and then, set it to cover the longest gap between runs.
+          </p>
+        </div>
+
+        {/* Dormant feeds */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="dormantFeedDays" className={labelBase}>
+            Pause auto-process for unrequested feeds
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="dormantFeedDays"
+              value={dormantFeedDays}
+              min={0}
+              max={3650}
+              step={1}
+              fallback={0}
+              onCommit={onDormantFeedDaysChange}
+            />
+            <span className="text-sm text-muted-foreground">days, 0 to turn off</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            A feed no podcast app has fetched for this many days stops auto-processing new episodes. Episodes still process when played, and auto-process resumes on the next feed fetch. A feed with Auto-Process set to Enabled is never paused.
           </p>
         </div>
 

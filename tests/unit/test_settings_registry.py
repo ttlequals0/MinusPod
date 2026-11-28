@@ -140,6 +140,9 @@ SEED_SNAPSHOT = {
     'review_prompt': ('sha256', '71f8a86b21db7272c5ec9e981faf09c64dd73f5355a8dc232173d602bb924d0f'),  # Updated for the measured-fingerprint sentence
     'rss_refresh_interval_minutes': '15',
     'auto_process_max_age_hours': '48',
+    'dormant_feed_days': '0',
+    'unfetched_retention_days': '0',
+    'fetched_retention_grace_days': '3',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',
     'queue_bulk_boost': '0',
@@ -282,7 +285,8 @@ NON_RESETTABLE_KEYS = (
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
     'review_provider', 'secondary_provider_enabled',
-    'rss_refresh_interval_minutes', 'segment_category_actions',
+    'rss_refresh_interval_minutes', 'dormant_feed_days', 'segment_category_actions',
+    'unfetched_retention_days', 'fetched_retention_grace_days',
     'queue_manual_boost', 'queue_fresh_boost', 'queue_bulk_boost',
     'community_sync_categories',
     'system_prompt_override', 'verification_prompt_override',
@@ -538,7 +542,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 193
+        assert len(payload_keys) == 194
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

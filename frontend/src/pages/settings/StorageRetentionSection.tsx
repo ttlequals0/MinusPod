@@ -15,6 +15,10 @@ interface StorageRetentionSectionProps {
   onRetentionDaysChange: (days: number) => void;
   originalRetentionDays: number;
   onOriginalRetentionDaysChange: (days: number) => void;
+  unfetchedRetentionDays: number;
+  onUnfetchedRetentionDaysChange: (days: number) => void;
+  fetchedRetentionGraceDays: number;
+  onFetchedRetentionGraceDaysChange: (days: number) => void;
   onSave: () => void;
   saveIsPending: boolean;
   saveIsSuccess: boolean;
@@ -30,6 +34,10 @@ function StorageRetentionSection({
   onRetentionDaysChange,
   originalRetentionDays,
   onOriginalRetentionDaysChange,
+  unfetchedRetentionDays,
+  onUnfetchedRetentionDaysChange,
+  fetchedRetentionGraceDays,
+  onFetchedRetentionGraceDaysChange,
   onSave,
   saveIsPending,
   saveIsSuccess,
@@ -81,6 +89,54 @@ function StorageRetentionSection({
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Processed audio files older than this will be deleted and episodes reset to Discovered. Episode records and processing history are always kept.
+          </p>
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <div className="flex items-center gap-3">
+            <label htmlFor="unfetchedRetentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
+              Keep never-downloaded episodes for:
+            </label>
+            <DraftNumberInput
+              id="unfetchedRetentionDays"
+              value={retentionEnabled ? unfetchedRetentionDays : null}
+              fallback={null}
+              onChange={(v) => onUnfetchedRetentionDaysChange(v ?? 0)}
+              parse={(raw) => (raw === '' ? null : parseInt(raw, 10) || 0)}
+              disabled={!retentionEnabled}
+              min={0}
+              max={3650}
+              step={1}
+              placeholder="0"
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">days, 0 to turn off</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Keeps a processed episode no podcast app has downloaded yet, in case the app is offline. Only takes effect when longer than the retention above.
+          </p>
+
+          <div className="mt-4 flex items-center gap-3">
+            <label htmlFor="fetchedRetentionGraceDays" className="text-sm text-muted-foreground whitespace-nowrap">
+              Keep after first download for:
+            </label>
+            <DraftNumberInput
+              id="fetchedRetentionGraceDays"
+              value={retentionEnabled && unfetchedRetentionDays > 0 ? fetchedRetentionGraceDays : null}
+              fallback={null}
+              onChange={(v) => onFetchedRetentionGraceDaysChange(v ?? 0)}
+              parse={(raw) => (raw === '' ? null : parseInt(raw, 10) || 0)}
+              disabled={!retentionEnabled || unfetchedRetentionDays <= 0}
+              min={0}
+              max={365}
+              step={1}
+              placeholder="3"
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">days</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            After the first download, keep the episode at least this long so a failed download can be retried. Saved with the button below.
           </p>
         </div>
 
