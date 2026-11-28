@@ -2664,6 +2664,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             conn.rollback()
             logger.error(f"review prompt fingerprint wording update failed: {e}")
 
+        self._run_reviewer_systemone_reset(conn)
+
         self._run_trim_pattern_network_ids(conn)
 
         self._register_deferred_upgrade_steps(conn, fresh=getattr(self, '_fresh_schema', False))
@@ -2674,6 +2676,42 @@ class SchemaMixin(DeferredUpgradeMixin):
 
         self._run_fetch_tracking_baseline(conn)
         self._run_adaptive_refresh_baseline(conn)
+
+    def _run_reviewer_systemone_reset(self, conn, gate='reviewer_systemone_reset_v1'):
+        """One-shot: reset review-stage settings that name System One to their defaults; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            from config import SYSTEMONE_PROVIDERS, coerce_bool_setting
+            from llm_capabilities import is_systemone_route
+
+            def stored(key):
+                row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+                return row['value'] if row else None
+
+            primary = (stored('llm_provider') or os.environ.get('LLM_PROVIDER') or 'anthropic').lower()
+            secondary = stored('secondary_provider')
+            secondary_on = bool(secondary) and coerce_bool_setting(stored('secondary_provider_enabled'))
+            review_provider = stored('review_provider')
+            resets = []
+            if review_provider in SYSTEMONE_PROVIDERS:
+                resets.append(('review_provider', 'same_as_pass'))
+            elif review_provider in ('primary', 'secondary'):
+                provider = secondary if review_provider == 'secondary' and secondary_on else primary
+                if is_systemone_route(provider, None):
+                    resets.append(('review_provider', 'same_as_pass'))
+            if is_systemone_route('', stored('review_model')):
+                resets.append(('review_model', 'same_as_pass'))
+            if is_systemone_route('', stored('failover_llm_review_model')):
+                resets.append(('failover_llm_review_model', ''))
+            for key, default in resets:
+                conn.execute("UPDATE settings SET value = ?, is_default = 1 WHERE key = ?", (default, key))
+                logger.info(f"Migration: reset {key} to its default; System One cannot be used for the reviewer")
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Reviewer System One reset failed, retrying on the next start: {e}")
 
     def _run_fetch_tracking_baseline(self, conn, gate='fetch_tracking_baseline_v1'):
         """One-shot: stamp existing feeds as requested now and mark already-downloaded episodes fetched; never raises."""
