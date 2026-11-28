@@ -12,6 +12,11 @@ const OPEN_EDITOR = '[data-testid^="open-editor-"]';
 const ROUTE_BUDGET_MS = 120_000;
 const CRAWL_BUDGET_MS = 32 * 60_000;
 
+// The Actions log is public, so progress lines carry the route shape, not slugs or ids.
+export const maskRoute = (route) => route
+  .replace(/^(\/feeds\/)[^/?]+/, '$1*')
+  .replace(/(\/episodes\/)[^/?]+/, '$1*');
+
 // feeds: [{ slug, feedType, episodes: [id] }]. Recents feeds get no per-episode routes.
 export function expandRoutes(routes, feeds) {
   const out = [...routes.static];
@@ -182,7 +187,7 @@ export async function crawl({ base, out, uiBase = '', routes }) {
     } catch (err) {
       failures.push(`${route}: ${err.message}`);
     }
-    console.log(`[${visited.length + failures.length}/${expected.length}] ${Date.now() - started} ms ${route}`);
+    console.log(`[${visited.length + failures.length}/${expected.length}] ${Date.now() - started} ms ${maskRoute(route)}`);
   }
   await context.close();
   await browser.close();
