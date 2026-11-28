@@ -1,11 +1,11 @@
 # MinusPod Documentation
 
-Full documentation for MinusPod. Start with the [project README](../README.md) for a quick install, then come here for the details.
+Start with the [project README](../README.md) for a quick install, then use these pages for details.
 
 ## Contents
 
 - [Installation](installation.md) - requirements, Whisper/Parakeet sizing, resource measurement, quick start, CPU-only image, Intel hybrid CPU tuning
-- [Environment Variables](environment-variables.md) - every env var, grouped by how often you touch it
+- [Environment Variables](environment-variables.md) - every env var, grouped by use
 - [LLM Providers](llm-providers.md) - Claude Code wrapper, Ollama (local/cloud), OpenRouter, recommended models, pricing, and [running without an LLM](llm-providers.md#running-without-an-llm)
 - [Transcription](transcription.md) - Parakeet (recommended) and faster-whisper backends, choosing between them, GPU compute types, remote APIs (whisper.cpp, Groq, OpenAI), language, timeouts
 - [Finding Feeds & Usage](feeds-and-usage.md) - podcast search, finding RSS feeds, Audiobookshelf
@@ -13,12 +13,12 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [How It Works & Detection Pipeline](how-it-works.md) - the transcription -> detection -> cut pipeline, verification pass, sliding windows, processing queue, validation, pattern learning, audio analysis
 - [Episode Processing Workflows](workflows.md) - visual map of the pipeline, the five processing modes, re-runs, and failure paths
 - [Videos](videos/README.md) - a UI tour, an animated walk through the pipeline, and one short video per feature, in portrait and landscape cuts, plus how to rebuild and re-record them
-- [Configuration & Experiments](configuration.md) - settings, per-stage LLM tuning, VAD gap detector, provider keys, ad reviewer, community patterns, scheduled backups
+- [Configuration & Experiments](configuration.md) - settings, per-stage LLM tuning, VAD gap detector, provider keys, ad reviewer, community patterns, feed refresh and dormant feeds, scheduled backups
 - [Security, Storage & Custom Assets](security-and-storage.md) - remote access, login lockout, backups, custom ad markers
 - [Audio Cue Detection](audio-cues.md) - per-feed cue templates, the find-audio-cues scan, cue types, settings, and tuning
 - [Pattern Cleanup](pattern-cleanup.md) - scheduled or manual LLM review and statistics checks: trims, splits, renames, retirements, false-positive or contamination flags, approve/reject/undo, API
 - [Upstream Transcript Differential](transcript-differential.md) - diffing the Whisper transcript against the publisher's ad-free `podcast:transcript`, how gaps corroborate or hold, settings
-- [System One](system-one.md) - native TypeSafe and compatible providers, supported phases, profiles, migration, and statistics
+- [System One](system-one.md) - native TypeSafe and compatible providers, supported phases (not the reviewer), profiles, migration, and statistics
 - [Failover](failover.md) - standby LLM provider and transcriber, triggers, health probes, recovery, manual control, API
 - [Download History](download-history.md) - the History Downloads tab: what is recorded, filters, optional geo lookup, retention, privacy, API
 - [Local Feeds](local-feeds.md) - build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema
@@ -26,12 +26,12 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Configuration Import / Export](configuration-import-export.md) - export and restore global settings and selected feed configuration
 - [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) - offload Whisper to an Intel GPU via OpenVINO Model Server
 - [AMD GPU Transcription (ROCm)](amd-whisper.md) - community-contributed whisper.cpp server on an AMD GPU, with CPU benchmark numbers
-- [API & Webhooks](api-and-webhooks.md) - REST endpoints, webhook events, payload templates, signing
+- [API & Webhooks](api-and-webhooks.md) - REST endpoints, API tokens, webhook events, payload templates, signing
 - [Podcasting 2.0](podcasting-2.0.md) - what MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why
-- [Deployment Runbook](DEPLOYMENT.md) - operational runbook
+- [Deployment Runbook](DEPLOYMENT.md) - running in production: health checks, backups, updates, common issues
 - [Releasing & Channels](releasing.md) - stable vs edge channels, how releases are tagged and promoted
 - [Container Security Updates](container-security.md) - pinned security patches for media libraries and base packages in the GPU and CPU images
-- [Glossary](glossary.md) - every term the app uses, defined and linked to the docs that cover it
+- [Glossary](glossary.md) - terms the app uses, each linked to the docs that cover it
 - [Design Specs](specs/README.md) - design documents behind larger features, cited by tests that pin a design decision
 - [Demo changelog](demo-changelog.md) - changes to the hosted demo and its tooling
 - [Contributing](CONTRIBUTING.md) - development prerequisites, setup, builds, tests, and pull requests
