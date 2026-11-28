@@ -519,11 +519,11 @@ API: `retentionDaysOverride` (integer, `null` to inherit, `0` to archive, 1 to 3
 
 ### Unfetched-episode retention
 
-A podcast app that is offline for a while can come back to find episodes already deleted by retention. Settings > Storage & Retention > **Keep never-downloaded episodes for** keeps a processed episode that no client has downloaded for that many days after processing, instead of the normal window. The default is 0, which turns this off. It only takes effect when it is longer than the feed's window, either the global retention or the feed's own override, so it never makes anything expire sooner. Archived feeds, local feeds, and a globally disabled retention are not swept at all, so they are unaffected.
+A podcast app that is offline for a while can come back to find episodes already deleted by retention. Settings > Storage and retention > **Keep never-downloaded episodes for** keeps a processed episode that no client has downloaded for that many days after processing, instead of the normal window. The default is 0, which turns this off. It only takes effect when it is longer than the feed's window, either the global retention or the feed's own override, so it never makes anything expire sooner. Archived feeds, local feeds, and a globally disabled retention are not swept at all, so they are unaffected.
 
 Once an episode has been downloaded, **Keep after first download for** (default 3 days) keeps it at least that long after the first download, so an app whose download failed partway can retry. After that the episode follows the normal window. If the normal window has already passed, it is swept on the next cleanup.
 
-A download is the first `GET` that serves the episode's processed audio. A `HEAD`, a redirect to the original audio, and a "still processing" response do not count. When retention resets an episode to Discovered, its download time is cleared, so a reprocessed copy starts fresh. Episodes kept this way still drop their pre-cut original on the **Retain original audio** schedule. Failed episodes are not kept longer.
+A download is the first `GET` that serves the episode's processed audio. A `HEAD`, a same-origin request from the web UI's own player, a redirect to the original audio, and a "still processing" response do not count. When retention resets an episode to Discovered, its download time is cleared, so a reprocessed copy starts fresh. Episodes kept this way still drop their pre-cut original on the **Retain original audio** schedule. Failed episodes are not kept longer.
 
 On upgrade, each processed episode's first download is filled in from [download history](download-history.md) where a record exists. A processed episode with no history record counts as never downloaded. That includes episodes downloaded before download history existed, while it was off, or longer ago than download history keeps rows (90 days by default).
 
@@ -545,11 +545,11 @@ Caps the size of one local-feed upload request (a single episode or a batch of s
 
 Settings > Global Defaults > **Pause auto-process for unrequested feeds** stops spending transcription and LLM money on feeds nobody listens to. Set it to a number of days. A subscribed feed whose served RSS no client has fetched in that many days goes dormant, and new episodes found by a refresh are no longer queued for processing. A feed that has never been fetched counts from the day it was added. The default is 0, which turns this off.
 
-A dormant feed still refreshes on schedule, so its episode list stays current. Playing an episode still processes it on demand, and so does a manual reprocess. The next time a podcast app fetches the feed, auto-process resumes. The next refresh then queues any episode published in the last 48 hours that has not been processed. A feed with Auto-Process set to Enabled in Feed Settings is never paused. Local feeds and the recents feed are never dormant.
+A dormant feed still refreshes on schedule, so its episode list stays current. Playing an episode still processes it on demand, and so does a manual reprocess. The next time a podcast app fetches the feed, auto-process resumes. The next refresh then queues any episode still inside the auto-process window that has not been processed. A feed with Auto-Process set to Enabled in Feed Settings is never paused. Local feeds and the recents feed are never dormant.
 
-Only fetches that pass feed authentication count, and each feed's fetch time is recorded at most once every 10 minutes. The feed list shows a Dormant label. The feed page also shows when the feed was last fetched.
+Only GET requests that pass feed authentication count. A HEAD request and the web UI's own same-origin requests do not. Each feed's fetch time is recorded at most once every 10 minutes. The feed list shows a Dormant label. The feed page also shows when the feed was last fetched.
 
-With **Only expose processed episodes** on, a dormant feed's new episodes are left out of the served RSS, so a podcast app cannot request them on demand. Episodes from the last 48 hours are still queued once the feed is fetched again, but older ones have to be processed by hand.
+With **Only expose processed episodes** on, a dormant feed's new episodes are left out of the served RSS, so a podcast app cannot request them on demand. Episodes inside the auto-process window are still queued once the feed is fetched again, but older ones have to be processed by hand.
 
 API: `dormantFeedDays` (integer, 0 to 3650) on `PUT /api/v1/settings/ad-detection`. `GET /api/v1/feeds` and `GET /api/v1/feeds/{slug}` return `dormant` and `lastFeedRequestAt` for each feed.
 
