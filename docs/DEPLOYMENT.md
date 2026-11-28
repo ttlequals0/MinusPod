@@ -26,7 +26,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
 - 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` faster-whisper models or long episodes
-- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. Whisper (CTranslate2) runs on Maxwell (GTX 9xx) through Blackwell (RTX 50xx). Parakeet (ONNX Runtime) runs on Maxwell through Blackwell, with RTX 50-series confirmed by a user report on one card, an RTX 5070 (#990); the GPU image pins cuDNN 9.10.2, the last release that supports cards older than Turing, so pre-Turing cards keep GPU Parakeet only while the image stays on that cuDNN line.
+- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. Whisper (CTranslate2) runs on Maxwell (GTX 9xx) through Blackwell (RTX 50xx). Parakeet (ONNX Runtime) runs on Maxwell through Blackwell, with RTX 50-series confirmed on one card, an RTX 5070 (#990). The GPU image pins cuDNN 9.10.2, the last release that supports cards older than Turing, so pre-Turing cards keep GPU Parakeet only while the image stays on that cuDNN line.
 - An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance), or `LLM_PROVIDER=none` to run without an LLM ([details](llm-providers.md#running-without-an-llm))
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
@@ -153,7 +153,7 @@ If GPU not available, set `WHISPER_DEVICE=cpu` (slower but works).
 
 ## Backup and recovery
 
-Scheduled backups are available under Settings > Data & Security and are off by default. They create private, plaintext SQLite snapshots. The API path below creates an encrypted envelope when a master passphrase is configured.
+Scheduled backups are under Settings > Data and security > Scheduled backups and are off by default. They create private, plaintext SQLite snapshots. A destination inside a directory MinusPod serves over HTTP is refused when saved and on every run; Back up now then answers 409 with the reason. The API path below creates an encrypted envelope when a master passphrase is configured.
 
 ### On-demand SQLite backup (API)
 
@@ -164,7 +164,7 @@ curl -sS -b cookies.txt \
   http://localhost:8000/api/v1/system/backup
 ```
 
-When `MINUSPOD_MASTER_PASSPHRASE` is set, new downloads use the self-contained, authenticated `MPBK02` envelope and require the passphrase that created them. Legacy `MPBK01` downloads also require an intact database from the same instance for its KDF salt. See the authoritative [restore and passphrase rotation procedure](security-and-storage.md#restore-and-passphrase-rotation). Append `?encrypted=false` only when another protection layer covers the plaintext file.
+When `MINUSPOD_MASTER_PASSPHRASE` is set, new downloads use the self-contained, authenticated `MPBK02` envelope and require the passphrase that created them. Legacy `MPBK01` downloads also require an intact database from the same instance for its KDF salt. See the authoritative [restore and passphrase rotation procedure](security-and-storage.md#restore-and-passphrase-rotation). Append `?encrypted=false` only when another protection layer covers the plaintext file. A script can send an [API token](api-and-webhooks.md#api-tokens) instead of the cookie; a token can download encrypted backups only.
 
 ### Manual filesystem backup
 
@@ -184,7 +184,7 @@ Stop the service with `docker-compose stop`, then follow [Restore and passphrase
 
 ## SQLite diagnostics
 
-Settings > Data & Security > Database Stats shows journal mode, busy timeout, database and WAL sizes, free pages, slow statements, long transactions, and commit timing. Instrumentation counters cover the responding worker process and reset when it restarts.
+Settings > Data and security > Database stats shows journal mode, busy timeout, database and WAL sizes, free pages, slow statements, long transactions, and commit timing. Instrumentation counters cover the responding worker process and reset when it restarts.
 
 Run a passive checkpoint from that panel or with `POST /api/v1/system/database/checkpoint`. A successful response reports `logPages`, `checkpointedPages`, and `durationMs`. HTTP 409 with `busy: true` means active readers prevented a complete checkpoint; it does not corrupt or discard the WAL.
 
@@ -204,7 +204,7 @@ Database migrations run automatically on startup. Take a backup (see above) befo
 
 Rolling back to 2.101.34 is not supported, but it does not corrupt data. If the LLM provider was set to None, set a real provider before rolling back, because the older version does not know `none` and falls back to the Anthropic client. Match history and waveform peaks files written by the newer version are ignored by the older one.
 
-The shipped Compose files allow 360 seconds for container shutdown. Keep `MINUSPOD_STOP_GRACE_PERIOD` longer than `GUNICORN_GRACEFUL_TIMEOUT` (330 seconds), which in turn must outlast `MINUSPOD_SHUTDOWN_DRAIN_SECONDS` (300 seconds). Shutdown stops new admission and gives active processing that drain window before workers exit; interrupted work remains pending for recovery.
+The shipped Compose files allow 360 seconds for container shutdown. Keep `MINUSPOD_STOP_GRACE_PERIOD` longer than `GUNICORN_GRACEFUL_TIMEOUT` (330 seconds), which in turn must outlast `MINUSPOD_SHUTDOWN_DRAIN_SECONDS` (300 seconds). Shutdown stops new admission and gives active processing that drain window before workers exit. Interrupted work remains pending for recovery.
 
 Portainer and similar stack managers keep a saved Compose definition. Pulling a repository file or image does not update it. When an upgrade changes settings such as `stop_grace_period`, copy the change into the live stack before redeploying.
 
