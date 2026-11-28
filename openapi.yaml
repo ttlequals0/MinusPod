@@ -217,7 +217,7 @@ paths:
           every older session, and authenticates this request's new session.
         - Empty or null newPassword removes protection and clears this session.
         - A non-empty newPassword must contain at least 12 characters.
-        - Changing the password keeps API tokens; removing it revokes them all.
+        - Changing the password revokes API tokens unless revokeApiTokens is false; removing it revokes them all.
         - A request carrying an API token gets 403.
       operationId: setPassword
       security: []
@@ -243,6 +243,12 @@ paths:
                 newPassword:
                   type: [string, 'null']
                   description: New password (at least 12 characters, or empty/null to remove protection)
+                revokeApiTokens:
+                  type: boolean
+                  default: true
+                  description: >-
+                    Applies only when changing an existing password. False keeps API tokens valid.
+                    Ignored on first setup and on removal, which always revokes them.
       responses:
         '200':
           description: Password updated successfully
@@ -250,14 +256,18 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [message, passwordSet]
+                required: [message, passwordSet, apiTokensRevoked]
                 properties:
                   message:
                     type: string
                   passwordSet:
                     type: boolean
+                  apiTokensRevoked:
+                    type: integer
+                    minimum: 0
+                    description: API tokens revoked by this request.
         '400':
-          description: Invalid request (password too short)
+          description: Invalid request (password too short or revokeApiTokens not a boolean)
           content:
             application/json:
               schema:
@@ -392,7 +402,7 @@ paths:
       summary: Revoke all API tokens
       description: >-
         Revokes every active token at once; they stop working immediately. Use
-        after a suspected compromise: changing the password keeps tokens.
+        after a suspected compromise: changing the password revokes tokens unless told to keep them.
         Session only: an API token gets 403. Limited to 5/hour.
       operationId: revokeAllApiTokens
       security:

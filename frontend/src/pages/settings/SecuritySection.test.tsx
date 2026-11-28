@@ -10,9 +10,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SecuritySection from './SecuritySection';
 import type { Settings } from '../../api/types';
 
+const mockSetPassword = vi.fn();
+const mockListApiTokens = vi.fn();
+
 vi.mock('../../api/auth', () => ({
-  setPassword: vi.fn(),
+  setPassword: (...args: unknown[]) => mockSetPassword(...args),
   removePassword: vi.fn(),
+}));
+
+vi.mock('../../api/apiTokens', () => ({
+  API_TOKENS_QUERY_KEY: ['api-tokens'],
+  listApiTokens: (...args: unknown[]) => mockListApiTokens(...args),
+  revokeAllApiTokens: vi.fn(),
+  revokeApiToken: vi.fn(),
+  createApiToken: vi.fn(),
 }));
 
 const mockGetSettings = vi.fn();
@@ -57,6 +68,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetSettings.mockResolvedValue(makeSettings());
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
+  mockListApiTokens.mockResolvedValue([]);
+  mockSetPassword.mockResolvedValue({ message: 'ok', passwordSet: true, apiTokensRevoked: 0 });
 });
 
 describe('SecuritySection hardened controls', () => {
@@ -112,6 +125,45 @@ describe('SecuritySection password form', () => {
     expect((username as HTMLInputElement).hidden).toBe(true);
     expect(username!.closest('form')).toBe(
       container.querySelector('#newPassword')!.closest('form'));
+  });
+});
+
+describe('SecuritySection revoke API tokens option', () => {
+  const token = { id: 1, name: 'ci', prefix: 'a1b2c3d4', createdAt: '2026-01-01T00:00:00Z', lastUsedAt: null };
+
+  async function submitChange(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(document.getElementById('currentPassword')!, 'old-password-123');
+    await user.type(document.getElementById('newPassword')!, 'new-password-1234');
+    await user.type(document.getElementById('confirmPassword')!, 'new-password-1234');
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+  }
+
+  it('is checked by default and sends revokeApiTokens true', async () => {
+    mockListApiTokens.mockResolvedValue([token]);
+    renderSection({ isPasswordSet: true });
+    const box = await screen.findByRole('checkbox', { name: 'Also revoke API tokens' });
+    expect((box as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText('Uncheck to keep scripts and integrations working after the change.')).toBeDefined();
+    const user = userEvent.setup();
+    await submitChange(user);
+    expect(mockSetPassword).toHaveBeenCalledWith('new-password-1234', 'old-password-123', true);
+  });
+
+  it('sends false when unchecked', async () => {
+    mockListApiTokens.mockResolvedValue([token]);
+    renderSection({ isPasswordSet: true });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('checkbox', { name: 'Also revoke API tokens' }));
+    await submitChange(user);
+    expect(mockSetPassword).toHaveBeenCalledWith('new-password-1234', 'old-password-123', false);
+  });
+
+  it('is hidden when no password is set or no token exists', async () => {
+    renderSection({ isPasswordSet: false });
+    expect(screen.queryByRole('checkbox', { name: 'Also revoke API tokens' })).toBeNull();
+    renderSection({ isPasswordSet: true });
+    await screen.findByText('Current password');
+    expect(screen.queryByRole('checkbox', { name: 'Also revoke API tokens' })).toBeNull();
   });
 });
 

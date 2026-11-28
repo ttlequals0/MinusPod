@@ -1512,9 +1512,13 @@ class SettingsMixin:
             except (TypeError, ValueError):
                 return 0
 
-    def replace_password_and_revoke(self, expected_hash: str | None,
-                                    new_hash: str) -> int | None:
-        """Replace a matching password and revoke existing sessions atomically."""
+    def replace_password_and_revoke(self, expected_hash: str | None, new_hash: str,
+                                    revoke_tokens: bool = True) -> tuple[int, int] | None:
+        """Replace a matching password and revoke sessions atomically.
+
+        Returns (session generation, API tokens revoked), or None if the hash moved.
+        Removing the password (empty new_hash) always revokes tokens.
+        """
         with self.transaction(immediate=True) as conn:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key = 'app_password'"
@@ -1530,16 +1534,17 @@ class SettingsMixin:
             except (TypeError, ValueError):
                 current = 0
             value = current + 1
-            if not new_hash:
-                # Tokens mean nothing without a password and must not revive on the next one.
-                conn.execute(
+            revoked = 0
+            if not new_hash or revoke_tokens:
+                # Without a password tokens must not revive on the next one.
+                revoked = conn.execute(
                     "UPDATE api_tokens SET revoked_at = ? WHERE revoked_at IS NULL",
-                    (utc_now_iso(),))
+                    (utc_now_iso(),)).rowcount
             self._upsert_setting(conn, 'app_password', new_hash, is_default=False)
             self._upsert_setting(
                 conn, 'auth_session_generation', str(value), is_default=False
             )
-            return value
+            return value, revoked
 
     def merge_setting(self, key: str, merge_fn) -> str:
         """Rewrite a setting as merge_fn(stored_value_or_None) -> new value.

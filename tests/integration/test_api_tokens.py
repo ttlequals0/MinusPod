@@ -134,15 +134,50 @@ def test_create_without_a_password_is_409(db):
     assert 'password' in resp.get_json()['error']
 
 
-def test_removing_the_password_revokes_tokens_but_changing_it_does_not(session_client, db):
+NEW_PW = 'another-password-123456'
+
+
+def _put_password(client, **body):
+    return client.put('/api/v1/auth/password', json={'currentPassword': PW, 'newPassword': NEW_PW, **body})
+
+
+def test_changing_the_password_revokes_tokens_by_default(session_client, db):
+    _create(session_client, 'one')
+    _create(session_client, 'two')
+    resp = _put_password(session_client)
+    assert resp.status_code == 200
+    assert resp.get_json()['apiTokensRevoked'] == 2
+    assert db.list_api_tokens() == []
+
+
+def test_changing_the_password_can_keep_tokens(session_client, db):
     _create(session_client)
-    changed = session_client.put('/api/v1/auth/password', json={
-        'currentPassword': PW, 'newPassword': 'another-password-123456'})
-    assert changed.status_code == 200
+    resp = _put_password(session_client, revokeApiTokens=False)
+    assert resp.status_code == 200
+    assert resp.get_json()['apiTokensRevoked'] == 0
     assert len(db.list_api_tokens()) == 1
+
+
+@pytest.mark.parametrize('value', ['false', 0, 1, None, []])
+def test_non_boolean_revoke_flag_is_400(session_client, db, value):
+    _create(session_client)
+    assert _put_password(session_client, revokeApiTokens=value).status_code == 400
+    assert len(db.list_api_tokens()) == 1
+
+
+def test_first_setup_ignores_the_revoke_flag(db):
+    db.set_setting('app_password', '')
+    resp = app.test_client().put('/api/v1/auth/password', json={'newPassword': NEW_PW, 'revokeApiTokens': False})
+    assert resp.status_code == 200
+    assert resp.get_json()['apiTokensRevoked'] == 0
+
+
+def test_removing_the_password_revokes_tokens_even_when_asked_to_keep_them(session_client, db):
+    _create(session_client)
     removed = session_client.put('/api/v1/auth/password', json={
-        'currentPassword': 'another-password-123456', 'newPassword': ''})
+        'currentPassword': PW, 'newPassword': '', 'revokeApiTokens': False})
     assert removed.status_code == 200
+    assert removed.get_json()['apiTokensRevoked'] == 1
     assert db.list_api_tokens() == []
 
 

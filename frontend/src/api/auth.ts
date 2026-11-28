@@ -13,6 +13,7 @@ interface LoginResponse {
 interface PasswordChangeResponse {
   message: string;
   passwordSet: boolean;
+  apiTokensRevoked: number;
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {
@@ -34,13 +35,15 @@ export async function logout(): Promise<LoginResponse> {
 
 export async function setPassword(
   newPassword: string,
-  currentPassword?: string
+  currentPassword?: string,
+  revokeApiTokens?: boolean
 ): Promise<PasswordChangeResponse> {
   return apiRequest<PasswordChangeResponse>('/auth/password', {
     method: 'PUT',
     body: {
       currentPassword: currentPassword || '',
       newPassword,
+      ...(revokeApiTokens !== undefined && { revokeApiTokens }),
     },
   });
 }

@@ -156,6 +156,7 @@ def auth_set_password():
 
     Body: {"currentPassword" (required if one is set), "newPassword" (min 12 chars)}.
     An empty or null newPassword removes password protection.
+    Optional boolean "revokeApiTokens" (default true) applies only when changing an existing password.
     """
     data = request.get_json()
     if not data:
@@ -173,16 +174,21 @@ def auth_set_password():
             return error_response('Current password is incorrect', 401)
 
     new_password = data.get('newPassword', '')
+    revoke_tokens = data.get('revokeApiTokens', True)
+    if not isinstance(revoke_tokens, bool):
+        return error_response('revokeApiTokens must be a boolean', 400)
 
     # Remove password protection if empty
     if not new_password:
-        if db.replace_password_and_revoke(current_hash, '') is None:
+        replaced = db.replace_password_and_revoke(current_hash, '')
+        if replaced is None:
             return error_response('Password changed; try again', 409)
         sign_out(db)
         logger.info(f"Password protection removed by {request.remote_addr}")
         return json_response({
             'message': 'Password protection removed',
-            'passwordSet': False
+            'passwordSet': False,
+            'apiTokensRevoked': replaced[1]
         })
 
     # Validate new password (grandfathered: pre-existing hashes with shorter
@@ -195,9 +201,11 @@ def auth_set_password():
     # than depending on whichever default werkzeug ships today.
     password_hash = generate_password_hash(new_password, method='scrypt')
     remembered = current_auth().remembered
-    generation = db.replace_password_and_revoke(current_hash, password_hash)
-    if generation is None:
+    replaced = db.replace_password_and_revoke(
+        current_hash, password_hash, revoke_tokens=revoke_tokens and password_set)
+    if replaced is None:
         return error_response('Password changed; try again', 409)
+    generation, tokens_revoked = replaced
     logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
 
     # Rotate the session on password change for the same reason as /auth/login.
@@ -206,7 +214,8 @@ def auth_set_password():
 
     return json_response({
         'message': f"Password {'changed' if password_set else 'set'} successfully",
-        'passwordSet': True
+        'passwordSet': True,
+        'apiTokensRevoked': tokens_revoked
     })
 
 
