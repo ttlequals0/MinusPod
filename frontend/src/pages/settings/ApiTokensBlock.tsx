@@ -185,7 +185,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground" title={token.name}>{token.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {token.lastUsedAt ? `Used ${formatDate(token.lastUsedAt)}` : 'Never used'}
+                          {token.lastUsedAt ? `Last used ${formatDate(token.lastUsedAt)}` : 'Never used'}
                         </p>
                       </div>
                       <div className="shrink-0">

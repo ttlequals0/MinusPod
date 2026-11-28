@@ -48,10 +48,10 @@ describe('ApiTokensBlock', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
-  it('shows Used with a date once a token has been used', async () => {
+  it('shows Last used with a date once a token has been used', async () => {
     mockList.mockResolvedValue([{ ...TOKEN, lastUsedAt: '2026-11-27T12:00:00Z' }]);
     renderBlock();
-    expect(await screen.findByText(/^Used /)).toBeTruthy();
+    expect(await screen.findByText(/^Last used /)).toBeTruthy();
     expect(screen.queryByText('Never used')).toBeNull();
   });
 
