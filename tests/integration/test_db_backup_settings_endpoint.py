@@ -176,6 +176,13 @@ def test_put_dest_is_data_dir(app_client, db):
     assert r.get_json()['error'] == 'destination must not be the data directory itself'
 
 
+def test_put_dest_inside_served_directory(app_client, db):
+    r = app_client.put('/api/v1/settings/db-backup',
+                       json={'dest': str(Path(db.data_dir) / 'podcasts' / 'show')})
+    assert r.status_code == 400
+    assert 'serves over HTTP' in r.get_json()['error']
+
+
 def test_put_storage_failure_on_last_write_persists_nothing(app_client, db):
     # A write failing partway must roll back the fields staged ahead of it.
     dest = tempfile.mkdtemp(prefix='db-backup-dest-')

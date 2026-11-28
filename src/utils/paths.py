@@ -19,6 +19,7 @@ def resolve_data_dir() -> Path:
 # Repo layout: <root>/src/utils/paths.py and <root>/static/ui/logo.png; the
 # container mirrors it under /app.
 _UI_DIR = Path(__file__).resolve().parents[2] / 'static' / 'ui'
+STATIC_UI_DIR = _UI_DIR
 LOGO_PATH = _UI_DIR / 'logo.png'
 # 1400px square render of the waveform mark; the wide logo crops in square frames.
 RECENTS_ARTWORK_PATH = _UI_DIR / 'recents-artwork.png'

@@ -91,6 +91,10 @@ Swap the User-Agent pattern for your app (`*Overcast*`, `*Castro*`, `*AntennaPod
 
 Cloudflare caches by file extension by default, and `.mp3` is on its default list. Feed XML is not cached by default, but a "Cache Everything" rule caches it. MinusPod sends `Cache-Control: private, no-cache` on feeds, chapters and transcripts, so Cloudflare does not store them. Episode audio is sent with `no-cache`, so Cloudflare may store a copy but checks with your server before each reuse. An Edge TTL override, or a rule that ignores cache-control, replaces the header and can serve a stale feed or old audio after a reprocess. Do not add one for the feed host. If a zone-wide rule of that kind already exists, add a Cache Rule that bypasses cache for the feed host (hostname equals `feed.example.com`, action Bypass cache).
 
+### Backup destination
+
+A database copy holds the signing key and password hash, so the scheduled backup destination is refused if it is inside any directory MinusPod serves over HTTP (episode audio, artwork and transcripts under the data directory, run logs, the web UI and bundled assets). The check runs when the setting is saved and again on every backup run, so an old bad value fails the run with an error instead of being used.
+
 ### Outbound request safety
 
 Every outbound fetch MinusPod makes itself (RSS sources, enclosures, artwork,
