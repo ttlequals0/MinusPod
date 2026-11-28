@@ -34,7 +34,7 @@ function ProblemRow({ problem, pending, error, onRefresh }: {
         <p className="text-foreground" title={problem.detail ?? undefined}>{problem.message}</p>
         <p className="text-xs text-muted-foreground">
           {problem.consecutiveFailures} failures in a row
-          {'; '}last success {formatDateTime(problem.lastSuccessAt)}
+          {'; '}last success {problem.lastSuccessAt ? formatDateTime(problem.lastSuccessAt) : 'never'}
           {'; '}next retry {formatDateTime(problem.nextRetryAt)}
         </p>
         {error && <p role="alert" className="text-xs text-destructive break-words">{error}</p>}

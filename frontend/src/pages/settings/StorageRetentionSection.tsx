@@ -93,7 +93,7 @@ function StorageRetentionSection({
         </div>
 
         <div className="pt-4 border-t border-border">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <label htmlFor="unfetchedRetentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
               Keep never-downloaded episodes for:
             </label>
@@ -116,7 +116,7 @@ function StorageRetentionSection({
             Keeps a processed episode no podcast app has downloaded yet, in case the app is offline. Only takes effect when longer than the retention above.
           </p>
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
             <label htmlFor="fetchedRetentionGraceDays" className="text-sm text-muted-foreground whitespace-nowrap">
               Keep after first download for:
             </label>

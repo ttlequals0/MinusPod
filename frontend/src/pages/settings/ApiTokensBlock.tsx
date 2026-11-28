@@ -154,10 +154,10 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
                     <tbody className={tableBody}>
                       {tokens.map((token) => (
                         <tr key={token.id} className={tableRow}>
-                          <td className={`${td} min-w-0 break-all text-foreground`}>{token.name}</td>
+                          <td className={`${td} min-w-36 break-words text-foreground`}>{token.name}</td>
                           <td className={`${td} font-mono whitespace-nowrap`}>mp_{token.prefix}...</td>
-                          <td className={`${td} whitespace-nowrap`}>{formatDateTime(token.createdAt)}</td>
-                          <td className={`${td} whitespace-nowrap`}>{token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'Never'}</td>
+                          <td className={td}>{formatDateTime(token.createdAt)}</td>
+                          <td className={td}>{token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'Never'}</td>
                           <td className={`${td} text-right whitespace-nowrap`}>{revokeButton(token)}</td>
                         </tr>
                       ))}
