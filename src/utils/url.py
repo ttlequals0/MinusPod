@@ -7,6 +7,7 @@ import ipaddress
 import logging
 import re
 import socket
+import time
 from urllib.parse import urlparse, urlsplit
 
 from utils.constants import ALLOWED_URL_SCHEMES, ALLOWED_URL_PORTS
@@ -76,13 +77,29 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
         raise SSRFError(f"Blocked non-global IP: {ip_str}")
 
 
+def _resolve_with_retry(host: str, port: int, *, attempts: int = 3,
+                        base_delay: float = 0.15) -> list[tuple]:
+    """getaddrinfo with a short bounded retry on transient resolver errors only.
+
+    Docker's embedded resolver drops lookups under concurrent refreshes and
+    surfaces them as EAI_AGAIN; a definitive failure (NXDOMAIN) is not retried.
+    """
+    for attempt in range(attempts):
+        try:
+            return socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)
+        except socket.gaierror as exc:
+            if exc.errno != socket.EAI_AGAIN or attempt == attempts - 1:
+                raise
+            time.sleep(base_delay * (attempt + 1))
+
+
 def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tuple]:
     """Resolve ``host``:``port`` and run check_resolved_ip on every address.
 
     Returns the addrinfo list. socket.gaierror propagates (an empty result is
     raised as gaierror too) so callers handle unresolvable hosts their own way.
     """
-    infos = socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)
+    infos = _resolve_with_retry(host, port)
     if not infos:
         raise socket.gaierror(
             socket.EAI_NONAME, f"No addresses found for hostname: {host!r}")
