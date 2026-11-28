@@ -38,12 +38,11 @@ from fx_rates import FxRateError, get_usd_rate
 from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
 from podping_listener import get_podping_nodes, normalize_podping_nodes
-from rss_parser import _feed_trust
 from youtube.settings import validate_yt_int
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_ciphertext
 from utils.cron import is_valid_expression
-from utils.safe_http import _validate_for_tier
+from utils.safe_http import _validate_for_tier, feed_trust
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from utils.url import SSRFError, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
 from utils.time import utc_now_iso
@@ -909,7 +908,7 @@ def _source_owner(owners, source, slug):
 
 
 def _validate_import_feed_urls(feeds):
-    trust = _feed_trust()
+    trust = feed_trust()
     for feed in feeds:
         if feed['feedType'] != 'subscribed':
             continue

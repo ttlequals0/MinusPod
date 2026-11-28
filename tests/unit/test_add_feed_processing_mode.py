@@ -26,7 +26,7 @@ def test_add_feed_applies_passthrough_mode(app_client):
     _authed(app_client)
     from api import get_database
     db = get_database()
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed') as refresh:
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed') as refresh:
         resp = _post(app_client, 'mode-passthrough', processingMode='passthrough')
     assert resp.status_code == 201, resp.get_json()
     try:
@@ -40,7 +40,7 @@ def test_add_feed_rejects_cue_only_mode(app_client):
     _authed(app_client)
     from api import get_database
     db = get_database()
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'):
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed'):
         resp = _post(app_client, 'mode-cue-only', processingMode='cue_only')
     assert resp.status_code == 400
     assert 'cue_only' in resp.get_json()['error']
@@ -51,7 +51,7 @@ def test_add_feed_rejects_unknown_mode(app_client):
     _authed(app_client)
     from api import get_database
     db = get_database()
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'):
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed'):
         resp = _post(app_client, 'mode-bogus', processingMode='bogus')
     assert resp.status_code == 400
     assert db.get_podcast_by_slug('mode-bogus') is None

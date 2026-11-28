@@ -63,7 +63,7 @@ def test_safe_url_for_log_hides_a_password_the_userinfo_pass_cannot_match(passwo
 
 def test_add_feed_refuses_whitespace_and_logs_no_credential(app_client, caplog):
     _authed(app_client)
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'), caplog.at_level(logging.INFO):
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed'), caplog.at_level(logging.INFO):
         resp = app_client.post('/api/v1/feeds', json={'sourceUrl': BAD_URL, 'slug': 'ws-add'},
                                headers=_csrf(app_client))
     assert resp.status_code == 400
@@ -74,7 +74,7 @@ def test_add_feed_refuses_whitespace_and_logs_no_credential(app_client, caplog):
 
 def test_add_feed_logs_the_source_url_without_userinfo_or_query(app_client, caplog):
     _authed(app_client)
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'), caplog.at_level(logging.INFO):
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed'), caplog.at_level(logging.INFO):
         resp = app_client.post('/api/v1/feeds', json={
             'sourceUrl': 'https://alice:SECRET@feeds.example.com/f.xml?key=SECRET', 'slug': 'ws-log'},
             headers=_csrf(app_client))
@@ -88,7 +88,7 @@ def test_add_feed_logs_the_source_url_without_userinfo_or_query(app_client, capl
 
 def test_add_feed_strips_leading_and_trailing_whitespace(app_client):
     _authed(app_client)
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'):
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed'):
         resp = app_client.post('/api/v1/feeds', json={
             'sourceUrl': ' \thttps://feeds.example.com/strip.xml\n', 'slug': 'ws-strip'}, headers=_csrf(app_client))
     try:
@@ -101,7 +101,7 @@ def test_add_feed_strips_leading_and_trailing_whitespace(app_client):
 def test_update_feed_strips_leading_and_trailing_whitespace():
     parsed = MagicMock(feed={'title': 'Example'}, entries=[])
     parser = MagicMock(parse_feed=MagicMock(return_value=parsed))
-    with patch('api.feeds.validate_url'), patch('api.feeds._fetch_feed_content', return_value=(parser, b'<rss/>')):
+    with patch('api.feeds.validate_feed_source_url'), patch('api.feeds._fetch_feed_content', return_value=(parser, b'<rss/>')):
         assert api_feeds._validate_source_url('\n https://feeds.example.com/new.xml\t ') == (
             'https://feeds.example.com/new.xml', None)
 
@@ -110,7 +110,7 @@ def test_opml_import_strips_leading_and_trailing_whitespace(app_client):
     _authed(app_client)
     opml = ('<opml version="2.0"><body><outline type="rss" text="WS Strip OPML" '
             'xmlUrl="  https://feeds.example.com/o.xml&#10;"/></body></opml>')
-    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'):
+    with patch('api.feeds.validate_feed_source_url'), patch('main_app.feeds.refresh_rss_feed'):
         resp = app_client.post('/api/v1/feeds/import-opml', data={'opml': (io.BytesIO(opml.encode()), 'f.opml')},
                                content_type='multipart/form-data', headers=_csrf(app_client))
     body = resp.get_json()
@@ -127,7 +127,7 @@ def test_update_feed_refuses_whitespace(app_client):
     db = get_database()
     db.create_podcast('ws-update', 'https://feeds.example.com/old.xml')
     try:
-        with patch('api.feeds.validate_url'):
+        with patch('api.feeds.validate_feed_source_url'):
             resp = app_client.patch('/api/v1/feeds/ws-update', json={'sourceUrl': 'https://feeds.example.com/a\tb.xml'},
                                     headers=_csrf(app_client))
         assert resp.status_code == 400
@@ -141,7 +141,7 @@ def test_opml_import_refuses_whitespace(app_client):
     _authed(app_client)
     opml = ('<opml version="2.0"><body><outline type="rss" text="WS Import" '
             'xmlUrl="https://alice:pass&#32;word@feeds.example.com/f.xml"/></body></opml>')
-    with patch('api.feeds.validate_url'):
+    with patch('api.feeds.validate_feed_source_url'):
         resp = app_client.post('/api/v1/feeds/import-opml', data={'opml': (io.BytesIO(opml.encode()), 'f.opml')},
                                content_type='multipart/form-data', headers=_csrf(app_client))
     body = resp.get_json()

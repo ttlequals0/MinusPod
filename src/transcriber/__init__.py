@@ -30,7 +30,7 @@ from utils.url import SSRFError
 from utils.http import redact_exc, redact_log_text, redirect_chain_for_log, safe_url_for_log
 from utils.log_format import KEEP_URL_QUERY
 from utils.safe_http import (
-    URLTrust, safe_get, stream_to_file_capped,
+    feed_trust, safe_get, stream_to_file_capped,
     ResponseTooLargeError,
 )
 import utils.subprocess_registry
@@ -647,7 +647,7 @@ class Transcriber:
         try:
             response = safe_head(
                 url,
-                trust=URLTrust.FEED_CONTENT,
+                trust=feed_trust(),
                 timeout=timeout,
                 # Megaphone / Art19 / simplecast chain 6-8 redirects and Acast adds
                 # analytics bouncers; the higher cap avoids false CDN-check failures.
@@ -708,7 +708,7 @@ class Transcriber:
             }
             response = safe_get(
                 url,
-                trust=URLTrust.FEED_CONTENT,
+                trust=feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,

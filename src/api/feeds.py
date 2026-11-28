@@ -75,7 +75,8 @@ from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
-from utils.url import reject_url_whitespace, validate_url, SSRFError
+from utils.safe_http import validate_feed_source_url
+from utils.url import reject_url_whitespace, SSRFError
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
@@ -261,7 +262,7 @@ def _validate_source_url(value, podcast=None):
         return None, 'sourceUrl must be a non-empty string'
     try:
         reject_url_whitespace(url)
-        validate_url(url)
+        validate_feed_source_url(url)
     except SSRFError as e:
         logger.warning(f"SSRF blocked in update_feed: {e} (url={safe_url_for_log(url)})")
         return None, f'Invalid feed URL: {e}'
@@ -1472,7 +1473,7 @@ def add_feed():
     # SSRF protection: validate URL before any outbound request
     try:
         reject_url_whitespace(source_url)
-        validate_url(source_url)
+        validate_feed_source_url(source_url)
     except SSRFError as e:
         logger.warning(f"SSRF blocked in add_feed: {e} (url={safe_url_for_log(source_url)})")
         return error_response(f'Invalid feed URL: {e}', 400)
@@ -1698,7 +1699,7 @@ def import_opml():
         # SSRF protection: validate each feed URL
         try:
             reject_url_whitespace(source_url)
-            validate_url(source_url)
+            validate_feed_source_url(source_url)
         except SSRFError as e:
             logger.warning(f"SSRF blocked in OPML import: {e} (url={safe_url_for_log(source_url)})")
             failed.append({'url': source_url, 'error': f'Invalid URL: {e}'})

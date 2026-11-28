@@ -36,7 +36,7 @@ from utils.url import SSRFError
 from user_agent import feed_user_agent
 from utils.http import redact_exc_urls, safe_url_for_log
 from utils.safe_http import (
-    IncompleteResponseError, ResponseTooLargeError, URLTrust,
+    IncompleteResponseError, ResponseTooLargeError, feed_trust,
     read_response_capped, safe_get,
 )
 
@@ -75,15 +75,6 @@ def _read_capped_feed_body(response, url, breaker, probe_token) -> bytes | None:
         return None
     finally:
         response.close()
-
-
-def _feed_trust() -> URLTrust:
-    """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
-    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true."""
-    opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
-    if opt_in in ('1', 'true', 'yes', 'on'):
-        return URLTrust.OPERATOR_CONFIGURED
-    return URLTrust.FEED_CONTENT
 
 
 def _content_type_looks_like_feed(header_value: str | None) -> bool:
@@ -453,7 +444,7 @@ class RSSParser:
             # Some feed hosts (e.g. feeds.podcastindex.org) 403 the default python-requests UA.
             response = safe_get(
                 url,
-                trust=_feed_trust(),
+                trust=feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
@@ -490,7 +481,7 @@ class RSSParser:
             try:
                 response = safe_get(
                     url,
-                    trust=_feed_trust(),
+                    trust=feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
                     stream=True,
@@ -550,7 +541,7 @@ class RSSParser:
         try:
             response = safe_get(
                 url,
-                trust=_feed_trust(),
+                trust=feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
@@ -598,7 +589,7 @@ class RSSParser:
             try:
                 response = safe_get(
                     url,
-                    trust=_feed_trust(),
+                    trust=feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
                     stream=True,

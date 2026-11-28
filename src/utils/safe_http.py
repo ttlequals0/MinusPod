@@ -139,6 +139,21 @@ def _validate_for_tier(url: str, trust: URLTrust) -> None:
         validate_url(url)
 
 
+def feed_trust() -> URLTrust:
+    """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
+    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true."""
+    opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
+    if opt_in in ('1', 'true', 'yes', 'on'):
+        return URLTrust.OPERATOR_CONFIGURED
+    return URLTrust.FEED_CONTENT
+
+
+def validate_feed_source_url(url: str) -> str:
+    """Validate a feed source URL against the tier feed_trust() selects."""
+    _validate_for_tier(url, feed_trust())
+    return url.strip()
+
+
 def _reject_https_downgrade(original: str, target: str) -> None:
     if urlparse(original).scheme.lower() == 'https' and urlparse(target).scheme.lower() != 'https':
         raise SSRFError(f"HTTPS -> HTTP redirect blocked: {safe_url_for_log(target)}")

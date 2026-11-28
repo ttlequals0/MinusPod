@@ -63,7 +63,7 @@ def test_create_stores_download_ua_before_initial_refresh(app_client, feed_ua, m
     import main_app.feeds as refresh
     slug, db, headers = feed_ua
     created_slug = slug + '-created'
-    monkeypatch.setattr(feeds, 'validate_url', lambda url: None)
+    monkeypatch.setattr(feeds, 'validate_feed_source_url', lambda url: None)
     observed = []
     monkeypatch.setattr(refresh, 'refresh_rss_feed', lambda slug, url:
                         observed.append(db.get_podcast_by_slug(slug)['download_user_agent_override']))
@@ -82,7 +82,7 @@ def test_create_stores_download_ua_before_initial_refresh(app_client, feed_ua, m
 def test_create_uses_rss_ua_to_derive_slug(app_client, feed_ua, monkeypatch):
     _, db, headers = feed_ua
     slug = 'rss-override-show'
-    monkeypatch.setattr('api.feeds.validate_url', lambda url: None)
+    monkeypatch.setattr('api.feeds.validate_feed_source_url', lambda url: None)
     observed = []
 
     def fetch(self, url, timeout=30, podcast=None):
