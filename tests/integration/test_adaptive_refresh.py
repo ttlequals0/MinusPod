@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import pytest
 
@@ -133,7 +134,8 @@ class TestScheduling:
         feeds_mod._schedule_after_attempt(feed['slug'], outcome, {})
         lines = [r.getMessage() for r in caplog.records if 'Next refresh in' in r.getMessage()]
         assert len(lines) == 1
-        assert 'TOKEN123' not in lines[0] and 'feed.example.com' in lines[0]
+        assert 'TOKEN123' not in lines[0]
+        assert urlparse(lines[0].rsplit(' ', 1)[1]).hostname == 'feed.example.com'
 
 
 class TestDueSelection:
