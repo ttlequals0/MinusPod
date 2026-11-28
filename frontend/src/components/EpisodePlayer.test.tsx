@@ -265,4 +265,42 @@ describe('EpisodePlayer', () => {
     render(<EpisodePlayer src="/a.mp3" />);
     expect(screen.getByRole('button', { name: /^play$/i }).parentElement?.getAttribute('title')).toBeNull();
   });
+
+  it('toggles mute and unmute on the audio element', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container);
+    const muteBtn = screen.getByRole('button', { name: 'Mute' });
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(muteBtn);
+    expect(audio.muted).toBe(true);
+    const unmuteBtn = screen.getByRole('button', { name: 'Unmute' });
+    expect(unmuteBtn.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(unmuteBtn);
+    expect(audio.muted).toBe(false);
+  });
+
+  it('opens the chapter list popover, seeks to a selected chapter, and closes on Escape', async () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    await screen.findByText('Intro');
+    const audio = ready(container, 10);
+    const trigger = screen.getByRole('button', { name: 'Intro' });
+    fireEvent.click(trigger);
+    const list = screen.getByRole('list', { name: 'Chapters' });
+    expect(list).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Wrap up/ }));
+    expect(audio.currentTime).toBe(250);
+    expect(screen.queryByRole('list', { name: 'Chapters' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wrap up' }));
+    expect(screen.getByRole('list', { name: 'Chapters' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('list', { name: 'Chapters' })).toBeNull();
+  });
+
+  it('displays the time-saved pill when timeSaved is positive', () => {
+    render(<EpisodePlayer src="/a.mp3" timeSaved={380} originalDuration={1800} />);
+    const badge = screen.getByTestId('player-time-saved');
+    expect(badge.textContent).toContain('6m 20s of ads removed');
+    expect(badge.getAttribute('title')).toBe('Cut from 30:00 original audio');
+  });
 });

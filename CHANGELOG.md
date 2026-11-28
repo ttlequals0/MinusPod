@@ -15,6 +15,7 @@ release notes.
 - Served feeds, chapters, transcripts and the OPML export now send `Cache-Control: private, no-cache`, so a CDN or shared proxy that honors the header does not store them. That prevents a stale copy and keeps one subscriber's keyed feed away from another. Episode audio already sent `no-cache`.
 - A run that closes held detections because hold for review is off now logs how many it closed.
 - The security docs have a note on Cloudflare caching, and the feeds docs explain the Pocket Casts workaround of adding a feed URL with a query string such as `?fresh=1`.
+- The episode player has a pill progress track with chapter ticks, inline elapsed and remaining times, a mute button, and a time-saved badge when ads were cut. Clicking the chapter bar opens a list of chapters with timestamps. When two or more sections appear below the episode card, a jump bar with counts links to them.
 
 ## [2.102.26] - 2026-11-27
 

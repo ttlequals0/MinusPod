@@ -61,6 +61,7 @@ export function parseChapters(json: unknown): PlayerChapter[] {
 
 export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, chaptersUrl?: string) {
   const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(false);
@@ -126,6 +127,15 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
     if (audioRef.current) audioRef.current.playbackRate = next;
   }, [audioRef, rate, setStoredRate]);
 
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current;
+    setMuted((prev) => {
+      const next = !prev;
+      if (audio) audio.muted = next;
+      return next;
+    });
+  }, [audioRef]);
+
   const shownTime = scrubTime ?? time;
   const chapterIndex = currentChapterIndex(chapters, shownTime);
   const chapterTitle = chapters[chapterIndex]?.title ?? '';
@@ -134,6 +144,7 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
 
   return {
     playing,
+    muted,
     error,
     loading,
     time: shownTime,
@@ -141,12 +152,14 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
     duration,
     rate,
     chapters,
+    chapterIndex,
     chaptersFailed: loaded?.url === chaptersUrl && !!loaded?.failed,
     retryChapters: () => { setLoaded(null); setChapterAttempt((n) => n + 1); },
     chapterTitle,
     prevTarget,
     nextTarget,
     toggle,
+    toggleMute,
     retry: () => { audioRef.current?.load(); toggle(); },
     skip,
     seek,
@@ -165,9 +178,15 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
       },
       onTimeUpdate: () => setTime(audioRef.current?.currentTime ?? 0),
       onDurationChange: readDuration,
+      onVolumeChange: () => {
+        if (audioRef.current) setMuted(audioRef.current.muted || audioRef.current.volume === 0);
+      },
       onLoadedMetadata: () => {
         readDuration();
-        if (audioRef.current) audioRef.current.playbackRate = rate;
+        if (audioRef.current) {
+          audioRef.current.playbackRate = rate;
+          audioRef.current.muted = muted;
+        }
       },
     },
   };

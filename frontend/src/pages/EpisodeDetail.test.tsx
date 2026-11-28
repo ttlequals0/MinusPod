@@ -3150,3 +3150,30 @@ describe('Add audio to pattern on text-pattern detections', () => {
     expect(screen.getByText('Source audio expired')).toBeDefined();
   });
 });
+
+describe('EpisodeDetail section jump strip and player time-saved pill', () => {
+  it('renders the section jump nav with count pills when multiple sections exist', async () => {
+    renderDetail(makeEpisode({
+      timeSaved: 125,
+      originalDuration: 1800,
+      adMarkers: [{ start: 10, end: 40, confidence: 0.95, reason: 'Sponsor A' }],
+      pendingReviewMarkers: [heldMarker],
+      transcript: 'Hello world',
+    }));
+    const nav = await screen.findByRole('navigation', { name: 'Episode sections' });
+    expect(within(nav).getByRole('link', { name: /Detected ads/ }).getAttribute('href')).toBe('#detected-ads-section');
+    expect(within(nav).getByRole('link', { name: /Held for review/ }).getAttribute('href')).toBe('#held-for-review-section');
+    expect(within(nav).getByRole('link', { name: 'Transcript' }).getAttribute('href')).toBe('#transcript-section');
+    expect(screen.getByTestId('player-time-saved').textContent).toContain('2m 5s of ads removed');
+  });
+
+  it('omits the section jump nav when fewer than two sections exist', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [],
+      transcript: undefined,
+    }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByRole('navigation', { name: 'Episode sections' })).toBeNull();
+  });
+});
