@@ -27,6 +27,8 @@ from defusedxml.common import DefusedXmlException
 from feedparser.sanitizer import _sanitize_html as sanitize_html
 from defusedxml.ElementTree import fromstring as defused_fromstring
 
+import feed_schedule
+import feed_problems
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
@@ -254,6 +256,7 @@ _HTML_VOID_ELEMENTS = frozenset({
     'link', 'meta', 'param', 'source', 'track', 'wbr',
 })
 
+_SY_NS_PREFIX = "{http://purl.org/rss/1.0/modules/syndication/}"
 _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 _CONTENT_NS = "http://purl.org/rss/1.0/modules/content/"
 
@@ -411,6 +414,26 @@ def effective_channel_text(override, source, *, sanitize=False):
 
 
 
+def _note_response_meta(response):
+    """Record status and the response headers the refresh scheduler reads."""
+    headers = response.headers
+    feed_schedule.note_fetch_meta(
+        status=response.status_code,
+        max_age=feed_schedule.parse_cache_control_max_age(headers.get('Cache-Control')),
+        retry_after=headers.get('Retry-After'))
+
+
+def _note_exception_meta(exc):
+    """Record the failure class; a response on the exception also carries its Retry-After."""
+    kind, detail = feed_problems.classify_exception(exc)
+    facts = {'kind': kind, 'detail': detail}
+    response = getattr(exc, 'response', None)
+    if response is not None:
+        facts.update(status=response.status_code,
+                     retry_after=response.headers.get('Retry-After'))
+    feed_schedule.note_fetch_meta(**facts)
+
+
 class RSSParser:
     def __init__(self, base_url: str = None):
         self._explicit_base_url = base_url
@@ -524,6 +547,7 @@ class RSSParser:
         Returns (content, new_etag, new_last_modified); on 304 (None, etag, last_modified);
         on error (None, None, None).
         """
+        feed_schedule.reset_fetch_meta()
         headers = _identity_headers(url, {'User-Agent': feed_user_agent(podcast)})
         if etag:
             headers['If-None-Match'] = etag
@@ -536,6 +560,7 @@ class RSSParser:
             probe_token = breaker.check()
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS conditional fetch skipped: {redact_exc_urls(e)}")
+            feed_schedule.note_fetch_meta(kind='connection', detail='Paused after repeated failures')
             return None, None, None
 
         try:
@@ -548,6 +573,7 @@ class RSSParser:
                 headers=headers,
             )
 
+            _note_response_meta(response)
             if response.status_code == 304:
                 logger.debug(f"Feed not modified (304): {safe_url_for_log(url)}")
                 breaker.record_success(token=probe_token)
@@ -562,6 +588,7 @@ class RSSParser:
                 )
                 response.close()
                 breaker.record_failure(token=probe_token)
+                feed_schedule.note_fetch_meta(kind='not_feed', detail='Response was not a feed')
                 return None, None, None
 
             new_etag = response.headers.get('ETag')
@@ -569,6 +596,7 @@ class RSSParser:
 
             body = _read_capped_feed_body(response, url, breaker, probe_token)
             if body is None:
+                feed_schedule.note_fetch_meta(kind='not_feed', detail='Response too large')
                 return None, None, None
 
             logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
@@ -577,6 +605,7 @@ class RSSParser:
 
         except SSRFError as e:
             breaker.release_probe(probe_token)
+            feed_schedule.note_fetch_meta(kind='blocked_address', detail='Address blocked')
             logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None, None, None
 
@@ -619,12 +648,14 @@ class RSSParser:
                     new_last_modified,
                 )
             except (SSRFError, requests.RequestException) as retry_e:
+                _note_exception_meta(retry_e)
                 logger.warning(
                     f"Conditional fetch failed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None, None, None
 
         except requests.RequestException as e:
+            _note_exception_meta(e)
             logger.warning(f"Conditional fetch failed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None, None, None
@@ -728,6 +759,33 @@ class RSSParser:
             return {'uses_podping': uses, 'hive_accounts': accounts}
 
         return unknown
+
+    @staticmethod
+    def extract_update_hints(channel) -> dict:
+        """Channel-level publish-rate hints: ``{'period_seconds': int|None, 'complete': bool}``.
+
+        Reads ``<podcast:updateFrequency rrule=... complete=...>`` and ``sy:updatePeriod`` /
+        ``sy:updateFrequency``; anything malformed is ignored."""
+        hints = {'period_seconds': None, 'complete': False}
+        if channel is None:
+            return hints
+        sy = {}
+        for elem in channel:
+            tag = getattr(elem, 'tag', '')
+            if not isinstance(tag, str):
+                continue
+            if _is_podcast_element(elem) and _podcast_localname(elem) == 'updateFrequency':
+                if (elem.get('complete') or '').strip().lower() in ('true', '1', 'yes'):
+                    hints['complete'] = True
+                period = feed_schedule.parse_rrule_period_seconds(elem.get('rrule'))
+                if period and hints['period_seconds'] is None:
+                    hints['period_seconds'] = period
+            elif tag.startswith(_SY_NS_PREFIX):
+                sy[tag[len(_SY_NS_PREFIX):]] = (elem.text or '').strip()
+        if hints['period_seconds'] is None:
+            hints['period_seconds'] = feed_schedule.parse_sy_period_seconds(
+                sy.get('updatePeriod'), sy.get('updateFrequency'))
+        return hints
 
     @staticmethod
     def _parse_raw_items(channel):

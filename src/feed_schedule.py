@@ -1,4 +1,5 @@
 """Adaptive per-feed refresh interval: a pure function plus the hint parsers it consumes."""
+import math
 import random
 import re
 import statistics
@@ -167,7 +168,7 @@ def compute_refresh_interval(*, now, floor_seconds, max_seconds, episode_dates=(
     if retry_after_until is not None:
         remaining = min((_aware(retry_after_until) - now).total_seconds(), RETRY_AFTER_MAX_SECONDS)
         if remaining > decision.interval_seconds:
-            decision = RefreshDecision(int(remaining), REASON_RETRY_AFTER)
+            decision = RefreshDecision(math.ceil(remaining), REASON_RETRY_AFTER)
     return decision
 
 

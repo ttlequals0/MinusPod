@@ -257,5 +257,6 @@ class TestFeedDescriptionLength(unittest.TestCase):
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
 
         self.assertTrue(db.update_podcast.called)
-        kwargs = db.update_podcast.call_args.kwargs
+        kwargs = next(c.kwargs for c in db.update_podcast.call_args_list
+                      if 'description' in c.kwargs)
         self.assertEqual(kwargs.get('description'), long_desc)

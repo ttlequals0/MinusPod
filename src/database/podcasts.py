@@ -10,7 +10,7 @@ from config import (
 from database.error_text import redact_error
 from database.fingerprint_cleanup import delete_matches_for_podcast, delete_pattern_dependents_in
 from utils.constants import EpisodeStatus
-from utils.time import ISO_FORMAT, utc_now_iso
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now_iso
 from utils.validation import nullable_bool
 
 # The feed's network: the override, else the detected network. Writers store the override trimmed.
@@ -224,24 +224,70 @@ class PodcastMixin:
             return cursor.rowcount > 0
 
     def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
-        """Subscribed feeds not attempted within interval_seconds, oldest attempt first, capped at limit.
+        """Upstream feeds whose next_refresh_at has passed, most overdue first, capped at limit.
 
-        Keyed off last_refresh_attempt_at (not last_checked_at) so a failing feed
-        still retries once per interval instead of monopolizing every tick. Never-
-        attempted feeds (NULL) sort first; local and recents feeds are excluded.
-        The timestamp is fixed-width UTC ISO, so string compare is chronological."""
-        cutoff = (datetime.now(timezone.utc)
-                  - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
+        A feed with no next_refresh_at yet (first run after upgrade, or a refresh that crashed before
+        scheduling) falls back to the fixed rule: due when not attempted within interval_seconds,
+        never-attempted first. Local and recents feeds are excluded. Timestamps are fixed-width UTC
+        ISO, so string compare is chronological."""
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
+        # An attempt in the last 30s is in flight or just finished; never re-select it on a crash.
+        settled = (now - timedelta(seconds=30)).strftime(ISO_FORMAT)
         rows = self.get_connection().execute(
             """SELECT slug FROM podcasts
                WHERE feed_type NOT IN ('local', 'recents')
                  AND source_url IS NOT NULL AND source_url != ''
-                 AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)
-               ORDER BY last_refresh_attempt_at ASC
+                 AND ((next_refresh_at IS NOT NULL AND next_refresh_at <= ?
+                       AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?))
+                      OR (next_refresh_at IS NULL
+                          AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)))
+               ORDER BY COALESCE(next_refresh_at, last_refresh_attempt_at, '') ASC
                LIMIT ?""",
-            (cutoff, limit),
+            (now.strftime(ISO_FORMAT), settled, cutoff, limit),
         ).fetchall()
         return [row['slug'] for row in rows]
+
+    def get_recent_episode_dates(self, podcast_id: int, limit: int = 30) -> list[str]:
+        """Newest published_at values of a feed's episodes (ISO text), for cadence estimation."""
+        rows = self.get_connection().execute(
+            """SELECT published_at FROM episodes
+               WHERE podcast_id = ? AND published_at IS NOT NULL AND published_at != ''
+               ORDER BY published_at DESC LIMIT ?""",
+            (podcast_id, limit),
+        ).fetchall()
+        return [row['published_at'] for row in rows]
+
+    def get_refresh_hold_until(self, slug: str) -> datetime | None:
+        """When a client poll may fetch a failing feed again, or None when nothing holds it.
+
+        Held by a host's Retry-After, or by the failure backoff while the feed is failing."""
+        row = self.get_connection().execute(
+            "SELECT next_refresh_at, retry_after_until, refresh_failure_count "
+            "FROM podcasts WHERE slug = ?", (slug,)).fetchone()
+        if not row:
+            return None
+        now = datetime.now(timezone.utc)
+        holds = [parse_iso_utc(row['retry_after_until'])]
+        if (row['refresh_failure_count'] or 0) > 0:
+            holds.append(parse_iso_utc(row['next_refresh_at']))
+        holds = [h for h in holds if h and h > now]
+        return max(holds) if holds else None
+
+    def get_feed_problems(self, threshold: int) -> list[dict]:
+        """Upstream feeds with at least `threshold` consecutive refresh failures, worst first."""
+        rows = self.get_connection().execute(
+            """SELECT slug, title, source_url, refresh_failure_count, last_refresh_error,
+                      last_refresh_error_kind, last_refresh_error_at, last_refresh_ok_at,
+                      last_checked_at, next_refresh_at
+               FROM podcasts
+               WHERE refresh_failure_count >= ?
+                 AND feed_type NOT IN ('local', 'recents')
+                 AND source_url IS NOT NULL AND source_url != ''
+               ORDER BY refresh_failure_count DESC, slug ASC""",
+            (threshold,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def count_subscribed_feeds(self) -> int:
         """Number of upstream-fetched feeds, used to size the staggered refresh
@@ -409,6 +455,9 @@ class PodcastMixin:
                 'last_modified_header', 'only_expose_processed_episodes',
                 'require_manual_approval',
                 'refresh_failure_count', 'last_refresh_error',
+                'next_refresh_at', 'refresh_interval_seconds', 'refresh_interval_reason',
+                'last_refresh_ok_at', 'retry_after_until', 'http_hint_seconds',
+                'update_hint_seconds', 'feed_complete', 'last_refresh_error_kind',
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'parse_failure_count', 'last_parse_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
@@ -454,19 +503,20 @@ class PodcastMixin:
             conn.commit()
         return True
 
-    def clear_refresh_failure_state(self, slug: str):
-        """Reset the refresh-failure columns after a successful refresh.
+    def clear_refresh_failure_state(self, slug: str) -> int:
+        """Reset the refresh-failure columns after a successful refresh; returns the count it cleared.
 
         Most feeds are already clean, and even a guarded UPDATE takes the write
         lock, queuing behind other writers during a sweep. A WAL read never waits
         on a writer, so it decides first and clean feeds take no lock. The UPDATE
         keeps its guard since a refresh may have written a failure since the read.
         """
-        self._clear_failure_columns(
+        return self._clear_failure_columns(
             slug, 'refresh_failure_count',
             """UPDATE podcasts
                SET refresh_failure_count = 0, last_refresh_error = NULL,
-                   last_refresh_error_at = NULL, last_refresh_failure_at = NULL
+                   last_refresh_error_at = NULL, last_refresh_failure_at = NULL,
+                   last_refresh_error_kind = NULL
                WHERE slug = ? AND refresh_failure_count > 0""")
 
     def clear_parse_failure_state(self, slug: str):
@@ -486,9 +536,10 @@ class PodcastMixin:
             (slug,)
         ).fetchone()
         if not row or not row[count_column]:
-            return
+            return 0
         conn.execute(sql, (slug,))
         conn.commit()
+        return row[count_column]
 
     def get_podcast_tags(self, slug: str) -> dict[str, list[str]]:
         """Return the source breakdown of a podcast's tags.

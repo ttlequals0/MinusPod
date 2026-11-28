@@ -1449,6 +1449,33 @@ def resolve_download_history_retention_days(db) -> int:
                DOWNLOAD_HISTORY_RETENTION_DAYS_MAX)
 
 
+RSS_REFRESH_MINUTES_MIN = 5
+RSS_REFRESH_MINUTES_MAX = 1440
+RSS_REFRESH_MINUTES_DEFAULT = 15
+ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT = 60
+
+
+def resolve_refresh_floor_seconds(db) -> int:
+    """The global refresh interval in seconds, clamped 5-1440 minutes; the adaptive floor."""
+    try:
+        minutes = int(db.get_setting('rss_refresh_interval_minutes') or RSS_REFRESH_MINUTES_DEFAULT)
+    except (TypeError, ValueError):
+        minutes = RSS_REFRESH_MINUTES_DEFAULT
+    return min(max(minutes, RSS_REFRESH_MINUTES_MIN), RSS_REFRESH_MINUTES_MAX) * 60
+
+
+def resolve_adaptive_refresh(db) -> tuple[bool, int]:
+    """(enabled, max interval in seconds); the max is never below the floor."""
+    enabled = db.get_setting_bool('adaptive_refresh_enabled', True)
+    try:
+        minutes = int(db.get_setting('adaptive_refresh_max_minutes')
+                      or ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT)
+    except (TypeError, ValueError):
+        minutes = ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT
+    minutes = min(max(minutes, RSS_REFRESH_MINUTES_MIN), RSS_REFRESH_MINUTES_MAX)
+    return enabled, max(minutes * 60, resolve_refresh_floor_seconds(db))
+
+
 def resolve_dormant_feed_days(db) -> int:
     """Idle days before a feed goes dormant, clamped; 0 means off."""
     days = db.get_setting_int('dormant_feed_days', DORMANT_FEED_DAYS_DEFAULT)

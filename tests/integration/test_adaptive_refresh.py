@@ -1,0 +1,321 @@
+"""Adaptive refresh wiring: scheduling after an attempt, due selection, client holds,
+problem notifications, the problems endpoint and the two settings."""
+import json
+import os
+import sys
+import tempfile
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='adaptive-refresh-test-'))
+
+import feed_schedule
+from config import FEED_REFRESH_FAILURE_ALERT_THRESHOLD as THRESHOLD
+from main_app import feeds as feeds_mod
+
+ISO = '%Y-%m-%dT%H:%M:%SZ'
+
+
+def _iso(delta_minutes=0):
+    return (datetime.now(timezone.utc) + timedelta(minutes=delta_minutes)).strftime(ISO)
+
+
+@pytest.fixture
+def feed(app_client, monkeypatch):
+    from api import get_database
+    db = get_database()
+    monkeypatch.setattr('main_app.feeds.db', db)
+    feed_schedule.reset_fetch_meta()
+    slug = 'adaptive-feed'
+    db.create_podcast(slug, 'https://feed.example.com/secret/TOKEN123/rss.xml?k=abc', 'Adaptive Feed')
+    db.set_setting('rss_refresh_interval_minutes', '15', is_default=False)
+    db.set_setting('adaptive_refresh_enabled', 'true', is_default=False)
+    db.set_setting('adaptive_refresh_max_minutes', '60', is_default=False)
+    yield {'slug': slug, 'db': db}
+    db.delete_podcast(slug)
+
+
+def _row(feed):
+    return feed['db'].get_podcast_row(feed['slug'])
+
+
+def _authed(client):
+    with client.session_transaction() as sess:
+        sess['authenticated'] = True
+
+
+def _minutes_until(row):
+    return (datetime.strptime(row['next_refresh_at'], ISO).replace(tzinfo=timezone.utc)
+            - datetime.now(timezone.utc)).total_seconds() / 60
+
+
+class TestScheduling:
+    def test_success_schedules_at_the_floor_without_cadence(self, feed):
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'))
+        row = _row(feed)
+        assert row['refresh_interval_reason'] == 'floor'
+        assert row['refresh_interval_seconds'] == 900
+        assert 14 < _minutes_until(row) <= 15
+        assert row['last_refresh_ok_at']
+
+    def test_coalesced_and_local_attempts_do_not_schedule(self, feed):
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'coalesced'))
+        assert _row(feed)['next_refresh_at'] is None
+
+    def test_failure_backs_off_from_the_floor(self, feed):
+        feed['db'].update_podcast(feed['slug'], refresh_failure_count=3)
+        feeds_mod._schedule_after_attempt(
+            feed['slug'], feeds_mod.RefreshOutcome(False, 'fetch_failed', error='x'))
+        row = _row(feed)
+        assert row['refresh_interval_reason'] == 'backoff'
+        assert 3600 <= row['refresh_interval_seconds'] <= 3960
+
+    def test_uncounted_first_failure_retries_at_the_floor_not_the_healthy_interval(self, feed):
+        feed['db'].update_podcast(feed['slug'], update_hint_seconds=30 * 86400)
+        feeds_mod._schedule_after_attempt(
+            feed['slug'], feeds_mod.RefreshOutcome(False, 'fetch_failed', error='x'))
+        row = _row(feed)
+        assert row['refresh_interval_reason'] == 'backoff'
+        assert row['refresh_interval_seconds'] < 1100
+
+    def test_retry_after_from_the_fetch_is_stored_and_honoured(self, feed):
+        feed_schedule.reset_fetch_meta()
+        feed_schedule.note_fetch_meta(status=429, retry_after='7200', kind='rate_limited')
+        feeds_mod._schedule_after_attempt(
+            feed['slug'], feeds_mod.RefreshOutcome(False, 'fetch_failed', error='x'))
+        row = _row(feed)
+        assert row['refresh_interval_reason'] == 'retry_after'
+        assert row['refresh_interval_seconds'] == 7200
+        assert row['retry_after_until']
+        assert row['last_refresh_error_kind'] == 'rate_limited'
+        assert feed['db'].get_refresh_hold_until(feed['slug']) is not None
+
+    def test_retry_after_is_ignored_on_other_statuses(self, feed):
+        feed_schedule.reset_fetch_meta()
+        feed_schedule.note_fetch_meta(status=500, retry_after='7200', kind='http_error')
+        feeds_mod._schedule_after_attempt(
+            feed['slug'], feeds_mod.RefreshOutcome(False, 'fetch_failed', error='x'))
+        assert _row(feed)['retry_after_until'] is None
+
+    def test_success_clears_retry_after_and_stores_max_age(self, feed):
+        feed['db'].update_podcast(feed['slug'], retry_after_until=_iso(-5))
+        feed_schedule.reset_fetch_meta()
+        feed_schedule.note_fetch_meta(status=200, max_age=2400)
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'))
+        row = _row(feed)
+        assert row['retry_after_until'] is None
+        assert row['refresh_interval_seconds'] == 2400 and row['refresh_interval_reason'] == 'hint'
+
+    def test_disabled_mode_keeps_the_fixed_interval(self, feed):
+        feed['db'].set_setting('adaptive_refresh_enabled', 'false', is_default=False)
+        feed['db'].update_podcast(feed['slug'], update_hint_seconds=30 * 86400, feed_complete=1)
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'))
+        row = _row(feed)
+        assert (row['refresh_interval_seconds'], row['refresh_interval_reason']) == (900, 'fixed')
+
+    def test_local_feed_is_never_scheduled(self, feed):
+        feed['db'].update_podcast(feed['slug'], source_url='')
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'))
+        assert _row(feed)['next_refresh_at'] is None
+
+    def test_cadence_from_stored_episodes(self, feed):
+        db = feed['db']
+        now = datetime.now(timezone.utc)
+        for i, hours in enumerate((9, 33, 57, 81)):
+            db.upsert_episode(feed['slug'], f'ep{i}', original_url=f'https://x.example.com/{i}.mp3',
+                              title=f'e{i}', published_at=(now - timedelta(hours=hours)).strftime(ISO))
+        db.set_setting('adaptive_refresh_max_minutes', '1440', is_default=False)
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'))
+        row = _row(feed)
+        assert (row['refresh_interval_seconds'], row['refresh_interval_reason']) == (7200, 'cadence')
+
+    def test_reason_log_only_when_it_changes(self, feed, caplog):
+        caplog.set_level('INFO', logger='podcast.refresh')
+        feeds_mod._reschedule(feed['slug'])
+        feeds_mod._reschedule(feed['slug'])
+        lines = [r.getMessage() for r in caplog.records if 'Next refresh in' in r.getMessage()]
+        assert len(lines) == 1
+        assert 'TOKEN123' not in lines[0] and 'feed.example.com' in lines[0]
+
+
+class TestDueSelection:
+    def test_null_future_and_past(self, feed):
+        db, slug = feed['db'], feed['slug']
+        assert slug in db.get_due_feed_slugs(900, 500)
+        db.update_podcast(slug, next_refresh_at=_iso(30), last_refresh_attempt_at=_iso(-60))
+        assert slug not in db.get_due_feed_slugs(900, 500)
+        db.update_podcast(slug, next_refresh_at=_iso(-1), last_refresh_attempt_at=_iso(-60))
+        assert slug in db.get_due_feed_slugs(900, 500)
+
+    def test_null_schedule_still_respects_a_recent_attempt(self, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, last_refresh_attempt_at=_iso(-2))
+        assert slug not in db.get_due_feed_slugs(900, 500)
+
+    def test_a_just_attempted_feed_is_not_reselected(self, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, next_refresh_at=_iso(-5), last_refresh_attempt_at=_iso(0))
+        assert slug not in db.get_due_feed_slugs(900, 500)
+
+    def test_limit_applies_most_overdue_first(self, feed):
+        db = feed['db']
+        db.create_podcast('adaptive-two', 'https://two.example.com/rss', 'Two')
+        try:
+            db.update_podcast(feed['slug'], next_refresh_at=_iso(-5), last_refresh_attempt_at=_iso(-60))
+            db.update_podcast('adaptive-two', next_refresh_at=_iso(-50), last_refresh_attempt_at=_iso(-90))
+            due = db.get_due_feed_slugs(900, 500)
+            assert due.index('adaptive-two') < due.index(feed['slug'])
+        finally:
+            db.delete_podcast('adaptive-two')
+
+
+class TestClientHold:
+    def test_failing_feed_with_a_future_retry_is_held(self, feed):
+        db, slug = feed['db'], feed['slug']
+        assert db.get_refresh_hold_until(slug) is None
+        db.update_podcast(slug, refresh_failure_count=2, next_refresh_at=_iso(90))
+        assert db.get_refresh_hold_until(slug) is not None
+
+    def test_healthy_feed_is_never_held_by_its_schedule(self, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, refresh_failure_count=0, next_refresh_at=_iso(90))
+        assert db.get_refresh_hold_until(slug) is None
+
+    def test_elapsed_retry_after_does_not_hold(self, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, retry_after_until=_iso(-1))
+        assert db.get_refresh_hold_until(slug) is None
+
+    def test_podping_waits_out_a_retry_after(self, feed, monkeypatch):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, retry_after_until=_iso(30))
+        calls = []
+        monkeypatch.setattr('main_app.feeds.refresh_rss_feed', lambda *a, **k: calls.append(a))
+        assert feeds_mod.refresh_single_feed(slug) is True
+        assert calls == []
+
+
+class TestNotifications:
+    @pytest.fixture
+    def events(self, monkeypatch):
+        failed, recovered = [], []
+        monkeypatch.setattr('webhook_service.fire_feed_refresh_failed_event',
+                            lambda **kw: failed.append(kw) or True)
+        monkeypatch.setattr('webhook_service.fire_feed_refresh_recovered_event',
+                            lambda **kw: recovered.append(kw) or True)
+        return failed, recovered
+
+    def _fail(self, feed, n):
+        for _ in range(n):
+            feeds_mod._record_refresh_failure(feed['slug'], 'connection refused')
+            feed['db'].update_podcast(feed['slug'], last_refresh_failure_at=_iso(-30))
+
+    def test_one_failure_event_and_one_recovery_event(self, feed, events):
+        failed, recovered = events
+        self._fail(feed, THRESHOLD + 2)
+        assert len(failed) == 1 and recovered == []
+        feeds_mod._record_refresh_success(feed['slug'])
+        feeds_mod._record_refresh_success(feed['slug'])
+        assert len(recovered) == 1
+        assert recovered[0]['feed_url'] == 'https://feed.example.com'
+        assert recovered[0]['failure_count'] == THRESHOLD + 2
+
+    def test_no_recovery_event_for_a_feed_below_the_threshold(self, feed, events):
+        _failed, recovered = events
+        self._fail(feed, THRESHOLD - 1)
+        feeds_mod._record_refresh_success(feed['slug'])
+        assert recovered == []
+
+    def test_a_second_outage_alerts_again(self, feed, events):
+        failed, recovered = events
+        self._fail(feed, THRESHOLD)
+        feeds_mod._record_refresh_success(feed['slug'])
+        self._fail(feed, THRESHOLD)
+        assert len(failed) == 2 and len(recovered) == 1
+
+    def test_recovery_event_reaches_webhook_and_email_paths(self):
+        import email_service
+        import webhook_service
+        assert 'Feed Refresh Recovered' in webhook_service.VALID_EVENTS
+        assert 'Feed Refresh Recovered' in email_service.FORMATTERS
+        subject, rows, _hint = email_service.FORMATTERS['Feed Refresh Recovered']({
+            'podcast_name': 'My Podcast', 'slug': 'my-podcast',
+            'feed_url': 'https://feed.example.com', 'failure_count': 3})
+        assert 'Recovered' in subject and rows
+
+
+class TestProblemsEndpoint:
+    def test_lists_only_feeds_at_the_threshold_with_host_only(self, app_client, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, refresh_failure_count=THRESHOLD, last_refresh_error_kind='gone',
+                          last_refresh_error='HTTP 404 from https://feed.example.com/secret/TOKEN123/rss.xml?k=abc',
+                          last_refresh_error_at='2026-07-14T00:00:00Z',
+                          last_refresh_ok_at='2026-07-13T00:00:00Z', next_refresh_at='2026-07-14T06:00:00Z')
+        _authed(app_client)
+        data = app_client.get('/api/v1/feeds/problems').get_json()
+        entry = next(p for p in data['problems'] if p['slug'] == slug)
+        assert entry['host'] == 'https://feed.example.com'
+        assert entry['errorKind'] == 'gone' and 'not found' in entry['message']
+        assert entry['consecutiveFailures'] == THRESHOLD
+        assert entry['lastSuccessAt'] == '2026-07-13T00:00:00Z'
+        assert entry['nextRetryAt'] == '2026-07-14T06:00:00Z'
+        assert 'TOKEN123' not in json.dumps(data) and 'k=abc' not in json.dumps(data)
+        assert data['count'] == len(data['problems']) and data['threshold'] == THRESHOLD
+
+    def test_below_threshold_is_not_listed(self, app_client, feed):
+        feed['db'].update_podcast(feed['slug'], refresh_failure_count=THRESHOLD - 1)
+        _authed(app_client)
+        assert all(p['slug'] != feed['slug']
+                   for p in app_client.get('/api/v1/feeds/problems').get_json()['problems'])
+
+    def test_legacy_error_text_is_classified(self, app_client, feed):
+        feed['db'].update_podcast(feed['slug'], refresh_failure_count=THRESHOLD,
+                                  last_refresh_error='Fetched feed could not be parsed as RSS')
+        _authed(app_client)
+        entry = next(p for p in app_client.get('/api/v1/feeds/problems').get_json()['problems']
+                     if p['slug'] == feed['slug'])
+        assert entry['errorKind'] == 'invalid_xml'
+
+    def test_feed_object_exposes_the_schedule(self, app_client, feed):
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'))
+        _authed(app_client)
+        data = app_client.get(f"/api/v1/feeds/{feed['slug']}").get_json()
+        assert data['refreshIntervalSeconds'] == 900 and data['refreshIntervalReason'] == 'floor'
+        assert data['nextRefreshAt'] and data['consecutiveRefreshFailures'] == 0
+        assert data['lastRefreshOkAt']
+
+
+class TestSettings:
+    def _put(self, client, body):
+        return client.put('/api/v1/settings/ad-detection', json=body)
+
+    def test_defaults_and_round_trip(self, app_client, feed):
+        _authed(app_client)
+        data = app_client.get('/api/v1/settings').get_json()
+        assert data['defaults']['adaptiveRefreshEnabled'] is True
+        assert data['defaults']['adaptiveRefreshMaxMinutes'] == 60
+        resp = self._put(app_client, {'adaptiveRefreshEnabled': False, 'adaptiveRefreshMaxMinutes': 120})
+        assert resp.status_code == 200
+        data = app_client.get('/api/v1/settings').get_json()
+        assert data['adaptiveRefreshEnabled']['value'] is False
+        assert data['adaptiveRefreshMaxMinutes']['value'] == 120
+
+    @pytest.mark.parametrize('body', [
+        {'adaptiveRefreshMaxMinutes': 14}, {'adaptiveRefreshMaxMinutes': 1441},
+        {'adaptiveRefreshMaxMinutes': 'x'}, {'adaptiveRefreshMaxMinutes': True},
+        {'adaptiveRefreshEnabled': 'yes'},
+        {'rssRefreshIntervalMinutes': 90, 'adaptiveRefreshMaxMinutes': 60},
+    ])
+    def test_validation(self, app_client, feed, body):
+        _authed(app_client)
+        assert self._put(app_client, body).status_code == 400
+
+    def test_max_never_drops_below_a_raised_floor(self, feed):
+        from config import resolve_adaptive_refresh
+        feed['db'].set_setting('rss_refresh_interval_minutes', '120', is_default=False)
+        try:
+            assert resolve_adaptive_refresh(feed['db']) == (True, 120 * 60)
+        finally:
+            feed['db'].set_setting('rss_refresh_interval_minutes', '15', is_default=False)

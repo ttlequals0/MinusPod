@@ -69,6 +69,7 @@ GET_ROUTES = [
     ('/auth/status', ''),
     ('/auth/tokens', ''),
     ('/feeds', ''),
+    ('/feeds/problems', ''),
     ('/feeds/{slug}', ''),
     ('/feeds/{slug}/episodes', ''),
     ('/feeds/{slug}/episodes/{episode_id}', ''),

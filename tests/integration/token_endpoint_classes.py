@@ -89,6 +89,7 @@ TOKEN_ALLOWED = frozenset({
     'api.get_cue_detections_aggregate',
     'api.get_dashboard_stats',
     'api.get_db_backup_settings',
+    'api.get_feed_problems',
     'api.get_download_history',
     'api.get_email_notification_settings',
     'api.get_episode',

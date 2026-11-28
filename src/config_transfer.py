@@ -125,6 +125,7 @@ SECRET_ENV = {
 BOOLEAN_EXTRA_SETTINGS = frozenset({
     'community_sync_enabled', 'update_check_enabled',
     'update_patterns_from_reviewer_adjustments', 'email_enabled', 'db_backup_enabled',
+    'adaptive_refresh_enabled',
 })
 
 YT_INT_COLUMNS = {
@@ -714,6 +715,11 @@ def _validate_setting_value(key, value):
             raise ConfigTransferError(f'{key} must be an integer')
         if not 0 <= value <= 3650:
             raise ConfigTransferError(f'{key} must be between 0 and 3650')
+    if key in ('rss_refresh_interval_minutes', 'adaptive_refresh_max_minutes'):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ConfigTransferError(f'{key} must be an integer')
+        if not 5 <= value <= 1440:
+            raise ConfigTransferError(f'{key} must be between 5 and 1440')
     if key == 'fetched_retention_grace_days':
         if isinstance(value, bool) or not isinstance(value, int):
             raise ConfigTransferError(f'{key} must be an integer')

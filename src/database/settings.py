@@ -547,6 +547,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
+    # Adaptive per-feed refresh: healthy feeds are checked between the global
+    # interval (floor) and this maximum, based on how each feed publishes.
+    'adaptive_refresh_enabled': SettingSpec(
+        default='true', seeded=True, resettable=False,
+        payload_key='adaptiveRefreshEnabled', payload_kind='bool'),
+    'adaptive_refresh_max_minutes': SettingSpec(
+        default='60', seeded=True, resettable=False,
+        payload_key='adaptiveRefreshMaxMinutes', payload_kind='int'),
     # Days without a served-RSS request before a feed stops auto-processing
     # new episodes; 0 (default) turns dormancy off.
     'dormant_feed_days': SettingSpec(

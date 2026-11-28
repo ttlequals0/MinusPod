@@ -27,6 +27,7 @@ from config import (
     PODCAST_SEARCH_PROVIDERS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     resolve_download_history_retention_days,
+    resolve_adaptive_refresh,
     resolve_dormant_feed_days,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
@@ -213,6 +214,9 @@ def _build_settings_payload():
             registry_default('rss_refresh_interval_minutes')))
     except (ValueError, TypeError):
         rss_refresh_interval_minutes = registry_get_default('rss_refresh_interval_minutes')
+
+    adaptive_refresh_enabled, adaptive_max_seconds = resolve_adaptive_refresh(db)
+    adaptive_refresh_max_minutes = adaptive_max_seconds // 60
 
     def _int_setting(key):
         try:
@@ -614,6 +618,8 @@ def _build_settings_payload():
         'rssRefreshIntervalMinutes': _sv(
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
         'dormantFeedDays': _sv('dormant_feed_days', resolve_dormant_feed_days(db)),
+        'adaptiveRefreshEnabled': _sv('adaptive_refresh_enabled', adaptive_refresh_enabled),
+        'adaptiveRefreshMaxMinutes': _sv('adaptive_refresh_max_minutes', adaptive_refresh_max_minutes),
         'queueManualBoost': _sv('queue_manual_boost', queue_manual_boost),
         'queueFreshBoost': _sv('queue_fresh_boost', queue_fresh_boost),
         'queueOrder': _sv('queue_order', queue_order),

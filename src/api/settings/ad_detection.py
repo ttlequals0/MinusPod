@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    HELD_WIDEN_MAX_SECONDS, global_hold_for_review,
+    HELD_WIDEN_MAX_SECONDS, RSS_REFRESH_MINUTES_MAX, global_hold_for_review, resolve_refresh_floor_seconds,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -1002,6 +1002,16 @@ def _apply_feed_refresh_fields(db, data):
         db.set_setting('dormant_feed_days', str(days), is_default=False)
         logger.info(f"Updated dormant feed threshold to: {days} days")
 
+    if 'adaptiveRefreshEnabled' in data:
+        value = 'true' if data['adaptiveRefreshEnabled'] else 'false'
+        db.set_setting('adaptive_refresh_enabled', value, is_default=False)
+        logger.info(f"Updated adaptive refresh to: {value}")
+
+    if 'adaptiveRefreshMaxMinutes' in data:
+        db.set_setting('adaptive_refresh_max_minutes', str(int(data['adaptiveRefreshMaxMinutes'])),
+                       is_default=False)
+        logger.info(f"Updated adaptive refresh maximum to: {int(data['adaptiveRefreshMaxMinutes'])} minutes")
+
     if 'podpingEnabled' in data:
         value = 'true' if data['podpingEnabled'] else 'false'
         db.set_setting('podping_enabled', value, is_default=False)
@@ -1019,6 +1029,22 @@ def _rss_refresh_minutes(data):
     if minutes < 5 or minutes > 1440:
         return None, ('rssRefreshIntervalMinutes must be between 5 and 1440', 400)
     return minutes, None
+
+
+def _validate_adaptive_refresh_payload(db, data):
+    minutes, _issue = _rss_refresh_minutes(data)
+    floor_minutes = minutes or resolve_refresh_floor_seconds(db) // 60
+    if 'adaptiveRefreshEnabled' in data and not isinstance(data['adaptiveRefreshEnabled'], bool):
+        return 'adaptiveRefreshEnabled must be a boolean', 400
+    if 'adaptiveRefreshMaxMinutes' not in data:
+        return None
+    value = data['adaptiveRefreshMaxMinutes']
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 'adaptiveRefreshMaxMinutes must be an integer', 400
+    if value < floor_minutes or value > RSS_REFRESH_MINUTES_MAX:
+        return (f'adaptiveRefreshMaxMinutes must be between the refresh interval '
+                f'({floor_minutes}) and {RSS_REFRESH_MINUTES_MAX}'), 400
+    return None
 
 
 def _validate_rss_refresh_payload(data):
@@ -1416,6 +1442,7 @@ def validate_settings_payload(
         provider_phases._validate_provider_rate_limit_payload,
         _validate_queue_boost_payload,
         _validate_rss_refresh_payload,
+        lambda payload: _validate_adaptive_refresh_payload(db, payload),
         _validate_audio_payload,
         _validate_user_agent_payload,
         _validate_podcast_search_provider_payload,

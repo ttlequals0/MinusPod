@@ -1662,6 +1662,36 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
 
+  /feeds/problems:
+    get:
+      tags:
+        - Feeds
+      summary: List feeds that keep failing
+      description: >-
+        Feeds with 3 or more counted refresh failures in a row, worst first. Each carries a plain
+        message for the failure class, the raw detail with URLs reduced to their host, and the
+        time of the next retry. A feed leaves the list on its next successful refresh. To retry
+        now, call POST /feeds/{slug}/refresh.
+      operationId: getFeedProblems
+      responses:
+        '200':
+          description: Problem feeds
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [problems, count, threshold]
+                properties:
+                  problems:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedProblem'
+                  count:
+                    type: integer
+                  threshold:
+                    type: integer
+                    description: Consecutive failures at which a feed counts as a problem.
+
   /feeds/refresh:
     post:
       tags:
@@ -8403,6 +8433,15 @@ paths:
                   maximum: 1440
                   description: Minutes between background RSS refresh passes for every feed. A change applies after the wait already in progress finishes. Default 15.
                   example: 15
+                adaptiveRefreshEnabled:
+                  type: boolean
+                  description: Adapt each feed's refresh interval to how it publishes, between rssRefreshIntervalMinutes (the floor) and adaptiveRefreshMaxMinutes. On by default. When off, feeds refresh on the fixed interval; Retry-After and failure backoff still apply.
+                adaptiveRefreshMaxMinutes:
+                  type: integer
+                  minimum: 5
+                  maximum: 1440
+                  description: Longest wait between checks of a healthy feed when adaptive refresh is on. Must be at least rssRefreshIntervalMinutes. Default 60.
+                  example: 60
                 dormantFeedDays:
                   type: integer
                   minimum: 0
@@ -11287,6 +11326,7 @@ paths:
                       - Limit Exceeded
                       - Rate Limit Structural
                       - Feed Refresh Failed
+                      - Feed Refresh Recovered
                       - Update Available
                       - Cue Template Quiet
                       - Queue Held
@@ -11295,7 +11335,7 @@ paths:
                       - Service Reachable
                       - Failover Triggered
                       - Failover Cancelled
-                  description: List of event types to subscribe to. `Episode Awaiting Approval` fires instead of `Episode Processed` when a finished episode is held for manual approval. `Episode Pending Review` fires alongside the processed or awaiting-approval event when a finished episode has detections held for review. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up. `Failover Triggered` fires when a target switches to its failover provider; `Failover Cancelled` when it switches back.
+                  description: List of event types to subscribe to. `Episode Awaiting Approval` fires instead of `Episode Processed` when a finished episode is held for manual approval. `Episode Pending Review` fires alongside the processed or awaiting-approval event when a finished episode has detections held for review. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Feed Refresh Recovered` fires once when such a feed refreshes successfully again. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up. `Failover Triggered` fires when a target switches to its failover provider; `Failover Cancelled` when it switches back.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -15981,6 +16021,32 @@ components:
             - 'null'
           format: date-time
           description: When the current run of refresh failures started. Cleared on the next successful refresh.
+        nextRefreshAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the background loop will next fetch this feed. Null for local and recents feeds, and for an upstream feed that has not been scheduled yet (due now).
+        refreshIntervalSeconds:
+          type:
+            - integer
+            - 'null'
+          description: The wait chosen after the last attempt, in seconds.
+        refreshIntervalReason:
+          type:
+            - string
+            - 'null'
+          enum: [fixed, floor, cadence, due, hint, max, dormant, backoff, retry_after, null]
+          description: Why that wait was chosen. cadence follows the feed's observed publish rhythm, due means an episode is expected so the floor applies, hint follows the feed's own update hints or a Cache-Control max-age, backoff is the failure backoff, retry_after is a host's Retry-After, dormant and max are the longest wait, fixed means adaptive refresh is off.
+        consecutiveRefreshFailures:
+          type: integer
+          description: Counted refresh failures in a row; 0 while the feed refreshes cleanly. A feed at 3 or more appears in GET /feeds/problems.
+        lastRefreshOkAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Last successful refresh. Falls back to lastRefreshed for feeds that succeeded before this field existed.
         lastPodpingAt:
           type:
             - string
@@ -19493,6 +19559,24 @@ components:
               description: Minutes between background RSS refresh passes for every feed. Default 15.
             isDefault:
               type: boolean
+        adaptiveRefreshEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether per-feed adaptive refresh is on. Default true.
+            isDefault:
+              type: boolean
+        adaptiveRefreshMaxMinutes:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 5
+              maximum: 1440
+              description: Longest wait between checks of a healthy feed. Default 60.
+            isDefault:
+              type: boolean
         dormantFeedDays:
           type: object
           properties:
@@ -20544,6 +20628,10 @@ components:
             processNewEpisodesFirst:
               type: boolean
             rssRefreshIntervalMinutes:
+              type: integer
+            adaptiveRefreshEnabled:
+              type: boolean
+            adaptiveRefreshMaxMinutes:
               type: integer
             dormantFeedDays:
               type: integer
@@ -21982,6 +22070,7 @@ components:
               - Limit Exceeded
               - Rate Limit Structural
               - Feed Refresh Failed
+              - Feed Refresh Recovered
               - Update Available
               - Cue Template Quiet
               - Queue Held
@@ -22038,6 +22127,37 @@ components:
         recipients:
           type: string
 
+    FeedProblem:
+      type: object
+      required: [slug, title, host, consecutiveFailures, errorKind, message, detail, failingSince, lastSuccessAt, nextRetryAt]
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        host:
+          type: string
+          description: Scheme and host of the upstream feed. The path and query are never included.
+        consecutiveFailures:
+          type: integer
+        errorKind:
+          type: string
+          enum: [dns, tls, timeout, connection, gone, auth, rate_limited, http_error, invalid_xml, blocked_address, not_feed, unknown]
+        message:
+          type: string
+          description: Plain-language explanation of errorKind.
+        detail:
+          type: [string, 'null']
+          description: The stored error text, with credentials redacted and URLs reduced to their host.
+        failingSince:
+          type: [string, 'null']
+          format: date-time
+        lastSuccessAt:
+          type: [string, 'null']
+          format: date-time
+        nextRetryAt:
+          type: [string, 'null']
+          format: date-time
     RefreshOutcome:
       type: object
       required: [success, status, new_episodes, queued_episodes, error]

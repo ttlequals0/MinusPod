@@ -23,6 +23,7 @@ from api import (
 )
 from cancel import request_cancellation, wait_for_cancellation
 from database.error_text import redact_error
+import feed_problems
 from processing_queue import ProcessingQueue
 from config import (
     AUTO_PROCESS_MAX_AGE_ERROR,
@@ -663,6 +664,19 @@ def _refresh_error_fields(podcast) -> dict:
     }
 
 
+def _refresh_schedule_fields(podcast) -> dict:
+    """When the background loop will next fetch this feed, how long it waits and why (upstream feeds only)."""
+    scheduled = has_upstream(podcast)
+    return {
+        'nextRefreshAt': podcast.get('next_refresh_at') if scheduled else None,
+        'refreshIntervalSeconds': podcast.get('refresh_interval_seconds') if scheduled else None,
+        'refreshIntervalReason': podcast.get('refresh_interval_reason') if scheduled else None,
+        'consecutiveRefreshFailures': podcast.get('refresh_failure_count') or 0,
+        'lastRefreshOkAt': (podcast.get('last_refresh_ok_at') or podcast.get('last_checked_at'))
+        if scheduled else None,
+    }
+
+
 def _slug_from_url_path(source_url: str) -> str | None:
     # Final-resort slug when neither an OPML title nor an RSS <title> exists. Strips
     # ``.xml``/``.rss`` suffixes; returns None if the URL has no usable path or hostname.
@@ -1058,6 +1072,7 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'podpingHiveAccounts': declaration['hive_accounts'],
         'podpingCheckedAt': podcast.get('podping_checked_at'),
         **_refresh_error_fields(podcast),
+        **_refresh_schedule_fields(podcast),
         'createdAt': podcast.get('created_at'),
     }
 
@@ -1142,6 +1157,31 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
         'hasBeenProcessed': base['hasBeenProcessed'],
         'description': truncate(description, 200) if description else None,
     }
+
+
+@api.route('/feeds/problems', methods=['GET'])
+@log_request
+def get_feed_problems():
+    """Feeds whose refresh keeps failing, with a plain-language reason and a host-only address."""
+    rows = get_database().get_feed_problems(FEED_REFRESH_FAILURE_ALERT_THRESHOLD)
+    problems = []
+    for row in rows:
+        kind = row.get('last_refresh_error_kind') or feed_problems.classify_text(
+            row.get('last_refresh_error'))
+        problems.append({
+            'slug': row['slug'],
+            'title': row.get('title') or row['slug'],
+            'host': safe_url_for_log(row.get('source_url') or ''),
+            'consecutiveFailures': row.get('refresh_failure_count') or 0,
+            'errorKind': kind,
+            'message': feed_problems.KIND_MESSAGES.get(kind, feed_problems.KIND_MESSAGES['unknown']),
+            'detail': feed_problems.scrub_detail(row.get('last_refresh_error')),
+            'failingSince': row.get('last_refresh_error_at'),
+            'lastSuccessAt': row.get('last_refresh_ok_at') or row.get('last_checked_at'),
+            'nextRetryAt': row.get('next_refresh_at'),
+        })
+    return json_response({'problems': problems, 'count': len(problems),
+                          'threshold': FEED_REFRESH_FAILURE_ALERT_THRESHOLD})
 
 
 @api.route('/feeds', methods=['GET'])

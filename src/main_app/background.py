@@ -17,7 +17,7 @@ from config import (
     DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
     FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
     PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
-    resolve_episode_log_retention_days, resolve_processing_mode,
+    resolve_episode_log_retention_days, resolve_processing_mode, resolve_refresh_floor_seconds,
     resolve_skip_transcription, episode_matches_feed_filters,
 )
 from database.queue import PENDING_QUEUE_LIMIT
@@ -330,11 +330,7 @@ def run_cleanup():
 
 def _resolve_refresh_interval_seconds() -> float:
     """The configured refresh interval in seconds, clamped 5-1440 minutes."""
-    try:
-        interval_minutes = int(db.get_setting('rss_refresh_interval_minutes') or 15)
-    except (TypeError, ValueError):
-        interval_minutes = 15
-    return min(max(interval_minutes, 5), 1440) * 60
+    return resolve_refresh_floor_seconds(db)
 
 
 def _due_batch_size(interval_seconds: float, active_count: int) -> int:

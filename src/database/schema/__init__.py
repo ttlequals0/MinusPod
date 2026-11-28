@@ -638,6 +638,16 @@ class SchemaMixin(DeferredUpgradeMixin):
             ('last_refresh_error', 'TEXT'),
             ('last_refresh_error_at', 'TEXT'),
             ('last_refresh_failure_at', 'TEXT'),
+            # Adaptive refresh schedule; NULL next_refresh_at means due now
+            ('next_refresh_at', 'TEXT'),
+            ('refresh_interval_seconds', 'INTEGER'),
+            ('refresh_interval_reason', 'TEXT'),
+            ('last_refresh_ok_at', 'TEXT'),
+            ('retry_after_until', 'TEXT'),
+            ('http_hint_seconds', 'INTEGER'),
+            ('update_hint_seconds', 'INTEGER'),
+            ('feed_complete', 'INTEGER DEFAULT 0'),
+            ('last_refresh_error_kind', 'TEXT'),
             # Unparseable-feed backoff state
             ('parse_failure_count', 'INTEGER DEFAULT 0'),
             ('last_parse_failure_at', 'TEXT'),

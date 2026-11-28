@@ -58,6 +58,19 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     last_refresh_error TEXT,
     last_refresh_error_at TEXT,
     last_refresh_failure_at TEXT,
+    -- Adaptive refresh schedule: NULL next_refresh_at means due now;
+    -- retry_after_until is a host's Retry-After; http_hint_seconds the last
+    -- Cache-Control max-age; update_hint_seconds/feed_complete come from
+    -- podcast:updateFrequency or sy:*; last_refresh_error_kind classifies the error.
+    next_refresh_at TEXT,
+    refresh_interval_seconds INTEGER,
+    refresh_interval_reason TEXT,
+    last_refresh_ok_at TEXT,
+    retry_after_until TEXT,
+    http_hint_seconds INTEGER,
+    update_hint_seconds INTEGER,
+    feed_complete INTEGER DEFAULT 0,
+    last_refresh_error_kind TEXT,
     -- Consecutive unparseable-body tracking; backs off the "304 but RSS
     -- cache stale" forced full fetch so a broken body is not refetched
     -- every cycle. Cleared on the first clean parse.

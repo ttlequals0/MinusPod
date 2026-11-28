@@ -661,9 +661,14 @@ def register_routes(app):
                 seen = [t for t in (checked_at, parse_iso_utc(last_attempt)) if t and t <= now]
                 age_minutes = (now - max(seen)).total_seconds() / 60 if seen else None
                 if age_minutes is None or age_minutes > 15:
-                    should_refresh = True
-                    age_text = 'unknown age' if age_minutes is None else f'{age_minutes:.0f}min'
-                    feed_logger.info(f"[{slug}] RSS cache stale ({age_text}), refreshing")
+                    held_until = db.get_refresh_hold_until(slug)
+                    if held_until:
+                        # A failing feed's backoff or a host's Retry-After: client polls must not cut the wait short.
+                        feed_logger.debug(f"[{slug}] RSS cache stale, refresh held until {held_until.isoformat()}")
+                    else:
+                        should_refresh = True
+                        age_text = 'unknown age' if age_minutes is None else f'{age_minutes:.0f}min'
+                        feed_logger.info(f"[{slug}] RSS cache stale ({age_text}), refreshing")
 
         if should_refresh:
             if force_refresh or not cached_rss:
