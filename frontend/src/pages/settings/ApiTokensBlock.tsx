@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_TOKENS_QUERY_KEY, ApiToken, createApiToken, listApiTokens, revokeApiToken } from '../../api/apiTokens';
+import { API_TOKENS_QUERY_KEY, ApiToken, createApiToken, listApiTokens, revokeAllApiTokens, revokeApiToken } from '../../api/apiTokens';
 import { getErrorMessage } from '../../api/client';
 import CopyButton from '../../components/CopyButton';
 import { DemoDisabled } from '../../components/DemoDisabled';
@@ -52,6 +52,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
   // Plaintext lives here only; a mutation would keep it in the query cache.
   const [revealed, setRevealed] = useState<string | null>(null);
   const [toRevoke, setToRevoke] = useState<ApiToken | null>(null);
+  const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
   const creatingRef = useRef(false);
 
   const { data: tokens = [], isError } = useQuery({
@@ -69,6 +70,18 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
     onError: (e) => {
       setToRevoke(null);
       setError(getErrorMessage(e, 'Could not revoke the token.'));
+    },
+  });
+
+  const revokeAllMutation = useMutation({
+    mutationFn: revokeAllApiTokens,
+    onSuccess: () => {
+      setConfirmRevokeAll(false);
+      queryClient.invalidateQueries({ queryKey: API_TOKENS_QUERY_KEY });
+    },
+    onError: (e) => {
+      setConfirmRevokeAll(false);
+      setError(getErrorMessage(e, 'Could not revoke the tokens.'));
     },
   });
 
@@ -117,6 +130,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
           <p className="text-sm text-muted-foreground mb-4">
             Long-lived credentials for scripts and integrations. Send one as <code className="font-mono">Authorization: Bearer</code>.
             A token cannot manage tokens, the password or sessions, or import configuration.
+            Changing the password does not revoke tokens: revoke them here after a suspected compromise.
           </p>
 
           <div className="mb-4 space-y-2">
@@ -191,11 +205,36 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
               </button>
             </DemoDisabled>
           </form>
+          {tokens.length > 0 && (
+            <div className="mt-3">
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRevokeAll(true)}
+                  className={`${btnBase} ${btnDestructiveOutline}`}
+                >
+                  Revoke all
+                </button>
+              </DemoDisabled>
+            </div>
+          )}
           {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
         </>
       )}
 
       {revealed && <RevealDialog token={revealed} onClose={() => setRevealed(null)} />}
+      {confirmRevokeAll && (
+        <ConfirmModal
+          title="Revoke all API tokens?"
+          confirmLabel="Revoke all tokens"
+          busyLabel="Revoking..."
+          pending={revokeAllMutation.isPending}
+          onCancel={() => setConfirmRevokeAll(false)}
+          onConfirm={() => revokeAllMutation.mutate()}
+        >
+          <p>Every integration using a token stops working immediately. This cannot be undone.</p>
+        </ConfirmModal>
+      )}
       {toRevoke && (
         <ConfirmModal
           title="Revoke API token?"

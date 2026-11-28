@@ -241,6 +241,16 @@ def create_api_token():
     return response
 
 
+@api.route('/auth/tokens', methods=['DELETE'])
+@limiter.limit('5 per hour')
+@log_request
+def revoke_all_api_tokens():
+    """Revoke every API token at once, for a suspected compromise."""
+    count = get_database().revoke_all_api_tokens()
+    logger.info("All API tokens (%d) revoked by %s", count, request.remote_addr)
+    return json_response({'revoked': count})
+
+
 @api.route('/auth/tokens/<int:token_id>', methods=['DELETE'])
 @limiter.limit('30 per hour')
 @log_request

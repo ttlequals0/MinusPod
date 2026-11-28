@@ -7,11 +7,13 @@ import ApiTokensBlock from './ApiTokensBlock';
 const mockList = vi.fn();
 const mockCreate = vi.fn();
 const mockRevoke = vi.fn();
+const mockRevokeAll = vi.fn();
 vi.mock('../../api/apiTokens', () => ({
   API_TOKENS_QUERY_KEY: ['api-tokens'],
   listApiTokens: () => mockList(),
   createApiToken: (name: string) => mockCreate(name),
   revokeApiToken: (id: number) => mockRevoke(id),
+  revokeAllApiTokens: () => mockRevokeAll(),
 }));
 
 const PLAINTEXT = 'mp_' + 'x'.repeat(43);
@@ -31,6 +33,7 @@ beforeEach(() => {
   mockList.mockReset().mockResolvedValue([TOKEN]);
   mockCreate.mockReset().mockResolvedValue({ ...TOKEN, id: 8, name: 'cron', token: PLAINTEXT });
   mockRevoke.mockReset().mockResolvedValue({ revoked: true });
+  mockRevokeAll.mockReset().mockResolvedValue({ revoked: 1 });
 });
 
 describe('ApiTokensBlock', () => {
@@ -93,6 +96,18 @@ describe('ApiTokensBlock', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Revoke token' }));
     await waitFor(() => expect(mockRevoke).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('revokes every token only after confirming', async () => {
+    const user = userEvent.setup();
+    renderBlock();
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Revoke all' }));
+    expect(mockRevokeAll).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke all tokens' }));
+    await waitFor(() => expect(mockRevokeAll).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 

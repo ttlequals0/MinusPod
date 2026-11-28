@@ -63,6 +63,13 @@ class ApiTokenMixin:
                 (utc_now_iso(), token_id))
             return cursor.rowcount == 1
 
+    def revoke_all_api_tokens(self) -> int:
+        """Revoke every active token; returns how many were revoked."""
+        with self.transaction(immediate=True) as conn:
+            return conn.execute(
+                "UPDATE api_tokens SET revoked_at = ? WHERE revoked_at IS NULL",
+                (utc_now_iso(),)).rowcount
+
     def verify_api_token(self, token: str) -> int | None:
         """Id of the active token matching token, else None. Stamps last use at most every 5 minutes."""
         if not TOKEN_PATTERN.fullmatch(token):

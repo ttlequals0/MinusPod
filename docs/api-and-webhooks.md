@@ -235,8 +235,8 @@ curl -H "Authorization: Bearer mp_your-token-here" \
 - A token cannot create, list or revoke tokens, set, change or remove the password, log out, rotate the provider passphrase, reveal the SponsorBlock user ID, or import configuration. Those return 403 and need a signed-in session.
 - A token can export configuration, including the provider keys in `config-backup`, and download encrypted database backups (`GET /api/v1/system/backup`). It cannot download an unencrypted database (`encrypted=false` returns 403) or restore one. Treat a token like your password. A token can trigger a backup to the configured destination (`POST /api/v1/system/db-backup/run`) but cannot change backup settings, which need a session.
 - A new `/api/v1` route is reachable by tokens only after it is classified in the token capability test.
-- `GET /api/v1/auth/tokens` lists active tokens (id, name, prefix, `createdAt`, `lastUsedAt`). `DELETE /api/v1/auth/tokens/{id}` revokes one. `lastUsedAt` updates at most every 5 minutes.
-- Changing the password keeps tokens. Removing it revokes all of them.
+- `GET /api/v1/auth/tokens` lists active tokens (id, name, prefix, `createdAt`, `lastUsedAt`). `DELETE /api/v1/auth/tokens/{id}` revokes one and `DELETE /api/v1/auth/tokens` revokes all of them (session only). `lastUsedAt` updates at most every 5 minutes.
+- Changing the password keeps tokens valid; revoke them separately (`DELETE /api/v1/auth/tokens`, or Revoke all under Settings > Security) after a suspected compromise. Removing the password revokes all of them.
 
 ### Public feed-domain routes
 

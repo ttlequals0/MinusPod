@@ -386,6 +386,43 @@ paths:
                 $ref: '#/components/schemas/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
+    delete:
+      tags:
+        - Auth
+      summary: Revoke all API tokens
+      description: >-
+        Revokes every active token at once; they stop working immediately. Use
+        after a suspected compromise: changing the password keeps tokens.
+        Session only: an API token gets 403. Limited to 5/hour.
+      operationId: revokeAllApiTokens
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Tokens revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked:
+                    type: integer
+                    description: Number of tokens revoked.
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Called with an API token, or missing CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /auth/tokens/{token_id}:
     delete:

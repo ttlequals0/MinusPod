@@ -146,6 +146,17 @@ def test_removing_the_password_revokes_tokens_but_changing_it_does_not(session_c
     assert db.list_api_tokens() == []
 
 
+def test_revoke_all_clears_every_token_and_is_session_only(session_client, token_client, db):
+    first = _create(session_client, 'one').get_json()['token']
+    _create(session_client, 'two')
+    assert token_client.delete('/api/v1/auth/tokens', headers=_bearer(first)).status_code == 403
+    assert len(db.list_api_tokens()) == 2
+    resp = session_client.delete('/api/v1/auth/tokens', headers=_csrf(session_client))
+    assert resp.status_code == 200 and resp.get_json() == {'revoked': 2}
+    assert db.list_api_tokens() == []
+    assert token_client.get('/api/v1/feeds', headers=_bearer(first)).status_code == 401
+
+
 # ---- bearer authentication ----
 
 def test_bearer_reads_without_a_cookie(token_client, token):
@@ -261,7 +272,7 @@ def test_log_redaction_covers_token_and_bearer_shapes():
 # ---- session-only deny-list ----
 
 EXPECTED_SESSION_ONLY = {
-    'api.list_api_tokens', 'api.create_api_token', 'api.revoke_api_token',
+    'api.list_api_tokens', 'api.create_api_token', 'api.revoke_api_token', 'api.revoke_all_api_tokens',
     'api.auth_set_password', 'api.auth_logout', 'api.rotate_master_passphrase',
     'api.get_sb_user_id',
     'api.preview_runtime_config_import', 'api.apply_runtime_config_import',

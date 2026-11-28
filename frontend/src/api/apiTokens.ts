@@ -22,6 +22,10 @@ export async function createApiToken(name: string): Promise<CreatedApiToken> {
   return apiRequest<CreatedApiToken>('/auth/tokens', { method: 'POST', body: { name } });
 }
 
+export async function revokeAllApiTokens() {
+  return apiRequest<{ revoked: number }>('/auth/tokens', { method: 'DELETE' });
+}
+
 export async function revokeApiToken(id: number) {
   return apiRequest<{ revoked: boolean }>(`/auth/tokens/${id}`, { method: 'DELETE' });
 }

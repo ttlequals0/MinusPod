@@ -282,6 +282,11 @@ function SecuritySection({
             placeholder={isPasswordSet ? 'Leave empty to remove password' : `Minimum ${MIN_PASSWORD_LENGTH} characters`}
             className={`${inputBase} w-full`}
           />
+          {isPasswordSet && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Changing the password keeps API tokens valid. After a suspected compromise, revoke them under API tokens below.
+            </p>
+          )}
         </div>
 
         <div>
