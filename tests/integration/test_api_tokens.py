@@ -211,7 +211,7 @@ def test_bearer_is_ignored_when_no_password_is_set(db):
     assert resp.status_code == 200
 
 
-def test_failed_bearer_attempts_feed_the_login_lockout(token_client, token):
+def test_bearer_lockout_is_separate_from_the_password_login(token_client, token):
     environ = {'REMOTE_ADDR': PUBLIC_IP}
     for _ in range(LOCKOUT_THRESHOLD):
         resp = token_client.get('/api/v1/feeds', headers=_bearer(_fake_token()), environ_base=environ)
@@ -220,7 +220,17 @@ def test_failed_bearer_attempts_feed_the_login_lockout(token_client, token):
     assert locked.status_code == 429
     assert locked.headers['Retry-After'].isdigit()
     login = token_client.post('/api/v1/auth/login', json={'password': PW}, environ_base=environ)
-    assert login.status_code == 429
+    assert login.status_code == 200
+
+
+def test_failed_logins_never_block_a_valid_token(token_client, token):
+    environ = {'REMOTE_ADDR': PUBLIC_IP}
+    for _ in range(LOCKOUT_THRESHOLD):
+        bad = token_client.post('/api/v1/auth/login', json={'password': 'wrong'}, environ_base=environ)
+        assert bad.status_code == 401
+    assert token_client.post('/api/v1/auth/login', json={'password': PW},
+                             environ_base=environ).status_code == 429
+    assert token_client.get('/api/v1/feeds', headers=_bearer(token), environ_base=environ).status_code == 200
 
 
 def test_private_ip_failures_never_lock_out(token_client):

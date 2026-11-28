@@ -36,6 +36,8 @@ SESSION_ONLY_ENDPOINTS = frozenset({
 })
 BEARER_INVALID = 'invalid'
 BEARER_LOCKED = 'locked'
+# Bearer failures count under their own auth_failures key, apart from password logins.
+_BEARER_KEY_PREFIX = 'bearer:'
 _HOLDER = 'auth_holder'
 
 
@@ -99,18 +101,23 @@ def _bearer_token() -> str | None:
     return value
 
 
+def bearer_lockout_key(ip: str) -> str:
+    return _BEARER_KEY_PREFIX + ip
+
+
 def _check_bearer(db, token: str, required: bool) -> AuthState:
     """Authenticate by token alone; the session cookie is never read, so a token request has no cookie authority."""
     ip = request.remote_addr or ''
     lockable = is_public_ip_for_lockout(ip)
-    if lockable and db.check_lockout(ip):
+    key = bearer_lockout_key(ip)
+    if lockable and db.check_lockout(key):
         return AuthState(True, required, authenticated=False, signed_in=False,
                          bearer_error=BEARER_LOCKED)
     token_id = db.verify_api_token(token)
     if token_id is None:
         logger.warning("Rejected API token from %s", ip)
         if lockable:
-            db.record_auth_failure(ip)
+            db.record_auth_failure(key)
         return AuthState(True, required, authenticated=False, signed_in=False,
                          bearer_error=BEARER_INVALID)
     # signed_in stays False: CSRF and the CSRF cookie apply only to cookie sign-ins.

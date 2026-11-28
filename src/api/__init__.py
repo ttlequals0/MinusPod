@@ -14,7 +14,7 @@ from functools import wraps
 import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import (
-    AUTH_HOOK_EXEMPT_ENDPOINTS, BEARER_LOCKED, SESSION_ONLY_ENDPOINTS,
+    AUTH_HOOK_EXEMPT_ENDPOINTS, BEARER_LOCKED, SESSION_ONLY_ENDPOINTS, bearer_lockout_key,
     note_missing_auth, password_is_set, resolve_auth,
 )
 from api.csrf import validate as csrf_validate
@@ -176,7 +176,7 @@ def check_auth():
         return None
 
     if state.bearer_error == BEARER_LOCKED:
-        locked_until = get_database().check_lockout(request.remote_addr or '')
+        locked_until = get_database().check_lockout(bearer_lockout_key(request.remote_addr or ''))
         return retry_after_response(
             'Too many failed attempts; try again later',
             lockout_retry_after(locked_until), 429, in_body=True)
