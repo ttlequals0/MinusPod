@@ -8,14 +8,36 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.102.27] - 2026-11-27
+## [2.103.0] - 2026-11-27
+
+### Added
+
+- API tokens. A script can call the API with `Authorization: Bearer <token>` instead of a session cookie, with no CSRF header. Create one under Settings > Security. It is shown once and only a hash is stored. Tokens need an application password. A token can read and change most settings, export configuration (including provider keys, so treat it like your password), download encrypted database backups, trigger a backup and open the live status stream. It cannot manage tokens, change or remove the password, import configuration, rotate the provider passphrase, reveal stored secrets, change backup settings or download an unencrypted database. Wrong tokens return 401 and have their own lockout, separate from sign-in. Changing the password keeps tokens valid. Removing it revokes them all.
+- **Revoke all** under Settings > Security and `DELETE /api/v1/auth/tokens` revoke every token at once.
+- Adaptive refresh. Each feed is checked at a pace that fits how it publishes: a daily show about every 2 hours, an hourly feed as often as your refresh interval allows. A feed due for a new episode is checked at your refresh interval. `podcast:updateFrequency`, `sy:updatePeriod` and `Cache-Control: max-age` hints can lengthen the wait. A host answering 429 or 503 with `Retry-After` is left alone for that long, and a failing feed backs off up to 6 hours. Feed pages show when the next check is due and why. Settings: "Adapt refresh to each feed" and "Longest wait for a healthy feed" under Global Defaults. Lowering the refresh interval or the maximum takes effect at once.
+- Feed problems list in System health. It shows feeds that failed 3 times in a row with a plain reason (a DNS failure shows as a DNS failure), last success, next retry and a Refresh now button. API: `GET /api/v1/feeds/problems`.
+- **Feed Refresh Recovered** notification, sent once when a failing feed works again.
+- **Cancel all** on the Queue page stops every active run and clears the waiting queue after a confirmation. Failed rows stay for the automatic retry. `POST /api/v1/episodes/processing/cancel-all` reports `activeRequested`, `queueRowsClosed` and `displayEntriesRemoved`. Contributed by amcfague.
+- **Pause auto-process for unrequested feeds** (Settings > Global Defaults, off by default). A feed that no podcast app has fetched for the set number of days stops auto-processing new episodes until an app fetches it again. Playing or reprocessing an episode still works. Feed lists show a Dormant label. Contributed by epsalon.
+- **Keep never-downloaded episodes for** and **Keep after first download for** (Settings > Storage and retention, off by default). Processed episodes no podcast app has downloaded stay past the normal retention window, and downloaded ones stay a few days so a failed download can be retried. A reprocessed episode starts as not downloaded. Contributed by epsalon.
+- **Run local audio analysis** and **Collect splice evidence** (Settings > Ad detection, on by default). Turning them off skips the loudness, silence, cue and splice scans, so detection runs from the transcript alone, which helps on small hosts. Contributed by batram.
+- **Send raw MP3 chunks** (Settings > Transcription, off by default). MP3 chunks sent to a remote Whisper API are copied from the original instead of decoded and re-encoded, which takes seconds instead of minutes on a weak CPU. A chunk over 24 MB is re-encoded as usual. `MINUSPOD_RAW_API_CHUNKS=true` sets the default. Contributed by batram.
+- `MINUSPOD_PRIVATE_FEED_HOSTS` lets feed sources on named private hosts, IP addresses or CIDR ranges work without opening every private address. A range never opens loopback, link-local or cloud metadata addresses. Only a single-address entry does. Episode audio and artwork stay strict.
+- A community guide for running whisper.cpp on an AMD GPU with ROCm, with CPU transcription speed measurements. Contributed by no84by.
 
 ### Changed
 
+- **Adaptive refresh is on by default after you upgrade.** Healthy feeds may now be checked as rarely as every 60 minutes instead of at your fixed refresh interval. New episodes are still picked up at the refresh interval when one is due. To keep the old behavior, turn off **Adapt refresh to each feed** under Settings > Global Defaults. `adaptiveRefreshEnabled` and `adaptiveRefreshMaxMinutes` are the API fields.
+- Scheduled database backups refuse a destination inside a directory MinusPod serves over HTTP, when you save the setting and on every run. `GET /api/v1/settings/db-backup` returns `destError` with the reason a stored destination is refused.
 - Served feeds, chapters, transcripts and the OPML export now send `Cache-Control: private, no-cache`, so a CDN or shared proxy that honors the header does not store them. That prevents a stale copy and keeps one subscriber's keyed feed away from another. Episode audio already sent `no-cache`.
 - A run that closes held detections because hold for review is off now logs how many it closed.
 - The security docs have a note on Cloudflare caching, and the feeds docs explain the Pocket Casts workaround of adding a feed URL with a query string such as `?fresh=1`.
 - The episode player has a pill progress track with chapter ticks, inline elapsed and remaining times, a mute button, and a time-saved badge when ads were cut. Clicking the chapter bar opens a list of chapters with timestamps. When two or more sections appear below the episode card, a jump bar with counts links to them.
+
+### Fixed
+
+- Adding or editing a feed, and OPML import, now honor `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS`. A feed on a LAN or loopback address was rejected even though refresh allowed it. Contributed by amcfague.
+- A brief DNS failure no longer fails a feed refresh. The check retries up to three times and still fails at once for a name that does not exist. Contributed by SimpleHonors.
 
 ## [2.102.26] - 2026-11-27
 
