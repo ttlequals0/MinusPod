@@ -545,7 +545,7 @@ Caps the size of one local-feed upload request (a single episode or a batch of s
 
 Settings > Global Defaults > **Pause auto-process for unrequested feeds** stops spending transcription and LLM money on feeds nobody listens to. Set it to a number of days. A subscribed feed whose served RSS no client has fetched in that many days goes dormant, and new episodes found by a refresh are no longer queued for processing. A feed that has never been fetched counts from the day it was added. The default is 0, which turns this off.
 
-A dormant feed still refreshes on schedule, so its episode list stays current. Playing an episode still processes it on demand, and so does a manual reprocess. The next time a podcast app fetches the feed, auto-process resumes. The next refresh then queues any episode still inside the auto-process window that has not been processed. A feed with Auto-Process set to Enabled in Feed Settings is never paused. Local feeds and the recents feed are never dormant.
+A dormant feed still refreshes, at the adaptive maximum wait, so its episode list stays current. Playing an episode still processes it on demand, and so does a manual reprocess. The next time a podcast app fetches the feed, auto-process resumes. The next refresh then queues any episode still inside the auto-process window that has not been processed. A feed with Auto-Process set to Enabled in Feed Settings is never paused. Local feeds and the recents feed are never dormant.
 
 Only GET requests that pass feed authentication count. A HEAD request and the web UI's own same-origin requests do not. Each feed's fetch time is recorded at most once every 10 minutes. The feed list shows a Dormant label. The feed page also shows when the feed was last fetched.
 
@@ -867,13 +867,35 @@ The snapshots are plain SQLite files and are never encrypted, even with `MINUSPO
 
 ## Feed Refresh and Podping
 
-MinusPod polls every feed's upstream RSS on a fixed schedule. Podping is an opt-in accelerator that can trigger an immediate refresh of a single feed when its host announces a new episode; scheduled polling never turns off, so it stays the fallback for hosts that don't send Podping and for any notification the listener misses. See [Podcasting 2.0 > Podping](podcasting-2.0.md#podping) for how the listener works, which hosts send Podping, and the per-feed Podping coverage line on the feed detail page.
+MinusPod checks each feed's upstream RSS at a rate that matches how the feed publishes. A daily show is checked about every two hours, a feed that posts hourly is checked as often as the refresh interval allows, and a quiet feed is checked less often. The refresh interval you set is the shortest wait between checks and the fallback when nothing better is known. The adaptive maximum is the longest wait for a healthy feed, so by default no healthy feed waits more than 60 minutes. Turn adaptive refresh off to check every feed on the fixed interval.
+
+Podping is an opt-in accelerator that can trigger an immediate refresh of a single feed when its host announces a new episode; scheduled polling never turns off, so it stays the fallback for hosts that don't send Podping and for any notification the listener misses. See [Podcasting 2.0 > Podping](podcasting-2.0.md#podping) for how the listener works, which hosts send Podping, and the per-feed Podping coverage line on the feed detail page.
 
 | Setting | Default | Notes |
 |---|---|---|
-| Feed refresh interval | 15 minutes | Minutes between background RSS refresh passes for every feed. Range 5-1440. Settings > Global Defaults. A change applies after the wait already in progress finishes. |
+| Feed refresh interval | 15 minutes | The shortest wait between checks of a feed. Range 5-1440. Settings > Global Defaults. A change applies after the wait already in progress finishes. |
+| Adaptive refresh | on | Adapt each feed's wait to how it publishes. When off, feeds refresh on the fixed interval; Retry-After and failure backoff still apply. |
+| Adaptive refresh maximum | 60 minutes | The longest wait for a healthy feed. Range from the refresh interval to 1440. |
 | Pause auto-process for unrequested feeds | 0 (off) | Days without a client fetching a feed before it stops auto-processing new episodes. Range 0-3650. Settings > Global Defaults. See [Dormant feeds](#dormant-feeds). |
 | Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. While enabled, it checks every RPC node at startup and every five minutes. System Health can run the same check on demand while the listener is off. Settings > Global Defaults. |
+
+How each signal changes the wait. The shortest wait any signal justifies wins, and the result always stays between the refresh interval and the adaptive maximum.
+
+| Signal | Effect |
+|---|---|
+| Publish rhythm | The median gap between the last 10 episode dates (at least 3 needed), divided by 12. Future-dated episodes are ignored. |
+| An episode is due | Within a quarter of the usual gap around the next expected episode, the wait drops to the refresh interval, so a new episode is picked up as fast as before. |
+| Feed update hints | `podcast:updateFrequency` (`rrule`) and `sy:updatePeriod` with `sy:updateFrequency` set a slower rhythm for feeds with too few dates. A feed marked `complete="true"` waits the adaptive maximum. Malformed hints are ignored. |
+| Cache-Control max-age | A host's `max-age` on a normal response can lengthen the wait up to the adaptive maximum. It never shortens it, and it does not delay a due episode. |
+| Retry-After | A 429 or 503 with `Retry-After` (seconds or a date, capped at 24 hours) pauses the feed that long, even with adaptive refresh off. Podping and client polls also wait it out. |
+| Failures | After a failed check the wait doubles from the refresh interval, up to 6 hours, with up to 10 percent random spread so feeds on one host do not retry together. One good refresh resets it. This also applies with adaptive refresh off. |
+| Dormant feed | A dormant feed (see below) waits the adaptive maximum so it wakes promptly. |
+
+These always refresh right away and then recompute the wait: a Podping for the feed, a manual refresh of one feed or all feeds, adding or editing a feed, and a podcast app fetching a feed whose cached copy is more than 15 minutes old. That last one holds off while a feed is failing or a host asked us to wait, so a failing host is not hit by client polls.
+
+Each feed reports `nextRefreshAt`, `refreshIntervalSeconds`, `refreshIntervalReason` and `consecutiveRefreshFailures` in the API, and the feed detail page shows the next check. Feeds that fail three times in a row are listed in System Health under Feed problems, with a plain reason and a Refresh now button. On upgrade every feed is due once, in the same small batches as before, and then keeps its own schedule.
+
+API: `adaptiveRefreshEnabled` (boolean) and `adaptiveRefreshMaxMinutes` (integer, from the refresh interval to 1440) on `PUT /api/v1/settings/ad-detection`; `GET /api/v1/feeds/problems` lists failing feeds.
 
 ---
 
