@@ -662,14 +662,14 @@ class QueueMixin:
         return [(row['slug'], row['episode_id']) for row in rows]
 
     def close_all_queue_rows(self) -> int:
-        """Mark every non-terminal queue row completed. Returns rows touched."""
+        """Mark pending and claimed queue rows completed; failed rows stay for the retry. Returns rows touched."""
         conn = self.get_connection()
         try:
             cursor = conn.execute(
                 """UPDATE auto_process_queue
                    SET status = 'completed',
                        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-                   WHERE status IN ('pending', 'processing', 'failed')"""
+                   WHERE status IN ('pending', 'processing')"""
             )
             conn.commit()
             return cursor.rowcount

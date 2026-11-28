@@ -849,12 +849,13 @@ def cancel_all_processing():
     """Cancel every active run and remove every queued episode."""
     db = get_database()
     status_service = get_status_service()
+    # Close the queue first so a worker freed by a cancel finds nothing new to start.
+    rows_closed = db.close_all_queue_rows()
+    display_removed = status_service.remove_all_queued_episodes()
     requested = sum(
         _request_run_cancel(db, status_service, slug, episode_id) is not None
         for slug, episode_id in db.get_active_run_episodes()
     )
-    rows_closed = db.close_all_queue_rows()
-    display_removed = status_service.remove_all_queued_episodes()
     logger.info("Cancel all processing: %d active requested, %d queue rows closed, "
                 "%d display entries removed", requested, rows_closed, display_removed)
     return json_response({
