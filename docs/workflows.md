@@ -49,7 +49,7 @@ behind that address.
   <img alt="A waiting queue of episodes feeding a Whisper pool that transcribes four at once, which then hand off to the pipeline" src="images/wf-pool-light.svg">
 </picture>
 
-The four concurrent episodes in the diagram are an example, not the setting.
+The diagram shows four concurrent episodes as an example.
 Concurrency is configurable: `WHISPER_POOL_MAX_EPISODES` accepts 1 to 16 and
 defaults to 1, and out-of-range values are clamped rather than rejected. A
 separate cap, `WHISPER_POOL_MAX_REQUESTS` (1 to 64, default 4), limits how
@@ -64,7 +64,7 @@ Whatever the backend, only the background leader worker runs episodes. A
 reprocess or play request that lands on another gunicorn worker is queued and
 the leader's dispatcher picks it up on its next pass, within 30 s. One process
 holds every per-run state and every local transcription model, so two workers
-can never load a model each on the same GPU.
+never load a model each on the same GPU.
 
 The pool only activates on the remote Whisper API backend. Turning it on while
 transcription runs locally leaves it inactive, because the local model runs
@@ -230,7 +230,7 @@ retries and then gives up.
 
 ---
 
-<sub>Diagrams are generated, not hand-drawn. Edit
+<sub>The diagrams are generated. Edit
 [`scripts/generate_workflow_diagrams.py`](../scripts/generate_workflow_diagrams.py)
 and re-run it to rebuild `docs/images/wf-*.svg`. Colors come from the
 `index.css` tokens, so they track the app's own theme.</sub>
