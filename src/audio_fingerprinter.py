@@ -1182,7 +1182,7 @@ class AudioFingerprinter:
                 if result.returncode == 0:
                     logger.debug(f"Found fpcalc at: {path}")
                     return path
-            except (subprocess.SubprocessError, FileNotFoundError):
+            except (subprocess.SubprocessError, FileNotFoundError, PermissionError):
                 continue
 
         logger.warning("fpcalc not found - audio fingerprinting disabled")

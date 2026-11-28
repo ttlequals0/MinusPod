@@ -506,7 +506,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         # Successful asset publication includes final segments even when VTT is disabled.
         final_segments = transcript_gen.compute_final_segments(segments, all_cuts, replacement_duration)
         pending_assets['final_segments'] = final_segments
-        pending_assets['transcript_source'] = None
+        pending_assets['transcript_source'] = (
+            download_outcome.get('transcript_source') if download_outcome else None
+        )
 
         if vtt_enabled is None or vtt_enabled.lower() == 'true':
             vtt_content = transcript_gen.generate_vtt(segments, all_cuts, replacement_duration)

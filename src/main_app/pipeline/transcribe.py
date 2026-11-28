@@ -258,6 +258,8 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         # transcript that yields no segments falls through to a fresh
         # transcription below rather than proceeding with nothing.
         outcome['segments_reused'] = True
+        if episode_row.get('transcript_source'):
+            outcome['transcript_source'] = episode_row['transcript_source']
         duration_min = segments[-1]['end'] / 60
         audio_logger.info(
             f"[{slug}:{episode_id}] Found existing transcript: "

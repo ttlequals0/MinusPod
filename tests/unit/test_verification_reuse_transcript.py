@@ -186,3 +186,26 @@ def test_pass2_transcription_repairs_skipped_holes(monkeypatch):
     assert [s['text'] for s in segments] == ['a', 'recovered', 'b']
     args = v.transcriber.repair_gaps.call_args.args
     assert args[0] == '/processed.mp3' and args[2] == 8.0
+
+
+def test_youtube_captions_transcript_maps_through_cuts_without_re_transcribing(monkeypatch):
+    """When reuse_transcript is True (e.g. YouTube captions transcript), VerificationPass
+    maps segments through cuts instead of re-transcribing with Whisper (#1100)."""
+    monkeypatch.setattr('verification_pass.get_replacement_duration', lambda: 2.0)
+    v = _verifier()
+    caption_segments = [
+        _seg(0.0, 30.0, 'intro'),
+        _seg(100.0, 160.0, 'sponsor segment'),
+        _seg(200.0, 230.0, 'outro'),
+    ]
+    cuts = [{'start': 95.0, 'end': 165.0}]
+    result = v.verify(**_kwargs(
+        pass1_cuts=cuts, original_segments=caption_segments, reuse_transcript=True))
+
+    v.transcriber.transcribe_chunked.assert_not_called()
+    passed = v.ad_detector.run_verification_detection.call_args[0][0]
+    texts = [s['text'] for s in passed]
+    assert 'sponsor segment' not in texts
+    assert any(s['text'] == 'outro' and abs(s['start'] - 132.0) < 0.1 for s in passed)
+    assert result['status'] == 'clean'
+
