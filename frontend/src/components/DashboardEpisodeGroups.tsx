@@ -1,14 +1,18 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ListMusic } from 'lucide-react';
 import { Feed, Episode, EpisodeSummary } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { feedArtworkSrc } from '../utils/artworkUrl';
+import { isFailedStatus } from '../utils/episodeStatus';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import Artwork from './Artwork';
 import ChevronCaret from './ChevronCaret';
 import FeedTypeBadge from './FeedTypeBadge';
 import { EpisodeRow } from './EpisodeList';
 import EpisodeRowActions from './EpisodeRowActions';
+import { btnBase, btnSecondary } from './buttonStyles';
+import { badgeBase, tint } from './badgeStyles';
 import { focusRing } from './fieldStyles';
 import { cardTitle, cardPad } from './pageStyles';
 
@@ -47,11 +51,17 @@ interface DashboardEpisodeGroupsProps {
   episodesPerPodcast: number;
 }
 
+interface BulkCollapseSignal {
+  seq: number;
+  collapsed: boolean;
+}
+
 // One section per podcast with its latest episodes. Recents is excluded: its
 // episodes belong to other podcasts' podcast_id, so latestEpisodes is always
 // empty for it and it would otherwise render as a broken, empty card.
 function DashboardEpisodeGroups({ feeds, episodesPerPodcast }: DashboardEpisodeGroupsProps) {
   const groupedFeeds = feeds.filter((feed) => feed.feedType !== 'recents');
+  const [bulkSignal, setBulkSignal] = useState<BulkCollapseSignal | null>(null);
 
   if (groupedFeeds.length === 0) {
     return (
@@ -61,21 +71,60 @@ function DashboardEpisodeGroups({ feeds, episodesPerPodcast }: DashboardEpisodeG
     );
   }
 
+  const bulkBtnClass = `${btnBase} ${btnSecondary} text-xs px-2.5 py-1`;
+
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setBulkSignal((prev) => ({ seq: (prev?.seq ?? 0) + 1, collapsed: false }))}
+          className={bulkBtnClass}
+        >
+          Expand all
+        </button>
+        <button
+          type="button"
+          onClick={() => setBulkSignal((prev) => ({ seq: (prev?.seq ?? 0) + 1, collapsed: true }))}
+          className={bulkBtnClass}
+        >
+          Collapse all
+        </button>
+      </div>
       {groupedFeeds.map((feed) => (
-        <FeedEpisodeGroup key={feed.slug} feed={feed} limit={episodesPerPodcast} />
+        <FeedEpisodeGroup key={feed.slug} feed={feed} limit={episodesPerPodcast} bulkSignal={bulkSignal} />
       ))}
     </div>
   );
 }
 
-function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
+function FeedEpisodeGroup({
+  feed,
+  limit,
+  bulkSignal,
+}: {
+  feed: Feed;
+  limit: number;
+  bulkSignal: BulkCollapseSignal | null;
+}) {
   const episodes = (feed.latestEpisodes ?? []).slice(0, limit);
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
   const headingId = `episode-group-heading-${feed.slug}`;
   const [collapsed, setCollapsed] = useLocalStorageState<boolean>(
     `dashboard-group-collapsed:${feed.slug}`, false);
+  const lastBulkSeq = useRef(bulkSignal?.seq);
+
+  useEffect(() => {
+    if (!bulkSignal || bulkSignal.seq === lastBulkSeq.current) return;
+    lastBulkSeq.current = bulkSignal.seq;
+    setCollapsed(bulkSignal.collapsed);
+  }, [bulkSignal, setCollapsed]);
+
+  const heldCount = episodes.reduce((sum, ep) => sum + (ep.pendingReviewCount ?? 0), 0);
+  const failedCount = episodes.filter((ep) => isFailedStatus(ep.status)).length;
+  const activeCount = episodes.filter(
+    (ep) => ep.status === 'processing' || ep.jobState === 'processing' || ep.jobState === 'queued',
+  ).length;
 
   return (
     <section aria-labelledby={headingId} className="bg-card rounded-lg border border-border">
@@ -93,13 +142,28 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
           />
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <h2 id={headingId} className={`${cardTitle} truncate`}>
               <Link to={`/feeds/${feed.slug}`} className={`hover:text-primary ${focusRing}`}>
                 {feedDisplayTitle(feed)}
               </Link>
             </h2>
             <FeedTypeBadge feedType={feed.feedType} />
+            {collapsed && heldCount > 0 && (
+              <span className={`${badgeBase} ${tint.warning} shrink-0`}>
+                {heldCount} held
+              </span>
+            )}
+            {collapsed && failedCount > 0 && (
+              <span className={`${badgeBase} ${tint.destructive} shrink-0`}>
+                {failedCount} failed
+              </span>
+            )}
+            {collapsed && activeCount > 0 && (
+              <span className={`${badgeBase} ${tint.blue} shrink-0`}>
+                {activeCount} active
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">{feed.episodeCount} episodes</p>
         </div>

@@ -166,6 +166,38 @@ describe('DashboardEpisodeGroups', () => {
     renderGroups([feed]);
     expect(screen.getByText('Queued')).toBeTruthy();
   });
+
+  it('collapses and expands all feed groups via bulk controls and surfaces header badges when collapsed', async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    const feedA: Feed = {
+      slug: 'show-a', title: 'Show A', sourceUrl: 'https://example.com/a.xml', feedUrl: 'https://example.com/a.xml',
+      episodeCount: 2,
+      latestEpisodes: [
+        episodeSummary({ id: 'a1', status: 'completed', pendingReviewCount: 2 }),
+        episodeSummary({ id: 'a2', status: 'failed' }),
+      ],
+    };
+    const feedB: Feed = {
+      slug: 'show-b', title: 'Show B', sourceUrl: 'https://example.com/b.xml', feedUrl: 'https://example.com/b.xml',
+      episodeCount: 1,
+      latestEpisodes: [episodeSummary({ id: 'b1', status: 'processing', jobState: 'processing' })],
+    };
+    renderGroups([feedA, feedB]);
+    expect(screen.getByText('Episode a1')).toBeTruthy();
+    expect(screen.getByText('Episode b1')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(screen.queryByText('Episode a1')).toBeNull();
+    expect(screen.queryByText('Episode b1')).toBeNull();
+    expect(screen.getByText('2 held')).toBeTruthy();
+    expect(screen.getByText('1 failed')).toBeTruthy();
+    expect(screen.getByText('1 active')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Expand all' }));
+    expect(screen.getByText('Episode a1')).toBeTruthy();
+    expect(screen.getByText('Episode b1')).toBeTruthy();
+  });
 });
 
 describe('clampEpisodesPerPodcast', () => {

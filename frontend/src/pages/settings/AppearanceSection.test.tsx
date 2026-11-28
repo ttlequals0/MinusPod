@@ -15,4 +15,16 @@ describe('AppearanceSection mode badges', () => {
     expect(badge('Obsidian')).toContain('(dark only)');
     expect(badge('Harbor')).toContain('(light only)');
   });
+
+  it('renders a 3-swatch palette preview for paired, single-mode, and default themes', () => {
+    render(<ThemeProvider><AppearanceSection /></ThemeProvider>);
+    for (const id of ['slate', 'nord', 'obsidian', 'harbor']) {
+      const swatch = screen.getByTestId(`theme-swatch-${id}`);
+      const bars = swatch.querySelectorAll('span');
+      expect(bars).toHaveLength(3);
+      for (const bar of bars) {
+        expect((bar as HTMLElement).style.backgroundColor).toBeTruthy();
+      }
+    }
+  });
 });

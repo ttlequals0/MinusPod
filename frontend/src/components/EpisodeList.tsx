@@ -129,7 +129,7 @@ function EpisodeRow({
           src={episodeThumbSrc(rowSlug, episode.id, episode.artworkThumbUrl, episode.artworkUrl, episode.feedSlug ? undefined : feedArtworkUrl)}
           alt=""
           loading="lazy"
-          className="hidden sm:block sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
+          className="w-11 h-11 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-foreground line-clamp-2 sm:truncate">{episode.title}</h3>
@@ -142,14 +142,20 @@ function EpisodeRow({
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2 sm:min-h-10">
             {episode.description ? stripHtml(episode.description, { collapse: true }) : ''}
           </p>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 min-h-6 text-sm text-muted-foreground">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
-            {episode.duration && <span className="whitespace-nowrap">{formatDurationHoursMinutes(episode.duration)}</span>}
-            {episode.ad_count !== undefined && episode.ad_count > 0 && (
-              <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
+            {episode.duration && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="whitespace-nowrap">{formatDurationHoursMinutes(episode.duration)}</span>
+              </>
             )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mt-1 min-h-6">
+            {episode.ad_count !== undefined && episode.ad_count > 0 && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
+              </>
+            )}
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
               <span className={`${badgeBase} ${tint.warning}`}>
                 {episode.pendingReviewCount} held
