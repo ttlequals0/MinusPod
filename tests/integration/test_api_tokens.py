@@ -255,6 +255,18 @@ def test_last_used_is_stamped_at_most_every_five_minutes(token_client, token, db
     assert stamp() != '2000-01-01T00:00:00Z'
 
 
+def test_a_request_inside_the_window_issues_no_update(token_client, token, db):
+    token_client.get('/api/v1/feeds', headers=_bearer(token))
+    statements = []
+    conn = db.get_connection()
+    conn.set_trace_callback(statements.append)
+    try:
+        assert token_client.get('/api/v1/feeds', headers=_bearer(token)).status_code == 200
+    finally:
+        conn.set_trace_callback(None)
+    assert not [s for s in statements if 'UPDATE api_tokens' in s]
+
+
 def test_a_failing_stamp_does_not_fail_the_request(token_client, token, db, monkeypatch):
     def boom(*_a, **_k):
         raise sqlite3.OperationalError('database is locked')

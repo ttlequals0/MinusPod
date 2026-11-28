@@ -5,7 +5,7 @@ import logging
 import re
 import secrets
 
-from utils.time import utc_now_iso
+from utils.time import parse_iso_utc, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +81,20 @@ class ApiTokenMixin:
             return None
         digest = hash_token(token)
         row = self.get_connection().execute(
-            "SELECT id FROM api_tokens WHERE token_hash = ? AND revoked_at IS NULL",
+            "SELECT id, last_used_at FROM api_tokens WHERE token_hash = ? AND revoked_at IS NULL",
             (digest,)).fetchone()
         if row is None:
             return None
-        self._stamp_api_token(row['id'])
+        self._stamp_api_token(row['id'], row['last_used_at'])
         return row['id']
 
-    def _stamp_api_token(self, token_id: int) -> None:
+    def _stamp_api_token(self, token_id: int, last_used_at: str | None) -> None:
+        now = utc_now_iso()
+        last = parse_iso_utc(last_used_at)
+        # Skip the write lock when the row we just read is still fresh; the SQL guard covers other workers
+        if last is not None and (parse_iso_utc(now) - last).total_seconds() < LAST_USED_REFRESH_SECONDS:
+            return
         try:
-            now = utc_now_iso()
             with self.transaction(immediate=True) as conn:
                 conn.execute(
                     """UPDATE api_tokens SET last_used_at = ?
