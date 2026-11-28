@@ -90,9 +90,24 @@ def _is_sensitive_address(addr) -> bool:
 class PrivateFeedHosts:
     """Feed source hosts allowed on private addresses (MINUSPOD_PRIVATE_FEED_HOSTS)."""
 
-    def __init__(self, hostnames=(), networks=()):
+    def __init__(self, hostnames=(), networks=(), host_ports=(), net_ports=()):
         self.hostnames = frozenset(hostnames)
         self.networks = tuple(networks)
+        self.host_ports = frozenset(host_ports)
+        self.net_ports = tuple(net_ports)
+
+    def permits_port(self, host: str | None, port: int) -> bool:
+        """True when a `host:port` or `ip:port` entry names this exact host and port."""
+        if host is None:
+            return False
+        name = normalize_host(host)
+        if (name, port) in self.host_ports:
+            return True
+        try:
+            addr = ipaddress.ip_address(name)
+        except ValueError:
+            return False
+        return any(addr in net and port == p for net, p in self.net_ports)
 
     def __bool__(self):
         return bool(self.hostnames or self.networks)
@@ -110,9 +125,23 @@ class PrivateFeedHosts:
         return not (sensitive or addr.is_multicast or addr.is_reserved)
 
 
+def _split_host_port(entry: str):
+    """(host, port) for `name:port`, `1.2.3.4:port` or `[v6]:port`; None when the entry has no port."""
+    if entry.startswith('['):
+        host, _, rest = entry[1:].partition(']')
+        port = rest[1:] if rest.startswith(':') else ''
+    else:
+        host, sep, port = entry.rpartition(':')
+        if not sep or ':' in host:
+            return None
+    if not port.isdigit() or not 0 < int(port) < 65536:
+        return None
+    return host, int(port)
+
+
 def parse_private_feed_hosts(raw: str) -> PrivateFeedHosts:
     """Parse the allow-list; invalid entries are skipped with a warning."""
-    hostnames, networks = set(), []
+    hostnames, networks, host_ports, net_ports = set(), [], set(), []
     for entry in (raw or '').split(','):
         entry = entry.strip()
         if not entry:
@@ -123,12 +152,24 @@ def parse_private_feed_hosts(raw: str) -> PrivateFeedHosts:
             continue
         except ValueError:
             pass
+        port = None
+        if '/' not in entry and (split := _split_host_port(entry)):
+            entry, port = split
         name = normalize_host(entry)
-        if _HOSTNAME_RE.match(name) and '/' not in entry:
+        try:
+            net = ipaddress.ip_network(name, strict=False)
+        except ValueError:
+            net = None
+        if net is not None and port is not None:
+            networks.append(net)
+            net_ports.append((net, port))
+        elif net is None and _HOSTNAME_RE.match(name) and '/' not in entry:
             hostnames.add(name)
+            if port is not None:
+                host_ports.add((name, port))
         else:
             logger.warning("Ignoring invalid %s entry: %r", PRIVATE_FEED_HOSTS_ENV, entry)
-    return PrivateFeedHosts(hostnames, networks)
+    return PrivateFeedHosts(hostnames, networks, host_ports, net_ports)
 
 
 @functools.lru_cache(maxsize=8)
@@ -243,7 +284,8 @@ def validate_url(url: str, private_hosts: PrivateFeedHosts | None = None) -> str
     port = parsed.port
     if port is None:
         port = 443 if scheme == 'https' else 80
-    if ALLOWED_URL_PORTS and port not in ALLOWED_URL_PORTS:
+    if (ALLOWED_URL_PORTS and port not in ALLOWED_URL_PORTS
+            and not (private_hosts and private_hosts.permits_port(hostname, port))):
         raise SSRFError(f"Blocked port: {port}")
 
     # Resolve hostname and check all IPs. The DNS-rebinding TOCTOU between

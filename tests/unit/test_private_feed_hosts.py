@@ -294,3 +294,41 @@ def test_add_feed_accepts_listed_and_rejects_unlisted(app_client, monkeypatch):
     resp = _add(app_client, 'http://unlisted.lan/feed.xml', 'unlisted-lan')
     assert resp.status_code == 400
     assert get_database().get_podcast_by_slug('unlisted-lan') is None
+
+
+PORT_ALLOWED = [
+    ('nas.lan:8000', 'http://nas.lan:8000/f.xml', ['192.168.1.50']),
+    ('nas.lan:8000', 'http://nas.lan/f.xml', ['192.168.1.50']),
+    ('192.168.1.7:3000', 'http://192.168.1.7:3000/f.xml', ['192.168.1.7']),
+    ('[fd00::5]:3000', 'http://[fd00::5]:3000/f.xml', ['fd00::5']),
+    ('127.0.0.1:8000', 'http://127.0.0.1:8000/f.xml', ['127.0.0.1']),
+]
+
+PORT_BLOCKED = [
+    ('nas.lan:8000', 'http://nas.lan:9000/f.xml', ['192.168.1.50']),
+    ('nas.lan', 'http://nas.lan:8000/f.xml', ['192.168.1.50']),
+    ('nas.lan:8000', 'http://other.lan:8000/f.xml', ['192.168.1.50']),
+    ('192.168.1.7:3000', 'http://192.168.1.7:3001/f.xml', ['192.168.1.7']),
+    ('192.168.1.0/24', 'http://192.168.1.7:3000/f.xml', ['192.168.1.7']),
+    ('nas.lan:8000', 'http://nas.lan:8000/f.xml', ['127.0.0.1']),
+    ('nas.lan:8000', 'http://nas.lan:8000/f.xml', ['169.254.169.254']),
+]
+
+
+@pytest.mark.parametrize('entries, url, ips', PORT_ALLOWED)
+def test_host_port_entry_allows_that_exact_port(monkeypatch, entries, url, ips):
+    assert _check(monkeypatch, entries, url, ips) == url
+
+
+@pytest.mark.parametrize('entries, url, ips', PORT_BLOCKED)
+def test_host_port_entry_never_widens(monkeypatch, entries, url, ips):
+    with pytest.raises(SSRFError):
+        _check(monkeypatch, entries, url, ips)
+
+
+def test_host_port_entries_parse_and_bad_ports_warn(caplog):
+    with caplog.at_level(logging.WARNING, logger='utils.url'):
+        hosts = parse_private_feed_hosts('nas.lan:8000, 10.0.0.1:0, nas2.lan:99999, 10.0.0.0/24:80')
+    assert hosts.hostnames == {'nas.lan'}
+    assert hosts.host_ports == {('nas.lan', 8000)}
+    assert len(caplog.records) == 3
