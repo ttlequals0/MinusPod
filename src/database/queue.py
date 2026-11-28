@@ -14,6 +14,9 @@ from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
+AUTO_PROCESS_DISABLED = 'disabled'
+AUTO_PROCESS_DORMANT = 'dormant'
+
 # Priority boosts (#625) on top of the feed's queue_priority (10 high / 0 normal /
 # -10 low) at enqueue. Fallback defaults: stored queue_*_boost settings override them.
 FRESH_EPISODE_BOOST = 5
@@ -149,37 +152,31 @@ class QueueMixin:
 
     def is_auto_process_enabled_for_podcast(self, slug: str,
                                             podcast: dict | None = None) -> bool:
-        """Check if auto-process is enabled for a specific podcast.
+        """True when auto-process runs for this podcast under the global and per-feed settings."""
+        return self.auto_process_block(slug, podcast) is None
 
-        podcast: an already-fetched row, avoiding a second get_podcast_row query.
-        Returns True if enabled under both global and podcast-level settings.
-        """
-        # Check global setting first
+    def auto_process_block(self, slug: str, podcast: dict | None = None) -> str | None:
+        """Why auto-process is off for this podcast: 'disabled' or 'dormant', None when it runs.
+
+        podcast: an already-fetched row, avoiding a second get_podcast_row query."""
         global_enabled = self.is_auto_process_enabled()
-
-        # Get podcast-level override
         if podcast is None:
             podcast = self.get_podcast_row(slug)
         if not podcast:
-            return global_enabled
-
+            return None if global_enabled else AUTO_PROCESS_DISABLED
         override = podcast.get('auto_process_override')
         if override == 'true':
-            return True
-        elif override == 'false':
-            return False
-        else:
-            # No override, use global setting; a dormant feed waits for a
-            # client to fetch it again.
-            return global_enabled and not self.is_feed_dormant(podcast)
+            return None
+        if override == 'false' or not global_enabled:
+            return AUTO_PROCESS_DISABLED
+        return AUTO_PROCESS_DORMANT if self.is_feed_dormant(podcast) else None
 
-    def is_feed_dormant(self, podcast: dict | None) -> bool:
-        """True when dormancy is on and no client has fetched this feed's
-        served RSS within dormant_feed_days. A never-fetched feed counts from
-        its creation. Local and recents feeds never go dormant."""
+    def is_feed_dormant(self, podcast: dict | None, days: int | None = None) -> bool:
+        """True when dormancy is on and no client fetched this feed's served RSS within the
+        threshold (days, else dormant_feed_days). A never-fetched feed counts from its creation."""
         if not has_upstream(podcast):
             return False
-        days = resolve_dormant_feed_days(self)
+        days = resolve_dormant_feed_days(self) if days is None else days
         if days <= 0:
             return False
         anchor = podcast.get('last_feed_request_at') or podcast.get('created_at')
@@ -634,6 +631,16 @@ class QueueMixin:
         except Exception:
             conn.rollback()
             raise
+
+    def get_active_run_episodes(self) -> list[tuple[str, str]]:
+        """(slug, episode_id) of every run still running or cancelling."""
+        rows = self.get_connection().execute(
+            """SELECT p.slug, r.episode_id
+               FROM processing_runs r
+               JOIN podcasts p ON p.id = r.podcast_id
+               WHERE r.state IN ('running', 'cancel_requested')"""
+        ).fetchall()
+        return [(row['slug'], row['episode_id']) for row in rows]
 
     def close_all_queue_rows(self) -> int:
         """Mark every non-terminal queue row completed. Returns rows touched."""

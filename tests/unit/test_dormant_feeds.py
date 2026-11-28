@@ -214,3 +214,36 @@ class TestFeedApi:
         data = json.loads(client.get(f'/api/v1/feeds/{feed}').data)
         assert data['dormant'] is True
         assert data['lastFeedRequestAt'] == stamp
+
+
+class TestSharedRules:
+    def test_days_argument_overrides_the_setting(self, feed):
+        _set_columns(feed, last_feed_request_at=_days_ago(10))
+        row = main_db.get_podcast_row(feed)
+        assert main_db.is_feed_dormant(row, 5) is True
+        assert main_db.is_feed_dormant(row, 0) is False
+
+    def test_block_reason_comes_from_the_decision(self, feed, dormancy):
+        _set_columns(feed, last_feed_request_at=_days_ago(31))
+        assert main_db.auto_process_block(feed) == 'dormant'
+        _set_columns(feed, auto_process_override='false')
+        assert main_db.auto_process_block(feed) == 'disabled'
+        _set_columns(feed, auto_process_override='true')
+        assert main_db.auto_process_block(feed) is None
+
+    def test_web_player_counts_for_history_but_not_for_fetch_tracking(self):
+        with app.test_request_context('/', headers={'Sec-Fetch-Site': 'same-origin'}):
+            assert routes_module._is_client_fetch() is False
+            assert routes_module._is_client_fetch(include_web_player=True) is True
+        with app.test_request_context('/', method='HEAD'):
+            assert routes_module._is_client_fetch(include_web_player=True) is False
+
+    def test_memo_is_pruned_once_it_grows(self, monkeypatch):
+        monkeypatch.setattr(main_db, 'touch_feed_request', lambda *a: True)
+        memo = routes_module._feed_request_stamped_at
+        memo.clear()
+        for i in range(routes_module._FEED_MEMO_PRUNE_AT):
+            memo[f'old-{i}'] = -10_000_000.0
+        with app.test_request_context('/'):
+            routes_module._note_feed_request('fresh')
+        assert list(memo) == ['fresh']

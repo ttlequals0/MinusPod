@@ -26,6 +26,7 @@ from database.error_text import redact_error
 import feed_problems
 from processing_queue import ProcessingQueue
 from config import (
+    resolve_dormant_feed_days,
     AUTO_PROCESS_MAX_AGE_ERROR,
     valid_auto_process_max_age,
     DETECTION_NOTES_MAX_CHARS,
@@ -1046,7 +1047,7 @@ def _feed_artwork_url(podcast) -> str:
     return upstream if upstream.startswith('https://') else proxied
 
 
-def _podcast_listing_fields(podcast, podping) -> dict:
+def _podcast_listing_fields(podcast, podping, dormant_days=None) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, host_is_active = podping
     # The recents row owns no episodes; its counts are its membership.
@@ -1065,7 +1066,7 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'processedCount': recents_total if recents_total is not None else podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastFeedRequestAt': podcast.get('last_feed_request_at'),
-        'dormant': get_database().is_feed_dormant(podcast),
+        'dormant': get_database().is_feed_dormant(podcast, dormant_days),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
         'podpingUses': declaration['uses_podping'],
@@ -1082,12 +1083,13 @@ def get_feeds_export_list(db) -> list[dict]:
     feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)
     global_actions = resolve_segment_category_actions_map(db.get_setting('segment_category_actions'))
+    dormant_days = resolve_dormant_feed_days(db)
     feeds = []
     for podcast in db.get_all_podcasts():
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
         entry = {
             **_podcast_base_json(podcast, feed_url, db, global_actions=global_actions),
-            **_podcast_listing_fields(podcast, podping),
+            **_podcast_listing_fields(podcast, podping, dormant_days),
             'lastEpisodeDate': podcast.get('last_episode_date'),
             # Upstream RSS URL the instance polls, explicit for bug reports
             # about a host serving bad RSS (redact_config strips credentials).
@@ -1244,13 +1246,14 @@ def list_feeds():
         all_episode_ids = [ep['episode_id'] for eps in latest_by_podcast.values() for ep in eps]
         job_states = db.get_episode_job_states(all_episode_ids)
 
+    dormant_days = resolve_dormant_feed_days(db)
     feeds = []
     for podcast in podcasts:
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
         feed_json = {
             **_podcast_base_json(podcast, feed_url, db, global_actions=global_actions),
-            **_podcast_listing_fields(podcast, podping),
+            **_podcast_listing_fields(podcast, podping, dormant_days),
             'lastEpisodeDate': podcast.get('last_episode_date'),
         }
         if include_latest:

@@ -386,7 +386,7 @@ def _stamp_jit_play(slug, episode_id, episode):
 
 def _record_download(slug, episode_id):
     """Log a GET download for the history tab; never affects serving."""
-    if request.method != 'GET':
+    if not _is_client_fetch(include_web_player=True):
         return
     try:
         if not db.get_setting_bool('download_history_enabled', True):
@@ -403,15 +403,16 @@ def _record_download(slug, episode_id):
         feed_logger.debug(f"[{slug}:{episode_id}] download not recorded: {exc}")
 
 
-# Per-process memo of the last served-RSS stamp per slug, so a client polling
-# every few minutes costs no database write between stamps.
+# Per-process memo of the last served-RSS stamp per slug, saving a database round trip per poll.
 _feed_request_stamped_at: dict[str, float] = {}
+_FEED_MEMO_PRUNE_AT = 256
 
 
-def _is_client_fetch():
-    """A GET from a podcast client; HEAD probes and the web UI's own same-origin player do not count."""
+def _is_client_fetch(*, include_web_player=False):
+    """A GET from a podcast client; HEAD probes never count, and the web UI's same-origin player
+    only when include_web_player (download history lists it, fetch tracking does not)."""
     return (request.method == 'GET'
-            and request.headers.get('Sec-Fetch-Site') != 'same-origin')
+            and (include_web_player or request.headers.get('Sec-Fetch-Site') != 'same-origin'))
 
 
 def _note_feed_request(slug):
@@ -422,12 +423,13 @@ def _note_feed_request(slug):
     last = _feed_request_stamped_at.get(slug)
     if last is not None and now - last < FEED_REQUEST_TOUCH_INTERVAL_SECONDS:
         return
+    if len(_feed_request_stamped_at) >= _FEED_MEMO_PRUNE_AT:
+        for stale, stamped in list(_feed_request_stamped_at.items()):
+            if now - stamped >= FEED_REQUEST_TOUCH_INTERVAL_SECONDS:
+                _feed_request_stamped_at.pop(stale, None)
     _feed_request_stamped_at[slug] = now
     try:
-        was_dormant = db.is_feed_dormant(db.get_podcast_row(slug))
-        if (db.touch_feed_request(slug, FEED_REQUEST_TOUCH_INTERVAL_SECONDS)
-                and was_dormant):
-            feed_logger.info(f"[{slug}] Dormant feed requested, auto-process resumes")
+        db.touch_feed_request(slug, FEED_REQUEST_TOUCH_INTERVAL_SECONDS)
     except Exception as exc:
         feed_logger.debug(f"[{slug}] feed request not recorded: {exc}")
 
