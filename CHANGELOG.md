@@ -17,9 +17,17 @@ release notes.
 
 ### Changed
 
+- `MINUSPOD_PRIVATE_FEED_HOSTS` accepts `host:port` entries (`nas.lan:8000`, `[fd00::5]:3000`) so a listed host or single IP can use one port beyond the default 80, 443, 8080 and 8443. The docs now list the port limit for feed URLs.
 - The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top and the rating card at its bottom, and a pill shows how many detections are held. A `?rate=` review link opens Ads at the rating card. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript hit in global search opens the Transcript tab at the matching line and highlights it (`?section=transcript&t=<seconds>`).
 
 ### Fixed
+
+- Setting `MINUSPOD_SETUP_TOKEN` now always protects first-time password setup, even when `MINUSPOD_REQUIRE_AUTH` is off. Before, the token was ignored in that case and any client that could reach the port, including the Docker bridge address, could set the first password without it. Direct loopback still needs no token.
+- Lowering the adaptive refresh maximum or the base interval now updates each feed's reported refresh interval and reason along with its next refresh time, so the API never shows a wait longer than the maximum. Feeds waiting at the base interval move to a lowered base too.
+- A manual feed refresh now makes one attempt even when the host's circuit breaker is open after repeated failures, instead of answering 502 until the breaker recovers. Automatic refreshes stay paused.
+- Running a database backup with a destination that fails validation now returns 409 with the reason and logs a warning, instead of a 500 "Backup failed" and an error log.
+- A non-boolean `transcribeRawApiChunks` now returns the standard error body with `status`, and the OPML export is sent with `Cache-Control: private, no-cache` like the served OPML files.
+- `/settings#api-tokens` now scrolls to the API tokens block instead of the top of the Security card, and the token shown once after creation wraps instead of being clipped on a phone.
 
 - A link opened while signed out now keeps its `#` target through sign-in. A link such as `/settings#api-tokens` or an episode link ending in `#held-for-review-section` used to land at the top of the page after login.
 - A pattern result in global search now opens that pattern's detail instead of a filtered list, including a pattern that is inactive or outside the list's current filters.
