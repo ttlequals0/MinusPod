@@ -34,7 +34,7 @@ Key endpoints:
 - `POST /api/v1/feeds/export-opml?mode=original|modified` - Export selected feeds; send `{"slugs":["a","b"]}` in the JSON body
 - `POST /api/v1/feeds/refresh-artwork` - Re-render every feed's cover art (used after toggling the cover-art badge or swapping the badge asset)
 - `GET /api/v1/feeds/problems` - Feeds with 3 or more refresh failures in a row, worst first. Each entry has `slug`, `title`, `host` (scheme and host only), `consecutiveFailures`, `errorKind`, a plain `message`, a scrubbed `detail`, `failingSince`, `lastSuccessAt` and `nextRetryAt`. Retry one with `POST /api/v1/feeds/{slug}/refresh`. A token can read it.
-- `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
+- `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502. A manual refresh makes one attempt even while the host's circuit breaker is open.
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
 - `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Sends an `ETag` and `Cache-Control: no-cache`, and answers a matching `If-None-Match` with 304. The feed object's `artworkUrl` carries a `v` query value that changes when the stored artwork changes. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
 - `POST /api/v1/feeds` with `feedType: "youtube"` - Create a YouTube feed. Send `sourceKind` (`playlist` or `channel`), `sourceId` and `title`; `artworkUrl`, `includeShorts` and `maxEpisodes` are optional. Needs YouTube feeds enabled. The first listing runs before the response
@@ -134,7 +134,7 @@ Key endpoints:
 - `POST /api/v1/system/database/checkpoint` - Run a WAL checkpoint; the optional JSON body `{"mode": "passive" | "truncate"}` defaults to passive, and truncate also shrinks the WAL file. Returns 400 for any other mode, 409 when active readers prevent completion, and 503 when SQLite fails to run it
 - `GET /api/v1/system/diagnostic-export` - Download bounded operational diagnostics for an optional UTC `start`/`end` range (24 hours at most). Each event has time, level, category, source file and line; warnings and errors also carry the static `message` template as written in the source and the `exception` class name. Logged values, exception text, prompts, transcripts, identifiers, secrets and URLs are never included. Rate limited to 6/hour
 - `GET /api/v1/system/backup` - Download an encrypted SQLite backup by default. Returns 409 when encryption is unavailable; `encrypted=false` explicitly requests plaintext. See the [security guide](security-and-storage.md#database-backup-sensitivity)
-- `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running or the configured destination is not usable)
+- `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 with the reason if one is already running or the configured destination is not usable)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`). GET also returns `destError`, the reason a stored destination is refused (null when usable); a refused destination is never written to and the failed run records the same text in `lastError`
 - `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts
 - `GET /api/v1/settings/provider-budget/currencies` - List supported ISO display currencies
@@ -219,7 +219,7 @@ Both frames also carry a `failover` block: `{"active": ["llm-a"], "targets": {"l
 
 ### API tokens
 
-Scripts and integrations can use a long-lived token instead of a session cookie. Create one under Settings > Security, or with `POST /api/v1/auth/tokens` from a signed-in session (`{"name": "home-assistant"}`). The response holds the plaintext `token` once; it cannot be read again. Tokens need an application password, so creating one on an open instance returns 409.
+Scripts and integrations can use a long-lived token instead of a session cookie. Create one under Settings > Data and security > Security, or with `POST /api/v1/auth/tokens` from a signed-in session (`{"name": "home-assistant"}`). The response holds the plaintext `token` once; it cannot be read again. Tokens need an application password, so creating one on an open instance returns 409.
 
 ```bash
 # Read configuration
@@ -249,15 +249,15 @@ GET and HEAD enforce the same feed key on every public route. A HEAD request for
 
 ## Notifications
 
-MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them on the Settings page under **Notifications > Email** and **Notifications > Webhooks**, or via the REST API.
+MinusPod notifies you when episodes complete or permanently fail, when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests), and when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them under Settings > Data and security > Notifications (**Email** and **Webhooks**), or via the REST API.
 
-The **Notifications** section contains the timezone setting and separate **Email** and **Webhooks** subsections. Each subsection collapses independently and remembers its open or closed state.
+The section holds the timezone setting and separate **Email** and **Webhooks** subsections. Each collapses independently and remembers its state.
 
 Every payload carries `timestamp` (UTC, `Z`-suffixed) and `timestamp_local` (the same instant in the configured `notification_timezone`, with a UTC offset). `notification_timezone` is an IANA zone name (default `UTC`, or the container's `TZ` env var when it names a valid zone); get or set it at `GET`/`PUT /api/v1/settings/notifications/timezone`. Email shows `timestamp_local` in the Timestamp row, falling back to `timestamp` when the zone is UTC.
 
 ## Webhooks
 
-Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
+Webhooks fire an HTTP POST to configured URLs. Use a custom Jinja2 payload template to match the receiver's expected format.
 
 ### Events
 
@@ -713,10 +713,10 @@ By default the failure and alert events, including `Queue Held`, `Queue Resumed`
 
 ### Example: Pushover
 
-Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
+Pushover ingests webhooks natively with data extraction selectors, so MinusPod's default JSON payload works without a custom template.
 
 1. Create a webhook at [pushover.net/dashboard](https://pushover.net/dashboard) and copy its URL.
-2. In MinusPod Settings, open **Notifications > Webhooks**: paste the URL, select events, **leave payload template blank**.
+2. In MinusPod, open Settings > Data and security > Notifications > **Webhooks**: paste the URL, select events, **leave payload template blank**.
 3. Click Test in MinusPod to fire a sample payload to Pushover.
 4. In Pushover, load the last payload and configure data extraction selectors:
 
@@ -734,7 +734,7 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 ntfy requires a custom payload template to match its expected JSON format.
 
 1. Self-hosted or ntfy.sh: set your topic name
-2. Add a webhook under **Notifications > Webhooks** in Settings:
+2. Add a webhook under Settings > Data and security > Notifications > **Webhooks**:
    - **URL:** `https://ntfy.sh/your-topic` (or your self-hosted instance)
    - **Payload template:**
      ```json
