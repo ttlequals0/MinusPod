@@ -62,7 +62,7 @@ from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
     SECRET_SETTING_KEYS,
 )
-from utils.time import is_valid_timezone
+from utils.time import is_valid_timezone, utc_now_iso
 from youtube import settings as yt_settings
 
 logger = logging.getLogger(__name__)
@@ -1522,6 +1522,11 @@ class SettingsMixin:
             except (TypeError, ValueError):
                 current = 0
             value = current + 1
+            if not new_hash:
+                # Tokens mean nothing without a password and must not revive on the next one.
+                conn.execute(
+                    "UPDATE api_tokens SET revoked_at = ? WHERE revoked_at IS NULL",
+                    (utc_now_iso(),))
             self._upsert_setting(conn, 'app_password', new_hash, is_default=False)
             self._upsert_setting(
                 conn, 'auth_session_generation', str(value), is_default=False

@@ -67,6 +67,7 @@ def seeded(app_client, seeded_rows):
 
 GET_ROUTES = [
     ('/auth/status', ''),
+    ('/auth/tokens', ''),
     ('/feeds', ''),
     ('/feeds/{slug}', ''),
     ('/feeds/{slug}/episodes', ''),

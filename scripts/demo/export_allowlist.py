@@ -24,7 +24,7 @@ from pathlib import Path
 _EMPTIED = (
     'processing_runs', 'upload_reservations', 'auto_process_queue',
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
-    'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
+    'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures', 'api_tokens',
     'search_index_changes', 'search_index', 'text_patterns',
     '_orphaned_audio_fingerprints', 'episode_feed_details', 'episode_snap_stats',
     'episode_detection_markers',

@@ -8,6 +8,9 @@ from flask import request
 
 # Any run of 64 or more hex chars goes, so a key glued to a percent escape or more hex is still caught.
 _FEED_CREDENTIAL_RE = re.compile(r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64,}')
+# MinusPod API token and any bearer credential, wherever it lands in a log line.
+_API_TOKEN_RE = re.compile(r'(?<![A-Za-z0-9_-])mp_[A-Za-z0-9_-]{8,}')
+_BEARER_RE = re.compile(r'(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}')
 # Every str.splitlines break; a break does not end a token, so a query continued on the next line is caught.
 _LINE_BREAKS = '\n\x0b\x0c\r\x1c\x1d\x1e\x85\u2028\u2029'
 # Whitespace that is not a line break: only this ends a token or takes a length cut.
@@ -41,6 +44,10 @@ _redaction_failure_reported = False
 
 def redact_feed_credentials(value: str) -> str:
     return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
+
+
+def redact_api_tokens(value: str) -> str:
+    return _BEARER_RE.sub('Bearer [redacted-token]', _API_TOKEN_RE.sub('[redacted-token]', value))
 
 
 def _redact_query_token(match: re.Match) -> str:
@@ -84,7 +91,7 @@ def report_redaction_failure(exc: Exception) -> None:
 
 
 def _redact(text: str, keep_query: bool) -> str:
-    text = redact_feed_credentials(redact_url_userinfo(text))
+    text = redact_api_tokens(redact_feed_credentials(redact_url_userinfo(text)))
     return text if keep_query else scrub_query_strings(text)
 
 

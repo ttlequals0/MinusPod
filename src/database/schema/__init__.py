@@ -214,6 +214,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         'processing_runs',
         'upload_reservations',
         'feed_subscriber_keys',
+        'api_tokens',
         'episode_downloads',
         'ip_geo_cache',
         'provider_spend_reservations',

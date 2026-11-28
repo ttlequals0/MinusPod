@@ -524,6 +524,16 @@ TABLE_DDL['feed_subscriber_keys'] = """CREATE TABLE IF NOT EXISTS feed_subscribe
     revoked_at TEXT
 )"""
 
+TABLE_DDL['api_tokens'] = """CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE CHECK(length(token_hash) = 64),
+    token_prefix TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at TEXT
+)"""
+
 TABLE_DDL['episode_downloads'] = """CREATE TABLE IF NOT EXISTS episode_downloads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -1069,6 +1079,8 @@ CREATE INDEX IF NOT EXISTS idx_upload_reservations_owner
 """ + TABLE_DDL['feed_subscriber_keys'] + """;
 CREATE INDEX IF NOT EXISTS idx_feed_subscriber_keys_podcast
     ON feed_subscriber_keys(podcast_id, revoked_at);
+
+""" + TABLE_DDL['api_tokens'] + """;
 
 """ + TABLE_DDL['episode_downloads'] + """;
 CREATE INDEX IF NOT EXISTS idx_episode_downloads_seen

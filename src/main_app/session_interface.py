@@ -27,7 +27,7 @@ class IdleExpiryCookieSessionInterface(SecureCookieSessionInterface):
 
     def should_set_cookie(self, app, session):
         state = cookie_auth()
-        if auth_check_failed():
+        if auth_check_failed() or (state is not None and state.token_id is not None):
             return False
         # Without a session check (anonymous, probes, feeds) only a change is saved.
         if state is None:
