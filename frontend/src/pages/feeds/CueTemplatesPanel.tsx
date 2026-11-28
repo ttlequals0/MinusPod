@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
 import StatTile from '../../components/StatTile';
-import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
+import TabPanelCard from '../../components/TabPanelCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
@@ -62,9 +62,6 @@ interface Props {
 
 function CueTemplatesPanel({ slug }: Props) {
   const queryClient = useQueryClient();
-  // Mirrors the CollapsibleSection's persisted open state (same storage key)
-  // so the panel's queries only run once the section is actually visible.
-  const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-cue-templates-${slug}`);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openModal, setOpenModal] = useState<{ episodeId: string; episodeTitle: string; duration: number } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -104,7 +101,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const templatesQuery = useQuery({
     queryKey: ['cue-templates', slug],
     queryFn: () => listCueTemplates(slug),
-    enabled: !!slug && panelOpen,
+    enabled: !!slug,
   });
 
   // The feed's network id gates the "promote to network" action.
@@ -133,7 +130,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const advisoryQuery = useQuery({
     queryKey: ['cue-advisory', slug],
     queryFn: () => getCueFeedAdvisory(slug),
-    enabled: !!slug && panelOpen,
+    enabled: !!slug,
   });
 
   // Gate for "Find across episodes": needs >= 2 episodes with retained originals. Shares the picker's cached
@@ -149,7 +146,7 @@ function CueTemplatesPanel({ slug }: Props) {
         sortBy: 'published',
         sortDir: 'desc',
       }),
-    enabled: !!slug && panelOpen,
+    enabled: !!slug,
     staleTime: 60_000,
   });
   const eligibleCount = (eligibleQuery.data?.episodes ?? []).filter(
@@ -379,12 +376,9 @@ function CueTemplatesPanel({ slug }: Props) {
 
   return (
     <div className="mb-6">
-      <CollapsibleSection
+      <TabPanelCard
         title="Audio cue templates"
         subtitle="A recurring ding or stinger the matcher snaps ad edges to."
-        defaultOpen={false}
-        storageKey={`feed-cue-templates-${slug}`}
-        onToggle={setPanelOpen}
       >
         <input
           ref={importInputRef}
@@ -445,15 +439,12 @@ function CueTemplatesPanel({ slug }: Props) {
             {verifyState.matched === 0 ? ' No matches yet - it may not recur, or the bracket is loose.' : ''}
           </p>
         )}
-        {panelOpen && templatesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}
-        {panelOpen && templatesQuery.error && (
+        {templatesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}
+        {templatesQuery.error && (
           <p className="text-sm text-destructive">Could not load cue templates.</p>
         )}
 
-        {/* Gated on panelOpen too: while collapsed the query is disabled
-            (isLoading reads false), so without this the empty state would
-            render even though no fetch has actually run. */}
-        {panelOpen && !templatesQuery.isLoading && templates.length === 0 && (
+        {!templatesQuery.isLoading && templates.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No cues yet. Mark one to start.
           </p>
@@ -707,7 +698,7 @@ function CueTemplatesPanel({ slug }: Props) {
             )}
           </div>
         )}
-      </CollapsibleSection>
+      </TabPanelCard>
 
       {pickerOpen && (
         <EpisodePicker slug={slug} onClose={() => setPickerOpen(false)} onPick={handlePickEpisode} />

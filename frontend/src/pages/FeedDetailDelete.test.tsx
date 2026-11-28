@@ -12,7 +12,7 @@ vi.mock('react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ slug: 'test-feed' }),
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: '/feeds/test-feed', state: null }),
+  useLocation: () => ({ pathname: '/feeds/test-feed', state: null, hash: '', key: 'k' }),
 }));
 
 vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div /> }));

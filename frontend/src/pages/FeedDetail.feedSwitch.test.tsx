@@ -59,10 +59,10 @@ function toggle(title: string) {
   return screen.getByRole('heading', { name: title }).closest('button') as HTMLElement;
 }
 
-function renderFeed(client: QueryClient) {
+function renderFeed(client: QueryClient, search = '') {
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/feeds/feed-a']}>
+      <MemoryRouter initialEntries={[`/feeds/feed-a${search}`]}>
         <Routes><Route path="/feeds/:slug" element={<FeedDetail />} /></Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -83,13 +83,14 @@ describe('FeedDetail: switching feeds', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     for (const s of Object.keys(FEEDS)) client.setQueryData(['feed', s], FEEDS[s]);
     const user = userEvent.setup();
-    renderFeed(client);
+    renderFeed(client, '?section=settings');
 
     expect(toggle('Chapters').getAttribute('aria-expanded')).toBe('true');
     await user.type(screen.getByRole('textbox', { name: 'Search feed settings' }), 'queue priority');
     expect(card('Chapters').className).toContain('hidden');
 
     await user.click(await feedLink('Feed B'));
+    await user.click(screen.getByRole('tab', { name: 'Feed settings' }));
 
     expect(card('Chapters').getAttribute('data-search-key')).toBe('feed-chapters-feed-b');
     expect((screen.getByRole('textbox', { name: 'Search feed settings' }) as HTMLInputElement).value).toBe('');
