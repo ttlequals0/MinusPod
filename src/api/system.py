@@ -38,7 +38,7 @@ from secrets_crypto import (
     is_available as crypto_available,
     encrypt_backup_file,
 )
-from db_backup_service import backup_now, BackupInProgressError
+from db_backup_service import backup_now, BackupDestinationError, BackupInProgressError
 from diagnostic_log import export as export_diagnostics, _parse_time
 from utils.http import safe_url_for_log
 from utils.markers import parse_ad_markers
@@ -650,6 +650,8 @@ def run_db_backup():
         summary = backup_now(db)
     except BackupInProgressError:
         return error_response('a backup is already in progress', 409)
+    except BackupDestinationError as e:
+        return error_response(f'Backup destination is not usable: {e}', 409)
     except Exception as e:
         # backup_now already stamped db_backup_last_error (surfaced via GET);
         # keep the client body a flat Error-schema string with no raw str(e).

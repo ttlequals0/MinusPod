@@ -55,6 +55,10 @@ class BackupInProgressError(Exception):
     """Raised when another backup already holds the lock."""
 
 
+class BackupDestinationError(ValueError):
+    """Raised when the configured destination fails validation."""
+
+
 _APP_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -352,7 +356,7 @@ def backup_now(db) -> dict[str, Any]:
         except ValueError as e:
             db.set_setting('db_backup_last_error', str(e))
             logger.warning('db_backup: backup failed: %s', e)
-            raise
+            raise BackupDestinationError(str(e)) from e
 
         # Stamp last_run only once we hold the lock and a backup genuinely runs;
         # a contending caller must not consume the retry slot.

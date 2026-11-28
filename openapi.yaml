@@ -10601,7 +10601,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DatabaseBackupRunSummary' }
         '409':
-          description: A backup is already in progress
+          description: A backup is already in progress, or the configured destination fails validation (the message says why)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

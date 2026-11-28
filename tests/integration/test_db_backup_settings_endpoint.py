@@ -270,6 +270,17 @@ def test_post_run_failure_returns_500_and_sets_last_error(app_client, db):
     assert got['lastError']
 
 
+def test_post_run_invalid_destination_is_a_409_warning_not_a_500(app_client, db, caplog):
+    db.set_setting('db_backup_dest', 'relative/path')
+    with caplog.at_level(logging.WARNING):
+        r = app_client.post('/api/v1/system/db-backup/run')
+    assert r.status_code == 409
+    assert r.get_json()['error'] == 'Backup destination is not usable: destination must be an absolute path'
+    assert not [rec for rec in caplog.records if rec.levelno >= logging.ERROR]
+    assert not [rec for rec in caplog.records if rec.exc_info]
+    assert db.get_setting('db_backup_last_error') == 'destination must be an absolute path'
+
+
 # auth-exempt allowlist
 
 def test_routes_not_in_auth_exempt(app_client, db):
