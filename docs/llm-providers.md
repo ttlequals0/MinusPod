@@ -12,6 +12,7 @@
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
 - [Using MartLLM](#using-martllm)
+- [Using LLMTR](#using-llmtr)
 - [Using System One](#using-system-one)
 - [Running without an LLM](#running-without-an-llm)
 - [Per-Stage Providers](#per-stage-providers)
@@ -312,6 +313,33 @@ The full list with prices is at [martllm.com/models](https://martllm.com/models)
 
 When `OPENAI_BASE_URL` points at `api.martllm.com`, MinusPod reads per-token input, output and cache-read rates from MartLLM's own `/v1/models` list (the same format as OpenRouter's), with LiteLLM filling any gaps. The rates are whatever that list reports. If the list cannot be fetched, LiteLLM pricing is used alone. An operator override still wins; see [LLM Pricing](#llm-pricing).
 
+## Using LLMTR
+
+[LLMTR](https://llmtr.com) is a prepaid OpenAI-compatible API that reaches Claude, GPT, Gemini, DeepSeek, Qwen and other models with one API key. It runs through the `openai-compatible` provider; no extra code path is involved. Configure transcription separately (see [Transcription](transcription.md)).
+
+### Setup
+
+1. Create an API key at [llmtr.com/dashboard/keys](https://llmtr.com/dashboard/keys)
+2. Add these to your `.env`, then start with `docker-compose.yml` (GPU) or `docker-compose.cpu.yml` (no GPU):
+
+```bash
+LLM_PROVIDER=openai-compatible
+OPENAI_BASE_URL=https://llmtr.com/v1
+OPENAI_API_KEY=your-llmtr-key
+```
+
+The same values can be entered under Settings > AI and processing > LLM Provider by choosing OpenAI Compatible. **Test connection** works against `https://llmtr.com/v1/models`, which needs no key.
+
+### Model Selection
+
+The model dropdown lists the models LLMTR currently serves. IDs use the `vendor/model` form, for example `qwen/qwen3.8-flash`. Any ID can also be seeded with `OPENAI_MODEL`. The full list, with per-token prices, is the public `https://llmtr.com/v1/models` response.
+
+MinusPod uses the chat completions API, so pick a model whose `supported_endpoints` includes `/v1/chat/completions`; a few newer models in the list are Responses-only.
+
+### Pricing
+
+When `OPENAI_BASE_URL` points at `llmtr.com`, MinusPod reads per-token input, output and cache-read rates from LLMTR's own `/v1/models` list (the same format as OpenRouter's), with LiteLLM filling any gaps. The rates are whatever that list reports. If the list cannot be fetched, LiteLLM pricing is used alone. An operator override still wins; see [LLM Pricing](#llm-pricing).
+
 ## Using System One
 
 Select TypeSafe or System One compatible under Settings > AI and processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
@@ -417,6 +445,7 @@ Pricing is fetched automatically based on your configured provider:
 | Anthropic | [pricepertoken.com](https://pricepertoken.com) | HTML scrape |
 | OpenRouter | OpenRouter API (`/api/v1/models`) | JSON API |
 | MartLLM (`api.martllm.com`) | MartLLM API (`/v1/models`) | JSON API |
+| LLMTR (`llmtr.com`) | LLMTR API (`/v1/models`) | JSON API |
 | OpenAI, Groq, Mistral, DeepSeek, xAI, Together, Fireworks, Perplexity, Google | [pricepertoken.com](https://pricepertoken.com) | HTML scrape |
 | Ollama / localhost | N/A | Always $0 |
 | TypeSafe | Fixed official Jev pricing | $0.042 USD per 1 million input tokens; output tokens are free |

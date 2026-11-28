@@ -10,6 +10,10 @@ release notes.
 
 ## [2.103.1] - 2026-11-28
 
+### Added
+
+- LLMTR pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://llmtr.com/v1`, the pricing refresh reads input, output and cache-read rates from LLMTR's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. The LLM providers guide gains an LLMTR setup section. Contributed by knowhycodata.
+
 ### Fixed
 
 - A link opened while signed out now keeps its `#` target through sign-in. A link such as `/settings#api-tokens` or an episode link ending in `#held-for-review-section` used to land at the top of the page after login.
