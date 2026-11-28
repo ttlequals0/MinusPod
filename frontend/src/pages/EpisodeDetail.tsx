@@ -67,9 +67,10 @@ import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnBase, btnDestructive, btnLg, btnPrimary, btnSecondary, touchTarget } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { fileInputBase, focusRing, inputBase, labelBase, textareaBase } from '../components/fieldStyles';
-import { badgeBase, tint } from '../components/badgeStyles';
+import { badgeBase, countPill, tint } from '../components/badgeStyles';
 import { cardTitle } from '../components/pageStyles';
 import { AutoClosedNote } from '../components/AutoClosedNote';
+import { tabItem, tabStrip } from '../components/PageTabs';
 import { holdReasonLabel, holdReasonTitle } from '../utils/holdReason';
 import { URL_PREFIX } from '../urlPrefix';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -1462,6 +1463,8 @@ function EpisodeDetail() {
             <EpisodePlayer
               src={audioUrl}
               chaptersUrl={episode.chaptersAvailable && !IS_DEMO ? episode.chaptersUrl : undefined}
+              timeSaved={episode.timeSaved}
+              originalDuration={episode.originalDuration}
             />
           </div>
         )}
@@ -1483,6 +1486,61 @@ function EpisodeDetail() {
 
         {descriptionBlock}
       </div>
+
+      {(() => {
+        const keptJumpLabel = (episode.keptMarkers?.length ?? 0) > 0
+          ? episode.keptMarkers!.every((m) => m.actionApplied === 'mark')
+            ? 'Marked segments'
+            : episode.keptMarkers!.some((m) => m.actionApplied === 'mark')
+            ? 'Kept and marked'
+            : 'Kept segments'
+          : 'Kept segments';
+        const sectionLinks: Array<{ id: string; label: string; count?: number; pillTint?: string }> = [
+          ...(episode.adMarkers && episode.adMarkers.length > 0
+            ? [{ id: 'detected-ads-section', label: 'Detected ads', count: episode.adMarkers.length, pillTint: tint.primary }]
+            : []),
+          ...(heldMarkers.length > 0
+            ? [{ id: 'held-for-review-section', label: 'Held for review', count: heldMarkers.length, pillTint: tint.warning }]
+            : []),
+          ...(episode.keptMarkers && episode.keptMarkers.length > 0
+            ? [{ id: 'kept-segments-section', label: keptJumpLabel, count: episode.keptMarkers.length, pillTint: tint.secondary }]
+            : []),
+          ...(episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0
+            ? [{ id: 'detections-not-cut-section', label: 'Detections not cut', count: episode.rejectedAdMarkers.length, pillTint: tint.destructive }]
+            : []),
+          ...(episode.cueDetections && episode.cueDetections.length > 0 && slug && episodeId
+            ? [{ id: 'cue-matches-section', label: 'Cue matches', count: episode.cueDetections.length, pillTint: tint.secondary }]
+            : []),
+          ...(episode.transcript || episode.originalTranscriptAvailable
+            ? [{ id: 'transcript-section', label: 'Transcript' }]
+            : []),
+          ...(episode.processingRuns && episode.processingRuns.length > 0
+            ? [
+                { id: 'processing-stats-section', label: 'Processing stats', count: episode.processingRuns.length, pillTint: tint.secondary },
+                { id: 'logs-section', label: 'Logs' },
+              ]
+            : []),
+        ];
+        if (sectionLinks.length < 2) return null;
+        return (
+          <nav aria-label="Episode sections" className={tabStrip}>
+            {sectionLinks.map(({ id, label, count, pillTint }) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className={`${tabItem} border-transparent text-muted-foreground hover:text-foreground`}
+              >
+                <span>{label}</span>
+                {count !== undefined && (
+                  <span className={`ml-1.5 ${countPill} ${pillTint ?? tint.secondary}`}>
+                    {count}
+                  </span>
+                )}
+              </a>
+            ))}
+          </nav>
+        );
+      })()}
 
       {feed?.feedType === 'local' && slug && episodeId && (
         <EpisodeMetadataEditSection slug={slug} episode={episode} />
@@ -1528,7 +1586,7 @@ function EpisodeDetail() {
       )}
 
       {episode.adMarkers && episode.adMarkers.length > 0 && (
-        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+        <div id="detected-ads-section" className="bg-card rounded-lg border border-border p-6 mb-6 scroll-mt-4">
           <div className="mb-4">
             {/* Row 1: Title + Edit button */}
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2043,7 +2101,7 @@ function EpisodeDetail() {
       )}
 
       {episode.keptMarkers && episode.keptMarkers.length > 0 && (
-        <div className="mb-6" data-testid="kept-segments-section">
+        <div id="kept-segments-section" className="mb-6 scroll-mt-4" data-testid="kept-segments-section">
           <CollapsibleSection
             title={keptSectionTitle(episode.keptMarkers)}
             subtitle="Detected, and left in the audio by your category actions"
@@ -2083,7 +2141,7 @@ function EpisodeDetail() {
       )}
 
       {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
-        <div className="mb-6">
+        <div id="detections-not-cut-section" className="mb-6 scroll-mt-4">
           <CollapsibleSection
             title={`Detections not cut (${episode.rejectedAdMarkers.length})`}
             subtitle="Flagged but kept in audio"
@@ -2221,7 +2279,7 @@ function EpisodeDetail() {
       )}
 
       {episode.cueDetections && episode.cueDetections.length > 0 && slug && episodeId && (
-        <div className="mb-6">
+        <div id="cue-matches-section" className="mb-6 scroll-mt-4">
           <CueDetectionsSection
             slug={slug}
             episodeId={episodeId}
@@ -2243,7 +2301,7 @@ function EpisodeDetail() {
       )}
 
       {(episode.transcript || episode.originalTranscriptAvailable) && (
-        <div className="mb-6 bg-card rounded-lg border border-border p-4 flex items-center justify-between gap-3">
+        <div id="transcript-section" className="mb-6 scroll-mt-4 bg-card rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <div>
             <h2 className={cardTitle}>Transcript</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Original and processed text, with search</p>
@@ -2267,7 +2325,7 @@ function EpisodeDetail() {
       )}
 
       {episode.processingRuns && episode.processingRuns.length > 0 && (
-        <div className="mb-6">
+        <div id="processing-stats-section" className="mb-6 scroll-mt-4">
           <CollapsibleSection
             title="Processing stats"
             subtitle="What each run downloaded, detected, and cut"
@@ -2280,7 +2338,7 @@ function EpisodeDetail() {
       )}
 
       {episode.processingRuns && episode.processingRuns.length > 0 && (
-        <div className="mb-6">
+        <div id="logs-section" className="mb-6 scroll-mt-4">
           <CollapsibleSection
             title="Logs"
             subtitle="Saved logs for each run"

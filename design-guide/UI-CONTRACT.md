@@ -88,20 +88,21 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 
 `EpisodePlayer` (with `useEpisodePlayer`) is the one episode audio player. Reuse it; do not add a second player or restyle the native `<audio>` element.
 
-- Layout, top to bottom: chapter row (only when the episode has chapters), scrubber, time row, transport row.
-- Chapter row: `ChevronLeft` and `ChevronRight` ghost buttons around the current chapter title, truncated and centered. Previous and next disable at the first and last chapter.
-- Scrubber: a range input with a tick at each chapter start after 0. Elapsed time sits left and remaining time right as `-m:ss` (`formatTimestamp`).
-- Transport: back 15 seconds, play or pause, forward 30 seconds. Center this group independently of speed. Below 336 CSS px of container content width, put speed on a second centered row. At wider sizes, place it at the right edge. Keep the Gauge icon visible at every width.
+- Layout, top to bottom: optional time-saved badge (`timeSaved > 0`), chapter pill bar (only when the episode has chapters), scrubber and timestamps row, transport row.
+- Time-saved badge: when `timeSaved > 0`, a centered `tint.success` badge (`data-testid="player-time-saved"`) with a `Scissors` icon reads `<formatElapsed(timeSaved)> of ads removed` (tooltip `Cut from <formatTimestamp(originalDuration)> original audio` when `originalDuration` is known).
+- Chapter bar: an inset pill bar (`rounded-lg border border-border/70 bg-card/70`) with `ChevronLeft` and `ChevronRight` ghost buttons around a center chapter trigger button showing the `index/total` pill badge, current chapter title (truncated) and a `ChevronDown` caret. Clicking the center trigger opens a popover list of all chapters with timestamps for one-tap seeking. Previous and next disable at the first and last chapter.
+- Scrubber: a custom themed pill track (`h-2 rounded-full bg-secondary`) with a `bg-primary` fill bar, a tick (`h-3 w-0.5`) at each chapter start after 0, and a `16 x 16` px circular playhead thumb (`bg-primary ring-2 ring-card`), overlaid with a full-height (`44` px) `opacity-0` native `<input type="range">` (`peer`) whose `:focus-visible` ring paints on the visual track. Elapsed time sits left and remaining time right as `-m:ss` (`formatTimestamp`), flanking the scrubber inline from `18rem` of container width and dropping to a row below the scrubber on narrower containers.
+- Transport: back 15 seconds, play or pause (with filled `fill-current` icon), forward 30 seconds. Center this group independently of mute and speed. Below 336 CSS px (`21rem`) of container content width, put mute and speed together on a second centered row. At wider sizes, place mute at the left edge and speed at the right edge. Keep the Gauge icon visible at every width.
 - The ad editor and cue editor transport bar (`TransportBar`) follows the same second-row rule below sm: it sits inside the dialog body padding, and under 336 CSS px of bar content width the speed trigger moves to a second centered row.
-- Icons: `RotateCcw` and `RotateCw` at 32 px with the seconds number centered inside the circle, `Play` and `Pause` at 24 px, chapter chevrons at 20 px.
+- Icons: `RotateCcw` and `RotateCw` at 32 px with the seconds number centered inside the circle, `Play` and `Pause` at 24 px (`fill-current`), chapter chevrons at 20 px, mute `Volume2` / `VolumeX` and speed `Gauge` at 16 px.
 
 | Control | Recipe | Size |
 | --- | --- | --- |
-| Play and pause | `${btnBase} ${btnPrimary}` as a filled circle (`rounded-full`) | 56 px at every width |
+| Play and pause | `${btnBase} ${btnPrimary}` as a filled circle (`rounded-full shadow-sm`) | 56 px at every width |
 | Back and forward | `${btnBase} ${btnGhost} ${touchTarget}` with `h-11 w-11 shrink-0 px-0` | 44 x 44 CSS px at every width |
-| Speed and chapter chevrons | `${btnBase} ${btnGhost} ${touchTarget}` | 44 px on coarse pointers, 32 px tall on desktop with a fine pointer |
-| Container | `@container rounded-lg border border-border bg-card` with `focusRing`, `tabIndex={0}`, `role="group"` | `p-3`, `p-4` from sm |
-| Seek range | 44 px tall hit box, `focusRing` | Full width |
+| Mute, speed, chapter trigger and chapter chevrons | `${btnBase} ${btnGhost} ${touchTarget}` | 44 px on coarse pointers, 32 px tall on desktop with a fine pointer |
+| Container | `@container rounded-xl border border-border bg-gradient-to-b from-secondary/35 to-secondary/15 shadow-xs` with `focusRing`, `tabIndex={0}`, `role="group"` | `p-3`, `p-4` from sm |
+| Seek range | 44 px tall hit box (`opacity-0 peer` over `h-2` pill track), `focusRing` | Full width |
 
 - Previous chapter restarts the current chapter when the playhead is more than 3 s into it; otherwise it goes to the previous chapter.
 - Speed cycles 1x, 1.25x, 1.5x, 1.75x, 2x, 0.8x and wraps. The choice persists under the `minuspod.playbackRate` localStorage key and applies to every episode.
@@ -182,7 +183,7 @@ Add feed names RSS and YouTube in its input label. Advanced options apply to eit
 - Do not close data-entry dialogs on backdrop clicks. Dirty editors use `useDraftClose`; successful saves close without a discard prompt.
 - Use Ctrl/Cmd+K for global quick search. Ordinary printable keys remain available to native controls, browser search, and assistive technology.
 - Editor shortcuts run only when focus belongs to the editor. Ignore editable content, buttons, selects, sliders, composition, repeated keys, modifiers, and already-handled events.
-- Use `PageTabs` for page sections with exclusive panels. Page tabs and section links wrap when they do not fit, so every section stays visible without horizontal scrolling. In-page section links (Stats) are anchors styled with `tabStrip` and `tabItem`, not `role="tab"`. The Add feed mode toggle is a `SegmentedToggle` that stacks below 560 px.
+- Use `PageTabs` for page sections with exclusive panels. Page tabs and section links wrap when they do not fit, so every section stays visible without horizontal scrolling. In-page section links (Stats, and the Episode detail section jump bar when two or more sections render below the episode card) are anchors styled with `tabStrip` and `tabItem` (with optional `countPill` badges), not `role="tab"`. The Add feed mode toggle is a `SegmentedToggle` that stacks below 560 px.
 - A dialog with exclusive sections (the pattern dialog: Details and Audio) uses `PageTabs` with `flush` inside the `Modal` header, so the tab row stays pinned above the scrolling body and its rule is the header rule. The panel renders only the active section; a draft in the other section is kept.
 - Page tabs use one Tab stop, Left/Right, Home/End, `aria-selected`, and a named `tabpanel`. Navigation links and filter buttons retain their own semantics.
 
