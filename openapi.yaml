@@ -10204,7 +10204,9 @@ paths:
       description: |
         Downloads encrypted SQLite by default. A missing master passphrase
         returns 409, never plaintext. `encrypted=false` requests
-        plaintext; treat the file as sensitive. Limited to 6/hour.
+        plaintext; treat the file as sensitive. An API token gets 403 for
+        `encrypted=false`, since a plaintext copy holds the Flask secret key.
+        Limited to 6/hour.
       operationId: downloadBackup
       parameters:
         - in: query
@@ -10902,7 +10904,10 @@ paths:
       description: >-
         Returns the stored ID so it can be copied, for example into the SponsorBlock extension.
         Returns 404 with error "not_configured" when none is stored. Limited to 10 requests per minute.
+        Session only: an API token gets 403.
       operationId: getSbUserId
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: The stored ID
@@ -14139,7 +14144,8 @@ components:
         sent as ``Authorization: Bearer mp_...``. Authenticates like a session
         without the CSRF header, and never reads the session cookie. Not
         accepted on routes that manage tokens, the password or sessions, the
-        provider passphrase, or configuration import. An unknown, revoked or
+        provider passphrase, configuration import, or revealing stored secrets. A token can export
+        configuration and download encrypted database backups; an unencrypted backup is 403. An unknown, revoked or
         malformed ``mp_`` token is a 401 and counts toward the sign-in lockout.
 
   parameters:
