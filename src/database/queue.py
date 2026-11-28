@@ -406,7 +406,22 @@ class QueueMixin:
                                  WHERE q.podcast_id = p.id AND q.status = 'pending'))"""
         ).fetchone()[0] == 1
 
-    def _ordered_pending(self, exclude_pairs=()) -> tuple[str, list]:
+    def _dormant_exclusion(self) -> tuple[str, list]:
+        """SQL and params leaving pending rows of dormant feeds unclaimed until the feed is fetched again.
+
+        Mirrors auto_process_block: an explicit per-feed override and a user-requested reprocess still run."""
+        days = resolve_dormant_feed_days(self)
+        if days <= 0 or not self.is_auto_process_enabled():
+            return '', []
+        cutoff = (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
+        return (""" AND NOT (p.feed_type NOT IN ('local', 'recents')
+                   AND p.auto_process_override IS NOT 'true'
+                   AND COALESCE(p.last_feed_request_at, p.created_at) < ?
+                   AND NOT EXISTS (SELECT 1 FROM episodes re
+                                   WHERE re.podcast_id = q.podcast_id AND re.episode_id = q.episode_id
+                                     AND re.reprocess_requested_at IS NOT NULL))""", [cutoff])
+
+    def _ordered_pending(self, exclude_pairs=(), skip_dormant=False) -> tuple[str, list]:
         """CTE text and params giving each claimable pending row its place in `ordered`."""
         global_order = resolve_queue_order(None, self.get_setting('queue_order'))
         exclude_sql = ""
@@ -414,6 +429,10 @@ class QueueMixin:
         if exclude_pairs:
             rows_sql = ",".join("(?,?)" for _ in exclude_pairs)
             exclude_sql = f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})"
+        if skip_dormant:
+            dormant_sql, dormant_params = self._dormant_exclusion()
+            exclude_sql += dormant_sql
+            exclude_params += dormant_params
         if not self._window_order_needed(global_order):
             # Every feed is 'queued': the legacy order, served by idx_queue_status_priority.
             return _QUEUED_ONLY_CTE.format(exclude_sql=exclude_sql), exclude_params  # noqa: S608
@@ -496,7 +515,7 @@ class QueueMixin:
     def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
         """Claim the next eligible episode and consume its feed's first queue slot atomically."""
         with self.transaction(immediate=True) as conn:
-            cte, params = self._ordered_pending(list(exclude_episodes or []))
+            cte, params = self._ordered_pending(list(exclude_episodes or []), skip_dormant=True)
             row = conn.execute(
                 f"""{cte}
                    SELECT q.*, p.slug as podcast_slug, p.title as podcast_title,

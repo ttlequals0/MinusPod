@@ -477,8 +477,12 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # the user explicitly reprocessed (reprocess_requested_at set).
         if not auto_process_enabled:
             if not user_requested:
-                reason = ('Feed dormant: no recent feed requests' if auto_block == AUTO_PROCESS_DORMANT
-                          else 'Auto-process disabled for this feed')
+                if auto_block == AUTO_PROCESS_DORMANT:
+                    # Keep the row pending: the claim skips dormant feeds, and the feed's next fetch releases it.
+                    db.close_claimed_queue_row(queue_id, 'pending')
+                    refresh_logger.info(f"[{slug}:{episode_id}] Held - feed dormant (no recent feed requests)")
+                    return 'bounced'
+                reason = 'Auto-process disabled for this feed'
                 db.close_claimed_queue_row(queue_id, 'completed', reason)
                 refresh_logger.info(f"[{slug}:{episode_id}] Skipped - {reason}")
                 return 'skipped'

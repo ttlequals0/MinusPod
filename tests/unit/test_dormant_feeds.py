@@ -158,13 +158,13 @@ class TestDispatcherGate:
         return {'id': 1, 'podcast_slug': feed, 'episode_id': 'ep1',
                 'original_url': 'https://example.com/ep1.mp3', 'title': 'Ep 1'}
 
-    def test_dormant_feed_claim_skipped_with_reason(self, feed, dormancy, monkeypatch):
+    def test_dormant_feed_claim_is_released_not_consumed(self, feed, dormancy, monkeypatch):
         _set_columns(feed, last_feed_request_at=_days_ago(31))
         closed = []
         monkeypatch.setattr(background.db, 'close_claimed_queue_row',
                             lambda queue_id, status, reason=None: closed.append((status, reason)))
-        assert background._run_claimed_episode(self._claim(feed), set()) == 'skipped'
-        assert closed == [('completed', 'Feed dormant: no recent feed requests')]
+        assert background._run_claimed_episode(self._claim(feed), set()) == 'bounced'
+        assert closed == [('pending', None)]
 
     def test_disabled_feed_keeps_disabled_reason(self, feed, dormancy, monkeypatch):
         _set_columns(feed, last_feed_request_at=_days_ago(31),
@@ -247,3 +247,34 @@ class TestSharedRules:
         with app.test_request_context('/'):
             routes_module._note_feed_request('fresh')
         assert list(memo) == ['fresh']
+
+
+class TestQueuedBeforeDormancy:
+    def _enqueue(self, slug, episode_id='ep-wait'):
+        podcast_id = main_db.get_podcast_row(slug)['id']
+        with main_db.transaction(immediate=True) as conn:
+            conn.execute(
+                """INSERT INTO auto_process_queue
+                   (podcast_id, episode_id, original_url, title, status, priority, created_at)
+                   VALUES (?, ?, 'https://example.com/e.mp3', 'Ep', 'pending', 0, datetime('now'))""",
+                (podcast_id, episode_id))
+
+    def _pending(self, slug):
+        return main_db.get_connection().execute(
+            """SELECT status FROM auto_process_queue q JOIN podcasts p ON p.id = q.podcast_id
+               WHERE p.slug = ?""", (slug,)).fetchall()
+
+    def test_row_waits_while_dormant_and_is_claimed_after_the_feed_wakes(self, feed, dormancy):
+        self._enqueue(feed)
+        _set_columns(feed, last_feed_request_at=_days_ago(31))
+        assert main_db.claim_next_queued_episode() is None
+        assert [r['status'] for r in self._pending(feed)] == ['pending']
+
+        assert main_db.touch_feed_request(feed, 0) is True
+        claimed = main_db.claim_next_queued_episode()
+        assert claimed['podcast_slug'] == feed and claimed['episode_id'] == 'ep-wait'
+
+    def test_override_and_user_reprocess_still_claim_while_dormant(self, feed, dormancy):
+        self._enqueue(feed)
+        _set_columns(feed, last_feed_request_at=_days_ago(31), auto_process_override='true')
+        assert main_db.claim_next_queued_episode()['episode_id'] == 'ep-wait'
