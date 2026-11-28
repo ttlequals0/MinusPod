@@ -1339,11 +1339,11 @@ function Settings() {
     </div>;
   }
 
-  const aiSectionCount = 6
+  const aiSectionCount = 5
     + (settings.stageTunables && settings.stageTunableDefaults ? 1 : 0)
     + (hasAllSystemOneProfiles(settings) ? 1 : 0);
   const categoryCounts: Record<SettingsCategoryId, number> = {
-    general: 3,
+    general: 4,
     ai: aiSectionCount,
     detection: 11,
     output: 3,
@@ -1480,14 +1480,8 @@ function Settings() {
       <div>
         <YouTubeSection />
       </div>
-      </SettingsCategoryPanel>
 
-      <SettingsCategoryPanel category="ai" activeCategory={activeCategory}>
-      <SettingsGroupHeader title="AI and processing" />
-
-      {providersError && (
-        <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
-      )}
+      <SettingsGroupHeader title="Feeds and processing" />
 
       <GlobalDefaultsSection
         autoProcessEnabled={autoProcessEnabled}
@@ -1527,6 +1521,14 @@ function Settings() {
         differentialFetchMode={(settings?.differentialFetchMode?.value ?? settings?.defaults?.differentialFetchMode ?? 'auto') as 'auto' | 'on' | 'off'}
         onDifferentialFetchModeChange={(v) => tunableMutation.mutate({ differentialFetchMode: v })}
       />
+      </SettingsCategoryPanel>
+
+      <SettingsCategoryPanel category="ai" activeCategory={activeCategory}>
+      <SettingsGroupHeader title="AI and processing" />
+
+      {providersError && (
+        <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
+      )}
 
       <LLMProviderSection
         llmProvider={llmProvider}
