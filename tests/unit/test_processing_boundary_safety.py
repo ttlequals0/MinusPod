@@ -13,7 +13,7 @@ from ad_detector.boundaries import (_merge_ad_pair, effective_resolved_action,
                                    split_conflicting_action_span)
 from ad_validator import AdValidator, Decision, user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
-from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
+from config import (HOLD_REASON_REVIEWER_FAILED,
                     PASS2_AUTOAPPROVE_HOLD_REASONS, is_pending_review)
 from main_app import processing
 from main_app.pipeline import common, detect, review, cuts, keep_rules, verify
@@ -90,7 +90,7 @@ def test_verification_keeps_trim_but_checks_remaining_ad():
     assert remaining[0]['_measured_split_fragment']
 
 
-def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monkeypatch):
+def test_failed_pass1_and_adjacent_pass2_never_reach_render_or_learning(monkeypatch):
     segments = [
         {'start': 410.0, 'end': 450.0, 'text': 'Show discussion.'},
         {'start': 450.0, 'end': 600.0, 'text': 'Sponsored by Acme.'},
@@ -121,7 +121,7 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
     assert cuts == []
     assert len(markers) == 1
     assert is_pending_review(markers[0])
-    assert markers[0]['hold_reason'] == HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
+    assert markers[0]['hold_reason'] == HOLD_REASON_REVIEWER_FAILED
 
     original = {'start': 625.8, 'end': 677.1, 'confidence': 0.98,
                 'detection_stage': 'claude'}
@@ -141,9 +141,9 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
     assert pass2_ui == []
     assert pass2_held == [original]
     assert is_pending_review(original)
-    assert original['hold_reason'] == HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
+    assert original['hold_reason'] == HOLD_REASON_REVIEWER_FAILED
     assert original['start'] == 625.8 and original['end'] == 677.1
-    assert HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS not in PASS2_AUTOAPPROVE_HOLD_REASONS
+    assert HOLD_REASON_REVIEWER_FAILED not in PASS2_AUTOAPPROVE_HOLD_REASONS
 
     learn = MagicMock()
     monkeypatch.setattr(processing.ad_detector, 'learn_from_detections', learn)

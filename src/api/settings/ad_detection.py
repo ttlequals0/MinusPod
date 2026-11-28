@@ -20,7 +20,7 @@ from config import (
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN, LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MAX,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
-    coerce_bool_setting,
+    SYSTEMONE_PROVIDERS, coerce_bool_setting,
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
@@ -55,6 +55,7 @@ from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
     get_effective_provider, llm_disabled,
 )
+from llm_capabilities import SYSTEMONE_REVIEWER_ERROR
 from llm_route import (
     VALID_SLOTS, SAME_AS_PASS,
     SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot,
@@ -467,6 +468,8 @@ def _review_field_values(data):
     values = []
     if 'reviewProvider' in data:
         provider = data['reviewProvider']
+        if provider in SYSTEMONE_PROVIDERS:
+            return None, (SYSTEMONE_REVIEWER_ERROR, 400)
         valid = VALID_SLOTS + (SAME_AS_PASS,)
         if provider not in valid:
             return None, (f'reviewProvider must be one of: {", ".join(valid)}', 400)

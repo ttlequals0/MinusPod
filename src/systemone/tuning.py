@@ -14,20 +14,19 @@ from config import (
 
 
 NULLABLE_FIELDS = frozenset({
-    "reviewEvidenceEnter", "reviewChoiceEnter", "maxQuestionsPerRequest",
-    "maxRequestBytes", "maxChoiceOptions", "maxPromptTokens",
+    "maxQuestionsPerRequest", "maxRequestBytes", "maxChoiceOptions", "maxPromptTokens",
+})
+# Reviewer tuning removed in 2.103.1; stored values stay in place, ignored.
+LEGACY_REVIEW_FIELDS = frozenset({
+    "refineBoundaries", "reviewEvidenceEnter", "reviewChoiceEnter", "reviewProgrammeVeto",
+    "reviewBoundaryCapSeconds", "reviewContextSeconds",
 })
 FLOAT_RANGES = {
     "detectionEnter": (0.0, 1.0),
     "detectionStay": (0.0, 1.0),
-    "reviewEvidenceEnter": (0.0, 1.0),
-    "reviewChoiceEnter": (0.0, 1.0),
-    "reviewProgrammeVeto": (0.0, 1.0),
 }
-POSITIVE_FLOAT_FIELDS = frozenset({
-    "reviewBoundaryCapSeconds", "reviewContextSeconds", "requestDeadlineSeconds",
-})
-BOOLEAN_FIELDS = frozenset({"categoryPass", "refineBoundaries"})
+POSITIVE_FLOAT_FIELDS = frozenset({"requestDeadlineSeconds"})
+BOOLEAN_FIELDS = frozenset({"categoryPass"})
 
 
 class SystemOneSettingsError(ValueError):
@@ -41,10 +40,16 @@ def profile_key(slot: str, provider: str) -> str:
         raise SystemOneSettingsError("unsupported System One slot or provider") from None
 
 
+def drop_legacy_review_fields(values: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in values.items() if key not in LEGACY_REVIEW_FIELDS}
+
+
 def merge_profile(defaults: dict[str, Any], current: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    """Merge a partial profile while preserving fields unknown to older exports."""
+    """Merge a partial profile; legacy reviewer fields from older exports are ignored."""
     if not isinstance(patch, dict):
         raise SystemOneSettingsError("profile must be an object or null")
+    patch = drop_legacy_review_fields(patch)
+    current = drop_legacy_review_fields(current)
     unknown = set(patch) - set(defaults)
     if unknown:
         raise SystemOneSettingsError(f"unsupported System One tuning fields: {', '.join(sorted(unknown))}")
@@ -108,9 +113,22 @@ def profile_from_snapshot(snapshot: dict[str, Any], slot: str, provider: str) ->
     if not isinstance(stored, dict):
         raise SystemOneSettingsError(f"{key} must contain an object")
     defaults = SYSTEMONE_TUNABLE_DEFAULTS[provider]
-    values = {**defaults, **(stored or {})}
+    values = {**defaults, **drop_legacy_review_fields(stored or {})}
     validate_profile(values, defaults)
     return values
+
+
+def stored_legacy_review_values(snapshot: dict[str, Any], slot: str, provider: str) -> dict[str, Any]:
+    """Unused reviewer tuning still stored in a profile row, kept when the row is rewritten."""
+    entry = snapshot.get(profile_key(slot, provider))
+    raw = entry.get("value") if isinstance(entry, dict) else None
+    try:
+        stored = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(stored, dict):
+        return {}
+    return {key: value for key, value in stored.items() if key in LEGACY_REVIEW_FIELDS}
 
 
 def profile_payload(snapshot: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:

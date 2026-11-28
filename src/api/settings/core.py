@@ -34,6 +34,7 @@ from config import (
     resolve_jit_blocked_user_agents,
 )
 from systemone.tuning import profile_payload
+from llm_route import review_route_is_systemone
 from api.podcast_search import resolve_search_provider, search_provider_ready
 from database.settings import (
     SETTINGS_REGISTRY,
@@ -597,6 +598,8 @@ def _build_settings_payload():
         'enableAdReview': _sv('enable_ad_review', enable_ad_review),
         'reviewModel': _sv('review_model', review_model),
         'reviewProvider': _sv('review_provider', review_provider),
+        'reviewerNeedsLlm': enable_ad_review and any(
+            review_route_is_systemone(db, phase) for phase in ('detection', 'verification')),
         'reviewMaxBoundaryShift': _sv('review_max_boundary_shift', review_max_boundary_shift),
         'reviewPrompt': _sv('review_prompt', review_prompt),
         'resurrectPrompt': _sv('resurrect_prompt', resurrect_prompt),

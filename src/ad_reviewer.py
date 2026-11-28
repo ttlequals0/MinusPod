@@ -1,5 +1,4 @@
 """Opt-in LLM ad reviewer."""
-import json
 import logging
 import math
 import re
@@ -53,10 +52,9 @@ from llm_route import (
 )
 from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
-    extract_error_body,
     get_effective_provider,
     is_rate_limit_error,
-    is_review_inconclusive_error, ProviderRateLimitedError,
+    ProviderRateLimitedError,
     StructuralRateLimitError,
 )
 from utils.http import redact_log_text
@@ -120,54 +118,10 @@ def _review_failure_reason(error: Exception) -> str:
     return "Review unavailable: LLM call failed"
 
 
-_INCONCLUSIVE_REASONS = frozenset({
-    'transcript_gap', 'ambiguous_spans', 'insufficient_evidence',
-    'no_valid_pairs', 'choice_inconclusive', 'invalid_pair',
-    'proposed_range_not_confirmed', 'original_range_not_confirmed',
-    'missing_boundary_coverage',
-})
-_INCONCLUSIVE_STAGES = frozenset({
-    'context', 'evidence', 'choice_rank', 'focused_validation',
-    'boundary_coverage',
-})
-
-
 def _skips_reviewer(ad) -> bool:
     """Human-confirmed ads and cue_match markers (a measured cue, no spoken ad) skip the LLM."""
     return (bool((ad.get("validation") or {}).get("user_confirmed"))
             or ad.get("detection_stage") == CUE_MATCH_STAGE)
-
-
-def _review_inconclusive_reason(error: Exception) -> str:
-    """Return a bounded, allowlisted reason from an inconclusive response."""
-    body = extract_error_body(error)
-    if isinstance(body, str):
-        try:
-            body = json.loads(body)
-        except (TypeError, ValueError):
-            body = None
-    if not isinstance(body, dict):
-        return "Review inconclusive"
-    details = body.get('error') if isinstance(body.get('error'), dict) else body
-    reason = details.get('reason')
-    if not isinstance(reason, str) or reason not in _INCONCLUSIVE_REASONS:
-        reason = None
-    parts = [
-        f"Reviewer abstained: {reason.replace('_', ' ')}."
-        if reason else "Reviewer abstained."
-    ]
-    for key in ('stage', 'score', 'threshold'):
-        value = details.get(key)
-        if key == 'stage':
-            value = value if isinstance(value, str) and value in _INCONCLUSIVE_STAGES else None
-            if value:
-                parts.append(f"Stage: {value.replace('_', ' ')};")
-        elif isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
-            parts.append(f"{key}: {value};")
-        else:
-            value = None
-    parts.append("Original marker retained.")
-    return " ".join(parts).replace('; Original', ". Original")
 
 
 REVIEWER_FAILED_SUPPORTED_FLAG = 'INFO: Reviewer failed; bounds supported'
@@ -1459,20 +1413,17 @@ class AdReviewer:
 
     def _settle_abstained(self, result, verdict, ad, episode_meta,
                           check_support=True) -> bool:
-        """Hold an abstained or failed review on unsupported bounds; True when settled here."""
-        if verdict.verdict not in ("inconclusive", "failure"):
+        """Hold a failed review on unsupported bounds; True when settled here."""
+        if verdict.verdict != "failure":
             return False
         if check_support and inconclusive_bounds_supported(ad, self.db):
-            if verdict.verdict != "failure":
-                return False
             result.accepted_after_review.append(ad)
             return True
-        if verdict.verdict == "failure":
-            logger.info(
-                f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
-                f"Reviewer unavailable; bounds unsupported @ "
-                f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
-            )
+        logger.info(
+            f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+            f"Reviewer unavailable; bounds unsupported @ "
+            f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
+        )
         verdict.inconclusive_hold = True
         held = dict(ad)
         mark_reviewer_hold(held, verdict, abstain_hold_reason(verdict))
@@ -1825,16 +1776,6 @@ class AdReviewer:
             if isinstance(error, ProviderRateLimitedError):
                 # A held 429 must defer the episode, not skip the review.
                 raise error
-            if is_review_inconclusive_error(error):
-                return (
-                    ReviewVerdict(
-                        pool=pool, pass_num=pass_num, verdict="inconclusive",
-                        original_start=original_start, original_end=original_end,
-                        reasoning=_review_inconclusive_reason(error),
-                        model_used=model, latency_ms=latency_ms, success=True,
-                    ),
-                    ad,
-                )
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
                 f"@ {original_start:.1f}s failed: {error}. Original "

@@ -195,35 +195,6 @@ class TestAnthropicFallback:
         assert is_fallback_set("ep1", PASS_AD_DETECTION_1) is False
         assert mock_sdk.messages.create.call_count == 1
 
-    def test_review_inconclusive_does_not_count_as_breaker_failure(self):
-        from llm_client import AnthropicClient
-        from utils.circuit_breaker import CircuitBreaker
-
-        client = AnthropicClient(api_key="dummy")
-        breaker = CircuitBreaker("review", failure_threshold=1)
-        client.set_circuit_breaker(breaker)
-        mock_sdk = MagicMock()
-        error = _FakeAPIError(
-            422,
-            "Review is inconclusive",
-            body={"error": {"code": "jev_review_inconclusive"}},
-        )
-        mock_sdk.messages.create.side_effect = error
-        client._client = mock_sdk
-
-        with pytest.raises(_FakeAPIError):
-            client.messages_create(
-                model="claude-x",
-                max_tokens=4096,
-                system="sys",
-                messages=[{"role": "user", "content": "hi"}],
-                episode_id="ep1",
-                pass_name=PASS_REVIEWER_1,
-            )
-
-        assert breaker.state == CircuitBreaker.CLOSED
-        assert mock_sdk.messages.create.call_count == 1
-
     @pytest.mark.parametrize("error", [
         _FakeAPIError(
             422,

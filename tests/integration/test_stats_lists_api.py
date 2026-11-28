@@ -160,7 +160,7 @@ class TestModelUsageStats:
         assert result['unknownCostRequestCount'] == 0
         assert result['outcomes']['inconclusive'] == 1
         assert result['reviewReasons'] == {'choice_inconclusive': 1}
-        assert result['refinements']['attempted'] == 1
+        assert 'refinements' not in result and 'refinementSkipReasons' not in result
 
     def test_llm_stats_route_excludes_system_one_and_rejects_bad_dates(self, app_client, temp_db):
         _authed(app_client)
@@ -553,30 +553,27 @@ class TestLedgerFilterOptions:
         assert resp.status_code == 400
 
 
-def test_systemone_diagnostics_sanitize_and_keep_all_refinement_outcomes(temp_db):
+def test_systemone_diagnostics_sanitize_and_drop_review_only_fields(temp_db):
     safe = json.loads(_safe_systemone_diagnostics({
         'transcript': 'private transcript', 'api_key': 'private key',
-        'review_refinements': [
-            {'outcome': 'attempted'}, {'outcome': 'inconclusive'},
-            {'outcome': 'upstream_error'}, {'outcome': 'skipped', 'skip_reason': 'disabled'},
-        ],
+        'review_refinements': [{'outcome': 'attempted'}],
         'error_details': {
-            'proposal': {'score': 0.5, 'private key': 1, 'transcript': 'private transcript'},
+            'proposal': {'score': 0.5}, 'validation_rule': 'answers_keys',
             'numeric_details': {'expected_count': 3, 'private transcript': 1},
         },
     }))
     assert 'transcript' not in safe and 'api_key' not in safe
+    assert 'review_refinements' not in safe
     assert safe['error_details'] == {
-        'proposal': {'score': 0.5}, 'numeric_details': {'expected_count': 3},
+        'validation_rule': 'answers_keys', 'numeric_details': {'expected_count': 3},
     }
     temp_db.record_systemone_call_diagnostics(
-        logical_call_id='refinement-test', run_id=None, podcast_id=None, episode_id=None,
+        logical_call_id='diagnostics-test', run_id=None, podcast_id=None, episode_id=None,
         provider_key='systemone-compatible', credential_slot='primary',
-        configured_model='jev-latest', phase_key='review', window_label='review',
+        configured_model='jev-latest', phase_key='detection', window_label='window 1',
         logical_latency_ms=10, outcome='failed', diagnostics=safe)
     result = temp_db.get_systemone_stats()
-    assert result['refinements']['inconclusive'] == result['refinements']['upstream_error'] == 1
-    assert result['refinementSkipReasons'] == {'disabled': 1}
+    assert result['outcomes']['failed'] == 1
     assert result['requests'] == 0
 
 

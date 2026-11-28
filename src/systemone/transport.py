@@ -308,7 +308,7 @@ def dispatch_systemone_request(payload, *, url, api_key, model, timeout,
                 body = response.body if response else result.text
                 error = _request_error(status, result, body)
                 error.usage_response = response
-                state = 'inconclusive' if metadata.get('inconclusive', lambda _e: False)(error) else 'failure'
+                state = 'failure'
                 raise error
             body = result.json()
             response = _ledger_response(body, response=result)

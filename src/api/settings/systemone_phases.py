@@ -2,19 +2,27 @@
 
 import json
 from config import (
-    PROVIDER_SYSTEMONE_COMPATIBLE, PROVIDER_TYPESAFE, SYSTEMONE_TUNABLE_DEFAULTS,
+    PROVIDER_SYSTEMONE_COMPATIBLE, PROVIDER_TYPESAFE, SYSTEMONE_PROVIDERS,
+    SYSTEMONE_TUNABLE_DEFAULTS,
     coerce_bool_setting,
 )
 from api import error_response
 from systemone.tuning import (
     SystemOneSettingsError, merge_profile, profile_from_snapshot, profile_key,
+    stored_legacy_review_values,
 )
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import get_effective_provider_from_snapshot, invalidate_provider_cache
-from llm_route import SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot
-from llm_capabilities import systemone_supported_phases
+from llm_route import SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot
+from llm_capabilities import SYSTEMONE_REVIEWER_ERROR, is_systemone_route, systemone_supported_phases
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from api.settings import common
+
+
+_REVIEW_ROUTING_KEYS = frozenset({
+    'reviewProvider', 'reviewModel', 'llmProvider', 'secondaryProvider',
+    'secondaryProviderEnabled', 'failoverLlmReviewModel',
+})
 
 
 def _validate_systemone_phase_enables(db, data, prospective_feed_modes=None):
@@ -27,6 +35,7 @@ def _validate_systemone_phase_enables(db, data, prospective_feed_modes=None):
         'verificationProvider': 'verification_provider',
         'chaptersProvider': 'chapters_provider',
         'reviewProvider': 'review_provider',
+        'reviewModel': 'review_model',
         'patternCleanupProvider': 'pattern_cleanup_provider',
         'claudeModel': 'claude_model',
         'verificationModel': 'verification_model',
@@ -58,6 +67,19 @@ def _validate_systemone_phase_enables(db, data, prospective_feed_modes=None):
             return projected.get(key)
 
     view = ProjectedSettings()
+    if _REVIEW_ROUTING_KEYS & set(data):
+        review_provider = projected.get('review_provider') or SAME_AS_PASS
+        review_model = projected.get('review_model')
+        if review_provider in SYSTEMONE_PROVIDERS or is_systemone_route('', review_model):
+            return SYSTEMONE_REVIEWER_ERROR, 400
+        if review_provider != SAME_AS_PASS:
+            slot = resolved_stage_slot(view, 'review')
+            provider_key = (projected.get('secondary_provider') if slot == SLOT_SECONDARY
+                            else projected.get('llm_provider'))
+            if is_systemone_route(provider_key, review_model):
+                return SYSTEMONE_REVIEWER_ERROR, 400
+        if is_systemone_route('', projected.get('failover_llm_review_model')):
+            return SYSTEMONE_REVIEWER_ERROR, 400
     chapters_enabled = coerce_bool_setting(projected.get('chapters_enabled'))
     global_mode = projected.get('chapters_mode') or 'auto'
     has_active_feed_mode = global_mode != 'off'
@@ -131,6 +153,7 @@ def _systemone_tunable_values(db, data):
                 else:
                     merged = merge_profile(defaults, current, profile_patch)
                     is_default = merged == defaults
+                    merged = {**stored_legacy_review_values(snapshot, slot, provider), **merged}
                 values[key] = (merged, is_default)
     except SystemOneSettingsError as exc:
         return None, (str(exc), 400)

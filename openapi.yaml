@@ -9310,7 +9310,14 @@ paths:
                     type: boolean
                     description: Stored global value, present only when holdForReview was sent.
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: |
+            Invalid payload. A reviewProvider, reviewModel, failoverLlmReviewModel or provider
+            change that routes the review stage to System One or TypeSafe returns
+            "System One cannot be used for the reviewer. Choose an LLM provider."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/ad-detection/reset:
     post:
@@ -14465,40 +14472,6 @@ components:
           - outro
           - recap
           default: sponsor
-        refineBoundaries:
-          type: boolean
-          default: false
-        reviewEvidenceEnter:
-          type:
-          - number
-          - 'null'
-          minimum: 0
-          maximum: 1
-          default: null
-          description: Null selects the model evidence threshold.
-        reviewChoiceEnter:
-          type:
-          - number
-          - 'null'
-          minimum: 0
-          maximum: 1
-          default: null
-          description: Null selects the model choice threshold.
-        reviewProgrammeVeto:
-          type: number
-          minimum: 0
-          maximum: 1
-          default: 0.85
-        reviewBoundaryCapSeconds:
-          type: number
-          exclusiveMinimum: 0
-          default: 60.0
-          description: Maximum boundary movement in seconds.
-        reviewContextSeconds:
-          type: number
-          exclusiveMinimum: 0
-          default: 30.0
-          description: Focused review context window in seconds.
         requestDeadlineSeconds:
           type: number
           exclusiveMinimum: 0
@@ -14682,8 +14655,6 @@ components:
       - unknownCostRequestCount
       - outcomes
       - reviewReasons
-      - refinements
-      - refinementSkipReasons
       properties:
         calls:
           type: integer
@@ -14741,29 +14712,6 @@ components:
               type: integer
               minimum: 0
         reviewReasons:
-          type: object
-          additionalProperties:
-            type: integer
-            minimum: 0
-        refinements:
-          type: object
-          properties:
-            attempted:
-              type: integer
-              minimum: 0
-            completed:
-              type: integer
-              minimum: 0
-            skipped:
-              type: integer
-              minimum: 0
-            inconclusive:
-              type: integer
-              minimum: 0
-            upstream_error:
-              type: integer
-              minimum: 0
-        refinementSkipReasons:
           type: object
           additionalProperties:
             type: integer
@@ -18572,11 +18520,18 @@ components:
             or the sentinel `same_as_pass` (the default), which inherits
             both the provider and model of the pass being reviewed and
             ignores reviewModel. `primary`/`secondary` enable reviewModel.
+            A slot or model that routes to System One or TypeSafe is
+            rejected with 400; see reviewerNeedsLlm.
           properties:
             value:
               type: string
             isDefault:
               type: boolean
+        reviewerNeedsLlm:
+          type: boolean
+          description: |
+            True when the reviewer is enabled but its review stage resolves to System One
+            or TypeSafe. The reviewer does not run until an LLM provider is chosen.
         reviewMaxBoundaryShift:
           type: object
           description: Cap on boundary shift in seconds for adjust verdicts.

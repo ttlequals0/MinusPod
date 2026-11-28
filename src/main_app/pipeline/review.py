@@ -7,7 +7,9 @@ from ad_reviewer import (
     split_resurrection_pool, stamp_reviewer_fields,
 )
 
+import run_context
 from audio_processor import get_replacement_duration
+from llm_route import review_route_is_systemone
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            clip_merge_spans, held_window_blockers, invalidate_tail_provenance,
                            merge_runs, set_reviewer_locks, spans_match, subtract_spans,
@@ -99,7 +101,6 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
         f"{sum(1 for v in verdicts if v.verdict == 'adjust')} adjusted, "
         f"{sum(1 for v in verdicts if v.verdict == 'reject')} rejected, "
         f"{sum(1 for v in verdicts if v.verdict == 'resurrect')} resurrected, "
-        f"{sum(1 for v in verdicts if v.verdict == 'inconclusive')} inconclusive, "
         f"{sum(1 for v in verdicts if v.verdict == 'failure')} failed"
     )
 
@@ -168,7 +169,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     episode_description = ctx.episode_description
     clear_fallback(episode_id, PASS_REVIEWER_2)
 
-    if not _ad_review_enabled(db):
+    if not _reviewer_will_run(db, 2, slug, episode_id):
         return
 
     accepted_originals = list(v_ads_for_ui)
@@ -467,7 +468,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
                                     min_cut_confidence=None, pass1_cuts=None,
                                     covered=(), ledger=None):
     """Review pass-2 subspans inside holds; returns (released count, outside-hold candidate pairs)."""
-    if not candidates or not _ad_review_enabled(db):
+    if not candidates or not _reviewer_will_run(db, 2, ctx.slug, ctx.episode_id):
         return 0, []
     ledger = ledger or Pass2Ledger()
     pass1_cuts = pass1_cuts or []
@@ -566,7 +567,7 @@ def _review_hold_remainders(ctx, holds, original_segments, protection,
                             segment_actions=None, min_cut_confidence=None, reviewed=()):
     """Review once what pass 2 left of partly released transcript-gap holds; returns holds changed."""
     candidates = _hold_remainder_candidates(holds, reviewed)
-    if not candidates or not _ad_review_enabled(db):
+    if not candidates or not _reviewer_will_run(db, 2, ctx.slug, ctx.episode_id):
         return 0
     result = _review_held_spans(
         ctx, [sub for sub, _hold in candidates], original_segments, protection,
@@ -632,6 +633,26 @@ def _ad_review_enabled(db) -> bool:
     except Exception:
         return False
     return str(value or '').strip().lower() == 'true'
+
+
+def _reviewer_will_run(db, pass_num, slug=None, episode_id=None) -> bool:
+    """Reviewer enabled and not routed to System One; logs one skip warning per episode."""
+    if not _ad_review_enabled(db):
+        return False
+    try:
+        blocked = review_route_is_systemone(db, 'verification' if pass_num == 2 else 'detection')
+    except Exception:
+        blocked = False
+    if not blocked:
+        return True
+    ctx = run_context.current()
+    if ctx is None or not ctx.reviewer_skip_logged:
+        if ctx is not None:
+            ctx.reviewer_skip_logged = True
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Reviewer skipped: the review provider is System One, "
+            "which cannot review. Choose an LLM provider under Settings > Ad reviewer.")
+    return False
 
 
 def _apply_reviewer_verdict_to_ad(ad, v):
@@ -765,7 +786,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     """
     clear_fallback(episode_id, PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2)
 
-    if not _ad_review_enabled(db):
+    if not _reviewer_will_run(db, pass_num, slug, episode_id):
         return ads_to_remove, all_ads_with_validation
 
     if cue_gate_enabled:

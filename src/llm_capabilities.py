@@ -229,7 +229,8 @@ STAGE_MODEL_SETTING_KEYS = (
 SAME_AS_PASS = 'same_as_pass'
 
 _SYSTEMONE_PROXY_MODELS = frozenset({'jev-latest', 'jev-preview', 'typesafe/jev'})
-_SYSTEMONE_PHASES = frozenset({'detection', 'verification', 'review'})
+_SYSTEMONE_PHASES = frozenset({'detection', 'verification'})
+SYSTEMONE_REVIEWER_ERROR = 'System One cannot be used for the reviewer. Choose an LLM provider.'
 
 
 def systemone_supported_phases(provider: str, model: str | None) -> frozenset[str] | None:
@@ -240,6 +241,11 @@ def systemone_supported_phases(provider: str, model: str | None) -> frozenset[st
     if (model or '').strip().casefold() in _SYSTEMONE_PROXY_MODELS:
         return _SYSTEMONE_PHASES
     return None
+
+
+def is_systemone_route(provider: str | None, model: str | None) -> bool:
+    """True when the provider type or model id routes through System One."""
+    return systemone_supported_phases(provider or '', model) is not None
 
 
 def chapters_capability_error(

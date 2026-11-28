@@ -81,7 +81,7 @@ from systemone.admission import operation_admission
 from systemone.settings import get_systemone_settings
 from systemone import transport as systemone_transport
 from systemone.client import response_payload
-from systemone.adapter import ReviewInconclusiveError, run_chat_completion
+from systemone.adapter import run_chat_completion
 from systemone.protocol import GUIDANCE as SYSTEMONE_GUIDANCE, jev_ask
 from sponsor_service import SponsorService
 from community_export import normalize_aliases
@@ -606,26 +606,6 @@ def _provider_error_kind(error: Exception) -> str:
     return f'{kind} HTTP {status}'
 
 
-def is_review_inconclusive_error(error: Exception) -> bool:
-    """True for the review service's explicit inconclusive response."""
-    if isinstance(error, ReviewInconclusiveError):
-        return True
-    try:
-        status = int(_provider_status_code(error))
-    except (TypeError, ValueError):
-        return False
-    if status != 422:
-        return False
-    body = extract_error_body(error)
-    if not isinstance(body, dict):
-        return False
-    code = body.get('code')
-    nested = body.get('error')
-    if code is None and isinstance(nested, dict):
-        code = nested.get('code')
-    return code == 'jev_review_inconclusive'
-
-
 def _safe_reasoning_value(value: Union[int, str] | None):
     """Keep only reasoning values accepted by the provider translators."""
     if isinstance(value, int) and not isinstance(value, bool):
@@ -850,8 +830,7 @@ class LLMClient(ABC):
                 try:
                     response = send_fn(eff_max, eff_temp, eff_reasoning)
                 except Exception as e2:
-                    if (not is_rate_limit_error(e2)
-                            and not is_review_inconclusive_error(e2)):
+                    if not is_rate_limit_error(e2):
                         self._record_circuit_breaker(success=False, error=e2)
                     else:
                         self._release_circuit_breaker_probe()
@@ -860,12 +839,10 @@ class LLMClient(ABC):
 
             will_fallback = _should_fallback_retry(
                 e, pass_name, started_in_fallback)
-            if (not is_rate_limit_error(e) and not will_fallback
-                    and not is_review_inconclusive_error(e)):
+            if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False, error=e)
             if not will_fallback:
-                if (is_rate_limit_error(e)
-                        or is_review_inconclusive_error(e)):
+                if is_rate_limit_error(e):
                     self._release_circuit_breaker_probe()
                 raise
             _log_fallback(provider_label, episode_id, pass_name, model,
@@ -879,8 +856,7 @@ class LLMClient(ABC):
             try:
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
-                if (not is_rate_limit_error(e2)
-                        and not is_review_inconclusive_error(e2)):
+                if not is_rate_limit_error(e2):
                     self._record_circuit_breaker(success=False, error=e2)
                 else:
                     self._release_circuit_breaker_probe()
@@ -982,10 +958,6 @@ class SystemOneClient(LLMClient):
                     returned_model=data.get('model'),
                     diagnostics=diagnostics,
                 )
-            except ReviewInconclusiveError as error:
-                error.systemone_diagnostics = diagnostics
-                self._record_circuit_breaker(success=True)
-                raise
             except Exception as error:
                 error.systemone_diagnostics = diagnostics
                 metadata_cancel = metadata.get('cancel_exceptions', ()) if metadata else ()
@@ -1136,9 +1108,7 @@ class SystemOneClient(LLMClient):
                 error.systemone_probe_attempts = attempts
                 metadata = run_context.current_llm_dispatch_context()
                 metadata_cancel = metadata.get('cancel_exceptions', ()) if metadata else ()
-                if isinstance(error, ReviewInconclusiveError):
-                    self._record_circuit_breaker(success=True)
-                elif (is_rate_limit_error(error) or isinstance(error, ProviderAccountChangedError)
+                if (is_rate_limit_error(error) or isinstance(error, ProviderAccountChangedError)
                       or not attempts or not any(getattr(row[1], 'actual_dispatch_count', 1) for row in attempts)
                       or (metadata_cancel and isinstance(error, metadata_cancel))):
                     self._release_circuit_breaker_probe()

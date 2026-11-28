@@ -35,7 +35,10 @@ from db_backup_service import (
 )
 from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS, normalize_network_id
 from database.settings import SETTINGS_REGISTRY, registry_default
-from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
+from systemone.tuning import (
+    LEGACY_REVIEW_FIELDS, SystemOneSettingsError, drop_legacy_review_fields, merge_profile,
+    profile_from_snapshot,
+)
 from fx_rates import FxRateError, get_usd_rate
 from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
@@ -406,6 +409,8 @@ def export_config(db, app_version):
         value = _setting_raw_value(db, key, raw_settings)
         if value is not None or key in NULLABLE_OPTIONAL_SETTINGS:
             settings[key] = _portable_value(key, value)
+            if key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values() and isinstance(settings[key], dict):
+                settings[key] = drop_legacy_review_fields(settings[key])
     cols = ', '.join(('slug', 'feed_type', *FEED_COLUMNS))
     rows = db.get_connection().execute(
         f'SELECT {cols} FROM podcasts ORDER BY slug'  # noqa: S608
@@ -482,6 +487,10 @@ def _validate_document(document):
     if not isinstance(settings, dict) or not isinstance(feeds, list):
         raise ConfigTransferError('settings must be an object and feeds must be an array')
     unknown = sorted(set(settings) - PORTABLE_SETTINGS)
+    # Reviewer tuning from older exports is accepted and ignored.
+    unknown += sorted(
+        f'{key}.{field}' for key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()
+        if isinstance(settings.get(key), dict) for field in LEGACY_REVIEW_FIELDS & set(settings[key]))
     if any(key in EXCLUDED_SETTINGS or key in {
             'flask_secret_key', 'app_password', 'provider_crypto_salt',
             'provider_config_revision'} for key in settings):

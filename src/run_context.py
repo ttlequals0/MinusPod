@@ -178,6 +178,7 @@ class RunContext:
         self.timing.add('ffmpeg', 0.0)
         self.route_snapshot = None
         self.whisper_failover_used = False
+        self.reviewer_skip_logged = False
         self._llm_failover_used = set()
         self._failover_usage_lock = threading.Lock()
         self._failover_account_id = None
