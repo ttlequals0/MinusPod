@@ -108,6 +108,9 @@ class CircuitBreaker:
             current_state = self._evaluate_state()
             if force and current_state in (self.OPEN, self.HALF_OPEN):
                 self._state = self.HALF_OPEN
+                # Share a live probe's token so the first result settles the breaker
+                if self._half_open_probe_token is not None:
+                    return self._half_open_probe_token
                 return self._lease_probe()
             if current_state == self.OPEN:
                 seconds_left = self.recovery_timeout - (time.time() - self._last_failure_time)
