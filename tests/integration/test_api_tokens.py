@@ -349,3 +349,18 @@ def test_existing_databases_gain_the_table_on_upgrade(db):
     conn.execute("DROP TABLE api_tokens")
     db._create_new_tables_only(conn)
     assert conn.execute("SELECT COUNT(*) FROM api_tokens").fetchone()[0] == 0
+
+
+def test_status_stream_works_with_a_token_and_ends_on_revocation(token_client, token, db, monkeypatch):
+    import api.status as status_mod
+    monkeypatch.setattr(status_mod, 'status_payload', lambda: {'revision': 1})
+    monkeypatch.setattr(status_mod.time, 'sleep', lambda _s: None)
+    chunks = iter(token_client.get('/api/v1/status/stream', headers=_bearer(token), buffered=False).response)
+    assert next(chunks).startswith(b'data:')
+    db.revoke_all_api_tokens()
+    assert next(chunks).startswith(b'event: auth-failed')
+
+
+def test_status_stream_rejects_a_bad_token(token_client):
+    resp = token_client.get('/api/v1/status/stream', headers=_bearer(_fake_token()), buffered=False)
+    assert next(iter(resp.response)).startswith(b'event: auth-failed')

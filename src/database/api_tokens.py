@@ -63,6 +63,11 @@ class ApiTokenMixin:
                 (utc_now_iso(), token_id))
             return cursor.rowcount == 1
 
+    def api_token_active(self, token_id: int) -> bool:
+        return self.get_connection().execute(
+            "SELECT 1 FROM api_tokens WHERE id = ? AND revoked_at IS NULL", (token_id,)
+        ).fetchone() is not None
+
     def revoke_all_api_tokens(self) -> int:
         """Revoke every active token; returns how many were revoked."""
         with self.transaction(immediate=True) as conn:
