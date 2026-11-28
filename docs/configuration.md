@@ -693,7 +693,7 @@ Audio analysis reads the whole episode with ffmpeg and numpy on the MinusPod hos
 
 | Setting (API key) | Default | Off |
 |---|---|---|
-| Run local audio analysis (`audioAnalysisEnabled`) | on | Skips loudness, transition, silence, cue and splice analysis in pass 1 and in verification. Detection and validation use the transcript alone, so cue and silence snapping have nothing to snap to and the splice hold never fires. Feeds in Cue-only mode still analyse. |
+| Run local audio analysis (`audioAnalysisEnabled`) | on | Skips loudness, transition, silence, cue and splice analysis in pass 1 and in verification. Detection and validation use the transcript alone, so cue and silence snapping have nothing to snap to and the splice hold never fires. Feeds in Cue-only mode still analyse in pass 1 (their cue detection needs it); they run no verification pass. |
 | Collect splice evidence (`spliceEvidenceEnabled`) | on | Skips only the splice detector, the second full decode inside audio analysis. Long cuts are no longer held for missing splice evidence. |
 
 Both are in Settings > Ad detection and in `PUT /api/v1/settings/ad-detection`. For a low-CPU setup also consider `differentialFetchMode` `off` (no second download and decode), `skipSecondPass` (no verification re-transcription) and, for MP3 episodes sent to a remote API, [Send raw MP3 chunks](transcription.md#raw-mp3-chunks).
