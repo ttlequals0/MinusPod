@@ -25,7 +25,7 @@ import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import FeedTypeBadge from '../components/FeedTypeBadge';
 import PodpingBadge from '../components/PodpingBadge';
-import { DORMANT_TITLE, feedDisplayTitle, feedHasUpstream, deleteStopsProcessingMessage } from '../utils/feedTitle';
+import { DORMANT_TITLE, feedDisplayTitle, feedHasUpstream, deleteStopsProcessingMessage, refreshReasonText } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
 import YouTubeFeedPanel from './feeds/YouTubeFeedPanel';
@@ -638,6 +638,12 @@ function FeedDetail() {
               <span>{feed.episodeCount} episodes</span>
               {feed.lastRefreshed && (
                 <span>Updated {formatDateTime(feed.lastRefreshed)}</span>
+              )}
+              {feedHasUpstream(feed) && feed.nextRefreshAt && (
+                <span>
+                  Next check {formatDateTime(feed.nextRefreshAt)}
+                  {refreshReasonText(feed.refreshIntervalReason) && `, ${refreshReasonText(feed.refreshIntervalReason)}`}
+                </span>
               )}
               <PodpingBadge
                 coverage={feed.podpingCoverage}

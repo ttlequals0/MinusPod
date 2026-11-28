@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, RatingValue, ProcessingMode } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, RatingValue, ProcessingMode, FeedProblemsResponse } from './types';
 import { apiUrl } from '../urlPrefix';
 import { mediaUrl } from '../utils/mediaUrl';
 import { IS_DEMO } from '../demo/flag';
@@ -380,6 +380,10 @@ export async function deleteFeed(slug: string): Promise<DeleteFeedResult> {
     onResponse: (responseStatus) => { status = responseStatus; },
   });
   return { ...result, pending: status === 202 };
+}
+
+export async function getFeedProblems(): Promise<FeedProblemsResponse> {
+  return apiRequest<FeedProblemsResponse>('/feeds/problems');
 }
 
 export async function refreshFeed(

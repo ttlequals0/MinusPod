@@ -10,7 +10,10 @@ import { makeFailoverProbe, makeFailoverTarget } from '../test/failover';
 
 const requestPodpingCheck = vi.hoisted(() => vi.fn());
 
+const getFeedProblems = vi.hoisted(() => vi.fn());
+
 vi.mock('../api/settings', () => ({ requestPodpingCheck }));
+vi.mock('../api/feeds', () => ({ getFeedProblems, refreshFeed: vi.fn() }));
 
 function render(ui: ReactElement, queryClient = new QueryClient()) {
   return {
@@ -100,6 +103,8 @@ describe('rollupHealth', () => {
 
 describe('SystemHealthPanel', () => {
   beforeEach(() => {
+    getFeedProblems.mockReset();
+    getFeedProblems.mockResolvedValue({ problems: [], count: 0, threshold: 3 });
     requestPodpingCheck.mockReset();
     requestPodpingCheck.mockResolvedValue({
       checkId: 'check-1', status: 'pending', requestedAt: '2026-09-20T00:00:00Z',
@@ -394,5 +399,28 @@ describe('SystemHealthPanel: failover', () => {
     fireEvent.click(screen.getByRole('button', { name: /system health/i }));
     expect(screen.getByText('Provider A on failover')).toBeDefined();
     expect(rollupHealth(status({ failover: failover(true) }))).toBe('warning');
+  });
+
+  it('shows a failing feed count on the header and lists the feeds when open', async () => {
+    getFeedProblems.mockResolvedValue({
+      count: 1, threshold: 3,
+      problems: [{
+        slug: 'a', title: 'Example Podcast', host: 'https://feed.example.com', consecutiveFailures: 3,
+        errorKind: 'dns', message: 'The host name could not be found.', detail: null,
+        failingSince: null, lastSuccessAt: null, nextRetryAt: null,
+      }],
+    });
+    render(<SystemHealthPanel status={status({})} />);
+    expect((await screen.findByLabelText('1 failing feed')).textContent).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(await screen.findByText('The host name could not be found.')).toBeDefined();
+  });
+
+  it('shows no badge while every feed refreshes', async () => {
+    getFeedProblems.mockResolvedValue({ problems: [], count: 0, threshold: 3 });
+    render(<SystemHealthPanel status={status({})} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(await screen.findByText('No feeds are failing.')).toBeDefined();
+    expect(screen.queryByLabelText(/failing feed/)).toBeNull();
   });
 });

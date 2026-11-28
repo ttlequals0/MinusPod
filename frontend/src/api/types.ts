@@ -68,6 +68,12 @@ export interface Feed {
   // current failure run.
   lastRefreshError?: string | null;
   lastRefreshErrorAt?: string | null;
+  // Adaptive refresh schedule (upstream feeds only; null for local and recents).
+  nextRefreshAt?: string | null;
+  refreshIntervalSeconds?: number | null;
+  refreshIntervalReason?: RefreshIntervalReason | null;
+  consecutiveRefreshFailures?: number;
+  lastRefreshOkAt?: string | null;
   // Last time a client fetched the served RSS (stamped at most every 10
   // minutes); dormant is set when dormantFeedDays is on and that is too old.
   lastFeedRequestAt?: string | null;
@@ -964,6 +970,8 @@ export interface Settings {
   maxFeedEpisodes: SettingValueNumber;
   podpingEnabled: SettingValueBoolean;
   rssRefreshIntervalMinutes: SettingValueNumber;
+  adaptiveRefreshEnabled: SettingValueBoolean;
+  adaptiveRefreshMaxMinutes: SettingValueNumber;
   dormantFeedDays: SettingValueNumber;
   queueManualBoost: SettingValueNumber;
   queueFreshBoost: SettingValueNumber;
@@ -1179,6 +1187,8 @@ export interface Settings {
     maxFeedEpisodes: number;
     podpingEnabled: boolean;
     rssRefreshIntervalMinutes: number;
+    adaptiveRefreshEnabled: boolean;
+    adaptiveRefreshMaxMinutes: number;
     dormantFeedDays: number;
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
@@ -1338,6 +1348,8 @@ export interface UpdateSettingsPayload {
   maxFeedEpisodes?: number;
   podpingEnabled?: boolean;
   rssRefreshIntervalMinutes?: number;
+  adaptiveRefreshEnabled?: boolean;
+  adaptiveRefreshMaxMinutes?: number;
   dormantFeedDays?: number;
   queueManualBoost?: number;
   queueFreshBoost?: number;
@@ -2174,4 +2186,27 @@ export interface HealthResponse {
 export interface ChangelogResponse {
   current: string;
   sections: ChangelogSection[];
+}
+
+export type RefreshIntervalReason =
+  | 'fixed' | 'floor' | 'cadence' | 'due' | 'hint' | 'max'
+  | 'dormant' | 'backoff' | 'retry_after';
+
+export interface FeedProblem {
+  slug: string;
+  title: string;
+  host: string;
+  consecutiveFailures: number;
+  errorKind: string;
+  message: string;
+  detail: string | null;
+  failingSince: string | null;
+  lastSuccessAt: string | null;
+  nextRetryAt: string | null;
+}
+
+export interface FeedProblemsResponse {
+  problems: FeedProblem[];
+  count: number;
+  threshold: number;
 }

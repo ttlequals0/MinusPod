@@ -7,8 +7,9 @@ import ChevronCaret from './ChevronCaret';
 import { FAILOVER_TARGETS, FAILOVER_TARGET_LABELS, type FailoverTargetName } from '../api/failover';
 import { btnBase, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
-import { badgeBase, tint } from './badgeStyles';
+import { badgeBase, countPill, tint } from './badgeStyles';
 import { subCard } from './pageStyles';
+import FeedProblems, { useFeedProblems } from './FeedProblems';
 
 const NODE_STALE_MS = 10 * 60 * 1000;
 
@@ -256,6 +257,7 @@ function FailoverRow({ status }: { status: SystemStatus }) {
 
 function SystemHealthPanel({ status }: { status: SystemStatus }) {
   const [open, setOpen] = useState(false);
+  const problemCount = useFeedProblems().data?.count ?? 0;
   if (!status.transcriber && !status.podping && !status.feedRefresh && !status.failover) return null;
   const overall = rollupHealth(status);
   return (
@@ -271,6 +273,12 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
           <span className={`${badgeBase} ${PILL[overall]}`}>
             {LABEL[overall]}
           </span>
+          {problemCount > 0 && (
+            <span className={`${countPill} ${tint.warning}`} title="Feeds that keep failing to refresh"
+              aria-label={`${problemCount} failing ${problemCount === 1 ? 'feed' : 'feeds'}`}>
+              {problemCount}
+            </span>
+          )}
         </span>
         <ChevronCaret expanded={open} />
       </button>
@@ -280,6 +288,7 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
           {status.podping && <PodpingRow p={status.podping} />}
           {status.feedRefresh && <FeedRefreshRow f={status.feedRefresh} />}
           {status.failover && <FailoverRow status={status} />}
+          <FeedProblems />
         </div>
       )}
     </div>

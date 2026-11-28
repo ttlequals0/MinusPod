@@ -18,6 +18,10 @@ interface GlobalDefaultsSectionProps {
   onDormantFeedDaysChange: (days: number) => void;
   rssRefreshIntervalMinutes: number;
   onRssRefreshIntervalMinutesChange: (value: number) => void;
+  adaptiveRefreshEnabled: boolean;
+  onAdaptiveRefreshEnabledChange: (enabled: boolean) => void;
+  adaptiveRefreshMaxMinutes: number;
+  onAdaptiveRefreshMaxMinutesChange: (value: number) => void;
   podpingEnabled: boolean;
   onPodpingEnabledChange: (enabled: boolean) => void;
   maxFeedEpisodes: number;
@@ -53,6 +57,10 @@ function GlobalDefaultsSection({
   onDormantFeedDaysChange,
   rssRefreshIntervalMinutes,
   onRssRefreshIntervalMinutesChange,
+  adaptiveRefreshEnabled,
+  onAdaptiveRefreshEnabledChange,
+  adaptiveRefreshMaxMinutes,
+  onAdaptiveRefreshMaxMinutesChange,
   podpingEnabled,
   onPodpingEnabledChange,
   maxFeedEpisodes,
@@ -199,8 +207,38 @@ function GlobalDefaultsSection({
             <span className="text-sm text-muted-foreground">5 to 1440</span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Minutes between background RSS refresh passes. Default 15.
+            The shortest wait, in minutes, between checks of a feed. Default 15.
           </p>
+          <label className="mt-4 flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={adaptiveRefreshEnabled}
+              onChange={onAdaptiveRefreshEnabledChange}
+              ariaLabel="Adapt refresh to each feed"
+            />
+            <span className="text-sm font-medium text-foreground">Adapt refresh to each feed</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Check busy feeds often and quiet feeds less often, and back off when a host is failing or asks us to wait. When off, every feed is checked on the interval above; a host's request to wait and failure backoff still apply.
+          </p>
+          {adaptiveRefreshEnabled && (
+            <div className="mt-3">
+              <label htmlFor="adaptiveRefreshMaxMinutes" className={labelBase}>
+                Longest wait for a healthy feed
+              </label>
+              <div className="flex items-center gap-3">
+                <NumberInput
+                  id="adaptiveRefreshMaxMinutes"
+                  value={adaptiveRefreshMaxMinutes}
+                  min={rssRefreshIntervalMinutes}
+                  max={1440}
+                  step={1}
+                  fallback={60}
+                  onCommit={onAdaptiveRefreshMaxMinutesChange}
+                />
+                <span className="text-sm text-muted-foreground">minutes, at least the interval above</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Podping notifications */}

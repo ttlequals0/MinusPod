@@ -27,3 +27,20 @@ export function deleteStopsProcessingMessage(processingCount: number): string | 
 export const DORMANT_TITLE =
   'No podcast app has fetched this feed recently, so new episodes are not auto-processed. '
   + 'Episodes still process when played, and auto-process resumes on the next feed fetch.';
+
+// Plain-language reason for a feed's current refresh wait (adaptive refresh).
+const REFRESH_REASON_TEXT: Record<string, string> = {
+  fixed: 'fixed interval',
+  floor: 'refresh interval',
+  cadence: 'follows how often it publishes',
+  due: 'an episode is due',
+  hint: 'follows the feed or host hints',
+  max: 'longest wait',
+  dormant: 'not fetched lately',
+  backoff: 'backing off after failures',
+  retry_after: 'host asked us to wait',
+};
+
+export function refreshReasonText(reason: string | null | undefined): string | null {
+  return reason ? (REFRESH_REASON_TEXT[reason] ?? null) : null;
+}

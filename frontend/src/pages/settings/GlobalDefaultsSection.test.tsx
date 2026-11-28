@@ -51,6 +51,10 @@ function Harness({ onCommit, overrides }: {
         onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={minutes}
         onRssRefreshIntervalMinutesChange={setMinutes}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -99,6 +103,10 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={10}
@@ -260,6 +268,10 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -335,6 +347,10 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -413,6 +429,10 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -515,5 +535,29 @@ describe('GlobalDefaultsSection: LLM provider None', () => {
     render(<Harness onCommit={() => {}} />);
     expectGatedByLlm(screen.getByLabelText('Verification pass by default'));
     expectNotGatedByLlm(screen.getByLabelText('Cross-fetch differential default'));
+  });
+});
+
+describe('GlobalDefaultsSection: adaptive refresh', () => {
+  it('reports the toggle and shows the longest wait only while it is on', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<Harness onCommit={() => {}} overrides={{ adaptiveRefreshEnabled: true, onAdaptiveRefreshEnabledChange: onChange }} />);
+    const toggle = screen.getByRole('switch', { name: 'Adapt refresh to each feed' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect((screen.getByLabelText('Longest wait for a healthy feed') as HTMLInputElement).value).toBe('60');
+    await userEvent.setup().click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
+    rerender(<QueryClientProvider client={new QueryClient()}><Harness onCommit={() => {}} overrides={{ adaptiveRefreshEnabled: false }} /></QueryClientProvider>);
+    expect(screen.queryByLabelText('Longest wait for a healthy feed')).toBeNull();
+  });
+
+  it('commits a new longest wait', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ onAdaptiveRefreshMaxMinutesChange: onChange }} />);
+    const input = screen.getByLabelText('Longest wait for a healthy feed');
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, '120');
+    expect(onChange).toHaveBeenLastCalledWith(120);
   });
 });

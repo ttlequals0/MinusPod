@@ -255,6 +255,8 @@ function Settings() {
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
+  const [adaptiveRefreshEnabled, setAdaptiveRefreshEnabled] = useState(true);
+  const [adaptiveRefreshMaxMinutes, setAdaptiveRefreshMaxMinutes] = useState(60);
   const [dormantFeedDays, setDormantFeedDays] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [feedItunesBlock, setFeedItunesBlock] = useState(true);
@@ -956,6 +958,8 @@ function Settings() {
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
+    { key: 'adaptiveRefreshEnabled', kind: 'val', useDefault: true, literal: true, value: adaptiveRefreshEnabled, set: setAdaptiveRefreshEnabled },
+    { key: 'adaptiveRefreshMaxMinutes', kind: 'val', useDefault: true, literal: 60, value: adaptiveRefreshMaxMinutes, set: setAdaptiveRefreshMaxMinutes },
     { key: 'dormantFeedDays', kind: 'val', useDefault: true, literal: 0, value: dormantFeedDays, set: setDormantFeedDays },
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
@@ -1376,6 +1380,10 @@ function Settings() {
         onDormantFeedDaysChange={setDormantFeedDays}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
+        adaptiveRefreshEnabled={adaptiveRefreshEnabled}
+        onAdaptiveRefreshEnabledChange={setAdaptiveRefreshEnabled}
+        adaptiveRefreshMaxMinutes={adaptiveRefreshMaxMinutes}
+        onAdaptiveRefreshMaxMinutesChange={setAdaptiveRefreshMaxMinutes}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={maxFeedEpisodes}
