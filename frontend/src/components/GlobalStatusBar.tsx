@@ -301,7 +301,7 @@ function GlobalStatusBar() {
         setIsConnected(false);
         if (error instanceof Error && error.message === 'Authentication required') {
           if (!window.location.pathname.includes('/login')) {
-            storeLoginRedirect(window.location.pathname, window.location.search);
+            storeLoginRedirect(window.location.pathname, window.location.search, window.location.hash);
           }
           return;
         }

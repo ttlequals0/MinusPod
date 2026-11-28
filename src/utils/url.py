@@ -32,6 +32,28 @@ class SSRFError(ValueError):
     pass
 
 
+_INVALID_URL_PREFIXES = ('blocked url scheme', 'blocked port', 'empty', 'missing hostname', 'url contains')
+
+
+def classify_ssrf(message: str) -> tuple[str, str]:
+    """(kind, short detail) for an SSRFError message: dns, insecure_redirect, invalid_url or blocked_address."""
+    lowered = message.lower()
+    if 'cannot resolve hostname' in lowered:
+        return 'dns', 'DNS lookup failed'
+    if 'https -> http' in lowered:
+        return 'insecure_redirect', 'Redirect to HTTP blocked'
+    if lowered.startswith(_INVALID_URL_PREFIXES):
+        return 'invalid_url', 'Address not allowed'
+    return 'blocked_address', 'Address blocked'
+
+
+def ssrf_reject_text(exc: Exception, label: str, default: str | None = None) -> str:
+    """User-facing 400 text for an SSRFError; a DNS failure is not reported as a rejected address."""
+    if classify_ssrf(str(exc))[0] == 'dns':
+        return f'Could not resolve the host name in the {label}'
+    return default if default is not None else f'Invalid {label}: {exc}'
+
+
 # An operator base URL is copied into the non-secret per-run route snapshot
 # and returned by GET /settings, so credentials embedded in it would leak.
 BASE_URL_USERINFO_ERROR = (

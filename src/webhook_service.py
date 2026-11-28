@@ -16,7 +16,7 @@ from config import FAILOVER_API_TARGET_NAMES, HTTP_MAX_REDIRECTS_API, HTTP_TIMEO
 import database
 import database.settings as db_settings
 from utils.episode_paths import episode_ui_url
-from utils.http import redact_log_text, safe_url_for_log
+from utils.http import log_ssrf_failure, redact_log_text, safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
 from utils.time import format_duration, utc_now_iso, local_now_iso, local_iso
 from utils.url import SSRFError
@@ -444,8 +444,7 @@ def _dispatch_webhook(webhook_config, context, add_test_flag=False,
                 headers=headers,
             )
         except SSRFError as exc:
-            logger.warning("Webhook URL blocked by SSRF check: %s (%s)",
-                            safe_url_for_log(url), type(exc).__name__)
+            log_ssrf_failure(logger, 'webhook delivery', exc, url, with_reason=False)
             return None, fell_back
         except Exception as exc:
             logger.warning(

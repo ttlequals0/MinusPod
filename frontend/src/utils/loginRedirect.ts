@@ -18,12 +18,12 @@ function stripBasename(path: string): string {
 }
 
 /**
- * Store the current location (pathname + search) as the post-login redirect, stripping the basename so
- * navigate() does not re-prepend it. Pass window.location.pathname (+ search) from the call site.
+ * Store the current location (pathname + search + hash) as the post-login redirect, stripping the basename so
+ * navigate() does not re-prepend it. Pass window.location.pathname, search and hash from the call site.
  */
-export function storeLoginRedirect(pathname: string, search = ''): void {
+export function storeLoginRedirect(pathname: string, search = '', hash = ''): void {
   const stripped = stripBasename(pathname);
-  const value = stripped + (search && search !== '?' ? search : '');
+  const value = stripped + (search && search !== '?' ? search : '') + (hash && hash !== '#' ? hash : '');
   sessionStorage.setItem(STORAGE_KEY, value);
 }
 
@@ -44,6 +44,6 @@ export function takeLoginRedirect(): string {
   // Strip any residual basename (defensive; should not happen with storeLoginRedirect).
   const clean = stripBasename(raw);
   // Reject redirect back to the login page itself.
-  if (clean === '/login' || clean.startsWith('/login?') || clean.startsWith('/login/')) return '/';
+  if (clean === '/login' || clean.startsWith('/login?') || clean.startsWith('/login#') || clean.startsWith('/login/')) return '/';
   return clean;
 }

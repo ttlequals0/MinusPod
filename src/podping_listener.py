@@ -20,7 +20,7 @@ from database.podcasts import has_upstream_audio
 from utils.http import redact_exc
 from utils.safe_http import URLTrust, new_revalidating_session, safe_post
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
-from utils.url import SSRFError, validate_base_url
+from utils.url import SSRFError, ssrf_reject_text, validate_base_url
 
 logger = logging.getLogger('podcast.podping')
 
@@ -99,7 +99,7 @@ def normalize_podping_nodes(nodes, *, check_hosts=False) -> list[str]:
             try:
                 validate_base_url(value)
             except SSRFError as exc:
-                raise ValueError(f'Node URL is not allowed: {exc}') from exc
+                raise ValueError(ssrf_reject_text(exc, 'node URL', f'Node URL is not allowed: {exc}')) from exc
         canonical = urlunparse((
             parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip('/'),
             parsed.params, '', ''))

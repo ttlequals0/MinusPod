@@ -5,7 +5,7 @@ import requests
 
 from database.error_text import redact_error
 from utils.http import safe_url_for_log
-from utils.url import SSRFError
+from utils.url import SSRFError, classify_ssrf
 
 KIND_MESSAGES = {
     'dns': 'The host name could not be found.',
@@ -28,7 +28,6 @@ _DNS_MARKERS = ('name or service not known', 'getaddrinfo', 'nameresolutionerror
                 'nodename nor servname', 'temporary failure in name resolution')
 _URL_RE = re.compile(r'https?://[^\s\'")>\]]+', re.IGNORECASE)
 DETAIL_LIMIT = 300
-_INVALID_URL_PREFIXES = ('blocked url scheme', 'blocked port', 'empty', 'missing hostname', 'url contains')
 
 
 def kind_for_status(status) -> str:
@@ -41,22 +40,10 @@ def kind_for_status(status) -> str:
     return 'http_error'
 
 
-def _classify_ssrf(message: str) -> tuple[str, str]:
-    """SSRFError covers more than private addresses; pick the kind for the actual cause."""
-    lowered = message.lower()
-    if 'cannot resolve hostname' in lowered:
-        return 'dns', 'DNS lookup failed'
-    if 'https -> http' in lowered:
-        return 'insecure_redirect', 'Redirect to HTTP blocked'
-    if lowered.startswith(_INVALID_URL_PREFIXES):
-        return 'invalid_url', 'Address not allowed'
-    return 'blocked_address', 'Address blocked'
-
-
 def classify_exception(exc) -> tuple[str, str]:
     """(kind, short detail) for a fetch exception; the detail never carries a URL."""
     if isinstance(exc, SSRFError):
-        return _classify_ssrf(str(exc))
+        return classify_ssrf(str(exc))
     response = getattr(exc, 'response', None)
     status = getattr(response, 'status_code', None)
     if isinstance(exc, requests.exceptions.HTTPError) and status:

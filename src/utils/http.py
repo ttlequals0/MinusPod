@@ -1,10 +1,13 @@
 """Log-oriented HTTP helpers. Outbound requests go through ``utils.safe_http``
 for per-redirect SSRF revalidation and downgrade guards."""
+import logging
 import re
 import sys
 from urllib.parse import urlsplit
 
 from flask import request
+
+from utils.url import classify_ssrf
 
 # Any run of 64 or more hex chars goes, so a key glued to a percent escape or more hex is still caught.
 _FEED_CREDENTIAL_RE = re.compile(r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64,}')
@@ -235,3 +238,22 @@ def redirect_chain_for_log(response, keep_query: bool = False) -> list[str]:
         lines.append("  final: " + safe_url_for_log(
             getattr(response, 'url', None), keep_path=True, keep_query=keep_query))
     return lines
+
+
+_SSRF_LABELS = {
+    'blocked_address': 'Blocked address',
+    'invalid_url': 'Rejected URL',
+    'insecure_redirect': 'Insecure redirect blocked',
+}
+
+
+def log_ssrf_failure(log, where, exc, url=None, prefix='', warn_level=logging.WARNING,
+                     with_reason=True):
+    """Log an SSRFError by cause: a DNS failure at INFO, a blocked target at ``warn_level``; host only."""
+    kind, _ = classify_ssrf(str(exc))
+    host = f' ({safe_url_for_log(url)})' if url else ''
+    if kind == 'dns':
+        log.info('%sCould not resolve host in %s%s', prefix, where, host)
+    else:
+        reason = f': {redact_exc_urls(exc)}' if with_reason else ''
+        log.log(warn_level, '%s%s in %s%s%s', prefix, _SSRF_LABELS[kind], where, reason, host)

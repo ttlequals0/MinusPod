@@ -14,6 +14,16 @@ release notes.
 
 - Each processing run shows the MinusPod version that made it. The Processing tab on the episode page has a **Version** column, and `processingRuns[].appVersion` in the episode API carries it. Runs recorded before 2.78.4 have no version and show nothing.
 
+### Changed
+
+- The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top, and a pill shows how many detections are held. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript search result opens the Transcript tab.
+
+### Fixed
+
+- A link opened while signed out now keeps its `#` target through sign-in. A link such as `/settings#api-tokens` or an episode link ending in `#held-for-review-section` used to land at the top of the page after login.
+- A pattern result in global search now opens that pattern's detail instead of a filtered list, including a pattern that is inactive or outside the list's current filters.
+- Adding a feed, editing its URL or importing OPML with a host name that does not resolve now reports that the name could not be resolved, and the server logs it at INFO instead of as a blocked address. Other rejections (private, loopback or metadata addresses, blocked ports, bad schemes, HTTPS to HTTP redirects) still return 400 and log a warning that names the cause.
+
 ## [2.103.0] - 2026-11-27
 
 ### Added

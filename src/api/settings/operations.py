@@ -33,7 +33,7 @@ from processing_schedule import (
 )
 from llm_route import VALID_SLOTS, SAME_AS_DETECTION
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
-from utils.url import SSRFError, validate_base_url
+from utils.url import SSRFError, ssrf_reject_text, validate_base_url
 from webhook_service import fire_queue_resumed_event
 from db_backup_service import (
     DEFAULT_CRON, KEEP_COUNT_MAX, KEEP_COUNT_MIN, dest_writable,
@@ -278,7 +278,7 @@ def update_rate_limit_hold_settings():
             try:
                 validate_base_url(usage_url)
             except SSRFError as e:
-                return error_response(f'Invalid LLM usage URL: {e}', 400)
+                return error_response(ssrf_reject_text(e, 'LLM usage URL'), 400)
         db.set_setting('llm_usage_url', usage_url, is_default=False)
     if 'rateLimitProbeMinutes' in data:
         minutes = data['rateLimitProbeMinutes']

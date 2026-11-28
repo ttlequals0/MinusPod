@@ -292,7 +292,7 @@ two requests every 3 seconds while the toggle is on (a head poll plus
 a block fetch each tick). If a node is unreachable, the listener
 rotates to the next one and backs off.
 
-Settings > System Health lists each node's endpoint, latest HTTP status,
+Settings > System status lists each node's endpoint, latest HTTP status,
 and last successful response time. It identifies the node carrying listener
 traffic. While the listener is enabled, MinusPod checks every node at startup
 and every five minutes. **Check now** runs the same check on demand, even when

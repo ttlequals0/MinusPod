@@ -62,7 +62,7 @@ import run_log
 from storage import _detect_image_mime
 from utils.constants import EpisodeStatus
 from utils.feed_guid import compute_feed_guid
-from utils.http import safe_url_for_log
+from utils.http import log_ssrf_failure, safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
@@ -78,7 +78,7 @@ from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
 from utils.safe_http import validate_feed_source_url
-from utils.url import reject_url_whitespace, SSRFError
+from utils.url import reject_url_whitespace, SSRFError, ssrf_reject_text
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
@@ -266,8 +266,8 @@ def _validate_source_url(value, podcast=None):
         reject_url_whitespace(url)
         validate_feed_source_url(url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in update_feed: {e} (url={safe_url_for_log(url)})")
-        return None, f'Invalid feed URL: {e}'
+        log_ssrf_failure(logger, 'update_feed', e, url)
+        return None, ssrf_reject_text(e, 'feed URL')
     # 15s per attempt so a slow host cannot hang the PATCH toward the worker
     # timeout; the shared retry keeps 403-on-first-fetch hosts working here
     # the same way they do in add_feed.
@@ -1521,8 +1521,8 @@ def add_feed():
         reject_url_whitespace(source_url)
         validate_feed_source_url(source_url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in add_feed: {e} (url={safe_url_for_log(source_url)})")
-        return error_response(f'Invalid feed URL: {e}', 400)
+        log_ssrf_failure(logger, 'add_feed', e, source_url)
+        return error_response(ssrf_reject_text(e, 'feed URL'), 400)
 
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
@@ -1747,8 +1747,8 @@ def import_opml():
             reject_url_whitespace(source_url)
             validate_feed_source_url(source_url)
         except SSRFError as e:
-            logger.warning(f"SSRF blocked in OPML import: {e} (url={safe_url_for_log(source_url)})")
-            failed.append({'url': source_url, 'error': f'Invalid URL: {e}'})
+            log_ssrf_failure(logger, 'OPML import', e, source_url)
+            failed.append({'url': source_url, 'error': ssrf_reject_text(e, 'URL')})
             continue
 
         # Generate slug
