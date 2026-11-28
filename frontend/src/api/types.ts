@@ -894,12 +894,6 @@ export interface SystemOneProfile {
   categoryPass: boolean;
   categoryContext: number;
   defaultCategory: string;
-  refineBoundaries: boolean;
-  reviewEvidenceEnter: number | null;
-  reviewChoiceEnter: number | null;
-  reviewProgrammeVeto: number;
-  reviewBoundaryCapSeconds: number;
-  reviewContextSeconds: number;
   requestDeadlineSeconds: number;
   maxConcurrentOperations: number;
   retryAfterMaxSeconds: number;
@@ -960,6 +954,8 @@ export interface Settings {
   // and model from whichever pass is being reviewed (see llm_route.py).
   reviewProvider: SettingValue;
   reviewMaxBoundaryShift: SettingValueNumber;
+  // True when the reviewer is on but its route resolves to System One, so it does not run.
+  reviewerNeedsLlm?: boolean;
   claudeModel: SettingValue;
   verificationModel: SettingValue;
   // Per-phase provider overrides: empty value inherits (detection falls
@@ -1996,8 +1992,6 @@ export interface SystemOneStats {
   unknownCostRequestCount: number;
   outcomes: Record<'completed' | 'failed' | 'inconclusive', number>;
   reviewReasons: Record<string, number>;
-  refinements: { attempted: number; completed: number; skipped: number; inconclusive: number; upstream_error: number };
-  refinementSkipReasons: Record<string, number>;
 }
 
 export interface LlmStats {

@@ -1390,23 +1390,12 @@ export default function StatsPage() {
                 <StatTile label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} hint={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${requestCount(systemOneStats.tokens.unknownRequestCount)}` : undefined} />
                 <StatTile label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} hint={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${requestCount(systemOneStats.unknownCostRequestCount)} unpriced` : undefined} />
                 <StatTile label="Average request time" value={formatMs(systemOneStats.dispatchLatencyMsAverage)} hint="Per HTTP request" />
-                <StatTile label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} hint={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
               </div>
               {Object.keys(systemOneStats.reviewReasons).length > 0 && (
                 <div className="mt-4 border-t border-border pt-3">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Review outcomes by reason</h4>
                   <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
                     {Object.entries(systemOneStats.reviewReasons).map(([reason, count]) => (
-                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {Object.keys(systemOneStats.refinementSkipReasons).length > 0 && (
-                <div className="mt-4 border-t border-border pt-3">
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Refinement skips by reason</h4>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                    {Object.entries(systemOneStats.refinementSkipReasons).map(([reason, count]) => (
                       <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
                     ))}
                   </ul>

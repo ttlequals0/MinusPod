@@ -15,12 +15,6 @@ const profile: SystemOneProfile = {
   categoryPass: true,
   categoryContext: 2,
   defaultCategory: 'cross_promo',
-  refineBoundaries: true,
-  reviewEvidenceEnter: null,
-  reviewChoiceEnter: null,
-  reviewProgrammeVeto: 0.9,
-  reviewBoundaryCapSeconds: 30,
-  reviewContextSeconds: 60,
   requestDeadlineSeconds: 75,
   maxConcurrentOperations: 4,
   retryAfterMaxSeconds: 5,
@@ -95,19 +89,19 @@ describe('SystemOneTunablesSection', () => {
     expect(onSave).toHaveBeenCalledWith({ systemOneTunables: { primary: { typesafe: { requestDeadlineSeconds: 0.00025 } } } });
   });
 
-  it('saves null when a nullable threshold is cleared to inherit detection', async () => {
+  it('saves null when a nullable limit is cleared', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const customized = structuredClone(profiles);
-    customized.secondary['systemone-compatible'].reviewEvidenceEnter = 0.72;
+    customized.secondary['systemone-compatible'].maxQuestionsPerRequest = 64;
     render(<SystemOneTunablesSection connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.selectOptions(screen.getByLabelText('Provider'), 'secondary');
-    const field = screen.getByLabelText('Evidence enter threshold', { selector: '#secondary-systemone-compatible-reviewEvidenceEnter' }) as HTMLInputElement;
+    const field = screen.getByLabelText('Questions per API request', { selector: '#secondary-systemone-compatible-maxQuestionsPerRequest' }) as HTMLInputElement;
     await user.clear(field);
     await user.click(screen.getByRole('button', { name: 'Save System One tuning' }));
     expect(field.value).toBe('');
-    expect(onSave).toHaveBeenCalledWith({ systemOneTunables: { secondary: { 'systemone-compatible': { reviewEvidenceEnter: null } } } });
+    expect(onSave).toHaveBeenCalledWith({ systemOneTunables: { secondary: { 'systemone-compatible': { maxQuestionsPerRequest: null } } } });
   });
 
   it('keeps the reset draft visible and renders the error after a rejected reset', async () => {

@@ -589,7 +589,6 @@ function Settings() {
     reviewer.model,
     [selectedModel, effectiveVerificationModel],
   );
-  const reviewUsesSystemOne = reviewProviders.some((provider, index) => isSystemOneRoute(provider, reviewModels[index]));
   const cleanupProvider = settings?.patternCleanupProvider?.value;
   const cleanupSlot = cleanupProvider === SLOT_SECONDARY && secondaryProviderEnabled && secondaryProvider
     ? SLOT_SECONDARY : cleanupProvider === SLOT_PRIMARY || cleanupProvider === SLOT_SECONDARY
@@ -1676,7 +1675,6 @@ function Settings() {
           chaptersModel={effectiveChaptersModel}
           reviewModels={reviewModels}
           reviewRoutes={reviewProviders.map((provider, index) => ({ provider, model: reviewModels[index] }))}
-          reviewEnabled={reviewer.enabled}
           onSave={(payload) => stageTunablesMutation.mutate(payload)}
           saveIsPending={stageTunablesMutation.isPending}
           saveIsSuccess={stageTunablesMutation.isSuccess}
@@ -1819,7 +1817,9 @@ function Settings() {
       <AdReviewerSection
         reviewer={reviewer}
         onChange={handleReviewerChange}
-        systemOneReview={reviewUsesSystemOne}
+        needsLlm={settings?.reviewerNeedsLlm ?? false}
+        primaryIsSystemOne={isSystemOneRoute(llmProvider, '')}
+        secondaryIsSystemOne={isSystemOneRoute(secondaryProvider, '')}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
         secondaryProviderEnabled={secondaryProviderEnabled}

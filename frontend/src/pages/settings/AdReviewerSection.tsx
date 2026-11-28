@@ -11,6 +11,7 @@ import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { SAME_AS_PASS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { LlmGate } from './LlmGate';
+import { isSystemOneRoute } from './systemoneWarnings';
 import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 export interface ReviewerState {
@@ -45,7 +46,10 @@ interface AdReviewerSectionProps {
   // Per-prompt reset (issue #626); the override fields have no button of
   // their own since resetting the base prompt clears its override too.
   reviewPromptIsDefault?: boolean;
-  systemOneReview?: boolean;
+  // The API says the review stage resolves to System One, so the reviewer cannot run.
+  needsLlm?: boolean;
+  primaryIsSystemOne?: boolean;
+  secondaryIsSystemOne?: boolean;
   resurrectPromptIsDefault?: boolean;
   onResetReviewPrompt?: () => void;
   onResetResurrectPrompt?: () => void;
@@ -60,7 +64,9 @@ function AdReviewerSection({
   modelsRefresh,
   secondaryProviderEnabled = false,
   reviewPromptIsDefault,
-  systemOneReview = false,
+  needsLlm = false,
+  primaryIsSystemOne = false,
+  secondaryIsSystemOne = false,
   resurrectPromptIsDefault,
   onResetReviewPrompt,
   onResetResurrectPrompt,
@@ -73,7 +79,7 @@ function AdReviewerSection({
   // provider is off; hiding it would read as Same as pass, which it is not.
   const strandedOnSecondary = reviewer.provider === SLOT_SECONDARY && !secondaryProviderEnabled;
 
-  const models = catalog?.models ?? [];
+  const models = (catalog?.models ?? []).filter((m) => !isSystemOneRoute('', m.id));
   // Without an option of its own, a stored model the catalog lacks (proxy,
   // private deployment, stale provider tag) displays as "Same as pass model".
   const modelIsOrphan =
@@ -93,9 +99,9 @@ function AdReviewerSection({
         id="ad-reviewer"
         className="space-y-6 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11"
       >
-        {reviewer.enabled && systemOneReview && (
+        {reviewer.enabled && needsLlm && (
           <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-            Ad review with System One models is experimental.
+            The reviewer needs an LLM provider. System One cannot review detections.
           </div>
         )}
         {/* Reviewer behavior */}
@@ -112,7 +118,7 @@ function AdReviewerSection({
               </span>
             </label>
             <p className="mt-2 text-sm text-muted-foreground ml-14">
-              {systemOneReview ? 'Reviews each detected ad and may send several requests.' : 'Adds one LLM call per detected ad.'} Worth it on comedy, fiction, and sponsor-adjacent news podcasts where the detector struggles with editorial mentions.
+              Adds one LLM call per detected ad. Worth it on comedy, fiction, and sponsor-adjacent news podcasts where the detector struggles with editorial mentions.
             </p>
           </div>
 
@@ -129,9 +135,13 @@ function AdReviewerSection({
                 aria-describedby="reviewProvider-help"
               >
                 <option value={SAME_AS_PASS}>Same as pass</option>
-                <option value={SLOT_PRIMARY}>{SLOT_LABELS.primary}</option>
+                <option value={SLOT_PRIMARY} disabled={primaryIsSystemOne}>
+                  {SLOT_LABELS.primary}{primaryIsSystemOne ? ' (System One)' : ''}
+                </option>
                 {secondaryProviderEnabled && (
-                  <option value={SLOT_SECONDARY}>{SLOT_LABELS.secondary}</option>
+                  <option value={SLOT_SECONDARY} disabled={secondaryIsSystemOne}>
+                    {SLOT_LABELS.secondary}{secondaryIsSystemOne ? ' (System One)' : ''}
+                  </option>
                 )}
                 {strandedOnSecondary && (
                   <option value={SLOT_SECONDARY}>{SLOT_LABELS.secondary} (off)</option>
