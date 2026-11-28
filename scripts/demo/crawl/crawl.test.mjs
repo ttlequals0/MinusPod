@@ -36,6 +36,7 @@ test('429 and 5xx responses are crawl errors, other statuses are not', () => {
 
 test('the disclosure selector skips menu triggers', () => {
   assert.ok(CLOSED.includes(':not([aria-haspopup])'));
+  assert.ok(CLOSED.split(', ').every((part) => part.endsWith(':visible')));
 });
 
 // Stub page: one modal that is visible until closed by the Close button or Escape.

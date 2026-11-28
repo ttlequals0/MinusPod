@@ -8,6 +8,9 @@ import { writeAtomic } from './lib/store.mjs';
 const SETTLE_MS = 2500;
 const SECTION_SETTLE_MS = 300;
 const OPEN_EDITOR = '[data-testid^="open-editor-"]';
+// A route over its budget fails with a message; the whole crawl stops at its budget.
+const ROUTE_BUDGET_MS = 120_000;
+const CRAWL_BUDGET_MS = 32 * 60_000;
 
 // feeds: [{ slug, feedType, episodes: [id] }]. Recents feeds get no per-episode routes.
 export function expandRoutes(routes, feeds) {
@@ -46,8 +49,9 @@ async function listFeeds(base, perFeed) {
 
 const MAX_DISCLOSURE_PASSES = 4;
 const MAX_CLICKS_PER_PASS = 80;
-// Menu triggers (Download, Reprocess) carry aria-haspopup and are not disclosures.
-export const CLOSED = 'main button[aria-expanded="false"]:not([aria-haspopup]), main summary';
+// Menu triggers (Download, Reprocess) carry aria-haspopup and are not disclosures. Hidden ones
+// (the stats table and its phone card list both render) cannot be clicked and cost a timeout each.
+export const CLOSED = 'main button[aria-expanded="false"]:not([aria-haspopup]):visible, main summary:visible';
 const DIALOG = '[role=dialog][aria-modal="true"]';
 const CLOSE_BUTTON = 'button[aria-label="Close"], button:text-is("Close")';
 const MAX_DIALOG_ROUNDS = 3;
@@ -81,22 +85,23 @@ export async function dismissDialogs(page) {
 
 // Each tab is visited once with its disclosures expanded. Disclosures are re-queried after
 // every click because polling pages re-render and stale handles stop being clickable.
-async function expandAll(page) {
+async function expandAll(page, deadline) {
   const tabs = page.locator('main [role=tab]');
   const count = await tabs.count();
-  if (!count) return expandDisclosures(page);
+  if (!count) return expandDisclosures(page, deadline);
   for (let i = 0; i < count; i++) {
     await tabs.nth(i).click({ timeout: 2000 }).catch(() => {});
     await page.waitForLoadState('networkidle').catch(() => {});
-    await expandDisclosures(page);
+    await expandDisclosures(page, deadline);
   }
 }
 
-async function expandDisclosures(page) {
+async function expandDisclosures(page, deadline) {
   for (let pass = 0; pass < MAX_DISCLOSURE_PASSES; pass++) {
     let opened = 0;
     let skip = 0;
     for (let clicks = 0; clicks < MAX_CLICKS_PER_PASS; clicks++) {
+      if (Date.now() > deadline) throw new Error(`over the ${ROUTE_BUDGET_MS} ms route budget while expanding sections`);
       const closed = page.locator(CLOSED);
       const before = await closed.count();
       if (skip >= before) break;
@@ -115,7 +120,14 @@ async function expandDisclosures(page) {
 
 // Returns true when the editor dialog actually appeared.
 async function openEditor(page) {
-  const btn = page.locator(OPEN_EDITOR).first();
+  // Inactive section panels stay mounted but hidden, so look for a visible trigger on each tab.
+  const btn = page.locator(`${OPEN_EDITOR}:visible`).first();
+  const tabs = page.locator('main [role=tab]');
+  const tabCount = await tabs.count();
+  for (let i = 0; i < tabCount && !(await btn.count()); i++) {
+    await tabs.nth(i).click({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(SECTION_SETTLE_MS);
+  }
   if (!(await btn.count())) return false;
   await btn.click({ timeout: 5000 });
   const opened = await page.locator('[role=dialog]').first()
@@ -151,12 +163,18 @@ export async function crawl({ base, out, uiBase = '', routes }) {
   const visited = [];
   const dialogsDismissed = [];
   let editorOpened = false;
+  const crawlDeadline = Date.now() + CRAWL_BUDGET_MS;
   for (const route of expected) {
+    if (Date.now() > crawlDeadline) {
+      failures.push(`crawl budget of ${CRAWL_BUDGET_MS / 60_000} min spent after ${visited.length}/${expected.length} routes; stopped before ${route}`);
+      break;
+    }
+    const started = Date.now();
     try {
       await page.goto(`${base}${uiBase}${route}`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(SETTLE_MS);
       dialogsDismissed.push(...await dismissDialogs(page));
-      await expandAll(page);
+      await expandAll(page, started + ROUTE_BUDGET_MS);
       dialogsDismissed.push(...await dismissDialogs(page));
       await page.waitForTimeout(500);
       if (!editorOpened && /\/episodes\/[^/?]+$/.test(route)) editorOpened = await openEditor(page);
@@ -164,6 +182,7 @@ export async function crawl({ base, out, uiBase = '', routes }) {
     } catch (err) {
       failures.push(`${route}: ${err.message}`);
     }
+    console.log(`[${visited.length + failures.length}/${expected.length}] ${Date.now() - started} ms ${route}`);
   }
   await context.close();
   await browser.close();

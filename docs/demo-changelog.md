@@ -10,6 +10,9 @@ This file tracks the hosted demo and its tooling, which are separate from the se
 
 ### Changed
 
+- The crawl only clicks disclosures that are visible. Hidden duplicates (the Stats usage table and its phone card list both render) each cost a click timeout, which pushed the fixture check past its 45 minute limit. Each route now has a 2 minute budget and the whole crawl 32 minutes, and the crawl logs the time of every route.
+- The crawl opens the ad review editor from the episode tab that shows it. Inactive episode tabs stay mounted but hidden, so the old first-match click timed out on a hidden button and failed the episode routes.
+- The coverage check allows `/auth/tokens`, which the Settings page requests only when a password is set and the demo has none.
 - The snapshot export empties the new `api_tokens` table, so no API token hash reaches the demo database.
 - The demo's Needs review filter and count cover only held detections, matching the app. Uncut detections are under Not cut.
 - The snapshot export also empties `episode_detection_markers`, the per-episode marker cache behind the Detected ads and Ad review lists.

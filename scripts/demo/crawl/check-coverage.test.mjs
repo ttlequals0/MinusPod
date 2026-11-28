@@ -16,4 +16,5 @@ test('keeps GET calls with options, drops query strings and nested-brace bodies'
 test('wildcards match one segment and allow list may use wildcards', () => {
   assert.deepEqual(uncovered(['/feeds/*/tags'], ['/feeds/a/b/tags']), ['/feeds/*/tags']);
   assert.deepEqual(uncovered(['/cue-templates/*/export'], []), []);
+  assert.deepEqual(uncovered(['/auth/tokens'], []), []);
 });
