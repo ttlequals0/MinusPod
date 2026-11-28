@@ -88,7 +88,7 @@ function SecuritySection({
     queryFn: getSettings,
   });
 
-  const { data: apiTokens = [] } = useQuery({
+  const { data: apiTokens, isSuccess: tokensLoaded } = useQuery({
     queryKey: API_TOKENS_QUERY_KEY,
     queryFn: listApiTokens,
     enabled: isPasswordSet,
@@ -231,6 +231,7 @@ function SecuritySection({
   return (
     <CollapsibleSection
       title="Security"
+      anchorId="api-tokens"
       subtitle={isPasswordSet ? 'Password protection is enabled' : 'No password set - app is publicly accessible'}
     >
       <div className="flex justify-end mb-4">
@@ -312,7 +313,7 @@ function SecuritySection({
           />
         </div>
 
-        {isPasswordSet && apiTokens.length > 0 && (
+        {isPasswordSet && !(tokensLoaded && apiTokens?.length === 0) && (
           <div>
             <Checkbox
               checked={revokeTokens}

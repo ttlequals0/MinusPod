@@ -234,7 +234,9 @@ describe('Settings: 2.103 controls in the category layout', () => {
     const heading = await screen.findByRole('heading', { name: 'Global defaults' });
     expect(panel(container, 'general').contains(heading)).toBe(true);
     expect(panel(container, 'ai').contains(heading)).toBe(false);
-    expect(screen.getAllByRole('button', { name: /^General \(4\)/ }).length).toBeGreaterThan(0);
+    const cards = Array.from(panel(container, 'general').querySelectorAll('[data-search-key]'))
+      .filter((c) => !c.parentElement?.closest('[data-search-key]')).length;
+    expect(screen.getAllByRole('button', { name: new RegExp(`^General \\(${cards}\\)`) }).length).toBeGreaterThan(0);
   });
 
   it.each([

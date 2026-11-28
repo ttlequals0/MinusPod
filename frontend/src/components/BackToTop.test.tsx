@@ -54,4 +54,36 @@ describe('BackToTop', () => {
     });
     expect(screen.queryByRole('button', { name: 'Back to top' })).toBeNull();
   });
+
+  it('moves focus to the page heading when it unmounts while focused', () => {
+    mount();
+    scrollTo(3000);
+    screen.getByRole('button', { name: 'Back to top' }).focus();
+    scrollTo(0);
+    expect(screen.queryByRole('button', { name: 'Back to top' })).toBeNull();
+    expect(document.activeElement).toBe(document.querySelector('h1'));
+  });
+
+  it('leaves focus alone when the button is not focused as it hides', () => {
+    mount();
+    scrollTo(3000);
+    const other = document.createElement('button');
+    document.body.appendChild(other);
+    other.focus();
+    scrollTo(0);
+    expect(document.activeElement).toBe(other);
+  });
+
+  it('stops observing the document once the button is hidden', () => {
+    const observe = vi.spyOn(MutationObserver.prototype, 'observe');
+    mount();
+    expect(observe).not.toHaveBeenCalled();
+    scrollTo(3000);
+    expect(observe).toHaveBeenCalledTimes(1);
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    scrollTo(0);
+    expect(disconnect).toHaveBeenCalled();
+    observe.mockRestore();
+    disconnect.mockRestore();
+  });
 });

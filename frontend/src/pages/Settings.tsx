@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type ReactNode } from 'react';
 import { BookOpen, FileText } from 'lucide-react';
 import QueryError from '../components/QueryError';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -114,12 +114,23 @@ const SETTINGS_CATEGORIES: ReadonlyArray<{ id: SettingsCategoryId; label: string
   { id: 'data', label: 'Data and security' },
 ];
 
-const ANCHOR_CATEGORY: Record<string, SettingsCategoryId> = {
-  'podcast-index': 'general',
-  youtube: 'general',
-  'segment-actions': 'detection',
-  'pattern-cleanup-section': 'detection',
-};
+// Category panel that holds the element with this id, read from the rendered DOM.
+function categoryOfAnchor(id: string): SettingsCategoryId | null {
+  const panel = document.getElementById(id)?.closest<HTMLElement>('[data-settings-category]');
+  const category = panel?.dataset.settingsCategory;
+  return SETTINGS_CATEGORIES.some((c) => c.id === category) ? (category as SettingsCategoryId) : null;
+}
+
+// Section cards rendered per category panel (hidden panels and search-hidden cards included).
+function countSectionsByCategory(root: ParentNode): Record<SettingsCategoryId, number> {
+  const counts = { general: 0, ai: 0, detection: 0, output: 0, data: 0 };
+  root.querySelectorAll<HTMLElement>('[data-settings-category]').forEach((panel) => {
+    const id = panel.dataset.settingsCategory as SettingsCategoryId;
+    counts[id] = Array.from(panel.querySelectorAll('[data-search-key]'))
+      .filter((card) => !card.parentElement?.closest('[data-search-key]')).length;
+  });
+  return counts;
+}
 
 function SettingsCategoryPanel({
   category,
@@ -800,16 +811,15 @@ function Settings() {
   const sectionTarget = location.hash.length > 1
     ? { id: decodeURIComponent(location.hash.slice(1)), seq: location.key }
     : null;
-  const targetCategory = sectionTarget ? ANCHOR_CATEGORY[sectionTarget.id] ?? null : null;
-  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>(() => targetCategory ?? 'general');
+  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>('general');
   const targetKey = sectionTarget ? `${sectionTarget.id}:${sectionTarget.seq ?? ''}` : null;
-  const [prevTargetKey, setPrevTargetKey] = useState<string | null>(targetKey);
-  if (targetKey !== prevTargetKey) {
-    setPrevTargetKey(targetKey);
-    if (targetCategory && targetCategory !== activeCategory) {
-      setActiveCategory(targetCategory);
-    }
-  }
+  // Re-runs once settings load, when the panels first render. The target lives in a hidden panel until its category is active; the section's reveal re-aligns on the layout change.
+  useLayoutEffect(() => {
+    const category = sectionTarget ? categoryOfAnchor(sectionTarget.id) : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (category) setActiveCategory(category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetKey, settingsLoading]);
 
   // Sync form fields with server data via a during-render compare (the React 19 alternative to a
   // useEffect+setState). useSyncFromQuery holds the snapshot+conditional-setState pattern; staying render-phase
@@ -1320,6 +1330,16 @@ function Settings() {
     },
   });
 
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [categoryCounts, setCategoryCounts] = useState(() => countSectionsByCategory(document));
+  // Counts come from the rendered section cards, so adding or moving one cannot leave a stale number.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (!pageRef.current) return;
+    const next = countSectionsByCategory(pageRef.current);
+    setCategoryCounts((prev) => (SETTINGS_CATEGORIES.every((c) => prev[c.id] === next[c.id]) ? prev : next));
+  });
+
   const cleanupMutation = useMutation({
     mutationFn: runCleanup,
     onSuccess: () => {
@@ -1343,20 +1363,10 @@ function Settings() {
     </div>;
   }
 
-  const aiSectionCount = 5
-    + (settings.stageTunables && settings.stageTunableDefaults ? 1 : 0)
-    + (hasAllSystemOneProfiles(settings) ? 1 : 0);
-  const categoryCounts: Record<SettingsCategoryId, number> = {
-    general: 4,
-    ai: aiSectionCount,
-    detection: 11,
-    output: 3,
-    data: 9,
-  };
   const isSearching = searchMatches !== null;
 
   return (
-    <div className="max-w-3xl lg:max-w-5xl mx-auto space-y-4 pb-20">
+    <div ref={pageRef} className="max-w-3xl lg:max-w-5xl mx-auto space-y-4 pb-20">
       {settingsFailed && <QueryError title="Settings could not be refreshed. Showing the last loaded values." onRetry={() => void retrySettings()} retrying={settingsFetching} />}
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3">

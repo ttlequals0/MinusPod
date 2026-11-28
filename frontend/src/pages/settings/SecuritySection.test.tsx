@@ -4,7 +4,7 @@
  * set: none.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SecuritySection from './SecuritySection';
@@ -158,12 +158,26 @@ describe('SecuritySection revoke API tokens option', () => {
     expect(mockSetPassword).toHaveBeenCalledWith('new-password-1234', 'old-password-123', false);
   });
 
-  it('is hidden when no password is set or no token exists', async () => {
+  it('is hidden when no password is set or the loaded list is empty', async () => {
     renderSection({ isPasswordSet: false });
     expect(screen.queryByRole('checkbox', { name: 'Also revoke API tokens' })).toBeNull();
     renderSection({ isPasswordSet: true });
-    await screen.findByText('Current password');
-    expect(screen.queryByRole('checkbox', { name: 'Also revoke API tokens' })).toBeNull();
+    await waitFor(() => expect(mockListApiTokens).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Also revoke API tokens' })).toBeNull());
+  });
+
+  it('stays visible while the token list is loading', async () => {
+    mockListApiTokens.mockReturnValue(new Promise(() => {}));
+    renderSection({ isPasswordSet: true });
+    expect(await screen.findByRole('checkbox', { name: 'Also revoke API tokens' })).toBeDefined();
+  });
+
+  it('stays visible when the token list fails to load', async () => {
+    mockListApiTokens.mockRejectedValue(new Error('boom'));
+    renderSection({ isPasswordSet: true });
+    expect(await screen.findByRole('checkbox', { name: 'Also revoke API tokens' })).toBeDefined();
+    await waitFor(() => expect(mockListApiTokens).toHaveBeenCalled());
+    expect(screen.getByRole('checkbox', { name: 'Also revoke API tokens' })).toBeDefined();
   });
 });
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
@@ -10,13 +10,26 @@ const bottomInset = () => Array.from(document.querySelectorAll<HTMLElement>('[da
   .reduce((total, bar) => total + bar.getBoundingClientRect().height, 0);
 const dialogOpen = () => document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
 
+function focusMain() {
+  const target = document.querySelector<HTMLElement>('main h1') ?? document.getElementById('main');
+  if (!target) return;
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+  target.focus({ preventScroll: true });
+}
+
 function BackToTop() {
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [inset, setInset] = useState(0);
   const [modal, setModal] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > window.innerHeight * SHOW_AFTER_VIEWPORTS);
+    const onScroll = () => {
+      const next = window.scrollY > window.innerHeight * SHOW_AFTER_VIEWPORTS;
+      // The focused button is about to unmount; keep focus in the page.
+      if (!next && buttonRef.current && buttonRef.current === document.activeElement) focusMain();
+      setScrolled(next);
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
@@ -26,38 +39,41 @@ function BackToTop() {
     };
   }, []);
 
+  // Observe layout only while the button can show; scrolling back past the threshold re-measures.
   useEffect(() => {
+    if (!scrolled) return;
     let frame = 0;
+    const bars = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => schedule());
     const measure = () => {
       frame = 0;
       setInset(bottomInset());
       setModal(dialogOpen());
+      bars?.disconnect();
+      document.querySelectorAll('[data-viewport-inset="bottom"]').forEach((bar) => bars?.observe(bar));
     };
-    const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
+    function schedule() { if (!frame) frame = requestAnimationFrame(measure); }
     measure();
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('resize', schedule);
     return () => {
       observer.disconnect();
+      bars?.disconnect();
       window.removeEventListener('resize', schedule);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [scrolled]);
 
   const goTop = useCallback(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
-    const target = document.querySelector<HTMLElement>('main h1') ?? document.getElementById('main');
-    if (target) {
-      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-      target.focus({ preventScroll: true });
-    }
+    focusMain();
   }, []);
 
   if (!scrolled || modal) return null;
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={goTop}
       aria-label="Back to top"
