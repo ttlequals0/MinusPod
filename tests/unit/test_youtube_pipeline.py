@@ -218,6 +218,23 @@ def test_sponsorblock_only_never_calls_the_reviewer_but_llm_on_top_does():
     assert _run.extras['reviewer'].called
 
 
+def test_youtube_captions_transcript_sets_reuse_transcript_for_verification():
+    """YouTube episode with captions sets reuse_transcript=True in verification pass (#1100)."""
+    ok, whisper, detect, verification, ap, *_ = _run(
+        [dict(MARKERS[0])], llm_on_top=True, captions=True)
+    assert ok is True
+    assert verification.call_args.kwargs['reuse_transcript'] is True
+
+
+def test_youtube_whisper_transcript_does_not_set_reuse_transcript_for_verification():
+    """YouTube episode falling back to Whisper sets reuse_transcript=False in verification pass (#1100)."""
+    ok, whisper, detect, verification, ap, *_ = _run(
+        [dict(MARKERS[0])], llm_on_top=True, captions=False)
+    assert ok is True
+    assert verification.call_args.kwargs['reuse_transcript'] is False
+
+
+
 def test_full_and_llm_reprocess_force_pass_1_while_plain_reprocess_keeps_marks_only():
     for mode, expected in (('full', 'llm'), ('llm', 'llm'), ('reprocess', 'sponsorblock')):
         ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS, reprocess_mode=mode)

@@ -14,6 +14,10 @@ release notes.
 
 - LLMTR pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://llmtr.com/v1`, the pricing refresh reads input, output and cache-read rates from LLMTR's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. The LLM providers guide gains an LLMTR setup section.
 
+### Fixed
+
+- A verification pass on a YouTube feed with captions as the transcript no longer re-transcribes the audio with Whisper when pass 1 makes cuts. The caption segments are now mapped through the pass-1 cuts, matching the behavior of LLM-only reprocess runs (#1100).
+
 ## [2.102.27] - 2026-11-27
 
 ### Changed

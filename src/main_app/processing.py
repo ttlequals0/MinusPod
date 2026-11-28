@@ -1136,8 +1136,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     local_audio_processor, detection_progress_callback,
                     original_segments=segments,
                     # LLM-only reprocess maps the saved transcript through the cuts
-                    # for pass 2 instead of re-transcribing (issue #349).
-                    reuse_transcript=(reprocess_mode == 'llm'),
+                    # for pass 2 instead of re-transcribing (issue #349). Caption-sourced
+                    # transcripts reuse the caption segments rather than running Whisper (#1100).
+                    reuse_transcript=(
+                        reprocess_mode == 'llm'
+                        or transcribe_outcome.get('transcript_source') == 'youtube_captions'
+                    ),
                     max_ad_duration_override=max_ad_duration_override,
                     cue_gate_enabled=cue_gate_enabled,
                     pass1_held_markers=pass1_held_markers,
