@@ -149,11 +149,7 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool, host: str | None = No
 
 def _resolve_with_retry(host: str, port: int, *, attempts: int = 3,
                         base_delay: float = 0.15) -> list[tuple]:
-    """getaddrinfo with a short bounded retry on transient resolver errors only.
-
-    Docker's embedded resolver drops lookups under concurrent refreshes and
-    surfaces them as EAI_AGAIN; a definitive failure (NXDOMAIN) is not retried.
-    """
+    """getaddrinfo retried briefly on transient EAI_AGAIN (Docker's resolver under load); NXDOMAIN is not."""
     for attempt in range(attempts):
         try:
             return socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)

@@ -139,15 +139,15 @@ def _validate_for_tier(url: str, trust: URLTrust, private_hosts=None) -> None:
     if trust is URLTrust.OPERATOR_CONFIGURED:
         validate_base_url(url)
     elif trust is URLTrust.FEED_SOURCE_LISTED:
-        validate_url(url, private_hosts=private_hosts or get_private_feed_hosts())
+        validate_url(url, private_hosts=(
+            get_private_feed_hosts() if private_hosts is None else private_hosts))
     else:
         validate_url(url)
 
 
 def feed_trust() -> URLTrust:
-    """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
-    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true, or only the hosts
-    and ranges in MINUSPOD_PRIVATE_FEED_HOSTS."""
+    """SSRF tier for feed URLs: strict by default, MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS opens all,
+    MINUSPOD_PRIVATE_FEED_HOSTS only the listed hosts and ranges."""
     opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
     if opt_in in ('1', 'true', 'yes', 'on'):
         return URLTrust.OPERATOR_CONFIGURED
@@ -168,8 +168,7 @@ def _reject_https_downgrade(original: str, target: str) -> None:
 
 
 class _RevalidatingSession(requests.Session):
-    """Session subclass that revalidates every redirect hop against the
-    configured trust tier and blocks HTTPS -> HTTP downgrades."""
+    """Revalidates every redirect hop against the trust tier and blocks HTTPS -> HTTP downgrades."""
 
     def __init__(self, trust: URLTrust, max_redirects: int):
         super().__init__()

@@ -16,6 +16,8 @@ import email_service
 import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
+    FETCHED_RETENTION_GRACE_DAYS_MAX, FETCHED_RETENTION_GRACE_DAYS_MIN,
+    RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS, SETTING_CONSTRAINTS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
@@ -42,7 +44,7 @@ from youtube.settings import validate_yt_int
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_ciphertext
 from utils.cron import is_valid_expression
-from utils.safe_http import _validate_for_tier, feed_trust
+from utils.safe_http import validate_feed_source_url
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from utils.url import SSRFError, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
 from utils.time import utc_now_iso
@@ -718,13 +720,16 @@ def _validate_setting_value(key, value):
     if key in ('rss_refresh_interval_minutes', 'adaptive_refresh_max_minutes'):
         if isinstance(value, bool) or not isinstance(value, int):
             raise ConfigTransferError(f'{key} must be an integer')
-        if not 5 <= value <= 1440:
-            raise ConfigTransferError(f'{key} must be between 5 and 1440')
+        if not RSS_REFRESH_MINUTES_MIN <= value <= RSS_REFRESH_MINUTES_MAX:
+            raise ConfigTransferError(
+                f'{key} must be between {RSS_REFRESH_MINUTES_MIN} and {RSS_REFRESH_MINUTES_MAX}')
     if key == 'fetched_retention_grace_days':
         if isinstance(value, bool) or not isinstance(value, int):
             raise ConfigTransferError(f'{key} must be an integer')
-        if not 0 <= value <= 365:
-            raise ConfigTransferError(f'{key} must be between 0 and 365')
+        if not FETCHED_RETENTION_GRACE_DAYS_MIN <= value <= FETCHED_RETENTION_GRACE_DAYS_MAX:
+            raise ConfigTransferError(
+                f'{key} must be between {FETCHED_RETENTION_GRACE_DAYS_MIN} '
+                f'and {FETCHED_RETENTION_GRACE_DAYS_MAX}')
     if key == 'db_backup_keep_count':
         if (isinstance(value, bool) or not isinstance(value, int)
                 or not KEEP_COUNT_MIN <= value <= KEEP_COUNT_MAX):
@@ -919,14 +924,13 @@ def _source_owner(owners, source, slug):
 
 
 def _validate_import_feed_urls(feeds):
-    trust = feed_trust()
     for feed in feeds:
         if feed['feedType'] != 'subscribed':
             continue
         source_url = feed['settings'].get('source_url', '')
         try:
             reject_url_whitespace(source_url)
-            _validate_for_tier(source_url, trust)
+            validate_feed_source_url(source_url)
         except SSRFError as exc:
             raise ConfigTransferError(
                 f"Feed {feed['slug']} source URL failed security validation: {exc}") from None

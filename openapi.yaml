@@ -3864,9 +3864,12 @@ paths:
                   activeRequested:
                     type: integer
                     description: Active runs that received a cancellation request.
-                  queuedRemoved:
+                  queueRowsClosed:
                     type: integer
-                    description: Queued episodes removed from the waiting list.
+                    description: Durable auto-process queue rows closed.
+                  displayEntriesRemoved:
+                    type: integer
+                    description: Entries removed from the in-memory waiting display list; a separate count from the durable rows.
         '429':
           $ref: '#/components/responses/RateLimited'
 

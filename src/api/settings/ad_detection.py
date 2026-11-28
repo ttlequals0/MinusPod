@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    HELD_WIDEN_MAX_SECONDS, RSS_REFRESH_MINUTES_MAX, global_hold_for_review, resolve_refresh_floor_seconds,
+    HELD_WIDEN_MAX_SECONDS, RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN, global_hold_for_review, resolve_refresh_floor_seconds,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -579,24 +579,6 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {value}")
 
 
-def _int_range_writes(data, fields):
-    """Validated (db key, int) writes for integer range fields, or an issue; floats are truncated."""
-    writes = []
-    for payload_key, db_key, floor, ceiling in fields:
-        if payload_key not in data:
-            continue
-        raw = data[payload_key]
-        try:
-            n = int(raw)
-        except (TypeError, ValueError):
-            return None, (f'{payload_key} must be an integer', 400)
-        if n < floor or (ceiling is not None and n > ceiling):
-            bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
-            return None, (f'{payload_key} must be {bound}', 400)
-        writes.append((db_key, n))
-    return writes, None
-
-
 _SIZE_CAP_FIELDS = (
     ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
     ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
@@ -606,7 +588,7 @@ _SIZE_CAP_FIELDS = (
 )
 
 def _size_cap_writes(data):
-    return _int_range_writes(data, _SIZE_CAP_FIELDS)
+    return common.int_range_writes(data, _SIZE_CAP_FIELDS)
 
 
 _CONSTRAINED = tuple(
@@ -1019,16 +1001,16 @@ def _apply_feed_refresh_fields(db, data):
     return None
 
 
+_RSS_REFRESH_FIELD = (
+    ('rssRefreshIntervalMinutes', 'rss_refresh_interval_minutes',
+     RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX),)
+_DORMANT_FIELD = (
+    ('dormantFeedDays', 'dormant_feed_days', DORMANT_FEED_DAYS_MIN, DORMANT_FEED_DAYS_MAX),)
+
+
 def _rss_refresh_minutes(data):
-    if 'rssRefreshIntervalMinutes' not in data:
-        return None, None
-    try:
-        minutes = int(data['rssRefreshIntervalMinutes'])
-    except (TypeError, ValueError):
-        return None, ('rssRefreshIntervalMinutes must be an integer', 400)
-    if minutes < 5 or minutes > 1440:
-        return None, ('rssRefreshIntervalMinutes must be between 5 and 1440', 400)
-    return minutes, None
+    writes, issue = common.int_range_writes(data, _RSS_REFRESH_FIELD)
+    return (writes[0][1] if writes else None), issue
 
 
 def _validate_adaptive_refresh_payload(db, data):
@@ -1036,29 +1018,16 @@ def _validate_adaptive_refresh_payload(db, data):
     floor_minutes = minutes or resolve_refresh_floor_seconds(db) // 60
     if 'adaptiveRefreshEnabled' in data and not isinstance(data['adaptiveRefreshEnabled'], bool):
         return 'adaptiveRefreshEnabled must be a boolean', 400
-    if 'adaptiveRefreshMaxMinutes' not in data:
-        return None
-    value = data['adaptiveRefreshMaxMinutes']
-    if isinstance(value, bool) or not isinstance(value, int):
-        return 'adaptiveRefreshMaxMinutes must be an integer', 400
-    if value < floor_minutes or value > RSS_REFRESH_MINUTES_MAX:
-        return (f'adaptiveRefreshMaxMinutes must be between the refresh interval '
-                f'({floor_minutes}) and {RSS_REFRESH_MINUTES_MAX}'), 400
-    return None
+    return common.int_range_writes(
+        data, (('adaptiveRefreshMaxMinutes', 'adaptive_refresh_max_minutes',
+                floor_minutes, RSS_REFRESH_MINUTES_MAX),), strict=True)[1]
 
 
 def _validate_rss_refresh_payload(data):
     _minutes, issue = _rss_refresh_minutes(data)
     if issue is not None:
         return issue
-    if 'dormantFeedDays' in data:
-        days = data['dormantFeedDays']
-        if (not isinstance(days, int) or isinstance(days, bool)
-                or days < DORMANT_FEED_DAYS_MIN or days > DORMANT_FEED_DAYS_MAX):
-            return (
-                'dormantFeedDays must be an integer between '
-                f'{DORMANT_FEED_DAYS_MIN} and {DORMANT_FEED_DAYS_MAX}', 400)
-    return None
+    return common.int_range_writes(data, _DORMANT_FIELD, strict=True)[1]
 
 
 def _apply_segment_category_actions(db, data):

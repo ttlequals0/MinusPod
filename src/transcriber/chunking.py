@@ -71,17 +71,12 @@ def extract_audio_chunk(
             # malformed APIC frame (ID3 says PNG, bytes are JPEG) aborts the extract.
             '-vn',
         ]
-        if raw_copy:
-            cmd += ['-c:a', 'copy', output_path]
-        else:
-            cmd += [
-                '-ar', '16000',  # Whisper native sample rate
-                '-ac', '1',      # Mono
-            ]
+        if not raw_copy:
+            cmd += ['-ar', '16000', '-ac', '1']  # Whisper native rate, mono
             if preprocess:
                 cmd += ['-af', settings.preprocess_filters_for(audio_path)]
-            # FLAC for upload; otherwise uncompressed for faster processing
-            cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
+        # Copy for raw MP3, FLAC for upload, otherwise uncompressed for faster processing
+        cmd += ['-c:a', 'copy' if raw_copy else 'flac' if flac else 'pcm_s16le', output_path]
 
         # With filtering folded in, use the standalone preprocess budget (FFMPEG_LONG_TIMEOUT
         # floor). Scale by chunk length (#644): chunks grow with GPU memory, so a flat budget fails.

@@ -1,9 +1,7 @@
 """Endpoint classes for the API token capability check.
 
-A route added under /api/v1 must be listed here, or test_every_api_endpoint_is_classified fails.
-List it in TOKEN_ALLOWED only after confirming it returns no credential that could authenticate
-as the operator (Flask secret key, password hash, token hashes) and cannot change credentials;
-otherwise add it to SESSION_ONLY_ENDPOINTS in api/auth_state.py.
+Every /api/v1 route must be listed here. Use TOKEN_ALLOWED only if it exposes no operator
+credential and changes none; otherwise add it to SESSION_ONLY_ENDPOINTS in api/auth_state.py.
 """
 
 PUBLIC_ENDPOINTS = frozenset({

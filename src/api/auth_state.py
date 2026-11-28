@@ -10,6 +10,7 @@ from flask import g, has_request_context, request, session
 
 from config import get_env_backed_int
 from database import Database
+from database.api_tokens import TOKEN_PREFIX
 from utils.validation import is_public_ip_for_lockout
 
 
@@ -35,7 +36,6 @@ SESSION_ONLY_ENDPOINTS = frozenset({
 })
 BEARER_INVALID = 'invalid'
 BEARER_LOCKED = 'locked'
-_TOKEN_SHAPE = 'mp_'
 _HOLDER = 'auth_holder'
 
 
@@ -94,7 +94,7 @@ def _bearer_token() -> str | None:
         return None
     scheme, _, value = request.headers.get('Authorization', '').partition(' ')
     value = value.strip()
-    if scheme.lower() != 'bearer' or not value.startswith(_TOKEN_SHAPE):
+    if scheme.lower() != 'bearer' or not value.startswith(TOKEN_PREFIX):
         return None
     return value
 

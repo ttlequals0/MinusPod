@@ -289,7 +289,8 @@ def test_cancel_all_cancels_active_run_and_clears_queue(app_client, seeded_feed)
         assert resp.status_code == 200
         body = resp.get_json()
         assert body['activeRequested'] == 1
-        assert body['queuedRemoved'] >= 2
+        assert body['queueRowsClosed'] >= 2
+        assert body['displayEntriesRemoved'] >= 1
         assert ProcessingQueue().poll(run_id) == 'cancel_requested'
         open_rows = db.get_connection().execute(
             "SELECT COUNT(*) FROM auto_process_queue WHERE status IN "

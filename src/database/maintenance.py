@@ -141,20 +141,14 @@ class MaintenanceMixin:
         return groups, keep_by_slug
 
     def _unfetched_keep_clause(self, retention_days: int):
-        """(SQL predicate, params) matching processed episodes the unfetched
-        retention keeps past the normal window, or None when it is off.
+        """(SQL predicate, params) for processed episodes kept past the normal window, ('', ()) when off.
 
-        A never-fetched episode is kept until unfetched_retention_days after
-        processing. A fetched one is kept until fetched_retention_grace_days
-        after its first fetch, so a download that failed partway has time
-        to be retried. Neither ever shortens the normal window.
-        """
+        Unfetched: kept unfetched_retention_days after processing; fetched: grace days after first fetch."""
         unfetched_days = resolve_unfetched_retention_days(self)
         if unfetched_days <= 0:
-            return None
+            return '', ()
         unfetched_cutoff = self._retention_cutoff_str(max(unfetched_days, retention_days))
-        # Every branch is NULL-safe: the caller negates this clause, and a
-        # NULL would drop the row from the sweep instead of sweeping it.
+        # NULL-safe on every branch: callers negate the clause, and a NULL would skip the row.
         clause = ("(e.first_fetched_at IS NULL"
                   " AND COALESCE(e.processed_at, e.updated_at) >= ?)")
         params = [unfetched_cutoff]
@@ -197,10 +191,9 @@ class MaintenanceMixin:
 
         original_cutoff = self._retention_cutoff_str(original_days)
         processed_cutoff = self._retention_cutoff_str(retention_days)
-        # Episodes the unfetched retention keeps past the main window still
-        # lose their original on the original schedule.
-        kept = self._unfetched_keep_clause(retention_days)
-        kept_sql, kept_params = (f" OR {kept[0]}", kept[1]) if kept else ('', ())
+        # Kept episodes still lose their original on the original schedule.
+        kept_sql, kept_params = self._unfetched_keep_clause(retention_days)
+        kept_sql = f" OR {kept_sql}" if kept_sql else ''
 
         # Original past its window, processed file still inside it; the
         # processed_cutoff bound skips rows the main pass is about to reset.
@@ -288,8 +281,8 @@ class MaintenanceMixin:
                         retention_days, storage)
 
                 cutoff_str = self._retention_cutoff_str(retention_days)
-                kept = self._unfetched_keep_clause(retention_days)
-                kept_sql, kept_params = (f" AND NOT {kept[0]}", kept[1]) if kept else ('', ())
+                kept_sql, kept_params = self._unfetched_keep_clause(retention_days)
+                kept_sql = f" AND NOT {kept_sql}" if kept_sql else ''
                 for chunk in _chunked(slugs):
                     placeholders = ','.join('?' * len(chunk))
                     episodes_to_reset.extend(conn.execute(

@@ -86,7 +86,7 @@ describe('QueuePage', () => {
     mockGetSettings.mockResolvedValue(settings());
     mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 0, queuedEpisodes: 26 });
     mockCancel.mockResolvedValue({ message: 'Canceled' });
-    mockCancelAll.mockResolvedValue({ message: 'Canceled', activeRequested: 0, queuedRemoved: 26 });
+    mockCancelAll.mockResolvedValue({ message: 'Canceled', activeRequested: 0, queueRowsClosed: 26, displayEntriesRemoved: 26 });
     mockSetPriority.mockResolvedValue({ message: 'Updated', priority: 0 });
     mockUpdateSettings.mockResolvedValue({ message: 'Updated' });
   });

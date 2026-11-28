@@ -98,15 +98,12 @@ def _unfetched_retention_view(db) -> dict:
     }
 
 
-# payload key -> (setting key, min, max)
-_UNFETCHED_RETENTION_FIELDS = {
-    'unfetchedRetentionDays': (
-        'unfetched_retention_days',
-        UNFETCHED_RETENTION_DAYS_MIN, UNFETCHED_RETENTION_DAYS_MAX),
-    'fetchedRetentionGraceDays': (
-        'fetched_retention_grace_days',
-        FETCHED_RETENTION_GRACE_DAYS_MIN, FETCHED_RETENTION_GRACE_DAYS_MAX),
-}
+_UNFETCHED_RETENTION_FIELDS = (
+    ('unfetchedRetentionDays', 'unfetched_retention_days',
+     UNFETCHED_RETENTION_DAYS_MIN, UNFETCHED_RETENTION_DAYS_MAX),
+    ('fetchedRetentionGraceDays', 'fetched_retention_grace_days',
+     FETCHED_RETENTION_GRACE_DAYS_MIN, FETCHED_RETENTION_GRACE_DAYS_MAX),
+)
 
 
 def _clamp_original_retention(retention_days: int, original: int) -> int:
@@ -149,15 +146,10 @@ def update_retention_settings():
         # Clamp; never let original outlive processed.
         original_days = _clamp_original_retention(days, original)
         staged['original_retention_days'] = str(original_days)
-    for payload_key, (setting_key, low, high) in _UNFETCHED_RETENTION_FIELDS.items():
-        if payload_key not in data:
-            continue
-        value = data[payload_key]
-        if (not isinstance(value, int) or isinstance(value, bool)
-                or value < low or value > high):
-            return error_response(
-                f'{payload_key} must be an integer between {low} and {high}', 400)
-        staged[setting_key] = str(value)
+    unfetched, issue = common.int_range_writes(data, _UNFETCHED_RETENTION_FIELDS, strict=True)
+    if issue is not None:
+        return error_response(*issue)
+    staged.update((key, str(value)) for key, value in unfetched)
 
     db = get_database()
     try:
@@ -171,7 +163,7 @@ def update_retention_settings():
     logger.info(f"Updated retention_days to {days}")
     if 'original_retention_days' in staged:
         logger.info(f"Updated original_retention_days to {original_days}")
-    for setting_key, _low, _high in _UNFETCHED_RETENTION_FIELDS.values():
+    for _payload, setting_key, _low, _high in _UNFETCHED_RETENTION_FIELDS:
         if setting_key in staged:
             logger.info(f"Updated {setting_key} to {staged[setting_key]}")
 

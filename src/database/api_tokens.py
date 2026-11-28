@@ -1,12 +1,11 @@
 """Long-lived API tokens for scripts. Only a SHA-256 hash is stored."""
 
 import hashlib
-import hmac
 import logging
 import re
 import secrets
 
-from utils.time import parse_iso_utc, utc_now, utc_now_iso
+from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -70,17 +69,14 @@ class ApiTokenMixin:
             return None
         digest = hash_token(token)
         row = self.get_connection().execute(
-            """SELECT id, token_hash, last_used_at FROM api_tokens
-               WHERE token_hash = ? AND revoked_at IS NULL""", (digest,)).fetchone()
-        if row is None or not hmac.compare_digest(digest, row['token_hash']):
+            "SELECT id FROM api_tokens WHERE token_hash = ? AND revoked_at IS NULL",
+            (digest,)).fetchone()
+        if row is None:
             return None
-        self._stamp_api_token(row['id'], row['last_used_at'])
+        self._stamp_api_token(row['id'])
         return row['id']
 
-    def _stamp_api_token(self, token_id: int, last_used_at: str | None) -> None:
-        last = parse_iso_utc(last_used_at)
-        if last is not None and (utc_now() - last).total_seconds() < LAST_USED_REFRESH_SECONDS:
-            return
+    def _stamp_api_token(self, token_id: int) -> None:
         try:
             now = utc_now_iso()
             with self.transaction(immediate=True) as conn:

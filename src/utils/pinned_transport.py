@@ -56,7 +56,7 @@ class PinnedHTTPAdapter(HTTPAdapter):
 
         if _is_ip_literal(host):
             check_resolved_ip(host, allow_private=self._allow_private,
-                              host=host, private_hosts=self._private_hosts)
+                              private_hosts=self._private_hosts)
             return super().send(request, **kwargs)
 
         default_port = 443 if scheme == "https" else 80

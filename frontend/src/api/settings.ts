@@ -328,7 +328,7 @@ export async function cancelProcessing(slug: string, episodeId: string): Promise
 }
 
 export async function cancelAllProcessing(): Promise<{
-  message: string; activeRequested: number; queuedRemoved: number;
+  message: string; activeRequested: number; queueRowsClosed: number; displayEntriesRemoved: number;
 }> {
   return apiRequest('/episodes/processing/cancel-all', { method: 'POST' });
 }
