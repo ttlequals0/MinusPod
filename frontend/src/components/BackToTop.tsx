@@ -76,10 +76,13 @@ function BackToTop() {
     measure();
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true });
+    const pageSize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
+    pageSize?.observe(document.body);
     window.addEventListener('resize', schedule);
     window.addEventListener('scroll', schedule, { passive: true });
     return () => {
       observer.disconnect();
+      pageSize?.disconnect();
       window.removeEventListener('scroll', schedule);
       bars?.disconnect();
       window.removeEventListener('resize', schedule);
