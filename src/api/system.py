@@ -17,6 +17,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time, apply_url_prefix,
 )
+from api.auth_state import current_auth
 from api.failover import probes_view, targets_view
 import transcriber
 from changelog import load_sections, version_key
@@ -440,6 +441,9 @@ def backup_database():
     from flask import after_this_request
 
     encrypt_requested = request.args.get('encrypted', 'true').lower() != 'false'
+    # A plaintext copy holds the Flask secret key, which would let a token forge a session.
+    if not encrypt_requested and current_auth().token_id is not None:
+        return error_response('API tokens can only download encrypted backups', 403)
     passphrase = os.environ.get('MINUSPOD_MASTER_PASSPHRASE')
     if encrypt_requested and not passphrase:
         logger.warning(

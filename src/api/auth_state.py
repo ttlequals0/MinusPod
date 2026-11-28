@@ -25,11 +25,11 @@ LAST_USED_REFRESH_SECONDS = 60
 CLOCK_SKEW_SECONDS = 60
 # Probes answer without the session check so a database failure cannot turn them into a 500.
 AUTH_HOOK_EXEMPT_ENDPOINTS = frozenset({'api.health_live', 'api.health_check'})
-# Routes an API token can never call: credential and session management, and config import.
+# Routes an API token can never call: credential and session management, config import, secret reveal.
 SESSION_ONLY_ENDPOINTS = frozenset({
     'api.list_api_tokens', 'api.create_api_token', 'api.revoke_api_token',
     'api.auth_set_password', 'api.auth_logout',
-    'api.rotate_master_passphrase',
+    'api.rotate_master_passphrase', 'api.get_sb_user_id',
     'api.preview_runtime_config_import', 'api.apply_runtime_config_import',
 })
 BEARER_INVALID = 'invalid'

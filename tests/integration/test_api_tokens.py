@@ -263,6 +263,7 @@ def test_log_redaction_covers_token_and_bearer_shapes():
 EXPECTED_SESSION_ONLY = {
     'api.list_api_tokens', 'api.create_api_token', 'api.revoke_api_token',
     'api.auth_set_password', 'api.auth_logout', 'api.rotate_master_passphrase',
+    'api.get_sb_user_id',
     'api.preview_runtime_config_import', 'api.apply_runtime_config_import',
 }
 
