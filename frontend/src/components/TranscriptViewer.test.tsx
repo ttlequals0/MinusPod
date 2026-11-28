@@ -52,7 +52,11 @@ describe('TranscriptViewer', () => {
     expect(screen.queryByText('Welcome to the show.')).toBeNull();
     expect(screen.getByText(/brought to you by/)).toBeTruthy();
     expect(screen.getByText('Acme', { selector: 'mark' })).toBeTruthy();
+    expect(screen.getByTestId('transcript-search-match-pill').textContent).toBe('1 match');
     expect(screen.getByText('1 match in 3 segments')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear transcript search' }));
+    expect(screen.getByText('Welcome to the show.')).toBeTruthy();
+    expect(screen.queryByTestId('transcript-search-match-pill')).toBeNull();
   });
 
   it('filters by time window and flags an unparsable time', async () => {

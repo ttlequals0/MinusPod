@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Search, Trash2, X } from 'lucide-react';
 import ActionToastStack from '../components/ActionToastStack';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +39,8 @@ import RichText from '../components/RichText';
 import { Modal, ConfirmModal, dialogFooterBtn } from '../components/Modal';
 import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive, btnPrimaryOutline, btnDestructiveOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase } from '../components/fieldStyles';
-import { badgeBase, tint } from '../components/badgeStyles';
+import { badgeBase, countPill, tint } from '../components/badgeStyles';
+import { tabItem, tabStrip } from '../components/PageTabs';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -507,7 +508,7 @@ function FeedDetail() {
         )}
       </div>
 
-      <div className={`bg-card rounded-lg border border-border p-4 sm:${sectionPad} mb-6`}>
+      <div className={`bg-card bg-gradient-to-br from-primary/[0.06] via-card to-card rounded-lg border border-border p-4 sm:${sectionPad} mb-6`}>
         <div className="flex items-start gap-4 sm:gap-6">
           <div className="w-16 h-16 sm:w-32 sm:h-32 shrink-0">
             {feed.websiteUrl ? (
@@ -713,24 +714,70 @@ function FeedDetail() {
 
       {refreshMutation.isPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Refreshing feed...</p>}
 
+      {slug && !isRecents && (
+        <nav aria-label="Feed sections" className={tabStrip}>
+          {[
+            { id: 'feed-settings-section', label: 'Feed settings' },
+            ...(feed.feedType === 'local' ? [{ id: 'local-feed-section', label: 'Local audio' }] : []),
+            ...(feed.feedType === 'youtube' ? [{ id: 'youtube-feed-section', label: 'YouTube' }] : []),
+            { id: 'ad-distribution-section', label: 'Ad distribution' },
+            { id: 'audio-cues-section', label: 'Audio cues' },
+            { id: 'feed-episodes-section', label: 'Episodes', count: feed.episodeCount },
+          ].map(({ id, label, count }) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              className={`${tabItem} border-transparent text-muted-foreground hover:text-foreground`}
+            >
+              <span>{label}</span>
+              {count !== undefined && (
+                <span className={`ml-1.5 ${countPill} ${tint.secondary}`}>
+                  {count}
+                </span>
+              )}
+            </a>
+          ))}
+        </nav>
+      )}
+
       {slug && !isRecents && <FeedStatsCards feed={feed} slug={slug} />}
 
       {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
 
-      {slug && !isRecents && <FeedSettingsPanel key={slug} feed={feed} slug={slug} />}
+      {slug && !isRecents && (
+        <div id="feed-settings-section">
+          <FeedSettingsPanel key={slug} feed={feed} slug={slug} />
+        </div>
+      )}
 
-      {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
-      {slug && feed.feedType === 'youtube' && <YouTubeFeedPanel key={`youtube-${slug}`} feed={feed} slug={slug} />}
+      {slug && feed.feedType === 'local' && (
+        <div id="local-feed-section">
+          <LocalFeedPanel feed={feed} slug={slug} />
+        </div>
+      )}
+      {slug && feed.feedType === 'youtube' && (
+        <div id="youtube-feed-section">
+          <YouTubeFeedPanel key={`youtube-${slug}`} feed={feed} slug={slug} />
+        </div>
+      )}
 
-      {slug && !isRecents && <PodcastAdDistributionPanel slug={slug} />}
+      {slug && !isRecents && (
+        <div id="ad-distribution-section">
+          <PodcastAdDistributionPanel slug={slug} />
+        </div>
+      )}
 
-      {slug && !isRecents && <CueTemplatesPanel slug={slug} />}
+      {slug && !isRecents && (
+        <div id="audio-cues-section">
+          <CueTemplatesPanel slug={slug} />
+        </div>
+      )}
 
       {/* Decisions made on this feed's episodes, not yet in the audio. */}
       {slug && !isRecents && <PendingRecutsBar slug={slug} />}
 
       {/* Episodes header with status filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div id="feed-episodes-section" className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className={cardTitle}>
           Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-sm">({totalEpisodes})</span>}
         </h2>
@@ -770,14 +817,42 @@ function FeedDetail() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <input
-          type="search"
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Search episode titles..."
-          aria-label="Search episode titles"
-          className={`${inputBase} flex-1 min-w-0`}
-        />
+        <div className="relative flex-1 min-w-0">
+          <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Search episode titles..."
+            aria-label="Search episode titles"
+            className={`${inputBase} w-full pl-9 ${searchInput ? 'pr-9' : ''}`}
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput('');
+                changeFilter({ q: '' });
+              }}
+              aria-label="Clear episode search"
+              className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center p-1.5 rounded text-muted-foreground hover:text-foreground touch-manipulation ${focusRing}`}
+            >
+              <X aria-hidden="true" className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {!isRecents && (statusFilter !== 'all' || searchInput.trim() !== '' || episodeSearch.trim() !== '') && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchInput('');
+              changeFilter({ status: 'all', q: '' });
+            }}
+            className={`${btnBase} ${btnSecondary}`}
+          >
+            Clear filters
+          </button>
+        )}
         {!isRecents && totalEpisodes > 0 && (
           <button
             type="button"

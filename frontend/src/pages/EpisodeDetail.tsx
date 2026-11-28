@@ -1163,7 +1163,7 @@ function EpisodeDetail() {
         </div>
       )}
 
-      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+      <div className="bg-card bg-gradient-to-br from-primary/[0.06] via-card to-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <div className="grid grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[6rem_minmax(0,1fr)] sm:grid-rows-[auto_1fr] gap-x-4 gap-y-2">
           <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0 sm:row-span-2">
             <Artwork
