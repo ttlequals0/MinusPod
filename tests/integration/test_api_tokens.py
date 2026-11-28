@@ -265,11 +265,19 @@ EXPECTED_SESSION_ONLY = {
     'api.auth_set_password', 'api.auth_logout', 'api.rotate_master_passphrase',
     'api.get_sb_user_id',
     'api.preview_runtime_config_import', 'api.apply_runtime_config_import',
+    'api.update_db_backup_settings',
 }
 
 
 def test_the_deny_list_is_exactly_the_reviewed_set():
     assert SESSION_ONLY_ENDPOINTS == EXPECTED_SESSION_ONLY
+
+
+def test_token_can_run_a_backup_but_not_change_backup_settings(token_client, token, monkeypatch):
+    monkeypatch.setattr('api.system.backup_now', lambda _db: {'path': '/x/y.db'})
+    resp = token_client.put('/api/v1/settings/db-backup', json={'enabled': False}, headers=_bearer(token))
+    assert resp.status_code == 403
+    assert token_client.post('/api/v1/system/db-backup/run', headers=_bearer(token)).status_code == 200
 
 
 def _deny_listed_requests():

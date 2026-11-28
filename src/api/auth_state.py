@@ -31,6 +31,7 @@ SESSION_ONLY_ENDPOINTS = frozenset({
     'api.auth_set_password', 'api.auth_logout',
     'api.rotate_master_passphrase', 'api.get_sb_user_id',
     'api.preview_runtime_config_import', 'api.apply_runtime_config_import',
+    'api.update_db_backup_settings',
 })
 BEARER_INVALID = 'invalid'
 BEARER_LOCKED = 'locked'

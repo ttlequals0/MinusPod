@@ -232,7 +232,7 @@ curl -H "Authorization: Bearer mp_your-token-here" \
 - A token authenticates a request by itself. No CSRF header is needed, and a session cookie sent with it is ignored.
 - A missing, unknown, revoked or malformed `mp_` token returns 401 and does not fall back to the cookie. Failed attempts count toward the same IP lockout as failed logins.
 - A token cannot create, list or revoke tokens, set, change or remove the password, log out, rotate the provider passphrase, reveal the SponsorBlock user ID, or import configuration. Those return 403 and need a signed-in session.
-- A token can export configuration, including the provider keys in `config-backup`, and download encrypted database backups (`GET /api/v1/system/backup`). It cannot download an unencrypted database (`encrypted=false` returns 403) or restore one. Treat a token like your password.
+- A token can export configuration, including the provider keys in `config-backup`, and download encrypted database backups (`GET /api/v1/system/backup`). It cannot download an unencrypted database (`encrypted=false` returns 403) or restore one. Treat a token like your password. A token can trigger a backup to the configured destination (`POST /api/v1/system/db-backup/run`) but cannot change backup settings, which need a session.
 - A new `/api/v1` route is reachable by tokens only after it is classified in the token capability test.
 - `GET /api/v1/auth/tokens` lists active tokens (id, name, prefix, `createdAt`, `lastUsedAt`). `DELETE /api/v1/auth/tokens/{id}` revokes one. `lastUsedAt` updates at most every 5 minutes.
 - Changing the password keeps tokens. Removing it revokes all of them.

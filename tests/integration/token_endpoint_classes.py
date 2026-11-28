@@ -250,7 +250,6 @@ TOKEN_ALLOWED = frozenset({
     'api.update_audio_settings',
     'api.update_community_sync_settings',
     'api.update_cue_template_route',
-    'api.update_db_backup_settings',
     'api.update_email_notification_settings',
     'api.update_feed',
     'api.update_feed_tags',
