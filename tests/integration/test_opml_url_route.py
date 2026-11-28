@@ -58,6 +58,13 @@ def test_modified_url_200_with_key(client, db):
     assert f'/a-show?key={KEY}' in body  # keyed MinusPod feed URL
 
 
+def test_modified_url_sends_no_cache(client, db):
+    _set_auth(db, True)
+    resp = client.get(f'/opml/modified.opml?key={KEY}')
+    assert resp.status_code == 200
+    assert resp.headers['Cache-Control'] == 'private, no-cache'
+
+
 def test_original_url_200_with_key_uses_source(client, db):
     _set_auth(db, True)
     resp = client.get(f'/opml/original.opml?key={KEY}')

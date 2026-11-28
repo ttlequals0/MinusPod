@@ -409,7 +409,9 @@ class SponsorService:
         # Look for URLs/domains mentioned in the text.
         # Bounded quantifier + input cap prevent polynomial ReDoS on adversarial text.
         domain_pattern = r'(?:visit\s+)?(?:www\.)?([a-zA-Z0-9-]{1,63})\.(?:com|ai|io|org|net|co|gov)(?:/\S{0,200})?'
-        domains = re.findall(domain_pattern, ad_text.lower()[:5000])
+        # A transcribed possessive or contraction ("Acme's.com") would otherwise split the label.
+        text = re.sub(r"(?<=\w)['\u2019](?=\w)", "", ad_text.lower()[:5000])
+        domains = re.findall(domain_pattern, text)
 
         ignore_domains = {'example', 'website', 'podcast', 'episode', 'click', 'link'}
         domains = [d for d in domains if d not in ignore_domains]

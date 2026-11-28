@@ -386,6 +386,17 @@ def test_serve_rss_no_refresh_when_key_matches(client, db):
     spy.assert_not_called()
 
 
+def test_serve_rss_sends_no_cache_and_ignores_unknown_query(client, db):
+    slug = 'cache-header-feed'
+    _seed_feed(db, slug)
+    with patch.object(feeds_mod, 'refresh_rss_feed'):
+        plain = client.get(f'/{slug}')
+        fresh = client.get(f'/{slug}?fresh=1')
+    assert plain.status_code == fresh.status_code == 200
+    assert plain.headers['Cache-Control'] == fresh.headers['Cache-Control'] == 'private, no-cache'
+    assert plain.data == fresh.data
+
+
 def test_serve_rss_repairs_unversioned_cache_with_processed_duration(
         client, db, duration_cache_feed_cleanup):
     slug = 'duration-cache-feed'
@@ -538,6 +549,27 @@ def test_public_chapter_json_excludes_chapter_set_provenance(client, chapter_ima
     assert ID3_CHAPTER_SOURCE_KEY not in body
     assert body['version'] == stored['version']
     assert len(body['chapters']) == len(stored['chapters'])
+
+
+def test_chapters_json_sends_no_cache(client, chapter_image_feed):
+    asset = chapter_image_feed
+    response = client.get(f"/episodes/{asset['slug']}/{asset['episodeId']}/chapters.json")
+    assert response.status_code == 200
+    assert response.headers['Cache-Control'] == 'private, no-cache'
+
+
+def test_transcript_vtt_sends_no_cache(client, db):
+    slug, episode_id = 'vtt-cache-feed', 'a1b2c3d4e5f6'
+    _seed_feed(db, slug)
+    db.upsert_episode(slug, episode_id, status='processed', processed_file='processed.mp3')
+    routes_mod.storage.save_transcript_vtt(slug, episode_id, 'WEBVTT\n')
+    try:
+        response = client.get(f'/episodes/{slug}/{episode_id}.vtt')
+        assert response.status_code == 200
+        assert response.headers['Cache-Control'] == 'private, no-cache'
+    finally:
+        db.delete_episode_rows(slug, [episode_id], routes_mod.storage)
+        db.delete_podcast(slug)
 
 
 def test_chapter_images_enforce_feed_keys_and_safe_image_headers(client, db, chapter_image_feed):

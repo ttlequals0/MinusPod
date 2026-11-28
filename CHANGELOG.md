@@ -8,6 +8,24 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.102.27] - 2026-11-27
+
+### Changed
+
+- Served feeds, chapters, transcripts and the OPML export now send `Cache-Control: private, no-cache`, so a CDN or shared proxy that honors the header does not store them. That prevents a stale copy and keeps one subscriber's keyed feed away from another. Episode audio already sent `no-cache`.
+- A run that closes held detections because hold for review is off now logs how many it closed.
+- The security docs have a note on Cloudflare caching, and the feeds docs explain the Pocket Casts workaround of adding a feed URL with a query string such as `?fresh=1`.
+
+## [2.102.26] - 2026-11-27
+
+### Fixed
+
+- A pass-1 cue snap no longer widens an ad over show intro/outro music. A snap whose added span overlaps a show cue keeps its edge, also when a split edge is snapped.
+- Ad detection windows sent in plain JSON mode (OpenRouter, Anthropic, and OpenAI-compatible or Ollama without the JSON schema opt-in) now ask for every ad as `{"ads": [...]}`. That mode forces a JSON object while the prompt asks for an array, so models returned one bare ad object per window and back-to-back ads after the first were never cut.
+- Pass 2 left a reviewed ad inside a hold uncut when the reviewer's adjusted start or end reached a fraction of a second into a back-to-back ad just released from the same hold. Any overlap with a released span counted as cutting the same audio twice. An overlap of up to 1 s with a released span from the same hold is now treated as boundary jitter: the read is clipped to start where the released span ends (or end where it starts) and released. A larger overlap, or any overlap with protected audio or another marker, still keeps it held.
+- Keep-content windows sent in plain JSON mode now ask for every span as `{"content": [...]}`. That mode forces a JSON object while the prompt asks for an array, so a model could return one span per window, and the coverage check then fell back to normal detection.
+- A sponsor name read from a spoken web address keeps the brand when the transcript writes it as a possessive or contraction. "Acme's.com" was read as "S", so confirming that ad learned no pattern. It is now read as "Acmes".
+
 ## [2.102.25] - 2026-11-27
 
 ### Fixed

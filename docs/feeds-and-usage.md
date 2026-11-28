@@ -66,6 +66,14 @@ Turn it off with **Mark served feeds private** in Settings
 unchanged. Pocket Casts keeps a match it already made, so remove a matched
 feed and add it again.
 
+Pocket Casts fetches feeds from its own servers and keeps what it fetched for a
+feed URL. If you first added a URL while it returned the wrong content (a wrong
+address, the private tag off, or ads not yet removed), removing and re-adding
+the same URL can keep showing the old copy. Users report that adding the feed
+again under a URL Pocket Casts has not seen fixes it. Append a query string such
+as `?fresh=1`, or `&fresh=1` after an existing `?key=`. MinusPod ignores unknown
+query parameters and serves the same feed.
+
 ## LLM Cost and Model-Usage Stats API
 
 Two read-only endpoints expose the LLM call ledger for cost tracking: `GET /api/v1/stats/model-usage` breaks down spend by provider and model, and `GET /api/v1/stats/episode-costs` breaks it down by episode instead. Both are paginated (`page`, `limit`), sortable (`sortBy`, `sortDir`), and filterable by date range (`from`, `to`), `podcastSlug`, `provider`, and `model`.

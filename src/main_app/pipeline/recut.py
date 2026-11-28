@@ -543,7 +543,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         rendered_cuts = len(cuts._finalize_cut_state(
             all_ads_with_validation, ads_to_remove, applied_cuts, original_duration,
             tag=f"[{slug}:{episode_id}]"))
-        finalize_holds(all_ads_with_validation, corrections, hold_for_review)
+        finalize_holds(all_ads_with_validation, corrections, hold_for_review,
+                       tag=f"[{slug}:{episode_id}]")
         stats = common.marker_stats(all_ads_with_validation)
         held_count = stats['held']
         not_cut_count = count_not_cut(all_ads_with_validation)

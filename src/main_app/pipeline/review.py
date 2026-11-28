@@ -18,7 +18,7 @@ from utils.time import (
 )
 
 from config import (
-    MIN_AD_DURATION, HOLD_REASON_REVIEWER_CONTRADICTION,
+    MIN_AD_DURATION, MERGE_GAP_SECONDS, HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
     resolve_max_boundary_shift,
 )
@@ -370,7 +370,24 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     _log_reviewer_verdicts(slug, episode_id, 2, effective_verdicts)
 
 
-def _released_span(v, sub, hold, barriers):
+# Back-to-back reads place their shared boundary independently; cuts this close merge anyway,
+# so clipping a read to abut a released span only shrinks the read.
+RELEASED_EDGE_JITTER = MERGE_GAP_SECONDS
+
+
+def _clip_to_released(lo, hi, released):
+    """Clip a read that reaches up to RELEASED_EDGE_JITTER into a released span's edge."""
+    for r in sorted(released, key=lambda s: s['start']):
+        if not EDGE_TOLERANCE < overlap_seconds(lo, hi, r['start'], r['end']) <= RELEASED_EDGE_JITTER:
+            continue
+        if r['start'] <= lo < r['end'] < hi:
+            lo = r['end']
+        elif lo < r['start'] < hi <= r['end']:
+            hi = r['start']
+    return lo, hi
+
+
+def _released_span(v, sub, hold, barriers, released=()):
     """(released span, outside pieces) for a successful review of a hold subspan, or None."""
     if (not v.success or v.inconclusive_hold or v.boundary_conflict
             or is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad)):
@@ -381,6 +398,7 @@ def _released_span(v, sub, hold, barriers):
         lo, hi = v.adjusted_start, v.adjusted_end
     else:
         return None
+    lo, hi = _clip_to_released(lo, hi, released)
     span, outside = (lo, hi), []
     if any(b - a > EDGE_TOLERANCE for a, b in subtract_spans(
             [(lo, hi)], [(hold['start'], hold['end']), (sub['start'], sub['end'])])):
@@ -470,7 +488,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         if first and (hold.get('pass2_reviewed_release') or hold.get('pass2_corroborated')):
             continue
         result_span = _released_span(v, sub, hold, [
-            *protection.barriers_orig(exclude=[hold]), *prior])
+            *protection.barriers_orig(exclude=[hold]), *prior], released=prior)
         if result_span is None:
             reason = v.reasoning or f"Review returned {v.verdict}"
             # Diagnostic only: no reviewer_verdict, source or reviewer_reasoning on the hold.

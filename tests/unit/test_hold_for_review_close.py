@@ -357,6 +357,16 @@ class TestRecutFinalSave:
         assert count_pending_review(saved) == 0
         assert finalize_kwargs['ads_held'] == 0
 
+    def test_closing_holds_logs_the_count(self, caplog):
+        with caplog.at_level('INFO', logger='utils.markers'):
+            self._run(False, [_held(10.0, 40.0)])
+        assert '[example-podcast:ep1] Closed 1 held detection(s) as not cut' in caplog.text
+
+    def test_nothing_closed_logs_nothing(self, caplog):
+        with caplog.at_level('INFO', logger='utils.markers'):
+            self._run(True, [_held(10.0, 40.0)])
+        assert 'held detection(s)' not in caplog.text
+
     def test_holds_on_leaves_the_hold_pending(self):
         saved, finalize_kwargs = self._run(True, [_held(10.0, 40.0)])
         assert is_pending_review(saved[0])
