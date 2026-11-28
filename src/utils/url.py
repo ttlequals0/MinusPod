@@ -59,6 +59,12 @@ def normalize_host(host: str) -> str:
     return host.strip().strip('[]').lower().rstrip('.')
 
 
+def _is_sensitive_address(addr) -> bool:
+    """Loopback, link-local, unspecified and cloud metadata addresses."""
+    return (addr.is_loopback or addr.is_link_local or addr.is_unspecified
+            or addr in _CLOUD_METADATA_IPS or addr == _IPV6_METADATA_IP)
+
+
 class PrivateFeedHosts:
     """Feed source hosts allowed on private addresses (MINUSPOD_PRIVATE_FEED_HOSTS)."""
 
@@ -71,14 +77,15 @@ class PrivateFeedHosts:
 
     def permits(self, host: str | None, addr) -> bool:
         """True when a non-public address is allowed for this connection host."""
-        if any(addr in net for net in self.networks):
-            return True
+        sensitive = _is_sensitive_address(addr)
+        for net in self.networks:
+            # A range never opens a sensitive address; only an exact single-address entry does.
+            if addr in net and (not sensitive or net.num_addresses == 1):
+                return True
         if host is None or normalize_host(host) not in self.hostnames:
             return False
         # A listed name must not be re-pointed at loopback, link-local or metadata.
-        return not (addr.is_loopback or addr.is_link_local or addr.is_multicast
-                    or addr.is_reserved or addr.is_unspecified
-                    or addr in _CLOUD_METADATA_IPS or addr == _IPV6_METADATA_IP)
+        return not (sensitive or addr.is_multicast or addr.is_reserved)
 
 
 def parse_private_feed_hosts(raw: str) -> PrivateFeedHosts:

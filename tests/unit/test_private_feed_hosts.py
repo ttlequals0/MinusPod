@@ -53,8 +53,9 @@ ALLOWED = [
     ('192.168.1.0/24', 'http://192.168.1.7/f.xml', ['192.168.1.7']),
     ('192.168.1.7', 'http://other.example/f.xml', ['192.168.1.7']),
     ('fd00::/8', 'http://other.example/f.xml', ['fd00::5', 'fd00::6']),
-    ('127.0.0.0/8', 'http://localhost/f.xml', ['127.0.0.1']),
-    ('169.254.0.0/16', 'http://other.example/f.xml', ['169.254.169.254']),
+    ('127.0.0.1', 'http://localhost/f.xml', ['127.0.0.1']),
+    ('169.254.169.254/32', 'http://other.example/f.xml', ['169.254.169.254']),
+    ('fd00:ec2::254', 'http://other.example/f.xml', ['fd00:ec2::254']),
     ('[fd00::5]', 'http://other.example/f.xml', ['fd00::5']),
     ('nas.lan', 'http://nas.lan/f.xml', ['93.184.216.34']),
     ('nas.lan, 10.0.0.0/8', 'http://other.example/f.xml', ['10.1.2.3']),
@@ -82,6 +83,14 @@ REFUSED = [
     ('10.0.0.0/8', 'http://nas.lan/f.xml', ['127.0.0.1']),
     ('nas.lan', 'http://192.168.1.50/f.xml', ['192.168.1.50']),
     ('fd00::/8', 'http://other.example/f.xml', ['fd00::5', 'fe80::1']),
+    ('fd00::/8', 'http://other.example/f.xml', ['fd00:ec2::254']),
+    ('169.254.0.0/16', 'http://other.example/f.xml', ['169.254.169.254']),
+    ('169.254.0.0/16', 'http://other.example/f.xml', ['169.254.1.1']),
+    ('127.0.0.0/8', 'http://localhost/f.xml', ['127.0.0.1']),
+    ('::/0', 'http://other.example/f.xml', ['::1']),
+    ('0.0.0.0/0', 'http://other.example/f.xml', ['168.63.129.16']),
+    ('0.0.0.0/0', 'http://other.example/f.xml', ['0.0.0.0']),
+    ('169.254.169.254/32', 'http://other.example/f.xml', ['168.63.129.16']),
 ]
 
 
@@ -177,7 +186,7 @@ def test_connect_is_pinned_and_checked_on_connected_address(monkeypatch, any_por
     srv = _serve(Handler)
     try:
         port = srv.server_address[1]
-        monkeypatch.setenv(ENV, '127.0.0.0/8')
+        monkeypatch.setenv(ENV, '127.0.0.1/32')
         monkeypatch.setattr(socket, 'getaddrinfo', _resolver({'nas.lan': '127.0.0.1'}))
         resp = safe_get(f'http://nas.lan:{port}/f', feed_trust(), timeout=5)
         assert resp.status_code == 200
@@ -217,7 +226,7 @@ def test_redirect_to_unlisted_private_host_refused(monkeypatch, any_port):
     srv = _serve(Handler)
     try:
         port = srv.server_address[1]
-        monkeypatch.setenv(ENV, 'nas.lan,127.0.0.0/8')
+        monkeypatch.setenv(ENV, 'nas.lan,127.0.0.1')
         monkeypatch.setattr(socket, 'getaddrinfo', _resolver(
             {'nas.lan': '127.0.0.1', 'other.lan': '192.168.1.99'}))
         with pytest.raises(SSRFError, match='192.168.1.99'):
@@ -246,7 +255,7 @@ def test_redirect_to_listed_host_followed(monkeypatch, any_port):
     srv = _serve(Handler)
     try:
         port = srv.server_address[1]
-        monkeypatch.setenv(ENV, '127.0.0.0/8')
+        monkeypatch.setenv(ENV, '127.0.0.1')
         monkeypatch.setattr(socket, 'getaddrinfo', _resolver(
             {'nas.lan': '127.0.0.1', 'other.lan': '127.0.0.1'}))
         assert safe_get(f'http://nas.lan:{port}/f', feed_trust(), timeout=5).status_code == 200
