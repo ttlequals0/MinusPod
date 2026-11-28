@@ -4,12 +4,15 @@ import { API_TOKENS_QUERY_KEY, ApiToken, createApiToken, listApiTokens, revokeAl
 import { getErrorMessage } from '../../api/client';
 import CopyButton from '../../components/CopyButton';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import DropdownMenu from '../../components/DropdownMenu';
 import { ConfirmModal, Modal, dialogFooterBtn } from '../../components/Modal';
 import { btnBase, btnDestructiveOutline, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
-import { subHeading } from '../../components/pageStyles';
-import { tableBody, tableCard, tableHead, tableRow, td, th } from '../../components/tableStyles';
-import { formatDateTime } from '../../utils/format';
+import { cardTitle, subHeading } from '../../components/pageStyles';
+import { tableBody, tableCard } from '../../components/tableStyles';
+import { DEMO_WRITE_TOOLTIP } from '../../demo/copy';
+import { IS_DEMO } from '../../demo/flag';
+import { formatDate, formatDateTime } from '../../utils/format';
 
 const MAX_NAME_LENGTH = 64;
 
@@ -38,7 +41,34 @@ function RevealDialog({ token, onClose }: { token: string; onClose: () => void }
           />
           <CopyButton text={token} label="Copy token" className={`shrink-0 px-3 py-1 ${btnOutline}`} />
         </div>
+        <p className="text-muted-foreground">
+          Send it as <code className="font-mono">Authorization: Bearer &lt;token&gt;</code>.
+        </p>
       </div>
+    </Modal>
+  );
+}
+
+function TokenDetailsModal({ token, onClose }: { token: ApiToken; onClose: () => void }) {
+  return (
+    <Modal
+      ariaLabel="API token details"
+      onClose={onClose}
+      closeOnBackdrop
+      panelClassName="max-w-lg w-full text-left"
+      header={<h2 className={`${cardTitle} min-w-0 truncate`} title={token.name}>{token.name}</h2>}
+      footer={<button type="button" onClick={onClose} className={`${dialogFooterBtn} ${btnOutline}`}>Close</button>}
+    >
+      <dl className="p-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+        <dt className="text-muted-foreground">Name</dt>
+        <dd className="min-w-0 break-all text-foreground">{token.name}</dd>
+        <dt className="text-muted-foreground">Token</dt>
+        <dd className="font-mono text-foreground">mp_{token.prefix}...</dd>
+        <dt className="text-muted-foreground">Created</dt>
+        <dd className="text-foreground">{formatDateTime(token.createdAt)}</dd>
+        <dt className="text-muted-foreground">Last used</dt>
+        <dd className="text-foreground">{token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'Never'}</dd>
+      </dl>
     </Modal>
   );
 }
@@ -52,6 +82,8 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
   // Plaintext lives here only; a mutation would keep it in the query cache.
   const [revealed, setRevealed] = useState<string | null>(null);
   const [toRevoke, setToRevoke] = useState<ApiToken | null>(null);
+  const [viewing, setViewing] = useState<ApiToken | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
   const creatingRef = useRef(false);
 
@@ -65,6 +97,8 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
     mutationFn: (id: number) => revokeApiToken(id),
     onSuccess: () => {
       setToRevoke(null);
+      // The row's trigger is gone; move focus after the modal restores its own.
+      setTimeout(() => nameRef.current?.focus(), 0);
       queryClient.invalidateQueries({ queryKey: API_TOKENS_QUERY_KEY });
     },
     onError: (e) => {
@@ -77,6 +111,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
     mutationFn: revokeAllApiTokens,
     onSuccess: () => {
       setConfirmRevokeAll(false);
+      setTimeout(() => nameRef.current?.focus(), 0);
       queryClient.invalidateQueries({ queryKey: API_TOKENS_QUERY_KEY });
     },
     onError: (e) => {
@@ -105,19 +140,6 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
     }
   };
 
-  const revokeButton = (token: ApiToken) => (
-    <DemoDisabled>
-      <button
-        type="button"
-        onClick={() => setToRevoke(token)}
-        aria-label={`Revoke ${token.name}`}
-        className={`${btnBase} ${btnDestructiveOutline} shrink-0`}
-      >
-        Revoke
-      </button>
-    </DemoDisabled>
-  );
-
   return (
     <div className="mt-6 pt-6 border-t border-border">
       <h3 className={`${subHeading} mb-1`}>API tokens</h3>
@@ -127,11 +149,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
         </p>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground mb-4">
-            Long-lived credentials for scripts and integrations. Send one as <code className="font-mono">Authorization: Bearer</code>.
-            A token cannot manage tokens, the password or sessions, or import configuration.
-            Changing the password revokes tokens unless you choose to keep them.
-          </p>
+          <p className="text-sm text-muted-foreground mb-4">Tokens let scripts call the API.</p>
 
           <div className="mb-4 space-y-2">
             {isError ? (
@@ -140,44 +158,51 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
               <p className="text-sm text-muted-foreground">No API tokens yet.</p>
             ) : (
               <>
-                <div className={`hidden sm:block ${tableCard}`}>
-                  <table className="w-full">
-                    <thead className={tableHead}>
-                      <tr>
-                        <th className={th}>Name</th>
-                        <th className={th}>Token</th>
-                        <th className={th}>Created</th>
-                        <th className={th}>Last used</th>
-                        <th className={th}><span className="sr-only">Actions</span></th>
-                      </tr>
-                    </thead>
-                    <tbody className={tableBody}>
-                      {tokens.map((token) => (
-                        <tr key={token.id} className={tableRow}>
-                          <td className={`${td} min-w-36 break-words text-foreground`}>{token.name}</td>
-                          <td className={`${td} font-mono whitespace-nowrap`}>mp_{token.prefix}...</td>
-                          <td className={td}>{formatDateTime(token.createdAt)}</td>
-                          <td className={td}>{token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'Never'}</td>
-                          <td className={`${td} text-right whitespace-nowrap`}>{revokeButton(token)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">{tokens.length} {tokens.length === 1 ? 'token' : 'tokens'}</p>
+                  {tokens.length >= 2 && (
+                    <DemoDisabled>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRevokeAll(true)}
+                        className={`${btnBase} ${btnDestructiveOutline}`}
+                      >
+                        Revoke all
+                      </button>
+                    </DemoDisabled>
+                  )}
                 </div>
-                <div className="sm:hidden space-y-2">
+                <ul className={`${tableCard} ${tableBody}`}>
                   {tokens.map((token) => (
-                    <div key={token.id} className="bg-muted/40 rounded-lg border border-border p-4 flex items-center justify-between gap-3">
-                      <div className="min-w-0 text-sm">
-                        <p className="break-all font-medium text-foreground">{token.name}</p>
-                        <p className="font-mono text-xs text-muted-foreground">mp_{token.prefix}...</p>
+                    <li key={token.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground" title={token.name}>{token.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          Created {formatDateTime(token.createdAt)}. Last used {token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'never'}.
+                          {token.lastUsedAt ? `Used ${formatDate(token.lastUsedAt)}` : 'Never used'}
                         </p>
                       </div>
-                      {revokeButton(token)}
-                    </div>
+                      <div className="shrink-0">
+                        <DropdownMenu
+                          triggerLabel="Actions"
+                          ariaLabel={`Actions for ${token.name}`}
+                          triggerClassName={`${btnBase} ${btnOutline}`}
+                          chevronClassName="w-3.5 h-3.5"
+                          align="right"
+                          items={[
+                            { title: 'View details', onClick: () => setViewing(token) },
+                            {
+                              title: 'Revoke',
+                              destructive: true,
+                              onClick: () => setToRevoke(token),
+                              disabled: IS_DEMO,
+                              tooltip: IS_DEMO ? DEMO_WRITE_TOOLTIP : undefined,
+                            },
+                          ]}
+                        />
+                      </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </>
             )}
           </div>
@@ -187,6 +212,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
               <label htmlFor={nameId} className={labelBase}>Token name</label>
               <input
                 id={nameId}
+                ref={nameRef}
                 type="text"
                 value={name}
                 maxLength={MAX_NAME_LENGTH}
@@ -205,23 +231,11 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
               </button>
             </DemoDisabled>
           </form>
-          {tokens.length > 0 && (
-            <div className="mt-3">
-              <DemoDisabled>
-                <button
-                  type="button"
-                  onClick={() => setConfirmRevokeAll(true)}
-                  className={`${btnBase} ${btnDestructiveOutline}`}
-                >
-                  Revoke all
-                </button>
-              </DemoDisabled>
-            </div>
-          )}
           {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
         </>
       )}
 
+      {viewing && <TokenDetailsModal token={viewing} onClose={() => setViewing(null)} />}
       {revealed && <RevealDialog token={revealed} onClose={() => setRevealed(null)} />}
       {confirmRevokeAll && (
         <ConfirmModal

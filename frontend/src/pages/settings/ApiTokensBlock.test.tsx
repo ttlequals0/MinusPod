@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ApiTokensBlock from './ApiTokensBlock';
@@ -37,12 +37,45 @@ beforeEach(() => {
 });
 
 describe('ApiTokensBlock', () => {
-  it('lists tokens with the prefix and last-used state', async () => {
+  it('shows a short intro and compact rows with the status line', async () => {
     renderBlock();
-    const table = await screen.findByRole('table');
-    expect(within(table).getByText('home-assistant')).toBeTruthy();
-    expect(within(table).getByText('mp_AbCdEfGh...')).toBeTruthy();
-    expect(within(table).getByText('Never')).toBeTruthy();
+    expect(await screen.findByText('home-assistant')).toBeTruthy();
+    expect(screen.getByText('Tokens let scripts call the API.')).toBeTruthy();
+    expect(screen.queryByText(/Authorization/)).toBeNull();
+    expect(screen.getByText('Never used')).toBeTruthy();
+    expect(screen.getByText('1 token')).toBeTruthy();
+    expect(screen.queryByText('mp_AbCdEfGh...')).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('shows Used with a date once a token has been used', async () => {
+    mockList.mockResolvedValue([{ ...TOKEN, lastUsedAt: '2026-11-27T12:00:00Z' }]);
+    renderBlock();
+    expect(await screen.findByText(/^Used /)).toBeTruthy();
+    expect(screen.queryByText('Never used')).toBeNull();
+  });
+
+  it('views details from the row actions menu', async () => {
+    const user = userEvent.setup();
+    renderBlock();
+    await user.click(await screen.findByRole('button', { name: 'Actions for home-assistant' }));
+    await user.click(screen.getByRole('menuitem', { name: 'View details' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('mp_AbCdEfGh...')).toBeTruthy();
+    expect(within(dialog).getByText('Never')).toBeTruthy();
+    expect(within(dialog).getByText('Created')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('hides Revoke all with fewer than two tokens and shows it with two', async () => {
+    renderBlock();
+    await screen.findByText('home-assistant');
+    expect(screen.queryByRole('button', { name: 'Revoke all' })).toBeNull();
+    mockList.mockResolvedValue([TOKEN, { ...TOKEN, id: 9, name: 'cron' }]);
+    await act(() => queryClient.invalidateQueries({ queryKey: ['api-tokens'] }));
+    expect(await screen.findByRole('button', { name: 'Revoke all' })).toBeTruthy();
+    expect(screen.getByText('2 tokens')).toBeTruthy();
   });
 
   it('shows an empty state', async () => {
@@ -61,7 +94,7 @@ describe('ApiTokensBlock', () => {
   it('creates a token, reveals it once and keeps it out of the query cache', async () => {
     const user = userEvent.setup();
     renderBlock();
-    await screen.findByRole('table');
+    await screen.findByText('home-assistant');
     await user.type(screen.getByLabelText('Token name'), '  cron ');
     await user.click(screen.getByRole('button', { name: 'Create token' }));
     await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('cron'));
@@ -69,6 +102,7 @@ describe('ApiTokensBlock', () => {
     expect((within(dialog).getByLabelText('New API token') as HTMLInputElement).value).toBe(PLAINTEXT);
     expect(within(dialog).getByText(/will not be shown again/i)).toBeTruthy();
     expect(within(dialog).getByText(/including provider keys in an export/i)).toBeTruthy();
+    expect(within(dialog).getByText(/Authorization: Bearer <token>/)).toBeTruthy();
     expect(JSON.stringify(queryClient.getQueryCache().getAll().map((q) => q.state.data))).not.toContain(PLAINTEXT);
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
 
@@ -90,19 +124,22 @@ describe('ApiTokensBlock', () => {
   it('revokes only after confirming', async () => {
     const user = userEvent.setup();
     renderBlock();
-    await screen.findByRole('table');
-    await user.click(screen.getAllByRole('button', { name: 'Revoke home-assistant' })[0]);
+    await screen.findByText('home-assistant');
+    await user.click(screen.getByRole('button', { name: 'Actions for home-assistant' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Revoke' }));
     expect(mockRevoke).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Revoke token' }));
     await waitFor(() => expect(mockRevoke).toHaveBeenCalledWith(7));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Token name')));
   });
 
   it('revokes every token only after confirming', async () => {
+    mockList.mockResolvedValue([TOKEN, { ...TOKEN, id: 9, name: 'cron' }]);
     const user = userEvent.setup();
     renderBlock();
-    await screen.findByRole('table');
+    await screen.findByText('home-assistant');
     await user.click(screen.getByRole('button', { name: 'Revoke all' }));
     expect(mockRevokeAll).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog');
@@ -114,8 +151,9 @@ describe('ApiTokensBlock', () => {
   it('cancelling the confirm does not revoke', async () => {
     const user = userEvent.setup();
     renderBlock();
-    await screen.findByRole('table');
-    await user.click(screen.getAllByRole('button', { name: 'Revoke home-assistant' })[0]);
+    await screen.findByText('home-assistant');
+    await user.click(screen.getByRole('button', { name: 'Actions for home-assistant' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Revoke' }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(mockRevoke).not.toHaveBeenCalled();
   });
