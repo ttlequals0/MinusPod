@@ -103,7 +103,7 @@ function Search() {
       })),
       transcript: results.transcripts.map((r) => ({
         type: 'transcript', id: `${r.feedSlug}-${r.episodeId}`, title: r.title,
-        snippet: r.snippet, link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
+        snippet: r.snippet, link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}?section=transcript`,
       })),
       pattern: results.patterns.map((r) => ({
         type: 'pattern', id: r.id, title: r.sponsor, subtitle: r.scope, snippet: r.snippet, link: `/patterns?q=${encodeURIComponent(r.sponsor)}`,

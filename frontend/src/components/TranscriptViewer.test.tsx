@@ -30,7 +30,7 @@ function renderViewer(ep: EpisodeDetail = episode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <TranscriptViewer slug="example-podcast" episodeId="a1b2c3d4e5f6" episode={ep} onClose={vi.fn()} />
+      <TranscriptViewer slug="example-podcast" episodeId="a1b2c3d4e5f6" episode={ep} />
     </QueryClientProvider>,
   );
 }

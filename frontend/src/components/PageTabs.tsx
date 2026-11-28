@@ -15,7 +15,7 @@ const pillItem = `${touchTarget} shrink-0 inline-flex items-center gap-1.5 px-3 
 export default function PageTabs<T extends string>({ id, label, tabs, active, onChange, flush = false, variant = 'underline' }: {
   id: string;
   label: string;
-  tabs: readonly { value: T; label: string; badge?: ReactNode; count?: number; accessibleLabel?: string }[];
+  tabs: readonly { value: T; label: string; badge?: ReactNode; count?: number; countTint?: string; accessibleLabel?: string }[];
   active: T;
   onChange: (value: T) => void;
   flush?: boolean;
@@ -44,7 +44,7 @@ export default function PageTabs<T extends string>({ id, label, tabs, active, on
             : `${tabItem} ${active === tab.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
           {tab.label}{tab.badge}
           {tab.count !== undefined && (
-            <span className={`${countPill} ${pills ? '' : 'ml-1.5'} ${active === tab.value && pills ? 'bg-background/25 text-primary-foreground' : 'bg-secondary text-foreground'}`}>{tab.count}</span>
+            <span className={`${countPill} ${pills ? '' : 'ml-1.5'} ${active === tab.value && pills ? 'bg-background/25 text-primary-foreground' : tab.countTint ?? 'bg-secondary text-foreground'}`}>{tab.count}</span>
           )}
         </button>
       ))}
