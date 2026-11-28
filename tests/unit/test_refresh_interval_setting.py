@@ -140,6 +140,9 @@ class TestBackgroundRefreshLoop:
 
         due = MagicMock(return_value={'outage': {'detected': False}})
         monkeypatch.setattr(feeds_mod, 'refresh_due_feeds', due)
+        intervals = []
+        monkeypatch.setattr(background_module, '_due_batch_size',
+                            lambda interval, _count: intervals.append(interval) or 1)
         monkeypatch.setattr(background_module, 'run_cleanup', MagicMock())
         monkeypatch.setattr(pricing_fetcher, 'refresh_pricing_if_stale', MagicMock())
         monkeypatch.setattr(update_checker, 'update_check_tick', MagicMock())
@@ -153,7 +156,7 @@ class TestBackgroundRefreshLoop:
         background_module.background_rss_refresh()
 
         assert fake_event.wait_calls == [background_module.REFRESH_TICK_SECONDS]
-        assert due.call_args.args[1] == 30 * 60
+        assert intervals == [30 * 60]
 
     def test_refresh_loop_clamps_out_of_range_db_value(self, monkeypatch):
         # A stored value outside 5-1440 (e.g. left over from a prior schema
@@ -166,6 +169,9 @@ class TestBackgroundRefreshLoop:
 
         due = MagicMock(return_value={'outage': {'detected': False}})
         monkeypatch.setattr(feeds_mod, 'refresh_due_feeds', due)
+        intervals = []
+        monkeypatch.setattr(background_module, '_due_batch_size',
+                            lambda interval, _count: intervals.append(interval) or 1)
         monkeypatch.setattr(background_module, 'run_cleanup', MagicMock())
         monkeypatch.setattr(pricing_fetcher, 'refresh_pricing_if_stale', MagicMock())
         monkeypatch.setattr(update_checker, 'update_check_tick', MagicMock())
@@ -180,7 +186,7 @@ class TestBackgroundRefreshLoop:
 
         # Tick wait is fixed; the clamped interval (1440 min) drives due sizing.
         assert fake_event.wait_calls == [background_module.REFRESH_TICK_SECONDS]
-        assert due.call_args.args[1] == 1440 * 60
+        assert intervals == [1440 * 60]
 
     def test_maintenance_runs_pattern_cleanup_tick(self, monkeypatch):
         import main_app.feeds as feeds_mod

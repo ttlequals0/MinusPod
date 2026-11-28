@@ -46,6 +46,7 @@ def _run_refresh_loop(monkeypatch, results, passes):
     monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
     db = MagicMock()
     db.get_setting.return_value = '15'
+    db.get_setting_int.return_value = 15
     db.count_subscribed_feeds.return_value = 3
     monkeypatch.setattr(background, 'db', db)
     calls = {'n': 0}

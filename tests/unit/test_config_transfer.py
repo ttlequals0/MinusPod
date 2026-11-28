@@ -479,8 +479,8 @@ def test_apply_uses_feed_ssrf_policy_and_private_host_opt_in(temp_db, monkeypatc
     from utils.safe_http import URLTrust
 
     observed = []
-    monkeypatch.setattr(config_transfer, '_validate_for_tier',
-                        lambda _url, trust: observed.append(trust))
+    monkeypatch.setattr('utils.safe_http._validate_for_tier',
+                        lambda _url, trust, *_rest: observed.append(trust))
     document = _document(feeds=[_feed()])
     preview = config_transfer.build_preview(temp_db, document, 'everything')
 
@@ -499,12 +499,12 @@ def test_apply_rejects_feed_url_ssrf_before_writes(temp_db, monkeypatch):
     from utils.safe_http import URLTrust
     from utils.url import SSRFError
 
-    def reject(_url, trust):
+    def reject(_url, trust, *_rest):
         assert trust is URLTrust.FEED_CONTENT
         raise SSRFError('Blocked private IP')
 
     monkeypatch.delenv('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', raising=False)
-    monkeypatch.setattr(config_transfer, '_validate_for_tier', reject)
+    monkeypatch.setattr('utils.safe_http._validate_for_tier', reject)
     document = _document({'retention_days': 45}, [_feed()])
     original_retention = temp_db.get_setting('retention_days')
     preview = config_transfer.build_preview(temp_db, document, 'everything')

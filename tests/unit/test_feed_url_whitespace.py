@@ -159,7 +159,7 @@ def _config_document(source, slug='ws-config'):
 
 
 def _import(db, document, monkeypatch):
-    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    monkeypatch.setattr(config_transfer, 'validate_feed_source_url', lambda *_args: None)
     monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
     preview = config_transfer.build_preview(db, document, 'feeds')
     config_transfer.apply_config(db, document, 'feeds', None, preview['previewToken'])
@@ -199,7 +199,7 @@ def test_config_import_sees_a_stored_whitespace_url_on_another_slug_as_the_same_
 
 def test_config_import_apply_sees_a_stored_whitespace_url_on_another_slug(temp_db, monkeypatch):
     document = _config_document('https://feeds.example.com/f x.xml')
-    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    monkeypatch.setattr(config_transfer, 'validate_feed_source_url', lambda *_args: None)
     preview = config_transfer.build_preview(temp_db, document, 'feeds')
     temp_db.create_podcast('ws-other', 'https://feeds.example.com/f x.xml', 'Example')
     with pytest.raises(ConfigTransferError, match='already belongs to another feed'):
@@ -221,7 +221,7 @@ def _count_podcast_scans(conn, scans):
 
 def test_config_import_scans_podcasts_once_per_pass(temp_db, monkeypatch):
     document = _multi_feed_document([f'https://feeds.example.com/{i}.xml' for i in range(5)])
-    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    monkeypatch.setattr(config_transfer, 'validate_feed_source_url', lambda *_args: None)
     monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
     scans = []
     _count_podcast_scans(temp_db.get_connection(), scans)
@@ -238,7 +238,7 @@ def test_config_import_scans_podcasts_once_per_pass(temp_db, monkeypatch):
     ['https://feeds.example.com/f x.xml', 'https://feeds.example.com/f%20x.xml'],
 ], ids=['identical', 'space-vs-percent-20'])
 def test_config_import_preview_catches_two_feeds_with_one_url_in_a_backup(temp_db, monkeypatch, sources):
-    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    monkeypatch.setattr(config_transfer, 'validate_feed_source_url', lambda *_args: None)
     with pytest.raises(ConfigTransferError, match='already belongs to another feed'):
         config_transfer.build_preview(temp_db, _multi_feed_document(sources), 'feeds')
     assert temp_db.get_podcast_by_slug('ws-multi-1') is None
@@ -250,7 +250,7 @@ def test_config_import_still_refuses_a_url_that_fails_validation(temp_db, monkey
 
     document = _config_document('https://alice:pass word@10.0.0.1/f x.xml')
     preview = config_transfer.build_preview(temp_db, document, 'feeds')
-    monkeypatch.setattr(config_transfer, '_validate_for_tier', reject)
+    monkeypatch.setattr(config_transfer, 'validate_feed_source_url', reject)
     with pytest.raises(ConfigTransferError, match='security validation: Blocked private IP'):
         config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
     assert temp_db.get_podcast_by_slug('ws-config') is None
