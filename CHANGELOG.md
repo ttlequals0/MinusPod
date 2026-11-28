@@ -24,6 +24,7 @@ release notes.
 - **Send raw MP3 chunks** (Settings > Transcription, off by default). MP3 chunks sent to a remote Whisper API are copied from the original instead of decoded and re-encoded, which takes seconds instead of minutes on a weak CPU. A chunk over 24 MB is re-encoded as usual. `MINUSPOD_RAW_API_CHUNKS=true` sets the default. Contributed by batram.
 - `MINUSPOD_PRIVATE_FEED_HOSTS` lets feed sources on named private hosts, IP addresses or CIDR ranges work without opening every private address. Loopback, link-local and cloud metadata addresses need a single-address entry. A range does not open them. Episode audio and artwork stay strict.
 - A community guide for running whisper.cpp on an AMD GPU with ROCm, with CPU transcription speed measurements. Contributed by no84by.
+- A **Back to top** button appears on every page after you scroll down a long way, and returns focus to the page heading.
 
 ### Changed
 

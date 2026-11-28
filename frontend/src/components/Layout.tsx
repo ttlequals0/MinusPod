@@ -8,6 +8,7 @@ import UpdateBanner from './UpdateBanner';
 import { DemoBanner } from './DemoBanner';
 import WhatsNewDialog from './WhatsNewDialog';
 import { useWhatsNew } from '../hooks/useWhatsNew';
+import BackToTop from './BackToTop';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 import { getProcessingStatus } from '../api/status';
 import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
@@ -240,6 +241,7 @@ function Layout() {
           })}
         </ul>
       </nav>
+      <BackToTop />
       <QuickSearch seed={searchSeed} onClose={closeSearch} />
       {whatsNew.open && (
         <WhatsNewDialog current={whatsNew.current} sections={whatsNew.sections} onClose={whatsNew.close} />

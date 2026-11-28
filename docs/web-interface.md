@@ -110,6 +110,8 @@ The server includes a web-based management UI at `/ui/` (under the prefix when `
 
 Settings shows whether a control uses the page's Save Changes button, its own Save button, or an immediate action. Registered unsaved drafts prompt before navigation or closing an editor. Cancel keeps the draft; Discard closes it without saving. Browser reload/close uses the browser's own unsaved-change prompt.
 
+A round **Back to top** button appears at the bottom right of every page once you scroll more than about one and a half screens down. It sits above the phone tab bar and the Settings save bar, hides while a dialog is open, and moves keyboard focus to the page heading.
+
 When an app update is ready, a banner offers Reload. Finish saving or discard registered drafts before applying it. Updates never reload the page automatically while a draft is open.
 
 Feed deletion, settings reset, and replacement imports use explicit confirmation dialogs. Read the named target and consequences before confirming. Failed requests show an error and Retry where supported; a failure does not establish an empty list.
