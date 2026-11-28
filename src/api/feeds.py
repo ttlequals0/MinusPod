@@ -1867,7 +1867,8 @@ def export_opml():
         # a recognized MIME type (.xml) and drops .opml from Content-Disposition.
         mimetype='application/octet-stream',
         headers={
-            'Content-Disposition': f'attachment; filename="{filename}"'
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Cache-Control': 'private, no-cache',
         }
     )
 
