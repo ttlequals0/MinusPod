@@ -130,7 +130,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
           <p className="text-sm text-muted-foreground mb-4">
             Long-lived credentials for scripts and integrations. Send one as <code className="font-mono">Authorization: Bearer</code>.
             A token cannot manage tokens, the password or sessions, or import configuration.
-            Changing the password does not revoke tokens: revoke them here after a suspected compromise.
+            Changing the password does not revoke tokens. Revoke them here after a suspected compromise.
           </p>
 
           <div className="mb-4 space-y-2">
