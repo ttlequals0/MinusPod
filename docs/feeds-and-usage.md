@@ -10,7 +10,7 @@ https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
 
 ## Finding Podcast RSS Feeds
 
-MinusPod includes a built-in podcast search on the Add Feed page. It works out of the box using Apple's iTunes directory, which needs no account or API key. If you prefer [PodcastIndex.org](https://podcastindex.org), pick it under Settings > Podcast Search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup), and add them there; the **Test connection** button sends a signed one-result search so you know the credentials work before you need them. Installs that already had PodcastIndex credentials before the provider option existed keep using PodcastIndex until they choose otherwise.
+MinusPod includes a built-in podcast search on the Add Feed page. It works out of the box using Apple's iTunes directory, which needs no account or API key. To use [PodcastIndex.org](https://podcastindex.org) instead, pick it under Settings > Podcast search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup), and add them there. The **Test connection** button sends a signed one-result search to check the credentials. Installs that already had PodcastIndex credentials before the provider option existed keep using PodcastIndex until they choose otherwise.
 
 ![Podcast search on the Add Feed page, Dracula dark theme](images/podcast-search-dark.png)
 
@@ -52,10 +52,11 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 MinusPod validates feed source URLs and blocks private/loopback/LAN addresses by default (SSRF protection). If a feed source is on a private address (a LAN Audiobookshelf server or a self-hosted feed), you have two options:
 
 - Recommended: list only the hosts you need in `MINUSPOD_PRIVATE_FEED_HOSTS`, a comma-separated mix of hostnames, IP addresses and CIDR ranges, for example `MINUSPOD_PRIVATE_FEED_HOSTS=nas.lan,192.168.1.0/24`. A hostname entry allows that exact name (case-insensitive) on any private address. An IP or CIDR entry allows any hostname that resolves entirely inside the range. Loopback, link-local, unspecified and cloud metadata addresses are allowed only by an exact single-address entry (a bare IP, `/32` or `/128`): never by a hostname, and never by a wider range such as `127.0.0.0/8`, `169.254.0.0/16` or `fd00::/8`. Other private hosts stay blocked.
-- Ports: feed URLs must use port 80, 443, 8080 or 8443, otherwise the add fails with "Blocked port". To use another port on a listed host, add it to the entry as `host:port`, for example `MINUSPOD_PRIVATE_FEED_HOSTS=nas.lan:8000,192.168.1.7:3000,[fd00::5]:3000`. The entry also allows that host on the default ports, opens only that exact port, and applies to a hostname or a single IP, not a CIDR range. `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true` skips the port check.
-- All or nothing: `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true` allows every private feed source address.
+- All or nothing: `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true` allows every private feed source address and skips the port check.
 
-Both apply to feed source URLs only (adding, editing, importing and refreshing a feed, and redirects from them). Episode audio and artwork URLs found inside a feed stay on the strict check. Neither can be changed from the UI.
+Feed URLs must use port 80, 443, 8080 or 8443, otherwise the add fails with "Blocked port". To use another port on a listed host, add it to the entry as `host:port`, for example `MINUSPOD_PRIVATE_FEED_HOSTS=nas.lan:8000,192.168.1.7:3000,[fd00::5]:3000`. The entry also allows that host on the default ports, opens only that exact port, and applies to a hostname or a single IP, not a CIDR range.
+
+Both variables apply to feed source URLs only (adding, editing, importing and refreshing a feed, and redirects from them). Episode audio and artwork URLs found inside a feed stay on the strict check. Neither variable can be changed from the UI.
 
 ## Served feeds are marked private
 
@@ -75,8 +76,8 @@ feed and add it again.
 Pocket Casts fetches feeds from its own servers and keeps what it fetched for a
 feed URL. If you first added a URL while it returned the wrong content (a wrong
 address, the private tag off, or ads not yet removed), removing and re-adding
-the same URL can keep showing the old copy. Users report that adding the feed
-again under a URL Pocket Casts has not seen fixes it. Append a query string such
+the same URL can keep showing the old copy. Adding the feed
+again under a URL Pocket Casts has not seen works around it. Append a query string such
 as `?fresh=1`, or `&fresh=1` after an existing `?key=`. MinusPod ignores unknown
 query parameters and serves the same feed.
 
