@@ -8,6 +8,7 @@ export const EVENT_OPTIONS: { value: string; label: string }[] = [
   { value: 'Limit Exceeded', label: 'Limit Exceeded' },
   { value: 'Rate Limit Structural', label: 'Rate Limit Structural' },
   { value: 'Feed Refresh Failed', label: 'Feed Refresh Failed' },
+  { value: 'Feed Refresh Recovered', label: 'Feed Refresh Recovered' },
   { value: 'Update Available', label: 'Update Available' },
   { value: 'Cue Template Quiet', label: 'Cue Template Quiet' },
   { value: 'Queue Held', label: 'Queue Held' },

@@ -32,6 +32,7 @@ EVENT_AUTH_FAILURE = 'Auth Failure'
 EVENT_RATE_LIMIT_STRUCTURAL = 'Rate Limit Structural'
 EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
 EVENT_FEED_REFRESH_FAILED = 'Feed Refresh Failed'
+EVENT_FEED_REFRESH_RECOVERED = 'Feed Refresh Recovered'
 EVENT_UPDATE_AVAILABLE = 'Update Available'
 EVENT_CUE_TEMPLATE_QUIET = 'Cue Template Quiet'
 EVENT_QUEUE_HELD = 'Queue Held'
@@ -49,6 +50,7 @@ VALID_EVENTS = {
     EVENT_RATE_LIMIT_STRUCTURAL,
     EVENT_LIMIT_EXCEEDED,
     EVENT_FEED_REFRESH_FAILED,
+    EVENT_FEED_REFRESH_RECOVERED,
     EVENT_UPDATE_AVAILABLE,
     EVENT_CUE_TEMPLATE_QUIET,
     EVENT_QUEUE_HELD,
@@ -191,6 +193,12 @@ _ALERT_SAMPLE_CONTEXTS = {
         'podcast_name': 'My Podcast',
         'feed_url': 'https://feeds.example.com/my-podcast',
         'error_message': 'HTTP 522 from upstream',
+        'failure_count': 3,
+    },
+    EVENT_FEED_REFRESH_RECOVERED: {
+        'slug': 'my-podcast',
+        'podcast_name': 'My Podcast',
+        'feed_url': 'https://feeds.example.com',
         'failure_count': 3,
     },
     EVENT_UPDATE_AVAILABLE: {
@@ -622,6 +630,18 @@ def fire_feed_refresh_failed_event(slug, podcast_name, feed_url, error_message,
         'failure_count': failure_count,
     }, f"slug={slug}, failures={failure_count}",
         dedup_key=f"{EVENT_FEED_REFRESH_FAILED}:{slug}")
+
+
+def fire_feed_refresh_recovered_event(slug, podcast_name, feed_url, failure_count):
+    """Fire when a feed that crossed the failure threshold refreshes successfully again.
+
+    One per recovery: the feed had to fail its way back over the threshold to alert again."""
+    return _fire_alert_event(EVENT_FEED_REFRESH_RECOVERED, {
+        'slug': slug,
+        'podcast_name': podcast_name,
+        'feed_url': feed_url,
+        'failure_count': failure_count,
+    }, f"slug={slug}, failures={failure_count}", dedup=False)
 
 
 def fire_structural_rate_limit_event(provider, model, limit, used, requested, error_message):
