@@ -16,9 +16,9 @@
 
 ## Status
 
-This is a community-contributed setup, written and tested by @no84by on one AMD Radeon RX 7900 XTX (gfx1100). The project's CI does not build or test it, and the Dockerfile below is specific to that GPU family. Treat it as a starting point and expect to adjust `AMDGPU_TARGETS` and the device paths for your card. Credit for the setup and the measurements below goes to the contributor, who ported it from [no84by/MinusPod](https://github.com/no84by/MinusPod/tree/amd-whisper-rocmm).
+This is a community-contributed setup, written and tested by @no84by on one AMD Radeon RX 7900 XTX (gfx1100). The project's CI does not build or test it, and the Dockerfile below is specific to that GPU family. Treat it as a starting point and expect to adjust `AMDGPU_TARGETS` and the device paths for your card. The contributor ported the setup from [no84by/MinusPod](https://github.com/no84by/MinusPod/tree/amd-whisper-rocmm).
 
-The contributor found CPU transcription usually enough. ROCm is worth adding only when throughput or concurrency (many files at once) becomes a problem. See [CPU benchmark](#cpu-benchmark) for the numbers behind that.
+The contributor found CPU transcription usually enough. Add ROCm only when throughput or concurrency (many files at once) becomes a problem. See [CPU benchmark](#cpu-benchmark) for the numbers.
 
 ## How it fits together
 
@@ -162,10 +162,10 @@ Measured by the contributor on 2026-11-01 on an AMD Ryzen 9 7950X3D (16 cores, 3
 
 The full 900 s clip at `-t 16` took 144 s, which is 6.25x real time. The transcript was clean and accurate, and the language was auto-detected as `en`.
 
-On that host CPU transcription is adequate. A 90 min podcast transcribes in about 16 min wall time at `-t 16`, comfortably inside an overnight or scheduled-worker window, so the CPU path was not the bottleneck on that host. Use `-t 16` on that CPU and never `-t 32`, which thrashes. Results on other hardware will differ.
+On that host a 90 min podcast transcribes in about 16 min wall time at `-t 16`, comfortably inside an overnight or scheduled-worker window, so CPU transcription was adequate. Use `-t 16` on that CPU and never `-t 32`, which thrashes. Results on other hardware will differ.
 
 ## Notes
 
 - ROCm 7 supports gfx1100 natively. Set `HSA_OVERRIDE_GFX_VERSION=11.0.0` only if the server does not see the card.
-- The GPU can be faster than CPU, but a persistent whisper daemon on a GPU shared with other workloads can wedge HIP and force a GPU reset that affects those workloads. The contributor chose CPU for that reason on a shared host.
+- The GPU can be faster than CPU, but a persistent whisper daemon on a GPU shared with other workloads can wedge HIP and force a reset that affects those workloads. The contributor chose CPU for that reason on a shared host.
 - If you only need CPU transcription, the bundled backend (`WHISPER_BACKEND=local` on the CPU image) needs no separate server.
