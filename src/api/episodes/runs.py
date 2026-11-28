@@ -831,6 +831,46 @@ def get_processing_episodes():
     return json_response(episodes + queued)
 
 
+def _request_run_cancel(db, status_service, slug, episode_id):
+    """Signal an active run to stop and clear its queue entries; returns the run id or None."""
+    run_id = request_cancellation(slug, episode_id)
+    if not run_id:
+        return None
+    # Belt-and-suspenders: clear any stale display-queue / auto_process_queue
+    # entry for this episode so a follow-up enqueue starts from a clean slate.
+    status_service.remove_queued_episode(slug, episode_id)
+    db.close_queue_rows_for_episode(slug, episode_id)
+    return run_id
+
+
+@api.route('/episodes/processing/cancel-all', methods=['POST'])
+@limiter.limit("2 per minute")
+@log_request
+def cancel_all_processing():
+    """Cancel every active run and remove every queued episode."""
+    db = get_database()
+    status_service = get_status_service()
+    active = db.get_connection().execute(
+        """SELECT p.slug, r.episode_id
+           FROM processing_runs r
+           JOIN podcasts p ON p.id = r.podcast_id
+           WHERE r.state IN ('running', 'cancel_requested')"""
+    ).fetchall()
+    requested = sum(
+        _request_run_cancel(db, status_service, row['slug'], row['episode_id']) is not None
+        for row in active
+    )
+    closed = db.close_all_queue_rows()
+    removed = status_service.remove_all_queued_episodes()
+    logger.info("Cancel all processing: %d active requested, %d queued removed",
+                requested, max(closed, removed))
+    return json_response({
+        'message': 'Cancellation requested for all active and queued episodes',
+        'activeRequested': requested,
+        'queuedRemoved': max(closed, removed),
+    })
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/cancel', methods=['POST'])
 @log_request
 def cancel_episode_processing(slug, episode_id):
@@ -860,14 +900,9 @@ def cancel_episode_processing(slug, episode_id):
             'slug': slug
         })
 
-    run_id = request_cancellation(slug, episode_id)
+    run_id = _request_run_cancel(db, status_service, slug, episode_id)
     if not run_id:
         return error_response('Could not record cancellation; run remains active', 503)
-
-    # Belt-and-suspenders: clear any stale display-queue / auto_process_queue
-    # entry for this episode so a follow-up enqueue starts from a clean slate.
-    status_service.remove_queued_episode(slug, episode_id)
-    db.close_queue_rows_for_episode(slug, episode_id)
 
     if not wait_for_cancellation(run_id, timeout=2.0):
         logger.info("Cancellation pending: %s:%s (%s)", slug, episode_id, run_id)

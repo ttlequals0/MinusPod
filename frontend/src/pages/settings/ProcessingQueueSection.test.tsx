@@ -55,6 +55,9 @@ interface RenderOptions {
   priorityIsPending?: boolean;
   cancelIsPending?: boolean;
   cancelingKey?: string | null;
+  onCancelAll?: () => Promise<unknown>;
+  cancelAllIsPending?: boolean;
+  cancelAllFailed?: boolean;
 }
 
 const table = () => within(screen.getByRole('table'));
@@ -73,6 +76,9 @@ function renderSection(
         onCancel={onCancel}
         cancelIsPending={options.cancelIsPending ?? false}
         cancelingKey={options.cancelingKey}
+        onCancelAll={options.onCancelAll}
+        cancelAllIsPending={options.cancelAllIsPending}
+        cancelAllFailed={options.cancelAllFailed}
         queuePage={options.queuePage ?? 1}
         onQueuePage={options.onQueuePage ?? vi.fn()}
         onPriorityChange={options.onPriorityChange ?? vi.fn()}
@@ -96,6 +102,50 @@ describe('ProcessingQueueSection', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Pause new work' }));
     await waitFor(() => expect(mockSetAdmission).toHaveBeenCalledWith(true));
   });
+  it('confirms before cancelling everything and closes once it resolves', async () => {
+    const onCancelAll = vi.fn().mockResolvedValue({});
+    renderSection([active(), queued(1)], vi.fn(), { onCancelAll });
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel all' }));
+    expect(onCancelAll).not.toHaveBeenCalled();
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('heading', { name: 'Cancel all processing?' })).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel all processing' }));
+    expect(onCancelAll).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('keeps the confirm dialog open and shows the error when cancel all fails', async () => {
+    const onCancelAll = vi.fn().mockRejectedValue(new Error('boom'));
+    renderSection([queued(1)], vi.fn(), { onCancelAll, cancelAllFailed: true });
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel all' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel all processing' }));
+    expect(onCancelAll).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText('Could not cancel the queue. Try again.')).toBeTruthy();
+  });
+
+  it('dismissing the confirm dialog does not cancel anything', async () => {
+    const onCancelAll = vi.fn().mockResolvedValue({});
+    renderSection([queued(1)], vi.fn(), { onCancelAll });
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel all' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(onCancelAll).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('disables Cancel all when nothing is active or queued', async () => {
+    mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 0, queuedEpisodes: 0 });
+    renderSection([], vi.fn(), { onCancelAll: vi.fn() });
+    const button = await screen.findByRole('button', { name: 'Cancel all' });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows a pending state while cancelling everything', async () => {
+    renderSection([queued(1)], vi.fn(), { onCancelAll: vi.fn(), cancelAllIsPending: true });
+    const button = await screen.findByRole('button', { name: 'Canceling...' });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('shows the empty state when nothing is processing or queued', () => {
     renderSection([]);
     expect(screen.getByText('No episodes processing or queued')).toBeTruthy();

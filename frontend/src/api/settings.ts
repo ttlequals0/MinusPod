@@ -327,6 +327,12 @@ export async function cancelProcessing(slug: string, episodeId: string): Promise
   });
 }
 
+export async function cancelAllProcessing(): Promise<{
+  message: string; activeRequested: number; queuedRemoved: number;
+}> {
+  return apiRequest('/episodes/processing/cancel-all', { method: 'POST' });
+}
+
 /** Pass `priority` to set an exact value, or `delta` to nudge the stored one. */
 export async function setQueuePriority(
   slug: string, episodeId: string, change: { priority?: number; delta?: number },

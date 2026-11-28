@@ -1893,6 +1893,21 @@ class TestCloseQueueRowsForEpisode:
         assert self._queue_status(temp_db, pid_a, 'shared-id') == 'completed'
         assert self._queue_status(temp_db, pid_b, 'shared-id') == 'pending'
 
+    def test_close_all_closes_every_open_row_across_feeds(self, temp_db):
+        temp_db.create_podcast('pod-a', 'https://example.com/a.xml', 'pod-a')
+        temp_db.create_podcast('pod-b', 'https://example.com/b.xml', 'pod-b')
+        pid_a = self._podcast_id(temp_db, 'pod-a')
+        pid_b = self._podcast_id(temp_db, 'pod-b')
+        self._insert_queue(temp_db, pid_a, 'ep1', 'pending')
+        self._insert_queue(temp_db, pid_a, 'ep2', 'processing')
+        self._insert_queue(temp_db, pid_b, 'ep3', 'failed')
+        self._insert_queue(temp_db, pid_b, 'ep4', 'completed')
+
+        assert temp_db.close_all_queue_rows() == 3
+        for pid, ep in ((pid_a, 'ep1'), (pid_a, 'ep2'), (pid_b, 'ep3'), (pid_b, 'ep4')):
+            assert self._queue_status(temp_db, pid, ep) == 'completed'
+        assert temp_db.close_all_queue_rows() == 0
+
 
 class TestStalePromptRefresh:
     """A prompt row still flagged is_default tracks the shipped text; one the

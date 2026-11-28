@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { useUrlParams } from '../hooks/useUrlParams';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  cancelAllProcessing,
   cancelProcessing,
   getProcessingEpisodes,
   getProcessingAdmission,
@@ -178,6 +179,15 @@ function QueuePage() {
       queryClient.invalidateQueries({ queryKey: ['status'] });
     },
   });
+  const cancelAll = useMutation({
+    mutationFn: cancelAllProcessing,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['processing-admission'] });
+      queryClient.invalidateQueries({ queryKey: ['processing-status'] });
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
   const priority = useMutation({
     mutationFn: ({ slug, episodeId, ...change }: { slug: string; episodeId: string; priority?: number; delta?: number }) =>
       setQueuePriority(slug, episodeId, change),
@@ -246,6 +256,9 @@ function QueuePage() {
           storageKey="queue-page-episodes"
           onCancel={(params) => cancel.mutate(params)}
           cancelIsPending={cancel.isPending}
+          onCancelAll={() => cancelAll.mutateAsync()}
+          cancelAllIsPending={cancelAll.isPending}
+          cancelAllFailed={cancelAll.isError}
           cancelingKey={cancel.variables ? `${cancel.variables.slug}:${cancel.variables.episodeId}` : null}
           queuePage={queuePage}
           onQueuePage={setQueuePage}

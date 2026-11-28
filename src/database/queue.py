@@ -618,6 +618,22 @@ class QueueMixin:
             conn.rollback()
             raise
 
+    def close_all_queue_rows(self) -> int:
+        """Mark every non-terminal queue row completed. Returns rows touched."""
+        conn = self.get_connection()
+        try:
+            cursor = conn.execute(
+                """UPDATE auto_process_queue
+                   SET status = 'completed',
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE status IN ('pending', 'processing', 'failed')"""
+            )
+            conn.commit()
+            return cursor.rowcount
+        except Exception:
+            conn.rollback()
+            raise
+
     def get_queue_status(self) -> dict:
         """Auto-process queue status summary, plus the pending/processing rows
         (with priority) driving the dequeue order (#625)."""

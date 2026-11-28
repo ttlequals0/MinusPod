@@ -3653,6 +3653,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /episodes/processing/cancel-all:
+    post:
+      tags:
+        - Processing
+      summary: Cancel all processing
+      description: |
+        Signals every active run to stop, the same way the single-episode
+        cancel does, then closes every open `auto_process_queue` row and clears
+        the display queue so nothing waiting is picked up. Active runs stop
+        asynchronously; `activeRequested` counts the cancellations recorded.
+      operationId: cancelAllProcessing
+      responses:
+        '200':
+          description: Cancellation requested for all active and queued episodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  activeRequested:
+                    type: integer
+                    description: Active runs that received a cancellation request.
+                  queuedRemoved:
+                    type: integer
+                    description: Queued episodes removed from the waiting list.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /episodes/processing:
     get:
       tags:

@@ -10,12 +10,13 @@ import NumberInput from '../../components/NumberInput';
 import { getStageLabel } from '../../utils/processingStage';
 import { getProcessingAdmission, setProcessingAdmission } from '../../api/settings';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { btnBase, btnSecondary, btnGhost, btnDestructive } from '../../components/buttonStyles';
+import { btnBase, btnSecondary, btnGhost, btnDestructive, btnDestructiveOutline } from '../../components/buttonStyles';
 import { inputBase } from '../../components/fieldStyles';
 import { tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
 import { subHeading } from '../../components/pageStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { ConfirmModal, captureDialogTrigger } from '../../components/Modal';
 
 const STORAGE_KEY = 'settings-section-processing-queue';
 
@@ -37,6 +38,10 @@ interface ProcessingQueueSectionProps {
   storageKey?: string;
   onCancel: (params: { slug: string; episodeId: string }) => void;
   cancelIsPending: boolean;
+  /** Cancels every active run and queued episode; the section closes its confirm dialog when it resolves. */
+  onCancelAll?: () => Promise<unknown>;
+  cancelAllIsPending?: boolean;
+  cancelAllFailed?: boolean;
   /** `slug:episodeId` of the row a cancel is in flight for, if any. */
   cancelingKey?: string | null;
   /** 1-based page of the waiting list. */
@@ -81,6 +86,9 @@ function ProcessingQueueSection({
   storageKey,
   onCancel,
   cancelIsPending,
+  onCancelAll,
+  cancelAllIsPending = false,
+  cancelAllFailed = false,
   cancelingKey,
   queuePage,
   onQueuePage,
@@ -95,6 +103,7 @@ function ProcessingQueueSection({
     mutationFn: (paused: boolean) => setProcessingAdmission(paused),
     onSuccess: (data) => queryClient.setQueryData(['processing-admission'], data),
   });
+  const [confirmingCancelAll, setConfirmingCancelAll] = useState(false);
   const episodes = processingEpisodes ?? [];
   const active = episodes.filter((e) => e.stage !== 'queued');
   const queued = episodes.filter((e) => e.stage === 'queued');
@@ -198,18 +207,45 @@ function ProcessingQueueSection({
                 : `${admission.data.activeRuns} active ${admission.data.activeRuns === 1 ? 'run' : 'runs'} and ${admission.data.queuedEpisodes} queued ${admission.data.queuedEpisodes === 1 ? 'episode' : 'episodes'}.`}
             </p>
           </div>
-          <DemoDisabled>
-            <button
-              type="button"
-              onClick={() => updateAdmission.mutate(!admission.data.paused)}
-              disabled={updateAdmission.isPending}
-              className={`${btnBase} ${btnSecondary}`}
-            >
-              {admission.data.paused ? 'Resume new work' : 'Pause new work'}
-            </button>
-          </DemoDisabled>
+          <div className="flex flex-wrap items-center gap-2">
+            <DemoDisabled>
+              <button
+                type="button"
+                onClick={() => updateAdmission.mutate(!admission.data.paused)}
+                disabled={updateAdmission.isPending}
+                className={`${btnBase} ${btnSecondary}`}
+              >
+                {admission.data.paused ? 'Resume new work' : 'Pause new work'}
+              </button>
+            </DemoDisabled>
+            {onCancelAll && (
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={(event) => { captureDialogTrigger(event); setConfirmingCancelAll(true); }}
+                  disabled={cancelAllIsPending || admission.data.activeRuns + admission.data.queuedEpisodes === 0}
+                  className={`${btnBase} ${btnDestructiveOutline}`}
+                >
+                  {cancelAllIsPending ? 'Canceling...' : 'Cancel all'}
+                </button>
+              </DemoDisabled>
+            )}
+          </div>
         </div>
       ) : null}
+      {confirmingCancelAll && onCancelAll && (
+        <ConfirmModal
+          title="Cancel all processing?"
+          confirmLabel="Cancel all processing"
+          busyLabel="Canceling..."
+          pending={cancelAllIsPending}
+          onCancel={() => setConfirmingCancelAll(false)}
+          onConfirm={() => { onCancelAll().then(() => setConfirmingCancelAll(false), () => undefined); }}
+        >
+          <p>This stops every active run and removes every queued episode from the queue. Cancelled episodes go back to pending.</p>
+          {cancelAllFailed && <p className="text-destructive">Could not cancel the queue. Try again.</p>}
+        </ConfirmModal>
+      )}
       {hasProcessing ? (
         <div className="space-y-4">
           {showActive && active.length > 0 && (

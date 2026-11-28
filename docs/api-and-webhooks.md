@@ -111,6 +111,7 @@ Key endpoints:
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
 - `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. A request that sends the removed `type` parameter gets a 400
 - `GET /api/v1/episodes/processing` - List episodes currently processing
+- `POST /api/v1/episodes/processing/cancel-all` - Cancel every active run and clear the waiting queue
 - `GET /api/v1/history` - Processing history with pagination and export
 - `GET /api/v1/history/downloads` - Episode download history with filters, sorting and pagination; see [Download History](download-history.md)
 - `GET /api/v1/stats/reviewer` and `GET /api/v1/stats/addressing` - Reviewer and addressing statistics, each with a `byMode` block per addressing mode

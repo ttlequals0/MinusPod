@@ -9,6 +9,7 @@ const mockGetEpisodes = vi.fn();
 const mockGetSettings = vi.fn();
 const mockGetAdmission = vi.fn();
 const mockCancel = vi.fn();
+const mockCancelAll = vi.fn();
 const mockSetPriority = vi.fn();
 const mockUpdateSettings = vi.fn();
 const mockAwaiting = vi.fn();
@@ -19,6 +20,7 @@ vi.mock('../api/settings', () => ({
   getSettings: (...args: unknown[]) => mockGetSettings(...args),
   getProcessingAdmission: (...args: unknown[]) => mockGetAdmission(...args),
   cancelProcessing: (...args: unknown[]) => mockCancel(...args),
+  cancelAllProcessing: (...args: unknown[]) => mockCancelAll(...args),
   setQueuePriority: (...args: unknown[]) => mockSetPriority(...args),
   updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
   getAwaitingApproval: (...args: unknown[]) => mockAwaiting(...args),
@@ -84,6 +86,7 @@ describe('QueuePage', () => {
     mockGetSettings.mockResolvedValue(settings());
     mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 0, queuedEpisodes: 26 });
     mockCancel.mockResolvedValue({ message: 'Canceled' });
+    mockCancelAll.mockResolvedValue({ message: 'Canceled', activeRequested: 0, queuedRemoved: 26 });
     mockSetPriority.mockResolvedValue({ message: 'Updated', priority: 0 });
     mockUpdateSettings.mockResolvedValue({ message: 'Updated' });
   });
