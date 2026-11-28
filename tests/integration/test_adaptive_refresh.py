@@ -11,7 +11,6 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='adaptive-refresh-test-'))
 
-import feed_schedule
 from config import FEED_REFRESH_FAILURE_ALERT_THRESHOLD as THRESHOLD
 from main_app import feeds as feeds_mod
 

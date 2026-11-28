@@ -15,7 +15,6 @@ from config import (
     FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS,
     episode_matches_feed_filters,
     resolve_adaptive_refresh,
-    resolve_refresh_floor_seconds,
     resolve_review_links_in_notes,
 )
 
