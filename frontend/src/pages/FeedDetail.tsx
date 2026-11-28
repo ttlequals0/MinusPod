@@ -39,8 +39,9 @@ import RichText from '../components/RichText';
 import { Modal, ConfirmModal, dialogFooterBtn } from '../components/Modal';
 import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive, btnPrimaryOutline, btnDestructiveOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase } from '../components/fieldStyles';
-import { badgeBase, countPill, tint } from '../components/badgeStyles';
-import { tabItem, tabStrip } from '../components/PageTabs';
+import { badgeBase, tint } from '../components/badgeStyles';
+import PageTabs from '../components/PageTabs';
+import { revealSection } from '../utils/revealSection';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -71,6 +72,18 @@ const EPISODE_PARAM_DEFAULTS = {
 const PAGE_SIZES = [25, 50, 100, 500];
 
 type EpisodeParam = keyof typeof EPISODE_PARAM_DEFAULTS;
+
+type FeedSection = 'episodes' | 'settings' | 'local' | 'youtube' | 'ads' | 'cues';
+const SECTION_PARAM_DEFAULTS = { section: 'episodes' };
+// Older #anchor links, from when these were stacked panels, still open their section.
+const SECTION_HASHES: Record<string, FeedSection> = {
+  'feed-episodes-section': 'episodes',
+  'feed-settings-section': 'settings',
+  'local-feed-section': 'local',
+  'youtube-feed-section': 'youtube',
+  'ad-distribution-section': 'ads',
+  'audio-cues-section': 'cues',
+};
 
 // Page, filter, sort and search live in the URL so Back from an episode restores them.
 function useEpisodeListParams() {
@@ -432,6 +445,34 @@ function FeedDetail() {
       ? null
       : 'No run actions apply to this selection.';
   const isRecents = feed?.feedType === 'recents';
+
+  const feedType = feed?.feedType;
+  const sections = useMemo(() => [
+    { value: 'episodes', label: 'Episodes' },
+    { value: 'settings', label: 'Feed settings' },
+    ...(feedType === 'local' ? [{ value: 'local', label: 'Local audio' }] : []),
+    ...(feedType === 'youtube' ? [{ value: 'youtube', label: 'YouTube' }] : []),
+    { value: 'ads', label: 'Ad distribution' },
+    { value: 'cues', label: 'Audio cues' },
+  ] as { value: FeedSection; label: string }[], [feedType]);
+  const { readOneOf, write: writeSection } = useUrlParams(SECTION_PARAM_DEFAULTS);
+  const sectionValues = sections.map((section) => section.value);
+  const hashSection = SECTION_HASHES[decodeURIComponent(location.hash.slice(1))];
+  const activeSection: FeedSection = isRecents ? 'episodes'
+    : sectionValues.includes(hashSection) ? hashSection : readOneOf('section', sectionValues, 'episodes');
+  // A section mounts on first visit and then stays mounted (hidden), so unsaved edits survive a tab switch.
+  const [mountedSections, setMountedSections] = useState<ReadonlySet<string>>(new Set());
+  const mountKey = (section: FeedSection) => `${slug}:${section}`;
+  if (!mountedSections.has(mountKey(activeSection))) {
+    setMountedSections(new Set([...mountedSections, mountKey(activeSection)]));
+  }
+  const deepLinked = !!feed && sectionValues.includes(hashSection);
+  useEffect(() => {
+    if (!deepLinked) return;
+    const nav = document.getElementById('feed-sections-nav');
+    if (!nav) return;
+    return revealSection(nav, document.getElementById(`feed-sections-tab-${hashSection}`));
+  }, [deepLinked, hashSection, location.key]);
   const stopsProcessingMessage = deleteStopsProcessingMessage(feed?.statusCounts?.processing ?? 0);
 
   if (feedLoading) {
@@ -727,276 +768,246 @@ function FeedDetail() {
 
       {refreshMutation.isPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Refreshing feed...</p>}
 
-      {slug && !isRecents && (
-        <nav aria-label="Feed sections" className={tabStrip}>
-          {[
-            { id: 'feed-settings-section', label: 'Feed settings' },
-            ...(feed.feedType === 'local' ? [{ id: 'local-feed-section', label: 'Local audio' }] : []),
-            ...(feed.feedType === 'youtube' ? [{ id: 'youtube-feed-section', label: 'YouTube' }] : []),
-            { id: 'ad-distribution-section', label: 'Ad distribution' },
-            { id: 'audio-cues-section', label: 'Audio cues' },
-            { id: 'feed-episodes-section', label: 'Episodes', count: feed.episodeCount },
-          ].map(({ id, label, count }) => (
-            <a
-              key={id}
-              href={`#${id}`}
-              className={`${tabItem} border-transparent text-muted-foreground hover:text-foreground`}
-            >
-              <span>{label}</span>
-              {count !== undefined && (
-                <span className={`ml-1.5 ${countPill} ${tint.secondary}`}>
-                  {count}
-                </span>
-              )}
-            </a>
-          ))}
-        </nav>
-      )}
-
       {slug && !isRecents && <FeedStatsCards feed={feed} slug={slug} />}
 
       {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
 
       {slug && !isRecents && (
-        <div id="feed-settings-section">
-          <FeedSettingsPanel key={slug} feed={feed} slug={slug} />
+        <div id="feed-sections-nav" className="scroll-mt-[calc(var(--status-bar-height,0px)+5rem)]">
+          <PageTabs id="feed-sections" label="Feed sections" variant="pills" tabs={sections.map((section) =>
+            section.value === 'episodes' ? { ...section, count: feed.episodeCount } : section)}
+            active={activeSection} onChange={(value) => writeSection({ section: value })} />
         </div>
       )}
 
-      {slug && feed.feedType === 'local' && (
-        <div id="local-feed-section">
-          <LocalFeedPanel feed={feed} slug={slug} />
-        </div>
-      )}
-      {slug && feed.feedType === 'youtube' && (
-        <div id="youtube-feed-section">
-          <YouTubeFeedPanel key={`youtube-${slug}`} feed={feed} slug={slug} />
-        </div>
-      )}
+      <div {...(isRecents ? {} : { role: 'tabpanel', id: 'feed-sections-panel-episodes', 'aria-labelledby': 'feed-sections-tab-episodes' })}
+        hidden={activeSection !== 'episodes'}>
+        {/* Decisions made on this feed's episodes, not yet in the audio. */}
+        {slug && !isRecents && <PendingRecutsBar slug={slug} />}
 
-      {slug && !isRecents && (
-        <div id="ad-distribution-section">
-          <PodcastAdDistributionPanel slug={slug} />
+        {/* Episodes header with status filter */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:justify-end">
+          <h2 className="sr-only">
+            Episodes{totalEpisodes > 0 && ` (${totalEpisodes})`}
+          </h2>
+          {/* The pair shares one row and shrinks to fit rather than stacking:
+              wrapping put each select on its own line at ordinary phone widths. */}
+          {!isRecents && (
+          <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+            <select
+              aria-label="Filter episodes by status"
+              value={statusFilter}
+              onChange={(e) => changeFilter({ status: e.target.value })}
+              className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
+            >
+              <option value="all">All statuses</option>
+              <option value="discovered">Discovered</option>
+              <option value="filtered">Filtered</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="processed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="permanently_failed">Permanently failed</option>
+              <option value="deferred">Queued (offline)</option>
+            </select>
+            <select
+              aria-label="Sort episodes"
+              value={`${sortBy}:${sortDir}`}
+              onChange={(e) => changeFilter({ sort: e.target.value })}
+              className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
+            >
+              <option value="published_at:desc">Newest first</option>
+              <option value="published_at:asc">Oldest first</option>
+              <option value="episode_number:desc">Episode # (high to low)</option>
+              <option value="episode_number:asc">Episode # (low to high)</option>
+            </select>
+          </div>
+          )}
         </div>
-      )}
 
-      {slug && !isRecents && (
-        <div id="audio-cues-section">
-          <CueTemplatesPanel slug={slug} />
-        </div>
-      )}
-
-      {/* Decisions made on this feed's episodes, not yet in the audio. */}
-      {slug && !isRecents && <PendingRecutsBar slug={slug} />}
-
-      {/* Episodes header with status filter */}
-      <div id="feed-episodes-section" className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className={cardTitle}>
-          Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-sm">({totalEpisodes})</span>}
-        </h2>
-        {/* The pair shares one row and shrinks to fit rather than stacking:
-            wrapping put each select on its own line at ordinary phone widths. */}
-        {!isRecents && (
-        <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
-          <select
-            aria-label="Filter episodes by status"
-            value={statusFilter}
-            onChange={(e) => changeFilter({ status: e.target.value })}
-            className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
-          >
-            <option value="all">All statuses</option>
-            <option value="discovered">Discovered</option>
-            <option value="filtered">Filtered</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="processed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="permanently_failed">Permanently failed</option>
-            <option value="deferred">Queued (offline)</option>
-          </select>
-          <select
-            aria-label="Sort episodes"
-            value={`${sortBy}:${sortDir}`}
-            onChange={(e) => changeFilter({ sort: e.target.value })}
-            className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
-          >
-            <option value="published_at:desc">Newest first</option>
-            <option value="published_at:asc">Oldest first</option>
-            <option value="episode_number:desc">Episode # (high to low)</option>
-            <option value="episode_number:asc">Episode # (low to high)</option>
-          </select>
-        </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="relative flex-1 min-w-0">
-          <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search episode titles..."
-            aria-label="Search episode titles"
-            className={`${inputBase} w-full pl-9 ${searchInput ? 'pr-9' : ''}`}
-          />
-          {searchInput && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="relative flex-1 min-w-0">
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search episode titles..."
+              aria-label="Search episode titles"
+              className={`${inputBase} w-full pl-9 ${searchInput ? 'pr-9' : ''}`}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput('');
+                  changeFilter({ q: '' });
+                }}
+                aria-label="Clear episode search"
+                className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center p-1.5 rounded text-muted-foreground hover:text-foreground touch-manipulation ${focusRing}`}
+              >
+                <X aria-hidden="true" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {!isRecents && (statusFilter !== 'all' || searchInput.trim() !== '' || episodeSearch.trim() !== '') && (
             <button
               type="button"
               onClick={() => {
                 setSearchInput('');
-                changeFilter({ q: '' });
+                changeFilter({ status: 'all', q: '' });
               }}
-              aria-label="Clear episode search"
-              className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center p-1.5 rounded text-muted-foreground hover:text-foreground touch-manipulation ${focusRing}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
-              <X aria-hidden="true" className="w-4 h-4" />
+              Clear filters
+            </button>
+          )}
+          {!isRecents && totalEpisodes > 0 && (
+            <button
+              type="button"
+              onClick={selectAllMatches}
+              disabled={episodesLoading || selectingMatches || bulkMutation.isPending || passthroughMutation.isPending}
+              className={`${btnBase} ${btnSecondary}`}
+            >
+              {selectingMatches ? 'Selecting...' : `Select all ${totalEpisodes} matches`}
             </button>
           )}
         </div>
-        {!isRecents && (statusFilter !== 'all' || searchInput.trim() !== '' || episodeSearch.trim() !== '') && (
-          <button
-            type="button"
-            onClick={() => {
-              setSearchInput('');
-              changeFilter({ status: 'all', q: '' });
-            }}
-            className={`${btnBase} ${btnSecondary}`}
-          >
-            Clear filters
-          </button>
-        )}
-        {!isRecents && totalEpisodes > 0 && (
-          <button
-            type="button"
-            onClick={selectAllMatches}
-            disabled={episodesLoading || selectingMatches || bulkMutation.isPending || passthroughMutation.isPending}
-            className={`${btnBase} ${btnSecondary}`}
-          >
-            {selectingMatches ? 'Selecting...' : `Select all ${totalEpisodes} matches`}
-          </button>
-        )}
-      </div>
 
-      {/* Bulk action toolbar */}
-      {hasSelection && (
-        <div className="mb-4 p-4 bg-card rounded-lg border border-primary/40 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-foreground">
-              {effectiveSelectedIds.size} {effectiveSelectedIds.size === 1 ? 'episode' : 'episodes'} selected
-            </span>
-            <button
-              type="button"
-              onClick={clearSelection}
-              className={`touch-target text-sm text-primary hover:underline rounded ${focusRing}`}
-            >
-              Clear selection
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-            {discoveredCount + pendingCount > 0 && (
+        {/* Bulk action toolbar */}
+        {hasSelection && (
+          <div className="mb-4 p-4 bg-card rounded-lg border border-primary/40 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-foreground">
+                {effectiveSelectedIds.size} {effectiveSelectedIds.size === 1 ? 'episode' : 'episodes'} selected
+              </span>
               <button
-                onClick={() => bulkMutation.mutate({ action: 'process' })}
-                disabled={selectionBusy}
-                className={`${btnBase} ${btnPrimary} col-span-2 sm:col-auto`}
+                type="button"
+                onClick={clearSelection}
+                className={`touch-target text-sm text-primary hover:underline rounded ${focusRing}`}
               >
-                {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
+                Clear selection
               </button>
-            )}
-            {processedCount > 0 && (
+            </div>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+              {discoveredCount + pendingCount > 0 && (
+                <button
+                  onClick={() => bulkMutation.mutate({ action: 'process' })}
+                  disabled={selectionBusy}
+                  className={`${btnBase} ${btnPrimary} col-span-2 sm:col-auto`}
+                >
+                  {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
+                </button>
+              )}
+              {processedCount > 0 && (
+                <DropdownMenu
+                  triggerLabel={`Reprocess (${processedCount})`}
+                  triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
+                  disabled={selectionBusy}
+                  items={[
+                    { title: 'Reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess' }) },
+                    { title: 'Full reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess_full' }) },
+                    {
+                      title: 'Re-detect ads',
+                      subtitle: 'Uses existing transcripts',
+                      tooltip: 'Re-detect ads using existing transcripts (skips re-transcription)',
+                      onClick: () => bulkMutation.mutate({ action: 'reprocess_llm' }),
+                    },
+                  ]}
+                />
+              )}
+              {/* Pass-through applies regardless of episode status; only actively
+                  processing rows are excluded from selection in the first place. */}
               <DropdownMenu
-                triggerLabel={`Reprocess (${processedCount})`}
-                triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
+                triggerLabel={`Pass-through (${effectiveSelectedIds.size})`}
+                triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
                 disabled={selectionBusy}
                 items={[
-                  { title: 'Reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess' }) },
-                  { title: 'Full reprocess', onClick: () => bulkMutation.mutate({ action: 'reprocess_full' }) },
                   {
-                    title: 'Re-detect ads',
-                    subtitle: 'Uses existing transcripts',
-                    tooltip: 'Re-detect ads using existing transcripts (skips re-transcription)',
-                    onClick: () => bulkMutation.mutate({ action: 'reprocess_llm' }),
+                    title: 'Set pass-through',
+                    subtitle: 'Serve these episodes unmodified',
+                    tooltip: 'Serve these episodes unmodified, with no ad processing',
+                    onClick: () => passthroughMutation.mutate({ enabled: true }),
+                  },
+                  {
+                    title: 'Clear pass-through',
+                    subtitle: 'Resume normal ad processing',
+                    tooltip: 'Resume normal ad processing for these episodes',
+                    onClick: () => passthroughMutation.mutate({ enabled: false }),
                   },
                 ]}
               />
+            </div>
+            {processedCount > 0 && (
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={selectionBusy}
+                className={`${btnBase} ${btnDestructiveOutline} w-full sm:w-auto`}
+              >
+                Delete selected ({processedCount})
+              </button>
             )}
-            {/* Pass-through applies regardless of episode status; only actively
-                processing rows are excluded from selection in the first place. */}
-            <DropdownMenu
-              triggerLabel={`Pass-through (${effectiveSelectedIds.size})`}
-              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
-              disabled={selectionBusy}
-              items={[
-                {
-                  title: 'Set pass-through',
-                  subtitle: 'Serve these episodes unmodified',
-                  tooltip: 'Serve these episodes unmodified, with no ad processing',
-                  onClick: () => passthroughMutation.mutate({ enabled: true }),
-                },
-                {
-                  title: 'Clear pass-through',
-                  subtitle: 'Resume normal ad processing',
-                  tooltip: 'Resume normal ad processing for these episodes',
-                  onClick: () => passthroughMutation.mutate({ enabled: false }),
-                },
-              ]}
-            />
+            {selectionNote && <p className="text-xs text-muted-foreground">{selectionNote}</p>}
           </div>
-          {processedCount > 0 && (
-            <button
-              onClick={() => setShowBulkDeleteConfirm(true)}
-              disabled={selectionBusy}
-              className={`${btnBase} ${btnDestructiveOutline} w-full sm:w-auto`}
-            >
-              Delete selected ({processedCount})
-            </button>
-          )}
-          {selectionNote && <p className="text-xs text-muted-foreground">{selectionNote}</p>}
-        </div>
-      )}
+        )}
 
-      {episodesLoading ? (
-        <SkeletonRows count={6} />
-      ) : (
-        <EpisodeList
-          episodes={episodes}
-          feedSlug={slug!}
-          feedArtworkUrl={feed.artworkUrl}
-          selectedIds={isRecents ? undefined : effectiveSelectedIds}
-          onToggle={isRecents ? undefined : handleToggleSelect}
-          onSelectAll={isRecents ? undefined : handleSelectAll}
-          renderActions={isRecents ? undefined : (ep) => (
-            <EpisodeRowActions
-              feedSlug={slug!}
-              episodeId={ep.id}
-              status={ep.status}
-              jobState={ep.jobState}
-              hasBeenProcessed={ep.hasBeenProcessed}
-              feedType={feed.feedType}
-            />
+        {episodesLoading ? (
+          <SkeletonRows count={6} />
+        ) : (
+          <EpisodeList
+            episodes={episodes}
+            feedSlug={slug!}
+            feedArtworkUrl={feed.artworkUrl}
+            selectedIds={isRecents ? undefined : effectiveSelectedIds}
+            onToggle={isRecents ? undefined : handleToggleSelect}
+            onSelectAll={isRecents ? undefined : handleSelectAll}
+            renderActions={isRecents ? undefined : (ep) => (
+              <EpisodeRowActions
+                feedSlug={slug!}
+                episodeId={ep.id}
+                status={ep.status}
+                jobState={ep.jobState}
+                hasBeenProcessed={ep.hasBeenProcessed}
+                feedType={feed.feedType}
+              />
+            )}
+          />
+        )}
+
+        {/* Pagination controls (shared Pagination renders nothing at 1 page) */}
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={totalEpisodes}
+          onPage={handlePageChange}
+          footer={(
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Per page
+              <select
+                value={pageSize}
+                onChange={(e) => changeFilter({ size: e.target.value })}
+                className={`${selectBase} w-auto`}
+              >
+                {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
           )}
         />
-      )}
+      </div>
 
-      {/* Pagination controls (shared Pagination renders nothing at 1 page) */}
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        total={totalEpisodes}
-        onPage={handlePageChange}
-        footer={(
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Per page
-            <select
-              value={pageSize}
-              onChange={(e) => changeFilter({ size: e.target.value })}
-              className={`${selectBase} w-auto`}
-            >
-              {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
-            </select>
-          </label>
-        )}
-      />
+      {slug && !isRecents && ([
+        ['settings', <FeedSettingsPanel key={slug} feed={feed} slug={slug} />],
+        ['local', feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />],
+        ['youtube', feed.feedType === 'youtube' && <YouTubeFeedPanel key={`youtube-${slug}`} feed={feed} slug={slug} />],
+        ['ads', <PodcastAdDistributionPanel slug={slug} />],
+        ['cues', <CueTemplatesPanel slug={slug} />],
+      ] as const).map(([section, panel]) => panel && (
+        <div key={section} role="tabpanel" id={`feed-sections-panel-${section}`}
+          aria-labelledby={`feed-sections-tab-${section}`} hidden={activeSection !== section}>
+          {/* The chart cannot measure a hidden container, so it unmounts; the others hold form state. */}
+          {(section === 'ads' ? activeSection === section : mountedSections.has(mountKey(section))) && panel}
+        </div>
+      ))}
 
       {showBulkDeleteConfirm && (
         <Modal

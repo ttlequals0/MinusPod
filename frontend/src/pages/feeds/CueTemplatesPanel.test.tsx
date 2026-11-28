@@ -18,13 +18,6 @@ vi.mock('react-router', () => ({
 }));
 
 // ---- Heavy component stubs ----
-vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../components/CollapsibleSection')>();
-  return {
-    useCollapsibleOpen: actual.useCollapsibleOpen,
-    default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  };
-});
 vi.mock('../../components/LoadingSpinner', () => ({
   default: ({ inline }: { inline?: boolean }) => (
     <span data-testid={inline ? 'spinner-inline' : 'spinner'} />
@@ -145,10 +138,6 @@ function makeEpisode(id: string, title: string, hasOriginalAudio = true): Episod
 // ---- Setup ----
 beforeEach(() => {
   vi.clearAllMocks();
-
-  // The panel's queries only run while the section is open; seed the
-  // persisted open flag so they fire (the CollapsibleSection is stubbed).
-  localStorage.setItem('feed-cue-templates-test-feed', 'true');
 
   mockListCueTemplates.mockResolvedValue([]);
   mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed' });
@@ -812,34 +801,19 @@ describe('More menu on a cue row', () => {
 });
 
 describe('SPA navigation between feeds without a remount', () => {
-  it('re-reads the new feed\'s own persisted open state instead of carrying the previous feed\'s', async () => {
-    localStorage.setItem('feed-cue-templates-feed-a', 'true');
-    localStorage.setItem('feed-cue-templates-feed-b', 'false');
+  it('loads the new feed\'s templates instead of carrying the previous feed\'s', async () => {
     mockListCueTemplates.mockImplementation((slug: string) =>
       Promise.resolve(slug === 'feed-a' ? [makeTemplate({ id: 1, label: 'From A' })] : []));
 
     const { navigateTo } = renderPanelFor('feed-a');
-    await waitFor(() => expect(mockListCueTemplates).toHaveBeenCalledWith('feed-a'));
     await screen.findByText('From A');
 
-    mockListCueTemplates.mockClear();
     navigateTo('feed-b');
 
-    // feed-b's own persisted state is closed; the query must stay disabled
-    // instead of inheriting feed-a's open state.
+    await waitFor(() => expect(mockListCueTemplates).toHaveBeenCalledWith('feed-b'));
     await waitFor(() => expect(screen.queryByText('From A')).toBeNull());
-    expect(mockListCueTemplates).not.toHaveBeenCalled();
-  });
-
-  it('never shows "No cues yet" for a collapsed panel whose query is simply disabled', async () => {
-    localStorage.setItem('feed-cue-templates-feed-c', 'false');
-    renderPanelFor('feed-c');
-
-    await waitFor(() => expect(mockListCueTemplates).not.toHaveBeenCalled());
-    expect(screen.queryByText(/No cues yet/)).toBeNull();
   });
 });
-
 
 describe('Remove cue with ad', () => {
   it('defaults on and saves an explicit opt-out', async () => {

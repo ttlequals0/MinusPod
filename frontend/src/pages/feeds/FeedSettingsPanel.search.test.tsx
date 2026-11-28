@@ -84,7 +84,6 @@ function toggle(title: string) {
 describe('FeedSettingsPanel search', () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem(`feed-settings-${SLUG}`, 'true');
   });
 
   it('groups the controls into collapsible sections with per-feed storage keys', () => {

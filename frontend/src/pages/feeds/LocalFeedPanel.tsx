@@ -3,7 +3,8 @@ import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useDraftClose } from '../../hooks/useDraftClose';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
+import CollapsibleSection from '../../components/CollapsibleSection';
+import TabPanelCard from '../../components/TabPanelCard';
 import { Plus } from 'lucide-react';
 import { Modal, dialogFooterBtn } from '../../components/Modal';
 import { cardTitle, subHeading } from '../../components/pageStyles';
@@ -236,10 +237,6 @@ interface Props {
 function LocalFeedPanel({ feed, slug }: Props) {
   const queryClient = useQueryClient();
   const uploadMaxMb = useUploadMaxMb();
-  // Open by default: for a local feed this panel is the primary management
-  // UI (there's no source RSS to fall back on), unlike the drill-down panels
-  // below it that default closed.
-  const [panelOpen, setPanelOpen] = useCollapsibleOpen(`local-feed-${slug}`, true);
 
   // ---- Metadata edit ----
   const [title, setTitle] = useState(feed.title);
@@ -507,7 +504,6 @@ function LocalFeedPanel({ feed, slug }: Props) {
   const statusQuery = useQuery({
     queryKey: ['import-status', slug],
     queryFn: () => importStatus(slug),
-    enabled: panelOpen,
     refetchInterval: (query) => (query.state.data?.state === 'running' ? 2000 : false),
   });
   const importState = statusQuery.data?.state;
@@ -542,12 +538,9 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
   return (
     <div className="mb-6">
-      <CollapsibleSection
+      <TabPanelCard
         title="Local feed"
         subtitle="Manage this feed's episodes and artwork directly. There's no source RSS to refresh from."
-        defaultOpen={true}
-        storageKey={`local-feed-${slug}`}
-        onToggle={setPanelOpen}
       >
         {feed.hasArtwork === false && (
           <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
@@ -868,7 +861,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             </div>
           )}
         </div>
-      </CollapsibleSection>
+      </TabPanelCard>
 
       {addEpisodeOpen && (
         <AddEpisodeModal slug={slug} onClose={() => setAddEpisodeOpen(false)} />
