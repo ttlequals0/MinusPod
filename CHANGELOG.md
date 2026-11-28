@@ -41,6 +41,7 @@ release notes.
 - The **Review** button on a held detection in the Queue review list now opens the episode at its held detections. It was drawn like a button but was not a link, so tapping it did nothing.
 - Adding or editing a feed, and OPML import, now honor `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS`. A feed on a LAN or loopback address was rejected even though refresh allowed it. Contributed by amcfague.
 - A brief DNS failure no longer fails a feed refresh. The check retries up to three times and still fails at once for a name that does not exist. Contributed by SimpleHonors.
+- The header no longer sits under a top screen cutout when no status bar is showing, and the browser theme colour now follows the selected theme, so system areas beside the page match it.
 
 ## [2.102.26] - 2026-11-27
 

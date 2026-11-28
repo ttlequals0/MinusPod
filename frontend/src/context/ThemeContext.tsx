@@ -52,6 +52,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       clearThemeVariables();
     }
+    // System chrome and cutout strips take the page colour from theme-color.
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
+    if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', `hsl(${bg})`);
   }, [theme, themeId]);
 
   const toggleTheme = () => {

@@ -27,6 +27,12 @@ describe('BackToTop', () => {
     expect(screen.getByRole('button', { name: 'Back to top' })).toBeTruthy();
   });
 
+  it('stays out of the horizontal safe-area inset', () => {
+    mount();
+    scrollTo(3000);
+    expect(screen.getByRole('button', { name: 'Back to top' }).className).toContain('right-[max(1rem,env(safe-area-inset-right))]');
+  });
+
   it('scrolls to the top and focuses the page heading', () => {
     mount();
     scrollTo(3000);

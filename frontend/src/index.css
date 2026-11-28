@@ -99,6 +99,7 @@
   /* Suppress native pull-to-refresh so pulltorefreshjs is the only handler. */
   html {
     overscroll-behavior-y: contain;
+    background-color: hsl(var(--background));
   }
 }
 
@@ -206,6 +207,8 @@ input[type="time"]::-webkit-date-and-time-value { text-align: left; }
 .above-bottom-nav { bottom: var(--bottom-nav-height); }
 /* 3rem beyond the old gutter keeps the back to top button off the last row. */
 .clear-bottom-nav { padding-bottom: calc(5rem + var(--bottom-nav-height)); }
+/* Top safe-area inset the header pads itself when no status bar already sits above it (the bar's measured height includes it). */
+:root { --header-top-pad: max(0px, calc(env(safe-area-inset-top) - var(--status-bar-height, 0px))); }
 /* Side gutters that grow with the horizontal safe-area insets (foldable outer display, landscape). */
 .safe-x { --safe-gutter: 1rem; padding-left: max(var(--safe-gutter), env(safe-area-inset-left)); padding-right: max(var(--safe-gutter), env(safe-area-inset-right)); }
 @media (min-width: 640px) { .safe-x-wide { --safe-gutter: 1.5rem; } }

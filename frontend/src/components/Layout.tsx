@@ -117,7 +117,7 @@ function Layout() {
         Skip to content
       </a>
       <DemoBanner />
-      <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)' }}>
+      <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)', paddingTop: 'var(--header-top-pad)' }}>
         <div className="safe-x safe-x-wide max-w-7xl mx-auto">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
@@ -178,7 +178,7 @@ function Layout() {
           </div>
         </div>
         {mobileMenuOpen && (
-          <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
+          <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-var(--header-top-pad)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
             <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
               {NAV_ITEMS.map((item, idx) => {
                 const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
