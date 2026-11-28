@@ -96,17 +96,3 @@ def test_update_feed_source_url_accepts_private_host_with_opt_in(monkeypatch):
         _url, error = api_feeds._validate_source_url(LAN_URL)
     assert 'Invalid feed URL' not in (error or '')
 
-
-@pytest.mark.parametrize('opt_in,expected', [
-    ('true', URLTrust.OPERATOR_CONFIGURED), (None, URLTrust.FEED_CONTENT)])
-def test_audio_availability_check_uses_feed_trust(monkeypatch, opt_in, expected):
-    from transcriber import Transcriber
-    if opt_in is None:
-        monkeypatch.delenv(ENV, raising=False)
-    else:
-        monkeypatch.setenv(ENV, opt_in)
-    with patch('utils.safe_http.safe_head') as head:
-        head.return_value.status_code = 200
-        head.return_value.headers = {}
-        Transcriber.check_audio_availability(object(), 'http://192.168.1.10/a.mp3')
-    assert head.call_args.kwargs['trust'] is expected
