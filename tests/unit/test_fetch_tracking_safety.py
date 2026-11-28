@@ -243,3 +243,21 @@ class TestRetentionProtections:
         db.get_connection().commit()
         self._sweep(db)
         assert db.get_episode('arc', 'ep')['status'] == 'processed'
+
+
+class TestNewAudioStartsUnfetched:
+    def test_finalize_clears_the_previous_fetch_stamp(self):
+        from main_app.pipeline import finalize
+        main_db.create_podcast('refinalize', 'https://example.com/r.xml', 'Refinalize')
+        try:
+            main_db.upsert_episode('refinalize', 'a1b2c3d4e5f6', original_url='https://example.com/r.mp3',
+                                   title='Ep', status='processed', processed_file='episodes/r.mp3')
+            assert main_db.mark_episode_fetched('refinalize', 'a1b2c3d4e5f6') is True
+            finalize._persist_episode_state(
+                'refinalize', 'a1b2c3d4e5f6', 1, 0, 1, 100.0, 90.0, 2,
+                approval=finalize._approval_stamp('refinalize', 'a1b2c3d4e5f6', False))
+            row = main_db.get_episode('refinalize', 'a1b2c3d4e5f6')
+            assert row['first_fetched_at'] is None
+            assert main_db.mark_episode_fetched('refinalize', 'a1b2c3d4e5f6') is True
+        finally:
+            main_db.delete_podcast('refinalize')

@@ -164,3 +164,20 @@ class TestMigrationBackfill:
             assert db.get_episode('show', 'never')['first_fetched_at'] is None
         finally:
             Database._instance = None
+
+
+class TestPerFeedOverride:
+    def test_unfetched_window_protects_audio_a_shorter_feed_override_would_sweep(self, db):
+        db.set_setting('unfetched_retention_days', '60', is_default=False)
+        _seed(db, 'short', 'unheard', processed_days_ago=30)
+        _seed(db, 'short', 'heard', processed_days_ago=30, fetched_days_ago=29)
+        db.update_podcast('short', retention_days_override=7)
+        swept, _ = _swept(db)
+        assert swept == {'heard'}
+
+    def test_a_longer_feed_override_is_never_shortened(self, db):
+        db.set_setting('unfetched_retention_days', '10', is_default=False)
+        _seed(db, 'long', 'unheard', processed_days_ago=50)
+        db.update_podcast('long', retention_days_override=100)
+        swept, _ = _swept(db)
+        assert swept == set()

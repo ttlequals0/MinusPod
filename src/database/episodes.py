@@ -438,7 +438,7 @@ class EpisodeMixin:
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
                                'pending_recut_at', 'chapters_regen_error',
-                               'processed_size_bytes', 'yt_metadata_at',
+                               'processed_size_bytes', 'first_fetched_at', 'yt_metadata_at',
                                'approval_pending_at', 'approved_at'):
                         fields.append(f"{key} = ?")
                         values.append(redact_error(value) if key in _ERROR_KEYS and isinstance(value, str) else value)
