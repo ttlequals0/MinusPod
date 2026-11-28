@@ -6,7 +6,7 @@ import { focusRing } from '../../components/fieldStyles';
 import SideCutoutToggle from './SideCutoutToggle';
 
 function AppearanceSection() {
-  const { themeId, setThemeId } = useTheme();
+  const { theme, themeId, setThemeId } = useTheme();
 
   return (
     <CollapsibleSection title="Appearance" subtitle="Color theme for the interface">
@@ -23,6 +23,14 @@ function AppearanceSection() {
                 {groupThemes.map((t) => {
                   const isActive = t.id === themeId;
                   const only = t.light === null && t.dark ? 'dark' : t.dark === null && t.light ? 'light' : null;
+                  const palette = theme === 'dark' ? (t.dark ?? t.light) : (t.light ?? t.dark);
+                  const bgColor = palette
+                    ? `hsl(${palette.background})`
+                    : theme === 'dark' ? 'hsl(213 10% 17%)' : 'hsl(210 17% 95%)';
+                  const cardColor = palette
+                    ? `hsl(${palette.card})`
+                    : theme === 'dark' ? 'hsl(210 8% 25%)' : 'hsl(0 0% 100%)';
+                  const primaryColor = palette ? `hsl(${palette.primary})` : t.accentColor;
                   return (
                     <button
                       key={t.id}
@@ -36,9 +44,14 @@ function AppearanceSection() {
                       } ${focusRing}`}
                     >
                       <span
-                        className="w-3 h-3 rounded-full shrink-0"
-                        style={{ backgroundColor: t.accentColor }}
-                      />
+                        aria-hidden="true"
+                        data-testid={`theme-swatch-${t.id}`}
+                        className="inline-flex h-3.5 w-9 shrink-0 overflow-hidden rounded border border-border/80"
+                      >
+                        <span className="flex-1" style={{ backgroundColor: bgColor }} />
+                        <span className="flex-1" style={{ backgroundColor: cardColor }} />
+                        <span className="flex-1" style={{ backgroundColor: primaryColor }} />
+                      </span>
                       <span className="truncate">
                         {t.label}
                         {only && (

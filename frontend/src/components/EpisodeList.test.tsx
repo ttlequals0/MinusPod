@@ -162,4 +162,20 @@ describe('EpisodeList', () => {
     render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
     expect(screen.queryByText('awaiting approval')).toBeNull();
   });
+
+  it('shows mobile artwork thumbnail and places dot-separated metadata and status badge on one row', () => {
+    const episode = {
+      id: 'ep12', title: 'Compact row', published: '2026-09-10T00:00:00Z', status: 'completed',
+      duration: 3180, ad_count: 3,
+    } as Episode;
+    const { container } = render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    const img = container.querySelector('img')!;
+    expect(img.className).toContain('w-11');
+    expect(img.className).not.toContain('hidden');
+    const durationEl = screen.getByText('53m');
+    const adsEl = screen.getByText('3 ads detected');
+    const statusEl = screen.getByText('Completed');
+    expect(durationEl.parentElement).toBe(statusEl.parentElement);
+    expect(adsEl.parentElement).toBe(statusEl.parentElement);
+  });
 });

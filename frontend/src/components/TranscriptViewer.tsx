@@ -1,4 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Search, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getFinalSegments, getOriginalSegments, getOriginalTranscript, type OriginalSegment } from '../api/feeds';
 import type { AdSegment, EpisodeDetail } from '../api/types';
@@ -126,7 +127,7 @@ const ParagraphRow = memo(function ParagraphRow({
       data-row={row}
       className={`flex flex-wrap sm:flex-nowrap gap-3 border-l-2 border-l-transparent pl-3 transition-colors duration-500 ${rowBg(flashed, false)}`}
     >
-      <span className="shrink-0 w-16 tabular-nums text-muted-foreground">
+      <span className="shrink-0 self-start font-mono text-xs tabular-nums text-muted-foreground bg-secondary/40 border border-border px-1.5 py-0.5 rounded mt-0.5">
         {formatTimestamp(para.start)}
       </span>
       <span className="min-w-0 flex-1 break-words leading-relaxed">
@@ -165,7 +166,7 @@ const LineRow = memo(function LineRow({
         ad ? 'border-l-destructive' : 'border-l-transparent'
       } ${rowBg(flashed, !!ad)}`}
     >
-      <span className="shrink-0 w-28 tabular-nums text-muted-foreground">
+      <span className="shrink-0 self-start font-mono text-xs tabular-nums text-muted-foreground bg-secondary/40 border border-border px-1.5 py-0.5 rounded mt-0.5">
         {formatTimestamp(seg.start)} - {formatTimestamp(seg.end)}
       </span>
       <span className={`min-w-0 flex-1 whitespace-pre-wrap break-words ${mutedClass(seg, matchSet, neighbours)}`}>
@@ -367,21 +368,44 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
       <div className="grid gap-4 p-4 border-b border-border">
         <div className="min-w-0">
           <label htmlFor="transcript-search" className={filterLabel}>Search</label>
-          <input
-            id="transcript-search"
-            ref={searchRef}
-            type="search"
-            placeholder="Word or phrase"
-            value={search}
-            onChange={(e) => onFilter(() => setSearch(e.target.value))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && needle) {
-                e.preventDefault();
-                step(1);
-              }
-            }}
-            className={`${filterControl} ${inputBase}`}
-          />
+          <div className="relative">
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              id="transcript-search"
+              ref={searchRef}
+              type="search"
+              placeholder="Word or phrase"
+              value={search}
+              onChange={(e) => onFilter(() => setSearch(e.target.value))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && needle) {
+                  e.preventDefault();
+                  step(1);
+                }
+              }}
+              className={`${filterControl} ${inputBase} pl-9 ${search ? 'pr-28' : ''}`}
+            />
+            {search && (
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {needle && segments.length > 0 && (
+                  <span
+                    data-testid="transcript-search-match-pill"
+                    className={`${badgeBase} ${tint.primary} pointer-events-none tabular-nums`}
+                  >
+                    {matchSet.size} {matchSet.size === 1 ? 'match' : 'matches'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onFilter(() => setSearch(''))}
+                  aria-label="Clear transcript search"
+                  className={`inline-flex items-center justify-center p-1.5 rounded text-muted-foreground hover:text-foreground touch-manipulation ${focusRing}`}
+                >
+                  <X aria-hidden="true" className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 min-[375px]:grid-cols-[auto_1fr_1fr] sm:grid-cols-3 gap-4">
           <div className="min-w-0 col-span-2 min-[375px]:col-span-1">

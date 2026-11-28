@@ -710,4 +710,24 @@ describe('FeedDetail: description override', () => {
     expect(await screen.findByText('Source text')).toBeTruthy();
     expect(screen.queryByText('Custom')).toBeNull();
   });
+
+  it('renders Feed sections jump bar and clears episode search and status filters', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed({ episodeCount: 12 }));
+    const nav = await screen.findByRole('navigation', { name: 'Feed sections' });
+    expect(nav.querySelector('a[href="#feed-settings-section"]')).toBeTruthy();
+    expect(nav.querySelector('a[href="#ad-distribution-section"]')).toBeTruthy();
+    expect(nav.querySelector('a[href="#audio-cues-section"]')).toBeTruthy();
+    expect(nav.querySelector('a[href="#feed-episodes-section"]')?.textContent).toContain('12');
+
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    const search = screen.getByRole('searchbox', { name: 'Search episode titles' }) as HTMLInputElement;
+    await user.type(search, 'intro');
+    expect(screen.getByRole('button', { name: 'Clear episode search' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(search.value).toBe('');
+    expect(screen.queryByRole('button', { name: 'Clear episode search' })).toBeNull();
+  });
 });

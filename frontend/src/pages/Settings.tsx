@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { BookOpen, FileText } from 'lucide-react';
 import QueryError from '../components/QueryError';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -96,10 +96,47 @@ function SettingsGroupHeader({ title }: { title: string }) {
   // filtered individually), so hide them and let the matching cards stand alone.
   if (useSettingsSearch() !== null) return null;
   return (
-    <div className="pt-4 pb-1">
+    <div className="pt-2 pb-1 first:pt-0">
       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
         {title}
       </h3>
+    </div>
+  );
+}
+
+export type SettingsCategoryId = 'general' | 'ai' | 'detection' | 'output' | 'data';
+
+const SETTINGS_CATEGORIES: ReadonlyArray<{ id: SettingsCategoryId; label: string }> = [
+  { id: 'general', label: 'General' },
+  { id: 'ai', label: 'AI and transcription' },
+  { id: 'detection', label: 'Detection' },
+  { id: 'output', label: 'Output' },
+  { id: 'data', label: 'Data and security' },
+];
+
+const ANCHOR_CATEGORY: Record<string, SettingsCategoryId> = {
+  'podcast-index': 'general',
+  youtube: 'general',
+  'segment-actions': 'detection',
+  'pattern-cleanup-section': 'detection',
+};
+
+function SettingsCategoryPanel({
+  category,
+  activeCategory,
+  children,
+}: {
+  category: SettingsCategoryId;
+  activeCategory: SettingsCategoryId;
+  children: ReactNode;
+}) {
+  const isSearching = useSettingsSearch() !== null;
+  return (
+    <div
+      data-settings-category={category}
+      className={activeCategory === category || isSearching ? 'space-y-4' : 'hidden'}
+    >
+      {children}
     </div>
   );
 }
@@ -763,6 +800,16 @@ function Settings() {
   const sectionTarget = location.hash.length > 1
     ? { id: decodeURIComponent(location.hash.slice(1)), seq: location.key }
     : null;
+  const targetCategory = sectionTarget ? ANCHOR_CATEGORY[sectionTarget.id] ?? null : null;
+  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>(() => targetCategory ?? 'general');
+  const targetKey = sectionTarget ? `${sectionTarget.id}:${sectionTarget.seq ?? ''}` : null;
+  const [prevTargetKey, setPrevTargetKey] = useState<string | null>(targetKey);
+  if (targetKey !== prevTargetKey) {
+    setPrevTargetKey(targetKey);
+    if (targetCategory && targetCategory !== activeCategory) {
+      setActiveCategory(targetCategory);
+    }
+  }
 
   // Sync form fields with server data via a during-render compare (the React 19 alternative to a
   // useEffect+setState). useSyncFromQuery holds the snapshot+conditional-setState pattern; staying render-phase
@@ -1278,7 +1325,7 @@ function Settings() {
 
   if (settingsLoading) {
     return (
-      <div className="max-w-3xl mx-auto pb-20">
+      <div className="max-w-3xl lg:max-w-5xl mx-auto pb-20">
         <div className={pageHeader}><h1 className={pageTitle}>Settings</h1></div>
         <SkeletonRows count={6} />
       </div>
@@ -1286,40 +1333,52 @@ function Settings() {
   }
 
   if (!settings) {
-    return <div className="max-w-3xl mx-auto">
+    return <div className="max-w-3xl lg:max-w-5xl mx-auto">
       <div className={pageHeader}><h1 className={pageTitle}>Settings</h1></div>
       <QueryError title="Settings are unavailable. Your saved values could not be loaded." onRetry={() => void retrySettings()} retrying={settingsFetching} />
     </div>;
   }
 
+  const aiSectionCount = 6
+    + (settings.stageTunables && settings.stageTunableDefaults ? 1 : 0)
+    + (hasAllSystemOneProfiles(settings) ? 1 : 0);
+  const categoryCounts: Record<SettingsCategoryId, number> = {
+    general: 3,
+    ai: aiSectionCount,
+    detection: 11,
+    output: 3,
+    data: 9,
+  };
+  const isSearching = searchMatches !== null;
+
   return (
-    <div className="max-w-3xl mx-auto space-y-4 pb-20">
+    <div className="max-w-3xl lg:max-w-5xl mx-auto space-y-4 pb-20">
       {settingsFailed && <QueryError title="Settings could not be refreshed. Showing the last loaded values." onRetry={() => void retrySettings()} retrying={settingsFetching} />}
-      <div className={pageHeader}>
-        <div>
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-3">
           <h1 className={pageTitle}>Settings</h1>
-          <p className={pageDescription}>
-            Configure ad detection prompts and system settings.
-          </p>
+          <div className="flex items-center gap-3 shrink-0">
+            <a
+              href="https://docs.minuspod.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={docsLink}
+            >
+              <BookOpen className="w-4 h-4" aria-hidden="true" />
+              Docs
+            </a>
+            <a
+              {...apiDocsLink}
+              className={docsLink}
+            >
+              <FileText className="w-4 h-4" aria-hidden="true" />
+              API docs
+            </a>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <a
-            href="https://docs.minuspod.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={docsLink}
-          >
-            <BookOpen className="w-4 h-4" aria-hidden="true" />
-            Docs
-          </a>
-          <a
-            {...apiDocsLink}
-            className={docsLink}
-          >
-            <FileText className="w-4 h-4" aria-hidden="true" />
-            API docs
-          </a>
-        </div>
+        <p className={pageDescription}>
+          Configure ad detection prompts and system settings.
+        </p>
       </div>
 
       <p className="text-sm text-muted-foreground">Unsaved settings use the Save changes bar. Sections with their own Save or Apply button save separately. Appearance changes apply immediately.</p>
@@ -1341,7 +1400,64 @@ function Settings() {
         ariaLabel="Search settings"
         clearLabel="Clear settings search"
       >
+      <nav
+        aria-label="Settings categories"
+        className={`flex flex-wrap gap-1.5 lg:hidden ${isSearching ? 'hidden' : ''}`}
+      >
+        {SETTINGS_CATEGORIES.map((cat) => {
+          const active = activeCategory === cat.id;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              aria-current={active ? 'true' : undefined}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`${touchTarget} px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                active
+                  ? 'bg-primary text-primary-foreground border-primary font-semibold'
+                  : 'bg-card text-muted-foreground border-border hover:text-foreground'
+              } ${focusRing}`}
+            >
+              {cat.label} ({categoryCounts[cat.id]})
+            </button>
+          );
+        })}
+      </nav>
 
+      <div className={isSearching ? 'space-y-4' : 'lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-6 lg:items-start'}>
+        <nav
+          aria-label="Settings categories"
+          className={`hidden ${isSearching ? '' : 'lg:block lg:sticky lg:top-20'} bg-card border border-border rounded-lg p-2 space-y-1`}
+        >
+          {SETTINGS_CATEGORIES.map((cat) => {
+            const active = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                aria-current={active ? 'true' : undefined}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm transition-colors text-left ${
+                  active
+                    ? 'bg-primary text-primary-foreground font-semibold'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground font-medium'
+                } ${focusRing}`}
+              >
+                <span className="truncate">{cat.label}</span>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full tabular-nums shrink-0 ${
+                    active ? 'bg-background/25 text-primary-foreground' : 'bg-secondary text-foreground'
+                  }`}
+                >
+                  {categoryCounts[cat.id]}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="space-y-4 min-w-0">
+      <SettingsCategoryPanel category="general" activeCategory={activeCategory}>
       <SettingsGroupHeader title="Appearance" />
 
       <AppearanceSection />
@@ -1364,7 +1480,9 @@ function Settings() {
       <div>
         <YouTubeSection />
       </div>
+      </SettingsCategoryPanel>
 
+      <SettingsCategoryPanel category="ai" activeCategory={activeCategory}>
       <SettingsGroupHeader title="AI and processing" />
 
       {providersError && (
@@ -1409,18 +1527,6 @@ function Settings() {
         differentialFetchMode={(settings?.differentialFetchMode?.value ?? settings?.defaults?.differentialFetchMode ?? 'auto') as 'auto' | 'on' | 'off'}
         onDifferentialFetchModeChange={(v) => tunableMutation.mutate({ differentialFetchMode: v })}
       />
-
-      <div>
-        <SegmentActionsSection
-          segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
-          onSegmentCategoryActionChange={(category, action) =>
-            tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
-          detectShowSegments={settings?.detectShowSegments?.value ?? settings?.defaults?.detectShowSegments ?? false}
-          onDetectShowSegmentsChange={(v) => tunableMutation.mutate({ detectShowSegments: v })}
-          snipShortAsks={settings?.snipShortAsks?.value ?? settings?.defaults?.snipShortAsks ?? false}
-          onSnipShortAsksChange={(v) => tunableMutation.mutate({ snipShortAsks: v })}
-        />
-      </div>
 
       <LLMProviderSection
         llmProvider={llmProvider}
@@ -1634,6 +1740,22 @@ function Settings() {
       />
 
       <TranscriptNormalizationSection />
+      </SettingsCategoryPanel>
+
+      <SettingsCategoryPanel category="detection" activeCategory={activeCategory}>
+      <SettingsGroupHeader title="Detection and patterns" />
+
+      <div>
+        <SegmentActionsSection
+          segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
+          onSegmentCategoryActionChange={(category, action) =>
+            tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
+          detectShowSegments={settings?.detectShowSegments?.value ?? settings?.defaults?.detectShowSegments ?? false}
+          onDetectShowSegmentsChange={(v) => tunableMutation.mutate({ detectShowSegments: v })}
+          snipShortAsks={settings?.snipShortAsks?.value ?? settings?.defaults?.snipShortAsks ?? false}
+          onSnipShortAsksChange={(v) => tunableMutation.mutate({ snipShortAsks: v })}
+        />
+      </div>
 
       <AdDetectionSection
         minCutConfidence={minCutConfidence}
@@ -1761,7 +1883,9 @@ function Settings() {
         detectionSlot={detectionSlot}
         providerIdentityHasUnsavedChanges={providerIdentityHasUnsavedChanges}
       />
+      </SettingsCategoryPanel>
 
+      <SettingsCategoryPanel category="output" activeCategory={activeCategory}>
       <SettingsGroupHeader title="Output" />
 
       <AudioSection
@@ -1834,7 +1958,9 @@ function Settings() {
         onRefreshArtwork={() => refreshArtworkMutation.mutate()}
         refreshArtworkPending={refreshArtworkMutation.isPending}
       />
+      </SettingsCategoryPanel>
 
+      <SettingsCategoryPanel category="data" activeCategory={activeCategory}>
       <SettingsGroupHeader title="Data and security" />
 
       <OutboundRequestsSection />
@@ -1891,6 +2017,9 @@ function Settings() {
         cryptoReady={providersState?.cryptoReady ?? false}
         plaintextSecretsCount={status?.security?.plaintextSecretsCount ?? 0}
       />
+      </SettingsCategoryPanel>
+        </div>
+      </div>
 
       </SearchableSectionGroup>
       </SettingsSectionTargetContext.Provider>
@@ -1908,7 +2037,7 @@ function Settings() {
           data-viewport-inset="bottom"
           className="pb-[env(safe-area-inset-bottom)] max-md:pb-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed above-bottom-nav left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
         >
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
+          <div className="max-w-3xl lg:max-w-5xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
             <ConfirmResetButton
               label="Reset all"
               title="Also clears your AI model choices; you may need to pick them again."

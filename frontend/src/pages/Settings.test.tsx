@@ -661,3 +661,31 @@ describe('Settings: hold for review', () => {
     expect(await screen.findByRole('button', { name: 'hold-for-review false' })).toBeDefined();
   });
 });
+
+describe('Settings: category navigation and cross-category search', () => {
+  it('switches active category panels while keeping inactive categories mounted and reveals all during search', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    const user = userEvent.setup();
+    const { container } = renderSettings();
+    await screen.findByRole('heading', { name: 'Ad reviewer' });
+
+    const generalPanel = container.querySelector('[data-settings-category="general"]') as HTMLElement;
+    const detectionPanel = container.querySelector('[data-settings-category="detection"]') as HTMLElement;
+    expect(generalPanel.className).not.toContain('hidden');
+    expect(detectionPanel.className).toContain('hidden');
+
+    const detectionBtn = screen.getAllByRole('button', { name: /^Detection/ })[0];
+    await user.click(detectionBtn);
+    expect(detectionPanel.className).not.toContain('hidden');
+    expect(generalPanel.className).toContain('hidden');
+
+    const search = screen.getByRole('textbox', { name: 'Search settings' });
+    await user.type(search, 'resurrect prompt');
+    expect(generalPanel.className).not.toContain('hidden');
+    expect(detectionPanel.className).not.toContain('hidden');
+
+    await user.click(screen.getByRole('button', { name: 'Clear settings search' }));
+    expect(detectionPanel.className).not.toContain('hidden');
+    expect(generalPanel.className).toContain('hidden');
+  });
+});
