@@ -60,7 +60,7 @@ def observed_cadence_seconds(episode_dates, now) -> float | None:
 def retry_after_seconds(value) -> int | None:
     """Whole seconds from a Retry-After header, capped at 24 hours; None when absent, past or unusable."""
     seconds = parse_retry_after(value, max_seconds=RETRY_AFTER_MAX_SECONDS)
-    return int(seconds) if seconds and seconds > 0 else None
+    return int(seconds) or None if seconds and seconds > 0 else None
 
 
 def parse_cache_control_max_age(value) -> int | None:
