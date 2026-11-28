@@ -681,6 +681,7 @@ from main_app.background import (
 )
 from whisper_pool import set_background_role
 from podping_listener import podping_listener_loop
+import db_backup_service
 import stall_watchdog
 from status_service import reconcile_startup_state
 
@@ -801,6 +802,7 @@ def _startup():
         # Env-seeded feed auth must never fail closed without a key.
         from main_app.feed_auth import ensure_feed_auth_key
         ensure_feed_auth_key(db)
+        db_backup_service.warn_if_dest_unusable(db)
 
         if _background_threads_enabled():
             # Start background RSS refresh thread

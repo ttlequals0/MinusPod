@@ -15469,6 +15469,9 @@ components:
         destWritable:
           type: boolean
           description: Whether the effective destination directory is currently writable.
+        destError:
+          type: [string, 'null']
+          description: Why the stored destination is refused (for example inside a directory MinusPod serves), or null when it is usable.
         keepCount:
           type: integer
           description: Number of backup files to keep (1 = overwrite mode, >1 = rotate mode).

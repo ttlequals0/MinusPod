@@ -465,6 +465,7 @@ export interface DatabaseBackupSettings {
   dest: string;
   effectiveDest: string;
   destWritable: boolean;
+  destError: string | null;
   keepCount: number;
   lastRun: string | null;
   lastError: string | null;

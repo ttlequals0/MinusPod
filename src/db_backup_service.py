@@ -313,6 +313,24 @@ def backup_in_progress(db) -> bool:
     return False
 
 
+def stored_dest_problem(db) -> str | None:
+    """Why the stored destination cannot be used (for example after an upgrade), else None."""
+    try:
+        validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
+def warn_if_dest_unusable(db) -> None:
+    """Log one startup warning when backups are on but the stored destination is refused."""
+    if not db.get_setting_bool('db_backup_enabled', default=False):
+        return
+    problem = stored_dest_problem(db)
+    if problem:
+        logger.warning('db_backup: scheduled backups will fail until the destination is changed: %s', problem)
+
+
 def backup_now(db) -> dict[str, Any]:
     """Run a backup now regardless of schedule. Returns a summary dict.
 
@@ -328,6 +346,14 @@ def backup_now(db) -> dict[str, Any]:
             # errno adds nothing they act on.
             raise BackupInProgressError('a backup is already in progress')
 
+        # An unusable destination is recorded as the error and never stamps last_run.
+        try:
+            dest = validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
+        except ValueError as e:
+            db.set_setting('db_backup_last_error', str(e))
+            logger.warning('db_backup: backup failed: %s', e)
+            raise
+
         # Stamp last_run only once we hold the lock and a backup genuinely runs;
         # a contending caller must not consume the retry slot.
         db.set_setting('db_backup_last_run', utc_now_iso())
@@ -337,7 +363,6 @@ def backup_now(db) -> dict[str, Any]:
         stage_fd = None
         stage_name = None
         try:
-            dest = validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
             keep = _clamp_keep_count(db.get_setting('db_backup_keep_count'))
             if not Path('/proc/self/fd').is_dir():
                 raise RuntimeError('Scheduled backups require Linux /proc/self/fd; '

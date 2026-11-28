@@ -617,15 +617,19 @@ def get_db_backup_settings():
         # ancestor, not just the immediate parent, so a multi-level dest under a
         # writable ancestor is not falsely reported unwritable.
         writable = dest_writable(effective)
-    except ValueError:
+    except ValueError as e:
         effective_dest = ''
         writable = False
+        dest_error = str(e)
+    else:
+        dest_error = None
     return json_response({
         'enabled': enabled,
         'cron': _val('db_backup_cron') or DEFAULT_CRON,
         'dest': dest,
         'effectiveDest': effective_dest,
         'destWritable': writable,
+        'destError': dest_error,
         'keepCount': int(_val('db_backup_keep_count') or '1'),
         'lastRun': _val('db_backup_last_run') or None,
         'lastError': redact_error(_val('db_backup_last_error')) or None,

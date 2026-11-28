@@ -652,6 +652,19 @@ def test_backup_now_refuses_stored_served_destination(db, tmp_path, caplog):
     assert 'serves over HTTP' in db.get_setting('db_backup_last_error')
     assert 'backup failed' in caplog.text
     assert not served.exists()
+    assert db.get_setting('db_backup_last_run') is None
+
+
+def test_stored_served_destination_is_reported_and_warned_once_at_startup(db, tmp_path, caplog):
+    from db_backup_service import stored_dest_problem, warn_if_dest_unusable
+    db.set_setting('db_backup_dest', str(tmp_path / 'podcasts' / 'show'))
+    db.set_setting('db_backup_enabled', 'true')
+    assert 'serves over HTTP' in stored_dest_problem(db)
+    with caplog.at_level('WARNING', logger='db_backup_service'):
+        warn_if_dest_unusable(db)
+    assert caplog.text.count('serves over HTTP') == 1
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    assert stored_dest_problem(db) is None
 
 
 # ---------------------------------------------------------------------------

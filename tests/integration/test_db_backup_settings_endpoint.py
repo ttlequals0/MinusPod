@@ -60,10 +60,18 @@ def test_get_defaults(app_client, db):
     assert body['dest'] == ''
     assert body['effectiveDest'] == str((db.data_dir / 'backups').resolve())
     assert body['destWritable'] is True
+    assert body['destError'] is None
     assert body['keepCount'] == 1
     assert body['lastRun'] is None
     assert body['lastError'] is None
     assert body['lastSummary'] is None
+
+
+def test_get_reports_why_a_stored_destination_is_refused(app_client, db):
+    db.set_setting('db_backup_dest', str(db.data_dir / 'podcasts' / 'show'))
+    body = app_client.get('/api/v1/settings/db-backup').get_json()
+    assert 'serves over HTTP' in body['destError']
+    assert body['effectiveDest'] == '' and body['destWritable'] is False
 
 
 def test_diagnostic_export_is_bounded_and_payload_free(app_client, db):

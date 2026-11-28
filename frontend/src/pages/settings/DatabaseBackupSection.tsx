@@ -146,7 +146,12 @@ function DatabaseBackupSection() {
             <p id="db-backup-dest-help" className="text-xs text-muted-foreground">
               Directory path inside the container. Empty uses the default.
             </p>
-            {data.destWritable === false && (
+            {data.destError && (
+              <p role="alert" className="text-xs text-warning">
+                The stored destination is refused: {data.destError}. Backups will fail until it is changed.
+              </p>
+            )}
+            {data.destWritable === false && !data.destError && (
               // Render whenever the stored dest is not writable, including the
               // case where validation failed and effectiveDest came back empty;
               // fall back to the entered path so the message still names it.
