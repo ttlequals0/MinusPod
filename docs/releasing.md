@@ -19,9 +19,8 @@ Every release is tagged `v<version>` and published as a GitHub
 pre-release whose notes cover every CHANGELOG.md section shipped since
 the previous release. Usually that is one section; when a PR bumped the
 version more than once before merging, the notes roll up all of its
-sections so nothing ships undocumented. The
-[releases page](https://github.com/ttlequals0/MinusPod/releases) shows
-the full stream; stable releases are the non-pre-release entries and
+sections. The [releases page](https://github.com/ttlequals0/MinusPod/releases)
+shows the full stream. Stable releases are the non-pre-release entries and
 carry curated, operator-facing notes.
 
 ## Per-release flow (maintainer)
@@ -75,9 +74,8 @@ boot path inside the container only has `/app/src` on `sys.path` (see
 repo root on the path passes the test suite but crash-loops every
 worker in the container. `tests/unit/test_container_import_paths.py`
 catches this in CI by reproducing the narrower boot path in a
-subprocess, but a build-time check on the real image closes the gap
-between "the test passed" and "gunicorn actually boots in the built
-image."
+subprocess. A build-time check on the real image confirms that gunicorn
+actually boots in the built image.
 
 After building an image locally and before pushing it, run:
 
@@ -111,7 +109,9 @@ output directory, so a rerun is fast. The report names podcast slugs and
 episode ids, so keep it out of public issues and PRs, or pass `--redact`
 to replace slugs, episode ids and sponsors with stable hashes.
 
-The exit code is the release gate: 0 passes, 2 fails, 1 means an error. The gate fails when the new matcher loses a match the old matcher
+The exit code is the release gate: 0 passes, 2 fails, 1 means an error.
+
+The gate fails when the new matcher loses a match the old matcher
 made in scope with an old score of 0.70 or more, and `explain_match`
 does not name a rejecting gate for it. It also fails if a kept remainder
 lies outside the span of the match it was clipped from. A remainder is
