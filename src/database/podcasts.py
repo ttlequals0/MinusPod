@@ -242,11 +242,9 @@ class PodcastMixin:
         return [row['slug'] for row in rows]
 
     def clamp_next_refresh_at(self, ceiling_seconds: int, floor_seconds: int, ceiling_reason: str) -> int:
-        """Pull healthy feeds' schedule in to the new settings; returns rows changed.
+        """Pull healthy feeds' waits in to the new ceiling and floor; returns rows changed.
 
-        A wait over the ceiling drops to it, and a floor-bound wait (floor, due, fixed) over the floor
-        drops to the floor; next_refresh_at, refresh_interval_seconds and refresh_interval_reason move together.
-        Feeds held by a Retry-After or by failure backoff keep their time. Runs in the caller's transaction."""
+        Feeds under Retry-After or failure backoff are untouched. Runs in the caller's transaction."""
         now = datetime.now(timezone.utc)
         params = {
             'now': now.strftime(ISO_FORMAT), 'ceiling': ceiling_seconds, 'floor': floor_seconds,
@@ -254,29 +252,30 @@ class PodcastMixin:
             'soonest': (now + timedelta(seconds=floor_seconds)).strftime(ISO_FORMAT),
             'reason': ceiling_reason,
         }
-        healthy = """feed_type NOT IN ('local', 'recents')
-                 AND source_url IS NOT NULL AND source_url != ''
-                 AND COALESCE(refresh_failure_count, 0) = 0
-                 AND (retry_after_until IS NULL OR retry_after_until <= :now)"""
-        conn = self.get_connection()
-        changed = conn.execute(
-            f"""UPDATE podcasts SET
-                    next_refresh_at = MIN(COALESCE(next_refresh_at, :latest), :latest),
-                    refresh_interval_seconds = :ceiling,
+        return self.get_connection().execute(
+            """UPDATE podcasts SET
+                    next_refresh_at = CASE
+                        WHEN refresh_interval_seconds > :ceiling THEN MIN(COALESCE(next_refresh_at, :latest), :latest)
+                        WHEN refresh_interval_seconds > :floor AND refresh_interval_reason IN ('floor', 'due', 'fixed')
+                            THEN MIN(COALESCE(next_refresh_at, :soonest), :soonest)
+                        WHEN next_refresh_at > :latest THEN :latest
+                        ELSE next_refresh_at END,
                     refresh_interval_reason = CASE
-                        WHEN refresh_interval_reason IN ('hint', 'dormant') THEN refresh_interval_reason
-                        ELSE :reason END
-                WHERE {healthy} AND refresh_interval_seconds > :ceiling""", params).rowcount  # noqa: S608
-        changed += conn.execute(
-            f"UPDATE podcasts SET next_refresh_at = :latest WHERE {healthy} AND next_refresh_at > :latest",  # noqa: S608
+                        WHEN refresh_interval_seconds > :ceiling
+                             AND COALESCE(refresh_interval_reason, '') NOT IN ('hint', 'dormant') THEN :reason
+                        ELSE refresh_interval_reason END,
+                    refresh_interval_seconds = CASE
+                        WHEN refresh_interval_seconds > :ceiling THEN :ceiling
+                        WHEN refresh_interval_seconds > :floor AND refresh_interval_reason IN ('floor', 'due', 'fixed')
+                            THEN :floor
+                        ELSE refresh_interval_seconds END
+                WHERE feed_type NOT IN ('local', 'recents')
+                  AND source_url IS NOT NULL AND source_url != ''
+                  AND COALESCE(refresh_failure_count, 0) = 0
+                  AND (retry_after_until IS NULL OR retry_after_until <= :now)
+                  AND (refresh_interval_seconds > :ceiling OR next_refresh_at > :latest
+                       OR (refresh_interval_seconds > :floor AND refresh_interval_reason IN ('floor', 'due', 'fixed')))""",
             params).rowcount
-        changed += conn.execute(
-            f"""UPDATE podcasts SET
-                    next_refresh_at = MIN(COALESCE(next_refresh_at, :soonest), :soonest),
-                    refresh_interval_seconds = :floor
-                WHERE {healthy} AND refresh_interval_seconds > :floor
-                  AND refresh_interval_reason IN ('floor', 'due', 'fixed')""", params).rowcount  # noqa: S608
-        return changed
 
     def get_recent_episode_dates(self, podcast_id: int, limit: int = 30) -> list[str]:
         """Newest published_at values of a feed's episodes (ISO text), for cadence estimation."""

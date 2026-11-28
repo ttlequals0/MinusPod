@@ -1205,32 +1205,28 @@ function EpisodeDetail() {
         : `Verified: a second scan of the output audio found ${verificationAdsCut} more ad${verificationAdsCut === 1 ? '' : 's'} and cut ${verificationAdsCut === 1 ? 'it' : 'them'}.`
       : null;
 
-  const ratingBlock = (
-    <>
-      {episode.status === 'completed' && slug && episodeId && (
-        <div id="episode-rating-card" className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
-          <EpisodeRating
+  const ratingBlock = episode.status === 'completed' && slug && episodeId ? (
+    <div id="episode-rating-card" className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
+      <EpisodeRating
+        slug={slug}
+        episodeId={episodeId}
+        rating={episode.rating}
+        requestedRating={parseRateParam(urlParams.read('rate'))}
+        onRequestedRatingHandled={clearRateParam}
+      />
+      {episode.sponsorBlock && (
+        <div className="pt-4 border-t border-border">
+          <SponsorBlockSubmit
             slug={slug}
             episodeId={episodeId}
-            rating={episode.rating}
-            requestedRating={parseRateParam(urlParams.read('rate'))}
-            onRequestedRatingHandled={clearRateParam}
+            hasOriginalAudio={episode.hasOriginalAudio}
+            submitAllowed={episode.sponsorBlock.submitAllowed}
+            blockReason={episode.sponsorBlock.submitBlockReason}
           />
-          {episode.sponsorBlock && (
-            <div className="pt-4 border-t border-border">
-              <SponsorBlockSubmit
-                slug={slug}
-                episodeId={episodeId}
-                hasOriginalAudio={episode.hasOriginalAudio}
-                submitAllowed={episode.sponsorBlock.submitAllowed}
-                blockReason={episode.sponsorBlock.submitBlockReason}
-              />
-            </div>
-          )}
         </div>
       )}
-    </>
-  );
+    </div>
+  ) : null;
 
   const candidatesBlock = slug && episodeId && episode.hasOriginalAudio ? (
     <div className="mb-6">
@@ -2335,7 +2331,6 @@ function EpisodeDetail() {
       )}
 
       {hasCueSection && (
-        <>
         <div id="cue-matches-section" className="mb-6 scroll-mt-4">
           <CueDetectionsSection
             slug={slug!}
@@ -2343,7 +2338,6 @@ function EpisodeDetail() {
             detections={episode.cueDetections!}
           />
         </div>
-        </>
       )}
       {candidatesBlock}
               {ratingBlock}

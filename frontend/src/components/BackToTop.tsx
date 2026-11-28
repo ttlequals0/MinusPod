@@ -40,7 +40,6 @@ function BackToTop() {
   const [inset, setInset] = useState(0);
   const [modal, setModal] = useState(false);
   const [blocked, setBlocked] = useState(false);
-  const insetRef = useRef(0);
 
   useEffect(() => {
     const onScroll = () => {
@@ -65,10 +64,10 @@ function BackToTop() {
     const bars = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => schedule());
     const measure = () => {
       frame = 0;
-      insetRef.current = bottomInset();
-      setInset(insetRef.current);
+      const nextInset = bottomInset();
+      setInset(nextInset);
       setModal(dialogOpen());
-      setBlocked(buttonRef.current !== document.activeElement && coversControl(insetRef.current, buttonRef.current));
+      setBlocked(buttonRef.current !== document.activeElement && coversControl(nextInset, buttonRef.current));
       bars?.disconnect();
       document.querySelectorAll('[data-viewport-inset="bottom"]').forEach((bar) => bars?.observe(bar));
     };

@@ -46,8 +46,7 @@ def reason_log_level(old, new) -> int | None:
     if old is None:
         return logging.DEBUG
     # due <-> normal flaps around every expected episode; dormant, backoff and retry_after stay INFO
-    other = old if new == _REASON_DUE else new if old == _REASON_DUE else None
-    if other is not None and other != _REASON_DORMANT and other not in _ALWAYS_LOGGED_REASONS:
+    if _REASON_DUE in (old, new) and not {old, new} & (_ALWAYS_LOGGED_REASONS | {_REASON_DORMANT}):
         return logging.DEBUG
     return logging.INFO
 

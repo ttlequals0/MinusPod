@@ -95,18 +95,20 @@ class CircuitBreaker:
                 logger.info(f"Circuit breaker '{self.name}': OPEN -> HALF_OPEN (recovery timeout elapsed)")
         return self._state
 
-    def check(self, force: bool = False):
-        """Check if requests are allowed. Raises CircuitBreakerOpen if not.
+    def _lease_probe(self) -> int:
+        """Start a new half-open probe lease and return its token. Call with self._lock held."""
+        self._half_open_probe_started = time.time()
+        self._probe_generation += 1
+        self._half_open_probe_token = self._probe_generation
+        return self._half_open_probe_token
 
-        force: take a probe lease now even while open or leased, so an explicit user action runs once."""
+    def check(self, force: bool = False):
+        """Raise CircuitBreakerOpen if requests are blocked; force takes a probe lease regardless."""
         with self._lock:
             current_state = self._evaluate_state()
             if force and current_state in (self.OPEN, self.HALF_OPEN):
                 self._state = self.HALF_OPEN
-                self._half_open_probe_started = time.time()
-                self._probe_generation += 1
-                self._half_open_probe_token = self._probe_generation
-                return self._half_open_probe_token
+                return self._lease_probe()
             if current_state == self.OPEN:
                 seconds_left = self.recovery_timeout - (time.time() - self._last_failure_time)
                 raise CircuitBreakerOpen(self.name, max(0, seconds_left),
@@ -117,10 +119,7 @@ class CircuitBreaker:
                     raise CircuitBreakerOpen(
                         self.name, self.recovery_timeout - elapsed,
                         cause=self._cause, auth_cause=self._auth_cause)
-                self._half_open_probe_started = time.time()
-                self._probe_generation += 1
-                self._half_open_probe_token = self._probe_generation
-                return self._half_open_probe_token
+                return self._lease_probe()
             return None
 
     def seconds_until_retry(self) -> float | None:
