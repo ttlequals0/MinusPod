@@ -382,6 +382,34 @@ class TestSettingsClampSchedule:
         assert self._put(app_client, {'adaptiveRefreshMaxMinutes': 30}).status_code == 200
         assert _minutes_until(_row(feed)) <= 30
 
+    def test_a_lowered_ceiling_updates_the_interval_and_reason_with_the_time(self, app_client, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, next_refresh_at=_iso(24 * 60), refresh_interval_seconds=24 * 3600,
+                          refresh_interval_reason='max')
+        assert self._put(app_client, {'adaptiveRefreshMaxMinutes': 30}).status_code == 200
+        row = _row(feed)
+        assert row['refresh_interval_seconds'] == 30 * 60
+        assert row['refresh_interval_reason'] == 'max'
+        assert _minutes_until(row) <= 30
+
+    def test_a_lowered_floor_pulls_floor_bound_feeds_in_but_not_cadence_feeds(self, app_client, feed):
+        db, slug = feed['db'], feed['slug']
+        db.create_podcast('adaptive-cadence', 'https://cadence.example.com/rss', 'Cadence')
+        try:
+            db.update_podcast(slug, next_refresh_at=_iso(15), refresh_interval_seconds=15 * 60,
+                              refresh_interval_reason='due')
+            far = _iso(40)
+            db.update_podcast('adaptive-cadence', next_refresh_at=far, refresh_interval_seconds=40 * 60,
+                              refresh_interval_reason='cadence')
+            assert self._put(app_client, {'rssRefreshIntervalMinutes': 5}).status_code == 200
+            row = _row(feed)
+            assert row['refresh_interval_seconds'] == 5 * 60
+            assert _minutes_until(row) <= 5
+            assert db.get_podcast_row('adaptive-cadence')['next_refresh_at'] == far
+        finally:
+            db.set_setting('rss_refresh_interval_minutes', '15', is_default=False)
+            db.delete_podcast('adaptive-cadence')
+
     def test_feeds_in_backoff_or_held_by_retry_after_keep_their_time(self, app_client, feed):
         db = feed['db']
         db.create_podcast('adaptive-held', 'https://held.example.com/rss', 'Held')
@@ -431,6 +459,23 @@ class TestFetchMetaIsolation:
         feeds_mod._schedule_after_attempt(feed['slug'], outcome, {})
         row = _row(feed)
         assert row['retry_after_until'] is None and row['last_refresh_error_kind'] == 'unknown'
+
+
+class TestManualRefreshBypassesTheBreaker:
+    def test_only_the_explicit_refresh_probes_through_an_open_host_breaker(self, app_client, feed, monkeypatch):
+        seen = []
+
+        def fake_fetch(url, meta=None, **kwargs):
+            seen.append(kwargs.get('bypass_breaker', False))
+            return None, None, None
+
+        monkeypatch.setattr('main_app.feeds.rss_parser.fetch_feed_conditional', fake_fetch)
+        feeds_mod.refresh_rss_feed(feed['slug'], 'https://feed.example.com/a.xml', force=True)
+        _authed(app_client)
+        csrf = {'X-CSRF-Token': app_client.get_cookie('minuspod_csrf').value} \
+            if app_client.get_cookie('minuspod_csrf') else {}
+        app_client.post(f"/api/v1/feeds/{feed['slug']}/refresh", headers=csrf)
+        assert seen == [False, True]
 
 
 class TestOneScheduleWritePerAttempt:

@@ -95,10 +95,18 @@ class CircuitBreaker:
                 logger.info(f"Circuit breaker '{self.name}': OPEN -> HALF_OPEN (recovery timeout elapsed)")
         return self._state
 
-    def check(self):
-        """Check if requests are allowed. Raises CircuitBreakerOpen if not."""
+    def check(self, force: bool = False):
+        """Check if requests are allowed. Raises CircuitBreakerOpen if not.
+
+        force: take a probe lease now even while open or leased, so an explicit user action runs once."""
         with self._lock:
             current_state = self._evaluate_state()
+            if force and current_state in (self.OPEN, self.HALF_OPEN):
+                self._state = self.HALF_OPEN
+                self._half_open_probe_started = time.time()
+                self._probe_generation += 1
+                self._half_open_probe_token = self._probe_generation
+                return self._half_open_probe_token
             if current_state == self.OPEN:
                 seconds_left = self.recovery_timeout - (time.time() - self._last_failure_time)
                 raise CircuitBreakerOpen(self.name, max(0, seconds_left),

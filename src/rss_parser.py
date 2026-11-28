@@ -536,13 +536,14 @@ class RSSParser:
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
                                last_modified: str = None, timeout: int = 30,
-                               podcast=None, meta: dict | None = None):
+                               podcast=None, meta: dict | None = None, bypass_breaker: bool = False):
         """Fetch RSS feed with conditional GET support.
 
         Sends If-None-Match / If-Modified-Since to skip unchanged feeds. etag and last_modified are
         the previously received header values; podcast supplies its feed UA override, if any.
 
         meta, when given, is cleared and filled with this fetch's status, max-age, Retry-After and failure class.
+        bypass_breaker: an explicit user refresh takes one probe through an open host breaker.
 
         Returns (content, new_etag, new_last_modified); on 304 (None, etag, last_modified);
         on error (None, None, None).
@@ -558,7 +559,7 @@ class RSSParser:
         breaker = _get_rss_circuit_breaker(url)
         probe_token = None
         try:
-            probe_token = breaker.check()
+            probe_token = breaker.check(force=bypass_breaker)
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS conditional fetch skipped: {redact_exc_urls(e)}")
             meta.update(kind='connection', detail='Paused after repeated failures')

@@ -2713,7 +2713,7 @@ def refresh_feed(slug):
 
     try:
         from main_app.feeds import refresh_rss_feed
-        outcome = refresh_rss_feed(slug, podcast['source_url'], force=force)
+        outcome = refresh_rss_feed(slug, podcast['source_url'], force=force, manual=True)
         if not outcome.success and outcome.status != 'parse_backoff':
             status = 502 if outcome.status in ('fetch_failed', 'parse_failed') else 500
             return error_response(outcome.error or 'Feed refresh failed', status)

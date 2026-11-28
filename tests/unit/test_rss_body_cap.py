@@ -42,3 +42,12 @@ def test_oversize_or_truncated_body_fails_the_breaker(parser, monkeypatch, error
     assert breaker.record_failure.call_count == 2
     breaker.record_success.assert_not_called()
     assert response.close.called
+
+
+def test_bypass_breaker_forces_a_probe_only_when_asked(parser, monkeypatch):
+    p, _response, breaker = parser
+    monkeypatch.setattr(rss_parser, 'read_response_capped', lambda r, cap: b'<rss/>')
+    p.fetch_feed_conditional(URL)
+    breaker.check.assert_called_with(force=False)
+    p.fetch_feed_conditional(URL, bypass_breaker=True)
+    breaker.check.assert_called_with(force=True)

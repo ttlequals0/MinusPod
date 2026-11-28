@@ -996,7 +996,8 @@ def _apply_feed_refresh_fields(db, data):
 
     if _SCHEDULE_PAYLOAD_KEYS.intersection(data):
         adaptive, max_seconds, floor_seconds = resolve_adaptive_refresh(db)
-        clamped = db.clamp_next_refresh_at(max_seconds if adaptive else floor_seconds)
+        clamped = db.clamp_next_refresh_at(
+            max_seconds if adaptive else floor_seconds, floor_seconds, 'max' if adaptive else 'fixed')
         if clamped:
             logger.info(f"Pulled {clamped} feed refresh time(s) in to the new interval")
 

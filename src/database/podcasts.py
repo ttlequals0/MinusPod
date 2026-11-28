@@ -241,22 +241,42 @@ class PodcastMixin:
         ).fetchall()
         return [row['slug'] for row in rows]
 
-    def clamp_next_refresh_at(self, ceiling_seconds: int) -> int:
-        """Pull every healthy feed's next_refresh_at in to at most now + ceiling_seconds.
+    def clamp_next_refresh_at(self, ceiling_seconds: int, floor_seconds: int, ceiling_reason: str) -> int:
+        """Pull healthy feeds' schedule in to the new settings; returns rows changed.
 
-        Feeds held by a Retry-After or by failure backoff keep their time. Returns rows changed.
-        Runs in the caller's transaction (the settings save)."""
+        A wait over the ceiling drops to it, and a floor-bound wait (floor, due, fixed) over the floor
+        drops to the floor; next_refresh_at, refresh_interval_seconds and refresh_interval_reason move together.
+        Feeds held by a Retry-After or by failure backoff keep their time. Runs in the caller's transaction."""
         now = datetime.now(timezone.utc)
-        latest = (now + timedelta(seconds=ceiling_seconds)).strftime(ISO_FORMAT)
-        return self.get_connection().execute(
-            """UPDATE podcasts SET next_refresh_at = ?
-               WHERE feed_type NOT IN ('local', 'recents')
+        params = {
+            'now': now.strftime(ISO_FORMAT), 'ceiling': ceiling_seconds, 'floor': floor_seconds,
+            'latest': (now + timedelta(seconds=ceiling_seconds)).strftime(ISO_FORMAT),
+            'soonest': (now + timedelta(seconds=floor_seconds)).strftime(ISO_FORMAT),
+            'reason': ceiling_reason,
+        }
+        healthy = """feed_type NOT IN ('local', 'recents')
                  AND source_url IS NOT NULL AND source_url != ''
-                 AND next_refresh_at > ?
                  AND COALESCE(refresh_failure_count, 0) = 0
-                 AND (retry_after_until IS NULL OR retry_after_until <= ?)""",
-            (latest, latest, now.strftime(ISO_FORMAT)),
-        ).rowcount
+                 AND (retry_after_until IS NULL OR retry_after_until <= :now)"""
+        conn = self.get_connection()
+        changed = conn.execute(
+            f"""UPDATE podcasts SET
+                    next_refresh_at = MIN(COALESCE(next_refresh_at, :latest), :latest),
+                    refresh_interval_seconds = :ceiling,
+                    refresh_interval_reason = CASE
+                        WHEN refresh_interval_reason IN ('hint', 'dormant') THEN refresh_interval_reason
+                        ELSE :reason END
+                WHERE {healthy} AND refresh_interval_seconds > :ceiling""", params).rowcount  # noqa: S608
+        changed += conn.execute(
+            f"UPDATE podcasts SET next_refresh_at = :latest WHERE {healthy} AND next_refresh_at > :latest",  # noqa: S608
+            params).rowcount
+        changed += conn.execute(
+            f"""UPDATE podcasts SET
+                    next_refresh_at = MIN(COALESCE(next_refresh_at, :soonest), :soonest),
+                    refresh_interval_seconds = :floor
+                WHERE {healthy} AND refresh_interval_seconds > :floor
+                  AND refresh_interval_reason IN ('floor', 'due', 'fixed')""", params).rowcount  # noqa: S608
+        return changed
 
     def get_recent_episode_dates(self, podcast_id: int, limit: int = 30) -> list[str]:
         """Newest published_at values of a feed's episodes (ISO text), for cadence estimation."""

@@ -370,7 +370,8 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
 
 
 def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
-                      record_failure: bool = True, meta: dict | None = None):
+                      record_failure: bool = True, meta: dict | None = None,
+                      manual: bool = False):
     """Refresh RSS feed for a podcast, then schedule its next refresh.
 
     Args:
@@ -384,10 +385,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                refresh_all_feeds passes False and counts itself once it knows
                whether the batch looks like a shared outage, and schedules too.
         meta: filled with the fetch's HTTP facts; refresh_all_feeds keeps it per feed.
+        manual: an explicit user refresh; probes through an open host circuit breaker.
     """
     meta = {} if meta is None else meta
     try:
-        outcome = _refresh_rss_feed(slug, feed_url, force, record_failure, meta)
+        outcome = _refresh_rss_feed(slug, feed_url, force, record_failure, meta, manual)
     except Exception:
         if record_failure:
             _schedule_after_attempt(slug, RefreshOutcome(False, 'internal_error'), meta)
@@ -397,7 +399,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
     return outcome
 
 
-def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: bool, meta: dict):
+def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: bool, meta: dict,
+                      manual: bool = False):
     podcast = db.get_podcast_row(slug)
     if is_local_feed(podcast):
         success = bool(local_feed_builder.rebuild_local_feed(slug, podcast))
@@ -412,6 +415,7 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: boo
         refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
         return RefreshOutcome(True, 'coalesced')
     _refresh_coalesce.set(slug, True)
+    breaker_opts = {'bypass_breaker': True} if manual else {}
     # Stamp the attempt up front, before any fetch can fail, so the staggered
     # scheduler retries this feed on the interval instead of re-selecting it
     # every tick while it keeps failing (last_checked_at is success-only).
@@ -445,7 +449,7 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: boo
             feed_url,
             etag=existing_etag,
             last_modified=existing_last_modified,
-            podcast=podcast, meta=meta,
+            podcast=podcast, meta=meta, **breaker_opts,
         )
 
         # Handle 304 Not Modified - feed hasn't changed
@@ -475,7 +479,8 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: boo
                     refresh_logger.info(
                         f"[{slug}] Feed unchanged (304) but {forced_reason}, forcing full fetch")
                     feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                        feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta
+                        feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta,
+                    **breaker_opts
                     )
                 else:
                     refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
@@ -491,7 +496,8 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: boo
                     f"forcing full fetch for initial discovery"
                 )
                 feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                    feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta
+                    feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta,
+                    **breaker_opts
                 )
 
         if not feed_content:
@@ -512,7 +518,8 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: boo
             # One immediate refetch usually clears a body cut in transfer before falling back to backoff.
             refresh_logger.info(f"[{slug}] Feed body failed to parse; refetching once")
             feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta
+                feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta,
+                **breaker_opts
             )
             if feed_content:
                 parsed_feed = rss_parser.parse_feed(feed_content, source=slug)

@@ -303,3 +303,24 @@ class TestCircuitBreakerCauseClassifier:
         with pytest.raises(CircuitBreakerOpen) as exc_info:
             cb.check()
         assert exc_info.value.auth_cause is False
+
+
+class TestForcedProbe:
+    def test_force_probes_through_an_open_circuit_and_closes_on_success(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
+        token = cb.check(force=True)
+        assert token is not None
+        cb.record_success(token=token)
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb.check() is None
+
+    def test_a_failed_forced_probe_reopens_the_circuit(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        cb.record_failure(token=cb.check(force=True))
+        assert cb.state == CircuitBreaker.OPEN
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
