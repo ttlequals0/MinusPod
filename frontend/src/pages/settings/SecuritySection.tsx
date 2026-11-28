@@ -14,6 +14,7 @@ import { subHeading } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { limitsOf } from '../../utils/settingLimits';
+import ApiTokensBlock from './ApiTokensBlock';
 
 const MIN_PASSWORD_LENGTH = 12;
 // Ranges and defaults used until the server reports them (older servers and fixtures omit them).
@@ -376,6 +377,8 @@ function SecuritySection({
           <p role="alert" className="mt-2 text-sm text-destructive">{sessionError}</p>
         )}
       </form>
+
+      <ApiTokensBlock isPasswordSet={isPasswordSet} />
 
       <div className="mt-6 pt-6 border-t border-border">
         <h3 className={`${subHeading} mb-1`}>Provider key encryption</h3>
