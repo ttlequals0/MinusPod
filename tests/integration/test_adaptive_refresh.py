@@ -319,3 +319,28 @@ class TestSettings:
             assert resolve_adaptive_refresh(feed['db']) == (True, 120 * 60)
         finally:
             feed['db'].set_setting('rss_refresh_interval_minutes', '15', is_default=False)
+
+
+class TestFetchMetaIsolation:
+    def test_one_feeds_retry_after_never_reaches_the_next_feed_on_the_thread(self, feed, monkeypatch):
+        db = feed['db']
+        db.create_podcast('adaptive-other', 'https://feed.example.com/other.xml', 'Other')
+        db.set_setting('rss_refresh_interval_minutes', '15', is_default=False)
+        calls = []
+
+        def fake_fetch(url, **kwargs):
+            calls.append(url)
+            if len(calls) == 1:
+                feed_schedule.note_fetch_meta(status=429, retry_after='900', kind='rate_limited')
+            return None, None, None
+
+        monkeypatch.setattr('main_app.feeds.rss_parser.fetch_feed_conditional', fake_fetch)
+        try:
+            feeds_mod.refresh_rss_feed(feed['slug'], 'https://feed.example.com/a.xml', force=True)
+            assert _row(feed)['retry_after_until']
+            feeds_mod.refresh_rss_feed('adaptive-other', 'https://feed.example.com/b.xml', force=True)
+            other = db.get_podcast_row('adaptive-other')
+            assert len(calls) == 2
+            assert not other['retry_after_until']
+        finally:
+            db.delete_podcast('adaptive-other')

@@ -624,6 +624,7 @@ class RSSParser:
                     stream=True,
                     headers={**headers, 'Accept-Encoding': 'identity'},
                 )
+                _note_response_meta(response)
                 if response.status_code == 304:
                     breaker.record_success(token=probe_token)
                     response.close()
