@@ -333,4 +333,17 @@ describe('TranscriptViewer search context and navigation', () => {
     await userEvent.type(screen.getByLabelText('Search'), 'blog');
     expect(screen.getByText('2 matches in 5 segments')).toBeTruthy();
   });
+
+  it('flashes the line that covers a deep-linked second and scrolls to it', async () => {
+    scroll.mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TranscriptViewer slug="example-podcast" episodeId="a1b2c3d4e5f6" episode={episode} focusTime={25} />
+      </QueryClientProvider>,
+    );
+    const row = (await screen.findByText('Next topic is batteries.')).closest('li');
+    await waitFor(() => expect(row?.className).toContain('bg-primary/20'));
+    expect(scroll).toHaveBeenCalledWith({ block: 'center' });
+  });
 });

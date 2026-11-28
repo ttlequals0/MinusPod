@@ -60,6 +60,8 @@ interface Props {
   slug: string;
   episodeId: string;
   episode: EpisodeDetail;
+  // Second to scroll to and flash once the segments load, from a search result link.
+  focusTime?: number;
 }
 
 function adFor(seg: OriginalSegment, markers: AdSegment[]): AdSegment | undefined {
@@ -179,7 +181,7 @@ const LineRow = memo(function LineRow({
   );
 });
 
-function TranscriptViewer({ slug, episodeId, episode }: Props) {
+function TranscriptViewer({ slug, episodeId, episode, focusTime }: Props) {
   const [source, setSource] = useState<Source>(
     episode.originalTranscriptAvailable ? 'original' : 'processed',
   );
@@ -196,6 +198,7 @@ function TranscriptViewer({ slug, episodeId, episode }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const scrolledFor = useRef<Flash | null>(null);
+  const focusApplied = useRef(false);
 
   const query = useQuery({
     queryKey: [source === 'original' ? 'originalSegments' : 'finalSegments', slug, episodeId],
@@ -308,6 +311,14 @@ function TranscriptViewer({ slug, episodeId, episode }: Props) {
     scrolledFor.current = flash;
     row.scrollIntoView({ block: flash.block });
   }, [flash, shown, posBySeg, reveal]);
+  // A deep link names a second: flash the line that covers it, or the last one before it.
+  useEffect(() => {
+    if (focusTime === undefined || focusApplied.current || segments.length === 0) return;
+    focusApplied.current = true;
+    const seg = segments.find((s) => focusTime >= s.start && focusTime < s.end)
+      ?? [...segments].reverse().find((s) => s.start <= focusTime) ?? segments[0];
+    setFlash({ seg, block: 'center' });
+  }, [focusTime, segments, setFlash]);
   // The clicked "Show in transcript" button unmounts, so hand focus to the way back.
   useEffect(() => {
     if (showAll) backRef.current?.focus();

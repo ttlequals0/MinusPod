@@ -16,7 +16,7 @@ release notes.
 
 ### Changed
 
-- The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top, and a pill shows how many detections are held. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript search result opens the Transcript tab.
+- The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top, and a pill shows how many detections are held. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript hit in global search opens the Transcript tab at the matching line and highlights it (`?section=transcript&t=<seconds>`).
 
 ### Fixed
 

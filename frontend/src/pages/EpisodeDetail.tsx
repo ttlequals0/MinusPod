@@ -402,8 +402,8 @@ function blockedRunReason(jobState?: JobState): string {
 }
 
 
-// ?rate=up|down (or legacy 1-5) from a feed description link, stripped once applied; ?section= is the active tab.
-const URL_PARAM_DEFAULTS = { rate: '', section: '' };
+// ?rate=up|down (or legacy 1-5) from a feed description link, stripped once applied; ?section= is the active tab, ?t= a transcript second to scroll to.
+const URL_PARAM_DEFAULTS = { rate: '', section: '', t: '' };
 
 type EpisodeSection = 'ads' | 'transcript' | 'processing';
 // Older #anchor links, from when these were stacked sections, still open their tab.
@@ -436,6 +436,8 @@ function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const location = useLocation();
   const urlParams = useUrlParams(URL_PARAM_DEFAULTS);
+  const focusSeconds = Number.parseFloat(urlParams.read('t'));
+  const focusTime = Number.isFinite(focusSeconds) && focusSeconds >= 0 ? focusSeconds : undefined;
   const clearRateParam = () => urlParams.write({ rate: '' });
   const [showEditor, setShowEditor] = useState(false);
   const [createModeRequested, setCreateModeRequested] = useState(false);
@@ -2320,7 +2322,7 @@ function EpisodeDetail() {
         <div {...panelProps('transcript')}>
           {mounted('transcript') && (
             <div id="transcript-section" className="scroll-mt-4">
-              <TranscriptViewer slug={slug!} episodeId={episodeId!} episode={episode} />
+              <TranscriptViewer slug={slug!} episodeId={episodeId!} episode={episode} focusTime={focusTime} />
             </div>
           )}
         </div>

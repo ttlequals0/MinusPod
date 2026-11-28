@@ -167,6 +167,14 @@ describe('EpisodeDetail tabs', () => {
     expect(getOriginalSegments).toHaveBeenCalledTimes(1);
   });
 
+  it('opens the Transcript tab at the second from a search link and flashes that line', async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    renderAt(`${BASE}?section=transcript&t=12`);
+    const row = (await screen.findByText('Brought to you by Acme.')).closest('li');
+    expect(selected()).toEqual(['episode-sections-tab-transcript']);
+    await vi.waitFor(() => expect(row?.className).toContain('bg-primary/20'));
+  });
+
   it('leaves no focusable control in a hidden panel', async () => {
     renderAt(BASE);
     await userEvent.click(await screen.findByRole('tab', { name: 'Transcript' }));
