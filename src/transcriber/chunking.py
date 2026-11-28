@@ -34,6 +34,10 @@ WHISPER_CHUNK_SECONDS = 30.0
 # Shortest clip worth handing to the pipeline.
 MIN_CLIP_SECONDS = 0.1
 
+# Largest chunk sent to a remote API (they reject uploads near 25 MB).
+API_UPLOAD_LIMIT_BYTES = 24 * 1024 * 1024
+_oversize_copy_logged: set[str] = set()
+
 
 def extract_audio_chunk(
     audio_path: str,
@@ -41,16 +45,21 @@ def extract_audio_chunk(
     end_time: float,
     preprocess: bool = False,
     flac: bool = False,
+    raw_copy: bool = False,
 ) -> str | None:
     """Extract a time range (seconds) from an audio file using ffmpeg.
 
     preprocess: apply the preprocess_audio filter chain in this pass; callers must then
         skip preprocessing downstream (transcribe(..., preprocessed=True)).
     flac: encode FLAC (ready for API upload) instead of PCM WAV.
+    raw_copy: stream-copy the span of an MP3 source instead of decoding, filtering and re-encoding it,
+        for remote APIs that normalise on their own; ignored for other sources.
 
     Returns the temporary chunk path (caller cleans it up), or None on failure.
     """
-    tmp = tempfile.NamedTemporaryFile(suffix='.flac' if flac else '.wav', delete=False)
+    raw_copy = raw_copy and audio_path.lower().endswith('.mp3')
+    suffix = '.mp3' if raw_copy else '.flac' if flac else '.wav'
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     output_path = tmp.name
     tmp.close()
 
@@ -65,20 +74,29 @@ def extract_audio_chunk(
             # Ignore embedded cover art (#556): FLAC output can carry pictures, so a
             # malformed APIC frame (ID3 says PNG, bytes are JPEG) aborts the extract.
             '-vn',
-            '-ar', '16000',  # Whisper native sample rate
-            '-ac', '1',      # Mono
         ]
-        if preprocess:
-            cmd += ['-af', settings.preprocess_filters_for(audio_path)]
-        # FLAC for upload; otherwise uncompressed for faster processing
-        cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
+        if not raw_copy:
+            cmd += ['-ar', '16000', '-ac', '1']  # Whisper native rate, mono
+            if preprocess:
+                cmd += ['-af', settings.preprocess_filters_for(audio_path)]
+        # Copy for raw MP3, FLAC for upload, otherwise uncompressed for faster processing
+        cmd += ['-c:a', 'copy' if raw_copy else 'flac' if flac else 'pcm_s16le', output_path]
 
         # With filtering folded in, use the standalone preprocess budget (FFMPEG_LONG_TIMEOUT
         # floor). Scale by chunk length (#644): chunks grow with GPU memory, so a flat budget fails.
-        timeout = (FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
+        long_budget = preprocess and not raw_copy
+        timeout = (FFMPEG_LONG_TIMEOUT if long_budget else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
         result = utils.subprocess_registry.tracked_run(cmd, capture_output=True, timeout=timeout)
 
         if result.returncode == 0 and os.path.exists(output_path):
+            if raw_copy and os.path.getsize(output_path) > API_UPLOAD_LIMIT_BYTES:
+                if len(_oversize_copy_logged) > 256:
+                    _oversize_copy_logged.clear()
+                if audio_path not in _oversize_copy_logged:
+                    _oversize_copy_logged.add(audio_path)
+                    logger.info("Raw MP3 chunk exceeds the API upload limit; re-encoding oversize chunks for this episode")
+                return extract_audio_chunk(audio_path, start_time, end_time,
+                                           preprocess=preprocess, flac=flac, raw_copy=False)
             logger.debug(f"Extracted chunk {start_time:.1f}s-{end_time:.1f}s to {output_path}")
             success = True
             return output_path

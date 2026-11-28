@@ -10,6 +10,8 @@ from flask import g, has_request_context, request, session
 
 from config import get_env_backed_int
 from database import Database
+from database.api_tokens import TOKEN_PREFIX
+from utils.validation import is_public_ip_for_lockout
 
 
 logger = logging.getLogger('podcast.api')
@@ -24,6 +26,18 @@ LAST_USED_REFRESH_SECONDS = 60
 CLOCK_SKEW_SECONDS = 60
 # Probes answer without the session check so a database failure cannot turn them into a 500.
 AUTH_HOOK_EXEMPT_ENDPOINTS = frozenset({'api.health_live', 'api.health_check'})
+# Routes an API token can never call: credential and session management, config import, secret reveal.
+SESSION_ONLY_ENDPOINTS = frozenset({
+    'api.list_api_tokens', 'api.create_api_token', 'api.revoke_api_token', 'api.revoke_all_api_tokens',
+    'api.auth_set_password', 'api.auth_logout',
+    'api.rotate_master_passphrase', 'api.get_sb_user_id',
+    'api.preview_runtime_config_import', 'api.apply_runtime_config_import',
+    'api.update_db_backup_settings',
+})
+BEARER_INVALID = 'invalid'
+BEARER_LOCKED = 'locked'
+# Bearer failures count under their own auth_failures key, apart from password logins.
+_BEARER_KEY_PREFIX = 'bearer:'
 _HOLDER = 'auth_holder'
 
 
@@ -36,6 +50,8 @@ class AuthState:
     signed_in: bool
     remembered: bool = False
     limit_seconds: int | None = None
+    token_id: int | None = None
+    bearer_error: str | None = None
 
 
 # Used when a request reads auth state the request hook never stored.
@@ -74,10 +90,47 @@ def authentication_required(db) -> bool:
     return password_is_set(db) or _auth_forced()
 
 
+def _bearer_token() -> str | None:
+    """The mp_ token in an API request's Authorization header; other schemes and bearer values are not ours."""
+    if request.blueprint != 'api':
+        return None
+    scheme, _, value = request.headers.get('Authorization', '').partition(' ')
+    value = value.strip()
+    if scheme.lower() != 'bearer' or not value.startswith(TOKEN_PREFIX):
+        return None
+    return value
+
+
+def bearer_lockout_key(ip: str) -> str:
+    return _BEARER_KEY_PREFIX + ip
+
+
+def _check_bearer(db, token: str, required: bool) -> AuthState:
+    """Authenticate by token alone; the session cookie is never read, so a token request has no cookie authority."""
+    ip = request.remote_addr or ''
+    lockable = is_public_ip_for_lockout(ip)
+    key = bearer_lockout_key(ip)
+    if lockable and db.check_lockout(key):
+        return AuthState(True, required, authenticated=False, signed_in=False,
+                         bearer_error=BEARER_LOCKED)
+    token_id = db.verify_api_token(token)
+    if token_id is None:
+        logger.warning("Rejected API token from %s", ip)
+        if lockable:
+            db.record_auth_failure(key)
+        return AuthState(True, required, authenticated=False, signed_in=False,
+                         bearer_error=BEARER_INVALID)
+    # signed_in stays False: CSRF and the CSRF cookie apply only to cookie sign-ins.
+    return AuthState(True, required, authenticated=True, signed_in=False, token_id=token_id)
+
+
 def check_session(db) -> AuthState:
     """Apply the idle and generation checks to the request session, clearing it when they fail."""
     password_set = password_is_set(db)
     required = password_set or _auth_forced()
+    token = _bearer_token() if password_set else None
+    if token is not None:
+        return _check_bearer(db, token, required)
     if not session.get('authenticated'):
         # Leftover auth keys can never sign in; drop them so the cookie is not kept alive.
         if required and _session_has_auth_marker():

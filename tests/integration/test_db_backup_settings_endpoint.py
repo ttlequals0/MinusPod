@@ -60,10 +60,18 @@ def test_get_defaults(app_client, db):
     assert body['dest'] == ''
     assert body['effectiveDest'] == str((db.data_dir / 'backups').resolve())
     assert body['destWritable'] is True
+    assert body['destError'] is None
     assert body['keepCount'] == 1
     assert body['lastRun'] is None
     assert body['lastError'] is None
     assert body['lastSummary'] is None
+
+
+def test_get_reports_why_a_stored_destination_is_refused(app_client, db):
+    db.set_setting('db_backup_dest', str(db.data_dir / 'podcasts' / 'show'))
+    body = app_client.get('/api/v1/settings/db-backup').get_json()
+    assert 'serves over HTTP' in body['destError']
+    assert body['effectiveDest'] == '' and body['destWritable'] is False
 
 
 def test_diagnostic_export_is_bounded_and_payload_free(app_client, db):
@@ -176,6 +184,13 @@ def test_put_dest_is_data_dir(app_client, db):
     assert r.get_json()['error'] == 'destination must not be the data directory itself'
 
 
+def test_put_dest_inside_served_directory(app_client, db):
+    r = app_client.put('/api/v1/settings/db-backup',
+                       json={'dest': str(Path(db.data_dir) / 'podcasts' / 'show')})
+    assert r.status_code == 400
+    assert 'serves over HTTP' in r.get_json()['error']
+
+
 def test_put_storage_failure_on_last_write_persists_nothing(app_client, db):
     # A write failing partway must roll back the fields staged ahead of it.
     dest = tempfile.mkdtemp(prefix='db-backup-dest-')
@@ -253,6 +268,17 @@ def test_post_run_failure_returns_500_and_sets_last_error(app_client, db):
     assert 'reason' not in body
     got = app_client.get('/api/v1/settings/db-backup').get_json()
     assert got['lastError']
+
+
+def test_post_run_invalid_destination_is_a_409_warning_not_a_500(app_client, db, caplog):
+    db.set_setting('db_backup_dest', 'relative/path')
+    with caplog.at_level(logging.WARNING):
+        r = app_client.post('/api/v1/system/db-backup/run')
+    assert r.status_code == 409
+    assert r.get_json()['error'] == 'Backup destination is not usable: destination must be an absolute path'
+    assert not [rec for rec in caplog.records if rec.levelno >= logging.ERROR]
+    assert not [rec for rec in caplog.records if rec.exc_info]
+    assert db.get_setting('db_backup_last_error') == 'destination must be an absolute path'
 
 
 # auth-exempt allowlist

@@ -68,6 +68,16 @@ export interface Feed {
   // current failure run.
   lastRefreshError?: string | null;
   lastRefreshErrorAt?: string | null;
+  // Adaptive refresh schedule (upstream feeds only; null for local and recents).
+  nextRefreshAt?: string | null;
+  refreshIntervalSeconds?: number | null;
+  refreshIntervalReason?: RefreshIntervalReason | null;
+  consecutiveRefreshFailures?: number;
+  lastRefreshOkAt?: string | null;
+  // Last time a client fetched the served RSS (stamped at most every 10
+  // minutes); dormant is set when dormantFeedDays is on and that is too old.
+  lastFeedRequestAt?: string | null;
+  dormant?: boolean;
   // Stamped when a Podping publish notification triggers this feed's
   // refresh; null when the feed has never been refreshed via Podping.
   lastPodpingAt?: string | null;
@@ -594,6 +604,8 @@ interface ThinkingCompatibilityNotice {
 export interface EpisodeProcessingRun {
   runNumber: number;
   processedAt: string;
+  // MinusPod version that made the run; null for runs recorded before 2.78.4.
+  appVersion?: string | null;
   status: 'completed' | 'failed';
   adsDetected: number;
   processingDurationSeconds: number | null;
@@ -882,12 +894,6 @@ export interface SystemOneProfile {
   categoryPass: boolean;
   categoryContext: number;
   defaultCategory: string;
-  refineBoundaries: boolean;
-  reviewEvidenceEnter: number | null;
-  reviewChoiceEnter: number | null;
-  reviewProgrammeVeto: number;
-  reviewBoundaryCapSeconds: number;
-  reviewContextSeconds: number;
   requestDeadlineSeconds: number;
   maxConcurrentOperations: number;
   retryAfterMaxSeconds: number;
@@ -948,6 +954,8 @@ export interface Settings {
   // and model from whichever pass is being reviewed (see llm_route.py).
   reviewProvider: SettingValue;
   reviewMaxBoundaryShift: SettingValueNumber;
+  // True when the reviewer is on but its route resolves to System One, so it does not run.
+  reviewerNeedsLlm?: boolean;
   claudeModel: SettingValue;
   verificationModel: SettingValue;
   // Per-phase provider overrides: empty value inherits (detection falls
@@ -960,6 +968,9 @@ export interface Settings {
   maxFeedEpisodes: SettingValueNumber;
   podpingEnabled: SettingValueBoolean;
   rssRefreshIntervalMinutes: SettingValueNumber;
+  adaptiveRefreshEnabled: SettingValueBoolean;
+  adaptiveRefreshMaxMinutes: SettingValueNumber;
+  dormantFeedDays: SettingValueNumber;
   queueManualBoost: SettingValueNumber;
   queueFreshBoost: SettingValueNumber;
   queueBulkBoost: SettingValueNumber;
@@ -1005,6 +1016,7 @@ export interface Settings {
   audioNormalizeEnabled: SettingValueBoolean;
   audioNormalizeIntensity: SettingValue;
   skipFlacCompression: SettingValueBoolean;
+  transcribeRawApiChunks: SettingValueBoolean;
   maxArtworkBytes: SettingValueNumber;
   maxRssBytes: SettingValueNumber;
   maxAudioDownloadMb: SettingValueNumber;
@@ -1064,6 +1076,8 @@ export interface Settings {
   heldWidenSeconds: SettingValueNumber;
   daiDifferentialOverridesKeep: SettingValueBoolean;
   spliceVetoEnabled: SettingValueBoolean;
+  audioAnalysisEnabled: SettingValueBoolean;
+  spliceEvidenceEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersMode: SettingValue;
@@ -1171,6 +1185,9 @@ export interface Settings {
     maxFeedEpisodes: number;
     podpingEnabled: boolean;
     rssRefreshIntervalMinutes: number;
+    adaptiveRefreshEnabled: boolean;
+    adaptiveRefreshMaxMinutes: number;
+    dormantFeedDays: number;
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
     requireManualApprovalDefault?: boolean;
@@ -1220,6 +1237,7 @@ export interface Settings {
     audioNormalizeEnabled: boolean;
     audioNormalizeIntensity: string;
     skipFlacCompression: boolean;
+    transcribeRawApiChunks: boolean;
     maxArtworkBytes: number;
     maxRssBytes: number;
     maxAudioDownloadMb: number;
@@ -1290,6 +1308,8 @@ export interface Settings {
     heldWidenSeconds: number;
     daiDifferentialOverridesKeep: boolean;
     spliceVetoEnabled: boolean;
+    audioAnalysisEnabled: boolean;
+    spliceEvidenceEnabled: boolean;
   };
 }
 
@@ -1326,6 +1346,9 @@ export interface UpdateSettingsPayload {
   maxFeedEpisodes?: number;
   podpingEnabled?: boolean;
   rssRefreshIntervalMinutes?: number;
+  adaptiveRefreshEnabled?: boolean;
+  adaptiveRefreshMaxMinutes?: number;
+  dormantFeedDays?: number;
   queueManualBoost?: number;
   queueFreshBoost?: number;
   queueBulkBoost?: number;
@@ -1370,6 +1393,7 @@ export interface UpdateSettingsPayload {
   audioNormalizeEnabled?: boolean;
   audioNormalizeIntensity?: string;
   skipFlacCompression?: boolean;
+  transcribeRawApiChunks?: boolean;
   maxArtworkBytes?: number;
   maxRssBytes?: number;
   maxAudioDownloadMb?: number;
@@ -1429,6 +1453,8 @@ export interface UpdateSettingsPayload {
   heldWidenSeconds?: number;
   daiDifferentialOverridesKeep?: boolean;
   spliceVetoEnabled?: boolean;
+  audioAnalysisEnabled?: boolean;
+  spliceEvidenceEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersMode?: 'auto' | 'generate' | 'off';
@@ -1796,6 +1822,10 @@ export interface RetentionSettings {
   retentionDays: number;
   originalRetentionDays: number;
   enabled: boolean;
+  // Never-fetched processed episodes are kept this many days (0 = off);
+  // fetched ones stay fetchedRetentionGraceDays past their first fetch.
+  unfetchedRetentionDays: number;
+  fetchedRetentionGraceDays: number;
 }
 
 export interface ProcessingTimeouts {
@@ -1962,8 +1992,6 @@ export interface SystemOneStats {
   unknownCostRequestCount: number;
   outcomes: Record<'completed' | 'failed' | 'inconclusive', number>;
   reviewReasons: Record<string, number>;
-  refinements: { attempted: number; completed: number; skipped: number; inconclusive: number; upstream_error: number };
-  refinementSkipReasons: Record<string, number>;
 }
 
 export interface LlmStats {
@@ -2154,4 +2182,27 @@ export interface HealthResponse {
 export interface ChangelogResponse {
   current: string;
   sections: ChangelogSection[];
+}
+
+export type RefreshIntervalReason =
+  | 'fixed' | 'floor' | 'cadence' | 'due' | 'hint' | 'max'
+  | 'dormant' | 'backoff' | 'retry_after';
+
+export interface FeedProblem {
+  slug: string;
+  title: string;
+  host: string;
+  consecutiveFailures: number;
+  errorKind: string;
+  message: string;
+  detail: string | null;
+  failingSince: string | null;
+  lastSuccessAt: string | null;
+  nextRetryAt: string | null;
+}
+
+export interface FeedProblemsResponse {
+  problems: FeedProblem[];
+  count: number;
+  threshold: number;
 }

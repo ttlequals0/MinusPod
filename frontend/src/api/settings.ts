@@ -327,6 +327,12 @@ export async function cancelProcessing(slug: string, episodeId: string): Promise
   });
 }
 
+export async function cancelAllProcessing(): Promise<{
+  message: string; activeRequested: number; queueRowsClosed: number; displayEntriesRemoved: number;
+}> {
+  return apiRequest('/episodes/processing/cancel-all', { method: 'POST' });
+}
+
 /** Pass `priority` to set an exact value, or `delta` to nudge the stored one. */
 export async function setQueuePriority(
   slug: string, episodeId: string, change: { priority?: number; delta?: number },
@@ -343,10 +349,17 @@ export async function getRetention(): Promise<RetentionSettings> {
 
 export async function updateRetention(
   days: number,
-  originalDays?: number
+  originalDays?: number,
+  unfetched?: Pick<RetentionSettings, 'unfetchedRetentionDays' | 'fetchedRetentionGraceDays'>,
 ): Promise<RetentionSettings> {
-  const body: { retentionDays: number; originalRetentionDays?: number } = {
+  const body: {
+    retentionDays: number;
+    originalRetentionDays?: number;
+    unfetchedRetentionDays?: number;
+    fetchedRetentionGraceDays?: number;
+  } = {
     retentionDays: days,
+    ...unfetched,
   };
   if (originalDays !== undefined) {
     body.originalRetentionDays = originalDays;
@@ -452,6 +465,7 @@ export interface DatabaseBackupSettings {
   dest: string;
   effectiveDest: string;
   destWritable: boolean;
+  destError: string | null;
   keepCount: number;
   lastRun: string | null;
   lastError: string | null;

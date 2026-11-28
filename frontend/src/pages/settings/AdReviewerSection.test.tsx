@@ -116,22 +116,56 @@ describe('AdReviewerSection: provider-specific model selection', () => {
   });
 });
 
-describe('AdReviewerSection: not framed as experimental', () => {
-  it('carries no experimental badge', () => {
+describe('AdReviewerSection: System One cannot review', () => {
+  const NOTICE = 'The reviewer needs an LLM provider. System One cannot review detections.';
+
+  it('carries no experimental badge and the standard request hint', () => {
     renderSection();
     expect(screen.queryByText(/experimental/i)).toBeNull();
+    expect(screen.getByText(/Adds one LLM call per detected ad/)).toBeDefined();
+    expect(screen.queryByText(/may send several requests/)).toBeNull();
   });
 
-  it('describes native request behavior while review is off, without an active-review warning', () => {
-    renderSection({ systemOneReview: true });
-    expect(screen.getByText(/Reviews each detected ad and may send several requests/)).toBeDefined();
-    expect(screen.queryByText(/Adds one LLM call/)).toBeNull();
-    expect(screen.queryByText('Ad review with System One models is experimental.')).toBeNull();
+  it('shows the notice only when the reviewer is on and the API says it cannot run', () => {
+    renderSection({ needsLlm: true, reviewer: { ...baseReviewer(), enabled: true } });
+    expect(screen.getByText(NOTICE)).toBeDefined();
   });
 
-  it('shows the generic warning when review is enabled on a native route', () => {
-    renderSection({ systemOneReview: true, reviewer: { ...baseReviewer(), enabled: true } });
-    expect(screen.getByText('Ad review with System One models is experimental.')).toBeDefined();
+  it('hides the notice while the reviewer is off or can run', () => {
+    renderSection({ needsLlm: true });
+    expect(screen.queryByText(NOTICE)).toBeNull();
+    renderSection({ needsLlm: false, reviewer: { ...baseReviewer(), enabled: true } });
+    expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it('keeps the provider picker beside the notice and disables System One slots', () => {
+    renderSection({
+      needsLlm: true,
+      primaryIsSystemOne: true,
+      secondaryProviderEnabled: true,
+      reviewer: { ...baseReviewer(), enabled: true },
+    });
+    const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
+    const primary = within(select).getByRole('option', { name: /Provider A.*System One/ }) as HTMLOptionElement;
+    const secondary = within(select).getByRole('option', { name: /Provider B/ }) as HTMLOptionElement;
+    expect(primary.disabled).toBe(true);
+    expect(secondary.disabled).toBe(false);
+  });
+
+  it('offers LLM models only in the review model picker', () => {
+    renderSection({
+      reviewer: { ...baseReviewer(), provider: 'primary', model: 'claude-opus-5' },
+      catalog: catalog([
+        { id: 'claude-opus-5', name: 'Claude Opus 5' },
+        { id: 'jev-latest', name: 'Jev latest' },
+        { id: 'typesafe/jev', name: 'TypeSafe Jev' },
+      ]),
+    });
+    const model = screen.getByLabelText('Review model') as HTMLSelectElement;
+    const ids = Array.from(model.options).map((option) => option.value);
+    expect(ids).toContain('claude-opus-5');
+    expect(ids).not.toContain('jev-latest');
+    expect(ids).not.toContain('typesafe/jev');
   });
 });
 

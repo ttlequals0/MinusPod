@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 ## Features
 
 **Ad detection**
-- An LLM finds ads in the transcript, a second pass verifies the cut, and an optional reviewer confirms or adjusts each boundary. [How it works](https://docs.minuspod.app/how-it-works/)
+- An LLM finds ads in the transcript, a second pass verifies the cut, and an optional reviewer (it needs an LLM provider) confirms or adjusts each boundary. [How it works](https://docs.minuspod.app/how-it-works/)
 - Audio evidence backs the transcript: loudness and DAI transitions, a cross-fetch diff against a second download, per-feed jingle cues, and the publisher's own transcript. [Audio cues](https://docs.minuspod.app/audio-cues/), [Transcript differential](https://docs.minuspod.app/transcript-differential/)
 - Each detection gets a category (sponsor, cross-promo, self-promo, intro/outro) and a per-feed action: remove, beep, keep, or mark as a skippable chapter
 - Low-confidence cuts wait in a review queue with a waveform editor; your corrections become cross-episode patterns so repeat sponsors are caught without another LLM call
@@ -39,7 +39,7 @@ https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 **Publishing**
 - Re-cut RSS feeds per podcast with versioned audio, a replacement sound at each cut, loudness leveling, and lossless MP3 stream copy where the cut allows
 - [Podcasting 2.0](https://docs.minuspod.app/podcasting-2.0/) tags regenerated: transcripts, chapters, AI-content disclosure, value-for-value passed through
-- Podping listener refreshes a feed seconds after the host announces an episode
+- Feeds refresh at a pace that follows how each one publishes, and the Podping listener refreshes a feed seconds after the host announces an episode
 - OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, and [local feeds](https://docs.minuspod.app/local-feeds/) built from your own audio files
 
 **YouTube**
@@ -49,7 +49,7 @@ https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 **Web UI and administration**
 - Feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS, and Windows. [Web interface](https://docs.minuspod.app/web-interface/)
 - Stats and an LLM cost ledger down to the individual call
-- Retention per feed, scheduled encrypted backups, email and webhook notifications, and a REST API with OpenAPI. [API and webhooks](https://docs.minuspod.app/api-and-webhooks/)
+- Retention per feed, scheduled encrypted backups, email and webhook notifications, and a REST API with OpenAPI and API tokens for scripts. [API and webhooks](https://docs.minuspod.app/api-and-webhooks/)
 - Password auth for the UI and API, feed keys or per-feed subscriber keys for RSS, provider keys encrypted at rest. [Security](https://docs.minuspod.app/security-and-storage/)
 
 ## How it works
@@ -63,7 +63,7 @@ The full pipeline, including the verification pass, sliding windows, pattern lea
 ## Requirements
 
 - Docker on an amd64 or arm64 host. An NVIDIA GPU speeds up local transcription but is not required.
-- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint. An LLM is optional. Set `LLM_PROVIDER=none` to run without one, as described in [Running without an LLM](https://docs.minuspod.app/llm-providers/#running-without-an-llm). A fresh install on None finds little on a regular podcast feed until you mark ads, and SponsorBlock covers YouTube feeds only.
+- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint. An LLM is optional. Set `LLM_PROVIDER=none` to run without one, as described in [Running without an LLM](https://docs.minuspod.app/llm-providers/#running-without-an-llm). Without an LLM, SponsorBlock covers YouTube feeds only.
 
 Whisper and Parakeet sizing and RAM/VRAM figures are in [Installation](https://docs.minuspod.app/installation/#memory-requirements).
 
@@ -101,7 +101,7 @@ https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
 | [Installation](https://docs.minuspod.app/installation/) | Requirements, sizing, quick start, CPU image |
 | [Environment variables](https://docs.minuspod.app/environment-variables/) | Every env var |
 | [LLM providers](https://docs.minuspod.app/llm-providers/) | Providers, recommended models, pricing |
-| [Transcription](https://docs.minuspod.app/transcription/) | faster-whisper, Parakeet, remote APIs, [OpenVINO](https://docs.minuspod.app/transcription-openvino/) |
+| [Transcription](https://docs.minuspod.app/transcription/) | faster-whisper, Parakeet, remote APIs, [OpenVINO](https://docs.minuspod.app/transcription-openvino/), [AMD ROCm](https://docs.minuspod.app/amd-whisper/) |
 | [Web interface](https://docs.minuspod.app/web-interface/) | Management UI and the ad editor |
 | [How it works](https://docs.minuspod.app/how-it-works/) | The detection pipeline in depth |
 | [Workflows](https://docs.minuspod.app/workflows/) | Processing modes, re-runs, failure paths |
@@ -109,7 +109,7 @@ https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
 | [Security and storage](https://docs.minuspod.app/security-and-storage/) | Remote access, authenticated feeds, backups |
 | [API and webhooks](https://docs.minuspod.app/api-and-webhooks/) | REST endpoints, webhook events, notifications |
 | [Podcasting 2.0](https://docs.minuspod.app/podcasting-2.0/) | What is emitted, regenerated, and stripped |
-| [Glossary](https://docs.minuspod.app/glossary/) | Every term the app uses |
+| [Glossary](https://docs.minuspod.app/glossary/) | Terms the app uses |
 
 The [full docs index](https://docs.minuspod.app/) covers the rest: audio cues, community patterns, Pattern Cleanup, System One, failover, local feeds, YouTube feeds, download history, configuration import and export, deployment, releasing, and the [LLM benchmark report](https://docs.minuspod.app/benchmarks/llm/results/).
 

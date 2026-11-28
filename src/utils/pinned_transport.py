@@ -30,8 +30,9 @@ def _is_ip_literal(host: str) -> bool:
 class PinnedHTTPAdapter(HTTPAdapter):
     """Resolves once per hop, validates every address, connects to them in order."""
 
-    def __init__(self, allow_private: bool, **kwargs):
+    def __init__(self, allow_private: bool, private_hosts=None, **kwargs):
         self._allow_private = allow_private
+        self._private_hosts = private_hosts
         # (hostname, ip) for the in-flight hop; sessions are per-call and hops
         # sequential, so plain attribute state is safe.
         self._pin: tuple[str, str] | None = None
@@ -54,7 +55,8 @@ class PinnedHTTPAdapter(HTTPAdapter):
             return super().send(request, **kwargs)
 
         if _is_ip_literal(host):
-            check_resolved_ip(host, allow_private=self._allow_private)
+            check_resolved_ip(host, allow_private=self._allow_private,
+                              private_hosts=self._private_hosts)
             return super().send(request, **kwargs)
 
         default_port = 443 if scheme == "https" else 80
@@ -81,7 +83,9 @@ class PinnedHTTPAdapter(HTTPAdapter):
         # A name that does not resolve reaches nothing, so it is a network
         # failure and not an SSRF verdict: callers retry the former.
         try:
-            infos = resolve_and_check(host, port, allow_private=self._allow_private)
+            infos = resolve_and_check(
+                host, port, allow_private=self._allow_private,
+                private_hosts=self._private_hosts)
         except socket.gaierror as exc:
             raise RequestsConnectionError(
                 f"Cannot resolve hostname: {host!r}"

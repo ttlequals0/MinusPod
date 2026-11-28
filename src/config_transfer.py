@@ -16,6 +16,8 @@ import email_service
 import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
+    FETCHED_RETENTION_GRACE_DAYS_MAX, FETCHED_RETENTION_GRACE_DAYS_MIN,
+    RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS, SETTING_CONSTRAINTS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
@@ -33,19 +35,21 @@ from db_backup_service import (
 )
 from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS, normalize_network_id
 from database.settings import SETTINGS_REGISTRY, registry_default
-from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
+from systemone.tuning import (
+    LEGACY_REVIEW_FIELDS, SystemOneSettingsError, drop_legacy_review_fields, merge_profile,
+    profile_from_snapshot,
+)
 from fx_rates import FxRateError, get_usd_rate
 from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
 from podping_listener import get_podping_nodes, normalize_podping_nodes
-from rss_parser import _feed_trust
 from youtube.settings import validate_yt_int
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_ciphertext
 from utils.cron import is_valid_expression
-from utils.safe_http import _validate_for_tier
+from utils.safe_http import validate_feed_source_url
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from utils.url import SSRFError, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
+from utils.url import SSRFError, ssrf_reject_text, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_slug
 from utils.feed_guid import compute_feed_guid
@@ -126,6 +130,7 @@ SECRET_ENV = {
 BOOLEAN_EXTRA_SETTINGS = frozenset({
     'community_sync_enabled', 'update_check_enabled',
     'update_patterns_from_reviewer_adjustments', 'email_enabled', 'db_backup_enabled',
+    'adaptive_refresh_enabled',
 })
 
 YT_INT_COLUMNS = {
@@ -404,6 +409,8 @@ def export_config(db, app_version):
         value = _setting_raw_value(db, key, raw_settings)
         if value is not None or key in NULLABLE_OPTIONAL_SETTINGS:
             settings[key] = _portable_value(key, value)
+            if key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values() and isinstance(settings[key], dict):
+                settings[key] = drop_legacy_review_fields(settings[key])
     cols = ', '.join(('slug', 'feed_type', *FEED_COLUMNS))
     rows = db.get_connection().execute(
         f'SELECT {cols} FROM podcasts ORDER BY slug'  # noqa: S608
@@ -480,6 +487,10 @@ def _validate_document(document):
     if not isinstance(settings, dict) or not isinstance(feeds, list):
         raise ConfigTransferError('settings must be an object and feeds must be an array')
     unknown = sorted(set(settings) - PORTABLE_SETTINGS)
+    # Reviewer tuning from older exports is accepted and ignored.
+    unknown += sorted(
+        f'{key}.{field}' for key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()
+        if isinstance(settings.get(key), dict) for field in LEGACY_REVIEW_FIELDS & set(settings[key]))
     if any(key in EXCLUDED_SETTINGS or key in {
             'flask_secret_key', 'app_password', 'provider_crypto_salt',
             'provider_config_revision'} for key in settings):
@@ -710,11 +721,24 @@ def _validate_setting_value(key, value):
         recipients = email_service.parse_recipients(value)
         if any(_email_address_invalid(address) for address in recipients):
             raise ConfigTransferError('email_recipients contains an invalid address')
-    if key in ('retention_days', 'original_retention_days'):
+    if key in ('retention_days', 'original_retention_days', 'unfetched_retention_days'):
         if isinstance(value, bool) or not isinstance(value, int):
             raise ConfigTransferError(f'{key} must be an integer')
         if not 0 <= value <= 3650:
             raise ConfigTransferError(f'{key} must be between 0 and 3650')
+    if key in ('rss_refresh_interval_minutes', 'adaptive_refresh_max_minutes'):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ConfigTransferError(f'{key} must be an integer')
+        if not RSS_REFRESH_MINUTES_MIN <= value <= RSS_REFRESH_MINUTES_MAX:
+            raise ConfigTransferError(
+                f'{key} must be between {RSS_REFRESH_MINUTES_MIN} and {RSS_REFRESH_MINUTES_MAX}')
+    if key == 'fetched_retention_grace_days':
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ConfigTransferError(f'{key} must be an integer')
+        if not FETCHED_RETENTION_GRACE_DAYS_MIN <= value <= FETCHED_RETENTION_GRACE_DAYS_MAX:
+            raise ConfigTransferError(
+                f'{key} must be between {FETCHED_RETENTION_GRACE_DAYS_MIN} '
+                f'and {FETCHED_RETENTION_GRACE_DAYS_MAX}')
     if key == 'db_backup_keep_count':
         if (isinstance(value, bool) or not isinstance(value, int)
                 or not KEEP_COUNT_MIN <= value <= KEEP_COUNT_MAX):
@@ -909,17 +933,17 @@ def _source_owner(owners, source, slug):
 
 
 def _validate_import_feed_urls(feeds):
-    trust = _feed_trust()
     for feed in feeds:
         if feed['feedType'] != 'subscribed':
             continue
         source_url = feed['settings'].get('source_url', '')
         try:
             reject_url_whitespace(source_url)
-            _validate_for_tier(source_url, trust)
+            validate_feed_source_url(source_url)
         except SSRFError as exc:
-            raise ConfigTransferError(
-                f"Feed {feed['slug']} source URL failed security validation: {exc}") from None
+            raise ConfigTransferError(ssrf_reject_text(
+                exc, f"source URL of feed {feed['slug']}",
+                f"Feed {feed['slug']} source URL failed security validation: {exc}")) from None
 
 
 def build_preview(db, document, scope, selected_feeds=None):

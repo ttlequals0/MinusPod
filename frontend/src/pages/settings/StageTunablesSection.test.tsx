@@ -28,7 +28,6 @@ function Harness({
   chaptersProvider = '',
   reviewProvider = '',
   reviewRoutes,
-  reviewEnabled = false,
 }: {
   llmEnabled?: boolean;
   omitTemperature?: boolean;
@@ -39,7 +38,6 @@ function Harness({
   chaptersProvider?: string;
   reviewProvider?: string;
   reviewRoutes?: { provider: string; model: string }[];
-  reviewEnabled?: boolean;
 }) {
   setLlmEnabled(llmEnabled);
   return (
@@ -52,7 +50,6 @@ function Harness({
       chaptersProvider={chaptersProvider}
       reviewProvider={reviewProvider}
       reviewRoutes={reviewRoutes}
-      reviewEnabled={reviewEnabled}
       onSave={onSave}
       saveIsPending={false}
       saveIsSuccess={false}
@@ -141,9 +138,9 @@ describe('StageTunablesSection: per-stage effective provider', () => {
   it.each([false, true])('keeps chat reviewer controls editable with a native pass in either position (%s)', (nativeFirst) => {
     const native = { provider: 'typesafe', model: 'jev-latest' };
     const chat = { provider: 'anthropic', model: 'claude-sonnet' };
-    render(<Harness reviewEnabled reviewRoutes={nativeFirst ? [native, chat] : [chat, native]} />);
+    render(<Harness reviewRoutes={nativeFirst ? [native, chat] : [chat, native]} />);
     const reviewer = stageCard('Reviewer (pass 1 and pass 2)');
-    expect(screen.getByText('Ad review with System One models is experimental.')).toBeDefined();
+    expect(screen.queryByText(/experimental/i)).toBeNull();
     expect(within(reviewer).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
     for (const input of reviewer.querySelectorAll('input:not([id$="Temperature"]),select')) {
       expect((input as HTMLInputElement).disabled).toBe(false);
@@ -152,7 +149,7 @@ describe('StageTunablesSection: per-stage effective provider', () => {
   });
 
   it('disables shared reviewer chat controls only when both review routes are native', () => {
-    render(<Harness reviewEnabled reviewRoutes={[
+    render(<Harness reviewRoutes={[
       { provider: 'typesafe', model: 'jev-latest' },
       { provider: 'systemone-compatible', model: 'custom-native-model' },
     ]} />);

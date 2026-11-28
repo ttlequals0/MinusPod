@@ -30,7 +30,7 @@ if str(_REPO_SRC) not in sys.path:
 import database
 import llm_client as provider_clients
 from ad_reviewer import AdReviewer
-from config import PROVIDER_TYPESAFE
+from llm_capabilities import SYSTEMONE_REVIEWER_ERROR, is_systemone_route
 from llm_route import resolve_route
 from utils.time import utc_now_iso
 
@@ -305,13 +305,16 @@ def resolve_calibration_route():
     """
     try:
         detection = resolve_route('detection')
-        return resolve_route(
+        route = resolve_route(
             'review', pass_provider=detection.provider_key,
             pass_model=detection.model_id, pass_base_url=detection.base_url,
             pass_credential_slot=detection.credential_slot)
     except ValueError as e:
         raise ValueError("No model configured for reviewer calibration: "
                          "set review_model or claude_model first.") from e
+    if is_systemone_route(route.provider_key, route.model_id):
+        raise ValueError(SYSTEMONE_REVIEWER_ERROR)
+    return route
 
 
 def run_calibration(llm_client=None, model: str | None = None, route=None) -> dict:
@@ -418,12 +421,6 @@ def trigger_reviewer_calibration(db, previous_revision: str | None):
         return None
     if not db.get_setting_bool('reviewer_calibration_on_change', True):
         return None
-    if route.provider_key == PROVIDER_TYPESAFE:
-        key = (provider_clients.get_effective_secondary_provider_api_key()
-               if route.credential_slot == 'secondary'
-               else provider_clients.get_effective_systemone_api_key(PROVIDER_TYPESAFE))
-        if not key:
-            return None
 
     with _CALIBRATION_LOCK:
         _CALIBRATION_STATE['revision'] = revision

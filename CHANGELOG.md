@@ -8,21 +8,76 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.103.1] - 2026-11-28
+
+### Breaking
+
+- System One and TypeSafe are no longer supported as the reviewer. The reviewer needs an LLM provider. On upgrade, a saved review provider or review model that names System One is reset to its default (Same as pass), and a standby review model that does is cleared. The reviewer can still resolve to System One, for example when detection runs on System One and the review provider is Same as pass. It then does not run, and processing continues as if it were off. The log says so once per episode, and Settings > Ad reviewer shows a notice. Choose an LLM provider there to turn review back on. Detection and verification on System One are unaffected.
 
 ### Added
 
-- LLMTR pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://llmtr.com/v1`, the pricing refresh reads input, output and cache-read rates from LLMTR's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. The LLM providers guide gains an LLMTR setup section.
-
-## [2.102.27] - 2026-11-27
+- Each processing run shows the MinusPod version that made it. The Processing tab on the episode page has a **Version** column, and `processingRuns[].appVersion` in the episode API carries it. Runs recorded before 2.78.4 have no version and show nothing.
+- LLMTR pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://llmtr.com/v1`, the pricing refresh reads input, output and cache-read rates from LLMTR's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. The LLM providers guide gains an LLMTR setup section. Contributed by knowhycodata.
 
 ### Changed
 
+- `PUT /api/v1/settings/ad-detection` answers 400 ("System One cannot be used for the reviewer. Choose an LLM provider.") when `reviewProvider`, `reviewModel`, `failoverLlmReviewModel` or a provider change routes the reviewer to System One or TypeSafe. `GET /api/v1/settings` adds `reviewerNeedsLlm`, true when the reviewer is on but resolves to System One. The Ad reviewer picker lists only LLM providers and models.
+- `MINUSPOD_PRIVATE_FEED_HOSTS` accepts `host:port` entries (`nas.lan:8000`, `[fd00::5]:3000`) so a listed host or single IP can use one port beyond the default 80, 443, 8080 and 8443. The docs now list the port limit for feed URLs.
+- The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top and the rating card at its bottom, and a pill shows how many detections are held. A `?rate=` review link opens Ads at the rating card. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript hit in global search opens the Transcript tab at the matching line and highlights it (`?section=transcript&t=<seconds>`).
+
+### Removed
+
+- The System One reviewer tuning fields (`refineBoundaries`, `reviewEvidenceEnter`, `reviewChoiceEnter`, `reviewProgrammeVeto`, `reviewBoundaryCapSeconds`, `reviewContextSeconds`) and their System One Tuneables controls. They are gone from `GET /api/v1/settings` and from configuration exports. An older export or payload that carries them is still accepted and the fields are ignored. Values already stored stay in the database, unused. `GET /api/v1/stats/systemone` no longer returns `refinements` or `refinementSkipReasons`, and the Stats page drops the Review refinements card. Calls recorded by earlier versions still count in the other System One totals.
+
+### Fixed
+
+- Setting `MINUSPOD_SETUP_TOKEN` now always protects first-time password setup, even when `MINUSPOD_REQUIRE_AUTH` is off. Before, the token was ignored in that case and any client that could reach the port, including the Docker bridge address, could set the first password without it. Direct loopback still needs no token.
+- Lowering the adaptive refresh maximum or the base interval now updates each feed's reported refresh interval and reason along with its next refresh time, so the API never shows a wait longer than the maximum. Feeds waiting at the base interval move to a lowered base too.
+- A manual feed refresh now makes one attempt even when the host's circuit breaker is open after repeated failures, instead of answering 502 until the breaker recovers. Automatic refreshes stay paused.
+- Running a database backup with a destination that fails validation now returns 409 with the reason and logs a warning, instead of a 500 "Backup failed" and an error log.
+- A non-boolean `transcribeRawApiChunks` now returns the standard error body with `status`, and the OPML export is sent with `Cache-Control: private, no-cache` like the served OPML files.
+- `/settings#api-tokens` now scrolls to the API tokens block instead of the top of the Security card, and the token shown once after creation wraps instead of being clipped on a phone.
+
+- A link opened while signed out now keeps its `#` target through sign-in. A link such as `/settings#api-tokens` or an episode link ending in `#held-for-review-section` used to land at the top of the page after login.
+- A pattern result in global search now opens that pattern's detail instead of a filtered list, including a pattern that is inactive or outside the list's current filters.
+- Adding a feed, editing its URL or importing OPML with a host name that does not resolve now reports that the name could not be resolved, and the server logs it at INFO instead of as a blocked address. Other rejections (private, loopback or metadata addresses, blocked ports, bad schemes, HTTPS to HTTP redirects) still return 400 and log a warning that names the cause.
+
+## [2.103.0] - 2026-11-27
+
+### Added
+
+- API tokens. A script can call the API with `Authorization: Bearer <token>` instead of a session cookie, with no CSRF header. Create one under Settings > Security. It is shown once and only a hash is stored. Tokens need an application password. A token can read and change most settings, export configuration, download encrypted database backups, trigger a backup and open the live status stream. An export includes provider keys, so treat a token like your password. A token cannot manage tokens, change or remove the password, import configuration, rotate the provider passphrase, reveal stored secrets, change backup settings or download an unencrypted database. Wrong tokens return 401 and have their own lockout, separate from sign-in. Changing the password revokes tokens unless you uncheck **Also revoke API tokens**. Removing it revokes them all.
+- **Revoke all** under Settings > Security and `DELETE /api/v1/auth/tokens` revoke every token at once.
+- Adaptive refresh. Each feed is checked at a pace that fits how it publishes: a daily show about every 2 hours, an hourly feed as often as your refresh interval allows. `podcast:updateFrequency`, `sy:updatePeriod` and `Cache-Control: max-age` hints can lengthen the wait. A host answering 429 or 503 with `Retry-After` is left alone for that long, and a failing feed backs off up to 6 hours. Feed pages show when the next check is due and why. The settings are "Adapt refresh to each feed" and "Longest wait for a healthy feed" under Global Defaults. Lowering the refresh interval or the maximum takes effect at once.
+- Feed problems list in System health. It lists feeds that failed 3 times in a row, with a plain reason (a DNS failure is reported as one), the last success, the next retry and a Refresh now button. API: `GET /api/v1/feeds/problems`.
+- **Feed Refresh Recovered** notification, sent once when a failing feed works again.
+- **Cancel all** on the Queue page stops every active run and clears the waiting queue after a confirmation. Failed rows stay for the automatic retry. `POST /api/v1/episodes/processing/cancel-all` reports `activeRequested`, `queueRowsClosed` and `displayEntriesRemoved`. Contributed by amcfague.
+- **Pause auto-process for unrequested feeds** (Settings > Global Defaults, off by default). A feed that no podcast app has fetched for the set number of days stops auto-processing new episodes until an app fetches it again. Playing or reprocessing an episode still works. Feed lists show a Dormant label. Contributed by epsalon.
+- **Keep never-downloaded episodes for** and **Keep after first download for** (Settings > Storage and retention, off by default). Processed episodes no podcast app has downloaded stay past the normal retention window, and downloaded ones stay a few days so a failed download can be retried. A reprocessed episode starts as not downloaded. Contributed by epsalon.
+- **Run local audio analysis** and **Collect splice evidence** (Settings > Ad detection, on by default). Turning them off skips the loudness, silence, cue and splice scans, so detection runs from the transcript alone, which helps on small hosts. Contributed by batram.
+- **Send raw MP3 chunks** (Settings > Transcription, off by default). MP3 chunks sent to a remote Whisper API are copied from the original instead of decoded and re-encoded, which takes seconds instead of minutes on a weak CPU. A chunk over 24 MB is re-encoded as usual. `MINUSPOD_RAW_API_CHUNKS=true` sets the default. Contributed by batram.
+- `MINUSPOD_PRIVATE_FEED_HOSTS` lets feed sources on named private hosts, IP addresses or CIDR ranges work without opening every private address. Loopback, link-local and cloud metadata addresses need a single-address entry. A range does not open them. Episode audio and artwork stay strict.
+- A community guide for running whisper.cpp on an AMD GPU with ROCm, with CPU transcription speed measurements. Contributed by no84by.
+- A **Back to top** button appears on every page after you scroll down a long way, and returns focus to the page heading.
+- **Use full width beside a side cutout** (Settings > Appearance, off by default). On a device with a side display cutout, page content can extend into the area beside it instead of leaving that band empty. The choice is stored in this browser only, and the option appears only on a device that reports a side cutout.
+
+### Changed
+
+- **Adaptive refresh is on by default after you upgrade.** Healthy feeds may now be checked as rarely as every 60 minutes instead of at your fixed refresh interval. New episodes are still picked up at the refresh interval when one is due. To keep the old behavior, turn off **Adapt refresh to each feed** under Settings > Global Defaults. `adaptiveRefreshEnabled` and `adaptiveRefreshMaxMinutes` are the API fields.
+- Scheduled database backups refuse a destination inside a directory MinusPod serves over HTTP, when you save the setting and on every run. `GET /api/v1/settings/db-backup` returns `destError` with the reason a stored destination is refused.
+- Parakeet runs on the GPU on RTX 50-series cards, confirmed by one user on an RTX 5070 (#990). The first chunk after the model loads was slow (about a minute), probably a one-time kernel compile. Later chunks took seconds.
 - Served feeds, chapters, transcripts and the OPML export now send `Cache-Control: private, no-cache`, so a CDN or shared proxy that honors the header does not store them. That prevents a stale copy and keeps one subscriber's keyed feed away from another. Episode audio already sent `no-cache`.
 - A run that closes held detections because hold for review is off now logs how many it closed.
 - The security docs have a note on Cloudflare caching, and the feeds docs explain the Pocket Casts workaround of adding a feed URL with a query string such as `?fresh=1`.
 - The episode player has a pill progress track with chapter ticks, inline elapsed and remaining times, a mute button, and a time-saved badge when ads were cut. Clicking the chapter bar opens a list of chapters with timestamps. When two or more sections appear below the episode card, a jump bar with counts links to them.
-- In Settings, **System status** stays above **Search settings...** and the sections below are grouped into five categories: **General**, **AI and transcription**, **Detection**, **Output** and **Data and security**. Wide screens show a left category sidebar; narrower screens show a category bar. **Appearance** theme cards show three-swatch palette previews. Episode rows show cover art thumbnails on phones and put their date, duration, ad count and status badge on one line. On the Feeds page **Episodes** tab, an **Expand all** and **Collapse all** bar sits above the podcast groups, and collapsed group headers show held, failed and active counts. Feed detail pages add a **Feed sections** jump bar and a **Clear filters** button beside the episode search box. In the transcript dialog, timestamps use monospace pill badges and the search box shows a live match count and clear button.
+- In Settings, **System status** stays above **Search settings...** and the sections below are grouped into five categories: **General**, **AI and transcription**, **Detection**, **Output** and **Data and security**. Wide screens show a left category sidebar; narrower screens show a category bar. **Appearance** theme cards show three-swatch palette previews. Episode rows show cover art thumbnails on phones and put their date, duration, ad count and status badge on one line. On the Feeds page **Episodes** tab, an **Expand all** and **Collapse all** bar sits above the podcast groups, and collapsed group headers show held, failed and active counts. Feed detail pages show **Episodes**, **Feed settings**, **Ad distribution** and **Audio cues** as tabs instead of stacked panels. They open on **Episodes** and keep unsaved edits when you switch tabs. A **Clear filters** button sits beside the episode search box. In the transcript dialog, timestamps use monospace pill badges and the search box shows a live match count and clear button.
+
+### Fixed
+
+- The **Review** button on a held detection in the Queue review list now opens the episode at its held detections. It looked like a button but did nothing when tapped.
+- Adding or editing a feed, and OPML import, now honor `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS`. A feed on a LAN or loopback address was rejected even though refresh allowed it. Contributed by amcfague.
+- A brief DNS failure no longer fails a feed refresh. The check retries up to three times and still fails at once for a name that does not exist. Contributed by SimpleHonors.
+- The header no longer sits under a top screen cutout when no status bar is showing, and the browser theme color now follows the selected theme, so system areas beside the page match it.
 
 ## [2.102.26] - 2026-11-27
 

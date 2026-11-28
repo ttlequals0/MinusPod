@@ -26,7 +26,7 @@ The docker-compose includes an optional Cloudflare tunnel service for secure rem
 
 The tunnel exposes the admin interface to the public internet. Without all of these set, anyone who reaches the tunnel URL can hit unauthenticated paths and attempt to log in:
 
-1. Set a password via Settings > Security.
+1. Set a password via Settings > Data and security > Security.
 2. `SESSION_COOKIE_SECURE=true` (the default).
 3. `MINUSPOD_MASTER_PASSPHRASE` set so provider API keys are encrypted at rest.
 4. Cloudflare WAF rule blocking `/ui` and `/api` (see below). The docs and OpenAPI spec live under `/api/v1/docs` and `/api/v1/openapi.yaml`, so they're already covered by the `/api` block.
@@ -51,6 +51,16 @@ The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.rem
 
 Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. If you're behind a reverse proxy and the WARN still fires after a deploy, your lockout and rate limits are not working.
 
+### API tokens
+
+An API token (`Authorization: Bearer mp_...`) lets a script call `/api/v1` without a session cookie or CSRF header. See [API tokens](api-and-webhooks.md#api-tokens) for usage.
+
+- Storage: only a SHA-256 hash is kept, in the `api_tokens` table. The plaintext is shown once at creation and is never logged. Log lines and error text redact `mp_` values and `Bearer` credentials.
+- Authority: a token has the same access as a signed-in session, except that it cannot manage tokens, the password or sessions, rotate the provider passphrase, reveal the SponsorBlock user ID, or import configuration. It can export configuration, including provider keys, and download encrypted database backups. It cannot download an unencrypted database, which holds the Flask secret key, or restore one. A token can trigger a backup to the configured destination but cannot change the backup settings (destination, schedule, encryption, retention), which need a session. Treat a token like your password and give each integration its own.
+- Authentication: a request with a token is authenticated by the token alone. A cookie sent with it is ignored, so no CSRF header is needed. Wrong tokens return 401 and count toward a lockout of their own, separate from the login lockout.
+- Revocation: revoke a token under Settings > Data and security > Security. It stops working at once. Changing the password revokes tokens unless you uncheck **Also revoke API tokens** (API: `revokeApiTokens: false`). Removing the password revokes all of them, and a token does nothing on an instance without a password.
+- Backups: a database backup contains the token hashes, so restoring one restores its tokens. Runtime configuration exports do not contain them.
+
 ### Security recommendations
 
 Operator checklist:
@@ -61,13 +71,13 @@ Operator checklist:
   passphrase encrypts stored API keys; it is not a login credential and does not
   restrict access on its own. The instance stays open until a login password is
   also set.
-- Set a password in Settings > Security. **Without one the instance is fully open**: anyone with network access can read everything, change settings, delete feeds, and download a full database backup over the API. The password is the only gate on the API. With `MINUSPOD_MASTER_PASSPHRASE` unset, that backup also carries the session-signing key and provider keys in plaintext.
+- Set a password in Settings > Data and security > Security. **Without one the instance is fully open**: anyone with network access can read everything, change settings, delete feeds, and download a full database backup over the API. The password is the only gate on the API. With `MINUSPOD_MASTER_PASSPHRASE` unset, that backup also carries the session-signing key and provider keys in plaintext.
 - `MINUSPOD_ENABLE_HSTS=true` once the deployment is HTTPS-only.
 - WAF block on `/ui` and `/api`. Public feed paths must stay reachable: `/<slug>`, `/episodes/<slug>/<episode>.mp3`, `.vtt`, `/chapters.json`, and `/api/v1/feeds/<slug>/artwork`. With `MINUSPOD_URL_PREFIX` set, every path here and the `/ui` and `/api` expression below gain the prefix.
 
 MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
 
-Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. Later changes use the current password instead of CSRF. A normal session lasts 24 hours from its last use by default. A sign-in that ticks "Remember me" lasts 30 days from its last use. Both lengths are set in Settings > Security, and each use of the session restarts the period. A long "Remember me" session on a shared device stays signed in for that whole window, so leave the box unticked there. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's. Signing out clears the session in this browser only, and a copied cookie stays usable until its idle limit. Changing the password signs out every device and every copy of a cookie. Raising a session length can make a session that had passed the old limit valid again while it is still inside the new one.
+Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. When the variable is set, the token is required for first-time setup even if `MINUSPOD_REQUIRE_AUTH` is off; direct loopback still needs none. Later changes use the current password instead of CSRF. A normal session lasts 24 hours from its last use by default, and a sign-in that ticks "Remember me" lasts 30 days from its last use. Set both lengths in Settings > Data and security > Security. Each use restarts the period. Leave "Remember me" unticked on a shared device, which would stay signed in for the whole window. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's. Signing out clears the session in this browser only, and a copied cookie stays usable until its idle limit. Changing the password signs out every device and every copy of a cookie. Raising a session length can make a session that passed the old limit valid again while it is inside the new one.
 
 **Cloudflare WAF example.** Allow only Pocket Casts on the feed host, block admin paths:
 
@@ -81,6 +91,10 @@ Swap the User-Agent pattern for your app (`*Overcast*`, `*Castro*`, `*AntennaPod
 
 Cloudflare caches by file extension by default, and `.mp3` is on its default list. Feed XML is not cached by default, but a "Cache Everything" rule caches it. MinusPod sends `Cache-Control: private, no-cache` on feeds, chapters and transcripts, so Cloudflare does not store them. Episode audio is sent with `no-cache`, so Cloudflare may store a copy but checks with your server before each reuse. An Edge TTL override, or a rule that ignores cache-control, replaces the header and can serve a stale feed or old audio after a reprocess. Do not add one for the feed host. If a zone-wide rule of that kind already exists, add a Cache Rule that bypasses cache for the feed host (hostname equals `feed.example.com`, action Bypass cache).
 
+### Backup destination
+
+A database copy holds the signing key and password hash, so the scheduled backup destination is refused if it is inside any directory MinusPod serves over HTTP (episode audio, artwork and transcripts under the data directory, run logs, the web UI and bundled assets). The check runs when the setting is saved and again on every backup run. A bad stored value fails the run instead of being used: Back up now answers 409 with the reason, and `GET /api/v1/settings/db-backup` reports it as `destError`.
+
 ### Outbound request safety
 
 Every outbound fetch MinusPod makes itself (RSS sources, enclosures, artwork,
@@ -89,6 +103,8 @@ at loopback or LAN addresses; URLs taken out of feed content may not, and cloud
 metadata and link-local addresses are refused at both tiers. Redirects are
 rechecked on every hop, HTTPS to HTTP downgrades are refused, and IPv4-mapped
 IPv6 addresses are normalized before policy checks.
+
+Feed source URLs must use port 80, 443, 8080 or 8443 unless a listed `host:port` entry names another one. Feed source URLs may be allowed on private hosts through `MINUSPOD_PRIVATE_FEED_HOSTS` (a narrow allow-list) or `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS` (everything). The allow-list is checked against the addresses the connection actually uses, including on redirects; enclosure, audio and artwork fetches ignore it. Loopback, link-local, unspecified and cloud metadata addresses open only for an exact single-address entry, never for a range. See [Feeds on a private or LAN host](feeds-and-usage.md#feeds-on-a-private-or-lan-host).
 
 The resolved address is also pinned. A hostname is resolved once per hop, every
 returned address is checked, and the connection goes to one of those addresses,
@@ -112,13 +128,13 @@ The default `memory-threadsafe://` backend tracks limits inside each worker. Wit
 
 ### Request correlation
 
-Every response carries an `X-Request-ID` header. If you supply one on the request (up to 128 chars), it's preserved; otherwise a 16-char hex value is generated. When reporting a bug, including the `X-Request-ID` from the affected response makes log lookup one `grep` instead of a guessing game. Aggregated log viewers can filter by the `request_id` field on the JSON log records.
+Every response carries an `X-Request-ID` header. If you supply one on the request (up to 128 chars), it's preserved; otherwise a 16-char hex value is generated. When reporting a bug, including the `X-Request-ID` from the affected response lets you find the matching log lines with one `grep`. Aggregated log viewers can filter by the `request_id` field on the JSON log records.
 
 ### Authenticated feeds (optional)
 
 By default the feed URLs are open: anyone who learns them can read your RSS and download episodes, and a request for an unprocessed episode kicks off transcription. If your server is reachable from the internet, that can get expensive.
 
-Settings > Data & Security > Authenticated Feeds locks this down. Existing global keys remain valid until you rotate them. A feed's settings page has a Security section that creates a credential scoped to that feed, labels it for a device or subscriber, and revokes it without changing any other subscription. Settings > Data & Security > Authenticated Feeds lists every subscriber feed across all podcasts with its label and feed, and creates or revokes them from there too. Who fetched what is shown in [Download History](download-history.md).
+Settings > Data and security > Authenticated feeds locks this down. Existing global keys remain valid until you rotate them. A feed's settings page has a Security section that creates a credential scoped to that feed, labels it for a device or subscriber, and revokes it without changing any other subscription. The same section lists every subscriber feed across all podcasts with its label and feed, and creates or revokes them too. Who fetched what is shown in [Download History](download-history.md).
 
 - RSS, MP3, transcript, chapter, and artwork URLs carry `?key=<credential>`. Global credentials are 64 hex characters. Scoped credentials use a 16-character key ID, a dot, and a 64-character secret. Legacy cover URLs with a credential in the filename remain accepted.
 - Requests without the key get a 401. The admin UI/API and `/health` are unaffected.
@@ -142,7 +158,7 @@ Compose deployments disable unauthenticated just-in-time processing by default. 
 
 ### Getting the feeds into an app
 
-The OPML Export controls (Settings > Data Management) give two ways to move your subscriptions:
+The OPML Export controls (Settings > Data and security > Data management) give two ways to move your subscriptions:
 
 - **Download file** saves an `.opml` you import from your device.
 - **Copy URL** copies a link the app can pull directly, for the many apps that support "import from URL." The link points at a key-gated route on the feed domain (`/opml/modified.opml?key=...`), so it only appears when authenticated feeds is on, and a request without the key 404s.
@@ -170,6 +186,7 @@ The SQLite backup files produced by `GET /api/v1/system/backup`, by the periodic
 - Flask session signing key
 - Webhook HMAC secrets
 - Password hash (scrypt)
+- API token hashes (SHA-256)
 
 Treat the file like a credential. `GET /api/v1/system/backup` requests an encrypted download by default. Encryption requires `MINUSPOD_MASTER_PASSPHRASE` and a restart after setting it. Without the passphrase the request returns HTTP 409 `backup_encryption_unavailable`; an encryption failure returns HTTP 500. Neither case falls back to plaintext. Plaintext requires an explicit `encrypted=false` query, and the web UI puts that download behind a separate warning and confirmation. The audit log records whether each download was encrypted.
 
@@ -177,7 +194,7 @@ Encrypted downloads use the versioned `MPBK02` envelope. Its authenticated heade
 
 ### Scheduled database backups
 
-Scheduled backups copy the SQLite database to a directory you choose, on a cron schedule you control, so you can recover after a bad upgrade or a lost volume. The feature is off by default. Configure it in **Settings > Data & Security > Scheduled Backups**, or via `GET/PUT /api/v1/settings/db-backup`. There is also a "Back up now" button (`POST /api/v1/system/db-backup/run`) that runs one immediately whether or not scheduling is on.
+Scheduled backups copy the SQLite database to a directory you choose, on a cron schedule you control, so you can recover after a bad upgrade or a lost volume. The feature is off by default. Configure it in **Settings > Data and security > Scheduled backups**, or via `GET/PUT /api/v1/settings/db-backup`. There is also a "Back up now" button (`POST /api/v1/system/db-backup/run`) that runs one immediately whether or not scheduling is on.
 
 The copies are written with SQLite's online backup API, so they stay consistent even while the app is running, and the snapshot is a single file with no `-wal` or `-shm` sidecars. Keep count controls the filenames:
 

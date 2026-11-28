@@ -180,6 +180,7 @@ paths:
       description: >-
         Clears the current session. An authenticated logout requires the
         CSRF cookie/header pair; an unauthenticated caller may clear stale state.
+        A request carrying an API token gets 403.
       operationId: logout
       security: []
       responses:
@@ -216,6 +217,8 @@ paths:
           every older session, and authenticates this request's new session.
         - Empty or null newPassword removes protection and clears this session.
         - A non-empty newPassword must contain at least 12 characters.
+        - Changing the password revokes API tokens unless revokeApiTokens is false; removing it revokes them all.
+        - A request carrying an API token gets 403.
       operationId: setPassword
       security: []
       parameters:
@@ -240,6 +243,12 @@ paths:
                 newPassword:
                   type: [string, 'null']
                   description: New password (at least 12 characters, or empty/null to remove protection)
+                revokeApiTokens:
+                  type: boolean
+                  default: true
+                  description: >-
+                    Applies only when changing an existing password. False keeps API tokens valid.
+                    Ignored on first setup and on removal, which always revokes them.
       responses:
         '200':
           description: Password updated successfully
@@ -247,14 +256,18 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [message, passwordSet]
+                required: [message, passwordSet, apiTokensRevoked]
                 properties:
                   message:
                     type: string
                   passwordSet:
                     type: boolean
+                  apiTokensRevoked:
+                    type: integer
+                    minimum: 0
+                    description: API tokens revoked by this request.
         '400':
-          description: Invalid request (password too short)
+          description: Invalid request (password too short or revokeApiTokens not a boolean)
           content:
             application/json:
               schema:
@@ -273,6 +286,197 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: Password changed concurrently; retry with current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/tokens:
+    get:
+      tags:
+        - Auth
+      summary: List API tokens
+      description: >-
+        Active API tokens with id, name, display prefix and timestamps. Never
+        returns a token or its hash. Session only: an API token gets 403.
+      operationId: listApiTokens
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Active API tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tokens]
+                properties:
+                  tokens:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiToken'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Called with an API token, or missing CSRF token (not on this GET)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Auth
+      summary: Create an API token
+      description: >-
+        Creates a token for scripts and integrations and returns the plaintext
+        in `token`, once; only a SHA-256 hash is stored. Send it as
+        `Authorization: Bearer <token>`. At most 25 active tokens; names are
+        unique among active tokens, case-insensitively. Needs a password: an
+        instance without one is open, so there is nothing to authenticate.
+        Session only: an API token gets 403. Limited to 10/hour.
+      operationId: createApiToken
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  description: Label, trimmed. 1 to 64 characters.
+      responses:
+        '201':
+          description: Token created; the plaintext is not shown again
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiToken'
+                  - type: object
+                    required: [token]
+                    properties:
+                      token:
+                        type: string
+                        description: 'The plaintext token: "mp_" and 43 URL-safe characters.'
+        '400':
+          description: Name missing, not a string, or not 1 to 64 characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Called with an API token, or missing CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No password is set, the name is taken by an active token, or 25 tokens are active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    delete:
+      tags:
+        - Auth
+      summary: Revoke all API tokens
+      description: >-
+        Revokes every active token at once; they stop working immediately. Use
+        after a suspected compromise: changing the password revokes tokens unless told to keep them.
+        Session only: an API token gets 403. Limited to 5/hour.
+      operationId: revokeAllApiTokens
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Tokens revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked:
+                    type: integer
+                    description: Number of tokens revoked.
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Called with an API token, or missing CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/tokens/{token_id}:
+    delete:
+      tags:
+        - Auth
+      summary: Revoke an API token
+      description: >-
+        Revokes the token; it stops working at once. Revoking an unknown or
+        already revoked token is a 404. Session only: an API token gets 403.
+        Limited to 30/hour.
+      operationId: revokeApiToken
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked:
+                    type: boolean
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Called with an API token, or missing CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown or already revoked token
           content:
             application/json:
               schema:
@@ -1504,6 +1708,36 @@ paths:
                 $ref: '#/components/schemas/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
+
+  /feeds/problems:
+    get:
+      tags:
+        - Feeds
+      summary: List feeds that keep failing
+      description: >-
+        Feeds with 3 or more counted refresh failures in a row, worst first. Each carries a plain
+        message for the failure class, the raw detail with URLs reduced to their host, and the
+        time of the next retry. A feed leaves the list on its next successful refresh. To retry
+        now, call POST /feeds/{slug}/refresh.
+      operationId: getFeedProblems
+      responses:
+        '200':
+          description: Problem feeds
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [problems, count, threshold]
+                properties:
+                  problems:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedProblem'
+                  count:
+                    type: integer
+                  threshold:
+                    type: integer
+                    description: Consecutive failures at which a feed counts as a problem.
 
   /feeds/refresh:
     post:
@@ -3652,6 +3886,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /episodes/processing/cancel-all:
+    post:
+      tags:
+        - Processing
+      summary: Cancel all processing
+      description: |
+        Signals every active run to stop, the same way the single-episode
+        cancel does, then closes every open `auto_process_queue` row and clears
+        the display queue so nothing waiting is picked up. Active runs stop
+        asynchronously; `activeRequested` counts the cancellations recorded.
+      operationId: cancelAllProcessing
+      responses:
+        '200':
+          description: Cancellation requested for all active and queued episodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  activeRequested:
+                    type: integer
+                    description: Active runs that received a cancellation request.
+                  queueRowsClosed:
+                    type: integer
+                    description: Durable auto-process queue rows closed.
+                  displayEntriesRemoved:
+                    type: integer
+                    description: Entries removed from the in-memory waiting display list; a separate count from the durable rows.
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /episodes/processing:
     get:
@@ -6748,8 +7015,9 @@ paths:
         frontend handler redirects to `/ui/login` on that event. An
         authenticated connect opens the real data stream.
 
-        A password change or removal revokes the stream on its next state
-        poll with `event: auth-failed`.
+        A password change or removal revokes a session stream on its next
+        state poll with `event: auth-failed`. An API token can open the
+        stream; it ends when the token is revoked.
       operationId: streamStatus
       responses:
         '200':
@@ -7505,8 +7773,10 @@ paths:
         Online rotation is refused because sibling workers cannot safely
         receive the replacement passphrase. Stop all workers and run
         `python scripts/rotate_master_passphrase.py`, update the deployment
-        environment, then restart every worker together.
+        environment, then restart every worker together. An API token gets 403.
       operationId: rotateMasterPassphrase
+      security:
+        - sessionCookie: []
       responses:
         '409': { description: 'Rotation requires the offline command' }
         '429':
@@ -8214,6 +8484,21 @@ paths:
                   maximum: 1440
                   description: Minutes between background RSS refresh passes for every feed. A change applies after the wait already in progress finishes. Default 15.
                   example: 15
+                adaptiveRefreshEnabled:
+                  type: boolean
+                  description: Adapt each feed's refresh interval to how it publishes, between rssRefreshIntervalMinutes (the floor) and adaptiveRefreshMaxMinutes. On by default. When off, feeds refresh on the fixed interval; Retry-After and failure backoff still apply.
+                adaptiveRefreshMaxMinutes:
+                  type: integer
+                  minimum: 5
+                  maximum: 1440
+                  description: Longest wait between checks of a healthy feed when adaptive refresh is on. Must be at least rssRefreshIntervalMinutes. Default 60.
+                  example: 60
+                dormantFeedDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 3650
+                  description: Days without a client fetching a feed's served RSS before the feed goes dormant and stops auto-processing new episodes; requested episodes still process on demand. 0 (default) turns dormancy off. A feed with autoProcessOverride true is never held.
+                  example: 30
                 queueManualBoost:
                   type: integer
                   minimum: 0
@@ -8422,6 +8707,14 @@ paths:
                   description: |
                     When true, skip the FLAC encode pass before uploading audio
                     to the remote transcription API. Send the preprocessed WAV directly.
+                  example: false
+                transcribeRawApiChunks:
+                  type: boolean
+                  description: |
+                    API transcription backend with MP3 sources only: stream-copy
+                    each chunk from the original instead of decoding, normalising
+                    and re-encoding it. Must be a boolean (default false; the
+                    MINUSPOD_RAW_API_CHUNKS environment variable seeds it).
                   example: false
                 audioNormalizeEnabled:
                   type: boolean
@@ -8939,6 +9232,20 @@ paths:
                     Hold a long cut found only in the transcript for review
                     unless the audio shows an edit point at its edges. A feed's
                     own spliceVetoEnabled overrides this (default true).
+                audioAnalysisEnabled:
+                  type: boolean
+                  description: >-
+                    Run the local audio analysis stage (loudness, transitions,
+                    silence, cues, splice evidence) in pass 1 and in
+                    verification. Off, detection and validation use the
+                    transcript alone; cue-only feeds still analyse. Must be a
+                    boolean (default true).
+                spliceEvidenceEnabled:
+                  type: boolean
+                  description: >-
+                    Run the splice detector inside audio analysis. Off, no
+                    splice evidence is stored and the splice hold never fires.
+                    Must be a boolean (default true).
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -9003,7 +9310,14 @@ paths:
                     type: boolean
                     description: Stored global value, present only when holdForReview was sent.
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: |
+            Invalid payload. A reviewProvider, reviewModel, failoverLlmReviewModel or provider
+            change that routes the review stage to System One or TypeSafe returns
+            "System One cannot be used for the reviewer. Choose an LLM provider."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/ad-detection/reset:
     post:
@@ -9987,7 +10301,9 @@ paths:
       description: |
         Downloads encrypted SQLite by default. A missing master passphrase
         returns 409, never plaintext. `encrypted=false` requests
-        plaintext; treat the file as sensitive. Limited to 6/hour.
+        plaintext; treat the file as sensitive. An API token gets 403 for
+        `encrypted=false`, since a plaintext copy holds the Flask secret key.
+        Limited to 6/hour.
       operationId: downloadBackup
       parameters:
         - in: query
@@ -10061,7 +10377,10 @@ paths:
       description: >-
         Validates a configuration document and selected scope without writing settings.
         Returns setting names and feed slugs, never credential values. Limited to 20/hour.
+        Session only: an API token gets 403.
       operationId: previewRuntimeConfigImport
+      security:
+        - sessionCookie: []
       requestBody:
         required: true
         content:
@@ -10090,7 +10409,10 @@ paths:
         Merges selected settings atomically and re-encrypts credentials for this installation.
         Omitted settings and destination-only feeds remain unchanged. Does not restore a
         database, episodes, history, metrics, patterns, or media. Limited to 5/hour.
+        Session only: an API token gets 403.
       operationId: applyRuntimeConfigImport
+      security:
+        - sessionCookie: []
       requestBody:
         required: true
         content:
@@ -10286,7 +10608,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DatabaseBackupRunSummary' }
         '409':
-          description: A backup is already in progress
+          description: A backup is already in progress, or the configured destination fails validation (the message says why)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -10323,6 +10645,16 @@ paths:
                     description: Days to retain the pre-cut original copy of each episode. Defaults to retentionDays when never set; the server clamps to retentionDays on save so an original cannot outlive its processed peer.
                   enabled:
                     type: boolean
+                  unfetchedRetentionDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 3650
+                    description: Days a processed episode no client has downloaded is kept, measured from processing. Applies only when longer than the effective retention window (per-feed override or retentionDays). 0 (default) turns it off.
+                  fetchedRetentionGraceDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 365
+                    description: While unfetchedRetentionDays is on, a downloaded episode is kept at least this many days after its first download, so a failed download can be retried. Default 3.
     put:
       tags:
         - Settings
@@ -10346,6 +10678,16 @@ paths:
                   minimum: 1
                   maximum: 3650
                   description: Optional. Days to retain the pre-cut original copy. Server clamps to retentionDays. When omitted, the existing value is preserved.
+                unfetchedRetentionDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 3650
+                  description: Optional. Days to keep a processed episode no client has downloaded. 0 turns it off. When omitted, the existing value is preserved.
+                fetchedRetentionGraceDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 365
+                  description: Optional. Days to keep an episode after its first download while unfetchedRetentionDays is on. When omitted, the existing value is preserved.
       responses:
         '200':
           description: Retention updated
@@ -10360,6 +10702,10 @@ paths:
                     type: integer
                   enabled:
                     type: boolean
+                  unfetchedRetentionDays:
+                    type: integer
+                  fetchedRetentionGraceDays:
+                    type: integer
 
   /settings/offline-queue:
     get:
@@ -10655,7 +11001,10 @@ paths:
       description: >-
         Returns the stored ID so it can be copied, for example into the SponsorBlock extension.
         Returns 404 with error "not_configured" when none is stored. Limited to 10 requests per minute.
+        Session only: an API token gets 403.
       operationId: getSbUserId
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: The stored ID
@@ -11035,6 +11384,7 @@ paths:
                       - Limit Exceeded
                       - Rate Limit Structural
                       - Feed Refresh Failed
+                      - Feed Refresh Recovered
                       - Update Available
                       - Cue Template Quiet
                       - Queue Held
@@ -11043,7 +11393,7 @@ paths:
                       - Service Reachable
                       - Failover Triggered
                       - Failover Cancelled
-                  description: List of event types to subscribe to. `Episode Awaiting Approval` fires instead of `Episode Processed` when a finished episode is held for manual approval. `Episode Pending Review` fires alongside the processed or awaiting-approval event when a finished episode has detections held for review. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up. `Failover Triggered` fires when a target switches to its failover provider; `Failover Cancelled` when it switches back.
+                  description: List of event types to subscribe to. `Episode Awaiting Approval` fires instead of `Episode Processed` when a finished episode is held for manual approval. `Episode Pending Review` fires alongside the processed or awaiting-approval event when a finished episode has detections held for review. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Feed Refresh Recovered` fires once when such a feed refreshes successfully again. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up. `Failover Triggered` fires when a target switches to its failover provider; `Failover Cancelled` when it switches back.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -13868,6 +14218,7 @@ paths:
 
 security:
   - sessionCookie: []
+  - bearerToken: []
 
 components:
   securitySchemes:
@@ -13882,6 +14233,19 @@ components:
         password, or the remote setup token during first setup. Auth routes,
         health probes, and public feed-artwork reads declare ``security: []``;
         logout still enforces CSRF when its session is authenticated.
+        Routes marked with only this scheme refuse API tokens with 403.
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: |
+        API token created under Settings > Security or by ``POST /auth/tokens``,
+        sent as ``Authorization: Bearer mp_...``. Authenticates like a session
+        without the CSRF header, and never reads the session cookie. Not
+        accepted on routes that manage tokens, the password or sessions, the
+        provider passphrase, configuration import, or revealing stored secrets. A token can export
+        configuration and download encrypted database backups; an unencrypted backup is 403. An unknown, revoked or
+        malformed ``mp_`` token is a 401 and counts toward a token lockout kept apart
+        from the sign-in lockout.
 
   parameters:
     correction_id:
@@ -14108,40 +14472,6 @@ components:
           - outro
           - recap
           default: sponsor
-        refineBoundaries:
-          type: boolean
-          default: false
-        reviewEvidenceEnter:
-          type:
-          - number
-          - 'null'
-          minimum: 0
-          maximum: 1
-          default: null
-          description: Null selects the model evidence threshold.
-        reviewChoiceEnter:
-          type:
-          - number
-          - 'null'
-          minimum: 0
-          maximum: 1
-          default: null
-          description: Null selects the model choice threshold.
-        reviewProgrammeVeto:
-          type: number
-          minimum: 0
-          maximum: 1
-          default: 0.85
-        reviewBoundaryCapSeconds:
-          type: number
-          exclusiveMinimum: 0
-          default: 60.0
-          description: Maximum boundary movement in seconds.
-        reviewContextSeconds:
-          type: number
-          exclusiveMinimum: 0
-          default: 30.0
-          description: Focused review context window in seconds.
         requestDeadlineSeconds:
           type: number
           exclusiveMinimum: 0
@@ -14325,8 +14655,6 @@ components:
       - unknownCostRequestCount
       - outcomes
       - reviewReasons
-      - refinements
-      - refinementSkipReasons
       properties:
         calls:
           type: integer
@@ -14384,29 +14712,6 @@ components:
               type: integer
               minimum: 0
         reviewReasons:
-          type: object
-          additionalProperties:
-            type: integer
-            minimum: 0
-        refinements:
-          type: object
-          properties:
-            attempted:
-              type: integer
-              minimum: 0
-            completed:
-              type: integer
-              minimum: 0
-            skipped:
-              type: integer
-              minimum: 0
-            inconclusive:
-              type: integer
-              minimum: 0
-            upstream_error:
-              type: integer
-              minimum: 0
-        refinementSkipReasons:
           type: object
           additionalProperties:
             type: integer
@@ -15124,6 +15429,9 @@ components:
         destWritable:
           type: boolean
           description: Whether the effective destination directory is currently writable.
+        destError:
+          type: [string, 'null']
+          description: Why the stored destination is refused (for example inside a directory MinusPod serves), or null when it is usable.
         keepCount:
           type: integer
           description: Number of backup files to keep (1 = overwrite mode, >1 = rotate mode).
@@ -15696,6 +16004,15 @@ components:
             - 'null'
           format: date-time
           description: Last RSS refresh timestamp
+        lastFeedRequestAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Last time a client fetched this feed's served RSS, stamped at most every 10 minutes. Null for a feed never fetched since it was added.
+        dormant:
+          type: boolean
+          description: True when dormantFeedDays is on and no client has fetched the served RSS within that many days (counting from creation for a never-fetched feed). A dormant feed stops auto-processing new episodes unless its autoProcessOverride is true; local and recents feeds are never dormant.
         lastRefreshError:
           type:
             - string
@@ -15707,6 +16024,32 @@ components:
             - 'null'
           format: date-time
           description: When the current run of refresh failures started. Cleared on the next successful refresh.
+        nextRefreshAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the background loop will next fetch this feed. Null for local and recents feeds, and for an upstream feed that has not been scheduled yet (due now).
+        refreshIntervalSeconds:
+          type:
+            - integer
+            - 'null'
+          description: The wait chosen after the last attempt, in seconds.
+        refreshIntervalReason:
+          type:
+            - string
+            - 'null'
+          enum: [fixed, floor, cadence, due, hint, max, dormant, backoff, retry_after, null]
+          description: Why that wait was chosen. cadence follows the feed's observed publish rhythm, due means an episode is expected so the floor applies, hint follows the feed's own update hints or a Cache-Control max-age, backoff is the failure backoff, retry_after is a host's Retry-After, dormant and max are the longest wait, fixed means adaptive refresh is off.
+        consecutiveRefreshFailures:
+          type: integer
+          description: Counted refresh failures in a row; 0 while the feed refreshes cleanly. A feed at 3 or more appears in GET /feeds/problems.
+        lastRefreshOkAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Last successful refresh. Falls back to lastRefreshed for feeds that succeeded before this field existed.
         lastPodpingAt:
           type:
             - string
@@ -17205,6 +17548,11 @@ components:
         processedAt:
           type: string
           format: date-time
+        appVersion:
+          type:
+            - string
+            - 'null'
+          description: MinusPod version that made this run. Null for a run recorded before 2.78.4.
         status:
           type: string
           enum: [completed, failed]
@@ -18172,11 +18520,18 @@ components:
             or the sentinel `same_as_pass` (the default), which inherits
             both the provider and model of the pass being reviewed and
             ignores reviewModel. `primary`/`secondary` enable reviewModel.
+            A slot or model that routes to System One or TypeSafe is
+            rejected with 400; see reviewerNeedsLlm.
           properties:
             value:
               type: string
             isDefault:
               type: boolean
+        reviewerNeedsLlm:
+          type: boolean
+          description: |
+            True when the reviewer is enabled but its review stage resolves to System One
+            or TypeSafe. The reviewer does not run until an LLM provider is chosen.
         reviewMaxBoundaryShift:
           type: object
           description: Cap on boundary shift in seconds for adjust verdicts.
@@ -18834,6 +19189,35 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        audioAnalysisEnabled:
+          type: object
+          description: >-
+            Run local audio analysis in both passes. Off, detection runs from
+            the transcript alone (default true).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        spliceEvidenceEnabled:
+          type: object
+          description: >-
+            Run the splice detector inside audio analysis (default true).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        transcribeRawApiChunks:
+          type: object
+          description: >-
+            Stream-copy MP3 chunks to the remote transcription API instead of
+            re-encoding them (default false).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         differentialMeasuredCorrMax:
           type: object
           description: >-
@@ -19188,6 +19572,34 @@ components:
               minimum: 5
               maximum: 1440
               description: Minutes between background RSS refresh passes for every feed. Default 15.
+            isDefault:
+              type: boolean
+        adaptiveRefreshEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether per-feed adaptive refresh is on. Default true.
+            isDefault:
+              type: boolean
+        adaptiveRefreshMaxMinutes:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 5
+              maximum: 1440
+              description: Longest wait between checks of a healthy feed. Default 60.
+            isDefault:
+              type: boolean
+        dormantFeedDays:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 0
+              maximum: 3650
+              description: Days without a served-RSS request before a feed stops auto-processing new episodes. 0 means off. Default 0.
             isDefault:
               type: boolean
         queueManualBoost:
@@ -20060,6 +20472,12 @@ components:
               type: boolean
             spliceVetoEnabled:
               type: boolean
+            audioAnalysisEnabled:
+              type: boolean
+            spliceEvidenceEnabled:
+              type: boolean
+            transcribeRawApiChunks:
+              type: boolean
             vadGapDetectionEnabled:
               type: boolean
             vadGapStartMinSeconds:
@@ -20225,6 +20643,12 @@ components:
             processNewEpisodesFirst:
               type: boolean
             rssRefreshIntervalMinutes:
+              type: integer
+            adaptiveRefreshEnabled:
+              type: boolean
+            adaptiveRefreshMaxMinutes:
+              type: integer
+            dormantFeedDays:
               type: integer
             podpingEnabled:
               type: boolean
@@ -21661,6 +22085,7 @@ components:
               - Limit Exceeded
               - Rate Limit Structural
               - Feed Refresh Failed
+              - Feed Refresh Recovered
               - Update Available
               - Cue Template Quiet
               - Queue Held
@@ -21717,6 +22142,37 @@ components:
         recipients:
           type: string
 
+    FeedProblem:
+      type: object
+      required: [slug, title, host, consecutiveFailures, errorKind, message, detail, failingSince, lastSuccessAt, nextRetryAt]
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        host:
+          type: string
+          description: Scheme and host of the upstream feed. The path and query are never included.
+        consecutiveFailures:
+          type: integer
+        errorKind:
+          type: string
+          enum: [dns, tls, timeout, connection, gone, auth, rate_limited, http_error, invalid_xml, blocked_address, invalid_url, insecure_redirect, not_feed, unknown]
+        message:
+          type: string
+          description: Plain-language explanation of errorKind.
+        detail:
+          type: [string, 'null']
+          description: The stored error text, with credentials redacted and URLs reduced to their host.
+        failingSince:
+          type: [string, 'null']
+          format: date-time
+        lastSuccessAt:
+          type: [string, 'null']
+          format: date-time
+        nextRetryAt:
+          type: [string, 'null']
+          format: date-time
     RefreshOutcome:
       type: object
       required: [success, status, new_episodes, queued_episodes, error]
@@ -21907,6 +22363,22 @@ components:
           type: integer
           description: The configured limit in MB.
           example: 1024
+    ApiToken:
+      type: object
+      required: [id, name, prefix, createdAt, lastUsedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prefix:
+          type: string
+          description: First 8 characters after "mp_", for telling tokens apart.
+        createdAt:
+          type: string
+        lastUsedAt:
+          type: [string, 'null']
+          description: Updated at most every 5 minutes.
     Error:
       type: object
       properties:

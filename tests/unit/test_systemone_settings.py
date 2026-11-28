@@ -228,12 +228,10 @@ def test_native_frozen_health_snapshot_resolves_independent_typesafe_key(temp_db
     assert config['api_key'] == 'typesafe-only' and config['model'] == 'jev-preview'
 
 
-def test_probe_can_select_explicit_review_slot_model_without_pass_models(temp_db):
+def test_probe_ignores_the_review_slot_model(temp_db):
     for key, value in {'llm_provider': 'typesafe', 'claude_model': '', 'verification_model': '',
                        'review_provider': 'primary', 'review_model': 'jev-preview'}.items():
         temp_db.set_setting(key, value, is_default=False)
-    assert failover._capture_probe_context(temp_db, 'llm:primary')['request_config']['model'] == 'jev-preview'
-    temp_db.set_setting('review_provider', 'same_as_pass', is_default=False)
     assert failover._capture_probe_context(temp_db, 'llm:primary')['request_config']['model'] is None
 
 
@@ -252,15 +250,6 @@ def test_fractional_native_timeout_export_and_preview_preserve_value(temp_db):
     document = config_transfer.export_config(temp_db, '2.98.7')
     assert type(document['settings']['llm_timeout_seconds']) is int
     assert config_transfer.build_preview(temp_db, document, 'global') is not None
-
-
-def test_review_cap_and_context_keep_source_positive_finite_startup_domain():
-    defaults = SYSTEMONE_TUNABLE_DEFAULTS[PROVIDER_TYPESAFE]
-    for value in [0.125, 600.25, 750.5]:
-        profile = merge_profile(defaults, defaults, {'reviewBoundaryCapSeconds': value,
-                                                    'reviewContextSeconds': value})
-        assert profile['reviewBoundaryCapSeconds'] == value
-        assert profile['reviewContextSeconds'] == value
 
 
 @pytest.mark.parametrize('provider', ['typesafe', 'systemone-compatible'])

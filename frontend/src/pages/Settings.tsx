@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type ReactNode } from 'react';
 import { BookOpen, FileText } from 'lucide-react';
 import QueryError from '../components/QueryError';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -114,12 +114,23 @@ const SETTINGS_CATEGORIES: ReadonlyArray<{ id: SettingsCategoryId; label: string
   { id: 'data', label: 'Data and security' },
 ];
 
-const ANCHOR_CATEGORY: Record<string, SettingsCategoryId> = {
-  'podcast-index': 'general',
-  youtube: 'general',
-  'segment-actions': 'detection',
-  'pattern-cleanup-section': 'detection',
-};
+// Category panel that holds the element with this id, read from the rendered DOM.
+function categoryOfAnchor(id: string): SettingsCategoryId | null {
+  const panel = document.getElementById(id)?.closest<HTMLElement>('[data-settings-category]');
+  const category = panel?.dataset.settingsCategory;
+  return SETTINGS_CATEGORIES.some((c) => c.id === category) ? (category as SettingsCategoryId) : null;
+}
+
+// Section cards rendered per category panel (hidden panels and search-hidden cards included).
+function countSectionsByCategory(root: ParentNode): Record<SettingsCategoryId, number> {
+  const counts = { general: 0, ai: 0, detection: 0, output: 0, data: 0 };
+  root.querySelectorAll<HTMLElement>('[data-settings-category]').forEach((panel) => {
+    const id = panel.dataset.settingsCategory as SettingsCategoryId;
+    counts[id] = Array.from(panel.querySelectorAll('[data-search-key]'))
+      .filter((card) => !card.parentElement?.closest('[data-search-key]')).length;
+  });
+  return counts;
+}
 
 function SettingsCategoryPanel({
   category,
@@ -292,6 +303,9 @@ function Settings() {
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
+  const [adaptiveRefreshEnabled, setAdaptiveRefreshEnabled] = useState(true);
+  const [adaptiveRefreshMaxMinutes, setAdaptiveRefreshMaxMinutes] = useState(60);
+  const [dormantFeedDays, setDormantFeedDays] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [feedItunesBlock, setFeedItunesBlock] = useState(true);
   const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
@@ -309,6 +323,7 @@ function Settings() {
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
   const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
   const [skipFlacCompression, setSkipFlacCompression] = useState(false);
+  const [transcribeRawApiChunks, setTranscribeRawApiChunks] = useState(false);
   const [maxArtworkBytes, setMaxArtworkBytes] = useState(26214400);
   const [maxRssBytes, setMaxRssBytes] = useState(209715200);
   const [maxAudioDownloadMb, setMaxAudioDownloadMb] = useState(500);
@@ -340,6 +355,8 @@ function Settings() {
   const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
   const [daiDifferentialOverridesKeep, setDaiDifferentialOverridesKeep] = useState(true);
   const [spliceVetoEnabled, setSpliceVetoEnabled] = useState(true);
+  const [audioAnalysisEnabled, setAudioAnalysisEnabled] = useState(true);
+  const [spliceEvidenceEnabled, setSpliceEvidenceEnabled] = useState(true);
   const [transcriptDifferentialEnabled, setTranscriptDifferentialEnabled] = useState(true);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
@@ -478,6 +495,8 @@ function Settings() {
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
   const [originalRetentionDays, setOriginalRetentionDays] = useState(30);
+  const [unfetchedRetentionDays, setUnfetchedRetentionDays] = useState(0);
+  const [fetchedRetentionGraceDays, setFetchedRetentionGraceDays] = useState(3);
   const [keepOriginalAudio, setKeepOriginalAudio] = useState(true);
   const [softTimeoutMinutes, setSoftTimeoutMinutes] = useState(60);
   const [hardTimeoutMinutes, setHardTimeoutMinutes] = useState(120);
@@ -570,7 +589,6 @@ function Settings() {
     reviewer.model,
     [selectedModel, effectiveVerificationModel],
   );
-  const reviewUsesSystemOne = reviewProviders.some((provider, index) => isSystemOneRoute(provider, reviewModels[index]));
   const cleanupProvider = settings?.patternCleanupProvider?.value;
   const cleanupSlot = cleanupProvider === SLOT_SECONDARY && secondaryProviderEnabled && secondaryProvider
     ? SLOT_SECONDARY : cleanupProvider === SLOT_PRIMARY || cleanupProvider === SLOT_SECONDARY
@@ -792,16 +810,15 @@ function Settings() {
   const sectionTarget = location.hash.length > 1
     ? { id: decodeURIComponent(location.hash.slice(1)), seq: location.key }
     : null;
-  const targetCategory = sectionTarget ? ANCHOR_CATEGORY[sectionTarget.id] ?? null : null;
-  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>(() => targetCategory ?? 'general');
+  const [activeCategory, setActiveCategory] = useState<SettingsCategoryId>('general');
   const targetKey = sectionTarget ? `${sectionTarget.id}:${sectionTarget.seq ?? ''}` : null;
-  const [prevTargetKey, setPrevTargetKey] = useState<string | null>(targetKey);
-  if (targetKey !== prevTargetKey) {
-    setPrevTargetKey(targetKey);
-    if (targetCategory && targetCategory !== activeCategory) {
-      setActiveCategory(targetCategory);
-    }
-  }
+  // Re-runs once settings load, when the panels first render. The target lives in a hidden panel until its category is active; the section's reveal re-aligns on the layout change.
+  useLayoutEffect(() => {
+    const category = sectionTarget ? categoryOfAnchor(sectionTarget.id) : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (category) setActiveCategory(category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetKey, settingsLoading]);
 
   // Sync form fields with server data via a during-render compare (the React 19 alternative to a
   // useEffect+setState). useSyncFromQuery holds the snapshot+conditional-setState pattern; staying render-phase
@@ -809,10 +826,14 @@ function Settings() {
   useSyncFromQuery(retention, (r, previous) => {
     if (previous && (retentionDays !== (previous.retentionDays || 30)
       || originalRetentionDays !== (previous.originalRetentionDays ?? previous.retentionDays ?? 30)
-      || retentionEnabled !== previous.enabled)) return;
+      || retentionEnabled !== previous.enabled
+      || unfetchedRetentionDays !== (previous.unfetchedRetentionDays ?? 0)
+      || fetchedRetentionGraceDays !== (previous.fetchedRetentionGraceDays ?? 3))) return;
     setRetentionDays(r.retentionDays || 30);
     setOriginalRetentionDays(r.originalRetentionDays ?? r.retentionDays ?? 30);
     setRetentionEnabled(r.enabled);
+    setUnfetchedRetentionDays(r.unfetchedRetentionDays ?? 0);
+    setFetchedRetentionGraceDays(r.fetchedRetentionGraceDays ?? 3);
   });
 
   useSyncFromQuery(processingTimeouts, (t, previous) => {
@@ -842,8 +863,13 @@ function Settings() {
   });
 
   const retentionMutation = useMutation({
-    mutationFn: ({ days, originalDays }: { days: number; originalDays: number }) =>
-      updateRetention(days, originalDays),
+    mutationFn: ({ days, originalDays, unfetchedDays, graceDays }: {
+      days: number; originalDays: number; unfetchedDays: number; graceDays: number;
+    }) =>
+      updateRetention(days, originalDays, {
+        unfetchedRetentionDays: unfetchedDays,
+        fetchedRetentionGraceDays: graceDays,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['retention'] });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -960,6 +986,7 @@ function Settings() {
     { key: 'audioNormalizeEnabled', kind: 'val', useDefault: true, value: audioNormalizeEnabled, set: setAudioNormalizeEnabled },
     { key: 'audioNormalizeIntensity', kind: 'str', useDefault: true, value: audioNormalizeIntensity, set: setAudioNormalizeIntensity },
     { key: 'skipFlacCompression', kind: 'val', useDefault: true, value: skipFlacCompression, set: setSkipFlacCompression },
+    { key: 'transcribeRawApiChunks', kind: 'val', useDefault: true, value: transcribeRawApiChunks, set: setTranscribeRawApiChunks },
     { key: 'maxArtworkBytes', kind: 'val', useDefault: true, value: maxArtworkBytes, set: setMaxArtworkBytes },
     { key: 'maxRssBytes', kind: 'val', useDefault: true, value: maxRssBytes, set: setMaxRssBytes },
     { key: 'maxAudioDownloadMb', kind: 'val', useDefault: true, value: maxAudioDownloadMb, set: setMaxAudioDownloadMb },
@@ -989,6 +1016,9 @@ function Settings() {
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
     { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
     { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
+    { key: 'adaptiveRefreshEnabled', kind: 'val', useDefault: true, literal: true, value: adaptiveRefreshEnabled, set: setAdaptiveRefreshEnabled },
+    { key: 'adaptiveRefreshMaxMinutes', kind: 'val', useDefault: true, literal: 60, value: adaptiveRefreshMaxMinutes, set: setAdaptiveRefreshMaxMinutes },
+    { key: 'dormantFeedDays', kind: 'val', useDefault: true, literal: 0, value: dormantFeedDays, set: setDormantFeedDays },
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
@@ -1007,6 +1037,8 @@ function Settings() {
     { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
     { key: 'daiDifferentialOverridesKeep', kind: 'val', useDefault: true, literal: true, value: daiDifferentialOverridesKeep, set: setDaiDifferentialOverridesKeep },
     { key: 'spliceVetoEnabled', kind: 'val', useDefault: true, literal: true, value: spliceVetoEnabled, set: setSpliceVetoEnabled },
+    { key: 'audioAnalysisEnabled', kind: 'val', useDefault: true, literal: true, value: audioAnalysisEnabled, set: setAudioAnalysisEnabled },
+    { key: 'spliceEvidenceEnabled', kind: 'val', useDefault: true, literal: true, value: spliceEvidenceEnabled, set: setSpliceEvidenceEnabled },
     { key: 'transcriptDifferentialEnabled', kind: 'val', useDefault: true, literal: true, value: transcriptDifferentialEnabled, set: setTranscriptDifferentialEnabled },
     // Audio fingerprinting (nested `fingerprint` state)
     { key: 'fingerprintEnabled', kind: 'val', useDefault: true, literal: true, value: fingerprint.enabled, obj: 'fingerprint', prop: 'enabled' },
@@ -1126,7 +1158,9 @@ function Settings() {
   useUnsavedChanges(hasChanges || podcastIndexApiKey !== '' || podcastIndexApiSecret !== ''
     || (!!retention && (retentionDays !== (retention.retentionDays || 30)
       || originalRetentionDays !== (retention.originalRetentionDays ?? retention.retentionDays ?? 30)
-      || retentionEnabled !== retention.enabled))
+      || retentionEnabled !== retention.enabled
+      || unfetchedRetentionDays !== (retention.unfetchedRetentionDays ?? 0)
+      || fetchedRetentionGraceDays !== (retention.fetchedRetentionGraceDays ?? 3)))
     || (!!processingTimeouts && (softTimeoutMinutes !== Math.round(processingTimeouts.softTimeoutSeconds / 60)
       || hardTimeoutMinutes !== Math.round(processingTimeouts.hardTimeoutSeconds / 60))));
 
@@ -1295,6 +1329,16 @@ function Settings() {
     },
   });
 
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [categoryCounts, setCategoryCounts] = useState(() => countSectionsByCategory(document));
+  // Counts come from the rendered section cards, so adding or moving one cannot leave a stale number.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (!pageRef.current) return;
+    const next = countSectionsByCategory(pageRef.current);
+    setCategoryCounts((prev) => (SETTINGS_CATEGORIES.every((c) => prev[c.id] === next[c.id]) ? prev : next));
+  });
+
   const cleanupMutation = useMutation({
     mutationFn: runCleanup,
     onSuccess: () => {
@@ -1318,20 +1362,10 @@ function Settings() {
     </div>;
   }
 
-  const aiSectionCount = 6
-    + (settings.stageTunables && settings.stageTunableDefaults ? 1 : 0)
-    + (hasAllSystemOneProfiles(settings) ? 1 : 0);
-  const categoryCounts: Record<SettingsCategoryId, number> = {
-    general: 3,
-    ai: aiSectionCount,
-    detection: 11,
-    output: 3,
-    data: 9,
-  };
   const isSearching = searchMatches !== null;
 
   return (
-    <div className="max-w-3xl lg:max-w-5xl mx-auto space-y-4 pb-20">
+    <div ref={pageRef} className="max-w-3xl lg:max-w-5xl mx-auto space-y-4 pb-20">
       {settingsFailed && <QueryError title="Settings could not be refreshed. Showing the last loaded values." onRetry={() => void retrySettings()} retrying={settingsFetching} />}
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3">
@@ -1459,22 +1493,22 @@ function Settings() {
       <div>
         <YouTubeSection />
       </div>
-      </SettingsCategoryPanel>
 
-      <SettingsCategoryPanel category="ai" activeCategory={activeCategory}>
-      <SettingsGroupHeader title="AI and processing" />
-
-      {providersError && (
-        <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
-      )}
+      <SettingsGroupHeader title="Feeds and processing" />
 
       <GlobalDefaultsSection
         autoProcessEnabled={autoProcessEnabled}
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         autoProcessMaxAgeHours={autoProcessMaxAgeHours}
         onAutoProcessMaxAgeHoursChange={setAutoProcessMaxAgeHours}
+        dormantFeedDays={dormantFeedDays}
+        onDormantFeedDaysChange={setDormantFeedDays}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
+        adaptiveRefreshEnabled={adaptiveRefreshEnabled}
+        onAdaptiveRefreshEnabledChange={setAdaptiveRefreshEnabled}
+        adaptiveRefreshMaxMinutes={adaptiveRefreshMaxMinutes}
+        onAdaptiveRefreshMaxMinutesChange={setAdaptiveRefreshMaxMinutes}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={maxFeedEpisodes}
@@ -1500,6 +1534,14 @@ function Settings() {
         differentialFetchMode={(settings?.differentialFetchMode?.value ?? settings?.defaults?.differentialFetchMode ?? 'auto') as 'auto' | 'on' | 'off'}
         onDifferentialFetchModeChange={(v) => tunableMutation.mutate({ differentialFetchMode: v })}
       />
+      </SettingsCategoryPanel>
+
+      <SettingsCategoryPanel category="ai" activeCategory={activeCategory}>
+      <SettingsGroupHeader title="AI and processing" />
+
+      {providersError && (
+        <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
+      )}
 
       <LLMProviderSection
         llmProvider={llmProvider}
@@ -1633,7 +1675,6 @@ function Settings() {
           chaptersModel={effectiveChaptersModel}
           reviewModels={reviewModels}
           reviewRoutes={reviewProviders.map((provider, index) => ({ provider, model: reviewModels[index] }))}
-          reviewEnabled={reviewer.enabled}
           onSave={(payload) => stageTunablesMutation.mutate(payload)}
           saveIsPending={stageTunablesMutation.isPending}
           saveIsSuccess={stageTunablesMutation.isSuccess}
@@ -1689,6 +1730,8 @@ function Settings() {
         onTranscribeChunkOverlapSecondsChange={setTranscribeChunkOverlapSeconds}
         skipFlacCompression={skipFlacCompression}
         onSkipFlacCompressionChange={setSkipFlacCompression}
+        transcribeRawApiChunks={transcribeRawApiChunks}
+        onTranscribeRawApiChunksChange={setTranscribeRawApiChunks}
         whisperPoolEnabled={whisperPoolEnabled}
         onWhisperPoolEnabledChange={setWhisperPoolEnabled}
         whisperPoolMaxRequests={whisperPoolMaxRequests}
@@ -1762,6 +1805,10 @@ function Settings() {
         onHoldForReviewChange={(v) => tunableMutation.mutate({ holdForReview: v })}
         spliceVetoEnabled={spliceVetoEnabled}
         onSpliceVetoEnabledChange={setSpliceVetoEnabled}
+        audioAnalysisEnabled={audioAnalysisEnabled}
+        onAudioAnalysisEnabledChange={setAudioAnalysisEnabled}
+        spliceEvidenceEnabled={spliceEvidenceEnabled}
+        onSpliceEvidenceEnabledChange={setSpliceEvidenceEnabled}
         transcriptDifferentialEnabled={transcriptDifferentialEnabled}
         onTranscriptDifferentialEnabledChange={setTranscriptDifferentialEnabled}
         onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}
@@ -1770,7 +1817,9 @@ function Settings() {
       <AdReviewerSection
         reviewer={reviewer}
         onChange={handleReviewerChange}
-        systemOneReview={reviewUsesSystemOne}
+        needsLlm={settings?.reviewerNeedsLlm ?? false}
+        primaryIsSystemOne={isSystemOneRoute(llmProvider, '')}
+        secondaryIsSystemOne={isSystemOneRoute(secondaryProvider, '')}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
         secondaryProviderEnabled={secondaryProviderEnabled}
@@ -1945,9 +1994,15 @@ function Settings() {
         onRetentionDaysChange={setRetentionDays}
         originalRetentionDays={originalRetentionDays}
         onOriginalRetentionDaysChange={setOriginalRetentionDays}
+        unfetchedRetentionDays={unfetchedRetentionDays}
+        onUnfetchedRetentionDaysChange={setUnfetchedRetentionDays}
+        fetchedRetentionGraceDays={fetchedRetentionGraceDays}
+        onFetchedRetentionGraceDaysChange={setFetchedRetentionGraceDays}
         onSave={() => retentionMutation.mutate({
           days: retentionEnabled ? retentionDays : 0,
           originalDays: Math.min(originalRetentionDays, retentionDays),
+          unfetchedDays: unfetchedRetentionDays,
+          graceDays: fetchedRetentionGraceDays,
         })}
         saveIsPending={retentionMutation.isPending}
         saveIsSuccess={retentionMutation.isSuccess}
@@ -1996,9 +2051,9 @@ function Settings() {
       {(hasChanges || hasInvalidField) && (
         <div
           data-viewport-inset="bottom"
-          className="pb-[env(safe-area-inset-bottom)] max-md:pb-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed above-bottom-nav left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
+          className="safe-x safe-x-fill safe-x-wide pb-[env(safe-area-inset-bottom)] max-md:pb-0 fixed above-bottom-nav left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
         >
-          <div className="max-w-3xl lg:max-w-5xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
+          <div className="max-w-3xl lg:max-w-5xl mx-auto flex items-center justify-between gap-4 py-3">
             <ConfirmResetButton
               label="Reset all"
               title="Also clears your AI model choices; you may need to pick them again."

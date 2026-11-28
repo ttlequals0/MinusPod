@@ -14,6 +14,7 @@
   - [whisper.cpp with Docker (NVIDIA GPU)](#whispercpp-with-docker-nvidia-gpu)
   - [whisper.cpp on Apple Silicon (native)](#whispercpp-on-apple-silicon-native)
   - [Intel GPU (OpenVINO Model Server)](#intel-gpu-openvino-model-server)
+  - [AMD GPU (ROCm whisper.cpp)](#amd-gpu-rocm-whispercpp)
   - [Testing a remote endpoint](#testing-a-remote-endpoint)
   - [Groq](#groq)
   - [OpenAI Whisper API](#openai-whisper-api)
@@ -32,7 +33,7 @@ MinusPod has three transcription backends. Pick one with `WHISPER_BACKEND` or in
 
 Every backend runs without a GPU.
 
-A local model, from either local backend, unloads after sitting idle for the time set in Settings > Transcription ("Unload idle model after", 10 to 3600 seconds, default 300). The timer does not wait for the queue to empty, so the GPU memory is freed even while an episode is still in detection or rendering. The model loads again on the next transcription. The dispatcher checks every 5 seconds while an episode is processing and every 30 seconds while the queue is empty. The unload can come that much later than the configured time.
+A local model, from either local backend, unloads after sitting idle for the time set in Settings > Transcription ("Unload idle model after", 10 to 3600 seconds, default 300). The timer does not wait for the queue to empty, so GPU memory is freed even while an episode is still in detection or rendering. The model loads again on the next transcription. The dispatcher checks every 5 seconds while an episode is processing and every 30 seconds while the queue is empty, so the unload can come that much later than the configured time.
 
 ## Choosing between Whisper and Parakeet
 
@@ -40,10 +41,10 @@ Measured on a Tesla T4 across three episodes:
 
 - Speed: Parakeet transcribed 1.8x to 2.5x faster than Whisper large-v3.
 - Ad detection: results matched. Every ad found with both transcripts started and ended within 3 seconds of each other.
-- Names: Parakeet is weaker on sponsor names and promo codes, so transcript normalization rules (Settings > AI and processing > Transcript Normalization) matter more with it.
+- Names: Parakeet is weaker on sponsor names and promo codes, so transcript normalization rules (Settings > AI and transcription > Transcript normalization) matter more with it.
 - Fillers: Parakeet keeps "uh" and "um" in the transcript.
 
-Parakeet is the recommended local backend. It is a smaller model (0.6B parameters against 1.55B for Whisper large-v3), it transcribes faster, and detection results matched. `WHISPER_BACKEND` still defaults to `local`, so an existing install keeps its transcriber until you set `WHISPER_BACKEND=parakeet` or pick it in Settings > Transcription > Backend. Stay on faster-whisper for shows where sponsor names and promo codes drive detection and normalization rules do not cover them. Use the remote API backend when the host has no usable GPU.
+Parakeet is the recommended local backend: a smaller model (0.6B parameters against 1.55B for Whisper large-v3) that transcribes faster with matching detection results. `WHISPER_BACKEND` still defaults to `local`, so an existing install keeps its transcriber until you set `WHISPER_BACKEND=parakeet` or pick it in Settings > Transcription > Backend. Stay on faster-whisper for shows where sponsor names and promo codes drive detection and normalization rules do not cover them. Use the remote API backend when the host has no usable GPU.
 
 ## Whisper (faster-whisper)
 
@@ -74,6 +75,8 @@ Sources:
 NVIDIA Parakeet TDT 0.6B v3 is the recommended local transcription backend. It runs through ONNX Runtime inside the MinusPod container: on CUDA in the GPU image and on CPU in the CPU image. No separate server is needed.
 
 Parakeet does not use compute types. It runs float32 on CUDA through ONNX Runtime and needs cuDNN, which the GPU image pins to the last release that still supports GTX 10-series and older cards (#988).
+
+Parakeet works on RTX 50-series cards. One user confirmed it on an RTX 5070 (#990). Expect the first chunk after the model loads to be slow, about a minute in that report, probably a one-time kernel compile for the new architecture. Later chunks ran in seconds.
 
 Select it in Settings > Transcription > Backend with "Local (Parakeet TDT 0.6B v3)", or set:
 
@@ -141,7 +144,9 @@ WHISPER_DEVICE=cpu
 
 If MinusPod and whisper-server are on the same Docker network, use the container name (`whisper-server`). If they are on separate hosts, use the host IP and the exposed port (`http://your-server:8765/v1`).
 
-The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. `--no-flash-attn` is required alongside `--dtw` on every backend, CUDA and Apple Silicon (Metal) alike. Flash attention silently disables DTW (whisper.cpp logs `dtw_token_timestamps is not supported with flash_attn - disabling` at startup), causing word-level timestamps to be missing from the API response. On Metal it also produces zero-length and repeated segments, which show up as untranscribed holes MinusPod has to re-transcribe. `WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU. MinusPod already preprocesses audio to 16kHz mono WAV before sending it to the API, so the whisper.cpp `--convert` flag is not needed.
+The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. `--no-flash-attn` is required alongside `--dtw` on every backend, CUDA and Apple Silicon (Metal) alike. Flash attention silently disables DTW (whisper.cpp logs `dtw_token_timestamps is not supported with flash_attn - disabling` at startup), causing word-level timestamps to be missing from the API response. On Metal it also produces zero-length and repeated segments, which show up as untranscribed holes MinusPod has to re-transcribe.
+
+`WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU. MinusPod already preprocesses audio to 16kHz mono WAV before sending it to the API, so the whisper.cpp `--convert` flag is not needed.
 
 > **Warning:** If you add `--convert` for use with other clients, be aware that whisper.cpp writes temporary converted files to the current working directory. In Docker, the default CWD may not be writable, causing whisper.cpp to silently return empty transcription results (200 with 0 segments). Set `working_dir: /tmp` in your compose file or mount a writable volume if you need `--convert`.
 
@@ -175,9 +180,13 @@ WHISPER_DEVICE=cpu
 
 On an Intel host with a capable integrated or discrete GPU, you can offload transcription to the GPU instead of the CPU. OpenVINO Model Server runs Whisper as a remote OpenAI-compatible backend with word-level timestamps, so the CPU image's transcription stops pinning every core. See the dedicated [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) guide for the full setup.
 
+### AMD GPU (ROCm whisper.cpp)
+
+whisper.cpp's official images are CUDA-only. A community-contributed guide builds whisper.cpp against AMD ROCm and runs it as a remote OpenAI-compatible backend. It was tested on one AMD GPU by its contributor and is not built or tested by the project's CI. It also records CPU transcription speed measurements for whisper.cpp. See [AMD GPU Transcription (ROCm)](amd-whisper.md).
+
 ### Testing a remote endpoint
 
-Getting the base URL path right is the fiddly part of a remote backend: most servers answer something on every path, but only one path accepts transcription requests. The **Test connection** button under the API Base URL field (Settings > Transcription, with the backend set to Remote API) uploads a one-second generated audio sample using the same request the real pipeline sends, so a passing test means an actual episode upload will work. The values currently in the form are used, saved or not, so you can test a URL before committing it.
+Most servers answer something on every path, but only one path accepts transcription requests, so the base URL path is easy to get wrong. The **Test connection** button under the API Base URL field (Settings > Transcription, with the backend set to Remote API) uploads a one-second generated audio sample using the same request the real pipeline sends, so a passing test means an actual episode upload will work. The values currently in the form are used, saved or not, so you can test a URL before committing it.
 
 The result separates three situations:
 
@@ -213,6 +222,10 @@ WHISPER_DEVICE=cpu
 
 All settings can also be configured via the Settings UI under the Transcription section.
 
+### Raw MP3 chunks
+
+On a weak CPU, the loudness filters and re-encode that prepare each chunk can take longer than the upload budget. With **Send raw MP3 chunks** on (Settings > Transcription, off by default), each chunk of an MP3 episode sent to a remote API is stream-copied from the original instead. Extraction takes seconds. Hosted Whisper models normalise audio themselves, but a self-hosted server that relies on MinusPod's loudness filters may transcribe quieter audio less well. Chunk edges fall on MP3 frame boundaries, about 26 ms. A copied chunk larger than 24 MB (a very high bitrate source) is re-encoded as usual instead, so the API does not reject the upload. Other source formats and the local backend are unchanged. API: `transcribeRawApiChunks` on `PUT /api/v1/settings/ad-detection`; `MINUSPOD_RAW_API_CHUNKS=true` sets the default.
+
 ## Chunked transcription
 
 Episodes longer than one chunk are transcribed in pieces. Local faster-whisper sizes chunks from available GPU memory; the log line "Calculated chunk duration" shows the result. Parakeet starts with 1,800-second outer chunks and decodes each through its 30-second windows. Outer chunks overlap by 30 seconds. Remote API chunk sizes come from their separate settings.
@@ -229,7 +242,7 @@ protect, chunks upload and transcribe concurrently.
 
 ## Failover transcriber
 
-An optional standby transcriber (Settings > AI and processing > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets how many attempts a chunk gets before it counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
+An optional standby transcriber (Settings > AI and transcription > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets how many attempts a chunk gets before it counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
 
 ## Transcription language
 
@@ -237,7 +250,7 @@ faster-whisper and remote transcription requests default to English. Parakeet de
 
 ## Processing timeouts
 
-Two knobs for long-running jobs, both in the same panel:
+Two timeouts for long-running jobs, both in Settings > Transcription:
 
 - Soft timeout (default 60 minutes): when stale display entries can clear after SQLite confirms no live run owns them. A live owner is warned about, not evicted.
 - Hard timeout (default 120 minutes): how long the automatic queue waiter follows a started run before returning its queue row to pending for a later check. It does not let another worker publish over a live owner. Must be greater than the soft timeout.

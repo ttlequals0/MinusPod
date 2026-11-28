@@ -27,6 +27,7 @@ function makeSettings(overrides: Partial<DatabaseBackupSettings> = {}): Database
     dest: '/data/backups',
     effectiveDest: '/data/backups',
     destWritable: true,
+    destError: null,
     keepCount: 7,
     lastRun: '2026-07-06T09:00:00Z',
     lastError: null,
@@ -184,6 +185,17 @@ describe('DatabaseBackupSection', () => {
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByLabelText(/destination/i)).toBeDefined();
     await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows why a stored destination is refused', async () => {
+    mockGet.mockResolvedValue(makeSettings({
+      destWritable: false, effectiveDest: '', dest: '/app/static/ui/x',
+      destError: 'destination must not be inside a directory MinusPod serves over HTTP (ui)',
+    }));
+    renderSection();
+
+    await screen.findByLabelText(/destination/i);
+    expect(await screen.findByText(/stored destination is refused[\s\S]*serves over HTTP/i)).toBeDefined();
   });
 
   it('shows the not-writable warning when effectiveDest came back empty', async () => {

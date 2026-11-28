@@ -8,6 +8,7 @@ import UpdateBanner from './UpdateBanner';
 import { DemoBanner } from './DemoBanner';
 import WhatsNewDialog from './WhatsNewDialog';
 import { useWhatsNew } from '../hooks/useWhatsNew';
+import BackToTop from './BackToTop';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 import { getProcessingStatus } from '../api/status';
 import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
@@ -116,7 +117,7 @@ function Layout() {
         Skip to content
       </a>
       <DemoBanner />
-      <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)' }}>
+      <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)', paddingTop: 'var(--header-top-pad)' }}>
         <div className="safe-x safe-x-wide max-w-7xl mx-auto">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
@@ -177,7 +178,7 @@ function Layout() {
           </div>
         </div>
         {mobileMenuOpen && (
-          <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
+          <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-var(--header-top-pad)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
             <nav aria-label="Mobile navigation" className="safe-x grid grid-cols-2 py-2.5 gap-1.5">
               {NAV_ITEMS.map((item, idx) => {
                 const isLast = !isPasswordSet && idx === NAV_ITEMS.length - 1;
@@ -208,14 +209,14 @@ function Layout() {
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-fill safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
         <UpdateBanner />
         <Outlet />
       </main>
       <nav
         aria-label="Primary"
         data-viewport-inset="bottom"
-        className="safe-x safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
+        className="safe-x safe-x-fill safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
       >
         <ul className="grid grid-cols-5">
           {TAB_ITEMS.map(({ to, label, Icon }) => {
@@ -240,6 +241,7 @@ function Layout() {
           })}
         </ul>
       </nav>
+      <BackToTop />
       <QuickSearch seed={searchSeed} onClose={closeSearch} />
       {whatsNew.open && (
         <WhatsNewDialog current={whatsNew.current} sections={whatsNew.sections} onClose={whatsNew.close} />

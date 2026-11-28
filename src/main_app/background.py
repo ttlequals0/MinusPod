@@ -17,10 +17,10 @@ from config import (
     DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
     FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
     PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
-    resolve_episode_log_retention_days, resolve_processing_mode,
+    resolve_episode_log_retention_days, resolve_processing_mode, resolve_refresh_floor_seconds,
     resolve_skip_transcription, episode_matches_feed_filters,
 )
-from database.queue import PENDING_QUEUE_LIMIT
+from database.queue import AUTO_PROCESS_DORMANT, PENDING_QUEUE_LIMIT
 from database.search import FULL_REBUILD_SETTING
 from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
@@ -330,11 +330,7 @@ def run_cleanup():
 
 def _resolve_refresh_interval_seconds() -> float:
     """The configured refresh interval in seconds, clamped 5-1440 minutes."""
-    try:
-        interval_minutes = int(db.get_setting('rss_refresh_interval_minutes') or 15)
-    except (TypeError, ValueError):
-        interval_minutes = 15
-    return min(max(interval_minutes, 5), 1440) * 60
+    return resolve_refresh_floor_seconds(db)
 
 
 def _due_batch_size(interval_seconds: float, active_count: int) -> int:
@@ -369,7 +365,7 @@ def background_rss_refresh():
     while not shutdown_event.is_set():
         interval_seconds = _resolve_refresh_interval_seconds()
         batch = _due_batch_size(interval_seconds, db.count_subscribed_feeds())
-        result = refresh_due_feeds(batch, interval_seconds)
+        result = refresh_due_feeds(batch)
 
         # Maintenance keeps its old once-per-interval cadence rather than
         # running on every short tick; run_cleanup's orphan-directory walk is
@@ -460,7 +456,8 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # holds, so all of them go through close_claimed_queue_row.
         # Resolve automatic processing and feed filters from one podcast row.
         podcast = db.get_podcast_by_slug(slug)
-        auto_process_enabled = db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)
+        auto_block = db.auto_process_block(slug, podcast)
+        auto_process_enabled = auto_block is None
         episode_row = None
         if podcast and (podcast.get('min_duration_seconds') is not None
                         or podcast.get('max_duration_seconds') is not None):
@@ -480,8 +477,14 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # the user explicitly reprocessed (reprocess_requested_at set).
         if not auto_process_enabled:
             if not user_requested:
-                db.close_claimed_queue_row(queue_id, 'completed', 'Auto-process disabled for this feed')
-                refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
+                if auto_block == AUTO_PROCESS_DORMANT:
+                    # Keep the row pending: the claim skips dormant feeds, and the feed's next fetch releases it.
+                    db.close_claimed_queue_row(queue_id, 'pending')
+                    refresh_logger.info(f"[{slug}:{episode_id}] Held - feed dormant (no recent feed requests)")
+                    return 'bounced'
+                reason = 'Auto-process disabled for this feed'
+                db.close_claimed_queue_row(queue_id, 'completed', reason)
+                refresh_logger.info(f"[{slug}:{episode_id}] Skipped - {reason}")
                 return 'skipped'
             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
 

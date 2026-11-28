@@ -125,7 +125,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
               const fieldProps = {
                 id: `${id}-${String(field)}`,
                 min,
-                max: ['detectionEnter', 'detectionStay', 'reviewEvidenceEnter', 'reviewChoiceEnter', 'reviewProgrammeVeto'].includes(field) ? 1 : undefined,
+                max: ['detectionEnter', 'detectionStay'].includes(field) ? 1 : undefined,
                 step,
                 disabled: field === 'maxChoiceOptions' && provider === 'typesafe',
                 className: 'w-full',
@@ -142,20 +142,18 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                 {fieldProps.max === 1 && typeof value[field] === 'number' && <p className="mt-1 text-xs text-muted-foreground">{formatPercent(value[field] as number)}</p>}
                 {field === 'maxChoiceOptions' && provider === 'typesafe' && <p className="mt-1 text-xs text-muted-foreground">TypeSafe has a fixed maximum of 255.</p>}
                 {nullable && <p className="mt-1 text-xs text-muted-foreground">
-                  {field === 'reviewEvidenceEnter' || field === 'reviewChoiceEnter'
-                    ? 'Blank uses the detection confidence threshold.'
-                    : field === 'maxQuestionsPerRequest'
-                      ? 'Blank removes the question-count limit. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64 questions); set this below that limit.'
-                      : field === 'maxRequestBytes'
-                        ? 'Blank removes the request-size limit.'
-                        : field === 'maxPromptTokens'
-                          ? "Blank sends each detection window whole. Set this a little under the model's context (about 7000 for an 8k model) and windows that estimate above it are split before sending."
-                          : 'Blank removes the Choice option limit.'}
+                  {field === 'maxQuestionsPerRequest'
+                    ? 'Blank removes the question-count limit. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64 questions); set this below that limit.'
+                    : field === 'maxRequestBytes'
+                      ? 'Blank removes the request-size limit.'
+                      : field === 'maxPromptTokens'
+                        ? "Blank sends each detection window whole. Set this a little under the model's context (about 7000 for an 8k model) and windows that estimate above it are split before sending."
+                        : 'Blank removes the Choice option limit.'}
                 </p>}
               </div>
               );
             };
-            const toggle = (field: 'categoryPass' | 'refineBoundaries', label: string) => (
+            const toggle = (field: 'categoryPass', label: string) => (
               <Checkbox className="min-h-11" checked={value[field]} onChange={(checked) => change(slot, provider, field, checked)} label={label} />
             );
             return (
@@ -180,21 +178,10 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                   </select>
                 </div>
                 </div>
-                {toggle('refineBoundaries', 'Refine ad boundaries')}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {number('requestDeadlineSeconds', 'Logical request deadline (seconds)', Number.MIN_VALUE, 'any')}
                 {number('maxConcurrentOperations', 'Maximum concurrent operations', 1)}
                 {number('retryAfterMaxSeconds', 'Maximum Retry-After wait (seconds)', 0, 'any')}
-                </div>
-                <div className="border-t border-border pt-3 space-y-3">
-                  <h4 className={subHeading}>Review thresholds</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {number('reviewEvidenceEnter', 'Evidence enter threshold', 0, 0.01, true)}
-                  {number('reviewChoiceEnter', 'Choice enter threshold', 0, 0.01, true)}
-                  {number('reviewProgrammeVeto', 'Programme match veto threshold', 0, 0.01)}
-                  {number('reviewBoundaryCapSeconds', 'Maximum boundary change (seconds)', Number.MIN_VALUE, 'any')}
-                  {number('reviewContextSeconds', 'Review context (seconds)', Number.MIN_VALUE, 'any')}
-                  </div>
                 </div>
                 <div className="border-t border-border pt-3 space-y-3">
                   <h4 className={subHeading}>Protocol limits</h4>

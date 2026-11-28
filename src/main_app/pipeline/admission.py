@@ -17,7 +17,9 @@ from config import (
 from database import Database
 from llm_client import ProviderAccountChangedError, llm_disabled
 
-from llm_route import apply_failover_dict, resolve_route, route_account_mismatch
+from llm_route import (
+    apply_failover_dict, resolve_route, review_route_is_systemone, route_account_mismatch,
+)
 from rate_limit_hold import (
     HOLD_REASON_ACCOUNT_CHANGED, HOLD_REASON_PAUSED, HOLD_REASON_SCHEDULE,
     active_hold_reason,
@@ -66,7 +68,7 @@ def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
 def _admission_gates(settings_db) -> dict:
     """Admission's feed-independent feature gates, so a multi-row scan reads
     them once instead of per row."""
-    return {'review': review._ad_review_enabled(settings_db),
+    return {'review': review._ad_review_enabled(settings_db) and not review_route_is_systemone(settings_db),
             'chapters_enabled': settings_db.get_setting('chapters_enabled')}
 
 

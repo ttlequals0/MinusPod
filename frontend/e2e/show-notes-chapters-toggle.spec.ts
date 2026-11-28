@@ -37,7 +37,6 @@ async function mockApi(page: Page, patches: Record<string, unknown>[]) {
     if (body === undefined) return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
-  await page.addInitScript(() => localStorage.setItem('feed-settings-example-podcast', 'true'));
 }
 
 async function shoot(page: Page, state: string, project: string) {
@@ -50,7 +49,7 @@ test('chapters from show notes toggle', async ({ page }, info) => {
   const phone = info.project.name.startsWith('phone');
   const patches: Record<string, unknown>[] = [];
   await mockApi(page, patches);
-  await page.goto('feeds/example-podcast');
+  await page.goto('feeds/example-podcast?section=settings');
   const toggle = page.getByRole('switch', { name: 'Chapters from show notes' });
   await expect(toggle).toHaveCount(1);
   const place = async () => {

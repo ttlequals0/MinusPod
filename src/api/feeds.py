@@ -23,8 +23,10 @@ from api import (
 )
 from cancel import request_cancellation, wait_for_cancellation
 from database.error_text import redact_error
+import feed_problems
 from processing_queue import ProcessingQueue
 from config import (
+    resolve_dormant_feed_days,
     AUTO_PROCESS_MAX_AGE_ERROR,
     valid_auto_process_max_age,
     DETECTION_NOTES_MAX_CHARS,
@@ -60,7 +62,7 @@ import run_log
 from storage import _detect_image_mime
 from utils.constants import EpisodeStatus
 from utils.feed_guid import compute_feed_guid
-from utils.http import safe_url_for_log
+from utils.http import log_ssrf_failure, safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
@@ -75,7 +77,8 @@ from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
-from utils.url import reject_url_whitespace, validate_url, SSRFError
+from utils.safe_http import validate_feed_source_url
+from utils.url import reject_url_whitespace, SSRFError, ssrf_reject_text
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
@@ -261,10 +264,10 @@ def _validate_source_url(value, podcast=None):
         return None, 'sourceUrl must be a non-empty string'
     try:
         reject_url_whitespace(url)
-        validate_url(url)
+        validate_feed_source_url(url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in update_feed: {e} (url={safe_url_for_log(url)})")
-        return None, f'Invalid feed URL: {e}'
+        log_ssrf_failure(logger, 'update_feed', e, url)
+        return None, ssrf_reject_text(e, 'feed URL')
     # 15s per attempt so a slow host cannot hang the PATCH toward the worker
     # timeout; the shared retry keeps 403-on-first-fetch hosts working here
     # the same way they do in add_feed.
@@ -662,6 +665,19 @@ def _refresh_error_fields(podcast) -> dict:
     }
 
 
+def _refresh_schedule_fields(podcast) -> dict:
+    """When the background loop will next fetch this feed, how long it waits and why (upstream feeds only)."""
+    scheduled = has_upstream(podcast)
+    return {
+        'nextRefreshAt': podcast.get('next_refresh_at') if scheduled else None,
+        'refreshIntervalSeconds': podcast.get('refresh_interval_seconds') if scheduled else None,
+        'refreshIntervalReason': podcast.get('refresh_interval_reason') if scheduled else None,
+        'consecutiveRefreshFailures': podcast.get('refresh_failure_count') or 0,
+        'lastRefreshOkAt': (podcast.get('last_refresh_ok_at') or podcast.get('last_checked_at'))
+        if scheduled else None,
+    }
+
+
 def _slug_from_url_path(source_url: str) -> str | None:
     # Final-resort slug when neither an OPML title nor an RSS <title> exists. Strips
     # ``.xml``/``.rss`` suffixes; returns None if the URL has no usable path or hostname.
@@ -1031,7 +1047,7 @@ def _feed_artwork_url(podcast) -> str:
     return upstream if upstream.startswith('https://') else proxied
 
 
-def _podcast_listing_fields(podcast, podping) -> dict:
+def _podcast_listing_fields(podcast, podping, dormant_days=None) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, host_is_active = podping
     # The recents row owns no episodes; its counts are its membership.
@@ -1049,12 +1065,15 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'episodeCount': recents_total if recents_total is not None else podcast.get('episode_count', 0),
         'processedCount': recents_total if recents_total is not None else podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
+        'lastFeedRequestAt': podcast.get('last_feed_request_at'),
+        'dormant': get_database().is_feed_dormant(podcast, dormant_days),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
         'podpingUses': declaration['uses_podping'],
         'podpingHiveAccounts': declaration['hive_accounts'],
         'podpingCheckedAt': podcast.get('podping_checked_at'),
         **_refresh_error_fields(podcast),
+        **_refresh_schedule_fields(podcast),
         'createdAt': podcast.get('created_at'),
     }
 
@@ -1064,12 +1083,13 @@ def get_feeds_export_list(db) -> list[dict]:
     feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)
     global_actions = resolve_segment_category_actions_map(db.get_setting('segment_category_actions'))
+    dormant_days = resolve_dormant_feed_days(db)
     feeds = []
     for podcast in db.get_all_podcasts():
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
         entry = {
             **_podcast_base_json(podcast, feed_url, db, global_actions=global_actions),
-            **_podcast_listing_fields(podcast, podping),
+            **_podcast_listing_fields(podcast, podping, dormant_days),
             'lastEpisodeDate': podcast.get('last_episode_date'),
             # Upstream RSS URL the instance polls, explicit for bug reports
             # about a host serving bad RSS (redact_config strips credentials).
@@ -1141,6 +1161,32 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
     }
 
 
+@api.route('/feeds/problems', methods=['GET'])
+@log_request
+def get_feed_problems():
+    """Feeds whose refresh keeps failing, with a plain-language reason and a host-only address."""
+    rows = get_database().get_feed_problems(FEED_REFRESH_FAILURE_ALERT_THRESHOLD)
+    problems = []
+    for row in rows:
+        stored = row.get('last_refresh_error_kind')
+        kind = (stored if stored not in (None, 'unknown')
+                else feed_problems.classify_text(row.get('last_refresh_error')))
+        problems.append({
+            'slug': row['slug'],
+            'title': row.get('title') or row['slug'],
+            'host': safe_url_for_log(row.get('source_url') or ''),
+            'consecutiveFailures': row.get('refresh_failure_count') or 0,
+            'errorKind': kind,
+            'message': feed_problems.KIND_MESSAGES.get(kind, feed_problems.KIND_MESSAGES['unknown']),
+            'detail': feed_problems.scrub_detail(row.get('last_refresh_error')),
+            'failingSince': row.get('last_refresh_error_at'),
+            'lastSuccessAt': row.get('last_refresh_ok_at') or row.get('last_checked_at'),
+            'nextRetryAt': row.get('next_refresh_at'),
+        })
+    return json_response({'problems': problems, 'count': len(problems),
+                          'threshold': FEED_REFRESH_FAILURE_ALERT_THRESHOLD})
+
+
 @api.route('/feeds', methods=['GET'])
 @log_request
 def list_feeds():
@@ -1201,13 +1247,14 @@ def list_feeds():
         all_episode_ids = [ep['episode_id'] for eps in latest_by_podcast.values() for ep in eps]
         job_states = db.get_episode_job_states(all_episode_ids)
 
+    dormant_days = resolve_dormant_feed_days(db)
     feeds = []
     for podcast in podcasts:
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
         feed_json = {
             **_podcast_base_json(podcast, feed_url, db, global_actions=global_actions),
-            **_podcast_listing_fields(podcast, podping),
+            **_podcast_listing_fields(podcast, podping, dormant_days),
             'lastEpisodeDate': podcast.get('last_episode_date'),
         }
         if include_latest:
@@ -1472,10 +1519,10 @@ def add_feed():
     # SSRF protection: validate URL before any outbound request
     try:
         reject_url_whitespace(source_url)
-        validate_url(source_url)
+        validate_feed_source_url(source_url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in add_feed: {e} (url={safe_url_for_log(source_url)})")
-        return error_response(f'Invalid feed URL: {e}', 400)
+        log_ssrf_failure(logger, 'add_feed', e, source_url)
+        return error_response(ssrf_reject_text(e, 'feed URL'), 400)
 
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
@@ -1698,10 +1745,10 @@ def import_opml():
         # SSRF protection: validate each feed URL
         try:
             reject_url_whitespace(source_url)
-            validate_url(source_url)
+            validate_feed_source_url(source_url)
         except SSRFError as e:
-            logger.warning(f"SSRF blocked in OPML import: {e} (url={safe_url_for_log(source_url)})")
-            failed.append({'url': source_url, 'error': f'Invalid URL: {e}'})
+            log_ssrf_failure(logger, 'OPML import', e, source_url)
+            failed.append({'url': source_url, 'error': ssrf_reject_text(e, 'URL')})
             continue
 
         # Generate slug
@@ -1820,7 +1867,8 @@ def export_opml():
         # a recognized MIME type (.xml) and drops .opml from Content-Disposition.
         mimetype='application/octet-stream',
         headers={
-            'Content-Disposition': f'attachment; filename="{filename}"'
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Cache-Control': 'private, no-cache',
         }
     )
 
@@ -2666,7 +2714,7 @@ def refresh_feed(slug):
 
     try:
         from main_app.feeds import refresh_rss_feed
-        outcome = refresh_rss_feed(slug, podcast['source_url'], force=force)
+        outcome = refresh_rss_feed(slug, podcast['source_url'], force=force, manual=True)
         if not outcome.success and outcome.status != 'parse_backoff':
             status = 502 if outcome.status in ('fetch_failed', 'parse_failed') else 500
             return error_response(outcome.error or 'Feed refresh failed', status)

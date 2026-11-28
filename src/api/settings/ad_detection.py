@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    HELD_WIDEN_MAX_SECONDS, global_hold_for_review,
+    HELD_WIDEN_MAX_SECONDS, RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN, global_hold_for_review, resolve_adaptive_refresh, resolve_refresh_floor_seconds,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -20,7 +20,7 @@ from config import (
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MIN, LOCAL_MODEL_IDLE_UNLOAD_SECONDS_MAX,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
-    coerce_bool_setting,
+    SYSTEMONE_PROVIDERS, coerce_bool_setting,
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
@@ -33,6 +33,7 @@ from config import (
     DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, DOWNLOAD_HISTORY_RETENTION_DAYS_MAX,
     AUTO_PROCESS_MAX_AGE_ERROR,
     valid_auto_process_max_age,
+    DORMANT_FEED_DAYS_MIN, DORMANT_FEED_DAYS_MAX,
     MAX_LLM_WINDOW_AD_MIN, MAX_LLM_WINDOW_AD_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
@@ -44,11 +45,17 @@ from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_default, registry_get_default,
 )
+
+LOCAL_PROCESSING_BOOL_FIELDS = (
+    ('audioAnalysisEnabled', 'audio_analysis_enabled'),
+    ('spliceEvidenceEnabled', 'splice_evidence_enabled'),
+)
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
     get_effective_provider, llm_disabled,
 )
+from llm_capabilities import SYSTEMONE_REVIEWER_ERROR
 from llm_route import (
     VALID_SLOTS, SAME_AS_PASS,
     SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot,
@@ -313,6 +320,9 @@ def _validate_processing_defaults_payload(data):
         return 'transcriptDifferentialEnabled must be a boolean', 400
     if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
         return 'spliceVetoEnabled must be a boolean', 400
+    for payload_key, _setting_key in LOCAL_PROCESSING_BOOL_FIELDS:
+        if payload_key in data and not isinstance(data[payload_key], bool):
+            return f'{payload_key} must be a boolean', 400
     for key in ('onlyExposeProcessedDefault', 'chaptersInNotes', 'reviewLinksInNotes', 'feedItunesBlock'):
         if key in data and not isinstance(data[key], bool):
             return f'{key} must be a boolean', 400
@@ -458,6 +468,8 @@ def _review_field_values(data):
     values = []
     if 'reviewProvider' in data:
         provider = data['reviewProvider']
+        if provider in SYSTEMONE_PROVIDERS:
+            return None, (SYSTEMONE_REVIEWER_ERROR, 400)
         valid = VALID_SLOTS + (SAME_AS_PASS,)
         if provider not in valid:
             return None, (f'reviewProvider must be one of: {", ".join(valid)}', 400)
@@ -570,24 +582,6 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {value}")
 
 
-def _int_range_writes(data, fields):
-    """Validated (db key, int) writes for integer range fields, or an issue; floats are truncated."""
-    writes = []
-    for payload_key, db_key, floor, ceiling in fields:
-        if payload_key not in data:
-            continue
-        raw = data[payload_key]
-        try:
-            n = int(raw)
-        except (TypeError, ValueError):
-            return None, (f'{payload_key} must be an integer', 400)
-        if n < floor or (ceiling is not None and n > ceiling):
-            bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
-            return None, (f'{payload_key} must be {bound}', 400)
-        writes.append((db_key, n))
-    return writes, None
-
-
 _SIZE_CAP_FIELDS = (
     ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
     ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
@@ -597,7 +591,7 @@ _SIZE_CAP_FIELDS = (
 )
 
 def _size_cap_writes(data):
-    return _int_range_writes(data, _SIZE_CAP_FIELDS)
+    return common.int_range_writes(data, _SIZE_CAP_FIELDS)
 
 
 _CONSTRAINED = tuple(
@@ -980,13 +974,35 @@ def _validate_queue_boost_payload(data):
 
 
 def _apply_feed_refresh_fields(db, data):
-    """Persist the RSS refresh interval."""
+    """Persist the RSS refresh interval and the dormant-feed threshold."""
     value, issue = _rss_refresh_minutes(data)
     if issue is not None:
         return error_response(*issue)
     if value is not None:
         db.set_setting('rss_refresh_interval_minutes', str(value), is_default=False)
         logger.info(f"Updated RSS refresh interval to: {value} minutes")
+
+    if 'dormantFeedDays' in data:
+        days = data['dormantFeedDays']
+        db.set_setting('dormant_feed_days', str(days), is_default=False)
+        logger.info(f"Updated dormant feed threshold to: {days} days")
+
+    if 'adaptiveRefreshEnabled' in data:
+        value = 'true' if data['adaptiveRefreshEnabled'] else 'false'
+        db.set_setting('adaptive_refresh_enabled', value, is_default=False)
+        logger.info(f"Updated adaptive refresh to: {value}")
+
+    if 'adaptiveRefreshMaxMinutes' in data:
+        db.set_setting('adaptive_refresh_max_minutes', str(int(data['adaptiveRefreshMaxMinutes'])),
+                       is_default=False)
+        logger.info(f"Updated adaptive refresh maximum to: {int(data['adaptiveRefreshMaxMinutes'])} minutes")
+
+    if _SCHEDULE_PAYLOAD_KEYS.intersection(data):
+        adaptive, max_seconds, floor_seconds = resolve_adaptive_refresh(db)
+        clamped = db.clamp_next_refresh_at(
+            max_seconds if adaptive else floor_seconds, floor_seconds, 'max' if adaptive else 'fixed')
+        if clamped:
+            logger.info(f"Pulled {clamped} feed refresh time(s) in to the new interval")
 
     if 'podpingEnabled' in data:
         value = 'true' if data['podpingEnabled'] else 'false'
@@ -995,21 +1011,35 @@ def _apply_feed_refresh_fields(db, data):
     return None
 
 
+_SCHEDULE_PAYLOAD_KEYS = frozenset(
+    ('rssRefreshIntervalMinutes', 'adaptiveRefreshEnabled', 'adaptiveRefreshMaxMinutes'))
+_RSS_REFRESH_FIELD = (
+    ('rssRefreshIntervalMinutes', 'rss_refresh_interval_minutes',
+     RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX),)
+_DORMANT_FIELD = (
+    ('dormantFeedDays', 'dormant_feed_days', DORMANT_FEED_DAYS_MIN, DORMANT_FEED_DAYS_MAX),)
+
+
 def _rss_refresh_minutes(data):
-    if 'rssRefreshIntervalMinutes' not in data:
-        return None, None
-    try:
-        minutes = int(data['rssRefreshIntervalMinutes'])
-    except (TypeError, ValueError):
-        return None, ('rssRefreshIntervalMinutes must be an integer', 400)
-    if minutes < 5 or minutes > 1440:
-        return None, ('rssRefreshIntervalMinutes must be between 5 and 1440', 400)
-    return minutes, None
+    writes, issue = common.int_range_writes(data, _RSS_REFRESH_FIELD)
+    return (writes[0][1] if writes else None), issue
+
+
+def _validate_adaptive_refresh_payload(db, data):
+    minutes, _issue = _rss_refresh_minutes(data)
+    floor_minutes = minutes or resolve_refresh_floor_seconds(db) // 60
+    if 'adaptiveRefreshEnabled' in data and not isinstance(data['adaptiveRefreshEnabled'], bool):
+        return 'adaptiveRefreshEnabled must be a boolean', 400
+    return common.int_range_writes(
+        data, (('adaptiveRefreshMaxMinutes', 'adaptive_refresh_max_minutes',
+                floor_minutes, RSS_REFRESH_MINUTES_MAX),), strict=True)[1]
 
 
 def _validate_rss_refresh_payload(data):
     _minutes, issue = _rss_refresh_minutes(data)
-    return issue
+    if issue is not None:
+        return issue
+    return common.int_range_writes(data, _DORMANT_FIELD, strict=True)[1]
 
 
 def _apply_segment_category_actions(db, data):
@@ -1393,6 +1423,7 @@ def validate_settings_payload(
         provider_phases._validate_provider_rate_limit_payload,
         _validate_queue_boost_payload,
         _validate_rss_refresh_payload,
+        lambda payload: _validate_adaptive_refresh_payload(db, payload),
         _validate_audio_payload,
         _validate_user_agent_payload,
         _validate_podcast_search_provider_payload,
@@ -1781,6 +1812,11 @@ def _apply_positional_prior_fields(db, data):
         enabled = coerce_bool_setting(data['spliceVetoEnabled'])
         db.set_setting('splice_veto_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated splice_veto_enabled to: {enabled}")
+
+    for payload_key, setting_key in LOCAL_PROCESSING_BOOL_FIELDS:
+        if payload_key in data:
+            db.set_setting(setting_key, 'true' if data[payload_key] else 'false', is_default=False)
+            logger.info(f"Updated {setting_key} to: {data[payload_key]}")
     return
 
 

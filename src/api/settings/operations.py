@@ -10,7 +10,10 @@ from api import (
     get_database, limiter,
 )
 from config import (
-    SEGMENT_CATEGORIES, resolve_community_sync_categories,
+    FETCHED_RETENTION_GRACE_DAYS_MAX, FETCHED_RETENTION_GRACE_DAYS_MIN,
+    SEGMENT_CATEGORIES, UNFETCHED_RETENTION_DAYS_MAX, UNFETCHED_RETENTION_DAYS_MIN,
+    resolve_community_sync_categories, resolve_fetched_retention_grace_days,
+    resolve_unfetched_retention_days,
 )
 from api.pattern_cleanup import cleanup_settings_view
 from database.error_text import redact_error
@@ -30,7 +33,7 @@ from processing_schedule import (
 )
 from llm_route import VALID_SLOTS, SAME_AS_DETECTION
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
-from utils.url import SSRFError, validate_base_url
+from utils.url import SSRFError, ssrf_reject_text, validate_base_url
 from webhook_service import fire_queue_resumed_event
 from db_backup_service import (
     DEFAULT_CRON, KEEP_COUNT_MAX, KEEP_COUNT_MIN, dest_writable,
@@ -84,7 +87,23 @@ def get_retention_settings():
         'retentionDays': retention_days,
         'originalRetentionDays': original_retention_days,
         'enabled': retention_days > 0,
+        **_unfetched_retention_view(db),
     })
+
+
+def _unfetched_retention_view(db) -> dict:
+    return {
+        'unfetchedRetentionDays': resolve_unfetched_retention_days(db),
+        'fetchedRetentionGraceDays': resolve_fetched_retention_grace_days(db),
+    }
+
+
+_UNFETCHED_RETENTION_FIELDS = (
+    ('unfetchedRetentionDays', 'unfetched_retention_days',
+     UNFETCHED_RETENTION_DAYS_MIN, UNFETCHED_RETENTION_DAYS_MAX),
+    ('fetchedRetentionGraceDays', 'fetched_retention_grace_days',
+     FETCHED_RETENTION_GRACE_DAYS_MIN, FETCHED_RETENTION_GRACE_DAYS_MAX),
+)
 
 
 def _clamp_original_retention(retention_days: int, original: int) -> int:
@@ -127,6 +146,10 @@ def update_retention_settings():
         # Clamp; never let original outlive processed.
         original_days = _clamp_original_retention(days, original)
         staged['original_retention_days'] = str(original_days)
+    unfetched, issue = common.int_range_writes(data, _UNFETCHED_RETENTION_FIELDS, strict=True)
+    if issue is not None:
+        return error_response(*issue)
+    staged.update((key, str(value)) for key, value in unfetched)
 
     db = get_database()
     try:
@@ -140,11 +163,15 @@ def update_retention_settings():
     logger.info(f"Updated retention_days to {days}")
     if 'original_retention_days' in staged:
         logger.info(f"Updated original_retention_days to {original_days}")
+    for _payload, setting_key, _low, _high in _UNFETCHED_RETENTION_FIELDS:
+        if setting_key in staged:
+            logger.info(f"Updated {setting_key} to {staged[setting_key]}")
 
     return json_response({
         'retentionDays': days,
         'originalRetentionDays': original_days,
         'enabled': days > 0,
+        **_unfetched_retention_view(db),
     })
 
 
@@ -251,7 +278,7 @@ def update_rate_limit_hold_settings():
             try:
                 validate_base_url(usage_url)
             except SSRFError as e:
-                return error_response(f'Invalid LLM usage URL: {e}', 400)
+                return error_response(ssrf_reject_text(e, 'LLM usage URL'), 400)
         db.set_setting('llm_usage_url', usage_url, is_default=False)
     if 'rateLimitProbeMinutes' in data:
         minutes = data['rateLimitProbeMinutes']
@@ -590,15 +617,19 @@ def get_db_backup_settings():
         # ancestor, not just the immediate parent, so a multi-level dest under a
         # writable ancestor is not falsely reported unwritable.
         writable = dest_writable(effective)
-    except ValueError:
+    except ValueError as e:
         effective_dest = ''
         writable = False
+        dest_error = str(e)
+    else:
+        dest_error = None
     return json_response({
         'enabled': enabled,
         'cron': _val('db_backup_cron') or DEFAULT_CRON,
         'dest': dest,
         'effectiveDest': effective_dest,
         'destWritable': writable,
+        'destError': dest_error,
         'keepCount': int(_val('db_backup_keep_count') or '1'),
         'lastRun': _val('db_backup_last_run') or None,
         'lastError': redact_error(_val('db_backup_last_error')) or None,

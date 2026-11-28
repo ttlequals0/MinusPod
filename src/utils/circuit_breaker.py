@@ -95,10 +95,23 @@ class CircuitBreaker:
                 logger.info(f"Circuit breaker '{self.name}': OPEN -> HALF_OPEN (recovery timeout elapsed)")
         return self._state
 
-    def check(self):
-        """Check if requests are allowed. Raises CircuitBreakerOpen if not."""
+    def _lease_probe(self) -> int:
+        """Start a new half-open probe lease and return its token. Call with self._lock held."""
+        self._half_open_probe_started = time.time()
+        self._probe_generation += 1
+        self._half_open_probe_token = self._probe_generation
+        return self._half_open_probe_token
+
+    def check(self, force: bool = False):
+        """Raise CircuitBreakerOpen if requests are blocked; force takes a probe lease regardless."""
         with self._lock:
             current_state = self._evaluate_state()
+            if force and current_state in (self.OPEN, self.HALF_OPEN):
+                self._state = self.HALF_OPEN
+                # Share a live probe's token so the first result settles the breaker
+                if self._half_open_probe_token is not None:
+                    return self._half_open_probe_token
+                return self._lease_probe()
             if current_state == self.OPEN:
                 seconds_left = self.recovery_timeout - (time.time() - self._last_failure_time)
                 raise CircuitBreakerOpen(self.name, max(0, seconds_left),
@@ -109,10 +122,7 @@ class CircuitBreaker:
                     raise CircuitBreakerOpen(
                         self.name, self.recovery_timeout - elapsed,
                         cause=self._cause, auth_cause=self._auth_cause)
-                self._half_open_probe_started = time.time()
-                self._probe_generation += 1
-                self._half_open_probe_token = self._probe_generation
-                return self._half_open_probe_token
+                return self._lease_probe()
             return None
 
     def seconds_until_retry(self) -> float | None:

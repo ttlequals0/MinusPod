@@ -4,7 +4,7 @@ import { updateFeed, type UpdateFeedPayload } from '../../api/feeds';
 import { getYouTubeSettings, YOUTUBE_KIND_LABELS, type YouTubeSettings } from '../../api/youtube';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import TabPanelCard from '../../components/TabPanelCard';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import FeedArtworkUpload from './FeedArtworkUpload';
@@ -131,10 +131,9 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
 
   return (
     <div className="mb-6">
-      <CollapsibleSection
+      <TabPanelCard
         title="YouTube"
         subtitle="SponsorBlock, captions, transcription and listing options for this source."
-        storageKey={`youtube-feed-${slug}`}
       >
         <div className="space-y-4">
           {globals?.enabled === false && (
@@ -273,7 +272,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
           {mutation.isSuccess && !error && <p role="status" className="text-sm text-success">YouTube settings saved.</p>}
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </div>
-      </CollapsibleSection>
+      </TabPanelCard>
     </div>
   );
 }

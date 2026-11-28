@@ -164,7 +164,7 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('(Chapter regeneration)')).toBeTruthy();
     expect(table.queryByText('(chapters)')).toBeNull();
     const row = table.getByText('(Chapter regeneration)').closest('tr');
-    expect(row?.querySelectorAll('td')[8].textContent).toBe('-');
+    expect(row?.querySelectorAll('td')[9].textContent).toBe('-');
   });
 
   it('marks non-chapter timing stages as not applicable for chapter regeneration', () => {
@@ -195,6 +195,18 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('1 cut')).toBeTruthy();
     // Audio length, Windows, Stage hits, Transcript diff, Removed, Second scan all dash out.
     expect(table.getAllByText('-')).toHaveLength(6);
+  });
+
+  it('shows the version a run was made with, and nothing for an older run', () => {
+    const { container } = render(
+      <ProcessingRunsTable runs={[{ ...statsRun, appVersion: '2.103.0' }, { ...legacyRun, appVersion: null }]} />,
+    );
+    const table = within(container.querySelector('table') as HTMLTableElement);
+    expect(table.getByRole('columnheader', { name: 'Version' })).toBeTruthy();
+    expect(table.getByText('2.103.0')).toBeTruthy();
+    const cards = within(container.querySelector('.lg\\:hidden') as HTMLElement);
+    expect(cards.getAllByText('Version')).toHaveLength(1);
+    expect(cards.getByText('2.103.0')).toBeTruthy();
   });
 
   it('lists Chapters as a top-level row without Assets for chapter regeneration', () => {

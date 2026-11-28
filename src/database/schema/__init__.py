@@ -65,6 +65,7 @@ from pattern_cleanup_hash import review_hash
 from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
+    RSS_REFRESH_MINUTES_DEFAULT, RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS, resolve_segment_category_actions_map,
 )
 from utils.markers import EDGE_TOLERANCE, collapse_duplicate_markers
@@ -214,6 +215,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         'processing_runs',
         'upload_reservations',
         'feed_subscriber_keys',
+        'api_tokens',
         'episode_downloads',
         'ip_geo_cache',
         'provider_spend_reservations',
@@ -405,6 +407,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
+        self._add_column_if_missing(conn, 'episodes', 'first_fetched_at', 'TEXT', ep_cols)
 
     # Tables whose rows mean an episode has real state and must never be
     # deleted as an orphan duplicate. ad_reviewer_log.podcast_id has TEXT
@@ -636,6 +639,16 @@ class SchemaMixin(DeferredUpgradeMixin):
             ('last_refresh_error', 'TEXT'),
             ('last_refresh_error_at', 'TEXT'),
             ('last_refresh_failure_at', 'TEXT'),
+            # Adaptive refresh schedule; NULL next_refresh_at is due now
+            ('next_refresh_at', 'TEXT'),
+            ('refresh_interval_seconds', 'INTEGER'),
+            ('refresh_interval_reason', 'TEXT'),
+            ('last_refresh_ok_at', 'TEXT'),
+            ('retry_after_until', 'TEXT'),
+            ('http_hint_seconds', 'INTEGER'),
+            ('update_hint_seconds', 'INTEGER'),
+            ('feed_complete', 'INTEGER DEFAULT 0'),
+            ('last_refresh_error_kind', 'TEXT'),
             # Unparseable-feed backoff state
             ('parse_failure_count', 'INTEGER DEFAULT 0'),
             ('last_parse_failure_at', 'TEXT'),
@@ -749,6 +762,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
+        self._add_column_if_missing(conn, 'podcasts', 'last_feed_request_at', 'TEXT', pod_cols)
 
         if self._table_exists(conn, 'episodes'):
             episode_cols = self._get_table_columns(conn, 'episodes')
@@ -2650,6 +2664,8 @@ class SchemaMixin(DeferredUpgradeMixin):
             conn.rollback()
             logger.error(f"review prompt fingerprint wording update failed: {e}")
 
+        self._run_reviewer_systemone_reset(conn)
+
         self._run_trim_pattern_network_ids(conn)
 
         self._register_deferred_upgrade_steps(conn, fresh=getattr(self, '_fresh_schema', False))
@@ -2657,6 +2673,89 @@ class SchemaMixin(DeferredUpgradeMixin):
         self._run_fingerprint_matches_drop_vanished_episodes(conn)
 
         self._run_trim_podcast_network_id_overrides(conn)
+
+        self._run_fetch_tracking_baseline(conn)
+        self._run_adaptive_refresh_baseline(conn)
+
+    def _run_reviewer_systemone_reset(self, conn, gate='reviewer_systemone_reset_v1'):
+        """One-shot: reset review-stage settings that name System One to their defaults; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            from config import SYSTEMONE_PROVIDERS, coerce_bool_setting
+            from llm_capabilities import is_systemone_route
+
+            def stored(key):
+                row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+                return row['value'] if row else None
+
+            primary = (stored('llm_provider') or os.environ.get('LLM_PROVIDER') or 'anthropic').lower()
+            secondary = stored('secondary_provider')
+            secondary_on = bool(secondary) and coerce_bool_setting(stored('secondary_provider_enabled'))
+            review_provider = stored('review_provider')
+            resets = []
+            if review_provider in SYSTEMONE_PROVIDERS:
+                resets.append(('review_provider', 'same_as_pass'))
+            elif review_provider in ('primary', 'secondary'):
+                provider = secondary if review_provider == 'secondary' and secondary_on else primary
+                if is_systemone_route(provider, None):
+                    resets.append(('review_provider', 'same_as_pass'))
+            if is_systemone_route('', stored('review_model')):
+                resets.append(('review_model', 'same_as_pass'))
+            if is_systemone_route('', stored('failover_llm_review_model')):
+                resets.append(('failover_llm_review_model', ''))
+            for key, default in resets:
+                conn.execute("UPDATE settings SET value = ?, is_default = 1 WHERE key = ?", (default, key))
+                logger.info(f"Migration: reset {key} to its default; System One cannot be used for the reviewer")
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Reviewer System One reset failed, retrying on the next start: {e}")
+
+    def _run_fetch_tracking_baseline(self, conn, gate='fetch_tracking_baseline_v1'):
+        """One-shot: stamp existing feeds as requested now and mark already-downloaded episodes fetched; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            # A NULL feed stamp would count from created_at and make old feeds dormant on upgrade
+            conn.execute(
+                "UPDATE podcasts SET last_feed_request_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                "WHERE last_feed_request_at IS NULL")
+            conn.execute(
+                """UPDATE episodes SET first_fetched_at = (
+                       SELECT MIN(d.first_seen_at) FROM episode_downloads d
+                       WHERE d.podcast_id = episodes.podcast_id
+                         AND d.episode_id = episodes.episode_id)
+                   WHERE status = 'processed' AND first_fetched_at IS NULL""")
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Fetch tracking baseline failed, retrying on the next start: {e}")
+
+    def _run_adaptive_refresh_baseline(self, conn, gate='adaptive_refresh_baseline_v1'):
+        """One-shot: give existing feeds a next_refresh_at one interval after their last attempt (never-attempted: due now); never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'rss_refresh_interval_minutes'").fetchone()
+            try:
+                minutes = int(row[0])
+            except (TypeError, ValueError):
+                minutes = RSS_REFRESH_MINUTES_DEFAULT
+            seconds = min(max(minutes, RSS_REFRESH_MINUTES_MIN), RSS_REFRESH_MINUTES_MAX) * 60
+            conn.execute(
+                """UPDATE podcasts SET next_refresh_at = COALESCE(
+                       strftime('%Y-%m-%dT%H:%M:%SZ', last_refresh_attempt_at, ?),
+                       '1970-01-01T00:00:00Z')
+                   WHERE next_refresh_at IS NULL""", (f'+{seconds} seconds',))
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Adaptive refresh baseline failed, retrying on the next start: {e}")
 
     def _run_trim_podcast_network_id_overrides(self, conn, gate='trim_podcast_network_id_overrides'):
         """One-shot: trim padded podcasts.network_id_override values and null blank ones; never raises."""

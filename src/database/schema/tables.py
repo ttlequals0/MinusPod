@@ -44,6 +44,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- 1 = serve MinusPod episode ids. New feeds are created with 1.
     own_episode_guids INTEGER,
     last_checked_at TEXT,
+    -- Last time a client fetched the served RSS; feeds idle past
+    -- dormant_feed_days stop auto-processing until fetched again.
+    last_feed_request_at TEXT,
     -- Last refresh attempt, stamped on success and failure alike, so the
     -- staggered scheduler retries a failing feed on the interval rather than
     -- every tick. last_checked_at stays success-only for freshness.
@@ -55,6 +58,16 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     last_refresh_error TEXT,
     last_refresh_error_at TEXT,
     last_refresh_failure_at TEXT,
+    -- Adaptive refresh schedule; hints come from Cache-Control, Retry-After, podcast:updateFrequency, sy:*.
+    next_refresh_at TEXT,
+    refresh_interval_seconds INTEGER,
+    refresh_interval_reason TEXT,
+    last_refresh_ok_at TEXT,
+    retry_after_until TEXT,
+    http_hint_seconds INTEGER,
+    update_hint_seconds INTEGER,
+    feed_complete INTEGER DEFAULT 0,
+    last_refresh_error_kind TEXT,
     -- Consecutive unparseable-body tracking; backs off the "304 but RSS
     -- cache stale" forced full fetch so a broken body is not refetched
     -- every cycle. Cleared on the first clean parse.
@@ -188,6 +201,8 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- stamped on finalize/recut. NULL for a pre-existing row backfilled
     -- lazily on render.
     processed_size_bytes INTEGER,
+    -- First client GET of the processed audio; cleared when new audio is produced.
+    first_fetched_at TEXT,
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,
     new_duration REAL,
@@ -512,6 +527,16 @@ TABLE_DDL['feed_subscriber_keys'] = """CREATE TABLE IF NOT EXISTS feed_subscribe
     podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
     secret_hash TEXT NOT NULL CHECK(length(secret_hash) = 64),
     label TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at TEXT
+)"""
+
+TABLE_DDL['api_tokens'] = """CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE CHECK(length(token_hash) = 64),
+    token_prefix TEXT NOT NULL,
     created_at TEXT NOT NULL,
     last_used_at TEXT,
     revoked_at TEXT
@@ -1062,6 +1087,8 @@ CREATE INDEX IF NOT EXISTS idx_upload_reservations_owner
 """ + TABLE_DDL['feed_subscriber_keys'] + """;
 CREATE INDEX IF NOT EXISTS idx_feed_subscriber_keys_podcast
     ON feed_subscriber_keys(podcast_id, revoked_at);
+
+""" + TABLE_DDL['api_tokens'] + """;
 
 """ + TABLE_DDL['episode_downloads'] + """;
 CREATE INDEX IF NOT EXISTS idx_episode_downloads_seen

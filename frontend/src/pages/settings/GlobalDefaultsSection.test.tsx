@@ -47,8 +47,14 @@ function Harness({ onCommit, overrides }: {
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
         onAutoProcessMaxAgeHoursChange={() => {}}
+        dormantFeedDays={0}
+        onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={minutes}
         onRssRefreshIntervalMinutesChange={setMinutes}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -93,8 +99,14 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
         onAutoProcessMaxAgeHoursChange={() => {}}
+        dormantFeedDays={0}
+        onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={podpingEnabled}
         onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={10}
@@ -214,6 +226,23 @@ describe('GlobalDefaultsSection: auto-process window', () => {
   });
 });
 
+describe('GlobalDefaultsSection: dormant feed days', () => {
+  it('renders 0 (off) with its help text and commits a typed value', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ onDormantFeedDaysChange: onChange }} />);
+    const input = screen.getByLabelText('Pause auto-process for unrequested feeds') as HTMLInputElement;
+    expect(input.value).toBe('0');
+    expect(input.min).toBe('0');
+    expect(input.max).toBe('3650');
+    expect(screen.getByText(/stops auto-processing new episodes/)).toBeDefined();
+
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, '30');
+    expect(onChange).toHaveBeenLastCalledWith(30);
+  });
+});
+
 describe('GlobalDefaultsSection: no Segment actions details block', () => {
   it('does not render a Segment actions details element (moved to SegmentActionsSection)', () => {
     const { container } = render(<Harness onCommit={() => {}} />);
@@ -235,8 +264,14 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
         onAutoProcessMaxAgeHoursChange={() => {}}
+        dormantFeedDays={0}
+        onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -308,8 +343,14 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
         onAutoProcessMaxAgeHoursChange={() => {}}
+        dormantFeedDays={0}
+        onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -384,8 +425,14 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
         onAutoProcessMaxAgeHoursChange={() => {}}
+        dormantFeedDays={0}
+        onDormantFeedDaysChange={() => {}}
         rssRefreshIntervalMinutes={15}
         onRssRefreshIntervalMinutesChange={() => {}}
+        adaptiveRefreshEnabled={true}
+        onAdaptiveRefreshEnabledChange={() => {}}
+        adaptiveRefreshMaxMinutes={60}
+        onAdaptiveRefreshMaxMinutesChange={() => {}}
         podpingEnabled={false}
         onPodpingEnabledChange={() => {}}
         maxFeedEpisodes={10}
@@ -488,5 +535,29 @@ describe('GlobalDefaultsSection: LLM provider None', () => {
     render(<Harness onCommit={() => {}} />);
     expectGatedByLlm(screen.getByLabelText('Verification pass by default'));
     expectNotGatedByLlm(screen.getByLabelText('Cross-fetch differential default'));
+  });
+});
+
+describe('GlobalDefaultsSection: adaptive refresh', () => {
+  it('reports the toggle and shows the longest wait only while it is on', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<Harness onCommit={() => {}} overrides={{ adaptiveRefreshEnabled: true, onAdaptiveRefreshEnabledChange: onChange }} />);
+    const toggle = screen.getByRole('switch', { name: 'Adapt refresh to each feed' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect((screen.getByLabelText('Longest wait for a healthy feed') as HTMLInputElement).value).toBe('60');
+    await userEvent.setup().click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
+    rerender(<QueryClientProvider client={new QueryClient()}><Harness onCommit={() => {}} overrides={{ adaptiveRefreshEnabled: false }} /></QueryClientProvider>);
+    expect(screen.queryByLabelText('Longest wait for a healthy feed')).toBeNull();
+  });
+
+  it('commits a new longest wait', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ onAdaptiveRefreshMaxMinutesChange: onChange }} />);
+    const input = screen.getByLabelText('Longest wait for a healthy feed');
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, '120');
+    expect(onChange).toHaveBeenLastCalledWith(120);
   });
 });

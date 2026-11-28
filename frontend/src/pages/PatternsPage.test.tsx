@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import PatternsPage from './PatternsPage';
 
 const mockGetPatterns = vi.fn().mockResolvedValue([]);
+const mockGetPattern = vi.fn();
 const mockGetDetections = vi.fn().mockResolvedValue({
   detections: [], total: 0, page: 1, totalPages: 1, limit: 20,
   counts: {
@@ -21,6 +22,7 @@ const mockGetDetections = vi.fn().mockResolvedValue({
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
   getPatterns: (...a: unknown[]) => mockGetPatterns(...a),
+  getPattern: (...a: unknown[]) => mockGetPattern(...a),
   getPatternStats: vi.fn().mockResolvedValue({
     total: 0, active: 0, inactive: 0,
     by_scope: { global: 0, network: 0, podcast: 0 },
@@ -74,6 +76,40 @@ function renderPage(initialEntry = '/patterns') {
     </QueryClientProvider>,
   );
 }
+
+const basePattern = {
+  scope: 'global', network_id: null, podcast_id: null, dai_platform: null,
+  text_template: 'x'.repeat(60), intro_variants: '[]', outro_variants: '[]',
+  confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+  created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+  is_active: true, disabled_at: null, disabled_reason: null,
+};
+
+describe('PatternsPage ?id= deep link', () => {
+  it('opens the detail for an id in the loaded list and clears the param', async () => {
+    mockGetPatterns.mockResolvedValueOnce([{ ...basePattern, id: 5, sponsor: 'ListedCo' }]);
+    renderPage('/patterns?id=5');
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe(''));
+    expect(mockGetPattern).not.toHaveBeenCalled();
+  });
+
+  it('fetches the pattern by id when it is not in the loaded list', async () => {
+    mockGetPatterns.mockResolvedValueOnce([{ ...basePattern, id: 1, sponsor: 'Other' }]);
+    mockGetPattern.mockResolvedValueOnce({ ...basePattern, id: 99, sponsor: 'InactiveCo', is_active: false });
+    renderPage('/patterns?id=99');
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(mockGetPattern).toHaveBeenCalledWith(99);
+    await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe(''));
+  });
+
+  it('drops the param without a dialog when the id does not exist', async () => {
+    mockGetPattern.mockRejectedValueOnce(new Error('404'));
+    renderPage('/patterns?id=12345');
+    await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe(''));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
 
 describe('PatternsPage tabs', () => {
   it('has Sponsors as the last tab and renders it in the matching panel', async () => {

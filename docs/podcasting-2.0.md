@@ -54,8 +54,8 @@ Every Podcast Namespace tag falls into one of four buckets:
 4. **Always emit**: MinusPod adds the tag regardless of the upstream
    feed.
 
-"Strip" is not a feature gap. Passing these tags through would make
-the feed describe audio that no longer exists.
+Passing a stripped tag through would make the feed describe audio
+that no longer exists.
 
 ## What MinusPod supports
 
@@ -109,7 +109,7 @@ Pass-through episodes are the exception: nothing is cut, so the publisher's time
 
 ### Chapter modes
 
-Settings > Transcripts & Chapters sets the chapter mode: **Auto** (the default),
+Settings > Transcripts and chapters sets the chapter mode: **Auto** (the default),
 **Always generate**, or **Off**. New feeds and feeds set to Inherit use that
 choice; an explicit Feed Settings value overrides it. During normal processing,
 the mode is applied only when Generate Chapters is on.
@@ -152,14 +152,14 @@ probing, no generation, and nothing saved, so those episodes carry no
 chapters they already have until they are reprocessed.
 
 Auto is the default because it keeps the publisher's chapters
-whenever they hold up across the cut, rather than replacing accurate
+whenever they hold up across the cut instead of replacing accurate
 ones with generated chapters.
 
 ### Chapters in episode descriptions
 
 Most apps only show `podcast:chapters` once playback starts. To make the
 list readable while browsing, turn on **List chapters in episode
-descriptions** under Settings > Transcripts & Chapters (`chaptersInNotes`,
+descriptions** under Settings > Transcripts and chapters (`chaptersInNotes`,
 off by default). Each episode's description in the served feed, and on the
 episode page, then ends with a `Chapters` block: one `mm:ss Title` line per
 chapter, `h:mm:ss` past an hour. It is built from the same generated
@@ -177,15 +177,15 @@ is served unchanged, without the chapter block or the timestamp shift.
 ### Review links in episode descriptions
 
 To jump from a podcast app to an episode in MinusPod, turn on **Add review
-links to episode descriptions** under Settings > Transcripts & Chapters
+links to episode descriptions** under Settings > Transcripts and chapters
 (`reviewLinksInNotes`, off by default). The description of every episode
 MinusPod has seen then ends with two links: **Review in MinusPod** opens the
 episode page, **Thumbs up** opens it with `?rate=up` and **Thumbs down** with
 `?rate=down`. Either applies that rating as soon as the page loads, confirms it
 with an Undo button and removes the parameter from the address bar. Thumbs down
 also moves focus to the comment box. Links saved in an app from earlier
-versions, `?rate=5` and `?rate=1` to `?rate=4`, still work as up and down. The links are added as soon as
-MinusPod has the episode, including while it is still processing, because some
+versions, `?rate=5` and `?rate=1` to `?rate=4`, still work as up and down.
+The links are added as soon as MinusPod has the episode, including while it is still processing, because some
 apps store show notes the first time they see an episode and never refresh
 them. Items the upstream feed lists but MinusPod has not discovered yet get no
 links. The rating link is a page address, not an API call, because podcast
@@ -198,7 +198,7 @@ Each feed can override the global value from its Feed Settings page
 ### Ad chapters
 
 A segment kept in the audio by its category action still sits in the file.
-Set a category's segment action to **Mark** (Settings > Segment actions, or
+Set a category's segment action to **Mark** (Settings > Detection > Segment actions, or
 a feed's own override; see [Configuration > Segment
 categories](configuration.md#segment-categories)) and MinusPod adds a
 chapter at the start of each marked break and a resume chapter at its end,
@@ -210,7 +210,7 @@ point instead. A feed whose chapters mode is Off still gets no chapters,
 Mark or not.
 
 A marked segment needs a detection confidence of at least **Minimum
-confidence** (Settings > Transcripts & Chapters, 0.9 by default). Turn on
+confidence** (Settings > Transcripts and chapters, 0.9 by default). Turn on
 **Include segments waiting for review** to chapter held segments too, when
 the category they are held under resolves to Mark on that feed. They use
 the waiting-for-review title format, and rejecting one removes its chapter
@@ -259,7 +259,7 @@ but it never sends any of its own.
 
 ### MinusPod listens (opt-in)
 
-Settings > Global Defaults has a **Podping notifications**
+Settings > Global defaults has a **Podping notifications**
 toggle, off by default. When enabled, MinusPod runs a background
 thread that polls public Hive API nodes roughly every 3 seconds for
 new blocks, reads the `podping` and `pp_`-prefixed custom JSON
@@ -292,7 +292,7 @@ two requests every 3 seconds while the toggle is on (a head poll plus
 a block fetch each tick). If a node is unreachable, the listener
 rotates to the next one and backs off.
 
-Settings > System Health lists each node's endpoint, latest HTTP status,
+Settings > System status lists each node's endpoint, latest HTTP status,
 and last successful response time. It identifies the node carrying listener
 traffic. While the listener is enabled, MinusPod checks every node at startup
 and every five minutes. **Check now** runs the same check on demand, even when
@@ -343,15 +343,13 @@ announces.
 MinusPod does not send Podping notifications for the feeds it serves,
 and has no `podcast:podping` tag or setting to turn that on.
 
-This follows from what MinusPod is. It is a proxy that re-serves
-someone else's feed with ads removed, not the publisher of that
-content. The feeds MinusPod serves change only when the upstream feed
-changes, and players already discover that on the upstream publisher's
-own schedule (directly, or through the upstream host's own Podping
-notifications). MinusPod announcing its
-own re-feed as a new publish event would tell the ecosystem about a
-private, ad-stripped derivative of content you do not own, which is
-not what Podping is for.
+MinusPod is a proxy that re-serves someone else's feed with ads
+removed, not the publisher. A served feed changes only when the
+upstream feed changes, and players already discover that on the
+upstream publisher's schedule, directly or through the upstream host's
+Podping notifications. Announcing a re-feed as a new publish event
+would tell the ecosystem about a private, ad-stripped derivative of
+content you do not own, which is not what Podping is for.
 
 ## Feed identity
 

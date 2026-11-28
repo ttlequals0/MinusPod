@@ -103,10 +103,10 @@ function Search() {
       })),
       transcript: results.transcripts.map((r) => ({
         type: 'transcript', id: `${r.feedSlug}-${r.episodeId}`, title: r.title,
-        snippet: r.snippet, link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
+        snippet: r.snippet, link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}?section=transcript${r.timestamp != null ? `&t=${r.timestamp}` : ''}`,
       })),
       pattern: results.patterns.map((r) => ({
-        type: 'pattern', id: r.id, title: r.sponsor, subtitle: r.scope, snippet: r.snippet, link: `/patterns?q=${encodeURIComponent(r.sponsor)}`,
+        type: 'pattern', id: r.id, title: r.sponsor, subtitle: r.scope, snippet: r.snippet, link: `/patterns?id=${encodeURIComponent(r.id)}`,
       })),
       sponsor: results.sponsors.map((r) => ({
         type: 'sponsor', id: r.id, title: r.name, snippet: r.snippet, link: `/patterns?tab=sponsors&q=${encodeURIComponent(r.name)}`,

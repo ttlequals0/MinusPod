@@ -2,6 +2,8 @@
 indicator, and the per-tick batch size."""
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('staggered_refresh_test_')
@@ -15,43 +17,47 @@ def _iso_ago(seconds):
     return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).strftime(ISO_FORMAT)
 
 
+def _iso_ahead(seconds):
+    return _iso_ago(-seconds)
+
+
 class TestDueFeedSelection:
-    def test_only_feeds_attempted_before_the_interval_are_due(self, temp_db):
+    def test_only_feeds_past_their_next_refresh_are_due(self, temp_db):
         temp_db.create_podcast('fresh', 'https://example.com/fresh.xml', title='Fresh')
-        temp_db.update_podcast('fresh', last_refresh_attempt_at=_iso_ago(60))
+        temp_db.update_podcast('fresh', last_refresh_attempt_at=_iso_ago(60),
+                               next_refresh_at=_iso_ahead(840))
         temp_db.create_podcast('stale', 'https://example.com/stale.xml', title='Stale')
-        temp_db.update_podcast('stale', last_refresh_attempt_at=_iso_ago(3600))
+        temp_db.update_podcast('stale', last_refresh_attempt_at=_iso_ago(3600),
+                               next_refresh_at=_iso_ago(2700))
 
-        assert temp_db.get_due_feed_slugs(interval_seconds=900, limit=10) == ['stale']
+        assert temp_db.get_due_feed_slugs(limit=10) == ['stale']
 
-    def test_a_failed_feed_is_not_due_again_until_the_interval(self, temp_db):
-        # A feed that failed to refresh has an attempt stamp but no
-        # last_checked_at; it must still fall out of the due set for an interval.
+    def test_a_failed_feed_is_not_due_again_until_its_retry(self, temp_db):
         temp_db.create_podcast('failing', 'https://example.com/f.xml', title='Failing')
-        temp_db.update_podcast('failing', last_refresh_attempt_at=_iso_ago(60))
+        temp_db.update_podcast('failing', last_refresh_attempt_at=_iso_ago(60),
+                               next_refresh_at=_iso_ahead(3000))
 
-        assert temp_db.get_due_feed_slugs(interval_seconds=900, limit=10) == []
+        assert temp_db.get_due_feed_slugs(limit=10) == []
 
-    def test_never_attempted_feeds_are_due_first(self, temp_db):
+    def test_unscheduled_feeds_are_due_first(self, temp_db):
         temp_db.create_podcast('old', 'https://example.com/old.xml', title='Old')
-        temp_db.update_podcast('old', last_refresh_attempt_at=_iso_ago(3600))
+        temp_db.update_podcast('old', last_refresh_attempt_at=_iso_ago(3600),
+                               next_refresh_at=_iso_ago(2700))
         temp_db.create_podcast('new-feed', 'https://example.com/new.xml', title='New')
 
-        due = temp_db.get_due_feed_slugs(interval_seconds=900, limit=10)
+        due = temp_db.get_due_feed_slugs(limit=10)
 
         assert due[0] == 'new-feed'
         assert set(due) == {'new-feed', 'old'}
 
-    def test_limit_caps_the_batch_oldest_first(self, temp_db):
+    def test_limit_caps_the_batch_most_overdue_first(self, temp_db):
         for i in range(5):
             slug = f'feed-{i}'
             temp_db.create_podcast(slug, f'https://example.com/{i}.xml', title=slug)
-            temp_db.update_podcast(slug, last_refresh_attempt_at=_iso_ago(3600 + i))
+            temp_db.update_podcast(slug, last_refresh_attempt_at=_iso_ago(3600 + i),
+                                   next_refresh_at=_iso_ago(2700 + i))
 
-        due = temp_db.get_due_feed_slugs(interval_seconds=900, limit=2)
-
-        # feed-4 is oldest (3604s), feed-3 next.
-        assert due == ['feed-4', 'feed-3']
+        assert temp_db.get_due_feed_slugs(limit=2) == ['feed-4', 'feed-3']
 
     def test_local_and_recents_feeds_are_never_due(self, temp_db):
         temp_db.create_podcast('local', 'https://example.com/l.xml', title='Local',
@@ -59,7 +65,52 @@ class TestDueFeedSelection:
         temp_db.create_podcast('recents', 'https://example.com/r.xml', title='Recents',
                                feed_type='recents')
 
-        assert temp_db.get_due_feed_slugs(interval_seconds=900, limit=10) == []
+        assert temp_db.get_due_feed_slugs(limit=10) == []
+
+
+class TestAdaptiveRefreshBaseline:
+    GATE = 'adaptive_refresh_baseline_v1'
+
+    @pytest.fixture
+    def legacy_path(self, tmp_path):
+        from database import Database
+        Database._instance = None
+        db = Database(data_dir=str(tmp_path))
+        db.set_setting('rss_refresh_interval_minutes', '10', is_default=False)
+        for slug, attempt in (('never', None), ('recent', _iso_ago(120)), ('stale', _iso_ago(7200))):
+            db.create_podcast(slug, f'https://example.com/{slug}.xml', title=slug)
+            db.update_podcast(slug, last_refresh_attempt_at=attempt)
+        conn = db.get_connection()
+        conn.execute("UPDATE podcasts SET next_refresh_at = NULL")
+        conn.execute("DELETE FROM schema_migrations WHERE name = ?", (self.GATE,))
+        conn.commit()
+        yield tmp_path
+        Database._instance = None
+
+    @staticmethod
+    def _reopen(path):
+        from database import Database
+        Database._instance = None
+        return Database(data_dir=str(path))
+
+    def test_existing_feeds_become_due_as_before_in_batches(self, legacy_path):
+        db = self._reopen(legacy_path)
+        assert db.get_podcast_row('never')['next_refresh_at'] < _iso_ago(10_000_000)
+        due_at = datetime.strptime(db.get_podcast_row('recent')['next_refresh_at'], ISO_FORMAT)
+        expected = datetime.strptime(_iso_ahead(480), ISO_FORMAT)
+        assert abs((due_at - expected).total_seconds()) <= 3
+        assert db.get_due_feed_slugs(limit=10) == ['never', 'stale']
+        assert db.get_due_feed_slugs(limit=1) == ['never']
+
+    def test_baseline_runs_once(self, legacy_path):
+        db = self._reopen(legacy_path)
+        conn = db.get_connection()
+        conn.execute("UPDATE podcasts SET next_refresh_at = NULL WHERE slug = 'recent'")
+        conn.commit()
+        db = self._reopen(legacy_path)
+        assert db.get_podcast_row('recent')['next_refresh_at'] is None
+        assert db.get_connection().execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (self.GATE,)).fetchone()
 
 
 class TestFreshnessIndicators:
@@ -104,7 +155,7 @@ class TestRefreshDueFeeds:
         batch = MagicMock()
         monkeypatch.setattr(feeds, '_run_refresh_batch', batch)
 
-        result = feeds.refresh_due_feeds(3, 900)
+        result = feeds.refresh_due_feeds(3)
 
         batch.assert_not_called()
         assert result['success'] is True and result['failed'] == 0
@@ -118,7 +169,7 @@ class TestRefreshDueFeeds:
         batch = MagicMock(return_value={'ok': True})
         monkeypatch.setattr(feeds, '_run_refresh_batch', batch)
 
-        feeds.refresh_due_feeds(2, 900)
+        feeds.refresh_due_feeds(2)
 
         assert batch.call_args.kwargs['slugs'] == ['x', 'y']
         assert batch.call_args.args[0] is False  # never a forced refetch

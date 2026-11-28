@@ -19,16 +19,12 @@ import run_context
 from ad_detector.prompts import format_window_prompt
 from config import PROVIDER_SYSTEMONE_COMPATIBLE, PROVIDER_TYPESAFE
 from systemone.admission import LocalOperationCapacityTimeout, operation_admission
-from systemone.adapter import ReviewInconclusiveError, SystemOneSettings, _matched_sponsor_for_span
+from systemone.adapter import SystemOneSettings, _matched_sponsor_for_span
 from systemone.protocol import JevReviewValidationError
 from utils.llm_call import call_llm
-from llm_client import is_review_inconclusive_error
 from utils.circuit_breaker import CircuitBreaker
 from sponsor_service import SponsorService, SEED_SPONSORS
 from community_export import normalize_aliases
-from tests.unit.test_systemone_adapter_review import (
-    _meaningful_pair_prompt, build_review_prompt, make_text_fake,
-)
 from tests.unit.test_systemone_adapter_detection import _fake as detection_answer_fixture
 
 
@@ -118,59 +114,6 @@ def test_call_llm_returns_native_adapter_envelope_and_accounts_http_dispatch(
         'SELECT COUNT(*) FROM systemone_call_diagnostics').fetchone()[0] == 0
 
 
-def test_call_llm_runs_review_through_native_protocol_and_extracts_envelope(
-        temp_db, monkeypatch):
-    temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
-    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6')
-    fake_http = AnswerClient(make_text_fake())
-    monkeypatch.setattr(
-        llm_client, 'get_systemone_settings',
-        lambda provider, slot, model: SystemOneSettings(
-            model=model, category_pass=False, request_deadline_seconds=10.0),
-    )
-    monkeypatch.setattr(
-        llm_client.SystemOneClient, '_get_http_client',
-        lambda self, timeout: fake_http,
-    )
-    client = llm_client.SystemOneClient(
-        PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
-    prompt = build_review_prompt(
-        100.0, 120.0, [(90.0, 100.0, 'Discussion ends.')],
-        [(100.0, 120.0, 'This episode is sponsored by Acme.')],
-        [(120.0, 130.0, 'Welcome back to the show.')],
-    )
-    try:
-        response, error = call_llm(
-            llm_client=client, model='jev-latest', system_prompt='Review policy.',
-            prompt=prompt, llm_timeout=30, max_retries=0, max_tokens=200,
-            slug='example-podcast', episode_id='a1b2c3d4e5f6',
-            call_label='review', phase_key='review',
-            pass_name='reviewer_pass_1', provider=PROVIDER_TYPESAFE,
-        )
-    finally:
-        run_context.end(ctx)
-
-    assert error is None
-    payload = json.loads(response.content)
-    assert payload == {
-        'ads': [{
-            'confidence': 0.98, 'end': 120.0, 'is_ad': True,
-            'reason': 'Based on transcript: This episode is sponsored by Acme.',
-            'start': 100.0,
-        }],
-    }
-    # A space after each comma keeps a redacted URL query from swallowing the fields after it.
-    assert response.content == json.dumps(payload)
-    assert fake_http.payloads
-    row = temp_db.get_connection().execute(
-        "SELECT state, phase_key, dispatch_count FROM llm_call_usage "
-        "WHERE episode_id = ?", ('a1b2c3d4e5f6',),
-    ).fetchall()
-    assert len(row) == len(fake_http.payloads)
-    assert all(item['state'] == 'success' and item['phase_key'] == 'review'
-               for item in row)
-
-
 def test_concurrent_calls_keep_model_settings_and_transport_local(temp_db, monkeypatch):
     temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
     fake_http = AnswerClient(
@@ -224,91 +167,6 @@ def test_concurrent_calls_keep_model_settings_and_transport_local(temp_db, monke
     }
 
 
-def test_inconclusive_upstream_diagnostics_survive_call_llm(temp_db, monkeypatch):
-    temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
-    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6')
-
-    class InconclusiveClient(AnswerClient):
-        def post(self, url, *, json, headers, timeout):
-            self.payloads.append(json)
-            body = {'error': {
-                'code': 'jev_review_inconclusive',
-                'reason': 'proposed_range_not_confirmed',
-                'stage': 'focused_validation',
-                'score': 0.42,
-                'threshold': 0.65,
-                'cache_hit': False,
-                'range_start': 101.0,
-                'range_end': 119.0,
-                'candidate_start': 100.0,
-                'candidate_end': 120.0,
-                'context_start': 90.0,
-                'context_end': 130.0,
-                'proposal': {
-                    'reason': 'proposed_range_not_confirmed',
-                    'stage': 'focused_validation', 'range_start': 101.0,
-                    'range_end': 119.0, 'score': 0.42, 'threshold': 0.65,
-                    'cache_hit': False,
-                },
-            }}
-            return httpx.Response(
-                422, json=body, request=httpx.Request('POST', url),
-            )
-
-    fake_http = InconclusiveClient()
-    monkeypatch.setattr(
-        llm_client, 'get_systemone_settings',
-        lambda provider, slot, model: SystemOneSettings(
-            model=model, request_deadline_seconds=10.0),
-    )
-    monkeypatch.setattr(
-        llm_client.SystemOneClient, '_get_http_client',
-        lambda self, timeout: fake_http,
-    )
-    client = llm_client.SystemOneClient(
-        PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
-    prompt = build_review_prompt(
-        100.0, 120.0, [(90.0, 100.0, 'Discussion ends.')],
-        [(100.0, 120.0, 'This episode is sponsored by Acme.')],
-        [(120.0, 130.0, 'Welcome back to the show.')],
-    )
-    try:
-        response, error = call_llm(
-            llm_client=client, model='jev-latest', system_prompt='Review policy.',
-            prompt=prompt, llm_timeout=30, max_retries=0, max_tokens=200,
-            slug='example-podcast', episode_id='a1b2c3d4e5f6',
-            call_label='review', phase_key='review', pass_name='reviewer_pass_1',
-            provider=PROVIDER_TYPESAFE,
-        )
-    finally:
-        run_context.end(ctx)
-
-    assert response is None
-    assert isinstance(error, ReviewInconclusiveError)
-    assert is_review_inconclusive_error(error)
-    assert (error.reason, error.stage, error.score, error.threshold) == (
-        'proposed_range_not_confirmed', 'focused_validation', 0.42, 0.65)
-    assert (error.candidate_start, error.candidate_end,
-            error.context_start, error.context_end) == (100.0, 120.0, 90.0, 130.0)
-    assert error.proposal['range_start'] == 101.0
-    row = temp_db.get_connection().execute(
-        'SELECT state, input_tokens, output_tokens FROM llm_call_usage '
-        'WHERE episode_id = ?', ('a1b2c3d4e5f6',),
-    ).fetchone()
-    assert row['state'] == 'inconclusive'
-    diagnostic = temp_db.get_connection().execute(
-        'SELECT outcome, reason, stage, diagnostics_json FROM systemone_call_diagnostics '
-        'WHERE episode_id = ?', ('a1b2c3d4e5f6',),
-    ).fetchone()
-    assert tuple(diagnostic[:3]) == (
-        'inconclusive', 'proposed_range_not_confirmed', 'focused_validation')
-    safe = json.loads(diagnostic['diagnostics_json'])['error_details']
-    assert safe['score'] == 0.42
-    assert safe['threshold'] == 0.65
-    assert safe['candidate_start'] == 100.0
-    assert 'This episode is sponsored' not in diagnostic['diagnostics_json']
-
-
 def test_local_setup_failure_releases_half_open_probe(temp_db, monkeypatch):
     monkeypatch.setattr(
         llm_client, 'get_systemone_settings',
@@ -343,7 +201,7 @@ def test_local_setup_failure_releases_half_open_probe(temp_db, monkeypatch):
     client._release_circuit_breaker_probe()
 
 
-def test_invalid_review_response_keeps_source_rule_diagnostics(temp_db, monkeypatch):
+def test_invalid_detection_response_keeps_source_rule_diagnostics(temp_db, monkeypatch):
     temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
     ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6')
     fake_http = AnswerClient(lambda _payload: {
@@ -360,26 +218,25 @@ def test_invalid_review_response_keeps_source_rule_diagnostics(temp_db, monkeypa
     )
     client = llm_client.SystemOneClient(
         PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
-    prompt = build_review_prompt(
-        100.0, 120.0, [(90.0, 100.0, 'Discussion ends.')],
-        [(100.0, 120.0, 'This episode is sponsored by Acme.')],
-        [(120.0, 130.0, 'Welcome back to the show.')],
+    prompt = format_window_prompt(
+        'Example', 'Episode', '', ['[0.0-6.0] We hiked in the mountains.'],
+        0, 1, 0.0, 6.0,
     )
     try:
         response, error = call_llm(
-            llm_client=client, model='jev-latest', system_prompt='Review policy.',
+            llm_client=client, model='jev-latest', system_prompt='Detection policy.',
             prompt=prompt, llm_timeout=30, max_retries=0, max_tokens=200,
             slug='example-podcast', episode_id='a1b2c3d4e5f6',
-            call_label='review', phase_key='review', pass_name='reviewer_pass_1',
-            provider=PROVIDER_TYPESAFE,
+            call_label='window 1', phase_key='detection',
+            pass_name='ad_detection_pass_1', provider=PROVIDER_TYPESAFE,
         )
     finally:
         run_context.end(ctx)
 
     assert response is None
-    assert isinstance(error.__cause__, JevReviewValidationError)
-    assert error.__cause__.rule == 'answers_keys'
-    assert error.__cause__.numeric_details == {'expected_count': 3, 'actual_count': 0}
+    assert isinstance(error, JevReviewValidationError)
+    assert error.rule == 'answers_keys'
+    assert error.numeric_details == {'expected_count': 1, 'actual_count': 0}
     row = temp_db.get_connection().execute(
         'SELECT state, input_tokens, output_tokens FROM llm_call_usage '
         'WHERE episode_id = ?', ('a1b2c3d4e5f6',),
@@ -391,54 +248,8 @@ def test_invalid_review_response_keeps_source_rule_diagnostics(temp_db, monkeypa
     assert diagnostic['reason'] == 'answers_keys'
     assert json.loads(diagnostic['diagnostics_json'])['error_details'] == {
         'validation_rule': 'answers_keys',
-        'numeric_details': {'expected_count': 3, 'actual_count': 0},
+        'numeric_details': {'expected_count': 1, 'actual_count': 0},
     }
-
-
-def test_pre_dispatch_inconclusive_is_persisted_without_request_row(temp_db, monkeypatch):
-    temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
-    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6')
-    fake_http = AnswerClient(lambda _payload: (_ for _ in ()).throw(
-        AssertionError('pre-dispatch inconclusive must not send')))
-    monkeypatch.setattr(
-        llm_client, 'get_systemone_settings',
-        lambda provider, slot, model: SystemOneSettings(
-            model=model, max_choice_options=1, request_deadline_seconds=10.0),
-    )
-    monkeypatch.setattr(
-        llm_client.SystemOneClient, '_get_http_client',
-        lambda self, timeout: fake_http,
-    )
-    client = llm_client.SystemOneClient(
-        PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
-    prompt = _meaningful_pair_prompt().replace(
-        '\nTranscript (60s before, the candidate ad, 60s after;',
-        '\nEffective category actions: sponsor=remove\n'
-        'Effective category actions: sponsor=remove\n\n'
-        'Transcript (60s before, the candidate ad, 60s after;',
-    )
-    try:
-        response, error = call_llm(
-            llm_client=client, model='jev-latest', system_prompt='Review policy.',
-            prompt=prompt, llm_timeout=30, max_retries=0, max_tokens=200,
-            slug='example-podcast', episode_id='a1b2c3d4e5f6',
-            call_label='review', phase_key='review', pass_name='reviewer_pass_1',
-            provider=PROVIDER_TYPESAFE,
-        )
-    finally:
-        run_context.end(ctx)
-
-    assert response is None
-    assert isinstance(error, ReviewInconclusiveError)
-    assert error.reason == 'policy_conflict'
-    assert fake_http.payloads == []
-    assert temp_db.get_connection().execute(
-        'SELECT COUNT(*) FROM llm_call_usage WHERE episode_id = ?',
-        ('a1b2c3d4e5f6',),
-    ).fetchone()[0] == 0
-    summary = temp_db.get_systemone_stats(provider=PROVIDER_TYPESAFE)
-    assert (summary['calls'], summary['requests']) == (1, 0)
-    assert summary['outcomes']['inconclusive'] == 1
 
 
 def test_account_change_after_response_finalizes_usage_without_retry(temp_db, monkeypatch):

@@ -1,6 +1,6 @@
 # Demo changelog
 
-This file tracks the hosted demo and its tooling, which are not part of the self-hosted app.
+This file tracks the hosted demo and its tooling, which are separate from the self-hosted app.
 
 ## [Unreleased]
 
@@ -10,6 +10,10 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ### Changed
 
+- The crawl only clicks disclosures that are visible. Hidden duplicates (the Stats usage table and its phone card list both render) each cost a click timeout, which pushed the fixture check past its 45 minute limit. Each route now has a 2 minute budget and the whole crawl 32 minutes, and the crawl logs the time of every route.
+- The crawl opens the ad review editor from the episode tab that shows it. Inactive episode tabs stay mounted but hidden, so the old first-match click timed out on a hidden button and failed the episode routes.
+- The coverage check allows `/auth/tokens`, which the Settings page requests only when a password is set and the demo has none.
+- The snapshot export empties the new `api_tokens` table, so no API token hash reaches the demo database.
 - The demo's Needs review filter and count cover only held detections, matching the app. Uncut detections are under Not cut.
 - The snapshot export also empties `episode_detection_markers`, the per-episode marker cache behind the Detected ads and Ad review lists.
 - The fixture exporter records pattern-audio metadata and paginated match history from the snapshot. Playback remains unavailable because the demo exports no audio files.
@@ -17,7 +21,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 - The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
 - The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) and the new `queue_order`, `session_lifetime_hours` and `session_remember_days` settings in the demo database.
 - The snapshot export empties the `deferred_upgrade_steps` table, which the app refills on the next start.
-- The snapshot export keeps the new `episode_marker_refs` table, which the app derives from episode markers, and drops its rows for episodes the snapshot removes. Emptying it would leave the marker index empty because the upgrade step that fills it is recorded as done.
+- The snapshot export keeps the new `episode_marker_refs` table, which the app derives from episode markers, and drops its rows for episodes the snapshot removes. Emptying it would leave the marker index empty, because the upgrade step that fills it is recorded as done.
 - The snapshot export drops `llm_pre_none_identity`, the setting that remembers a model identity from before the LLM provider was set to None.
 
 ## [2.101.34] - 2026-11-09
@@ -68,7 +72,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 - The demo leak check no longer fires on key prefixes inside words (such as `sk-` in a URL slug containing "disk-"). The Anthropic, OpenRouter and JWT patterns now need a non-alphanumeric character before the prefix, as the OpenAI pattern did.
 - The demo build accepts a pasted Cloudflare Web Analytics snippet as well as a bare token for `VITE_CF_BEACON_TOKEN`.
 - The demo artwork staging skips a file it cannot decode and names it in the log, instead of failing the whole build on one bad download.
-- The snapshot ships each feed's rendered RSS (`rss.tar`, recorded by `scripts/demo/record_feeds.py`) as the demo app's RSS cache. Without it the app, which has no network in the demo pipeline, answered 503 for every feed.
+- The snapshot ships each feed's rendered RSS (`rss.tar`, recorded by `scripts/demo/record_feeds.py`) as the demo app's RSS cache. Without it the app, which has no network in the demo pipeline, answers 503 for every feed.
 
 ## [2.101.27] - 2026-11-07
 

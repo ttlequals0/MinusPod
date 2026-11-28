@@ -38,19 +38,19 @@ The verification and chapter models are smaller and load one at a time, so they 
 
 Local transcription on the same card needs room too: about 2 GB for faster-whisper `small` and 5 to 6 GB for `large-v3` ([Memory Requirements](installation.md#memory-requirements)). The transcription model stays loaded for 5 minutes after its last use by default, so budget for both at once, or transcribe on the CPU or a remote backend.
 
-Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Portrait cut and the file itself in [Videos](videos/README.md).
+Video walkthrough: two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. The portrait cut and the file are in [Videos](videos/README.md).
 
 https://github.com/user-attachments/assets/87741bcb-35b4-4712-9f91-36207a697cd5
 
 ## Using Anthropic directly
 
-Select Anthropic and save an API key under Settings > AI and processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
+Select Anthropic and save an API key under Settings > AI and transcription > LLM provider. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
 
 Temperature is not sent to Anthropic. API version 2026-10-21 removed the parameter on every model, so Anthropic stages run at the model default.
 
 ### Reasoning settings
 
-Under LLM Tunables, use **Reasoning budget** for models that accept manual thinking budgets, such as Claude 4.5 and 4.6. Use **Reasoning effort** for adaptive-only models, including Opus 4.7, Opus 4.8, and Claude 5 models. MinusPod sends the applicable setting for the model assigned to each stage. Both values persist when switching models or providers.
+Under LLM tunables, use **Reasoning budget** for models that accept manual thinking budgets, such as Claude 4.5 and 4.6. Use **Reasoning effort** for adaptive-only models, including Opus 4.7, Opus 4.8, and Claude 5 models. MinusPod sends the applicable setting for the model assigned to each stage. Both values persist when switching models or providers.
 
 Leave effort blank to use the configured default; without an environment default, the provider decides. `none` disables thinking where supported; models that require thinking use low effort instead. A numeric budget is not converted into an effort level. Model restrictions follow [Anthropic's thinking API](https://platform.claude.com/docs/en/build-with-claude/thinking).
 
@@ -90,7 +90,7 @@ The [Claude Code OpenAI Wrapper](https://github.com/ttlequals0/claude-code-opena
 
 **Other OpenAI-Compatible Endpoints:**
 
-The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI and processing > AI Models, or use `OPENAI_MODEL` to seed unset model settings.
+The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI and transcription > AI models, or use `OPENAI_MODEL` to seed unset model settings.
 
 **Example `.env` for OpenAI-compatible mode:**
 
@@ -111,13 +111,13 @@ BASE_URL=http://localhost:8000
 [Ollama](https://ollama.com) is an alternative to the Anthropic API. MinusPod supports both flavors:
 
 - **Local** (`http://host:11434`): no auth, no API costs, nothing leaves the machine.
-- **Cloud** (`https://ollama.com/api`): same OpenAI-compatible endpoints, just with `Authorization: Bearer <key>` on every request. Free tier works for this pipeline. Grab a key at [ollama.com/settings/keys](https://ollama.com/settings/keys).
+- **Cloud** (`https://ollama.com/api`): same OpenAI-compatible endpoints, with `Authorization: Bearer <key>` on every request. Free tier works for this pipeline. Grab a key at [ollama.com/settings/keys](https://ollama.com/settings/keys).
 
-Configuration is identical either way: pick `Ollama` in Settings > LLM Provider, set the Base URL, and (for Cloud) paste the key. The key is stored encrypted. Leave it blank for local.
+Configuration is identical either way: pick `Ollama` in Settings > AI and transcription > LLM provider, set the Base URL, and (for Cloud) paste the key. The key is stored encrypted. Leave it blank for local.
 
 A **Test connection** button sits under the Base URL field for the Ollama and OpenAI Compatible providers. It hits the same `/models` route MinusPod uses to discover models (with the same automatic `/v1` suffix for Ollama), works without an API key, and tells you whether the failure is an unreachable host, a wrong path, or a rejected key. You can test a URL before saving it; a saved API key is only sent when the tested URL matches the saved one.
 
-Anthropic and OpenRouter get the same button. Their endpoints are fixed, so the test answers a different question: can this container reach the provider at all, and if not ok, is the problem the network or the saved key.
+Anthropic and OpenRouter get the same button. Their endpoints are fixed, so the test checks whether this container can reach the provider and, if not, whether the cause is the network or the saved key.
 
 ### Heads up about Ollama Cloud model selection
 
@@ -146,7 +146,7 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 ### Recommended Models
 
-> **Note:** LLMs are non-deterministic. The same prompt against the same model can yield different ads on different runs. The picks below are where I'd start, not where I'd stop tuning.
+> **Note:** LLMs are non-deterministic. The same prompt against the same model can yield different ads on different runs. The picks below are starting points.
 
 #### Cloud LLMs (benchmark-tested)
 
@@ -169,7 +169,7 @@ Caveats:
 
 #### Local Ollama Models (by VRAM tier)
 
-Note on benchmarking: the offline benchmark in [`benchmarks/llm/`](../benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep. Adding an Ollama provider would let contributors compare local quants apples-to-apples against the cloud numbers. The recommendations below come from author testing, not a structured benchmark, so verify them on your own content.
+The offline benchmark in [`benchmarks/llm/`](../benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep. The recommendations below come from author testing, not a structured benchmark, so verify them on your own content.
 
 Models are loaded sequentially, not concurrently; VRAM requirements are not additive between passes.
 
@@ -296,7 +296,7 @@ OPENAI_BASE_URL=https://api.martllm.com/v1
 OPENAI_API_KEY=your-martllm-key
 ```
 
-The same values can be entered under Settings > AI and processing > LLM Provider by choosing OpenAI Compatible. **Test connection** works against `https://api.martllm.com/v1/models`, which needs no key.
+Enter the same values under Settings > AI and transcription > LLM provider by choosing OpenAI Compatible. **Test connection** works against `https://api.martllm.com/v1/models`, which needs no key.
 
 ### Model Selection
 
@@ -328,7 +328,7 @@ OPENAI_BASE_URL=https://llmtr.com/v1
 OPENAI_API_KEY=your-llmtr-key
 ```
 
-The same values can be entered under Settings > AI and processing > LLM Provider by choosing OpenAI Compatible. **Test connection** works against `https://llmtr.com/v1/models`, which needs no key.
+Enter the same values under Settings > AI and transcription > LLM provider by choosing OpenAI Compatible. **Test connection** works against `https://llmtr.com/v1/models`, which needs no key.
 
 ### Model Selection
 
@@ -342,9 +342,9 @@ When `OPENAI_BASE_URL` points at `llmtr.com`, MinusPod reads per-token input, ou
 
 ## Using System One
 
-Select TypeSafe or System One compatible under Settings > AI and processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
+Select TypeSafe or System One compatible under Settings > AI and transcription > LLM provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
 
-Detection, verification, and the ad category pass are supported. Review is experimental, including both passes when the reviewer inherits the pass route. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
+Detection, verification, and the ad category pass are supported. System One and TypeSafe are not supported for the reviewer as of 2.103.1. The reviewer needs an LLM provider, and the settings API answers 400 when a change routes it to System One. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
 
 ### System One request limits
 
@@ -358,9 +358,9 @@ System One preserves caller prompts, policy, and context in its structured quest
 
 ## Running without an LLM
 
-An LLM is optional. Set the provider to **None** under Settings > AI and processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
+An LLM is optional. Set the provider to **None** under Settings > AI and transcription > LLM provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
 
-Without saved patterns or fingerprints, text and audio matching cannot find ads. Other model-free detectors still run. To teach pattern matching an ad, use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each of these saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
+Without saved patterns or fingerprints, text and audio matching cannot find ads. Other model-free detectors still run. To teach pattern matching an ad, use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
 
 Ads are then found by the detectors that need no model:
 
@@ -385,30 +385,27 @@ Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>
 
 Retry ad detection and Reprocess still work. They rerun the model-free detectors, so a newly added pattern is applied to an episode already processed. Retry ad detection reruns audio fingerprints and text patterns. Reprocess reruns the whole standard pipeline without the model calls.
 
-SponsorBlock covers YouTube feeds only. On regular feeds, text and audio matching recognize saved patterns; they do not learn recurring ads automatically. Audio cues and cross-fetch comparison can still detect ads without a saved pattern.
+On regular feeds, text and audio matching recognize saved patterns and do not learn recurring ads on their own. Audio cues and cross-fetch comparison can detect ads without a saved pattern.
 
 Saved API keys and model choices are kept when you switch to None. When you switch to another provider, a stage keeps its model if its provider account is the one it used before None. Otherwise its model field is cleared. If the install started on None, only the stages that use the primary provider are cleared. None cannot be the secondary provider or the failover provider.
 
 ## Per-Stage Providers
 
-MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI and processing > AI Models shows a slot selector next to each model selector:
+MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI and transcription > AI models shows a slot selector next to each model selector:
 
 - **Ad Detection Provider** - `Default (Provider A)` or `Provider B`. Provider B only appears in the list once it is enabled and configured.
 - **Verification Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
 - **Chapters Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`, independent of the other two.
 
-The Ad Reviewer section has its own slot selector, described in [Ad Reviewer](configuration.md#ad-reviewer). `Same as pass` inherits both the provider and model of whichever pass is being reviewed. `Provider A` or `Provider B` runs the reviewer on that slot instead, and enables the Review Model selector for its catalog.
+The Ad reviewer section (Settings > Detection) has its own slot selector, described in [Ad Reviewer](configuration.md#ad-reviewer). It lists only LLM providers and models. `Same as pass` inherits the provider and model of the pass being reviewed. `Provider A` or `Provider B` runs the reviewer on that slot instead and enables the Review Model selector for its catalog.
 
-[Pattern Cleanup](pattern-cleanup.md), under Settings > Experiments, also has
-its own provider and model selectors. Each can inherit detection's choice.
-Choose a higher-quality model when reviewing patterns: an approved pattern
-can affect matches in many later episodes.
+[Pattern Cleanup](pattern-cleanup.md), under Settings > Detection > Pattern cleanup, also has its own provider and model selectors. Each can inherit detection's choice. Use a higher-quality model there: an approved pattern affects matches in many later episodes.
 
 Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Other stages keep their slot and model unless their provider account also changes.
 
 When a provider type, custom endpoint, or stage route changes the account used by a stage, MinusPod clears that stage's saved model. Empty fields show a reminder to choose a model and stay blank after reload until you choose a replacement. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list. Changing only an API key keeps model selections. If a stage is set to Provider B and Provider B is later disabled, that stage falls back to Provider A until Provider B is turned back on.
 
-Each slot needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.
+Each slot needs its own API key and, where relevant, base URL configured under Settings > AI and transcription > LLM provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.
 
 ### Routing versus failover
 
@@ -432,7 +429,7 @@ MinusPod tracks token usage and cost for every LLM call. The Settings page and `
 
 ### Custom model pricing
 
-Settings > AI and processing > AI Models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. A third optional field sets the cached input rate; leave it blank to bill cached input at the input rate. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
+Settings > AI and transcription > AI models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. A third optional field sets the cached input rate; leave it blank to bill cached input at the input rate. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
 
 Inactive prices stay saved and reappear when those models are selected again. Recorded call costs stay unchanged.
 
@@ -465,7 +462,7 @@ If the pricing fetch fails on startup and the database has no pricing data, Minu
 
 ### Pricing accuracy
 
-Pricing data comes from third-party sources and may lag behind provider announcements. Check your provider's billing dashboard for authoritative cost figures. MinusPod's cost tracking is an estimate for convenience, not a billing system.
+Pricing comes from third-party sources and may lag provider announcements. MinusPod's cost tracking is an estimate. Check your provider's billing dashboard for authoritative figures.
 
 ## Reviewer Calibration Self-Test
 
@@ -479,7 +476,7 @@ PYTHONPATH=src python -m tools.reviewer_calibration
 
 It prints a pipe-delimited table (case id, expected label, verdict, agreement) followed by a summary line with the model, provider, agreement fraction, and structured fraction. The command exits 1 when agreement falls below 0.75, so it can gate a CI or release check.
 
-Agreement below 0.75 means the reviewer is disagreeing with the expected keep/drop call on 2 or more of the 8 corpus cases. That is a signal to check the model's reasoning quality for this stage, not a hard failure, since the corpus is small and one model's phrasing conventions can differ from another's without being wrong. A low or dropping structured fraction on a model that used to report it consistently means the model has stopped emitting the `is_ad` field, which weakens the reviewer's contradiction guard.
+Agreement below 0.75 means the reviewer is disagreeing with the expected keep/drop call on 2 or more of the 8 corpus cases. Treat it as a signal to check the model's quality for this stage, not a hard failure: the corpus is small and phrasing conventions differ between models. A low or dropping structured fraction on a model that used to report it consistently means the model has stopped emitting the `is_ad` field, which weakens the reviewer's contradiction guard.
 
 The self-test also runs automatically in a background thread whenever the reviewer model setting (`reviewModel`) changes via the Settings API, and stores its result under the `reviewer_calibration_last` setting. A failed or slow calibration run never blocks the settings save. Set `reviewer_calibration_on_change` to `false` (or the `REVIEWER_CALIBRATION_ON_CHANGE` environment variable) to disable the auto-run. Each auto-run costs 8 LLM calls, one per corpus case. Calibration runs go through the production reviewer, so they emit reviewer telemetry log lines tagged `slug=reviewer-calibration`; exclude that slug from reviewer metric queries so corpus cases do not skew real verdict counts.
 

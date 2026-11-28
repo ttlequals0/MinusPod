@@ -1,6 +1,5 @@
 """Tests for the reviewer calibration self-test."""
 import json
-import dataclasses
 import threading
 import subprocess
 import sys
@@ -476,13 +475,9 @@ def test_calibration_routes_to_the_review_slot_not_the_global_client():
             db.clear_setting(k)
 
 
-def test_missing_typesafe_slot_key_skips_automatic_calibration(temp_db, monkeypatch):
-    route = calib_mod.resolve_calibration_route()
-    route = dataclasses.replace(route, provider_key='typesafe', credential_slot='secondary')
-    monkeypatch.setattr(calib_mod, 'calibration_route_revision', lambda: ('native-review', route))
-    monkeypatch.setattr(calib_mod.provider_clients, 'get_effective_secondary_provider_api_key', lambda: None)
-    monkeypatch.setattr(calib_mod.provider_clients, 'get_effective_systemone_api_key',
-                        lambda _provider: (_ for _ in ()).throw(AssertionError('secondary cannot use primary key')))
+def test_system_one_route_skips_automatic_calibration(temp_db):
+    temp_db.set_setting('llm_provider', 'typesafe', is_default=False)
+    temp_db.set_setting('claude_model', 'jev-latest', is_default=False)
     assert trigger_reviewer_calibration(temp_db, 'previous') is None
 
 

@@ -15,7 +15,7 @@ bootstrap('systemone_dispatch_test_')
 import run_context
 from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from database import Database
-from llm_client import ProviderRateLimitedError, is_review_inconclusive_error, is_retryable_error
+from llm_client import ProviderRateLimitedError, is_retryable_error
 from rate_limit_hold import reserve_provider_request
 from systemone.transport import (
     SystemOneTransport, DispatchResponse, _error_detail, _ledger_response, _request_error,
@@ -57,7 +57,6 @@ def _metadata():
         'cancel_check': lambda: None,
         'cancel_exceptions': (ProcessingCancelled, ProcessingOwnershipLost),
         'retryable': is_retryable_error,
-        'inconclusive': is_review_inconclusive_error,
         'retry_delay': lambda error, attempt: _fallback_delay(
             error, calculate_backoff(attempt), attempt == 0),
         'sleep_retry': _sleep_before_retry,

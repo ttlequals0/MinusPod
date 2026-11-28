@@ -64,3 +64,14 @@ class TestRemoveFeedFromQueue:
         status_service.queue_episode('pod-a', 'ep1', 'A', 'Pod A')
         assert status_service.remove_feed_from_queue('missing') == 0
         assert len(status_service.get_status().queued_episodes) == 1
+
+
+class TestRemoveAllQueuedEpisodes:
+    def test_removes_all_feeds(self, status_service):
+        status_service.queue_episode('pod-a', 'ep1', 'A', 'Pod A')
+        status_service.queue_episode('pod-b', 'ep2', 'B', 'Pod B')
+        assert status_service.remove_all_queued_episodes() == 2
+        assert status_service.get_status().queued_episodes == []
+
+    def test_returns_zero_when_empty(self, status_service):
+        assert status_service.remove_all_queued_episodes() == 0

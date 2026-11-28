@@ -164,7 +164,7 @@ export function jobStateOf(body: unknown): JobState | undefined {
 function handleUnauthorized(endpoint: string): void {
   const currentPath = window.location.pathname;
   if (!currentPath.includes('/login') && !endpoint.startsWith('/auth/')) {
-    storeLoginRedirect(window.location.pathname, window.location.search);
+    storeLoginRedirect(window.location.pathname, window.location.search, window.location.hash);
     window.location.href = uiUrl('/login');
     throw new Error('Authentication required');
   }

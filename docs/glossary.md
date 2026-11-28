@@ -1,6 +1,6 @@
 # Glossary
 
-Every term the app uses, in plain words, with a link to the part of the docs that covers it. If you hit a word in the UI that isn't here, open an issue.
+Terms the app uses, in plain words, each linked to the docs that cover it. If a word in the UI is missing here, open an issue.
 
 ## Contents
 
@@ -29,13 +29,17 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## A
 
+**Adaptive refresh** - RSS checking paced per feed by how it publishes, between the refresh interval and a maximum wait. On by default. [Configuration > Feed Refresh and Podping](configuration.md#feed-refresh-and-podping)
+
 **Ad chapter** - A chapter MinusPod adds for a segment it left in the audio (kept by category action, or waiting for review) so a chapter-aware player can skip it. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 
 **Ad Review** - The Patterns page tab that lists every detection across all feeds so you can confirm or reject them in one place, with a play button for the flagged audio. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
-**Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
+**Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. It needs an LLM provider; System One and TypeSafe are not supported for it. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
 **Addressing mode** - How the LLM names an ad's position: `timestamps` (it invents start and end times) or `segment_ids` (it names numbered transcript lines that MinusPod maps to exact times). The Ad addressing mode setting is experimental and `random` draws one per run. Each LLM-detected marker records the mode it was detected under (`addressing_mode`) and the model's raw bounds (`llm_start`, `llm_end`), and the stats API compares reviewer verdicts, correction rates and snap distance per mode. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
+
+**API token** - A long-lived `Authorization: Bearer mp_...` credential for scripts, created under Settings > Data and security > Security. It needs no CSRF header and has less authority than a session. [API & Webhooks > API tokens](api-and-webhooks.md#api-tokens)
 
 **Archive mode** - A per-feed retention setting that keeps every processed episode indefinitely, ignoring the global retention window and the "Clear all processed audio" action. Set it on shows you never want swept, such as ones that have stopped publishing. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
@@ -101,6 +105,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
+**Dormant feed** - A feed no podcast app has fetched for the set number of days, so new episodes are no longer auto-processed until an app fetches it again. Off by default. [Configuration > Dormant feeds](configuration.md#dormant-feeds)
+
 **Download history** - The History page's Downloads tab: one row per client download of episode audio, with time, client IP, optional location, subscriber label and client app. Repeat requests from one client within 15 minutes merge into one row, and rows are pruned after 90 days by default. [Download History](download-history.md)
 
 **Download User-Agent override** - A per-feed download identifier in Feed settings > Advanced. Blank inherits the global string; cross-fetch still uses a different podcast client. [Configuration > Outbound Requests](configuration.md#outbound-requests)
@@ -118,6 +124,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## F
 
 **Extra yt-dlp arguments** - A YouTube setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call. Options that run programs, move files, read local files, change the JSON output or update the binary are rejected. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
+
+**Feed problems** - The System health list of feeds whose refresh failed 3 times in a row, with a plain reason, the last success, the next retry and a Refresh now button. [Configuration > Feed Refresh and Podping](configuration.md#feed-refresh-and-podping)
 
 **Failover** - A standby LLM provider or transcriber that takes over a target (Provider A, Provider B, or the active transcriber) when it is unreachable, times out, or rejects the key, model, or billing. Switches back after enough consecutive healthy health-probe checks for an automatic switch, or on manual cancel for one triggered by hand. [Failover](failover.md)
 
@@ -153,7 +161,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## J
 
-**JIT blocked user agent** - An entry in Settings > Security > Agents that skip processing. A client whose User-Agent matches is redirected to the original audio when it asks for an episode MinusPod has not processed yet, instead of starting a run. Download history's Block action adds `^` plus the client's first product token. [Configuration > Blocked user agents](configuration.md#blocked-user-agents-for-just-in-time-processing)
+**JIT blocked user agent** - An entry in Settings > Data and security > Security > Agents that skip processing. A client whose User-Agent matches is redirected to the original audio when it asks for an episode MinusPod has not processed yet, instead of starting a run. Download history's Block action adds `^` plus the client's first product token. [Configuration > Blocked user agents](configuration.md#blocked-user-agents-for-just-in-time-processing)
 
 ## K
 
@@ -169,7 +177,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Long-form playlist** - The channel uploads list without Shorts that a YouTube channel feed reads by default. Turn on Shorts for the feed to read the full list. [YouTube Feeds > Shorts and duration filters](youtube-feeds.md#shorts-and-duration-filters)
 
-**Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
+**Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
 ## M
 
@@ -269,7 +277,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, keep, or mark). [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
-**Short ask** - A 2 to 40 second host ask (subscribe, rate, the host's own promotion) or sponsor thank-you that the model flags when Detect short host asks and sponsor thanks is on. It keeps its segment category, follows that category's action, and can be as short as 2 seconds. [Configuration > Segment categories](configuration.md#segment-categories)
+**Short ask** - A 2 to 40 second host ask (subscribe, rate, the host's own promotion) or sponsor thank-you that the model flags when Detect short host asks and sponsor thanks is on. It keeps its segment category and follows that category's action. [Configuration > Segment categories](configuration.md#segment-categories)
 
 **Silence snap** - Nudging a cut boundary to the nearest silence so the edit lands between words instead of inside one. [Audio Cues > Silence snap](audio-cues.md#silence-snap)
 
@@ -291,7 +299,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Subscriber feed / subscriber key** - A credential scoped to one podcast, labelled for a person or device and revocable on its own, in the form of a 16-character key ID, a dot and a 64-character secret. Download history shows the label of the key that fetched each row. Revoking one leaves the global key and other subscribers working. [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional)
 
-**System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; review is experimental. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
+**System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; the reviewer needs an LLM provider as of 2.103.1. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
 
 **Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
 

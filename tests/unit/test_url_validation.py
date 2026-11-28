@@ -310,3 +310,40 @@ class TestLogHygiene:
         messages = ' '.join(r.getMessage() for r in caplog.records)
         assert 'secret' not in messages
         assert 'alice' not in messages
+
+
+class TestDnsRetry:
+    ADDRINFO = [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 80))]
+
+    def test_transient_failure_then_success(self):
+        again = socket.gaierror(socket.EAI_AGAIN, 'Temporary failure')
+        with patch('utils.url.time.sleep') as sleep, patch(
+                'utils.url.socket.getaddrinfo', side_effect=[again, again, self.ADDRINFO]) as gai:
+            assert validate_url('http://feed.example.com/rss') == 'http://feed.example.com/rss'
+        assert gai.call_count == 3
+        assert sleep.call_count == 2
+
+    def test_nxdomain_is_not_retried(self):
+        missing = socket.gaierror(socket.EAI_NONAME, 'Name or service not known')
+        with patch('utils.url.time.sleep') as sleep, patch(
+                'utils.url.socket.getaddrinfo', side_effect=missing) as gai:
+            with pytest.raises(SSRFError, match='Cannot resolve'):
+                validate_url('http://feed.example.com/rss')
+        assert gai.call_count == 1
+        sleep.assert_not_called()
+
+    def test_exhaustion_raises(self):
+        again = socket.gaierror(socket.EAI_AGAIN, 'Temporary failure')
+        with patch('utils.url.time.sleep'), patch(
+                'utils.url.socket.getaddrinfo', side_effect=again) as gai:
+            with pytest.raises(SSRFError, match='Cannot resolve'):
+                validate_url('http://feed.example.com/rss')
+        assert gai.call_count == 3
+
+    def test_ssrf_decision_uses_returned_addresses_after_retry(self):
+        again = socket.gaierror(socket.EAI_AGAIN, 'Temporary failure')
+        private = [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('10.0.0.5', 80))]
+        with patch('utils.url.time.sleep'), patch(
+                'utils.url.socket.getaddrinfo', side_effect=[again, private]):
+            with pytest.raises(SSRFError, match='private'):
+                validate_url('http://feed.example.com/rss')

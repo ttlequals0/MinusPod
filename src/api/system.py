@@ -17,6 +17,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time, apply_url_prefix,
 )
+from api.auth_state import current_auth
 from api.failover import probes_view, targets_view
 import transcriber
 from changelog import load_sections, version_key
@@ -37,7 +38,7 @@ from secrets_crypto import (
     is_available as crypto_available,
     encrypt_backup_file,
 )
-from db_backup_service import backup_now, BackupInProgressError
+from db_backup_service import backup_now, BackupDestinationError, BackupInProgressError
 from diagnostic_log import export as export_diagnostics, _parse_time
 from utils.http import safe_url_for_log
 from utils.markers import parse_ad_markers
@@ -440,6 +441,9 @@ def backup_database():
     from flask import after_this_request
 
     encrypt_requested = request.args.get('encrypted', 'true').lower() != 'false'
+    # A plaintext copy holds the Flask secret key, which would let a token forge a session.
+    if not encrypt_requested and current_auth().token_id is not None:
+        return error_response('API tokens can only download encrypted backups', 403)
     passphrase = os.environ.get('MINUSPOD_MASTER_PASSPHRASE')
     if encrypt_requested and not passphrase:
         logger.warning(
@@ -646,6 +650,8 @@ def run_db_backup():
         summary = backup_now(db)
     except BackupInProgressError:
         return error_response('a backup is already in progress', 409)
+    except BackupDestinationError as e:
+        return error_response(f'Backup destination is not usable: {e}', 409)
     except Exception as e:
         # backup_now already stamped db_backup_last_error (surfaced via GET);
         # keep the client body a flat Error-schema string with no raw str(e).

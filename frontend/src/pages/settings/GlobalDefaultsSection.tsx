@@ -14,8 +14,14 @@ interface GlobalDefaultsSectionProps {
   onAutoProcessEnabledChange: (enabled: boolean) => void;
   autoProcessMaxAgeHours: number;
   onAutoProcessMaxAgeHoursChange: (hours: number) => void;
+  dormantFeedDays: number;
+  onDormantFeedDaysChange: (days: number) => void;
   rssRefreshIntervalMinutes: number;
   onRssRefreshIntervalMinutesChange: (value: number) => void;
+  adaptiveRefreshEnabled: boolean;
+  onAdaptiveRefreshEnabledChange: (enabled: boolean) => void;
+  adaptiveRefreshMaxMinutes: number;
+  onAdaptiveRefreshMaxMinutesChange: (value: number) => void;
   podpingEnabled: boolean;
   onPodpingEnabledChange: (enabled: boolean) => void;
   maxFeedEpisodes: number;
@@ -47,8 +53,14 @@ function GlobalDefaultsSection({
   onAutoProcessEnabledChange,
   autoProcessMaxAgeHours,
   onAutoProcessMaxAgeHoursChange,
+  dormantFeedDays,
+  onDormantFeedDaysChange,
   rssRefreshIntervalMinutes,
   onRssRefreshIntervalMinutesChange,
+  adaptiveRefreshEnabled,
+  onAdaptiveRefreshEnabledChange,
+  adaptiveRefreshMaxMinutes,
+  onAdaptiveRefreshMaxMinutesChange,
   podpingEnabled,
   onPodpingEnabledChange,
   maxFeedEpisodes,
@@ -155,6 +167,28 @@ function GlobalDefaultsSection({
           </p>
         </div>
 
+        {/* Dormant feeds */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="dormantFeedDays" className={labelBase}>
+            Pause auto-process for unrequested feeds
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="dormantFeedDays"
+              value={dormantFeedDays}
+              min={0}
+              max={3650}
+              step={1}
+              fallback={0}
+              onCommit={onDormantFeedDaysChange}
+            />
+            <span className="text-sm text-muted-foreground">days, 0 to turn off</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            A feed no podcast app has fetched for this many days is dormant and stops auto-processing new episodes. Episodes still process when played, and auto-process resumes on the next feed fetch. A feed with Auto-Process set to Enabled is never paused.
+          </p>
+        </div>
+
         {/* Feed refresh interval */}
         <div className="pt-4 border-t border-border">
           <label htmlFor="rssRefreshIntervalMinutes" className={labelBase}>
@@ -173,8 +207,38 @@ function GlobalDefaultsSection({
             <span className="text-sm text-muted-foreground">5 to 1440</span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Minutes between background RSS refresh passes. Default 15.
+            The shortest wait, in minutes, between checks of a feed. Default 15.
           </p>
+          <label className="mt-4 flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={adaptiveRefreshEnabled}
+              onChange={onAdaptiveRefreshEnabledChange}
+              ariaLabel="Adapt refresh to each feed"
+            />
+            <span className="text-sm font-medium text-foreground">Adapt refresh to each feed</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Adaptive refresh checks busy feeds often and quiet feeds less often, and backs off when a host is failing or asks us to wait. When off, every feed is checked on the interval above; a host's request to wait and failure backoff still apply.
+          </p>
+          {adaptiveRefreshEnabled && (
+            <div className="mt-3">
+              <label htmlFor="adaptiveRefreshMaxMinutes" className={labelBase}>
+                Longest wait for a healthy feed
+              </label>
+              <div className="flex items-center gap-3">
+                <NumberInput
+                  id="adaptiveRefreshMaxMinutes"
+                  value={adaptiveRefreshMaxMinutes}
+                  min={rssRefreshIntervalMinutes}
+                  max={1440}
+                  step={1}
+                  fallback={60}
+                  onCommit={onAdaptiveRefreshMaxMinutesChange}
+                />
+                <span className="text-sm text-muted-foreground">minutes, at least the interval above</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Podping notifications */}

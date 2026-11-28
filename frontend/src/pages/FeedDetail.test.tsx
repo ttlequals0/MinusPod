@@ -2,7 +2,7 @@
  * Podping coverage metadata line on FeedDetail; the heavy feature panels are stubbed.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -13,12 +13,13 @@ import type { Episode, Feed } from '../api/types';
 const mockNavigate = vi.fn();
 let mockInitialSearch = '';
 let mockLocationState: { notice?: string } | null = null;
+let mockLocationHash = '';
 
 vi.mock('react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ slug: 'test-feed' }),
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState }),
+  useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState, hash: mockLocationHash, key: 'k' }),
 }));
 
 const mockGetSettings = vi.hoisted(() => vi.fn());
@@ -81,6 +82,7 @@ function renderFeedDetail(feed: Feed, episodes: Episode[] = []) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockLocationState = null;
+  mockLocationHash = '';
   mockInitialSearch = '';
   mockGetSettings.mockResolvedValue({ llmEnabled: true });
 });
@@ -711,14 +713,12 @@ describe('FeedDetail: description override', () => {
     expect(screen.queryByText('Custom')).toBeNull();
   });
 
-  it('renders Feed sections jump bar and clears episode search and status filters', async () => {
+  it('renders Feed sections tabs and clears episode search and status filters', async () => {
     const user = userEvent.setup();
     renderFeedDetail(makeFeed({ episodeCount: 12 }));
-    const nav = await screen.findByRole('navigation', { name: 'Feed sections' });
-    expect(nav.querySelector('a[href="#feed-settings-section"]')).toBeTruthy();
-    expect(nav.querySelector('a[href="#ad-distribution-section"]')).toBeTruthy();
-    expect(nav.querySelector('a[href="#audio-cues-section"]')).toBeTruthy();
-    expect(nav.querySelector('a[href="#feed-episodes-section"]')?.textContent).toContain('12');
+    const tablist = await screen.findByRole('tablist', { name: 'Feed sections' });
+    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent))
+      .toEqual(['Episodes12', 'Feed settings', 'Ad distribution', 'Audio cues']);
 
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
     const search = screen.getByRole('searchbox', { name: 'Search episode titles' }) as HTMLInputElement;

@@ -9,7 +9,7 @@ import logging
 from copy import deepcopy
 
 from audio_processor import get_replacement_duration
-from config import UNREVIEWABLE_GAP_SECONDS
+from config import UNREVIEWABLE_GAP_SECONDS, resolve_audio_analysis_enabled
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError, AudioExtractionError
 from utils.language import get_feed_language_override
@@ -103,9 +103,10 @@ class VerificationPass:
         try:
             # The feed PK lets the cue analyzer pick the per-feed template matcher
             # instead of only the spectral fallback.
-            processed_analysis = self.audio_analyzer.analyze(
-                processed_audio_path, feed_id=feed_id,
-            )
+            if resolve_audio_analysis_enabled(self.db):
+                processed_analysis = self.audio_analyzer.analyze(
+                    processed_audio_path, feed_id=feed_id,
+                )
             if processed_analysis and processed_analysis.signals:
                 logger.info(f"[{slug}:{episode_id}] Verification: "
                            f"{len(processed_analysis.signals)} audio signals")

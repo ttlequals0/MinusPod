@@ -31,6 +31,7 @@ from typing import Any
 from secrets_crypto import count_plaintext_secrets, count_stored_secrets
 from utils.cron import is_due
 from utils.db_backup import snapshot_database
+from utils.paths import STATIC_UI_DIR
 from utils.time import (
     parse_iso_utc as _parse_iso,
     utc_now as _utc_now,
@@ -52,6 +53,27 @@ _lock_retry_sleep = time.sleep
 
 class BackupInProgressError(Exception):
     """Raised when another backup already holds the lock."""
+
+
+class BackupDestinationError(ValueError):
+    """Raised when the configured destination fails validation."""
+
+
+_APP_ROOT = Path(__file__).resolve().parent.parent
+
+
+def served_directories(data_dir: str | Path) -> list[Path]:
+    """Directories the app serves over HTTP, resolved; a database copy must never land in one."""
+    data_root = Path(os.path.realpath(str(data_dir)))
+    candidates = [
+        data_root / 'podcasts',  # episode audio, artwork, transcripts, chapters, feed XML
+        data_root / 'logs',  # per-episode run logs
+        STATIC_UI_DIR,
+        Path(__file__).resolve().parent / 'main_app' / 'static',  # Flask default /static
+        _APP_ROOT / 'assets',  # replacement audio
+        _APP_ROOT / 'assets_builtin',
+    ]
+    return [Path(os.path.realpath(str(c))) for c in candidates]
 
 
 def validate_backup_dest(raw: Any, data_dir: str | Path) -> Path:
@@ -80,6 +102,10 @@ def validate_backup_dest(raw: Any, data_dir: str | Path) -> Path:
         raise ValueError('destination must not be the data directory itself')
     if resolved == '/':
         raise ValueError('destination must not be the filesystem root')
+    for served in served_directories(data_root):
+        if Path(resolved) == served or served in Path(resolved).parents:
+            raise ValueError(
+                f'destination must not be inside a directory MinusPod serves over HTTP ({served.name})')
     if os.path.exists(resolved) and not os.path.isdir(resolved):
         raise ValueError('destination exists and is not a directory')
     return Path(resolved)
@@ -291,6 +317,24 @@ def backup_in_progress(db) -> bool:
     return False
 
 
+def stored_dest_problem(db) -> str | None:
+    """Why the stored destination cannot be used (for example after an upgrade), else None."""
+    try:
+        validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
+def warn_if_dest_unusable(db) -> None:
+    """Log one startup warning when backups are on but the stored destination is refused."""
+    if not db.get_setting_bool('db_backup_enabled', default=False):
+        return
+    problem = stored_dest_problem(db)
+    if problem:
+        logger.warning('db_backup: scheduled backups will fail until the destination is changed: %s', problem)
+
+
 def backup_now(db) -> dict[str, Any]:
     """Run a backup now regardless of schedule. Returns a summary dict.
 
@@ -306,6 +350,14 @@ def backup_now(db) -> dict[str, Any]:
             # errno adds nothing they act on.
             raise BackupInProgressError('a backup is already in progress')
 
+        # An unusable destination is recorded as the error and never stamps last_run.
+        try:
+            dest = validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
+        except ValueError as e:
+            db.set_setting('db_backup_last_error', str(e))
+            logger.warning('db_backup: backup failed: %s', e)
+            raise BackupDestinationError(str(e)) from e
+
         # Stamp last_run only once we hold the lock and a backup genuinely runs;
         # a contending caller must not consume the retry slot.
         db.set_setting('db_backup_last_run', utc_now_iso())
@@ -315,7 +367,6 @@ def backup_now(db) -> dict[str, Any]:
         stage_fd = None
         stage_name = None
         try:
-            dest = validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
             keep = _clamp_keep_count(db.get_setting('db_backup_keep_count'))
             if not Path('/proc/self/fd').is_dir():
                 raise RuntimeError('Scheduled backups require Linux /proc/self/fd; '

@@ -1191,8 +1191,6 @@ describe('FeedSettingsPanel cue-only mode controls', () => {
     mockGetSettings.mockResolvedValue({});
     mockUpdateFeed.mockResolvedValue(makeFeed());
     mockListCueTemplates.mockResolvedValue([]);
-    // Opens the templates query gate (mirrors the panel's own storage key).
-    localStorage.setItem('feed-settings-test-feed', 'true');
   });
 
   it('disables the cue_only option when no qualifying templates exist', async () => {
@@ -1268,7 +1266,6 @@ describe('FeedSettingsPanel chapter trim transcription toggle', () => {
     mockGetSettings.mockResolvedValue({});
     mockUpdateFeed.mockResolvedValue(makeFeed());
     mockListCueTemplates.mockResolvedValue([]);
-    localStorage.setItem('feed-settings-test-feed', 'true');
   });
 
   const toggle = () => screen.queryAllByRole('switch', { name: 'Skip transcription' });
@@ -1312,7 +1309,6 @@ describe('FeedSettingsPanel experimental labelling', () => {
     mockGetSettings.mockResolvedValue({});
     mockUpdateFeed.mockResolvedValue(makeFeed());
     mockListCueTemplates.mockResolvedValue([]);
-    localStorage.setItem('feed-settings-test-feed', 'true');
   });
 
   it('marks the cue_only preset experimental', async () => {

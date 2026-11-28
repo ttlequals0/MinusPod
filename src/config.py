@@ -1059,6 +1059,23 @@ DOWNLOAD_HISTORY_RETENTION_DAYS_MIN = 1
 DOWNLOAD_HISTORY_RETENTION_DAYS_MAX = 3650
 DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT = 90
 
+# Days without a served-RSS request before a feed stops auto-processing new
+# episodes; 0 turns dormancy off.
+DORMANT_FEED_DAYS_MIN = 0
+DORMANT_FEED_DAYS_MAX = 3650
+DORMANT_FEED_DAYS_DEFAULT = 0
+# Unfetched-episode retention: a processed episode no client has fetched is
+# kept up to UNFETCHED_RETENTION_DAYS (0 = off) instead of the normal window,
+# and a fetched one stays FETCHED_RETENTION_GRACE_DAYS past its first fetch.
+UNFETCHED_RETENTION_DAYS_MIN = 0
+UNFETCHED_RETENTION_DAYS_MAX = 3650
+UNFETCHED_RETENTION_DAYS_DEFAULT = 0
+FETCHED_RETENTION_GRACE_DAYS_MIN = 0
+FETCHED_RETENTION_GRACE_DAYS_MAX = 365
+FETCHED_RETENTION_GRACE_DAYS_DEFAULT = 3
+# Minimum spacing between last_feed_request_at writes for one feed.
+FEED_REQUEST_TOUCH_INTERVAL_SECONDS = 600
+
 MAX_LLM_WINDOW_AD_MIN = 60
 MAX_LLM_WINDOW_AD_MAX = 900
 
@@ -1430,6 +1447,60 @@ def resolve_download_history_retention_days(db) -> int:
                               DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT)
     return min(max(days, DOWNLOAD_HISTORY_RETENTION_DAYS_MIN),
                DOWNLOAD_HISTORY_RETENTION_DAYS_MAX)
+
+
+RSS_REFRESH_MINUTES_MIN = 5
+RSS_REFRESH_MINUTES_MAX = 1440
+RSS_REFRESH_MINUTES_DEFAULT = 15
+ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT = 60
+
+
+def _clamped_setting_int(db, key: str, default: int, lo: int, hi: int) -> int:
+    return min(max(db.get_setting_int(key, default), lo), hi)
+
+
+def resolve_refresh_floor_seconds(db) -> int:
+    """The global refresh interval in seconds; the adaptive floor."""
+    return 60 * _clamped_setting_int(db, 'rss_refresh_interval_minutes', RSS_REFRESH_MINUTES_DEFAULT,
+                                     RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX)
+
+
+def resolve_adaptive_refresh(db) -> tuple[bool, int, int]:
+    """(enabled, max interval in seconds, floor in seconds); the max is never below the floor."""
+    floor = resolve_refresh_floor_seconds(db)
+    max_seconds = 60 * _clamped_setting_int(
+        db, 'adaptive_refresh_max_minutes', ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT,
+        RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX)
+    return db.get_setting_bool('adaptive_refresh_enabled', True), max(max_seconds, floor), floor
+
+
+def resolve_audio_analysis_enabled(db) -> bool:
+    """Global audio analysis switch; an unreadable setting counts as on."""
+    if db is None:
+        return True
+    try:
+        return db.get_setting_bool('audio_analysis_enabled', default=True)
+    except Exception as exc:
+        _tunable_logger.warning(f"Failed to read audio_analysis_enabled: {exc}")
+        return True
+
+
+def resolve_dormant_feed_days(db) -> int:
+    """Idle days before a feed goes dormant; 0 means off."""
+    return _clamped_setting_int(db, 'dormant_feed_days', DORMANT_FEED_DAYS_DEFAULT,
+                                DORMANT_FEED_DAYS_MIN, DORMANT_FEED_DAYS_MAX)
+
+
+def resolve_unfetched_retention_days(db) -> int:
+    """Days a never-fetched processed episode is kept; 0 means off."""
+    return _clamped_setting_int(db, 'unfetched_retention_days', UNFETCHED_RETENTION_DAYS_DEFAULT,
+                                UNFETCHED_RETENTION_DAYS_MIN, UNFETCHED_RETENTION_DAYS_MAX)
+
+
+def resolve_fetched_retention_grace_days(db) -> int:
+    """Days a fetched episode is kept past its first fetch."""
+    return _clamped_setting_int(db, 'fetched_retention_grace_days', FETCHED_RETENTION_GRACE_DAYS_DEFAULT,
+                                FETCHED_RETENTION_GRACE_DAYS_MIN, FETCHED_RETENTION_GRACE_DAYS_MAX)
 
 
 def resolve_max_llm_window_ad_seconds(db) -> float:
@@ -1919,12 +1990,6 @@ SYSTEMONE_TUNABLE_DEFAULTS = {
         'categoryPass': True,
         'categoryContext': 2,
         'defaultCategory': 'sponsor',
-        'refineBoundaries': False,
-        'reviewEvidenceEnter': None,
-        'reviewChoiceEnter': None,
-        'reviewProgrammeVeto': 0.85,
-        'reviewBoundaryCapSeconds': 60.0,
-        'reviewContextSeconds': 30.0,
         'requestDeadlineSeconds': 75.0,
         'maxConcurrentOperations': 4,
         'retryAfterMaxSeconds': 5.0,
@@ -1939,12 +2004,6 @@ SYSTEMONE_TUNABLE_DEFAULTS = {
         'categoryPass': True,
         'categoryContext': 2,
         'defaultCategory': 'sponsor',
-        'refineBoundaries': False,
-        'reviewEvidenceEnter': None,
-        'reviewChoiceEnter': None,
-        'reviewProgrammeVeto': 0.85,
-        'reviewBoundaryCapSeconds': 60.0,
-        'reviewContextSeconds': 30.0,
         'requestDeadlineSeconds': 75.0,
         'maxConcurrentOperations': 4,
         'retryAfterMaxSeconds': 5.0,
@@ -2832,6 +2891,7 @@ ENV_BACKED_SETTINGS = (
         _validate_audio_encoder_compression_level,
     ),
     ('skip_flac_compression', 'SKIP_FLAC_COMPRESSION', 'false', _validate_bool_string),
+    ('transcribe_raw_api_chunks', 'MINUSPOD_RAW_API_CHUNKS', 'false', _validate_bool_string),
     (
         'ad_detection_parallel_windows',
         'AD_DETECTION_PARALLEL_WINDOWS',

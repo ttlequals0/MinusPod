@@ -79,6 +79,8 @@ SEED_SNAPSHOT = {
     'queue_order': 'queued',
     'dai_differential_overrides_keep': 'true',
     'splice_veto_enabled': 'true',
+    'audio_analysis_enabled': 'true',
+    'splice_evidence_enabled': 'true',
     'differential_hold_min_seconds': '10',
     'held_widen_seconds': '0',
     'differential_measured_corr_max': '0.60',
@@ -120,10 +122,10 @@ SEED_SNAPSHOT = {
     'whats_new_on_upgrade': 'true',
     'openai_base_url': 'http://localhost:8000/v1',
     'systemone_base_url': '',
-    'systemone_tunables_primary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
-    'systemone_tunables_primary_compatible': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":null,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
-    'systemone_tunables_secondary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
-    'systemone_tunables_secondary_compatible': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":null,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
+    'systemone_tunables_primary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0}',
+    'systemone_tunables_primary_compatible': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":null,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0}',
+    'systemone_tunables_secondary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0}',
+    'systemone_tunables_secondary_compatible': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":null,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0}',
 
     'podping_enabled': 'false',
     'processing_hard_timeout_seconds': '7200',
@@ -137,7 +139,12 @@ SEED_SNAPSHOT = {
     'secondary_provider_base_url': 'http://localhost:8000/v1',
     'review_prompt': ('sha256', '71f8a86b21db7272c5ec9e981faf09c64dd73f5355a8dc232173d602bb924d0f'),  # Updated for the measured-fingerprint sentence
     'rss_refresh_interval_minutes': '15',
+    'adaptive_refresh_enabled': 'true',
+    'adaptive_refresh_max_minutes': '60',
     'auto_process_max_age_hours': '48',
+    'dormant_feed_days': '0',
+    'unfetched_retention_days': '0',
+    'fetched_retention_grace_days': '3',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',
     'queue_bulk_boost': '0',
@@ -223,7 +230,7 @@ EXPECTED_AD_RESET_KEYS = {
     'openrouter_api_key',
     'whisper_backend', 'whisper_api_base_url', 'whisper_api_key',
     'whisper_api_model', 'whisper_compute_type', 'whisper_language',
-    'skip_flac_compression', 'vad_gap_detection_enabled',
+    'skip_flac_compression', 'transcribe_raw_api_chunks', 'vad_gap_detection_enabled',
     'vad_gap_start_min_seconds', 'vad_gap_mid_min_seconds',
     'vad_gap_tail_min_seconds',
     'audio_cue_detection_enabled', 'audio_cue_freq_min_hz',
@@ -258,6 +265,7 @@ EXPECTED_AD_RESET_KEYS = {
     'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
     'dai_differential_overrides_keep', 'splice_veto_enabled',
+    'audio_analysis_enabled', 'splice_evidence_enabled',
     'ad_detection_exclude_start_seconds',
     # Provider failover (#806).
     'whisper_max_attempts',
@@ -279,7 +287,9 @@ NON_RESETTABLE_KEYS = (
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
     'review_provider', 'secondary_provider_enabled',
-    'rss_refresh_interval_minutes', 'segment_category_actions',
+    'rss_refresh_interval_minutes', 'adaptive_refresh_enabled', 'adaptive_refresh_max_minutes',
+    'dormant_feed_days', 'segment_category_actions',
+    'unfetched_retention_days', 'fetched_retention_grace_days',
     'queue_manual_boost', 'queue_fresh_boost', 'queue_bulk_boost',
     'community_sync_categories',
     'system_prompt_override', 'verification_prompt_override',
@@ -493,6 +503,7 @@ class TestGetDefaults:
             'audioNormalizeEnabled': False,
             'audioNormalizeIntensity': 'normal',
             'skipFlacCompression': False,
+            'transcribeRawApiChunks': False,
             'adDetectionParallelWindows': 4,
             'adReviewerParallelAds': 4,
             'maxArtworkBytes': 26214400,
@@ -534,7 +545,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 190
+        assert len(payload_keys) == 196
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

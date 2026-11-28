@@ -1,13 +1,23 @@
 """Log-oriented HTTP helpers. Outbound requests go through ``utils.safe_http``
 for per-redirect SSRF revalidation and downgrade guards."""
+import logging
 import re
 import sys
 from urllib.parse import urlsplit
 
 from flask import request
 
+from utils.url import classify_ssrf
+
 # Any run of 64 or more hex chars goes, so a key glued to a percent escape or more hex is still caught.
 _FEED_CREDENTIAL_RE = re.compile(r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64,}')
+# MinusPod API token and any bearer credential, wherever it lands in a log line.
+_API_TOKEN_RE = re.compile(r'(?<![A-Za-z0-9_-])mp_[A-Za-z0-9_-]{8,}')
+# The lookahead spares a whole prose word after "Bearer" ("Missing Bearer authorization header"), not a token starting with one.
+_BEARER_RE = re.compile(
+    r'(?i)\bbearer\s+'
+    r'(?!(?:tokens?|authorization|credentials?|header|auth|scheme)(?=\s|$|[,:;!?)\]"\']|\.(?:\s|$)))'
+    r'[A-Za-z0-9._~+/=-]{8,}')
 # Every str.splitlines break; a break does not end a token, so a query continued on the next line is caught.
 _LINE_BREAKS = '\n\x0b\x0c\r\x1c\x1d\x1e\x85\u2028\u2029'
 # Whitespace that is not a line break: only this ends a token or takes a length cut.
@@ -41,6 +51,10 @@ _redaction_failure_reported = False
 
 def redact_feed_credentials(value: str) -> str:
     return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
+
+
+def redact_api_tokens(value: str) -> str:
+    return _BEARER_RE.sub('Bearer [redacted-token]', _API_TOKEN_RE.sub('[redacted-token]', value))
 
 
 def _redact_query_token(match: re.Match) -> str:
@@ -84,7 +98,7 @@ def report_redaction_failure(exc: Exception) -> None:
 
 
 def _redact(text: str, keep_query: bool) -> str:
-    text = redact_feed_credentials(redact_url_userinfo(text))
+    text = redact_api_tokens(redact_feed_credentials(redact_url_userinfo(text)))
     return text if keep_query else scrub_query_strings(text)
 
 
@@ -224,3 +238,22 @@ def redirect_chain_for_log(response, keep_query: bool = False) -> list[str]:
         lines.append("  final: " + safe_url_for_log(
             getattr(response, 'url', None), keep_path=True, keep_query=keep_query))
     return lines
+
+
+_SSRF_LABELS = {
+    'blocked_address': 'Blocked address',
+    'invalid_url': 'Rejected URL',
+    'insecure_redirect': 'Insecure redirect blocked',
+}
+
+
+def log_ssrf_failure(log, where, exc, url=None, prefix='', warn_level=logging.WARNING,
+                     with_reason=True):
+    """Log an SSRFError by cause: a DNS failure at INFO, a blocked target at ``warn_level``; host only."""
+    kind, _ = classify_ssrf(str(exc))
+    host = f' ({safe_url_for_log(url)})' if url else ''
+    if kind == 'dns':
+        log.info('%sCould not resolve host in %s%s', prefix, where, host)
+    else:
+        reason = f': {redact_exc_urls(exc)}' if with_reason else ''
+        log.log(warn_level, '%s%s in %s%s%s', prefix, _SSRF_LABELS[kind], where, reason, host)

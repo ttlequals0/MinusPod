@@ -28,7 +28,7 @@ SMTP_TIMEOUT_SECONDS = 10
 VALID_SECURITY = ('none', 'starttls', 'ssl')
 DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
-    'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
+    'Feed Refresh Failed', 'Feed Refresh Recovered', 'Update Available', 'Cue Template Quiet',
     'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
     'Failover Triggered', 'Failover Cancelled',
 ]
@@ -251,6 +251,17 @@ def _fmt_feed_refresh_failed(ctx):
                            'detail.')
 
 
+def _fmt_feed_refresh_recovered(ctx):
+    subject = f"[MinusPod] Feed Refresh Recovered: {ctx.get('podcast_name', 'unknown')}"
+    rows = [
+        ('Podcast', f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))})"),
+        ('Feed URL', _value(ctx.get('feed_url'))),
+        ('Failures before recovery', _value(ctx.get('failure_count'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, 'The feed refreshed successfully again. No action is needed.'
+
+
 def _fmt_cue_template_quiet(ctx):
     podcast = ctx.get('podcast', {})
     template = ctx.get('template', {})
@@ -362,6 +373,7 @@ FORMATTERS = {
     'Limit Exceeded': _fmt_limit_exceeded,
     'Rate Limit Structural': _fmt_rate_limit_structural,
     'Feed Refresh Failed': _fmt_feed_refresh_failed,
+    'Feed Refresh Recovered': _fmt_feed_refresh_recovered,
     'Update Available': _fmt_update_available,
     'Cue Template Quiet': _fmt_cue_template_quiet,
     'Queue Held': _fmt_queue_held,

@@ -94,6 +94,28 @@ class _PhaseRejected(Exception):
         self.response = response
 
 
+def int_range_writes(data, fields, *, strict=False):
+    """Validated (db key, int) writes for integer range fields, or an issue.
+
+    Non-strict truncates floats and numeric strings; strict accepts only real ints (not bool)."""
+    writes = []
+    for payload_key, db_key, floor, ceiling in fields:
+        if payload_key not in data:
+            continue
+        raw = data[payload_key]
+        if strict and (isinstance(raw, bool) or not isinstance(raw, int)):
+            return None, (f'{payload_key} must be an integer', 400)
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            return None, (f'{payload_key} must be an integer', 400)
+        if n < floor or (ceiling is not None and n > ceiling):
+            bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
+            return None, (f'{payload_key} must be {bound}', 400)
+        writes.append((db_key, n))
+    return writes, None
+
+
 def validate_community_sync_categories(value) -> tuple:
     """Validate a communitySyncCategories/categories payload list.
 

@@ -177,6 +177,10 @@ export async function getPatterns(params?: {
   return response.patterns;
 }
 
+export async function getPattern(id: number): Promise<AdPattern> {
+  return apiRequest<AdPattern>(`/patterns/${id}`);
+}
+
 export async function updatePattern(
   id: number,
   updates: {

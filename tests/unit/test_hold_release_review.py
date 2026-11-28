@@ -11,7 +11,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('hold_release_review_test_')
 
 from ad_reviewer import (
-    ReviewResult, ReviewVerdict, _review_inconclusive_reason, split_resurrection_pool,
+    ReviewResult, ReviewVerdict, split_resurrection_pool,
 )
 from ad_validator import Decision
 from audio_processor import get_replacement_duration
@@ -762,15 +762,14 @@ def test_user_trimmed_confirm_still_keeps_the_trimmed_audio_unheld():
     assert not any(a.get('pass2_hold_remainder') for a in ads)
 
 
-class _AbstainError(Exception):
-    body = {'error': {'reason': 'insufficient_evidence', 'stage': 'evidence',
-                      'score': 0.41, 'threshold': 0.6}}
+# Reason text stored by earlier versions on an abstained review.
+ABSTAIN_REASON = 'Reviewer abstained: insufficient evidence. Stage: evidence; score: 0.41; threshold: 0.6. Original marker retained.'
 
 
 def test_inconclusive_hold_review_records_the_reason(monkeypatch, caplog):
     candidates = _candidate()
     hold = candidates[0][1]
-    reason = _review_inconclusive_reason(_AbstainError())
+    reason = ABSTAIN_REASON
     with caplog.at_level('INFO', logger='podcast.audio'):
         released, _calls = _review(monkeypatch, candidates, [
             _verdict('inconclusive', 1040.0, 1060.0, reasoning=reason)])
@@ -825,7 +824,7 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     candidates = [(_orig(1040.0, 1060.0), hold)]
     _review(monkeypatch, candidates, [_verdict(
         'inconclusive', 1040.0, 1060.0,
-        reasoning=_review_inconclusive_reason(_AbstainError()))])
+        reasoning=ABSTAIN_REASON)])
     stored = {k: v for k, v in hold.items() if not k.startswith('_')}
 
     db = MagicMock()

@@ -121,3 +121,13 @@ describe('ReviewTab pages in the URL', () => {
     expect(mockHeld).toHaveBeenLastCalledWith({ limit: 25, offset: 25 });
   });
 });
+
+describe('ReviewTab held Review control', () => {
+  it('is a link to the held section of the episode, named for the episode', async () => {
+    mockAwaiting.mockResolvedValue({ count: 0, episodes: [] });
+    mockHeld.mockResolvedValue({ count: 1, episodes: [row(4, 2)] });
+    renderTab();
+    const link = await screen.findByRole('link', { name: 'Review Episode 4' });
+    expect(link.getAttribute('href')).toBe('/feeds/example-podcast/episodes/ep-4#held-for-review-section');
+  });
+});

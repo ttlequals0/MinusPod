@@ -35,11 +35,11 @@ Pattern Cleanup only reviews patterns where `created_by = 'auto'` and `source = 
 
 ## Schedule and model choice
 
-Settings > Experiments > Pattern Cleanup has:
+Settings > Detection > Pattern cleanup has:
 
 - **Enable scheduled cleanup** - turns the cron schedule on or off. Run now works either way.
 - **Schedule** - a 5-field cron expression, interpreted as UTC. Default `0 4 * * 0` (weekly, Sunday 04:00).
-- **Cleanup Provider** / **Cleanup Model** - which credential slot and model review the patterns. Left blank, both inherit the detection stage's slot and model. The UI recommends picking a higher-quality model here than you use for everyday detection. Cleanup runs far less often than detection, so the extra cost per call buys more reliable trims and splits.
+- **Cleanup Provider** / **Cleanup Model** - which credential slot and model review the patterns. Left blank, both inherit the detection stage's slot and model. A System One route is not supported: enabling cleanup or starting a run is blocked until you choose a chat provider and model. The UI recommends picking a higher-quality model here than you use for everyday detection. Cleanup runs far less often than detection, so the extra cost per call buys more reliable trims and splits.
 - **Patterns per run** - how many patterns one run sends to the model, 1 to 200, default 25. Patterns never reviewed go first, then patterns whose reviews failed. Statistics checks cover all active learned patterns without model calls.
 - **Retire after (days unused)** - how long without a match before cleanup suggests retiring a pattern, 7 to 3650 days, default 90.
 
@@ -62,7 +62,7 @@ provider actually called, including failover retries.
 Each run checks active learned patterns for three conditions without calling the model:
 
 - **Retire**: the pattern has had no match in longer than the configured unused-days window (or never matched). It is also old enough that it is not a freshly learned pattern waiting for its first match.
-- **Flag**: the pattern already has a high false-positive rate relative to its confirmations, the same rule that would otherwise sit in the pattern's stats unexamined.
+- **Flag**: the pattern already has a high false-positive rate relative to its confirmations.
 - **Unnamed sponsor**: the pattern has a sponsor, but neither its name nor an alias appears in its text, and no domain or promo code in the text backs the name.
 
 A false-positive flag requires at least two false positives and at least as
@@ -155,9 +155,11 @@ The Stats page's Pattern Cleanup section separates run totals, pattern checks, s
 
 Suggested and applied actions use a table on wider screens and stacked cards on mobile. Both show Proposed, Accepted, Applied, and Reverted counts.
 
-Runs, checks, proposals, and linked usage use the cleanup run's start date. Unlinked Pattern Cleanup requests are grouped by request time and appear only when All Podcasts is selected; their spend is not assigned to a feed. Legacy runs have unknown spend rather than an estimated value. Historical per-pattern checks are unavailable. Historical suggestion scope is unknown when the original feed scope was not saved, so those suggestions are not attributed to a selected feed.
+Runs, checks, proposals, and linked usage use the cleanup run's start date. Unlinked Pattern Cleanup requests are grouped by request time and appear only when All Podcasts is selected; their spend is not assigned to a feed. Legacy runs have unknown spend rather than an estimated value. Historical per-pattern checks are unavailable. Where the original feed scope was not saved, a historical suggestion's scope is unknown and it is not attributed to a selected feed.
 
-Checks count run/pattern pairs; distinct checks count unique patterns in the selected run cohort. Suggestions and changed patterns count distinct pattern IDs. Action rows group by the action kind stored for each proposal, not every field that an action changed. Proposed counts each run/pattern pair once per action type, regardless of suggestion status. Accepted includes actions later reverted. Applied means currently approved, and the accepted and applied columns overlap. Reverted counts approved actions later undone. These counts are not independent totals.
+Checks count run/pattern pairs; distinct checks count unique patterns in the selected run cohort. Suggestions and changed patterns count distinct pattern IDs. Action rows group by the action kind stored for each proposal, not every field that an action changed. Proposed counts each run/pattern pair once per action type, regardless of suggestion status.
+
+Accepted includes actions later reverted. Applied means currently approved, and the accepted and applied columns overlap. Reverted counts approved actions later undone. These counts are not independent totals.
 
 Pending actions await a decision. Approved actions are applied. Rejected actions were declined, while undone actions were approved and later reverted. Superseded counts pending actions replaced by a later proposal; those records retain their rejected status and a superseded timestamp. Deleting a pattern preserves its action counts in a compact history record without retaining its text or suggestion payload.
 
@@ -225,7 +227,7 @@ All settings are under `PUT /api/v1/settings/pattern-cleanup`; database only, no
 | `provider` | `primary`, `secondary`, or `same_as_detection`; `a`/`b` aliases accepted; blank or null inherits detection's slot | unset |
 | `model` | string, up to 200 characters; blank or null inherits the detection model | unset |
 
-The system prompt the model receives is editable under Settings > Prompts ("Pattern Cleanup Prompt") like the other pipeline prompts, with its own reset-to-default control.
+The system prompt the model receives is editable under Settings > Detection > Prompts ("Pattern Cleanup Prompt") like the other pipeline prompts, with its own reset-to-default control.
 
 ---
 

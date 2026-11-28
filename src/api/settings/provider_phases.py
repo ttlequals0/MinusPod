@@ -801,6 +801,13 @@ def _apply_whisper_fields(db, data):
         db.set_setting('skip_flac_compression', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated skip_flac_compression to: {enabled}")
 
+    if 'transcribeRawApiChunks' in data:
+        if not isinstance(data['transcribeRawApiChunks'], bool):
+            return error_response('transcribeRawApiChunks must be a boolean', 400)
+        enabled = data['transcribeRawApiChunks']
+        db.set_setting('transcribe_raw_api_chunks', 'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated transcribe_raw_api_chunks to: {enabled}")
+
     if 'whisperMaxAttempts' in data:
         n = data['whisperMaxAttempts']
         if type(n) is not int:

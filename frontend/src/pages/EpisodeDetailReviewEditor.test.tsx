@@ -17,6 +17,7 @@ const adjustBounds = vi.hoisted(() => ({ start: 0, end: 0 }));
 vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),
   useSearchParams: () => [new URLSearchParams(), () => {}],
+  useLocation: () => ({ hash: '', key: 'default', search: '', pathname: '' }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),

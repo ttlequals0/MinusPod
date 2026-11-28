@@ -26,8 +26,8 @@ from utils.segments import normalize_segments
 from utils.text import transcript_gaps
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
-from utils.url import SSRFError
-from utils.http import redact_exc, redact_log_text, redirect_chain_for_log, safe_url_for_log
+from utils.url import SSRFError, ssrf_reject_text
+from utils.http import log_ssrf_failure, redact_exc, redact_log_text, redirect_chain_for_log, safe_url_for_log
 from utils.log_format import KEEP_URL_QUERY
 from utils.safe_http import (
     URLTrust, safe_get, stream_to_file_capped,
@@ -329,7 +329,7 @@ class Transcriber:
                 response = remote.request_transcription(
                     url, headers, transcribe_path, build_form_data, whisper_settings)
             except SSRFError as exc:
-                logger.warning(f"Whisper API URL blocked: {exc}")
+                log_ssrf_failure(logger, 'the Whisper API request', exc, url)
                 return None
 
             if response.status_code != 200:
@@ -655,8 +655,8 @@ class Transcriber:
                 headers=headers,
             )
         except SSRFError as e:
-            logger.warning(f"SSRF blocked in check_audio_availability: {e}")
-            return False, redact_log_text(f"URL blocked: {e}")
+            log_ssrf_failure(logger, 'check_audio_availability', e, url)
+            return False, redact_log_text(ssrf_reject_text(e, 'audio URL', f"URL blocked: {e}"))
         except requests.exceptions.Timeout:
             # A slow HEAD says nothing about the file; the download has its own timeout and retry.
             logger.warning("CDN check timed out, trying the download")
@@ -718,7 +718,7 @@ class Transcriber:
                 logger.info(line, extra=mark)
             response.raise_for_status()
         except SSRFError as e:
-            logger.warning(f"SSRF blocked in download_audio: {e}")
+            log_ssrf_failure(logger, 'download_audio', e, url)
             return None
 
         temp_path = None
@@ -1121,6 +1121,7 @@ class Transcriber:
         # Subset of the above that ran out of clock rather than failing to decode (#644).
         extraction_timeouts: list[int] = []
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
+        raw_api_chunks = bool(whisper_settings.get('raw_api_chunks', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
             if ctx.switch_event.is_set():
@@ -1128,7 +1129,7 @@ class Transcriber:
             try:
                 chunk_path = chunking.extract_audio_chunk(
                     audio_path, c_start, c_end,
-                    preprocess=True, flac=extract_as_flac,
+                    preprocess=True, flac=extract_as_flac, raw_copy=raw_api_chunks,
                 )
             except AudioExtractionTimeout as e:
                 logger.error(f"{prefix}Chunk {chunk_idx + 1}: {e}")

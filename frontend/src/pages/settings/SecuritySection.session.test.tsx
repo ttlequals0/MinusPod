@@ -13,6 +13,7 @@ vi.mock('../../api/settings', () => ({
   updateSettings: (p: unknown) => mockUpdateSettings(p),
 }));
 vi.mock('../../api/auth', () => ({ setPassword: vi.fn(), removePassword: vi.fn() }));
+vi.mock('../../api/apiTokens', () => ({ API_TOKENS_QUERY_KEY: ['api-tokens'], listApiTokens: () => Promise.resolve([]), revokeAllApiTokens: vi.fn() }));
 
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

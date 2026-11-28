@@ -7,7 +7,8 @@ import { getErrorMessage } from '../../api/client';
 import { queueOrderChoices, queueOrderLabel } from '../../utils/queueOrder';
 import type { Feed, LowAdYieldAction, EpisodeLogsOverride, QueueOrder } from '../../api/types';
 import { AUTO_PROCESS_WINDOW } from '../../api/types';
-import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
+import CollapsibleSection from '../../components/CollapsibleSection';
+import TabPanelCard from '../../components/TabPanelCard';
 import CopyButton from '../../components/CopyButton';
 import SubscriberKeysPanel from '../../components/SubscriberKeysPanel';
 import SearchableSectionGroup from '../../components/SearchableSectionGroup';
@@ -150,9 +151,6 @@ function TriStateRow({ label, description, ariaLabel, value, onChange, inheritNo
 
 function FeedSettingsPanel({ feed, slug }: Props) {
   const queryClient = useQueryClient();
-  // Mirrors the CollapsibleSection's persisted open state (same storage key)
-  // so the networks list is only fetched once the panel is actually visible.
-  const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-settings-${slug}`);
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [customNetwork, setCustomNetwork] = useState(false);
@@ -180,7 +178,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const { data: networks } = useQuery({
     queryKey: ['networks'],
     queryFn: getNetworks,
-    enabled: panelOpen,
   });
 
   const { data: settings } = useQuery({
@@ -198,7 +195,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const { data: cueTemplates } = useQuery({
     queryKey: ['cueTemplates', slug],
     queryFn: () => listCueTemplates(slug),
-    enabled: panelOpen,
   });
   const hasEnabledCueTemplate = (cueType: 'ad_break_start' | 'ad_break_end') =>
     (cueTemplates ?? []).some((t) => t.cueType === cueType && t.enabled);
@@ -545,12 +541,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   return (
     <div className="mb-6">
-      <CollapsibleSection
+      <TabPanelCard
         title="Feed settings"
         subtitle="Source, processing, episode filters, tags, chapters, and storage"
-        defaultOpen={false}
-        storageKey={`feed-settings-${slug}`}
-        onToggle={setPanelOpen}
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">Notes, source URL, and network edits need Save. Other controls apply when changed; numeric fields save when you leave the field.</p>
@@ -2108,7 +2101,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
           </SearchableSectionGroup>
         </div>
-      </CollapsibleSection>
+      </TabPanelCard>
       {confirmRerender && (
         <ConfirmModal
           title="Re-render processed episodes?"

@@ -303,3 +303,62 @@ class TestCircuitBreakerCauseClassifier:
         with pytest.raises(CircuitBreakerOpen) as exc_info:
             cb.check()
         assert exc_info.value.auth_cause is False
+
+
+class TestForcedProbe:
+    def test_force_probes_through_an_open_circuit_and_closes_on_success(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
+        token = cb.check(force=True)
+        assert token is not None
+        cb.record_success(token=token)
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb.check() is None
+
+    def test_a_failed_forced_probe_reopens_the_circuit(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        cb.record_failure(token=cb.check(force=True))
+        assert cb.state == CircuitBreaker.OPEN
+        with pytest.raises(CircuitBreakerOpen):
+            cb.check()
+
+    def _half_open_with_live_probe(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        with patch("utils.circuit_breaker.time.time", side_effect=_get_mock_time):
+            cb.record_failure()
+            _advance_time(61)
+            auto = cb.check()
+            forced = cb.check(force=True)
+        return cb, auto, forced
+
+    def test_force_shares_a_live_probe_token(self):
+        cb, auto, forced = self._half_open_with_live_probe()
+        assert auto is not None and forced == auto
+
+    def test_automatic_success_closes_and_forced_result_is_then_ignored(self):
+        cb, auto, forced = self._half_open_with_live_probe()
+        cb.record_success(token=auto)
+        assert cb.state == CircuitBreaker.CLOSED
+        cb.record_failure(token=forced)
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_automatic_failure_reopens_and_forced_result_is_then_ignored(self):
+        cb, auto, forced = self._half_open_with_live_probe()
+        cb.record_failure(token=auto)
+        assert cb.state == CircuitBreaker.OPEN
+        cb.record_success(token=forced)
+        assert cb.state == CircuitBreaker.OPEN
+
+    def test_forced_success_first_closes_and_automatic_failure_is_ignored(self):
+        cb, auto, forced = self._half_open_with_live_probe()
+        cb.record_success(token=forced)
+        cb.record_failure(token=auto)
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_force_on_a_closed_circuit_is_a_no_op(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        assert cb.check(force=True) is None
+        assert cb.state == CircuitBreaker.CLOSED

@@ -245,7 +245,7 @@ def test_refresh_logs_host_at_info_without_path_or_query(app_client, seeded_feed
     tokens live in the path or the query."""
     from main_app.feeds import refresh_rss_feed
     monkeypatch.setattr('main_app.feeds.rss_parser.fetch_feed_conditional',
-                        lambda url, etag=None, last_modified=None: (None, None, None))
+                        lambda url, etag=None, last_modified=None, **kw: (None, None, None))
     with caplog.at_level(logging.INFO, logger='podcast.refresh'):
         refresh_rss_feed(seeded_feed['slug'],
                          'https://example.com/feed.xml?key=SECRET', force=True)

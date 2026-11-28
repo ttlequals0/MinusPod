@@ -398,7 +398,7 @@ class TestClaimGateTitleBlacklist:
         mock_db.get_podcast_by_slug.return_value = {
             **({'title_skip_patterns': json.dumps(['Blacklisted*'])}
                if podcast_filters is None else podcast_filters)}
-        mock_db.is_auto_process_enabled_for_podcast.return_value = True
+        mock_db.auto_process_block.return_value = None
         mock_db.get_auto_process_max_age_hours.return_value = 48
         mock_db.get_episode.return_value = {
             'reprocess_requested_at': reprocess_requested_at, 'rss_duration': rss_duration}

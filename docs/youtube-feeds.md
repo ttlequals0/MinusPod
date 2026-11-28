@@ -38,7 +38,7 @@ Like a [local feed](local-feeds.md), there is no podcast RSS upstream. MinusPod 
 
 ## What decides the cuts
 
-Cuts on a YouTube feed come from SponsorBlock, a community database of timestamps for sponsor reads, self-promotion, intros and similar spans. Read this before enabling the feature: the trust model differs from the LLM pipeline.
+Cuts on a YouTube feed come from SponsorBlock, a community database of timestamps for sponsor reads, self-promotion, intros and similar spans. The trust model differs from the LLM pipeline, so read this before enabling the feature.
 
 - Community marks drive the cuts. By default MinusPod cuts where SponsorBlock says to cut, without asking the LLM.
 - Learned patterns (audio fingerprints and text patterns) always run, including when marks exist. Cuts are the marks plus any validated pattern hits, and MinusPod learns new patterns from the marks it cuts.
@@ -54,7 +54,7 @@ To turn the behavior down, use any of these:
 | Stop waiting for marks sooner | Lower **Watch ceiling (days)** in Settings > YouTube (global only) |
 | Have the LLM review every episode as well | Turn on **Pass 1 detection** for the feed |
 | Skip the wait for marks | Set **SponsorBlock probe attempts** to 0 with the LLM fallback on; episodes with no marks at the first check go straight to the LLM |
-| Never trust marks for one category | Set that category's segment action to Keep in Settings > Segment categories, or per feed |
+| Never trust marks for one category | Set that category's segment action to Keep in Settings > Detection > Segment actions, or per feed |
 
 ## Enabling the feature
 
@@ -133,9 +133,9 @@ Three suffixes can follow: `, marked whole video as sponsored` when SponsorBlock
 - **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). With the feed language set to auto, the original-language auto captions are used. The captions become the transcript and Whisper is skipped. Speaker-change markers (`>>`) and bracketed sound cues such as `[Music]` are removed from the caption text.
 - **Whisper when none.** With the captions toggle off, the normal transcription backend runs. With it on and a video that has no captions, the backend (Whisper or Parakeet, whichever you configured) runs only if **Transcribe when captions are missing** is on. That setting is global, default off, with a per-feed override. When it is off and the video has SponsorBlock marks, the cuts come from the marks alone and the LLM is skipped, even with **pass 1 detection**, because there is no transcript. With no marks, the episode keeps waiting for them and does not fall back to the LLM. Once the watch ceiling passes, or when you reprocess it, the episode is served unmodified, since there is no transcript to detect ads in.
 - **Creator chapters.** yt-dlp embeds the video's chapters in the audio (`--embed-chapters`). MinusPod reuses them, so the LLM chapter generation call is skipped for those episodes.
-- **Language of titles and chapters.** YouTube translates titles, descriptions and chapters into the language a request asks for, and yt-dlp asks for English unless told otherwise. MinusPod passes the feed's language (the transcription language override, else the global transcription language) to yt-dlp as `--extractor-args youtube:lang=<code>`, so the episode title, description and creator chapters arrive in that language. English and auto pass nothing: yt-dlp then keeps each video's own language, falling back to English. Playlist and channel listings are still read in English, because yt-dlp reads their approximate upload dates from English text; the listed title is replaced by the one in the feed's language when the metadata backfill or the download reads the video. Episodes already processed keep their English title until reprocessed. When your **Extra yt-dlp arguments** already hold `--extractor-args youtube:...`, `lang` is added to them, and a `lang` you set there yourself wins. A language YouTube does not offer, such as `yue`, passes nothing.
+- **Language of titles and chapters.** YouTube translates titles, descriptions and chapters into the language a request asks for, and yt-dlp asks for English unless told otherwise. MinusPod passes the feed's language (the transcription language override, else the global transcription language) to yt-dlp as `--extractor-args youtube:lang=<code>`, so the episode title, description and creator chapters arrive in that language. English and auto pass nothing: yt-dlp then keeps each video's own language, falling back to English. Playlist and channel listings are still read in English, because yt-dlp reads their approximate upload dates from English text. The listed title is replaced by the one in the feed's language when the metadata backfill or the download reads the video, and episodes already processed keep their English title until reprocessed. When your **Extra yt-dlp arguments** already hold `--extractor-args youtube:...`, `lang` is added to them, and a `lang` you set there yourself wins. A language YouTube does not offer, such as `yue`, passes nothing.
 - **Description timestamps.** Timestamps written in the episode description, such as a chapter list in the video description, are shifted by the same cuts as the chapters, so tapping one in a podcast app lands on the right moment. Clock times such as 10:00 AM are left alone.
-- **Artwork.** A channel feed uses the channel avatar. A playlist feed uses the cover set for the playlist on YouTube, or the newest video's thumbnail when no cover is set. You can upload your own or refresh it from the feed's YouTube panel. Episode thumbnails are cached when an episode is processed and served as per-episode artwork.
+- **Artwork.** A channel feed uses the channel avatar. A playlist feed uses the cover set for the playlist on YouTube, or the newest video's thumbnail when no cover is set. You can upload your own or refresh it from the feed's YouTube tab. Episode thumbnails are cached when an episode is processed and served as per-episode artwork.
 
 ## Shorts and duration filters
 
@@ -163,7 +163,7 @@ SponsorBlock categories map to MinusPod segment categories:
 | outro | outro |
 | preview | recap |
 
-What happens to a mark is decided by the per-category segment action in Settings > Segment categories, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
+What happens to a mark is decided by the per-category segment action in Settings > Detection > Segment actions, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
 
 When a SponsorBlock lookup fails, the watcher marks the API as down and checks it on every pass until it answers again. While it is unreachable, YouTube episodes waiting on it are held without counting attempts, submissions are refused, and the status bar shows SponsorBlock as unreachable. Other feeds keep processing, and the held episodes resume on the next pass once it is back.
 
@@ -203,7 +203,7 @@ Some videos need a signed-in session, for example to pass a bot check or an age 
 
 ## yt-dlp
 
-yt-dlp changes often because YouTube does. MinusPod keeps up in layers.
+yt-dlp changes often because YouTube does. MinusPod keeps up in four layers.
 
 - **Baked floor.** Both images ship a pinned yt-dlp (the version in `ytdlp-version.txt`) and the Deno runtime it needs for YouTube.
 - **Data-volume copy.** On first use MinusPod copies the baked binary into the data volume and runs that copy. A newer baked version replaces an older copy after an image upgrade. If the copy cannot execute, MinusPod uses the image copy and shows an error under Settings > YouTube.
@@ -221,7 +221,7 @@ Settings > YouTube shows the running version, the version the image ships, and t
 
 ## Per-feed overrides
 
-The feed page has a YouTube section. Each field inherits the global setting until changed.
+The feed page has a **YouTube** tab. Each field inherits the global setting until changed.
 
 | Field | API field | Effect |
 |---|---|---|

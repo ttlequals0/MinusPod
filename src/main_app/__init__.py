@@ -16,6 +16,8 @@ from utils.paths import resolve_data_dir
 from utils.trusted_proxy import PeerGatedProxyFix, parse_trusted_networks
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
+from utils.http import safe_url_for_log
+from utils.url import get_private_feed_hosts
 # SingleLineFormatter stays importable from main_app for its test.
 from utils.log_format import (  # noqa: F401
     QueryStringRedactingFilter, SingleLineFormatter, guard_handler_errors,
@@ -237,11 +239,12 @@ def _validate_configured_base_urls():
         except SSRFError as exc:
             audio_logger.error(
                 "Configured base URL failed SSRF validation at startup: source=%s url=%s reason=%s",
-                source, url, exc,
+                source, safe_url_for_log(url), exc,
             )
 
 
 _validate_configured_base_urls()
+get_private_feed_hosts()  # logs invalid MINUSPOD_PRIVATE_FEED_HOSTS entries once
 
 
 # Re-encrypt any legacy plaintext provider secrets under the current master
@@ -679,6 +682,7 @@ from main_app.background import (
 )
 from whisper_pool import set_background_role
 from podping_listener import podping_listener_loop
+import db_backup_service
 import stall_watchdog
 from status_service import reconcile_startup_state
 
@@ -799,6 +803,7 @@ def _startup():
         # Env-seeded feed auth must never fail closed without a key.
         from main_app.feed_auth import ensure_feed_auth_key
         ensure_feed_auth_key(db)
+        db_backup_service.warn_if_dest_unusable(db)
 
         if _background_threads_enabled():
             # Start background RSS refresh thread

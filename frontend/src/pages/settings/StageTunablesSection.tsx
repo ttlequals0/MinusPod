@@ -38,7 +38,6 @@ interface StageTunablesSectionProps {
   chaptersModel?: string;
   reviewModels?: string[];
   reviewRoutes?: { provider: string; model: string }[];
-  reviewEnabled?: boolean;
   onSave: (payload: UpdateSettingsPayload) => void;
   saveIsPending: boolean;
   saveIsSuccess: boolean;
@@ -601,7 +600,6 @@ function StageTunablesSection({
   chaptersModel = '',
   reviewModels = [],
   reviewRoutes,
-  reviewEnabled = false,
   onSave,
   saveIsPending,
   saveIsSuccess,
@@ -659,11 +657,6 @@ function StageTunablesSection({
         Temperature, max tokens, reasoning, detection-window geometry, and parallelism. Applies on the next episode.
       </p>
       <LlmGate disabled={!llmEnabled} id="stage-tunables" className="space-y-3">
-        {reviewEnabled && reviewIsNative.some(Boolean) && (
-          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-            Ad review with System One models is experimental.
-          </div>
-        )}
         <OmitTemperatureToggle
           checked={omitTemperatureDraft}
           onChange={(checked) => setField(OMIT_TEMPERATURE_KEY, checked)}

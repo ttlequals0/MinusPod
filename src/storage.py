@@ -29,7 +29,7 @@ from utils.episode_paths import (
     episode_filename, is_peaks_housekeeping_name, peaks_file_path, remove_peaks_artifacts,
     sweep_stale_peaks_temp_files,
 )
-from utils.http import safe_url_for_log
+from utils.http import log_ssrf_failure, safe_url_for_log
 from utils.url import SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
 from utils.safe_http import (
@@ -1040,9 +1040,9 @@ class Storage:
                     label, artwork_url,
                     user_agent or download_user_agent(podcast), podcast)
             except SSRFError as e:
-                logger.log(
-                    fail_level, f"[{label}] SSRF blocked in "
-                    f"download_episode_artwork: {e}")
+                log_ssrf_failure(
+                    logger, 'download_episode_artwork', e, artwork_url,
+                    prefix=f"[{label}] ", warn_level=fail_level)
                 return None
             response.raise_for_status()
 
@@ -1479,7 +1479,7 @@ class Storage:
                 response = self._fetch_artwork_response(
                     slug, artwork_url, user_agent or download_user_agent(podcast), podcast)
             except SSRFError as e:
-                logger.warning(f"[{slug}] SSRF blocked in download_artwork: {e}")
+                log_ssrf_failure(logger, 'download_artwork', e, artwork_url, prefix=f"[{slug}] ")
                 return False, 'error'
             try:
                 response.raise_for_status()

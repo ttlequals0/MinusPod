@@ -79,6 +79,7 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         processed_at=utc_now_iso(),
         processed_file=processed_file_rel,
         processed_size_bytes=processed_size_bytes,
+        first_fetched_at=None,  # new audio starts unfetched
         processed_version=processed_version or 0,
         original_file=original_file_rel,
         original_duration=original_duration,

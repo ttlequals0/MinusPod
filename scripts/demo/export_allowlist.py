@@ -24,7 +24,7 @@ from pathlib import Path
 _EMPTIED = (
     'processing_runs', 'upload_reservations', 'auto_process_queue',
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
-    'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
+    'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures', 'api_tokens',
     'search_index_changes', 'search_index', 'text_patterns',
     '_orphaned_audio_fingerprints', 'episode_feed_details', 'episode_snap_stats',
     'episode_detection_markers',
@@ -181,7 +181,9 @@ _ALLOW_AD_REVIEWER = (
 _ALLOW_GENERAL = (
     'retention_period_minutes', 'keep_original_audio', 'max_feed_episodes',
     'segment_category_actions', 'community_sync_categories',
-    'rss_refresh_interval_minutes', 'queue_manual_boost', 'queue_fresh_boost',
+    'rss_refresh_interval_minutes', 'adaptive_refresh_enabled', 'adaptive_refresh_max_minutes',
+    'dormant_feed_days', 'unfetched_retention_days',
+    'fetched_retention_grace_days', 'queue_manual_boost', 'queue_fresh_boost',
     'queue_bulk_boost', 'queue_order', 'session_lifetime_hours', 'session_remember_days',
     'podping_enabled', 'only_expose_processed_default',
     'feed_itunes_block', 'require_manual_approval_default',
@@ -223,7 +225,7 @@ _ALLOW_LLM_PROVIDER = (
     'download_history_enabled', 'download_geo_lookup_enabled',
     'download_history_retention_days', 'artwork_watermark_enabled',
     'artwork_badge_position', 'audio_bitrate', 'audio_encoder_compression_level',
-    'skip_flac_compression', 'ad_detection_max_failed_window_ratio',
+    'skip_flac_compression', 'transcribe_raw_api_chunks', 'ad_detection_max_failed_window_ratio',
     'low_ad_yield_action', 'episode_log_retention_days', 'episode_log_level',
     'local_upload_max_mb', 'youtube_enabled', 'youtube_llm_fallback',
     'youtube_captions_as_transcript', 'youtube_hide_private',
@@ -260,7 +262,7 @@ _ALLOW_DETECTION_TUNING = (
     'verification_miss_autocut_min_confidence', 'learning_min_confidence',
     'learning_min_confidence_long', 'learning_min_pattern_duration',
     'learning_max_pattern_duration', 'differential_measured_corr_max',
-    'dai_differential_overrides_keep', 'splice_veto_enabled',
+    'dai_differential_overrides_keep', 'splice_veto_enabled', 'audio_analysis_enabled', 'splice_evidence_enabled',
     'differential_hold_min_seconds', 'held_widen_seconds',
 )
 

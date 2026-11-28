@@ -62,7 +62,7 @@ from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
     SECRET_SETTING_KEYS,
 )
-from utils.time import is_valid_timezone
+from utils.time import is_valid_timezone, utc_now_iso
 from youtube import settings as yt_settings
 
 logger = logging.getLogger(__name__)
@@ -547,6 +547,19 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
+    # Adaptive per-feed refresh: healthy feeds are checked between the global
+    # interval (floor) and this maximum, based on how each feed publishes.
+    'adaptive_refresh_enabled': SettingSpec(
+        default='true', seeded=True, resettable=False,
+        payload_key='adaptiveRefreshEnabled', payload_kind='bool'),
+    'adaptive_refresh_max_minutes': SettingSpec(
+        default='60', seeded=True, resettable=False,
+        payload_key='adaptiveRefreshMaxMinutes', payload_kind='int'),
+    # Days without a served-RSS request before a feed stops auto-processing
+    # new episodes; 0 (default) turns dormancy off.
+    'dormant_feed_days': SettingSpec(
+        default='0', seeded=True, resettable=False,
+        payload_key='dormantFeedDays', payload_kind='int'),
     # Queue boost sizes (#625). Manual covers single-episode user actions
     # (reprocess, JIT play); bulk covers Reprocess All and segment re-renders and
     # defaults to 0 so backlog work cannot starve them.
@@ -840,6 +853,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'download_geo_lookup_enabled': SettingSpec(
         default='false',
         payload_key='downloadGeoLookupEnabled', payload_kind='bool'),
+    # Unfetched-episode retention, edited through /settings/retention.
+    'unfetched_retention_days': SettingSpec(
+        default='0', seeded=True, resettable=False, payload_kind='int'),
+    'fetched_retention_grace_days': SettingSpec(
+        default='3', seeded=True, resettable=False, payload_kind='int'),
     'download_history_retention_days': SettingSpec(
         default='90',
         payload_key='downloadHistoryRetentionDays', payload_kind='int'),
@@ -862,6 +880,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         in_ad_reset=True, payload_key='skipFlacCompression',
         payload_factory=lambda: coerce_bool_setting(
             resolve_env_backed_default('skip_flac_compression'))),
+    'transcribe_raw_api_chunks': SettingSpec(
+        env_backed=True,
+        in_ad_reset=True, payload_key='transcribeRawApiChunks',
+        payload_factory=lambda: coerce_bool_setting(
+            resolve_env_backed_default('transcribe_raw_api_chunks'))),
     'ad_detection_parallel_windows': SettingSpec(
         env_backed=True,
         in_ad_reset=True, payload_key='adDetectionParallelWindows',
@@ -1069,6 +1092,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'dai_differential_overrides_keep': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='daiDifferentialOverridesKeep', payload_kind='bool'),
+    # Local-processing switches: off means the stage's consumers see no evidence, as when it finds nothing.
+    'audio_analysis_enabled': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='audioAnalysisEnabled', payload_kind='bool'),
+    'splice_evidence_enabled': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='spliceEvidenceEnabled', payload_kind='bool'),
     'splice_veto_enabled': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='spliceVetoEnabled', payload_kind='bool'),
@@ -1482,9 +1512,13 @@ class SettingsMixin:
             except (TypeError, ValueError):
                 return 0
 
-    def replace_password_and_revoke(self, expected_hash: str | None,
-                                    new_hash: str) -> int | None:
-        """Replace a matching password and revoke existing sessions atomically."""
+    def replace_password_and_revoke(self, expected_hash: str | None, new_hash: str,
+                                    revoke_tokens: bool = True) -> tuple[int, int] | None:
+        """Replace a matching password and revoke sessions atomically.
+
+        Returns (session generation, API tokens revoked), or None if the hash moved.
+        Removing the password (empty new_hash) always revokes tokens.
+        """
         with self.transaction(immediate=True) as conn:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key = 'app_password'"
@@ -1500,11 +1534,17 @@ class SettingsMixin:
             except (TypeError, ValueError):
                 current = 0
             value = current + 1
+            revoked = 0
+            if not new_hash or revoke_tokens:
+                # Without a password tokens must not revive on the next one.
+                revoked = conn.execute(
+                    "UPDATE api_tokens SET revoked_at = ? WHERE revoked_at IS NULL",
+                    (utc_now_iso(),)).rowcount
             self._upsert_setting(conn, 'app_password', new_hash, is_default=False)
             self._upsert_setting(
                 conn, 'auth_session_generation', str(value), is_default=False
             )
-            return value
+            return value, revoked
 
     def merge_setting(self, key: str, merge_fn) -> str:
         """Rewrite a setting as merge_fn(stored_value_or_None) -> new value.

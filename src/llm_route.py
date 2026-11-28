@@ -25,7 +25,7 @@ from config import (
 import database
 import llm_client
 import run_context
-from llm_capabilities import systemone_supported_phases
+from llm_capabilities import is_systemone_route, systemone_supported_phases
 
 logger = logging.getLogger(__name__)
 
@@ -385,33 +385,36 @@ def systemone_probe_model(settings, provider, credential_slot):
     view = Snapshot()
     providers = {SLOT_PRIMARY: settings.get('llm_provider'),
                  SLOT_SECONDARY: settings.get('secondary_provider')}
-    passes = []
     for phase, model_getter in (('detection', _detection_model), ('verification', _verification_model)):
         try:
             model = model_getter(view)
         except ModelNotConfiguredError:
             continue
         slot = resolved_stage_slot(view, phase)
-        passes.append((slot, model))
         if slot == credential_slot and providers.get(slot) == provider:
-            return model
-    configured_review_slot = settings.get('review_provider') or SAME_AS_PASS
-    configured_review_model = settings.get('review_model')
-    if (configured_review_slot != SAME_AS_PASS
-            and configured_review_model not in (None, '', SAME_AS_PASS)):
-        slot = resolved_stage_slot(view, 'review')
-        if slot == credential_slot and providers.get(slot) == provider:
-            return configured_review_model
-    for pass_slot, pass_model in passes:
-        if (settings.get('review_provider') or SAME_AS_PASS) == SAME_AS_PASS:
-            slot, model = pass_slot, pass_model
-        else:
-            slot = resolved_stage_slot(view, 'review')
-            configured = settings.get('review_model')
-            model = pass_model if configured in (None, SAME_AS_PASS) else configured
-        if model and slot == credential_slot and providers.get(slot) == provider:
             return model
     return None
+
+
+def review_route_is_systemone(db, invoking_phase: str = 'detection') -> bool:
+    """True when the review stage would resolve to System One for the pass invoking_phase."""
+    configured = db.get_setting('review_provider') or SAME_AS_PASS
+    try:
+        pass_model = (_verification_model(db) if invoking_phase == 'verification'
+                      else _detection_model(db))
+    except ModelNotConfiguredError:
+        pass_model = None
+    if configured == SAME_AS_PASS:
+        slot = resolved_stage_slot(db, invoking_phase)
+        model = pass_model
+    else:
+        slot = resolved_stage_slot(db, 'review')
+        review_model = db.get_setting('review_model')
+        model = pass_model if review_model in (None, '', SAME_AS_PASS) else review_model
+    provider = (db.get_setting('secondary_provider') if slot == SLOT_SECONDARY
+                else llm_client.get_effective_provider_from_snapshot(
+                    {'llm_provider': db.get_setting('llm_provider')}))
+    return is_systemone_route(provider, model)
 
 
 def _detection_model(db) -> str:

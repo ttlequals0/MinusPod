@@ -112,8 +112,6 @@ const {
     costUsd: '0', unknownCostRequestCount: 0,
     outcomes: { completed: 0, failed: 0, inconclusive: 0 },
     reviewReasons: {},
-    refinements: { attempted: 0, completed: 0, skipped: 0, inconclusive: 0, upstream_error: 0 },
-    refinementSkipReasons: {},
   };
   const llmStats: LlmStats = {
     calls: 0, requests: 0,
@@ -633,18 +631,18 @@ describe('StatsPage ledger filters', () => {
     expect(await screen.findByText('<$0.0001')).toBeTruthy();
   });
 
-  it('shows tiny System One costs as nonzero and keeps refinement outcomes distinct', async () => {
+  it('shows tiny System One costs as nonzero and still renders reasons from earlier review calls', async () => {
     mockGetSystemOneStats.mockResolvedValue({
       ...SYSTEMONE_STATS,
       calls: 1,
       costUsd: '0.000000042',
-      refinements: { attempted: 3, completed: 1, skipped: 1, inconclusive: 1, upstream_error: 0 },
-      refinementSkipReasons: { no_candidate: 1 },
+      outcomes: { completed: 0, failed: 0, inconclusive: 1 },
+      reviewReasons: { transcript_gap: 1 },
     });
     renderPage();
-    expect(await screen.findByText(/Review refinements/)).toBeTruthy();
-    expect(screen.getByText(/1 skipped, 1 inconclusive, 0 upstream errors/)).toBeTruthy();
-    expect(screen.getByText((_, element) => element?.tagName === 'LI' && element.textContent?.includes('no_candidate') === true)).toBeTruthy();
+    expect(await screen.findByText('Review outcomes by reason')).toBeTruthy();
+    expect(screen.getByText((_, element) => element?.tagName === 'LI' && element.textContent?.includes('transcript_gap') === true)).toBeTruthy();
+    expect(screen.queryByText(/Review refinements/)).toBeNull();
     expect(screen.getAllByText('<$0.0001')).toHaveLength(2);
   });
 

@@ -199,6 +199,8 @@ interface Column {
   titleFor?: (run: EpisodeProcessingRun) => string | undefined;
   // Dropped from the table between sm and lg; the mobile cards still list it.
   lowPriority?: boolean;
+  // The mobile card omits the row when render returns an empty string.
+  hideWhenEmpty?: boolean;
   render: (run: EpisodeProcessingRun) => ReactNode;
 }
 
@@ -229,6 +231,13 @@ const COLUMNS: Column[] = [
     },
   },
   { label: 'When', render: (run) => formatDateTime(run.processedAt) },
+  {
+    label: 'Version',
+    title: 'MinusPod version that made this run',
+    lowPriority: true,
+    hideWhenEmpty: true,
+    render: (run) => run.appVersion ?? '',
+  },
   { label: 'Result', render: (run) => <RunResult run={run} /> },
   {
     label: 'Run time',
@@ -542,7 +551,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                 <span>{COLUMN.Result.render(run)}</span>
               </div>
               <dl className="space-y-1">
-                {CARD_ROWS.map((col) => (
+                {CARD_ROWS.filter((col) => !(col.hideWhenEmpty && col.render(run) === '')).map((col) => (
                   <div key={col.label} className="flex justify-between gap-3">
                     <dt className="text-muted-foreground shrink-0">{col.label}</dt>
                     <dd className="text-right">{col.render(run)}</dd>

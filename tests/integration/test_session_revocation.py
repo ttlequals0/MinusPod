@@ -102,6 +102,45 @@ def test_setup_token_allows_remote_first_password(monkeypatch):
     assert response.status_code == 200
 
 
+@pytest.mark.parametrize('required', [None, 'true'])
+@pytest.mark.parametrize('peer, header, status', [
+    ('127.0.0.1', None, 200),
+    ('172.21.0.1', None, 403),
+    ('172.21.0.1', 'tok-123', 200),
+    ('203.0.113.10', None, 403),
+    ('203.0.113.10', 'tok-123', 200),
+    ('203.0.113.10', 'wrong', 403),
+])
+def test_setup_token_is_required_for_non_loopback_peers(monkeypatch, required, peer, header, status):
+    db = database.Database()
+    db.set_setting('app_password', '')
+    if required:
+        monkeypatch.setenv('MINUSPOD_REQUIRE_AUTH', required)
+    else:
+        monkeypatch.delenv('MINUSPOD_REQUIRE_AUTH', raising=False)
+    monkeypatch.setenv('MINUSPOD_SETUP_TOKEN', 'tok-123')
+    headers = {'X-MinusPod-Setup-Token': header} if header else {}
+
+    response = app.test_client().put(
+        '/api/v1/auth/password', json={'newPassword': NEW_PASSWORD},
+        headers=headers, environ_base={'REMOTE_ADDR': peer})
+
+    assert response.status_code == status
+
+
+def test_setup_stays_open_without_token_or_required_auth(monkeypatch):
+    db = database.Database()
+    db.set_setting('app_password', '')
+    monkeypatch.delenv('MINUSPOD_REQUIRE_AUTH', raising=False)
+    monkeypatch.delenv('MINUSPOD_SETUP_TOKEN', raising=False)
+
+    response = app.test_client().put(
+        '/api/v1/auth/password', json={'newPassword': NEW_PASSWORD},
+        environ_base={'REMOTE_ADDR': '172.21.0.1'})
+
+    assert response.status_code == 200
+
+
 def test_required_auth_reports_passwordless_instance_as_locked(monkeypatch):
     db = database.Database()
     db.set_setting('app_password', '')

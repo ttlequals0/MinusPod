@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import Checkbox from '../../components/Checkbox';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
+import { API_TOKENS_QUERY_KEY, listApiTokens } from '../../api/apiTokens';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
@@ -14,6 +16,7 @@ import { subHeading } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { limitsOf } from '../../utils/settingLimits';
+import ApiTokensBlock from './ApiTokensBlock';
 
 const MIN_PASSWORD_LENGTH = 12;
 // Ranges and defaults used until the server reports them (older servers and fixtures omit them).
@@ -83,6 +86,12 @@ function SecuritySection({
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
+  });
+
+  const { data: apiTokens, isSuccess: tokensLoaded } = useQuery({
+    queryKey: API_TOKENS_QUERY_KEY,
+    queryFn: listApiTokens,
+    enabled: isPasswordSet,
   });
 
   const blockedAgents = settings?.jitBlockedUserAgents?.value ?? [];
@@ -174,6 +183,7 @@ function SecuritySection({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [revokeTokens, setRevokeTokens] = useState(true);
   useUnsavedChanges(!!(agentInput || currentPassword || newPassword || confirmPassword) || sessionDirty);
 
   const handleLogout = async () => {
@@ -199,13 +209,15 @@ function SecuritySection({
     setIsChangingPassword(true);
     try {
       if (newPassword) {
-        await setPassword(newPassword, currentPassword);
+        await setPassword(newPassword, currentPassword, isPasswordSet ? revokeTokens : undefined);
         setPasswordSuccess(isPasswordSet ? 'Password changed.' : 'Password set.');
       } else {
         await removePassword(currentPassword);
         setPasswordSuccess('Password protection removed.');
       }
       await refreshStatus();
+      queryClient.invalidateQueries({ queryKey: API_TOKENS_QUERY_KEY });
+      setRevokeTokens(true);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -219,6 +231,8 @@ function SecuritySection({
   return (
     <CollapsibleSection
       title="Security"
+      anchorId="api-tokens"
+      scrollToId="api-tokens-block"
       subtitle={isPasswordSet ? 'Password protection is enabled' : 'No password set - app is publicly accessible'}
     >
       <div className="flex justify-end mb-4">
@@ -300,6 +314,21 @@ function SecuritySection({
           />
         </div>
 
+        {isPasswordSet && !(tokensLoaded && apiTokens?.length === 0) && (
+          <div>
+            <Checkbox
+              checked={revokeTokens}
+              onChange={setRevokeTokens}
+              disabled={isChangingPassword}
+              label="Also revoke API tokens"
+              ariaDescribedBy="revoke-tokens-help"
+            />
+            <p id="revoke-tokens-help" className="text-xs text-muted-foreground">
+              Uncheck to keep scripts and integrations working after the change.
+            </p>
+          </div>
+        )}
+
         {passwordError && (
           <div id="password-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
             {passwordError}
@@ -376,6 +405,8 @@ function SecuritySection({
           <p role="alert" className="mt-2 text-sm text-destructive">{sessionError}</p>
         )}
       </form>
+
+      <ApiTokensBlock isPasswordSet={isPasswordSet} />
 
       <div className="mt-6 pt-6 border-t border-border">
         <h3 className={`${subHeading} mb-1`}>Provider key encryption</h3>

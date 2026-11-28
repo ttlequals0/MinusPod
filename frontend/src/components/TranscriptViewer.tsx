@@ -4,8 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { getFinalSegments, getOriginalSegments, getOriginalTranscript, type OriginalSegment } from '../api/feeds';
 import type { AdSegment, EpisodeDetail } from '../api/types';
 import { ApiError, getErrorMessage } from '../api/client';
-import { Modal } from './Modal';
-import CloseButton from './CloseButton';
 import Checkbox from './Checkbox';
 import { SkeletonRows } from './Skeleton';
 import { formatTimestamp } from '../utils/format';
@@ -62,7 +60,8 @@ interface Props {
   slug: string;
   episodeId: string;
   episode: EpisodeDetail;
-  onClose: () => void;
+  // Second to scroll to and flash once the segments load, from a search result link.
+  focusTime?: number;
 }
 
 function adFor(seg: OriginalSegment, markers: AdSegment[]): AdSegment | undefined {
@@ -182,7 +181,7 @@ const LineRow = memo(function LineRow({
   );
 });
 
-function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
+function TranscriptViewer({ slug, episodeId, episode, focusTime }: Props) {
   const [source, setSource] = useState<Source>(
     episode.originalTranscriptAvailable ? 'original' : 'processed',
   );
@@ -199,6 +198,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const scrolledFor = useRef<Flash | null>(null);
+  const focusApplied = useRef(false);
 
   const query = useQuery({
     queryKey: [source === 'original' ? 'originalSegments' : 'finalSegments', slug, episodeId],
@@ -311,6 +311,14 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
     scrolledFor.current = flash;
     row.scrollIntoView({ block: flash.block });
   }, [flash, shown, posBySeg, reveal]);
+  // A deep link names a second: flash the line that covers it, or the last one before it.
+  useEffect(() => {
+    if (focusTime === undefined || focusApplied.current || segments.length === 0) return;
+    focusApplied.current = true;
+    const seg = segments.find((s) => focusTime >= s.start && focusTime < s.end)
+      ?? [...segments].reverse().find((s) => s.start <= focusTime) ?? segments[0];
+    setFlash({ seg, block: 'center' });
+  }, [focusTime, segments, setFlash]);
   // The clicked "Show in transcript" button unmounts, so hand focus to the way back.
   useEffect(() => {
     if (showAll) backRef.current?.focus();
@@ -356,15 +364,8 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const fallbackError = original404 && transcriptQuery.isError ? transcriptQuery.error : undefined;
 
   return (
-    <Modal ariaLabel="Transcript" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
-      <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold">Transcript</h2>
-          <p className="text-sm text-muted-foreground truncate">{episode.title}</p>
-        </div>
-        <CloseButton onClick={onClose} label="Close dialog" />
-      </div>
-
+    <div className="bg-card text-foreground rounded-lg border border-border flex flex-col overflow-hidden">
+      <h2 className="sr-only">Transcript</h2>
       <div className="grid gap-4 p-4 border-b border-border">
         <div className="min-w-0">
           <label htmlFor="transcript-search" className={filterLabel}>Search</label>
@@ -488,7 +489,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
         </div>
       </div>
 
-      <div ref={listRef} className="flex-1 overflow-y-auto p-4" onScroll={onScroll}>
+      <div ref={listRef} className="h-[60dvh] min-h-80 sm:h-[70dvh] overflow-y-auto p-4" onScroll={onScroll}>
         {(query.isLoading || fallbackPending) && <SkeletonRows count={6} />}
         {fallbackError && (
           <p className="text-sm text-destructive">{getErrorMessage(fallbackError)}</p>
@@ -556,7 +557,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
           </span>
         )}
       </div>
-    </Modal>
+    </div>
   );
 }
 

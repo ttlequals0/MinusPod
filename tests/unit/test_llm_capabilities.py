@@ -24,7 +24,7 @@ from llm_capabilities import (
 
 
 def test_systemone_phase_support_uses_only_explicit_provider_and_model_ids():
-    supported = frozenset({'detection', 'verification', 'review'})
+    supported = frozenset({'detection', 'verification'})
     assert systemone_supported_phases('typesafe', 'custom-model') == supported
     assert systemone_supported_phases('openai-compatible', 'JEV-PREVIEW') == supported
     assert systemone_supported_phases('openai-compatible', 'custom-jev-model') is None

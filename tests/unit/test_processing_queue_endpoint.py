@@ -265,3 +265,71 @@ def test_admission_failure_reports_unblocked_instead_of_failing(app_client, seed
     queued = [e for e in resp.get_json() if e['stage'] == 'queued']
     assert queued[0]['admission'] == {'blocked': False, 'phase': None, 'slot': None,
                                       'reason': None, 'resumesAt': None}
+
+
+def _csrf(client):
+    for cookie in client._cookies.values():
+        if cookie.key == 'minuspod_csrf':
+            return {'X-CSRF-Token': cookie.value}
+    return {}
+
+
+def test_cancel_all_cancels_active_run_and_clears_queue(app_client, seeded_feed):
+    from processing_queue import ProcessingQueue
+    from status_service import StatusService
+    db, podcast_id, slug = seeded_feed['db'], seeded_feed['podcast_id'], seeded_feed['slug']
+    run_id = ProcessingQueue().acquire(slug, 'ep-active')
+    _queue_row(db, podcast_id, 'ep-wait-1')
+    _queue_row(db, podcast_id, 'ep-wait-2', status='failed')
+    StatusService().queue_episode(slug, 'ep-display', 'Display', 'Queue Endpoint Pod')
+    _authed(app_client)
+    try:
+        resp = app_client.post('/api/v1/episodes/processing/cancel-all',
+                               headers=_csrf(app_client))
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body['activeRequested'] == 1
+        assert body['queueRowsClosed'] >= 1
+        assert body['displayEntriesRemoved'] >= 1
+        assert ProcessingQueue().poll(run_id) == 'cancel_requested'
+        statuses = {r[0] for r in db.get_connection().execute(
+            "SELECT status FROM auto_process_queue WHERE episode_id LIKE 'ep-wait-%'")}
+        assert 'pending' not in statuses and 'processing' not in statuses
+        failed = db.get_connection().execute(
+            "SELECT status FROM auto_process_queue WHERE episode_id = 'ep-wait-2'").fetchone()[0]
+        assert failed == 'failed'  # the automatic retry still owns it
+        assert StatusService().get_status().queued_episodes == []
+    finally:
+        ProcessingQueue().release(run_id)
+
+
+def test_cancel_all_on_empty_queue_is_a_no_op(app_client):
+    _authed(app_client)
+    resp = app_client.post('/api/v1/episodes/processing/cancel-all',
+                           headers=_csrf(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['activeRequested'] == 0
+
+
+
+def test_cancel_all_closes_the_queue_before_cancelling_active_runs(app_client, seeded_feed, monkeypatch):
+    from processing_queue import ProcessingQueue
+    import api.episodes.runs as runs
+    db, podcast_id, slug = seeded_feed['db'], seeded_feed['podcast_id'], seeded_feed['slug']
+    run_id = ProcessingQueue().acquire(slug, 'ep-active')
+    _queue_row(db, podcast_id, 'ep-wait-1')
+    seen = []
+
+    def spy(db_, status_service, slug_, episode_id):
+        seen.append(db_.get_connection().execute(
+            "SELECT COUNT(*) FROM auto_process_queue WHERE status = 'pending'").fetchone()[0])
+        return 'run'
+
+    monkeypatch.setattr(runs, '_request_run_cancel', spy)
+    _authed(app_client)
+    try:
+        resp = app_client.post('/api/v1/episodes/processing/cancel-all', headers=_csrf(app_client))
+        assert resp.status_code == 200
+        assert seen and set(seen) == {0}
+    finally:
+        ProcessingQueue().release(run_id)

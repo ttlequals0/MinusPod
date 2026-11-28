@@ -39,7 +39,6 @@ async function mockApi(page: Page) {
     if (body === undefined) return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
-  await page.addInitScript(() => localStorage.setItem('feed-settings-example-podcast', 'true'));
 }
 
 async function noOverflow(page: Page) {
@@ -62,7 +61,7 @@ for (const width of WIDTHS) {
         test.skip(info.project.name !== 'desktop-1440', 'width is set by the describe, one project is enough');
         await mockApi(page);
         await page.addInitScript((t) => localStorage.setItem('theme', t), scheme);
-        await page.goto('feeds/example-podcast');
+        await page.goto('feeds/example-podcast?section=settings');
         const toggle = page.getByRole('switch', { name: 'Skip transcription' });
         await expect(toggle).toHaveCount(1);
         const place = () => toggle.evaluate((el) => window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 360, behavior: 'instant' }));

@@ -27,6 +27,8 @@ from defusedxml.common import DefusedXmlException
 from feedparser.sanitizer import _sanitize_html as sanitize_html
 from defusedxml.ElementTree import fromstring as defused_fromstring
 
+import feed_schedule
+import feed_problems
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
@@ -34,9 +36,9 @@ from utils.text import collapse_whitespace, is_timezone_drift, normalize_title_f
 from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
-from utils.http import redact_exc_urls, safe_url_for_log
+from utils.http import log_ssrf_failure, redact_exc_urls, safe_url_for_log
 from utils.safe_http import (
-    IncompleteResponseError, ResponseTooLargeError, URLTrust,
+    IncompleteResponseError, ResponseTooLargeError, feed_trust,
     read_response_capped, safe_get,
 )
 
@@ -75,15 +77,6 @@ def _read_capped_feed_body(response, url, breaker, probe_token) -> bytes | None:
         return None
     finally:
         response.close()
-
-
-def _feed_trust() -> URLTrust:
-    """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
-    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true."""
-    opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
-    if opt_in in ('1', 'true', 'yes', 'on'):
-        return URLTrust.OPERATOR_CONFIGURED
-    return URLTrust.FEED_CONTENT
 
 
 def _content_type_looks_like_feed(header_value: str | None) -> bool:
@@ -263,6 +256,7 @@ _HTML_VOID_ELEMENTS = frozenset({
     'link', 'meta', 'param', 'source', 'track', 'wbr',
 })
 
+_SY_NS_PREFIX = "{http://purl.org/rss/1.0/modules/syndication/}"
 _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 _CONTENT_NS = "http://purl.org/rss/1.0/modules/content/"
 
@@ -420,6 +414,24 @@ def effective_channel_text(override, source, *, sanitize=False):
 
 
 
+def _note_response_meta(response, meta):
+    """Record status and the response headers the refresh scheduler reads."""
+    headers = response.headers
+    meta.update(
+        status=response.status_code,
+        max_age=feed_schedule.parse_cache_control_max_age(headers.get('Cache-Control')),
+        retry_after=headers.get('Retry-After'))
+
+
+def _note_exception_meta(exc, meta):
+    """Record the failure class; a response on the exception also carries its Retry-After."""
+    kind, detail = feed_problems.classify_exception(exc)
+    meta.update(kind=kind, detail=detail)
+    response = getattr(exc, 'response', None)
+    if response is not None:
+        meta.update(status=response.status_code, retry_after=response.headers.get('Retry-After'))
+
+
 class RSSParser:
     def __init__(self, base_url: str = None):
         self._explicit_base_url = base_url
@@ -453,7 +465,7 @@ class RSSParser:
             # Some feed hosts (e.g. feeds.podcastindex.org) 403 the default python-requests UA.
             response = safe_get(
                 url,
-                trust=_feed_trust(),
+                trust=feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
@@ -478,7 +490,7 @@ class RSSParser:
                 response.close()
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
+            log_ssrf_failure(logger, 'fetch_feed', e, url)
             return None
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
@@ -490,7 +502,7 @@ class RSSParser:
             try:
                 response = safe_get(
                     url,
-                    trust=_feed_trust(),
+                    trust=feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
                     stream=True,
@@ -524,15 +536,20 @@ class RSSParser:
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
                                last_modified: str = None, timeout: int = 30,
-                               podcast=None):
+                               podcast=None, meta: dict | None = None, bypass_breaker: bool = False):
         """Fetch RSS feed with conditional GET support.
 
         Sends If-None-Match / If-Modified-Since to skip unchanged feeds. etag and last_modified are
         the previously received header values; podcast supplies its feed UA override, if any.
 
+        meta, when given, is cleared and filled with this fetch's status, max-age, Retry-After and failure class.
+        bypass_breaker: an explicit user refresh takes one probe through an open host breaker.
+
         Returns (content, new_etag, new_last_modified); on 304 (None, etag, last_modified);
         on error (None, None, None).
         """
+        meta = {} if meta is None else meta
+        meta.clear()
         headers = _identity_headers(url, {'User-Agent': feed_user_agent(podcast)})
         if etag:
             headers['If-None-Match'] = etag
@@ -542,21 +559,23 @@ class RSSParser:
         breaker = _get_rss_circuit_breaker(url)
         probe_token = None
         try:
-            probe_token = breaker.check()
+            probe_token = breaker.check(force=bypass_breaker)
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS conditional fetch skipped: {redact_exc_urls(e)}")
+            meta.update(kind='connection', detail='Paused after repeated failures')
             return None, None, None
 
         try:
             response = safe_get(
                 url,
-                trust=_feed_trust(),
+                trust=feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
                 headers=headers,
             )
 
+            _note_response_meta(response, meta)
             if response.status_code == 304:
                 logger.debug(f"Feed not modified (304): {safe_url_for_log(url)}")
                 breaker.record_success(token=probe_token)
@@ -571,6 +590,7 @@ class RSSParser:
                 )
                 response.close()
                 breaker.record_failure(token=probe_token)
+                meta.update(kind='not_feed', detail='Response was not a feed')
                 return None, None, None
 
             new_etag = response.headers.get('ETag')
@@ -578,6 +598,7 @@ class RSSParser:
 
             body = _read_capped_feed_body(response, url, breaker, probe_token)
             if body is None:
+                meta.update(kind='not_feed', detail='Response too large')
                 return None, None, None
 
             logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
@@ -586,7 +607,8 @@ class RSSParser:
 
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
+            _note_exception_meta(e, meta)
+            log_ssrf_failure(logger, 'fetch_feed_conditional', e, url)
             return None, None, None
 
         except requests.exceptions.ContentDecodingError as e:
@@ -598,12 +620,13 @@ class RSSParser:
             try:
                 response = safe_get(
                     url,
-                    trust=_feed_trust(),
+                    trust=feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
                     stream=True,
                     headers={**headers, 'Accept-Encoding': 'identity'},
                 )
+                _note_response_meta(response, meta)
                 if response.status_code == 304:
                     breaker.record_success(token=probe_token)
                     response.close()
@@ -628,12 +651,14 @@ class RSSParser:
                     new_last_modified,
                 )
             except (SSRFError, requests.RequestException) as retry_e:
+                _note_exception_meta(retry_e, meta)
                 logger.warning(
                     f"Conditional fetch failed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None, None, None
 
         except requests.RequestException as e:
+            _note_exception_meta(e, meta)
             logger.warning(f"Conditional fetch failed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None, None, None
@@ -737,6 +762,31 @@ class RSSParser:
             return {'uses_podping': uses, 'hive_accounts': accounts}
 
         return unknown
+
+    @staticmethod
+    def extract_update_hints(channel) -> dict:
+        """Channel publish-rate hints, ``{'period_seconds': int|None, 'complete': bool}``, from
+        podcast:updateFrequency and sy:*; malformed values are ignored."""
+        hints = {'period_seconds': None, 'complete': False}
+        if channel is None:
+            return hints
+        sy = {}
+        for elem in channel:
+            tag = getattr(elem, 'tag', '')
+            if not isinstance(tag, str):
+                continue
+            if _is_podcast_element(elem) and _podcast_localname(elem) == 'updateFrequency':
+                if (elem.get('complete') or '').strip().lower() in ('true', '1', 'yes'):
+                    hints['complete'] = True
+                period = feed_schedule.parse_rrule_period_seconds(elem.get('rrule'))
+                if period and hints['period_seconds'] is None:
+                    hints['period_seconds'] = period
+            elif tag.startswith(_SY_NS_PREFIX):
+                sy[tag[len(_SY_NS_PREFIX):]] = (elem.text or '').strip()
+        if hints['period_seconds'] is None:
+            hints['period_seconds'] = feed_schedule.parse_sy_period_seconds(
+                sy.get('updatePeriod'), sy.get('updateFrequency'))
+        return hints
 
     @staticmethod
     def _parse_raw_items(channel):

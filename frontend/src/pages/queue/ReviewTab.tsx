@@ -14,6 +14,7 @@ import { Pagination } from '../../components/Pagination';
 import QueryError from '../../components/QueryError';
 import { btnBase, btnPrimary, touchTarget } from '../../components/buttonStyles';
 import { rowCard, tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
+import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
 import { formatTimeAgo } from '../../utils/format';
@@ -275,12 +276,13 @@ function HeldDetections() {
       renderRow={(row) => (
         <>
           {rowBody(row, `${episodePath(row)}#held-for-review-section`)}
-          <span
-            aria-hidden="true"
-            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-primary/15 text-primary shrink-0"
+          <Link
+            to={`${episodePath(row)}#held-for-review-section`}
+            aria-label={`Review ${row.title}`}
+            className={`${touchTarget} gap-1 text-xs font-medium px-2.5 py-1 rounded bg-primary/15 text-primary hover:bg-primary/25 shrink-0 ${focusRing}`}
           >
-            Review <ChevronRight className="w-3.5 h-3.5" />
-          </span>
+            Review <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+          </Link>
         </>
       )}
     />

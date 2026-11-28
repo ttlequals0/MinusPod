@@ -20,6 +20,7 @@ from database.cue_templates import CueTemplateMixin
 from database.cue_detections import CueDetectionMixin
 from database.queue import QueueMixin
 from database.search import SearchMixin
+from database.api_tokens import ApiTokenMixin
 from database.auth_lockout import AuthLockoutMixin
 from database.podping_hosts import PodpingHostMixin
 from database.feed_subscribers import FeedSubscriberMixin
@@ -482,7 +483,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
                FingerprintMixin, FingerprintMatchMixin, CueTemplateMixin,
                CueDetectionMixin, QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
-               FeedSubscriberMixin, ProviderAdmissionMixin,
+               FeedSubscriberMixin, ApiTokenMixin, ProviderAdmissionMixin,
                UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin,
                DownloadHistoryMixin, YouTubeMixin):
     """SQLite database manager with thread-safe connections."""

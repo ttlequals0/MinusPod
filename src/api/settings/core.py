@@ -27,11 +27,14 @@ from config import (
     PODCAST_SEARCH_PROVIDERS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     resolve_download_history_retention_days,
+    resolve_adaptive_refresh,
+    resolve_dormant_feed_days,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
 from systemone.tuning import profile_payload
+from llm_route import review_route_is_systemone
 from api.podcast_search import resolve_search_provider, search_provider_ready
 from database.settings import (
     SETTINGS_REGISTRY,
@@ -212,6 +215,9 @@ def _build_settings_payload():
             registry_default('rss_refresh_interval_minutes')))
     except (ValueError, TypeError):
         rss_refresh_interval_minutes = registry_get_default('rss_refresh_interval_minutes')
+
+    adaptive_refresh_enabled, adaptive_max_seconds, _floor = resolve_adaptive_refresh(db)
+    adaptive_refresh_max_minutes = adaptive_max_seconds // 60
 
     def _int_setting(key):
         try:
@@ -403,6 +409,8 @@ def _build_settings_payload():
     skip_flac_raw = common._setting_value(
         settings, 'skip_flac_compression', registry_default('skip_flac_compression'))
     skip_flac = coerce_bool_setting(skip_flac_raw)
+    raw_api_chunks = coerce_bool_setting(common._setting_value(
+        settings, 'transcribe_raw_api_chunks', registry_default('transcribe_raw_api_chunks')))
 
     default_parallel_windows = str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT)
     parallel_windows_raw = common._setting_value(
@@ -527,6 +535,10 @@ def _build_settings_payload():
         registry_default('dai_differential_overrides_keep')))
     splice_veto_enabled = coerce_bool_setting(common._setting_value(
         settings, 'splice_veto_enabled', registry_default('splice_veto_enabled')))
+    audio_analysis_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'audio_analysis_enabled', registry_default('audio_analysis_enabled')))
+    splice_evidence_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'splice_evidence_enabled', registry_default('splice_evidence_enabled')))
 
     # Compatibility fields (spec 1.4): derived from segment_category_actions,
     # not their own retired settings.
@@ -586,6 +598,8 @@ def _build_settings_payload():
         'enableAdReview': _sv('enable_ad_review', enable_ad_review),
         'reviewModel': _sv('review_model', review_model),
         'reviewProvider': _sv('review_provider', review_provider),
+        'reviewerNeedsLlm': enable_ad_review and any(
+            review_route_is_systemone(db, phase) for phase in ('detection', 'verification')),
         'reviewMaxBoundaryShift': _sv('review_max_boundary_shift', review_max_boundary_shift),
         'reviewPrompt': _sv('review_prompt', review_prompt),
         'resurrectPrompt': _sv('resurrect_prompt', resurrect_prompt),
@@ -606,6 +620,9 @@ def _build_settings_payload():
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
         'rssRefreshIntervalMinutes': _sv(
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
+        'dormantFeedDays': _sv('dormant_feed_days', resolve_dormant_feed_days(db)),
+        'adaptiveRefreshEnabled': _sv('adaptive_refresh_enabled', adaptive_refresh_enabled),
+        'adaptiveRefreshMaxMinutes': _sv('adaptive_refresh_max_minutes', adaptive_refresh_max_minutes),
         'queueManualBoost': _sv('queue_manual_boost', queue_manual_boost),
         'queueFreshBoost': _sv('queue_fresh_boost', queue_fresh_boost),
         'queueOrder': _sv('queue_order', queue_order),
@@ -823,6 +840,8 @@ def _build_settings_payload():
         'daiDifferentialOverridesKeep': _sv(
             'dai_differential_overrides_keep', dai_differential_overrides_keep),
         'spliceVetoEnabled': _sv('splice_veto_enabled', splice_veto_enabled),
+        'audioAnalysisEnabled': _sv('audio_analysis_enabled', audio_analysis_enabled),
+        'spliceEvidenceEnabled': _sv('splice_evidence_enabled', splice_evidence_enabled),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioEncoderCompressionLevel': _sv(
@@ -832,6 +851,7 @@ def _build_settings_payload():
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
         'audioNormalizeIntensity': _sv('audio_normalize_intensity', audio_normalize_intensity),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
+        'transcribeRawApiChunks': _sv('transcribe_raw_api_chunks', raw_api_chunks),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
         'maxArtworkBytes': _sv('max_artwork_bytes', max_artwork_bytes),

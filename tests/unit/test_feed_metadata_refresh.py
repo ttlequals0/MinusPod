@@ -200,7 +200,7 @@ def test_a_304_forces_one_full_fetch_until_metadata_has_been_read():
 
     calls = []
 
-    def fake_fetch(url, etag=None, last_modified=None, podcast=None):
+    def fake_fetch(url, etag=None, last_modified=None, podcast=None, meta=None):
         calls.append(etag)
         if etag:
             return (None, '"e1"', None)

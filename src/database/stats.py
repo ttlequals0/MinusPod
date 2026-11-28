@@ -199,7 +199,7 @@ def _sum_billable_rows(rows) -> BillableTotals:
 
 
 def _safe_systemone_diagnostics(value) -> str:
-    """Serialize only bounded review categories and numeric evidence."""
+    """Serialize only bounded error categories and numeric evidence."""
     if not isinstance(value, dict):
         return '{}'
     safe = {}
@@ -207,16 +207,8 @@ def _safe_systemone_diagnostics(value) -> str:
         item = value.get(key)
         if isinstance(item, str) and len(item) <= 64:
             safe[key] = item
-    allowed = {
-        'outcome', 'skip_reason', 'original_start', 'original_end',
-        'proposed_start', 'proposed_end', 'context_start', 'context_end',
-        'corroborated_start', 'corroborated_end', 'start_candidates',
-        'end_candidates', 'limit', 'reason', 'stage', 'score', 'threshold',
-        'cache_hit', 'range_start', 'range_end', 'candidate_start',
-        'candidate_end', 'start_supported', 'end_supported', 'validation_rule',
-        'proposal', 'fallback', 'numeric_details', 'changed',
-    }
-    nested_allowed = allowed | {
+    allowed = {'reason', 'stage', 'validation_rule', 'numeric_details'}
+    nested_allowed = {
         'expected_count', 'actual_count', 'actual', 'expected_total', 'actual_total', 'tolerance',
     }
     def clean_details(details):
@@ -229,31 +221,19 @@ def _safe_systemone_diagnostics(value) -> str:
             elif (isinstance(item, (int, float)) and not isinstance(item, bool)
                   and math.isfinite(item)):
                 clean[key] = item
-            elif isinstance(item, bool) and key in {
-                    'cache_hit', 'start_supported', 'end_supported', 'changed'}:
-                clean[key] = item
-            elif key in {'proposal', 'fallback', 'numeric_details'} and isinstance(item, dict):
+            elif key == 'numeric_details' and isinstance(item, dict):
                 nested = {}
                 for nested_key, nested_value in item.items():
                     if nested_key not in nested_allowed:
                         continue
-                    if (isinstance(nested_value, str) and len(nested_value) <= 64
-                            and nested_key in {'reason', 'stage'}):
-                        nested[nested_key] = nested_value
-                    elif (isinstance(nested_value, (int, float))
-                          and not isinstance(nested_value, bool)
-                          and math.isfinite(nested_value)):
-                        nested[nested_key] = nested_value
-                    elif isinstance(nested_value, bool) and nested_key == 'cache_hit':
+                    if (isinstance(nested_value, (int, float))
+                            and not isinstance(nested_value, bool)
+                            and math.isfinite(nested_value)):
                         nested[nested_key] = nested_value
                 if nested:
                     clean[key] = nested
         return clean
 
-    refinements = value.get('review_refinements')
-    if isinstance(refinements, list):
-        safe['review_refinements'] = [clean_details(row) for row in refinements[:64]
-                                      if isinstance(row, dict)]
     error_details = value.get('error_details')
     if isinstance(error_details, dict):
         clean = clean_details(error_details)
@@ -1331,8 +1311,7 @@ class StatsMixin:
                 WHERE {where_sql} AND u.cost_usd IS NOT NULL""",  # noqa: S608
             params).fetchall()
         calls = conn.execute(
-            f"""SELECT d.outcome, d.reason, d.diagnostics_json,
-                       d.logical_latency_ms
+            f"""SELECT d.outcome, d.reason, d.logical_latency_ms
                 FROM systemone_call_diagnostics d
                 LEFT JOIN podcasts p ON p.id = d.podcast_id
                 WHERE {where_sql}""",  # noqa: S608
@@ -1340,11 +1319,6 @@ class StatsMixin:
         ).fetchall()
         outcomes = {'completed': 0, 'failed': 0, 'inconclusive': 0}
         reasons = {}
-        refinements = {
-            'attempted': 0, 'completed': 0, 'skipped': 0,
-            'inconclusive': 0, 'upstream_error': 0,
-        }
-        skip_reasons = {}
         logical_latencies = [item['logical_latency_ms'] for item in calls
                              if item['logical_latency_ms'] is not None]
         for item in calls:
@@ -1352,17 +1326,6 @@ class StatsMixin:
             if item['reason']:
                 reason = redact_error(item['reason'])
                 reasons[reason] = reasons.get(reason, 0) + 1
-            try:
-                diagnostics = json.loads(item['diagnostics_json'] or '{}')
-            except (TypeError, ValueError):
-                diagnostics = {}
-            for refinement in diagnostics.get('review_refinements', []):
-                outcome = refinement.get('outcome')
-                if outcome in refinements:
-                    refinements[outcome] += 1
-                if outcome == 'skipped' and refinement.get('skip_reason'):
-                    reason = refinement['skip_reason']
-                    skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
         return {
             'calls': row['calls'],
             'requests': row['requests'],
@@ -1381,8 +1344,6 @@ class StatsMixin:
             'unknownCostRequestCount': row['unknown_cost_count'] or 0,
             'outcomes': outcomes,
             'reviewReasons': reasons,
-            'refinements': refinements,
-            'refinementSkipReasons': skip_reasons,
         }
 
     def get_cleanup_stats(self, *, from_date=None, to_date=None,

@@ -600,6 +600,73 @@ def test_validate_subdir_allowed(tmp_path):
     assert result == sub.resolve()
 
 
+def _served_dests(tmp_path):
+    return [
+        tmp_path / 'podcasts',
+        tmp_path / 'podcasts' / 'show' / 'episodes',
+        tmp_path / 'logs',
+        tmp_path / 'logs' / 'episodes' / 'show',
+        db_backup_service.STATIC_UI_DIR,
+        db_backup_service.STATIC_UI_DIR / 'assets',
+        Path(db_backup_service.__file__).parent / 'main_app' / 'static',
+        db_backup_service._APP_ROOT / 'assets',
+        db_backup_service._APP_ROOT / 'assets_builtin' / 'x',
+    ]
+
+
+def test_validate_served_directories_rejected(tmp_path):
+    for dest in _served_dests(tmp_path):
+        with pytest.raises(ValueError, match='serves over HTTP'):
+            validate_backup_dest(str(dest), str(tmp_path))
+
+
+def test_validate_symlink_into_served_directory_rejected(tmp_path):
+    (tmp_path / 'podcasts').mkdir()
+    link = tmp_path.parent / (tmp_path.name + '_podlink')
+    os.symlink(str(tmp_path / 'podcasts'), str(link))
+    try:
+        with pytest.raises(ValueError, match='serves over HTTP'):
+            validate_backup_dest(str(link), str(tmp_path))
+    finally:
+        os.unlink(str(link))
+
+
+def test_validate_dotdot_into_served_directory_rejected(tmp_path):
+    dest = f'{tmp_path}/backups/../podcasts/show'
+    with pytest.raises(ValueError, match='serves over HTTP'):
+        validate_backup_dest(dest, str(tmp_path))
+
+
+def test_validate_sibling_of_served_directory_allowed(tmp_path):
+    for name in ('podcasts-backups', 'logs2', 'backups'):
+        dest = tmp_path / name
+        assert validate_backup_dest(str(dest), str(tmp_path)) == dest.resolve()
+
+
+def test_backup_now_refuses_stored_served_destination(db, tmp_path, caplog):
+    served = tmp_path / 'podcasts' / 'show'
+    db.set_setting('db_backup_dest', str(served))
+    with caplog.at_level('WARNING', logger='db_backup_service'):
+        with pytest.raises(ValueError, match='serves over HTTP'):
+            backup_now(db)
+    assert 'serves over HTTP' in db.get_setting('db_backup_last_error')
+    assert 'backup failed' in caplog.text
+    assert not served.exists()
+    assert db.get_setting('db_backup_last_run') is None
+
+
+def test_stored_served_destination_is_reported_and_warned_once_at_startup(db, tmp_path, caplog):
+    from db_backup_service import stored_dest_problem, warn_if_dest_unusable
+    db.set_setting('db_backup_dest', str(tmp_path / 'podcasts' / 'show'))
+    db.set_setting('db_backup_enabled', 'true')
+    assert 'serves over HTTP' in stored_dest_problem(db)
+    with caplog.at_level('WARNING', logger='db_backup_service'):
+        warn_if_dest_unusable(db)
+    assert caplog.text.count('serves over HTTP') == 1
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    assert stored_dest_problem(db) is None
+
+
 # ---------------------------------------------------------------------------
 # flock contention
 # ---------------------------------------------------------------------------

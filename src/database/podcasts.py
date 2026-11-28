@@ -10,7 +10,7 @@ from config import (
 from database.error_text import redact_error
 from database.fingerprint_cleanup import delete_matches_for_podcast, delete_pattern_dependents_in
 from utils.constants import EpisodeStatus
-from utils.time import ISO_FORMAT, utc_now_iso
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now_iso
 from utils.validation import nullable_bool
 
 # The feed's network: the override, else the detected network. Writers store the override trimmed.
@@ -209,25 +209,114 @@ class PodcastMixin:
         ).fetchone()
         return (row['last_checked_at'], row['last_refresh_attempt_at']) if row else (None, None)
 
-    def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
-        """Subscribed feeds not attempted within interval_seconds, oldest attempt first, capped at limit.
+    def touch_feed_request(self, slug: str, min_interval_seconds: float) -> bool:
+        """Stamp a served-RSS request unless one was stamped within
+        min_interval_seconds. Returns True when a row was written."""
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(seconds=min_interval_seconds)).strftime(ISO_FORMAT)
+        with self.transaction(immediate=True) as conn:
+            cursor = conn.execute(
+                """UPDATE podcasts SET last_feed_request_at = ?
+                   WHERE slug = ?
+                     AND (last_feed_request_at IS NULL OR last_feed_request_at < ?)""",
+                (now.strftime(ISO_FORMAT), slug, cutoff),
+            )
+            return cursor.rowcount > 0
 
-        Keyed off last_refresh_attempt_at (not last_checked_at) so a failing feed
-        still retries once per interval instead of monopolizing every tick. Never-
-        attempted feeds (NULL) sort first; local and recents feeds are excluded.
-        The timestamp is fixed-width UTC ISO, so string compare is chronological."""
-        cutoff = (datetime.now(timezone.utc)
-                  - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
+    def get_due_feed_slugs(self, limit: int) -> list[str]:
+        """Upstream feeds past next_refresh_at (NULL counts as due), most overdue first, capped at limit.
+
+        A feed attempted in the last 30s is excluded so a crash cannot re-select it every tick."""
+        now = datetime.now(timezone.utc)
+        settled = (now - timedelta(seconds=30)).strftime(ISO_FORMAT)
         rows = self.get_connection().execute(
             """SELECT slug FROM podcasts
                WHERE feed_type NOT IN ('local', 'recents')
                  AND source_url IS NOT NULL AND source_url != ''
+                 AND (next_refresh_at IS NULL OR next_refresh_at <= ?)
                  AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)
-               ORDER BY last_refresh_attempt_at ASC
+               ORDER BY COALESCE(next_refresh_at, '') ASC
                LIMIT ?""",
-            (cutoff, limit),
+            (now.strftime(ISO_FORMAT), settled, limit),
         ).fetchall()
         return [row['slug'] for row in rows]
+
+    def clamp_next_refresh_at(self, ceiling_seconds: int, floor_seconds: int, ceiling_reason: str) -> int:
+        """Pull healthy feeds' waits in to the new ceiling and floor; returns rows changed.
+
+        Feeds under Retry-After or failure backoff are untouched. Runs in the caller's transaction."""
+        now = datetime.now(timezone.utc)
+        params = {
+            'now': now.strftime(ISO_FORMAT), 'ceiling': ceiling_seconds, 'floor': floor_seconds,
+            'latest': (now + timedelta(seconds=ceiling_seconds)).strftime(ISO_FORMAT),
+            'soonest': (now + timedelta(seconds=floor_seconds)).strftime(ISO_FORMAT),
+            'reason': ceiling_reason,
+        }
+        return self.get_connection().execute(
+            """UPDATE podcasts SET
+                    next_refresh_at = CASE
+                        WHEN refresh_interval_seconds > :ceiling THEN MIN(COALESCE(next_refresh_at, :latest), :latest)
+                        WHEN refresh_interval_seconds > :floor AND refresh_interval_reason IN ('floor', 'due', 'fixed')
+                            THEN MIN(COALESCE(next_refresh_at, :soonest), :soonest)
+                        WHEN next_refresh_at > :latest THEN :latest
+                        ELSE next_refresh_at END,
+                    refresh_interval_reason = CASE
+                        WHEN refresh_interval_seconds > :ceiling
+                             AND COALESCE(refresh_interval_reason, '') NOT IN ('hint', 'dormant') THEN :reason
+                        ELSE refresh_interval_reason END,
+                    refresh_interval_seconds = CASE
+                        WHEN refresh_interval_seconds > :ceiling THEN :ceiling
+                        WHEN refresh_interval_seconds > :floor AND refresh_interval_reason IN ('floor', 'due', 'fixed')
+                            THEN :floor
+                        ELSE refresh_interval_seconds END
+                WHERE feed_type NOT IN ('local', 'recents')
+                  AND source_url IS NOT NULL AND source_url != ''
+                  AND COALESCE(refresh_failure_count, 0) = 0
+                  AND (retry_after_until IS NULL OR retry_after_until <= :now)
+                  AND (refresh_interval_seconds > :ceiling OR next_refresh_at > :latest
+                       OR (refresh_interval_seconds > :floor AND refresh_interval_reason IN ('floor', 'due', 'fixed')))""",
+            params).rowcount
+
+    def get_recent_episode_dates(self, podcast_id: int, limit: int = 30) -> list[str]:
+        """Newest published_at values of a feed's episodes (ISO text), for cadence estimation."""
+        rows = self.get_connection().execute(
+            """SELECT published_at FROM episodes
+               WHERE podcast_id = ? AND published_at IS NOT NULL AND published_at != ''
+               ORDER BY published_at DESC LIMIT ?""",
+            (podcast_id, limit),
+        ).fetchall()
+        return [row['published_at'] for row in rows]
+
+    def get_refresh_hold_until(self, slug: str) -> datetime | None:
+        """When a client poll may fetch a failing feed again, or None when nothing holds it.
+
+        Held by a host's Retry-After, or by the failure backoff while the feed is failing."""
+        row = self.get_connection().execute(
+            "SELECT next_refresh_at, retry_after_until, refresh_failure_count "
+            "FROM podcasts WHERE slug = ?", (slug,)).fetchone()
+        if not row:
+            return None
+        now = datetime.now(timezone.utc)
+        holds = [parse_iso_utc(row['retry_after_until'])]
+        if (row['refresh_failure_count'] or 0) > 0:
+            holds.append(parse_iso_utc(row['next_refresh_at']))
+        holds = [h for h in holds if h and h > now]
+        return max(holds) if holds else None
+
+    def get_feed_problems(self, threshold: int) -> list[dict]:
+        """Upstream feeds with at least `threshold` consecutive refresh failures, worst first."""
+        rows = self.get_connection().execute(
+            """SELECT slug, title, source_url, refresh_failure_count, last_refresh_error,
+                      last_refresh_error_kind, last_refresh_error_at, last_refresh_ok_at,
+                      last_checked_at, next_refresh_at
+               FROM podcasts
+               WHERE refresh_failure_count >= ?
+                 AND feed_type NOT IN ('local', 'recents')
+                 AND source_url IS NOT NULL AND source_url != ''
+               ORDER BY refresh_failure_count DESC, slug ASC""",
+            (threshold,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def count_subscribed_feeds(self) -> int:
         """Number of upstream-fetched feeds, used to size the staggered refresh
@@ -395,6 +484,9 @@ class PodcastMixin:
                 'last_modified_header', 'only_expose_processed_episodes',
                 'require_manual_approval',
                 'refresh_failure_count', 'last_refresh_error',
+                'next_refresh_at', 'refresh_interval_seconds', 'refresh_interval_reason',
+                'last_refresh_ok_at', 'retry_after_until', 'http_hint_seconds',
+                'update_hint_seconds', 'feed_complete', 'last_refresh_error_kind',
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'parse_failure_count', 'last_parse_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
@@ -440,19 +532,20 @@ class PodcastMixin:
             conn.commit()
         return True
 
-    def clear_refresh_failure_state(self, slug: str):
-        """Reset the refresh-failure columns after a successful refresh.
+    def clear_refresh_failure_state(self, slug: str) -> int:
+        """Reset the refresh-failure columns after a successful refresh; returns the count it cleared.
 
         Most feeds are already clean, and even a guarded UPDATE takes the write
         lock, queuing behind other writers during a sweep. A WAL read never waits
         on a writer, so it decides first and clean feeds take no lock. The UPDATE
         keeps its guard since a refresh may have written a failure since the read.
         """
-        self._clear_failure_columns(
+        return self._clear_failure_columns(
             slug, 'refresh_failure_count',
             """UPDATE podcasts
                SET refresh_failure_count = 0, last_refresh_error = NULL,
-                   last_refresh_error_at = NULL, last_refresh_failure_at = NULL
+                   last_refresh_error_at = NULL, last_refresh_failure_at = NULL,
+                   last_refresh_error_kind = NULL
                WHERE slug = ? AND refresh_failure_count > 0""")
 
     def clear_parse_failure_state(self, slug: str):
@@ -472,9 +565,10 @@ class PodcastMixin:
             (slug,)
         ).fetchone()
         if not row or not row[count_column]:
-            return
+            return 0
         conn.execute(sql, (slug,))
         conn.commit()
+        return row[count_column]
 
     def get_podcast_tags(self, slug: str) -> dict[str, list[str]]:
         """Return the source breakdown of a podcast's tags.

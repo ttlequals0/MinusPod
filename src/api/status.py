@@ -174,7 +174,9 @@ def status_stream():
     """Compatibility SSE stream with a 30-second lifetime and bounded slots."""
     # The generator cannot use Flask's session proxy after request teardown,
     # so capture the cookie generation and compare it with shared DB state.
-    authenticated_at_connect = current_auth().authenticated
+    auth_at_connect = current_auth()
+    authenticated_at_connect = auth_at_connect.authenticated
+    token_id = auth_at_connect.token_id
     generation_at_connect = session.get(SESSION_GENERATION_KEY)
 
     if _SSE_SLOTS is None:
@@ -194,8 +196,13 @@ def status_stream():
             last_version = None
             while time.monotonic() < deadline:
                 db = get_database()
-                if (authentication_required(db)
-                        and generation_at_connect != current_generation(db)):
+                # A token has no session generation; its stream ends when the token is revoked.
+                if token_id is not None:
+                    revoked = not db.api_token_active(token_id)
+                else:
+                    revoked = (authentication_required(db)
+                               and generation_at_connect != current_generation(db))
+                if revoked:
                     yield "event: auth-failed\ndata: {}\n\n"
                     return
                 payload = status_payload()

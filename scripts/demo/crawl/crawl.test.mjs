@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { expandRoutes, dismissDialogs, isCrawlError, CLOSED } from './crawl.mjs';
+import { expandRoutes, dismissDialogs, isCrawlError, maskRoute, CLOSED } from './crawl.mjs';
 
 const routes = { static: ['/'], perFeed: ['/feeds/{slug}'], perEpisode: ['/feeds/{slug}/episodes/{id}'], episodesPerFeed: 1 };
 
@@ -36,6 +36,7 @@ test('429 and 5xx responses are crawl errors, other statuses are not', () => {
 
 test('the disclosure selector skips menu triggers', () => {
   assert.ok(CLOSED.includes(':not([aria-haspopup])'));
+  assert.ok(CLOSED.split(', ').every((part) => part.endsWith(':visible')));
 });
 
 // Stub page: one modal that is visible until closed by the Close button or Escape.
@@ -87,4 +88,9 @@ test('dismissDialogs does not record a dialog that never closes', async () => {
   const page = stubPage({ stuck: true });
   assert.deepEqual(await dismissDialogs(page), []);
   assert.equal(page.calls.filter((c) => c === 'click').length, 3);
+});
+
+test('maskRoute hides the feed slug and episode id', () => {
+  assert.equal(maskRoute('/feeds/a-show/episodes/abc123?section=ads'), '/feeds/*/episodes/*?section=ads');
+  assert.equal(maskRoute('/stats'), '/stats');
 });

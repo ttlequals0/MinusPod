@@ -43,7 +43,7 @@ def _mock_fetch(monkeypatch, result_or_fn):
     if callable(result_or_fn):
         fn = result_or_fn
     else:
-        def fn(url, etag=None, last_modified=None, podcast=None):
+        def fn(url, etag=None, last_modified=None, podcast=None, meta=None):
             return result_or_fn
     monkeypatch.setattr('main_app.feeds.rss_parser.fetch_feed_conditional', fn)
 
@@ -157,7 +157,7 @@ class TestPartialFailureBelowThreshold:
         slugs = seed_feeds(4, 'outage-partial')
         broken_slug = slugs[0]
 
-        def fetch(url, etag=None, last_modified=None, podcast=None):
+        def fetch(url, etag=None, last_modified=None, podcast=None, meta=None):
             if broken_slug in url:
                 return FAILED_FETCH
             return (VALID_RSS, '"ok-etag"', None)

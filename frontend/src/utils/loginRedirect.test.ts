@@ -33,6 +33,31 @@ describe('storeLoginRedirect', () => {
   });
 });
 
+describe('login redirect hash', () => {
+  it('round-trips path, query and hash', () => {
+    storeLoginRedirect('/ui/feeds/x', '?section=ads', '#ad-distribution-section');
+    expect(sessionStorage.getItem('loginRedirect')).toBe('/feeds/x?section=ads#ad-distribution-section');
+    expect(takeLoginRedirect()).toBe('/feeds/x?section=ads#ad-distribution-section');
+  });
+
+  it('keeps a hash with no query', () => {
+    storeLoginRedirect('/ui/settings', '', '#api-tokens');
+    expect(takeLoginRedirect()).toBe('/settings#api-tokens');
+  });
+
+  it('ignores a bare # or ?', () => {
+    storeLoginRedirect('/ui/settings', '?', '#');
+    expect(sessionStorage.getItem('loginRedirect')).toBe('/settings');
+  });
+
+  it('rejects /login#x and keeps a hash that looks like a URL as a hash only', () => {
+    sessionStorage.setItem('loginRedirect', '/login#x');
+    expect(takeLoginRedirect()).toBe('/');
+    sessionStorage.setItem('loginRedirect', '/settings#//evil.example.com');
+    expect(takeLoginRedirect()).toBe('/settings#//evil.example.com');
+  });
+});
+
 describe('takeLoginRedirect', () => {
   it('returns stored path and clears the key', () => {
     sessionStorage.setItem('loginRedirect', '/feeds');

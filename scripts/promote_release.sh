@@ -35,7 +35,7 @@ docker manifest inspect "$IMAGE:$VERSION-cpu" >/dev/null
 
 run docker buildx imagetools create -t "$IMAGE:stable" "$IMAGE:$VERSION"
 run docker buildx imagetools create -t "$IMAGE:stable-cpu" "$IMAGE:$VERSION-cpu"
-run gh api -X PATCH "repos/$REPO/releases/$RELEASE_ID" -F prerelease=false
+run gh api -X PATCH "repos/$REPO/releases/$RELEASE_ID" -F prerelease=false -f make_latest=true
 
 echo "Promoted v$VERSION to stable."
 if [ "$DRY_RUN" != "--dry-run" ]; then

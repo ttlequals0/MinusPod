@@ -30,6 +30,8 @@ interface TunablesState {
   differentialHoldMinSeconds: number;
   daiDifferentialOverridesKeep: boolean;
   spliceVetoEnabled: boolean;
+  audioAnalysisEnabled: boolean;
+  spliceEvidenceEnabled: boolean;
   transcriptDifferentialEnabled: boolean;
 }
 
@@ -51,6 +53,8 @@ function defaultState(): TunablesState {
     differentialHoldMinSeconds: 10,
     daiDifferentialOverridesKeep: true,
     spliceVetoEnabled: true,
+    audioAnalysisEnabled: true,
+    spliceEvidenceEnabled: true,
     transcriptDifferentialEnabled: true,
   };
 }
@@ -102,6 +106,10 @@ function Harness({ onCommit, llmEnabled = true }: { onCommit: (payload: Tunables
         onHoldForReviewChange={setHoldForReview}
         spliceVetoEnabled={state.spliceVetoEnabled}
         onSpliceVetoEnabledChange={patch('spliceVetoEnabled')}
+        audioAnalysisEnabled={state.audioAnalysisEnabled}
+        onAudioAnalysisEnabledChange={patch('audioAnalysisEnabled')}
+        spliceEvidenceEnabled={state.spliceEvidenceEnabled}
+        onSpliceEvidenceEnabledChange={patch('spliceEvidenceEnabled')}
         transcriptDifferentialEnabled={state.transcriptDifferentialEnabled}
         onTranscriptDifferentialEnabledChange={patch('transcriptDifferentialEnabled')}
       />
@@ -182,6 +190,25 @@ describe('AdDetectionSection: splice veto toggle', () => {
     await user.click(screen.getByRole('switch', { name: NAME }));
     await user.click(screen.getByText('Commit'));
     expect(committed!.spliceVetoEnabled).toBe(false);
+  });
+});
+
+describe.each([
+  ['Run local audio analysis', 'audioAnalysisEnabled'],
+  ['Collect splice evidence', 'spliceEvidenceEnabled'],
+] as const)('AdDetectionSection: %s toggle', (name, field) => {
+  it('is on by default', () => {
+    render(<Harness onCommit={() => {}} />);
+    expect(screen.getByRole('switch', { name }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('switches off and reports the change to the parent', async () => {
+    let committed: TunablesState | null = null;
+    render(<Harness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name }));
+    await user.click(screen.getByText('Commit'));
+    expect(committed![field]).toBe(false);
   });
 });
 
@@ -280,6 +307,8 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
       differentialHoldMinSeconds: 20,
       daiDifferentialOverridesKeep: true,
       spliceVetoEnabled: true,
+      audioAnalysisEnabled: true,
+      spliceEvidenceEnabled: true,
       transcriptDifferentialEnabled: true,
     });
   });

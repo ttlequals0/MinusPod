@@ -5,7 +5,7 @@ import { mediaUrl } from '../utils/mediaUrl';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { ChevronDown, Pencil, Plus } from 'lucide-react';
-import { useParams, Link } from 'react-router';
+import { useParams, Link, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   approveEpisode, downloadEpisodeAudio, episodeOriginalUrl, getEpisode, getFeed, reprocessEpisode, regenerateChapters,
@@ -68,9 +68,11 @@ import { btnBase, btnDestructive, btnLg, btnPrimary, btnSecondary, touchTarget }
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { fileInputBase, focusRing, inputBase, labelBase, textareaBase } from '../components/fieldStyles';
 import { badgeBase, countPill, tint } from '../components/badgeStyles';
-import { cardTitle } from '../components/pageStyles';
+import { cardTitle, subHeading } from '../components/pageStyles';
 import { AutoClosedNote } from '../components/AutoClosedNote';
-import { tabItem, tabStrip } from '../components/PageTabs';
+import PageTabs, { tabItem, tabStrip } from '../components/PageTabs';
+import TabPanelCard from '../components/TabPanelCard';
+import { revealSection } from '../utils/revealSection';
 import { holdReasonLabel, holdReasonTitle } from '../utils/holdReason';
 import { URL_PREFIX } from '../urlPrefix';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -400,8 +402,25 @@ function blockedRunReason(jobState?: JobState): string {
 }
 
 
-// ?rate=up|down (or legacy 1-5) from a feed description link; stripped once applied.
-const URL_PARAM_DEFAULTS = { rate: '' };
+// ?rate=up|down (or legacy 1-5) from a feed description link, stripped once applied; ?section= is the active tab, ?t= a transcript second to scroll to.
+const URL_PARAM_DEFAULTS = { rate: '', section: '', t: '' };
+
+type EpisodeSection = 'ads' | 'transcript' | 'processing';
+// Older #anchor links, from when these were stacked sections, still open their tab.
+const SECTION_HASHES: Record<string, EpisodeSection> = {
+  'held-for-review-section': 'ads',
+  'detected-ads-section': 'ads',
+  'kept-segments-section': 'ads',
+  'detections-not-cut-section': 'ads',
+  'cue-matches-section': 'ads',
+  'transcript-section': 'transcript',
+  'processing-stats-section': 'processing',
+  'logs-section': 'processing',
+};
+
+function safeDecode(value: string): string {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
 
 // The span a marker row shows: the pre-trim range for reviewer-adjusted markers.
 function displayedSpan(segment: AdSegment): { start: number; end: number } {
@@ -415,7 +434,10 @@ function displayedSpan(segment: AdSegment): { start: number; end: number } {
 
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
+  const location = useLocation();
   const urlParams = useUrlParams(URL_PARAM_DEFAULTS);
+  const focusSeconds = Number.parseFloat(urlParams.read('t'));
+  const focusTime = Number.isFinite(focusSeconds) && focusSeconds >= 0 ? focusSeconds : undefined;
   const clearRateParam = () => urlParams.write({ rate: '' });
   const [showEditor, setShowEditor] = useState(false);
   const [createModeRequested, setCreateModeRequested] = useState(false);
@@ -433,7 +455,6 @@ function EpisodeDetail() {
     'ad-editor-review-mode',
     'processed',
   );
-  const [transcriptOpen, setTranscriptOpen] = useState(false);
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
@@ -697,6 +718,7 @@ function EpisodeDetail() {
   // the ad start); otherwise it stays on the last selected ad (0 on first open).
   const handleJumpToAd = (adIndex: number) => {
     setEditorSelectedAdIndex(adIndex);
+    urlParams.write({ section: 'ads' });
     if (!showEditor) {
       setShowEditor(true);
     }
@@ -759,13 +781,64 @@ function EpisodeDetail() {
   // for every confirmed hold. A confirm correction matching a held marker is the durable "approved, not yet
   // applied" state (the card shows it as the Confirmed badge).
   const heldMarkers = episode?.pendingReviewMarkers ?? [];
-  const hasHeldSection = heldMarkers.length > 0;
-  // The Queue's Episode review tab links here with #held-for-review-section.
+  const keptCount = episode?.keptMarkers?.length ?? 0;
+  const keptMarked = episode?.keptMarkers?.filter((m) => m.actionApplied === 'mark').length ?? 0;
+  const keptLinkLabel = keptCount > 0 && keptMarked === keptCount ? 'Marked segments'
+    : keptMarked > 0 ? 'Kept and marked' : 'Kept segments';
+  // In-tab jump links to the detection sections, in the order they stack.
+  const adsLinks: { id: string; label: string; count: number; tint: string }[] = [
+    ...((episode?.adMarkers?.length ?? 0) > 0 ? [{ id: 'detected-ads-section', label: 'Detected ads', count: episode!.adMarkers!.length, tint: tint.primary }] : []),
+    ...(heldMarkers.length > 0 ? [{ id: 'held-for-review-section', label: 'Held for review', count: heldMarkers.length, tint: tint.warning }] : []),
+    ...(keptCount > 0 ? [{ id: 'kept-segments-section', label: keptLinkLabel, count: keptCount, tint: tint.secondary }] : []),
+    ...((episode?.rejectedAdMarkers?.length ?? 0) > 0 ? [{ id: 'detections-not-cut-section', label: 'Detections not cut', count: episode!.rejectedAdMarkers!.length, tint: tint.destructive }] : []),
+    ...((episode?.cueDetections?.length ?? 0) > 0 && slug && episodeId ? [{ id: 'cue-matches-section', label: 'Cue matches', count: episode!.cueDetections!.length, tint: tint.secondary }] : []),
+  ];
+  const hasAdsSection = adsLinks.length > 0;
+  const hasCueSection = adsLinks.some((link) => link.id === 'cue-matches-section');
+  const hasTranscriptSection = !!(episode?.transcript || episode?.originalTranscriptAvailable) && !!slug && !!episodeId;
+  const hasProcessingSection = (episode?.processingRuns?.length ?? 0) > 0;
+  // Ads is the default tab; the held count is the actionable number.
+  const sectionDefs: { value: EpisodeSection; label: string; count?: number; countTint?: string }[] = [
+    ...(hasAdsSection ? [{ value: 'ads' as const, label: 'Ads', ...(heldMarkers.length > 0 ? { count: heldMarkers.length, countTint: tint.warning } : {}) }] : []),
+    ...(hasTranscriptSection ? [{ value: 'transcript' as const, label: 'Transcript' }] : []),
+    ...(hasProcessingSection ? [{ value: 'processing' as const, label: 'Processing', count: episode?.processingRuns?.length, countTint: tint.secondary }] : []),
+  ];
+  const sectionValues = sectionDefs.map((section) => section.value);
+  const hashId = safeDecode(location.hash.slice(1));
+  const hashSection = SECTION_HASHES[hashId];
+  const rateRequested = urlParams.read('rate') !== '';
+  const activeSection = rateRequested && hasAdsSection ? 'ads'
+    : sectionValues.includes(hashSection) ? hashSection
+    : urlParams.readOneOf('section', sectionValues, sectionValues[0] ?? 'ads');
+  // A review-link ?rate= opens the Ads tab and brings the rating card into view.
   useEffect(() => {
-    if (hasHeldSection && window.location.hash === '#held-for-review-section') {
-      document.getElementById('held-for-review-section')?.scrollIntoView?.({ block: 'start' });
+    if (rateRequested && hasAdsSection) document.getElementById('episode-rating-card')?.scrollIntoView?.({ block: 'center' });
+  }, [rateRequested, hasAdsSection]);
+  const selectSection = (value: EpisodeSection) => urlParams.write({ section: value });
+  // A tab mounts on first visit and then stays mounted (hidden), so drafts and open editors survive a tab switch.
+  const [mountedSections, setMountedSections] = useState<ReadonlySet<EpisodeSection>>(new Set());
+  if (sectionValues.length > 0 && !mountedSections.has(activeSection)) {
+    setMountedSections(new Set([...mountedSections, activeSection]));
+  }
+  const mounted = (section: EpisodeSection) => mountedSections.has(section);
+  const panelProps = (section: EpisodeSection) => ({
+    id: `episode-sections-panel-${section}`,
+    hidden: activeSection !== section,
+    ...(sectionDefs.length >= 2 ? { role: 'tabpanel', 'aria-labelledby': `episode-sections-tab-${section}` } : {}),
+  });
+  // A legacy #anchor selects its tab, then scrolls to that section (or to the tab bar when it is absent).
+  const deepLinked = !!episode && sectionValues.includes(hashSection);
+  useEffect(() => {
+    if (!deepLinked) return;
+    const section = document.getElementById(hashId);
+    if (section && hashSection !== 'transcript') {
+      section.tabIndex = -1;
+      return revealSection(section, section);
     }
-  }, [hasHeldSection]);
+    const target = document.getElementById('episode-sections-nav') ?? document.getElementById(`episode-sections-panel-${hashSection}`);
+    if (!target) return;
+    return revealSection(target, document.getElementById(`episode-sections-tab-${hashSection}`));
+  }, [deepLinked, hashId, hashSection, location.key]);
   // The marker flag is authoritative for 2.51+ approvals; the correction
   // join is the fallback for confirms recorded before the flag existed.
   // An adjustment with no approval (older backends, existing data) is a span
@@ -1132,6 +1205,41 @@ function EpisodeDetail() {
         : `Verified: a second scan of the output audio found ${verificationAdsCut} more ad${verificationAdsCut === 1 ? '' : 's'} and cut ${verificationAdsCut === 1 ? 'it' : 'them'}.`
       : null;
 
+  const ratingBlock = episode.status === 'completed' && slug && episodeId ? (
+    <div id="episode-rating-card" className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
+      <EpisodeRating
+        slug={slug}
+        episodeId={episodeId}
+        rating={episode.rating}
+        requestedRating={parseRateParam(urlParams.read('rate'))}
+        onRequestedRatingHandled={clearRateParam}
+      />
+      {episode.sponsorBlock && (
+        <div className="pt-4 border-t border-border">
+          <SponsorBlockSubmit
+            slug={slug}
+            episodeId={episodeId}
+            hasOriginalAudio={episode.hasOriginalAudio}
+            submitAllowed={episode.sponsorBlock.submitAllowed}
+            blockReason={episode.sponsorBlock.submitBlockReason}
+          />
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const candidatesBlock = slug && episodeId && episode.hasOriginalAudio ? (
+    <div className="mb-6">
+      <CueCandidatesSection
+        slug={slug}
+        episodeId={episodeId}
+        episodeTitle={episode.title}
+        episodeDuration={episode.originalDuration ?? episode.duration ?? 0}
+        hasOriginalAudio={!!episode.hasOriginalAudio}
+      />
+    </div>
+  ) : null;
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -1487,60 +1595,6 @@ function EpisodeDetail() {
         {descriptionBlock}
       </div>
 
-      {(() => {
-        const keptJumpLabel = (episode.keptMarkers?.length ?? 0) > 0
-          ? episode.keptMarkers!.every((m) => m.actionApplied === 'mark')
-            ? 'Marked segments'
-            : episode.keptMarkers!.some((m) => m.actionApplied === 'mark')
-            ? 'Kept and marked'
-            : 'Kept segments'
-          : 'Kept segments';
-        const sectionLinks: Array<{ id: string; label: string; count?: number; pillTint?: string }> = [
-          ...(episode.adMarkers && episode.adMarkers.length > 0
-            ? [{ id: 'detected-ads-section', label: 'Detected ads', count: episode.adMarkers.length, pillTint: tint.primary }]
-            : []),
-          ...(heldMarkers.length > 0
-            ? [{ id: 'held-for-review-section', label: 'Held for review', count: heldMarkers.length, pillTint: tint.warning }]
-            : []),
-          ...(episode.keptMarkers && episode.keptMarkers.length > 0
-            ? [{ id: 'kept-segments-section', label: keptJumpLabel, count: episode.keptMarkers.length, pillTint: tint.secondary }]
-            : []),
-          ...(episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0
-            ? [{ id: 'detections-not-cut-section', label: 'Detections not cut', count: episode.rejectedAdMarkers.length, pillTint: tint.destructive }]
-            : []),
-          ...(episode.cueDetections && episode.cueDetections.length > 0 && slug && episodeId
-            ? [{ id: 'cue-matches-section', label: 'Cue matches', count: episode.cueDetections.length, pillTint: tint.secondary }]
-            : []),
-          ...(episode.transcript || episode.originalTranscriptAvailable
-            ? [{ id: 'transcript-section', label: 'Transcript' }]
-            : []),
-          ...(episode.processingRuns && episode.processingRuns.length > 0
-            ? [
-                { id: 'processing-stats-section', label: 'Processing stats', count: episode.processingRuns.length, pillTint: tint.secondary },
-                { id: 'logs-section', label: 'Logs' },
-              ]
-            : []),
-        ];
-        if (sectionLinks.length < 2) return null;
-        return (
-          <nav aria-label="Episode sections" className={tabStrip}>
-            {sectionLinks.map(({ id, label, count, pillTint }) => (
-              <a
-                key={id}
-                href={`#${id}`}
-                className={`${tabItem} border-transparent text-muted-foreground hover:text-foreground`}
-              >
-                <span>{label}</span>
-                {count !== undefined && (
-                  <span className={`ml-1.5 ${countPill} ${pillTint ?? tint.secondary}`}>
-                    {count}
-                  </span>
-                )}
-              </a>
-            ))}
-          </nav>
-        );
-      })()}
 
       {feed?.feedType === 'local' && slug && episodeId && (
         <EpisodeMetadataEditSection slug={slug} episode={episode} />
@@ -1583,6 +1637,153 @@ function EpisodeDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {heldReviewCleared && heldMarkers.length === 0 && episode.status !== 'processing'
+        && episode.transcriptAvailable && (
+        <div
+          className="bg-card rounded-lg border border-border p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4"
+          data-testid="held-review-cleared"
+        >
+          <p className="text-sm text-muted-foreground flex-1">
+            All held detections are marked not an ad. Re-detect ads to look for
+            anything the first run missed, or regenerate the chapters so they
+            match the segments you kept.
+            {llmDisabled && (
+              <span id="regenerate-chapters-after-review-reason" className="mt-1 block">
+                Regenerate chapters is unavailable. {LLM_DISABLED_REASON}
+              </span>
+            )}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <DemoDisabled>
+              <button
+                onClick={() => { setHeldReviewCleared(false); handleReprocess('llm'); }}
+                disabled={reprocessBlocked || redetectDisabled}
+                title={redetectTooltip}
+                data-testid="redetect-after-review"
+                className={`w-full sm:w-auto ${btnBase} ${btnPrimary}`}
+              >
+                Re-detect ads
+              </button>
+            </DemoDisabled>
+            {episode.transcriptVttAvailable && (
+              <DemoDisabled>
+                <button
+                  onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
+                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled}
+                  title={chapterActionTooltip}
+                  aria-describedby={llmDisabled ? 'regenerate-chapters-after-review-reason' : undefined}
+                  data-testid="regenerate-chapters-after-review"
+                  className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
+                >
+                  Regenerate chapters
+                </button>
+              </DemoDisabled>
+            )}
+          </div>
+        </div>
+      )}
+
+      {sectionDefs.length >= 2 && (
+        <div id="episode-sections-nav" className="scroll-mt-[calc(var(--status-bar-height,0px)+5rem)]">
+          <PageTabs id="episode-sections" label="Episode sections" variant="pills" tabs={sectionDefs}
+            active={activeSection} onChange={selectSection} />
+        </div>
+      )}
+
+      {/* Shared windowed player for the Detected Ads, Held for Review, and
+          Rejected Detections rows. Gated so the element (and its metadata
+          preload) only exists when at least one playable row renders. */}
+      {((episode.adMarkers?.length ?? 0) > 0 ||
+        (episode.pendingReviewMarkers?.length ?? 0) > 0 ||
+        (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
+
+      {/* Standalone waveform editor for one held/rejected marker (#563). Not routed through AdEditor: its
+          moved-boundary submits map to type 'adjust', which does not approve a held marker. Here moved boundaries
+          become confirm + adjusted bounds (the trimmed-approve flow), as the row buttons file. Bounds are in the
+          original-audio timeline, so the modal is pinned to original audio. */}
+      {reviewMarker && (() => {
+        const seg = reviewMarker.segment;
+        const fromHeld = reviewMarker.fromHeld;
+        const originalAd = toOriginalAd(seg);
+        // The server's own window when it reports one, else +/-0.5 s.
+        const boundsWindow = seg.allowedBounds ?? { min: seg.start - 0.5, max: seg.end + 0.5 };
+        return (
+          <AdReviewModal
+            key={reviewMarker.key}
+            mode="review"
+            hasNext={false}
+            item={{
+              podcastSlug: slug!,
+              episodeId: episodeId!,
+              start: seg.start,
+              end: seg.end,
+              sponsor: seg.sponsor ?? null,
+              reason: seg.reason || '',
+              confidence: seg.confidence,
+              detectionStage: seg.detection_stage || 'first_pass',
+              patternId: null,
+              correctedBounds: reviewerProposal(seg),
+              category: seg.category ?? null,
+              actionApplied: seg.actionApplied ?? null,
+            }}
+            audioMode="original"
+            hasOriginal={!!episode.hasOriginalAudio}
+            episodeDuration={episode.originalDuration ?? 0}
+            boundsWindow={boundsWindow}
+            heldContext={fromHeld
+              ? { reasonLabel: holdReasonLabel(seg.hold_reason), approved: !!seg.approved }
+              : undefined}
+            onSubmit={(s) => {
+              if (s.kind === 'recategorize') {
+                // A category is a property of the span, not a verdict: stay open and held.
+                handleCorrection({ type: 'recategorize', originalAd, category: s.category });
+                return;
+              }
+              if (s.kind === 'reject') {
+                handleCorrection({ type: 'reject', originalAd });
+              } else {
+                // Mirror the held-row Confirm buttons: a confirm that completes the review set chains a one-tap
+                // recut, unless "Save, cut later" asked for none or the span was already approved.
+                if (fromHeld && oneTapRecut && !s.cutLater && !seg.approved) {
+                  pendingRecutRef.current = true;
+                }
+                if (s.kind === 'adjust') {
+                  // boundsWindow keeps the modal's selection inside the
+                  // window the backend accepts; this clamp is only a
+                  // backstop against float edges.
+                  handleCorrection({
+                    type: 'confirm',
+                    originalAd,
+                    adjustedStart: Math.max(s.adjustedStart!, boundsWindow.min),
+                    adjustedEnd: Math.min(s.adjustedEnd!, boundsWindow.max),
+                    sponsor: s.sponsor,
+                  });
+                } else {
+                  handleCorrection({ type: 'confirm', originalAd, sponsor: s.sponsor });
+                }
+              }
+              setReviewMarker(null);
+            }}
+            onSkip={() => setReviewMarker(null)}
+            onClose={() => setReviewMarker(null)}
+          />
+        );
+      })()}
+      {hasAdsSection && (
+        <div {...panelProps('ads')}>
+          {mounted('ads') && (
+            <>
+      {adsLinks.length >= 2 && (
+        <nav aria-label="Ad sections" className={tabStrip}>
+          {adsLinks.map(({ id, label, count, tint: pillTint }) => (
+            <a key={id} href={`#${id}`} className={`${tabItem} border-transparent text-muted-foreground hover:text-foreground`}>
+              <span>{label}</span>
+              <span className={`ml-1.5 ${countPill} ${pillTint}`}>{count}</span>
+            </a>
+          ))}
+        </nav>
       )}
 
       {episode.adMarkers && episode.adMarkers.length > 0 && (
@@ -1708,155 +1909,6 @@ function EpisodeDetail() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {episode.status === 'completed' && slug && episodeId && (
-        <div className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
-          <EpisodeRating
-            slug={slug}
-            episodeId={episodeId}
-            rating={episode.rating}
-            requestedRating={parseRateParam(urlParams.read('rate'))}
-            onRequestedRatingHandled={clearRateParam}
-          />
-          {episode.sponsorBlock && (
-            <div className="pt-4 border-t border-border">
-              <SponsorBlockSubmit
-                slug={slug}
-                episodeId={episodeId}
-                hasOriginalAudio={episode.hasOriginalAudio}
-                submitAllowed={episode.sponsorBlock.submitAllowed}
-                blockReason={episode.sponsorBlock.submitBlockReason}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Shared windowed player for the Detected Ads, Held for Review, and
-          Rejected Detections rows. Gated so the element (and its metadata
-          preload) only exists when at least one playable row renders. */}
-      {((episode.adMarkers?.length ?? 0) > 0 ||
-        (episode.pendingReviewMarkers?.length ?? 0) > 0 ||
-        (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
-
-      {/* Standalone waveform editor for one held/rejected marker (#563). Not routed through AdEditor: its
-          moved-boundary submits map to type 'adjust', which does not approve a held marker. Here moved boundaries
-          become confirm + adjusted bounds (the trimmed-approve flow), as the row buttons file. Bounds are in the
-          original-audio timeline, so the modal is pinned to original audio. */}
-      {reviewMarker && (() => {
-        const seg = reviewMarker.segment;
-        const fromHeld = reviewMarker.fromHeld;
-        const originalAd = toOriginalAd(seg);
-        // The server's own window when it reports one, else +/-0.5 s.
-        const boundsWindow = seg.allowedBounds ?? { min: seg.start - 0.5, max: seg.end + 0.5 };
-        return (
-          <AdReviewModal
-            key={reviewMarker.key}
-            mode="review"
-            hasNext={false}
-            item={{
-              podcastSlug: slug!,
-              episodeId: episodeId!,
-              start: seg.start,
-              end: seg.end,
-              sponsor: seg.sponsor ?? null,
-              reason: seg.reason || '',
-              confidence: seg.confidence,
-              detectionStage: seg.detection_stage || 'first_pass',
-              patternId: null,
-              correctedBounds: reviewerProposal(seg),
-              category: seg.category ?? null,
-              actionApplied: seg.actionApplied ?? null,
-            }}
-            audioMode="original"
-            hasOriginal={!!episode.hasOriginalAudio}
-            episodeDuration={episode.originalDuration ?? 0}
-            boundsWindow={boundsWindow}
-            heldContext={fromHeld
-              ? { reasonLabel: holdReasonLabel(seg.hold_reason), approved: !!seg.approved }
-              : undefined}
-            onSubmit={(s) => {
-              if (s.kind === 'recategorize') {
-                // A category is a property of the span, not a verdict: stay open and held.
-                handleCorrection({ type: 'recategorize', originalAd, category: s.category });
-                return;
-              }
-              if (s.kind === 'reject') {
-                handleCorrection({ type: 'reject', originalAd });
-              } else {
-                // Mirror the held-row Confirm buttons: a confirm that completes the review set chains a one-tap
-                // recut, unless "Save, cut later" asked for none or the span was already approved.
-                if (fromHeld && oneTapRecut && !s.cutLater && !seg.approved) {
-                  pendingRecutRef.current = true;
-                }
-                if (s.kind === 'adjust') {
-                  // boundsWindow keeps the modal's selection inside the
-                  // window the backend accepts; this clamp is only a
-                  // backstop against float edges.
-                  handleCorrection({
-                    type: 'confirm',
-                    originalAd,
-                    adjustedStart: Math.max(s.adjustedStart!, boundsWindow.min),
-                    adjustedEnd: Math.min(s.adjustedEnd!, boundsWindow.max),
-                    sponsor: s.sponsor,
-                  });
-                } else {
-                  handleCorrection({ type: 'confirm', originalAd, sponsor: s.sponsor });
-                }
-              }
-              setReviewMarker(null);
-            }}
-            onSkip={() => setReviewMarker(null)}
-            onClose={() => setReviewMarker(null)}
-          />
-        );
-      })()}
-
-      {heldReviewCleared && heldMarkers.length === 0 && episode.status !== 'processing'
-        && episode.transcriptAvailable && (
-        <div
-          className="bg-card rounded-lg border border-border p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4"
-          data-testid="held-review-cleared"
-        >
-          <p className="text-sm text-muted-foreground flex-1">
-            All held detections are marked not an ad. Re-detect ads to look for
-            anything the first run missed, or regenerate the chapters so they
-            match the segments you kept.
-            {llmDisabled && (
-              <span id="regenerate-chapters-after-review-reason" className="mt-1 block">
-                Regenerate chapters is unavailable. {LLM_DISABLED_REASON}
-              </span>
-            )}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <DemoDisabled>
-              <button
-                onClick={() => { setHeldReviewCleared(false); handleReprocess('llm'); }}
-                disabled={reprocessBlocked || redetectDisabled}
-                title={redetectTooltip}
-                data-testid="redetect-after-review"
-                className={`w-full sm:w-auto ${btnBase} ${btnPrimary}`}
-              >
-                Re-detect ads
-              </button>
-            </DemoDisabled>
-            {episode.transcriptVttAvailable && (
-              <DemoDisabled>
-                <button
-                  onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
-                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled}
-                  title={chapterActionTooltip}
-                  aria-describedby={llmDisabled ? 'regenerate-chapters-after-review-reason' : undefined}
-                  data-testid="regenerate-chapters-after-review"
-                  className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
-                >
-                  Regenerate chapters
-                </button>
-              </DemoDisabled>
-            )}
           </div>
         </div>
       )}
@@ -2145,7 +2197,7 @@ function EpisodeDetail() {
           <CollapsibleSection
             title={`Detections not cut (${episode.rejectedAdMarkers.length})`}
             subtitle="Flagged but kept in audio"
-            defaultOpen={false}
+            defaultOpen={true}
             storageKey="episode-rejected-detections"
           >
           <p className="text-sm text-muted-foreground mb-4">
@@ -2278,81 +2330,55 @@ function EpisodeDetail() {
         </div>
       )}
 
-      {episode.cueDetections && episode.cueDetections.length > 0 && slug && episodeId && (
+      {hasCueSection && (
         <div id="cue-matches-section" className="mb-6 scroll-mt-4">
           <CueDetectionsSection
-            slug={slug}
-            episodeId={episodeId}
-            detections={episode.cueDetections}
+            slug={slug!}
+            episodeId={episodeId!}
+            detections={episode.cueDetections!}
           />
         </div>
       )}
-
-      {slug && episodeId && episode.hasOriginalAudio && (
-        <div className="mb-6">
-          <CueCandidatesSection
-            slug={slug}
-            episodeId={episodeId}
-            episodeTitle={episode.title}
-            episodeDuration={episode.originalDuration ?? episode.duration ?? 0}
-            hasOriginalAudio={!!episode.hasOriginalAudio}
-          />
+      {candidatesBlock}
+              {ratingBlock}
+            </>
+          )}
         </div>
       )}
 
-      {(episode.transcript || episode.originalTranscriptAvailable) && (
-        <div id="transcript-section" className="mb-6 scroll-mt-4 bg-card rounded-lg border border-border p-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className={cardTitle}>Transcript</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Original and processed text, with search</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setTranscriptOpen(true)}
-            className={`${btnBase} ${btnSecondary} shrink-0`}
-          >
-            View transcript
-          </button>
-        </div>
-      )}
-      {transcriptOpen && (
-        <TranscriptViewer
-          slug={slug!}
-          episodeId={episodeId!}
-          episode={episode}
-          onClose={() => setTranscriptOpen(false)}
-        />
-      )}
-
-      {episode.processingRuns && episode.processingRuns.length > 0 && (
-        <div id="processing-stats-section" className="mb-6 scroll-mt-4">
-          <CollapsibleSection
-            title="Processing stats"
-            subtitle="What each run downloaded, detected, and cut"
-            defaultOpen={false}
-            storageKey="episode-processing-stats"
-          >
-            <ProcessingRunsTable runs={episode.processingRuns} rssDuration={episode.rssDuration} />
-          </CollapsibleSection>
+      {hasTranscriptSection && (
+        <div {...panelProps('transcript')}>
+          {mounted('transcript') && (
+            <div id="transcript-section" className="scroll-mt-4">
+              <TranscriptViewer slug={slug!} episodeId={episodeId!} episode={episode} focusTime={focusTime} />
+            </div>
+          )}
         </div>
       )}
 
-      {episode.processingRuns && episode.processingRuns.length > 0 && (
-        <div id="logs-section" className="mb-6 scroll-mt-4">
-          <CollapsibleSection
-            title="Logs"
-            subtitle="Saved logs for each run"
-            defaultOpen={false}
-            storageKey="episode-run-logs"
-          >
-            <EpisodeLogsCard
-              slug={slug!}
-              episodeId={episodeId!}
-              runs={episode.processingRuns}
-            />
-          </CollapsibleSection>
+      {hasProcessingSection && (
+        <div {...panelProps('processing')}>
+          {mounted('processing') && (
+            <TabPanelCard title="Processing">
+              <div className="space-y-6">
+                <section id="processing-stats-section" className="scroll-mt-4" aria-labelledby="processing-stats-heading">
+                  <h3 id="processing-stats-heading" className={subHeading}>Processing stats</h3>
+                  <p className="text-sm text-muted-foreground mb-3">What each run downloaded, detected, and cut</p>
+                  <ProcessingRunsTable runs={episode.processingRuns!} rssDuration={episode.rssDuration} />
+                </section>
+                <section id="logs-section" className="scroll-mt-4" aria-labelledby="logs-heading">
+                  <h3 id="logs-heading" className={subHeading}>Logs</h3>
+                  <p className="text-sm text-muted-foreground mb-3">Saved logs for each run</p>
+                  <EpisodeLogsCard slug={slug!} episodeId={episodeId!} runs={episode.processingRuns!} />
+                </section>
+              </div>
+            </TabPanelCard>
+          )}
         </div>
       )}
+
+      {!hasAdsSection && candidatesBlock}
+      {!hasAdsSection && ratingBlock}
 
     </div>
   );

@@ -162,6 +162,7 @@ def processing_runs(db, episode, run_totals=None):
             'runNumber': row.get('reprocess_number'),
             'runId': run_id,
             'processedAt': row.get('processed_at'),
+            'appVersion': row.get('app_version'),
             'status': row.get('status'),
             'adsDetected': row.get('ads_detected'),
             'processingDurationSeconds': row.get('processing_duration_seconds'),

@@ -5,13 +5,17 @@ from datetime import datetime, timedelta, timezone
 
 from config import (
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
-    DEFER_SERVICE_LLM, QUEUE_ORDERS,
+    DEFER_SERVICE_LLM, QUEUE_ORDERS, resolve_dormant_feed_days,
 )
 from database.episodes import HAS_TRANSCRIPT_SQL, normalize_published_at
 from database.error_text import redact_error
+from database.podcasts import has_upstream
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
+
+AUTO_PROCESS_DISABLED = 'disabled'
+AUTO_PROCESS_DORMANT = 'dormant'
 
 # Priority boosts (#625) on top of the feed's queue_priority (10 high / 0 normal /
 # -10 low) at enqueue. Fallback defaults: stored queue_*_boost settings override them.
@@ -148,28 +152,38 @@ class QueueMixin:
 
     def is_auto_process_enabled_for_podcast(self, slug: str,
                                             podcast: dict | None = None) -> bool:
-        """Check if auto-process is enabled for a specific podcast.
+        """True when auto-process runs for this podcast under the global and per-feed settings."""
+        return self.auto_process_block(slug, podcast) is None
 
-        podcast: an already-fetched row, avoiding a second get_podcast_row query.
-        Returns True if enabled under both global and podcast-level settings.
-        """
-        # Check global setting first
+    def auto_process_block(self, slug: str, podcast: dict | None = None) -> str | None:
+        """Why auto-process is off for this podcast: 'disabled' or 'dormant', None when it runs.
+
+        podcast: an already-fetched row, avoiding a second get_podcast_row query."""
         global_enabled = self.is_auto_process_enabled()
-
-        # Get podcast-level override
         if podcast is None:
             podcast = self.get_podcast_row(slug)
         if not podcast:
-            return global_enabled
-
+            return None if global_enabled else AUTO_PROCESS_DISABLED
         override = podcast.get('auto_process_override')
         if override == 'true':
-            return True
-        elif override == 'false':
+            return None
+        if override == 'false' or not global_enabled:
+            return AUTO_PROCESS_DISABLED
+        return AUTO_PROCESS_DORMANT if self.is_feed_dormant(podcast) else None
+
+    def is_feed_dormant(self, podcast: dict | None, days: int | None = None) -> bool:
+        """True when dormancy is on and no client fetched this feed's served RSS within the
+        threshold (days, else dormant_feed_days). A never-fetched feed counts from its creation."""
+        if not has_upstream(podcast):
             return False
-        else:
-            # No override, use global setting
-            return global_enabled
+        days = resolve_dormant_feed_days(self) if days is None else days
+        if days <= 0:
+            return False
+        anchor = podcast.get('last_feed_request_at') or podcast.get('created_at')
+        if not anchor:
+            return False
+        cutoff = (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
+        return anchor < cutoff
 
     def get_auto_process_max_age_hours(self, podcast: dict) -> int:
         """Hours since publish within which a new episode is auto-queued."""
@@ -392,7 +406,22 @@ class QueueMixin:
                                  WHERE q.podcast_id = p.id AND q.status = 'pending'))"""
         ).fetchone()[0] == 1
 
-    def _ordered_pending(self, exclude_pairs=()) -> tuple[str, list]:
+    def _dormant_exclusion(self) -> tuple[str, list]:
+        """SQL and params leaving pending rows of dormant feeds unclaimed until the feed is fetched again.
+
+        Mirrors auto_process_block: an explicit per-feed override and a user-requested reprocess still run."""
+        days = resolve_dormant_feed_days(self)
+        if days <= 0 or not self.is_auto_process_enabled():
+            return '', []
+        cutoff = (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
+        return (""" AND NOT (p.feed_type NOT IN ('local', 'recents')
+                   AND p.auto_process_override IS NOT 'true'
+                   AND COALESCE(p.last_feed_request_at, p.created_at) < ?
+                   AND NOT EXISTS (SELECT 1 FROM episodes re
+                                   WHERE re.podcast_id = q.podcast_id AND re.episode_id = q.episode_id
+                                     AND re.reprocess_requested_at IS NOT NULL))""", [cutoff])
+
+    def _ordered_pending(self, exclude_pairs=(), skip_dormant=False) -> tuple[str, list]:
         """CTE text and params giving each claimable pending row its place in `ordered`."""
         global_order = resolve_queue_order(None, self.get_setting('queue_order'))
         exclude_sql = ""
@@ -400,6 +429,10 @@ class QueueMixin:
         if exclude_pairs:
             rows_sql = ",".join("(?,?)" for _ in exclude_pairs)
             exclude_sql = f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})"
+        if skip_dormant:
+            dormant_sql, dormant_params = self._dormant_exclusion()
+            exclude_sql += dormant_sql
+            exclude_params += dormant_params
         if not self._window_order_needed(global_order):
             # Every feed is 'queued': the legacy order, served by idx_queue_status_priority.
             return _QUEUED_ONLY_CTE.format(exclude_sql=exclude_sql), exclude_params  # noqa: S608
@@ -482,7 +515,7 @@ class QueueMixin:
     def claim_next_queued_episode(self, exclude_episodes=None) -> dict | None:
         """Claim the next eligible episode and consume its feed's first queue slot atomically."""
         with self.transaction(immediate=True) as conn:
-            cte, params = self._ordered_pending(list(exclude_episodes or []))
+            cte, params = self._ordered_pending(list(exclude_episodes or []), skip_dormant=True)
             row = conn.execute(
                 f"""{cte}
                    SELECT q.*, p.slug as podcast_slug, p.title as podcast_title,
@@ -611,6 +644,32 @@ class QueueMixin:
                      AND episode_id = ?
                      AND status IN ('pending', 'processing', 'failed')""",
                 (podcast['id'], episode_id)
+            )
+            conn.commit()
+            return cursor.rowcount
+        except Exception:
+            conn.rollback()
+            raise
+
+    def get_active_run_episodes(self) -> list[tuple[str, str]]:
+        """(slug, episode_id) of every run still running or cancelling."""
+        rows = self.get_connection().execute(
+            """SELECT p.slug, r.episode_id
+               FROM processing_runs r
+               JOIN podcasts p ON p.id = r.podcast_id
+               WHERE r.state IN ('running', 'cancel_requested')"""
+        ).fetchall()
+        return [(row['slug'], row['episode_id']) for row in rows]
+
+    def close_all_queue_rows(self) -> int:
+        """Mark pending and claimed queue rows completed; failed rows stay for the retry. Returns rows touched."""
+        conn = self.get_connection()
+        try:
+            cursor = conn.execute(
+                """UPDATE auto_process_queue
+                   SET status = 'completed',
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE status IN ('pending', 'processing')"""
             )
             conn.commit()
             return cursor.rowcount

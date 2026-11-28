@@ -5,15 +5,15 @@ import os
 from flask import current_app, request
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from database.api_tokens import MAX_NAME_LENGTH, ApiTokenError
 from utils.session_defaults import base_url_is_https
-from utils.time import parse_iso_utc, utc_now
 from utils.validation import is_public_ip_for_lockout
-from api.auth_state import authenticate_session, current_auth, sign_out
+from api.auth_state import authenticate_session, current_auth, password_is_set, sign_out
 from api.csrf import validate as csrf_validate
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, retry_after_ceil, retry_after_response,
+    get_database, lockout_retry_after, retry_after_response,
 )
 
 logger = logging.getLogger('podcast.api')
@@ -46,11 +46,6 @@ def _warn_if_session_cookie_unstorable():
             "user back to the login screen. Set SESSION_COOKIE_SECURE=false to "
             "serve over plain HTTP, or put the UI behind HTTPS."
         )
-
-
-def _retry_after_seconds(locked_until_iso: str) -> int:
-    unlock = parse_iso_utc(locked_until_iso)
-    return retry_after_ceil(None if unlock is None else (unlock - utc_now()).total_seconds())
 
 
 # ========== Authentication Endpoints ==========
@@ -93,7 +88,7 @@ def auth_login():
         locked_until = db.check_lockout(ip)
         if locked_until:
             logger.warning("Login attempt on locked IP %s (until %s)", ip, locked_until)
-            seconds = _retry_after_seconds(locked_until)
+            seconds = lockout_retry_after(locked_until)
             return retry_after_response(
                 'Too many failed attempts; try again later', seconds, 429, in_body=True)
 
@@ -161,6 +156,7 @@ def auth_set_password():
 
     Body: {"currentPassword" (required if one is set), "newPassword" (min 12 chars)}.
     An empty or null newPassword removes password protection.
+    Optional boolean "revokeApiTokens" (default true) applies only when changing an existing password.
     """
     data = request.get_json()
     if not data:
@@ -178,16 +174,21 @@ def auth_set_password():
             return error_response('Current password is incorrect', 401)
 
     new_password = data.get('newPassword', '')
+    revoke_tokens = data.get('revokeApiTokens', True)
+    if not isinstance(revoke_tokens, bool):
+        return error_response('revokeApiTokens must be a boolean', 400)
 
     # Remove password protection if empty
     if not new_password:
-        if db.replace_password_and_revoke(current_hash, '') is None:
+        replaced = db.replace_password_and_revoke(current_hash, '')
+        if replaced is None:
             return error_response('Password changed; try again', 409)
         sign_out(db)
         logger.info(f"Password protection removed by {request.remote_addr}")
         return json_response({
             'message': 'Password protection removed',
-            'passwordSet': False
+            'passwordSet': False,
+            'apiTokensRevoked': replaced[1]
         })
 
     # Validate new password (grandfathered: pre-existing hashes with shorter
@@ -200,9 +201,11 @@ def auth_set_password():
     # than depending on whichever default werkzeug ships today.
     password_hash = generate_password_hash(new_password, method='scrypt')
     remembered = current_auth().remembered
-    generation = db.replace_password_and_revoke(current_hash, password_hash)
-    if generation is None:
+    replaced = db.replace_password_and_revoke(
+        current_hash, password_hash, revoke_tokens=revoke_tokens and password_set)
+    if replaced is None:
         return error_response('Password changed; try again', 409)
+    generation, tokens_revoked = replaced
     logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
 
     # Rotate the session on password change for the same reason as /auth/login.
@@ -211,5 +214,58 @@ def auth_set_password():
 
     return json_response({
         'message': f"Password {'changed' if password_set else 'set'} successfully",
-        'passwordSet': True
+        'passwordSet': True,
+        'apiTokensRevoked': tokens_revoked
     })
+
+
+# ========== API Tokens (session only; see SESSION_ONLY_ENDPOINTS) ==========
+
+@api.route('/auth/tokens', methods=['GET'])
+@log_request
+def list_api_tokens():
+    """Active API tokens: id, name, prefix and timestamps, never the token or its hash."""
+    return json_response({'tokens': get_database().list_api_tokens()})
+
+
+@api.route('/auth/tokens', methods=['POST'])
+@limiter.limit('10 per hour')
+@log_request
+def create_api_token():
+    """Create an API token. Body: {"name"}. The plaintext token is in this response only."""
+    data = request.get_json(silent=True)
+    name = data.get('name') if isinstance(data, dict) else None
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= MAX_NAME_LENGTH:
+        return error_response(f'name must be 1 to {MAX_NAME_LENGTH} characters', 400)
+    db = get_database()
+    if not password_is_set(db):
+        return error_response('Set an application password before creating API tokens', 409)
+    try:
+        created = db.create_api_token(name.strip())
+    except ApiTokenError as exc:
+        return error_response(str(exc), 409)
+    logger.info("API token %d created by %s", created['id'], request.remote_addr)
+    response = json_response(created, 201)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@api.route('/auth/tokens', methods=['DELETE'])
+@limiter.limit('5 per hour')
+@log_request
+def revoke_all_api_tokens():
+    """Revoke every API token at once, for a suspected compromise."""
+    count = get_database().revoke_all_api_tokens()
+    logger.info("All API tokens (%d) revoked by %s", count, request.remote_addr)
+    return json_response({'revoked': count})
+
+
+@api.route('/auth/tokens/<int:token_id>', methods=['DELETE'])
+@limiter.limit('30 per hour')
+@log_request
+def revoke_api_token(token_id):
+    """Revoke an API token; it stops working immediately."""
+    if not get_database().revoke_api_token(token_id):
+        return error_response('API token not found', 404)
+    logger.info("API token %d revoked by %s", token_id, request.remote_addr)
+    return json_response({'revoked': True})

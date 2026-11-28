@@ -19,21 +19,22 @@ REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full speci
 
 A path under `/api/` that no route matches answers 404 with `{"error": "Not found", "status": 404}`, and a method the path does not accept answers 405 with `{"error": "Method not allowed", "status": 405}` and an `Allow` header. Paths outside `/api/` keep their normal pages.
 
-Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF.
+Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF. Requests that carry an [API token](#api-tokens) need no CSRF header.
 
 `POST /api/v1/auth/login` accepts an optional boolean `rememberMe` (default false; any other type is a 400). A normal session lasts `sessionLifetimeHours` from its last use and a remembered one lasts `sessionRememberDays`. Read both with `GET /api/v1/settings` and save them with `PUT /api/v1/settings/ad-detection`, which takes whole numbers only and resets a value to its default when you send `null`. Every 429 from a rate limit, and the failed-login lockout's 429 on the login route, carries `Retry-After` in whole seconds and the same number as `retryAfterSeconds` in the body.
 
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down. `checks.llm_model_configured` is always true while the LLM provider is `none`
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
-- `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed. Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed
+- `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed. Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed. Each feed carries `lastFeedRequestAt` (when a client last fetched its served RSS, or null) and `dormant`; see [Dormant feeds](configuration.md#dormant-feeds).
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio, `processingMode` to pick standard, keep_content, skip_detection or passthrough before the first refresh (cue_only must be set after creation)). Leading and trailing whitespace is stripped from `sourceUrl`; one still holding whitespace or a control character is rejected with 400, here and on `PATCH /api/v1/feeds/{slug}`
 - `PATCH /api/v1/feeds/{slug}` - Update feed settings, including title and description rules, duration limits, and the `titleOverride` and `descriptionOverride` display overrides (null clears either). The OpenAPI spec lists all supported fields. `reviewLinksInNotes` (`on`, `off` or `null`) overrides the global review links setting for one feed. `queueOrder` (`queued`, `oldest_first`, `newest_first` or `null`) sets the order of the feed's queued episodes within one priority; `null` follows the global `queueOrder` setting saved with `PUT /api/v1/settings/ad-detection`. `snipShortAsks` (`true`, `false` or `null`) overrides the global short host asks setting for one feed; `null` inherits. `holdForReview` (`true`, `false` or `null`) overrides the global hold-for-review setting for one feed; `null` inherits. `showNotesChapters` (`true` or `false`) turns chapters built from the description's timestamps on or off for one feed.
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file. Leading and trailing whitespace is stripped from each feed URL; one still holding whitespace or a control character is listed under `failed`
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs). Optional `slugs=a,b` filters the export
 - `POST /api/v1/feeds/export-opml?mode=original|modified` - Export selected feeds; send `{"slugs":["a","b"]}` in the JSON body
 - `POST /api/v1/feeds/refresh-artwork` - Re-render every feed's cover art (used after toggling the cover-art badge or swapping the badge asset)
-- `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
+- `GET /api/v1/feeds/problems` - Feeds with 3 or more refresh failures in a row, worst first. Each entry has `slug`, `title`, `host` (scheme and host only), `consecutiveFailures`, `errorKind`, a plain `message`, a scrubbed `detail`, `failingSince`, `lastSuccessAt` and `nextRetryAt`. Retry one with `POST /api/v1/feeds/{slug}/refresh`. A token can read it.
+- `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502. A manual refresh makes one attempt even while the host's circuit breaker is open.
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
 - `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Sends an `ETag` and `Cache-Control: no-cache`, and answers a matching `If-None-Match` with 304. The feed object's `artworkUrl` carries a `v` query value that changes when the stored artwork changes. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
 - `POST /api/v1/feeds` with `feedType: "youtube"` - Create a YouTube feed. Send `sourceKind` (`playlist` or `channel`), `sourceId` and `title`; `artworkUrl`, `includeShorts` and `maxEpisodes` are optional. Needs YouTube feeds enabled. The first listing runs before the response
@@ -49,7 +50,7 @@ Key endpoints:
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes with sorting, status, pagination, and literal case-insensitive title `search`. Search applies across the full feed before pagination. `jobState` reports live queue state. `status=filtered` lists the episodes the feed's title, description, and duration filters match; `total` counts the episodes matched, and it combines with `search`, sorting, pagination, and `selection=true`.
 - `GET /api/v1/feeds/{slug}/episodes?selection=true` - Return matching episode IDs and action eligibility without loading full episode rows, capped at 501 rows (`truncated` is `true` past that cap). The `selection` array contains `id`, `status`, `jobState`, `titleSkipped`, `descriptionSkipped`, and `durationSkipped`; `episodes` is empty. Pagination is ignored for this projection; bulk actions still accept at most 500 episode IDs.
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
-- `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers (a marker whose pattern still exists also carries `patternAudioState`: `active`, `off` or `none`, the state of that pattern's audio fingerprint), transcript, live `jobState`, and processing-run statistics. New runs include elapsed totals, stage timings, and aggregate FFmpeg time; older runs can have no timing data. The elapsed total ends after the episode and feed are saved; history recording and notifications follow outside it. `transcriptSource` is `whisper`, `upstream` (imported from the publisher feed on a pass-through episode) or null when there is no transcript. `upstreamTranscript` reports the publisher-transcript diff (status, coverage, spans) when the stage ran; an ad marker it corroborates carries `corroborated_by: "transcript_differential"`. See [Upstream Transcript Differential](transcript-differential.md) and `openapi.yaml`
+- `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers (a marker whose pattern still exists also carries `patternAudioState`: `active`, `off` or `none`, the state of that pattern's audio fingerprint), transcript, live `jobState`, and processing-run statistics. Each run in `processingRuns` carries `appVersion`, the MinusPod version that made it (null for a run recorded before 2.78.4). New runs include elapsed totals, stage timings, and aggregate FFmpeg time; older runs can have no timing data. The elapsed total ends after the episode and feed are saved; history recording and notifications follow outside it. `transcriptSource` is `whisper`, `upstream` (imported from the publisher feed on a pass-through episode) or null when there is no transcript. `upstreamTranscript` reports the publisher-transcript diff (status, coverage, spans) when the stage ran; an ad marker it corroborates carries `corroborated_by: "transcript_differential"`. See [Upstream Transcript Differential](transcript-differential.md) and `openapi.yaml`
 - `GET /api/v1/feeds/{slug}/episodes/{id}/peaks?start=&end=&resolution_ms=` - Waveform peaks for a window of the retained original, as `{"episodeId", "start", "end", "resolutionMs", "peaks"}` with each peak between 0 and 1. The server keeps a small peaks file beside the original and serves from it when `resolution_ms` is a multiple of 10 and `start` is on the 10 ms grid. Other requests are decoded from the audio. The first open of an episode builds the file. For an original longer than 45 minutes the build runs in the background, and the route answers 503 with `Retry-After: 5` until it is ready. A shorter episode also gets that 503 when another request has been building its file for more than 30 seconds. A response is capped at 60000 peaks, so a long window gets a wider bucket rounded up to a multiple of 10 ms. `resolutionMs` reports the width used
 - `GET /api/v1/feeds/{slug}/episodes/{id}/artwork` - Serve an episode's cover, fetching and caching it from the publisher on first request. Downloaded covers are cached once per feed by their URL, so episodes sharing a cover share one file. `?size=thumb` serves a 256 px thumbnail (an unknown `size` is a 400). A `v` that matches the token in the episode's `artworkThumbUrl` gets `Cache-Control: private, max-age=604800, immutable`; otherwise it sends an `ETag` and `Cache-Control: no-cache`. Limited to 3000 requests per minute. Publishers block images requested with a cross-site Referer, so the web UI asks here instead of loading them directly. Redirects to the feed cover when the episode has none or the fetch is refused. The URL comes from the episode record, never from the caller
 - `POST /api/v1/episodes/{slug}/{id}/reprocess` - Reprocess an episode (body `mode`: reprocess/full/llm/recut; `llm` re-detects on the existing transcript and `recut` re-cuts from the saved ad list, both skipping transcription). See [Reprocessing](configuration.md#reprocessing) for the full mode reference. The older `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` ignores `mode` and always runs a full reprocess.
@@ -111,6 +112,7 @@ Key endpoints:
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
 - `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. A request that sends the removed `type` parameter gets a 400
 - `GET /api/v1/episodes/processing` - List episodes currently processing
+- `POST /api/v1/episodes/processing/cancel-all` - Cancel every active run and clear the waiting queue (failed rows stay for the automatic retry); the response reports `activeRequested`, `queueRowsClosed` (durable queue rows) and `displayEntriesRemoved` (the waiting display list) separately
 - `GET /api/v1/history` - Processing history with pagination and export
 - `GET /api/v1/history/downloads` - Episode download history with filters, sorting and pagination; see [Download History](download-history.md)
 - `GET /api/v1/stats/reviewer` and `GET /api/v1/stats/addressing` - Reviewer and addressing statistics, each with a `byMode` block per addressing mode
@@ -119,7 +121,7 @@ Key endpoints:
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
 - `GET /api/v1/stats/audio-matching?from=&to=&podcastSlug=` - Audio fingerprint matching counts as `{patternsWithAudio, patternsTotal, audioMatches, foundByAudioOnly, notThisAd, historyBackfillPending}`; `historyBackfillPending` is true while the one-time fill of match history from older episodes is still running after an upgrade. `audioMatches` and `foundByAudioOnly` count match history rows created in the period that are not marked "not this ad", and `notThisAd` counts rows marked that way whose rejection time is in the period. They are the same rows the per-pattern audio history lists, so these totals agree with the pattern counts. `patternsTotal` counts active patterns and `patternsWithAudio` those with an enabled fingerprint. With `podcastSlug`, rows are limited to that feed and the pattern counts cover the patterns whose scope applies to that feed, by the rule the matchers use. An unknown `podcastSlug` answers 200 with zeros. `from` is the start of a UTC day and `to` includes the whole UTC day it names, as on the other ledger Stats routes. A value that is not a date or ISO 8601 timestamp is a 400
 - `GET /api/v1/status` - Current processing status with an ETag; the browser polls every 2 seconds and backs off to 30 seconds after failures
-- `GET /api/v1/status/stream` - Authenticated SSE compatibility endpoint, limited to 30 seconds and bounded worker slots
+- `GET /api/v1/status/stream` - Authenticated SSE compatibility endpoint, limited to 30 seconds and bounded worker slots; an API token can open it and the stream ends if the token is revoked
 - `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
@@ -132,8 +134,8 @@ Key endpoints:
 - `POST /api/v1/system/database/checkpoint` - Run a WAL checkpoint; the optional JSON body `{"mode": "passive" | "truncate"}` defaults to passive, and truncate also shrinks the WAL file. Returns 400 for any other mode, 409 when active readers prevent completion, and 503 when SQLite fails to run it
 - `GET /api/v1/system/diagnostic-export` - Download bounded operational diagnostics for an optional UTC `start`/`end` range (24 hours at most). Each event has time, level, category, source file and line; warnings and errors also carry the static `message` template as written in the source and the `exception` class name. Logged values, exception text, prompts, transcripts, identifiers, secrets and URLs are never included. Rate limited to 6/hour
 - `GET /api/v1/system/backup` - Download an encrypted SQLite backup by default. Returns 409 when encryption is unavailable; `encrypted=false` explicitly requests plaintext. See the [security guide](security-and-storage.md#database-backup-sensitivity)
-- `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
-- `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
+- `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 with the reason if one is already running or the configured destination is not usable)
+- `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`). GET also returns `destError`, the reason a stored destination is refused (null when usable); a refused destination is never written to and the failed run records the same text in `lastError`
 - `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts
 - `GET /api/v1/settings/provider-budget/currencies` - List supported ISO display currencies
 - `GET /api/v1/settings/provider-budget/rate/{currency}` - Fetch a current USD reference rate and optional converted preview amounts
@@ -141,13 +143,13 @@ Key endpoints:
 - `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}/record` - Delete the audit record for a revoked key. Active keys return 409; deleting the record never revalidates the token.
-- `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status). `llmEnabled` is false when `llmProvider` is `none`. `reviewLinksInNotes` reports whether served episode descriptions carry the review and rate links; set it with `PUT /api/v1/settings/ad-detection`. `feedItunesBlock` reports whether every served feed carries `itunes:block` (default on) and is set the same way. Full show notes from the source feed are served as `content:encoded` with the same chapter block (`chaptersInNotes`) and timestamp shift, while `description` keeps the summary. `queueOrder` (`queued`, `oldest_first`, `newest_first`) sets the default processing order of queued episodes within one priority. The entries for the four fingerprint numbers, `sessionLifetimeHours` and `sessionRememberDays` also carry `min` and `max` (and `step` for the fingerprint numbers), and `queueOrder` carries `options`, so a client can build its inputs from the response.
-- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
+- `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status). `reviewerNeedsLlm` is true when the reviewer is on but its route resolves to System One, so it does not run. `llmEnabled` is false when `llmProvider` is `none`. `reviewLinksInNotes` reports whether served episode descriptions carry the review and rate links; set it with `PUT /api/v1/settings/ad-detection`. `feedItunesBlock` reports whether every served feed carries `itunes:block` (default on) and is set the same way. Full show notes from the source feed are served as `content:encoded` with the same chapter block (`chaptersInNotes`) and timestamp shift, while `description` keeps the summary. `queueOrder` (`queued`, `oldest_first`, `newest_first`) sets the default processing order of queued episodes within one priority. The entries for the four fingerprint numbers, `sessionLifetimeHours` and `sessionRememberDays` also carry `min` and `max` (and `step` for the fingerprint numbers), and `queueOrder` carries `options`, so a client can build its inputs from the response.
+- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save. `unfetchedRetentionDays` (0 to 3650, default 0 = off) keeps a processed episode no client has downloaded past the normal window, and `fetchedRetentionGraceDays` (0 to 365, default 3) keeps a downloaded one after its first download; a value outside its range or a non-integer is a 400 and nothing is saved. Omitted fields keep their value. See [Unfetched-episode retention](configuration.md#unfetched-episode-retention).
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
-- `PUT /api/v1/settings/ad-detection` - Update ad detection config. `llmProvider` accepts `none` to run episodes with the model-free detectors only (no key, base URL or model needed; saved keys and models are kept); `secondaryProvider` and `failoverLlmProvider` reject it. Includes a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override. The audio fingerprinting fields are `fingerprintEnabled` (boolean) and the numbers `fingerprintMatchStrictness` (0.65 to 0.95, default 0.65), `fingerprintMinCoverage` (0.1 to 1, default 0.5), `fingerprintGapToleranceS` (0 to 15 seconds, default 3.5) and `fingerprintMinAdLengthS` (3 to 30 seconds, default 5). A value outside its range, a string, a boolean in place of a number, or NaN or Infinity is a 400 that names the field and its range, and nothing in the request is saved. `GET /api/v1/settings` returns each as `{value, isDefault}` with the defaults in `defaults`, `POST /api/v1/settings/ad-detection/reset` restores them, and config export and import carry them. They work the same when `llmProvider` is `none`. A change affects later runs and re-detection and never re-fingerprints stored ads. `queueOrder` (`queued`, `oldest_first`, `newest_first`) sets the default processing order of queued episodes within one priority. `snipShortAsks` (`true`, `false` or `null`; `null` resets to the default, off) turns on detection of short host asks and sponsor thanks (each flagged marker follows its category's action), and the response echoes it when sent. Markers it flags carry `short_ask: true` in episode detail. `holdForReview` (`true`, `false` or `null`; `null` resets to the default, off) controls whether uncertain detections are held for review; the response echoes it when sent. Upgraded installs start with `true`. `localModelIdleUnloadSeconds` (integer, 10 to 3600 seconds, default 300) sets how long the local transcription model stays on the GPU after its last transcription. It applies without a restart and is returned by `GET /api/v1/settings` as `{value, isDefault}`. A value outside the range or a non-integer is a 400. `heldWidenSeconds` (0 to 120 seconds, default 0) widens how far past the reviewed span a held ad's edges may be moved and makes an adjust approve the held ad at once; it is global, returned by `GET /api/v1/settings` as `{value, isDefault}`, and a value outside the range or a non-number is a 400.
+- `PUT /api/v1/settings/ad-detection` - Update ad detection config. `llmProvider` accepts `none` to run episodes with the model-free detectors only (no key, base URL or model needed; saved keys and models are kept); `secondaryProvider` and `failoverLlmProvider` reject it. `reviewProvider`, `reviewModel`, `failoverLlmReviewModel` or a provider change that routes the reviewer to System One or TypeSafe is a 400 ("System One cannot be used for the reviewer. Choose an LLM provider."). Includes a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override. The audio fingerprinting fields are `fingerprintEnabled` (boolean) and the numbers `fingerprintMatchStrictness` (0.65 to 0.95, default 0.65), `fingerprintMinCoverage` (0.1 to 1, default 0.5), `fingerprintGapToleranceS` (0 to 15 seconds, default 3.5) and `fingerprintMinAdLengthS` (3 to 30 seconds, default 5). A value outside its range, a string, a boolean in place of a number, or NaN or Infinity is a 400 that names the field and its range, and nothing in the request is saved. `GET /api/v1/settings` returns each as `{value, isDefault}` with the defaults in `defaults`, `POST /api/v1/settings/ad-detection/reset` restores them, and config export and import carry them. They work the same when `llmProvider` is `none`. A change affects later runs and re-detection and never re-fingerprints stored ads. `audioAnalysisEnabled`, `spliceEvidenceEnabled` and `transcribeRawApiChunks` (booleans; a non-boolean is a 400) switch the local audio analysis stage, the splice detector and stream-copied MP3 chunks for the API transcription backend. They are returned by `GET /api/v1/settings` as `{value, isDefault}`. See [Local processing switches](configuration.md#local-processing-switches). `queueOrder` (`queued`, `oldest_first`, `newest_first`) sets the default processing order of queued episodes within one priority. `snipShortAsks` (`true`, `false` or `null`; `null` resets to the default, off) turns on detection of short host asks and sponsor thanks (each flagged marker follows its category's action), and the response echoes it when sent. Markers it flags carry `short_ask: true` in episode detail. `holdForReview` (`true`, `false` or `null`; `null` resets to the default, off) controls whether uncertain detections are held for review; the response echoes it when sent. Upgraded installs start with `true`. `localModelIdleUnloadSeconds` (integer, 10 to 3600 seconds, default 300) sets how long the local transcription model stays on the GPU after its last transcription. It applies without a restart and is returned by `GET /api/v1/settings` as `{value, isDefault}`. A value outside the range or a non-integer is a 400. `heldWidenSeconds` (0 to 120 seconds, default 0) widens how far past the reviewed span a held ad's edges may be moved and makes an adjust approve the held ad at once; it is global, returned by `GET /api/v1/settings` as `{value, isDefault}`, and a value outside the range or a non-number is a 400. `adaptiveRefreshEnabled` (boolean, default true) and `adaptiveRefreshMaxMinutes` (integer from `rssRefreshIntervalMinutes` to 1440, default 60) control adaptive per-feed refresh; `GET /api/v1/settings` returns both as `{value, isDefault}`, and a bad value is a 400. See [Feed Refresh and Podping](configuration.md#feed-refresh-and-podping). `dormantFeedDays` (integer, 0 to 3650, default 0 = off) pauses auto-processing for a feed no client has fetched in that many days; `GET /api/v1/settings` returns it as `{value, isDefault}`, and a value outside the range or a non-integer is a 400. See [Dormant feeds](configuration.md#dormant-feeds).
 - `GET /api/v1/settings/models` - List available AI models from current provider (empty while the provider is `none`). Optional `?slot=` picks the credential slot to probe: `primary` (default), `secondary`, `failover`, or the `a`/`b` aliases for primary/secondary.
 - `POST /api/v1/settings/models/refresh` - Force refresh model list from provider (the primary slot returns an empty list while the provider is `none`). Optional JSON body `{"slot": "primary" | "secondary" | "failover" | "a" | "b"}` picks the credential slot (default primary).
 - `GET /api/v1/failover` - Current state, probe results, policy, and recent events for every failover target. See [Failover](failover.md#manual-control).
@@ -215,6 +217,26 @@ Both frames also carry `processingSchedule`: `{"enabled": true, "open": false, "
 
 Both frames also carry a `failover` block: `{"active": ["llm-a"], "targets": {"llm-a": {"active": true, "source": "auto", "since": "2026-01-01T12:00:00Z"}, "llm-b": {...}, "transcriber": {...}}}`. `active` lists the targets currently on their failover configuration; `targets` gives every target's state regardless. See [Failover](failover.md) for what drives a switch. `GET /api/v1/system/status` additionally carries `failover.targets` (with the `configured` flag) and `failover.probes` (the health-probe results behind auto-trigger and auto-recovery).
 
+### API tokens
+
+Scripts and integrations can use a long-lived token instead of a session cookie. Create one under Settings > Data and security > Security, or with `POST /api/v1/auth/tokens` from a signed-in session (`{"name": "home-assistant"}`). The response holds the plaintext `token` once; it cannot be read again. Tokens need an application password, so creating one on an open instance returns 409.
+
+```bash
+# Read configuration
+curl -H "Authorization: Bearer mp_your-token-here" http://your-server:8000/api/v1/feeds
+
+# Export runtime configuration (includes provider keys)
+curl -H "Authorization: Bearer mp_your-token-here" \
+  -o minuspod-runtime-config.json http://your-server:8000/api/v1/system/config-backup
+```
+
+- A token authenticates a request by itself. No CSRF header is needed, and a session cookie sent with it is ignored.
+- A missing, unknown, revoked or malformed `mp_` token returns 401 and does not fall back to the cookie. Failed attempts count toward an IP lockout of their own, separate from the password login: bad tokens never lock the login, and failed logins never block a valid token.
+- A token cannot create, list or revoke tokens, set, change or remove the password, log out, rotate the provider passphrase, reveal the SponsorBlock user ID, or import configuration. Those return 403 and need a signed-in session.
+- A token can export configuration, including the provider keys in `config-backup`, and download encrypted database backups (`GET /api/v1/system/backup`). It cannot download an unencrypted database (`encrypted=false` returns 403) or restore one. Treat a token like your password. A token can trigger a backup to the configured destination (`POST /api/v1/system/db-backup/run`) but cannot change backup settings, which need a session.
+- `GET /api/v1/auth/tokens` lists active tokens (id, name, prefix, `createdAt`, `lastUsedAt`). `DELETE /api/v1/auth/tokens/{id}` revokes one and `DELETE /api/v1/auth/tokens` revokes all of them (session only). `lastUsedAt` updates at most every 5 minutes.
+- Changing the password revokes tokens unless the request sends `"revokeApiTokens": false` (`PUT /api/v1/auth/password`); the response reports `apiTokensRevoked`. Removing the password always revokes all of them. `DELETE /api/v1/auth/tokens` revokes them without a password change.
+
 ### Public feed-domain routes
 
 A handful of routes live on the feed domain itself, outside `/api/v1`, and are not part of the OpenAPI spec: the served RSS feed at `/{slug}`, episode audio at `/episodes/{slug}/{episodeId}.mp3`, transcripts and chapters (`.vtt`, `/chapters.json`), feed cover art at `/{slug}/cover-minuspod.jpg`, and:
@@ -227,15 +249,15 @@ GET and HEAD enforce the same feed key on every public route. A HEAD request for
 
 ## Notifications
 
-MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them on the Settings page under **Notifications > Email** and **Notifications > Webhooks**, or via the REST API.
+MinusPod notifies you when episodes complete or permanently fail, when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests), and when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them under Settings > Data and security > Notifications (**Email** and **Webhooks**), or via the REST API.
 
-The **Notifications** section contains the timezone setting and separate **Email** and **Webhooks** subsections. Each subsection collapses independently and remembers its open or closed state.
+The section holds the timezone setting and separate **Email** and **Webhooks** subsections. Each collapses independently and remembers its state.
 
 Every payload carries `timestamp` (UTC, `Z`-suffixed) and `timestamp_local` (the same instant in the configured `notification_timezone`, with a UTC offset). `notification_timezone` is an IANA zone name (default `UTC`, or the container's `TZ` env var when it names a valid zone); get or set it at `GET`/`PUT /api/v1/settings/notifications/timezone`. Email shows `timestamp_local` in the Timestamp row, falling back to `timestamp` when the zone is UTC.
 
 ## Webhooks
 
-Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
+Webhooks fire an HTTP POST to configured URLs. Use a custom Jinja2 payload template to match the receiver's expected format.
 
 ### Events
 
@@ -249,6 +271,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Limit Exceeded` | LLM provider rejects a request because a spend or usage limit is exhausted: a monthly key limit (OpenRouter 403), out of credits (402, Anthropic low balance), or OpenAI `insufficient_quota` (rate-limited to one per 5 minutes). The key is valid; add credits or raise the limit, then reprocess the episode (it is marked permanently failed rather than retried). |
 | `Rate Limit Structural` | A single detection-window request exceeds the provider's per-minute token cap (rate-limited to one per 5 minutes). Retrying will not help; the operator needs to shrink the detection window or move to a higher tier. |
 | `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
+| `Feed Refresh Recovered` | A feed that had raised `Feed Refresh Failed` refreshes successfully again. One per recovery. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 | `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
 | `Queue Held` | A provider 429 with a reset time paused the queue (Queue Control > Rate-limit hold). One alert per pause; a later 429 that extends the pause is silent. |
@@ -273,7 +296,7 @@ Custom payload templates are Jinja2 strings rendered against these variables. Fo
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Awaiting Approval`, `Episode Pending Review`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
+| `event` | string | `Episode Processed`, `Episode Awaiting Approval`, `Episode Pending Review`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Feed Refresh Recovered`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
@@ -333,11 +356,11 @@ Custom payload templates are Jinja2 strings rendered against these variables. Fo
 | `requested` | int | Tokens this request asked for (greater than `limit` means the request structurally cannot fit) |
 | `error_message` | string | Error details from the provider, with URL query strings, URL credentials and feed keys removed |
 
-**Feed Refresh Failed events use a different payload:**
+**Feed Refresh Failed and Feed Refresh Recovered events use a different payload** (Recovered has no `error_message`; `failure_count` is the run length before recovery):
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Feed Refresh Failed` |
+| `event` | string | `Feed Refresh Failed` or `Feed Refresh Recovered` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `slug` | string | Feed slug |
@@ -553,6 +576,20 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 }
 ```
 
+**Feed Refresh Recovered:**
+
+```json
+{
+  "event": "Feed Refresh Recovered",
+  "timestamp": "2026-04-12T03:15:42Z",
+  "timestamp_local": "2026-04-12T03:15:42+00:00",
+  "slug": "my-podcast",
+  "podcast_name": "My Podcast",
+  "feed_url": "https://feeds.example.com",
+  "failure_count": 3
+}
+```
+
 **Update Available:**
 
 ```json
@@ -676,10 +713,10 @@ By default the failure and alert events, including `Queue Held`, `Queue Resumed`
 
 ### Example: Pushover
 
-Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
+Pushover ingests webhooks natively with data extraction selectors, so MinusPod's default JSON payload works without a custom template.
 
 1. Create a webhook at [pushover.net/dashboard](https://pushover.net/dashboard) and copy its URL.
-2. In MinusPod Settings, open **Notifications > Webhooks**: paste the URL, select events, **leave payload template blank**.
+2. In MinusPod, open Settings > Data and security > Notifications > **Webhooks**: paste the URL, select events, **leave payload template blank**.
 3. Click Test in MinusPod to fire a sample payload to Pushover.
 4. In Pushover, load the last payload and configure data extraction selectors:
 
@@ -697,7 +734,7 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 ntfy requires a custom payload template to match its expected JSON format.
 
 1. Self-hosted or ntfy.sh: set your topic name
-2. Add a webhook under **Notifications > Webhooks** in Settings:
+2. Add a webhook under Settings > Data and security > Notifications > **Webhooks**:
    - **URL:** `https://ntfy.sh/your-topic` (or your self-hosted instance)
    - **Payload template:**
      ```json

@@ -14,7 +14,8 @@ from functools import wraps
 import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import (
-    AUTH_HOOK_EXEMPT_ENDPOINTS, note_missing_auth, password_is_set, resolve_auth,
+    AUTH_HOOK_EXEMPT_ENDPOINTS, BEARER_LOCKED, SESSION_ONLY_ENDPOINTS, bearer_lockout_key,
+    note_missing_auth, password_is_set, resolve_auth,
 )
 from api.csrf import validate as csrf_validate
 from utils.trusted_proxy import direct_peer, parse_peer
@@ -27,6 +28,7 @@ from utils.ratelimit_storage import (
     ensure_storage_available,
 )
 from utils.text import extract_text_in_range
+from utils.time import parse_iso_utc, utc_now
 from sponsor_service import SponsorService
 
 logger = logging.getLogger('podcast.api')
@@ -120,7 +122,9 @@ def _is_public_artwork_request(path, method):
 
 
 def _remote_setup_allowed():
-    if os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() != 'true':
+    # Setting a token opts in to the gate even when required auth is off.
+    required = os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() == 'true'
+    if not required and not os.environ.get('MINUSPOD_SETUP_TOKEN'):
         return True
     peer = direct_peer(request.environ)
     forwarded = 'X-Forwarded-For' in request.headers or 'Forwarded' in request.headers
@@ -157,6 +161,9 @@ def check_auth():
         note_missing_auth()
         return error_response('Internal server error', 500)
 
+    if state.token_id is not None and request.endpoint in SESSION_ONLY_ENDPOINTS:
+        return error_response('This endpoint requires a signed-in session; API tokens cannot use it', 403)
+
     if path in AUTH_EXEMPT_PATHS:
         return None
 
@@ -169,6 +176,15 @@ def check_auth():
         if state.required:
             return error_response('Set the application password before using the API', 503)
         return None
+
+    if state.bearer_error == BEARER_LOCKED:
+        locked_until = get_database().check_lockout(bearer_lockout_key(request.remote_addr or ''))
+        return retry_after_response(
+            'Too many failed attempts; try again later',
+            lockout_retry_after(locked_until), 429, in_body=True)
+
+    if state.bearer_error:
+        return error_response('Invalid API token', 401)
 
     if not state.authenticated:
         return error_response('Authentication required', 401)
@@ -314,6 +330,12 @@ def _handle_http_exception(exc):
 def retry_after_ceil(wait):
     """Whole seconds to wait, rounded up and at least 1; None means 1."""
     return 1 if wait is None else max(1, math.ceil(wait))
+
+
+def lockout_retry_after(locked_until_iso):
+    """Whole seconds until a lockout's ISO locked_until passes."""
+    unlock = parse_iso_utc(locked_until_iso)
+    return retry_after_ceil(None if unlock is None else (unlock - utc_now()).total_seconds())
 
 
 def limiter_retry_after_seconds(request_limits, now):
