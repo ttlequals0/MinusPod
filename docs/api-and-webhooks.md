@@ -19,7 +19,7 @@ REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full speci
 
 A path under `/api/` that no route matches answers 404 with `{"error": "Not found", "status": 404}`, and a method the path does not accept answers 405 with `{"error": "Method not allowed", "status": 405}` and an `Allow` header. Paths outside `/api/` keep their normal pages.
 
-Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF.
+Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF. Requests that carry an [API token](#api-tokens) need no CSRF header.
 
 `POST /api/v1/auth/login` accepts an optional boolean `rememberMe` (default false; any other type is a 400). A normal session lasts `sessionLifetimeHours` from its last use and a remembered one lasts `sessionRememberDays`. Read both with `GET /api/v1/settings` and save them with `PUT /api/v1/settings/ad-detection`, which takes whole numbers only and resets a value to its default when you send `null`. Every 429 from a rate limit, and the failed-login lockout's 429 on the login route, carries `Retry-After` in whole seconds and the same number as `retryAfterSeconds` in the body.
 
@@ -215,6 +215,26 @@ Both frames also carry `processingSchedule`: `{"enabled": true, "open": false, "
 `jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `stageDetail` is null unless a long stage reports sub-progress: during transcription it carries `processed` and `total` in `seconds` of audio (local decode) or `chunks` (remote API with parallel chunks), and it is cleared when the stage changes. It never changes `progress`. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 
 Both frames also carry a `failover` block: `{"active": ["llm-a"], "targets": {"llm-a": {"active": true, "source": "auto", "since": "2026-01-01T12:00:00Z"}, "llm-b": {...}, "transcriber": {...}}}`. `active` lists the targets currently on their failover configuration; `targets` gives every target's state regardless. See [Failover](failover.md) for what drives a switch. `GET /api/v1/system/status` additionally carries `failover.targets` (with the `configured` flag) and `failover.probes` (the health-probe results behind auto-trigger and auto-recovery).
+
+### API tokens
+
+Scripts and integrations can use a long-lived token instead of a session cookie. Create one under Settings > Security, or with `POST /api/v1/auth/tokens` from a signed-in session (`{"name": "home-assistant"}`). The response holds the plaintext `token` once; it cannot be read again. Tokens need an application password, so creating one on an open instance returns 409.
+
+```bash
+# Read configuration
+curl -H "Authorization: Bearer mp_your-token-here" http://your-server:8000/api/v1/feeds
+
+# Export runtime configuration (includes provider keys)
+curl -H "Authorization: Bearer mp_your-token-here" \
+  -o minuspod-runtime-config.json http://your-server:8000/api/v1/system/config-backup
+```
+
+- A token authenticates a request by itself. No CSRF header is needed, and a session cookie sent with it is ignored.
+- A missing, unknown, revoked or malformed `mp_` token returns 401 and does not fall back to the cookie. Failed attempts count toward the same IP lockout as failed logins.
+- A token cannot create, list or revoke tokens, set, change or remove the password, log out, rotate the provider passphrase, or import configuration. Those return 403 and need a signed-in session.
+- A token can export configuration, including the provider keys in `config-backup`. Treat it like your password.
+- `GET /api/v1/auth/tokens` lists active tokens (id, name, prefix, `createdAt`, `lastUsedAt`). `DELETE /api/v1/auth/tokens/{id}` revokes one. `lastUsedAt` updates at most every 5 minutes.
+- Changing the password keeps tokens. Removing it revokes all of them.
 
 ### Public feed-domain routes
 

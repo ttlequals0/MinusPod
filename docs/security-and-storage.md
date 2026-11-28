@@ -51,6 +51,16 @@ The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.rem
 
 Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. If you're behind a reverse proxy and the WARN still fires after a deploy, your lockout and rate limits are not working.
 
+### API tokens
+
+An API token (`Authorization: Bearer mp_...`) lets a script call `/api/v1` without a session cookie or CSRF header. See [API tokens](api-and-webhooks.md#api-tokens) for usage.
+
+- Storage: only a SHA-256 hash is kept, in the `api_tokens` table. The plaintext is shown once at creation and is never logged. Log lines and error text redact `mp_` values and `Bearer` credentials.
+- Authority: a token has the same access as a signed-in session, except that it cannot manage tokens, the password or sessions, rotate the provider passphrase, or import configuration. It can export configuration, including provider keys, and download database backups. Treat a token like your password and give each integration its own.
+- Authentication: a request with a token is authenticated by the token alone. A cookie sent with it is ignored, so CSRF is not needed and cannot be combined with cookie authority. Wrong tokens return 401 and count toward the login lockout.
+- Revocation: revoke a token under Settings > Security. It stops working at once. Changing the password keeps tokens. Removing the password revokes all of them, and a token does nothing on an instance without a password.
+- Backups: a database backup contains the token hashes, so restoring one restores its tokens. Runtime configuration exports do not contain them.
+
 ### Security recommendations
 
 Operator checklist:
@@ -170,6 +180,7 @@ The SQLite backup files produced by `GET /api/v1/system/backup`, by the periodic
 - Flask session signing key
 - Webhook HMAC secrets
 - Password hash (scrypt)
+- API token hashes (SHA-256)
 
 Treat the file like a credential. `GET /api/v1/system/backup` requests an encrypted download by default. Encryption requires `MINUSPOD_MASTER_PASSPHRASE` and a restart after setting it. Without the passphrase the request returns HTTP 409 `backup_encryption_unavailable`; an encryption failure returns HTTP 500. Neither case falls back to plaintext. Plaintext requires an explicit `encrypted=false` query, and the web UI puts that download behind a separate warning and confirmation. The audit log records whether each download was encrypted.
 
