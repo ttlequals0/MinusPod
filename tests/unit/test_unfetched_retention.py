@@ -149,18 +149,19 @@ class TestMigrationBackfill:
         _seed(db, 'show', 'downloaded', processed_days_ago=5)
         _seed(db, 'show', 'never', processed_days_ago=5)
         podcast_id = db.get_podcast_by_slug('show')['id']
+        first_seen = _days_ago(4)
         conn = db.get_connection()
         conn.execute(
             "INSERT INTO episode_downloads (podcast_id, episode_id, client_ip, "
             "first_seen_at, last_seen_at) VALUES (?, 'downloaded', '10.0.0.1', ?, ?)",
-            (podcast_id, _days_ago(4), _days_ago(2)))
+            (podcast_id, first_seen, _days_ago(2)))
         conn.execute("ALTER TABLE episodes DROP COLUMN first_fetched_at")
         conn.execute("DELETE FROM schema_migrations WHERE name = 'fetch_tracking_baseline_v1'")
         conn.commit()
         Database._instance = None
         db = Database(data_dir=str(tmp_path))
         try:
-            assert db.get_episode('show', 'downloaded')['first_fetched_at'] == _days_ago(4)
+            assert db.get_episode('show', 'downloaded')['first_fetched_at'] == first_seen
             assert db.get_episode('show', 'never')['first_fetched_at'] is None
         finally:
             Database._instance = None
