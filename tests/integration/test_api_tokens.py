@@ -277,6 +277,15 @@ def test_log_redaction_covers_token_and_bearer_shapes():
     for text in (f'sent {token} here', f'Authorization: Bearer {token}', f'headers={{"Authorization": "Bearer {token}"}}'):
         assert token not in redact_log_text(text)
     assert redact_log_text('no secrets here') == 'no secrets here'
+    jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop'
+    assert jwt not in redact_log_text(f'Authorization: Bearer {jwt}')
+
+
+@pytest.mark.parametrize('prose', [
+    'Missing Bearer authorization header', 'Invalid bearer credentials', 'expected a Bearer token',
+])
+def test_log_redaction_leaves_bearer_prose_alone(prose):
+    assert redact_log_text(prose) == prose
 
 
 # ---- session-only deny-list ----
