@@ -12,7 +12,7 @@
 - [Optional](#optional)
 - [Deprecated](#deprecated)
 
-Grouped by how often you'll touch them. **Standard** is what a typical deployment sets; **Security** is the hardening surface; **Advanced** are tuning knobs for edge cases; **Optional** are opt-in features.
+**Standard** is what a typical deployment sets, **Security** is the hardening surface, **Advanced** holds tuning knobs for edge cases, and **Optional** holds opt-in features.
 
 `WHISPER_LANGUAGE`, `WHISPER_COMPUTE_TYPE`, and the `VAD_GAP_*` variables seed fresh installs only; runtime values live in Settings > Transcription (VAD at `GET/PUT /api/v1/settings`).
 
@@ -30,7 +30,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL. Override for private proxies or regional endpoints. |
 | `ANTHROPIC_BASE_URL` | _(anthropic default)_ | Anthropic API base URL. Override for private proxies. |
 | `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |
-| `OPENAI_MODEL` | _(none)_ | Model id that seeds `claude_model`, `verification_model`, and `chapters_model` whenever one of those settings is unset. No shipped default exists: **required for Ollama** (e.g. `qwen3:14b`) and needed for OpenAI-compatible/OpenRouter unless you pick a model in Settings > AI models instead. Once a setting has a stored value the env var no longer touches it. Processing fails with a message pointing at Settings > AI models until every model setting is configured. There is no `LLM_MODEL` variable. |
+| `OPENAI_MODEL` | _(none)_ | Model id that seeds `claude_model`, `verification_model`, and `chapters_model` whenever one of those settings is unset. No shipped default exists: **required for Ollama** (e.g. `qwen3:14b`) and needed for OpenAI-compatible/OpenRouter unless you pick a model in Settings > AI and transcription > AI models instead. Once a setting has a stored value the env var no longer touches it. Processing fails with a message pointing at Settings > AI and transcription > AI models until every model setting is configured. There is no `LLM_MODEL` variable. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
 | `WHISPER_MODEL` | `small` (GPU), `tiny` (CPU image) | faster-whisper backend only. Model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
@@ -52,9 +52,9 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
-| `LOG_FORMAT` | `text` | `text` or `json`. JSON prints one object per line with a `level` field and also applies to gunicorn's own access and error logs. A log shipper should read that field instead of guessing the level from words in a text line, because any line that contains "error" would be mislabeled. |
+| `LOG_FORMAT` | `text` | `text` or `json`. JSON prints one object per line with a `level` field and also applies to gunicorn's own access and error logs. A log shipper should read that field instead of guessing the level from words in a text line, since any line containing "error" would be mislabeled. |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
-| `TZ` | `UTC` | Container timezone (e.g. `America/New_York`). When set to a valid IANA zone, seeds the `notification_timezone` setting that computes `timestamp_local` in webhook and email notifications. Override the setting at Settings > Notifications, or `GET/PUT /api/v1/settings/notifications/timezone`, without touching `TZ`. |
+| `TZ` | `UTC` | Container timezone (e.g. `America/New_York`). When set to a valid IANA zone, seeds the `notification_timezone` setting that computes `timestamp_local` in webhook and email notifications. Override the setting at Settings > Data and security > Notifications, or `GET/PUT /api/v1/settings/notifications/timezone`, without touching `TZ`. |
 
 ## Security
 
@@ -87,9 +87,9 @@ Env-backed rows seed the default of the stored setting named in the row. The sto
 | `LOW_AD_YIELD_ACTION` | `nothing` | Action taken automatically when a pipeline-initiated run removes far less ad time than the feed's recent average: `nothing`, `redetect` (rerun detection from the stored transcript), `reprocess`, or `full`. Fires at most once per episode (a failed rerun still counts) and never for a manual reprocess. Env-backed (`low_ad_yield_action`); each feed can override it. |
 | `EPISODE_LOG_RETENTION_DAYS` | `30` | Days to keep per-run pipeline logs, clamped to `[0, 365]`. `0` turns run log storage off and lets the cleanup sweep delete what is already stored. Env-backed (`episode_log_retention_days`); each feed can opt in or out. |
 | `EPISODE_LOG_LEVEL` | `debug` | Minimum level kept in a run log: `debug` or `info`. A run log can only keep what the server already writes, so there are no debug lines to keep unless `LOG_LEVEL` is `DEBUG`. Env-backed (`episode_log_level`). |
-| `DOWNLOAD_USER_AGENT` | _(a current Chrome string)_ | User-Agent sent when fetching audio, artwork, and chapters. Some hosts run bot mitigation that refuses browser identifiers below a rolling version floor, which surfaces as a 403 on download even though the file is there. Env-backed (`download_user_agent`, Settings > Outbound Requests), so a host that starts refusing ours is fixed without a new image. |
-| `FEED_USER_AGENT` | `PodcastAdRemover/1.0` | User-Agent sent when fetching RSS. Kept separate from the download UA because some feed hosts do the opposite and answer only a declared podcast client. Env-backed (`feed_user_agent`, Settings > Outbound Requests). |
-| `LOG_DOWNLOAD_QUERY` | `false` | Include URL query strings in download logs. The requested path and the full redirect chain are logged either way. This adds the query, which on a podcast enclosure regularly carries a signed CDN token or a per-listener tracking id. Turn it on while debugging a refusal, not permanently, since those values then sit in your logs for as long as you keep them. Env-backed (`log_download_query`, Settings > Outbound Requests). |
+| `DOWNLOAD_USER_AGENT` | _(a current Chrome string)_ | User-Agent sent when fetching audio, artwork, and chapters. Some hosts run bot mitigation that refuses browser identifiers below a rolling version floor, which surfaces as a 403 on download even though the file is there. Env-backed (`download_user_agent`, Settings > Data and security > Outbound requests), so a host that starts refusing ours is fixed without a new image. |
+| `FEED_USER_AGENT` | `PodcastAdRemover/1.0` | User-Agent sent when fetching RSS. Kept separate from the download UA because some feed hosts do the opposite and answer only a declared podcast client. Env-backed (`feed_user_agent`, Settings > Data and security > Outbound requests). |
+| `LOG_DOWNLOAD_QUERY` | `false` | Include URL query strings in download logs. The requested path and the full redirect chain are logged either way. This adds the query, which on a podcast enclosure regularly carries a signed CDN token or a per-listener tracking id. Turn it on while debugging a refusal, not permanently, since those values then sit in your logs for as long as you keep them. Env-backed (`log_download_query`, Settings > Data and security > Outbound requests). |
 | `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. Env-backed. |
 | `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. Env-backed. |
 | `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. Env-backed. |
@@ -113,11 +113,11 @@ Env-backed rows seed the default of the stored setting named in the row. The sto
 | `SESSION_REMEMBER_DAYS` | `30` | Idle length in days (1 to 365) of a session that ticks "Remember me" at sign-in. |
 | `OMP_NUM_THREADS` | _(library default)_ | Caps OpenMP threads for local `faster-whisper` CPU transcription. On hybrid Intel CPUs the default can push work onto the slow E-cores and thrash the cache; set it to your performance-core count (more threads is not faster). No effect with a remote Whisper API or on GPU. See [Installation](installation.md#intel-hybrid-cpu-tuning-optional). |
 
-`SESSION_LIFETIME_HOURS` and `SESSION_REMEMBER_DAYS` give the starting values. A value saved in Settings > Security takes over from either variable and applies without a restart.
+`SESSION_LIFETIME_HOURS` and `SESSION_REMEMBER_DAYS` give the starting values. A value saved in Settings > Data and security > Security takes over from either variable and applies without a restart.
 
 ### LLM stage tunables
 
-Every per-stage LLM control in Settings > Ad Detection has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. An unset variable leaves the built-in default in place. See the annotated list in [`.env.example`](../.env.example) and the [configuration guide](configuration.md#configuration).
+Every per-stage LLM control in Settings > AI and transcription > LLM tunables has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. An unset variable leaves the built-in default in place. See the annotated list in [`.env.example`](../.env.example) and the [configuration guide](configuration.md#configuration).
 
 The stage prefixes are `DETECTION_`, `VERIFICATION_`, `REVIEWER_`, `CHAPTER_BOUNDARY_`, and `CHAPTER_TITLE_`. Each takes the same four suffixes:
 
@@ -128,7 +128,7 @@ The stage prefixes are `DETECTION_`, `VERIFICATION_`, `REVIEWER_`, `CHAPTER_BOUN
 | `_REASONING_BUDGET` | int | 1024 - 65536 (Anthropic extended thinking) |
 | `_REASONING_LEVEL` | enum | `none`, `low`, `medium`, `high` (non-Anthropic providers) |
 
-So `DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL`, and so on. Two legacy names still resolve: `AD_DETECTION_MAX_TOKENS` (alias of `DETECTION_MAX_TOKENS`) and `REVIEW_MAX_TOKENS` (alias of `REVIEWER_MAX_TOKENS`).
+Examples: `DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL`. Two legacy names still resolve: `AD_DETECTION_MAX_TOKENS` (alias of `DETECTION_MAX_TOKENS`) and `REVIEW_MAX_TOKENS` (alias of `REVIEWER_MAX_TOKENS`).
 
 ## Optional
 
