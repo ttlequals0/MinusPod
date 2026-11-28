@@ -92,6 +92,18 @@ describe('Search page episode results', () => {
   });
 });
 
+describe('Search page pattern results', () => {
+  it('links a pattern hit to that pattern with ?id=', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'acme', shows: [], episodes: [], transcripts: [], sponsors: [],
+      patterns: [{ id: 42, sponsor: 'Acme', scope: 'global', snippet: null }],
+    });
+    renderSearch('/search?q=acme');
+    const link = (await screen.findByText('Acme')).closest('a');
+    expect(link?.getAttribute('href')).toBe('/patterns?id=42');
+  });
+});
+
 describe('Search page sponsor results', () => {
   it('links a sponsor hit to the Patterns Sponsors tab with the name as ?q=', async () => {
     mockSearch.mockResolvedValue({

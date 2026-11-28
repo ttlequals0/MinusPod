@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import PageTabs from '../components/PageTabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { useUrlParams, useUrlSearch, useUrlSort } from '../hooks/useUrlParams';
 import {
-  getPatterns, getPatternStats, AdPattern, updatePattern,
+  getPatterns, getPattern, getPatternStats, AdPattern, updatePattern,
   protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,
 } from '../api/patterns';
 import {
@@ -162,6 +162,8 @@ function PatternsPage() {
     queryFn: getPatternStats,
   });
 
+  const fetchedIdRef = useRef<string | null>(null);
+
   // Handle ?id= query param to open pattern detail. setSearchParams writes
   // router state, so this lives in an effect rather than running during render.
   useEffect(() => {
@@ -170,18 +172,22 @@ function PatternsPage() {
     // effect and opens the modal then.
     if (activeTab !== 'patterns') return;
     const idParam = searchParams.get('id');
-    if (idParam && patterns) {
-      const pattern = patterns.find(p => p.id === parseInt(idParam));
-      if (pattern) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSelectedPattern(pattern);
-        // Clear only the id param, preserve other params
-        setSearchParams((prev) => {
-          const next = new URLSearchParams(prev);
-          next.delete('id');
-          return next;
-        });
-      }
+    if (!idParam || !patterns) return;
+    const clearId = () => setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('id');
+      return next;
+    });
+    const id = parseInt(idParam);
+    const pattern = patterns.find(p => p.id === id);
+    if (pattern) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedPattern(pattern);
+      clearId();
+    } else if (fetchedIdRef.current !== idParam) {
+      // Not in the filtered list (inactive, other scope): fetch it directly.
+      fetchedIdRef.current = idParam;
+      getPattern(id).then(setSelectedPattern).catch(() => undefined).finally(clearId);
     }
   }, [activeTab, patterns, searchParams, setSearchParams]);
 
