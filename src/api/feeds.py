@@ -1168,8 +1168,9 @@ def get_feed_problems():
     rows = get_database().get_feed_problems(FEED_REFRESH_FAILURE_ALERT_THRESHOLD)
     problems = []
     for row in rows:
-        kind = row.get('last_refresh_error_kind') or feed_problems.classify_text(
-            row.get('last_refresh_error'))
+        stored = row.get('last_refresh_error_kind')
+        kind = (stored if stored not in (None, 'unknown')
+                else feed_problems.classify_text(row.get('last_refresh_error')))
         problems.append({
             'slug': row['slug'],
             'title': row.get('title') or row['slug'],

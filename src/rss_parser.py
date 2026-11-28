@@ -606,7 +606,7 @@ class RSSParser:
 
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            meta.update(kind='blocked_address', detail='Address blocked')
+            _note_exception_meta(e, meta)
             logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None, None, None
 

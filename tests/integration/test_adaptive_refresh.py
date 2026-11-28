@@ -277,6 +277,15 @@ class TestProblemsEndpoint:
                      if p['slug'] == feed['slug'])
         assert entry['errorKind'] == 'invalid_xml'
 
+    def test_a_stored_unknown_kind_does_not_hide_a_better_classification(self, app_client, feed):
+        feed['db'].update_podcast(feed['slug'], refresh_failure_count=THRESHOLD,
+                                  last_refresh_error_kind='unknown',
+                                  last_refresh_error='HTTP 404 from https://feed.example.com/x')
+        _authed(app_client)
+        entry = next(p for p in app_client.get('/api/v1/feeds/problems').get_json()['problems']
+                     if p['slug'] == feed['slug'])
+        assert entry['errorKind'] == 'gone'
+
     def test_feed_object_exposes_the_schedule(self, app_client, feed):
         feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'), {})
         _authed(app_client)

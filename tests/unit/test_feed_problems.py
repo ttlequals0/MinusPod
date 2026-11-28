@@ -25,6 +25,12 @@ def _http_error(status):
     (requests.exceptions.ConnectionError('[Errno -2] Name or service not known'), 'dns'),
     (requests.exceptions.ConnectionError('Connection refused'), 'connection'),
     (SSRFError('private address'), 'blocked_address'),
+    (SSRFError('Blocked private IP: 10.0.0.1'), 'blocked_address'),
+    (SSRFError("Cannot resolve hostname: 'gone.example'"), 'dns'),
+    (SSRFError('HTTPS -> HTTP redirect blocked: http://example.com'), 'insecure_redirect'),
+    (SSRFError("Blocked URL scheme: 'ftp'"), 'invalid_url'),
+    (SSRFError('Blocked port: 22'), 'invalid_url'),
+    (SSRFError('Missing hostname in URL'), 'invalid_url'),
     (ValueError('weird'), 'unknown'),
 ])
 def test_classify_exception(exc, kind):

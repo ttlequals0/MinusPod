@@ -22182,7 +22182,7 @@ components:
           type: integer
         errorKind:
           type: string
-          enum: [dns, tls, timeout, connection, gone, auth, rate_limited, http_error, invalid_xml, blocked_address, not_feed, unknown]
+          enum: [dns, tls, timeout, connection, gone, auth, rate_limited, http_error, invalid_xml, blocked_address, invalid_url, insecure_redirect, not_feed, unknown]
         message:
           type: string
           description: Plain-language explanation of errorKind.

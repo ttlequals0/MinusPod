@@ -18,14 +18,17 @@ KIND_MESSAGES = {
     'http_error': 'The site returned an error.',
     'invalid_xml': 'The response is not a valid podcast feed.',
     'blocked_address': 'The address points to a private network, which is blocked.',
+    'invalid_url': 'The feed address is not a usable web address.',
+    'insecure_redirect': 'The feed redirected from HTTPS to plain HTTP, which is blocked.',
     'not_feed': 'The address did not return a podcast feed.',
     'unknown': 'The feed could not be refreshed.',
 }
 
-_DNS_MARKERS = ('name or service not known', 'getaddrinfo', 'nameresolutionerror',
+_DNS_MARKERS = ('name or service not known', 'getaddrinfo', 'nameresolutionerror', 'cannot resolve hostname',
                 'nodename nor servname', 'temporary failure in name resolution')
 _URL_RE = re.compile(r'https?://[^\s\'")>\]]+', re.IGNORECASE)
 DETAIL_LIMIT = 300
+_INVALID_URL_PREFIXES = ('blocked url scheme', 'blocked port', 'empty', 'missing hostname', 'url contains')
 
 
 def kind_for_status(status) -> str:
@@ -38,10 +41,22 @@ def kind_for_status(status) -> str:
     return 'http_error'
 
 
+def _classify_ssrf(message: str) -> tuple[str, str]:
+    """SSRFError covers more than private addresses; pick the kind for the actual cause."""
+    lowered = message.lower()
+    if 'cannot resolve hostname' in lowered:
+        return 'dns', 'DNS lookup failed'
+    if 'https -> http' in lowered:
+        return 'insecure_redirect', 'Redirect to HTTP blocked'
+    if lowered.startswith(_INVALID_URL_PREFIXES):
+        return 'invalid_url', 'Address not allowed'
+    return 'blocked_address', 'Address blocked'
+
+
 def classify_exception(exc) -> tuple[str, str]:
     """(kind, short detail) for a fetch exception; the detail never carries a URL."""
     if isinstance(exc, SSRFError):
-        return 'blocked_address', 'Address blocked'
+        return _classify_ssrf(str(exc))
     response = getattr(exc, 'response', None)
     status = getattr(response, 'status_code', None)
     if isinstance(exc, requests.exceptions.HTTPError) and status:
