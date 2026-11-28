@@ -41,6 +41,21 @@ describe('BackToTop', () => {
     expect(document.activeElement).toBe(document.querySelector('h1'));
   });
 
+  it('steps aside while a control sits under it and returns once it is clear', async () => {
+    mount();
+    const control = document.createElement('button');
+    const over = vi.fn(() => [control]);
+    Object.defineProperty(document, 'elementsFromPoint', { value: over, configurable: true });
+    scrollTo(3000);
+    await act(async () => { await new Promise((r) => requestAnimationFrame(() => r(null))); });
+    expect(screen.queryByRole('button', { name: 'Back to top' })).toBeNull();
+    over.mockImplementation(() => []);
+    scrollTo(3100);
+    await act(async () => { await new Promise((r) => requestAnimationFrame(() => r(null))); });
+    expect(screen.getByRole('button', { name: 'Back to top' })).toBeTruthy();
+    Reflect.deleteProperty(document, 'elementsFromPoint');
+  });
+
   it('is hidden while a dialog is open', async () => {
     mount();
     scrollTo(3000);

@@ -440,6 +440,29 @@ def test_history_rows_carry_app_version(app_client, seeded):
     assert versions[2] == __version__
 
 
+def test_processing_runs_carry_app_version(app_client, seeded):
+    from version import __version__
+
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    seeded['seed']('a1b2c3d4e5f6')
+    for ads in (1, 2):
+        db.record_processing_history(
+            podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+            episode_id='a1b2c3d4e5f6', episode_title='One', status='completed',
+            ads_detected=ads)
+    conn = db.get_connection()
+    conn.execute(
+        "UPDATE processing_history SET app_version = NULL "
+        "WHERE episode_id = ? AND reprocess_number = 1", ('a1b2c3d4e5f6',))
+    conn.commit()
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/a1b2c3d4e5f6')
+    assert resp.status_code == 200
+    versions = {r['runNumber']: r['appVersion'] for r in resp.get_json()['processingRuns']}
+    assert versions == {1: None, 2: __version__}
+
+
 def test_processing_runs_expose_phase_breakdown_and_episode_spend(app_client, seeded):
     db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
     seeded['seed']('e1e2e3e4e5e6', original=1000, new=900)

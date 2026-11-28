@@ -104,6 +104,22 @@ describe('Search page pattern results', () => {
   });
 });
 
+describe('Search page transcript results', () => {
+  it('opens the Transcript tab at the matched second, and without ?t= when there is no timestamp', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'acme', shows: [], episodes: [], patterns: [], sponsors: [],
+      transcripts: [
+        { feedSlug: 'example-podcast', episodeId: 'a1b2c3', title: 'Quartz Canyon', snippet: 'about <mark>acme</mark>', timestamp: 754.5 },
+        { feedSlug: 'example-podcast', episodeId: 'd4e5f6', title: 'Rerun', snippet: 'acme again', timestamp: null },
+      ],
+    });
+    renderSearch('/search?q=acme');
+    const first = (await screen.findByText('Quartz Canyon')).closest('a');
+    expect(first?.getAttribute('href')).toBe('/feeds/example-podcast/episodes/a1b2c3?section=transcript&t=754.5');
+    expect(screen.getByText('Rerun').closest('a')?.getAttribute('href')).toBe('/feeds/example-podcast/episodes/d4e5f6?section=transcript');
+  });
+});
+
 describe('Search page sponsor results', () => {
   it('links a sponsor hit to the Patterns Sponsors tab with the name as ?q=', async () => {
     mockSearch.mockResolvedValue({

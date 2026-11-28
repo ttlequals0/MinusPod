@@ -17600,6 +17600,11 @@ components:
         processedAt:
           type: string
           format: date-time
+        appVersion:
+          type:
+            - string
+            - 'null'
+          description: MinusPod version that made this run. Null for a run recorded before 2.78.4.
         status:
           type: string
           enum: [completed, failed]

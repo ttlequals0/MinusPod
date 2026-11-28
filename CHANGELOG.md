@@ -12,7 +12,12 @@ release notes.
 
 ### Added
 
+- Each processing run shows the MinusPod version that made it. The Processing tab on the episode page has a **Version** column, and `processingRuns[].appVersion` in the episode API carries it. Runs recorded before 2.78.4 have no version and show nothing.
 - LLMTR pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://llmtr.com/v1`, the pricing refresh reads input, output and cache-read rates from LLMTR's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. The LLM providers guide gains an LLMTR setup section. Contributed by knowhycodata.
+
+### Changed
+
+- The episode page sections are tabs, like the feed page: **Ads**, **Transcript** and **Processing**. Ads is the default. It holds the detected ads, held detections, kept segments, detections not cut and cue matches, with the jump links at its top and the rating card at its bottom, and a pill shows how many detections are held. A `?rate=` review link opens Ads at the rating card. Transcript opens in place with search instead of a dialog. Processing holds the run stats and logs. The tab is stored in `?section=`. Older `#...-section` links, including the Queue Review link, open the right tab and scroll to the section. A transcript hit in global search opens the Transcript tab at the matching line and highlights it (`?section=transcript&t=<seconds>`).
 
 ### Fixed
 

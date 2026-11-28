@@ -15,9 +15,10 @@ import { ApiError } from '../api/client';
 
 // react-router stubs. Mutable so a test can move the view to another episode.
 const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
-const routeSearch = vi.hoisted(() => ({ value: '' }));
+const routeSearch = vi.hoisted(() => ({ value: '', hash: '' }));
 vi.mock('react-router', () => ({
   useParams: () => ({ ...routeParams }),
+  useLocation: () => ({ hash: routeSearch.hash, key: `k${routeSearch.hash}`, search: routeSearch.value, pathname: '' }),
   useSearchParams: () => [
     new URLSearchParams(routeSearch.value),
     (next: URLSearchParams) => { routeSearch.value = next.toString(); },
@@ -3151,8 +3152,8 @@ describe('Add audio to pattern on text-pattern detections', () => {
   });
 });
 
-describe('EpisodeDetail section jump strip and player time-saved pill', () => {
-  it('renders the section jump nav with count pills when multiple sections exist', async () => {
+describe('EpisodeDetail section tabs and player time-saved pill', () => {
+  it('renders the section tabs with count pills when multiple sections exist', async () => {
     renderDetail(makeEpisode({
       timeSaved: 125,
       originalDuration: 1800,
@@ -3160,20 +3161,22 @@ describe('EpisodeDetail section jump strip and player time-saved pill', () => {
       pendingReviewMarkers: [heldMarker],
       transcript: 'Hello world',
     }));
-    const nav = await screen.findByRole('navigation', { name: 'Episode sections' });
-    expect(within(nav).getByRole('link', { name: /Detected ads/ }).getAttribute('href')).toBe('#detected-ads-section');
-    expect(within(nav).getByRole('link', { name: /Held for review/ }).getAttribute('href')).toBe('#held-for-review-section');
-    expect(within(nav).getByRole('link', { name: 'Transcript' }).getAttribute('href')).toBe('#transcript-section');
+    const tabs = await screen.findByRole('tablist', { name: 'Episode sections' });
+    expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent))
+      .toEqual(['Ads1', 'Transcript']);
+    const jump = screen.getByRole('navigation', { name: 'Ad sections' });
+    expect(within(jump).getAllByRole('link').map((link) => link.getAttribute('href')))
+      .toEqual(['#detected-ads-section', '#held-for-review-section']);
     expect(screen.getByTestId('player-time-saved').textContent).toContain('2m 5s of ads removed');
   });
 
-  it('omits the section jump nav when fewer than two sections exist', async () => {
+  it('omits the section tabs when fewer than two sections exist', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
       adMarkers: [],
       transcript: undefined,
     }));
     await screen.findByText('Test Episode');
-    expect(screen.queryByRole('navigation', { name: 'Episode sections' })).toBeNull();
+    expect(screen.queryByRole('tablist', { name: 'Episode sections' })).toBeNull();
   });
 });
