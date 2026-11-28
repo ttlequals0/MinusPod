@@ -54,7 +54,7 @@ To turn the behavior down, use any of these:
 | Stop waiting for marks sooner | Lower **Watch ceiling (days)** in Settings > YouTube (global only) |
 | Have the LLM review every episode as well | Turn on **Pass 1 detection** for the feed |
 | Skip the wait for marks | Set **SponsorBlock probe attempts** to 0 with the LLM fallback on; episodes with no marks at the first check go straight to the LLM |
-| Never trust marks for one category | Set that category's segment action to Keep in Settings > Segment categories, or per feed |
+| Never trust marks for one category | Set that category's segment action to Keep in Settings > Segment actions, or per feed |
 
 ## Enabling the feature
 
@@ -163,7 +163,7 @@ SponsorBlock categories map to MinusPod segment categories:
 | outro | outro |
 | preview | recap |
 
-What happens to a mark is decided by the per-category segment action in Settings > Segment categories, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
+What happens to a mark is decided by the per-category segment action in Settings > Segment actions, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
 
 When a SponsorBlock lookup fails, the watcher marks the API as down and checks it on every pass until it answers again. While it is unreachable, YouTube episodes waiting on it are held without counting attempts, submissions are refused, and the status bar shows SponsorBlock as unreachable. Other feeds keep processing, and the held episodes resume on the next pass once it is back.
 
