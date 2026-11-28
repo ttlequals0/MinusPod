@@ -64,7 +64,8 @@ against it.
 2. `scripts/promote_release.sh X.Y.Z`. This moves the `stable` and
    `stable-cpu` Docker tags with `docker buildx imagetools create` (no
    rebuild; the CPU multi-arch manifest is preserved), then flips the
-   pre-release flag.
+   pre-release flag and marks the release as the GitHub "Latest" release
+   (`make_latest=true`), so the badge leaves the older stable.
 
 ## Container smoke check (before pushing a built image)
 
