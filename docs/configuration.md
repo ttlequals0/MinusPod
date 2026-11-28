@@ -30,15 +30,17 @@ All configuration is in the web UI or REST API. No config files needed.
 
 Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug) or with `POST /api/v1/feeds` (see [API & Webhooks](api-and-webhooks.md#api)).
 
+A feed's page has the tabs **Episodes**, **Feed settings**, **Ad distribution** and **Audio cues**, plus **Local audio** on local feeds and **YouTube** on YouTube feeds. The open tab is kept in `?section=` (`episodes`, `settings`, `ads`, `cues`, `local`, `youtube`). The per-feed settings below are on the Feed settings tab.
+
 ### Global feed defaults
 
-Settings > Global Defaults controls verification and cross-fetch differential. Verification can run or be skipped. Cross-fetch can run automatically for feeds that look DAI-served, always run, or stay off. Settings > Transcripts & Chapters controls chapter mode: preserve upstream chapters automatically, always generate chapters, or turn chapters off. During normal processing, the mode is applied only when Generate Chapters is on.
+Settings > Global defaults controls verification and cross-fetch differential. Verification can run or be skipped. Cross-fetch can run automatically for feeds that look DAI-served, always run, or stay off. Settings > Transcripts and chapters controls chapter mode: preserve upstream chapters automatically, always generate chapters, or turn chapters off. During normal processing, the mode is applied only when Generate Chapters is on.
 
 New feeds use each global choice. A feed set to Inherit continues using that choice; an explicit Feed Settings value overrides it. The same controls are available through `PUT /api/v1/settings/ad-detection` and `PATCH /api/v1/feeds/{slug}`; see the [OpenAPI specification](../openapi.yaml) for fields and accepted values.
 
-**Require manual approval.** Off by default. Turn it on in Settings > Global Defaults, or set one feed to On in Feed Settings (Inherit follows the global choice). A finished episode then stays out of the served RSS feed, the Recents feed and the audio URL until you approve it. Meanwhile the audio URL answers 503 with `Retry-After: 1800`, and an `Episode Awaiting Approval` event replaces `Episode Processed`. An `Episode Pending Review` event fires alongside either event when the finished episode has detections held for review. Approve from the episode page, the Queue page's Episode review tab, or `POST /api/v1/feeds/{slug}/episodes/{id}/approve`. A recut also approves the episode. Once approved, an episode stays approved through later reprocesses. The API fields are `requireManualApprovalDefault` on `PUT /api/v1/settings/ad-detection` and `requireManualApproval` on `PATCH /api/v1/feeds/{slug}`.
+**Require manual approval.** Off by default. Turn it on in Settings > Global defaults, or set one feed to On in Feed Settings (Inherit follows the global choice). A finished episode then stays out of the served RSS feed, the Recents feed and the audio URL until you approve it. Meanwhile the audio URL answers 503 with `Retry-After: 1800`, and an `Episode Awaiting Approval` event replaces `Episode Processed`. An `Episode Pending Review` event fires alongside either event when the finished episode has detections held for review. Approve from the episode page, the Queue page's Episode review tab, or `POST /api/v1/feeds/{slug}/episodes/{id}/approve`. A recut also approves the episode. Once approved, an episode stays approved through later reprocesses. The API fields are `requireManualApprovalDefault` on `PUT /api/v1/settings/ad-detection` and `requireManualApproval` on `PATCH /api/v1/feeds/{slug}`.
 
-**Widen held ads by (seconds).** 0 to 120, default 0, set in Settings > Global Defaults. At 0, a held ad's edges stay within the reviewed span plus or minus 0.5 seconds, and Adjust only records the new span for the next recut. A higher value lets you move the edges that many seconds past the reviewed span, stopping at cut, approved, kept and rejected neighbours and the episode edges, and makes Adjust approve the held ad at once. It applies to all feeds; there is no per-feed control. The API field is `heldWidenSeconds` on `PUT /api/v1/settings/ad-detection`; a value outside 0 to 120 or a non-number is a 400.
+**Widen held ads by (seconds).** 0 to 120, default 0, set in Settings > Global defaults. At 0, a held ad's edges stay within the reviewed span plus or minus 0.5 seconds, and Adjust only records the new span for the next recut. A higher value lets you move the edges that many seconds past the reviewed span, stopping at cut, approved, kept and rejected neighbours and the episode edges, and makes Adjust approve the held ad at once. It applies to all feeds; there is no per-feed control. The API field is `heldWidenSeconds` on `PUT /api/v1/settings/ad-detection`; a value outside 0 to 120 or a non-number is a 400.
 
 ### Auto-process window
 
@@ -63,11 +65,11 @@ Customize ad detection in Settings:
 - **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)
 - **LLM Tunables** - See below
 
-Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI and processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under Settings > Detection > Prompts) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
 
 ### Audio fingerprinting
 
-Settings > AI and processing > Audio fingerprinting controls how stored ad fingerprints are matched against new episodes. It needs no model and stays enabled when the LLM provider is None. How fingerprints are made and matched is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints).
+Settings > Detection > Audio fingerprinting controls how stored ad fingerprints are matched against new episodes. It needs no model and stays enabled when the LLM provider is None. How fingerprints are made and matched is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints).
 
 | Setting | Meaning | Default | Allowed | Why this default |
 |---------|---------|---------|---------|------------------|
@@ -81,7 +83,7 @@ A value outside the allowed range is rejected with a 400. Changes apply to later
 
 ### Seed sponsors
 
-Four toggles decide which LLM passes are handed the running list of known sponsors: Detection, Verification, Reviewer, and Resurrect. Turning one off does not turn off that pass; it just stops seeding its prompt with prior sponsors, so the pass judges each candidate on its own. Turning off Reviewer, for example, makes that pass an independent second opinion rather than a check that already expects the sponsor it is reviewing.
+Four toggles decide which LLM passes are handed the running list of known sponsors: Detection, Verification, Reviewer, and Resurrect. Turning one off does not turn off that pass; it stops seeding its prompt with prior sponsors, so the pass judges each candidate on its own. Turning off Reviewer, for example, makes that pass an independent second opinion rather than a check that already expects the sponsor it is reviewing.
 
 All four default on. API: `PUT /api/v1/settings/ad-detection` with `seedSponsorsDetection`, `seedSponsorsVerification`, `seedSponsorsReviewer`, `seedSponsorsResurrect` (booleans).
 
@@ -98,10 +100,10 @@ When to enable it:
 
 Cost is one extra LLM call per detected ad, and one extra call per rejected detection in the resurrection band.
 
-Settings live under AI and processing -> Ad Reviewer:
+Settings live under Settings > Detection > Ad reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
-- **LLM provider required** - System One and TypeSafe are no longer supported for the reviewer as of 2.103.1. A review provider or model that routes to System One is refused when saved. If `Same as pass` or a slot resolves to System One anyway, the reviewer does not run and Settings shows a notice; choose an LLM provider here
+- **LLM provider required** - System One and TypeSafe are not supported for the reviewer as of 2.103.1. A review provider or model that routes to System One is refused with a 400 when saved. If `Same as pass` or a slot still resolves to System One, the reviewer does not run and a notice appears here (`reviewerNeedsLlm` in `GET /api/v1/settings`); choose an LLM provider
 - **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Provider A` or `Provider B` to run the reviewer on that slot instead, such as detection on Provider A with review on a cheaper Provider B account
 - **Review model** - only used when Review provider is not `Same as pass`. `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
 - **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
@@ -115,13 +117,13 @@ Reviewer activity surfaces in two places:
 
 ### Text recurrence hints
 
-Settings > AI and processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
+Settings > Global defaults has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
 
 Off by default. API: `PUT /api/v1/settings/ad-detection` with `textRecurrenceHints` (boolean).
 
 ### Detection Tuning
 
-Settings > Ad Detection has two grouped subsections for tuning how aggressively the verification pass and the cross-fetch differential stage act on what they find. All six controls are database settings; API: `PUT /api/v1/settings/ad-detection` (see `openapi.yaml`).
+Settings > Detection > Ad detection has two grouped subsections for tuning how aggressively the verification pass and the cross-fetch differential stage act on what they find. All six controls are database settings; API: `PUT /api/v1/settings/ad-detection` (see `openapi.yaml`).
 
 **Verification pass** - governs standalone catches: ads pass 2 finds that pass 1 missed and that overlap no pass-1 marker.
 
@@ -147,11 +149,11 @@ Raise the correlation ceiling if genuine ad swaps are being missed as alignment 
 
 #### Opening window exclusion
 
-`adDetectionExcludeStartSeconds` (Settings > Ad Detection, 0 to 600 s, default 0) ignores any ad marker that begins inside the first N seconds of an episode, so a show's opening cue is not mistaken for an ad break. The exclusion applies to the first pass, cue pairs, and the verification pass. Each feed can inherit the global value, disable it with 0, or set its own 1 to 600 s window (`adDetectionExcludeStartOverride` in Feed Settings). A marker that starts inside the window is not cut; markers that start at or after the boundary are handled normally. The setting takes effect on the next process or reprocess.
+`adDetectionExcludeStartSeconds` (Settings > Detection > Ad detection, 0 to 600 s, default 0) ignores any ad marker that begins inside the first N seconds of an episode, so a show's opening cue is not mistaken for an ad break. The exclusion applies to the first pass, cue pairs, and the verification pass. Each feed can inherit the global value, disable it with 0, or set its own 1 to 600 s window (`adDetectionExcludeStartOverride` in Feed Settings). A marker that starts inside the window is not cut; markers that start at or after the boundary are handled normally. The setting takes effect on the next process or reprocess.
 
 #### Longest single LLM detection
 
-`maxLlmWindowAdSeconds` (Settings > Ad Detection, "Longest single LLM detection", 60 to 900 s, default 420 s) is the longest single ad the model may report for one detection window. A longer one is discarded as implausible. For each feed the cap is the largest of this global value, the feed's max ad duration cap and the feed's max ad duration (reject) override. A show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span by raising either feed value. The global max ad duration setting does not raise it. The verification pass uses the same per-feed cap. API: `PUT /api/v1/settings/ad-detection` with `maxLlmWindowAdSeconds` (number); feed caps are `maxAdDurationOverride` and `maxAdDurationRejectOverride` on `PATCH /api/v1/feeds/{slug}`.
+`maxLlmWindowAdSeconds` (Settings > Detection > Ad detection, "Longest single LLM detection", 60 to 900 s, default 420 s) is the longest single ad the model may report for one detection window. A longer one is discarded as implausible. For each feed the cap is the largest of this global value, the feed's max ad duration cap and the feed's max ad duration (reject) override. A show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span by raising either feed value. The global max ad duration setting does not raise it. The verification pass uses the same per-feed cap. API: `PUT /api/v1/settings/ad-detection` with `maxLlmWindowAdSeconds` (number); feed caps are `maxAdDurationOverride` and `maxAdDurationRejectOverride` on `PATCH /api/v1/feeds/{slug}`.
 
 ### Tuning LLM behavior per stage
 
@@ -226,7 +228,7 @@ If the detector is cutting too aggressively on a specific podcast, raise the mid
 
 ### Provider API Keys
 
-You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whisper keys from the UI (Settings > LLM Provider and Settings > Transcription) or via `PUT /api/v1/settings/providers/<name>`. No container restart needed. Keys are encrypted with AES-256-GCM.
+You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whisper keys from the UI (Settings > AI and transcription > LLM provider and Transcription) or via `PUT /api/v1/settings/providers/<name>`. No container restart needed. Keys are encrypted with AES-256-GCM.
 
 Two things have to be in place first:
 
@@ -237,7 +239,7 @@ If the passphrase is missing, the key inputs collapse to a "Setup required" note
 
 ### Provider B
 
-Alongside Provider A above, you can configure one Provider B: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of Provider A. This is useful for splitting cost or capacity across two accounts, or across two different providers, without switching your main configuration back and forth.
+Alongside Provider A above, you can configure one Provider B: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of Provider A. Use it to split cost or capacity across two accounts or providers.
 
 Provider B is off by default. Configure it via `PUT /api/v1/settings/ad-detection`:
 
@@ -268,13 +270,13 @@ Each of Provider A, Provider B, and the LLM failover provider has its own reques
 
 Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. A max-retries value of 0 sends exactly one request and also skips the two per-window retries, so a failing call reaches the failover provider without delay. Each slot reads its own override, whichever slot a stage uses. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
-Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > AI and processing > Failover, including when the active transcriber runs locally.
+Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > AI and transcription > Failover, including when the active transcriber runs locally.
 
 ### Rotating or clearing a provider key
 
 Saving a new key, or clearing one, takes effect without a container restart. Provider settings carry a revision marker that every write path bumps, and an already-built client checks that marker before each use, so a cached connection built on the old key is rebuilt rather than reused. The marker lives in the database, so sibling workers pick up the change too, not just the one that handled the request.
 
-In practice:
+Effects:
 
 - A run in flight builds its next client against the new key. Only rotate keys this way when the provider account and endpoint remain the same.
 - Clearing a key really does disable that slot's calls. There is no grace period where the old key keeps working.
@@ -294,7 +296,7 @@ Provider admission reserves budget before a run starts and reconciles it afterwa
 
 Admission is cautious the same way. A run whose cost cannot be estimated is denied admission by default; the behavior is configurable to allow it outright, or to allow it against a fixed fallback reservation. A run abandoned by a dead worker is also settled as uncertain rather than released whenever it had already attempted a provider call.
 
-If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI and processing > AI Models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
+If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI and transcription > AI models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
 
 ### Which run a cost figure describes
 
@@ -310,7 +312,7 @@ The active run and the latest attempted run are usually the same run. They diver
 
 ### JSON schema response format
 
-OpenAI-compatible and Ollama endpoints, whether the stage runs on Provider A or is routed to Provider B. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
+OpenAI-compatible and Ollama endpoints, whether the stage runs on Provider A or is routed to Provider B. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > AI and transcription > LLM provider**.
 
 Support varies by model, not just by server. MinusPod probes each model the ad pipeline is configured to use, once, after the endpoint verifies. Provider A and an enabled Provider B are both probed, and one answer is stored per model name, so two OpenAI-compatible endpoints that serve the same model name share it. Plain JSON mode is remembered the same way, so one model's rejection no longer speaks for the others on that endpoint. A model that rejects the schema falls back to plain JSON mode, and so does a model that passes the probe but rejects a real request. Check that your server implements `response_format` with `type: json_schema` before relying on it.
 
@@ -320,7 +322,7 @@ Anthropic and OpenRouter call sites are unaffected by this toggle.
 
 ### Cover art badge
 
-Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off by default. When on, MinusPod adds a small badge to a corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. **Badge position** picks the corner: bottom-right (default), bottom-left, top-right, or top-left, which helps when the show's own logo sits under the badge. `ARTWORK_BADGE_POSITION` seeds it on a fresh deploy. The badged image is served at `/<slug>/cover-minuspod.jpg`. A **Refresh all artwork** button in the same section re-renders every feed's cover art, which you run after toggling the setting or swapping the badge asset.
+Settings > Output > Cover art has an **Overlay MinusPod badge on cover art** toggle, off by default. When on, MinusPod adds a small badge to a corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. **Badge position** picks the corner: bottom-right (default), bottom-left, top-right, or top-left, which helps when the show's own logo sits under the badge. `ARTWORK_BADGE_POSITION` seeds it on a fresh deploy. The badged image is served at `/<slug>/cover-minuspod.jpg`. A **Refresh all artwork** button in the same section re-renders every feed's cover art, which you run after toggling the setting or swapping the badge asset.
 
 <img src="screenshots/cover-art-badge.png" alt="Podcast cover art with the MinusPod badge in the bottom-right corner" width="200">
 
@@ -353,7 +355,7 @@ Each category maps to one action:
 | Keep | Left in the audio untouched. |
 | Mark | Left in the audio untouched, and published as a skippable chapter. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters). |
 
-Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Segment actions have their own dedicated **Segment actions** card in Settings (a sibling of Global Defaults, not nested inside it). Set the global map there. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
+Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Segment actions have their own dedicated **Segment actions** card in Settings (a sibling of Global defaults, not nested inside it). Set the global map there. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
 
 Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
@@ -391,7 +393,7 @@ Three automatic boosts stack on top of a feed's base priority, and the size of e
 | New episode | 5 | The episode's publish date is within 48 hours of now, and the global **Process new episodes first** toggle (on by default) is on. |
 | Reprocess All | 0 | Bulk work: Reprocess All on a feed, or segment re-renders. The default of 0 keeps a backlog run behind everything else. |
 
-The defaults encode one rule: a request you make right now beats backlog work, always. Raise the Reprocess All boost only if you want backfills to compete with new releases.
+The defaults follow one rule: a request you make right now beats backlog work. Raise the Reprocess All boost only if you want backfills to compete with new releases.
 
 Automatic changes only ever raise a queued episode's priority: pressing play on an episode already sitting in the queue lifts it to the play boost, and background refreshes can never knock a boosted episode back down.
 
@@ -435,7 +437,7 @@ When a timestamp line in the description matches, that span becomes an Outro mar
 
 User corrections win: a keep range or a Not ad on an overlapping marker can carve the trimmed span, and with the Outro action set to keep or mark the span is not cut. Matching reads the upstream description, not the served one with MinusPod's chapter list appended.
 
-The pattern also matches the episode's chapters, whether the feed publishes them or MinusPod generates them. Chapters built from the description's own timestamp lines (see Show-notes chapters below) are left out, since the description match above already covers them; chapters the LLM adds beside them still count. `Cut until the next chapter` cuts every matching chapter, each ending at the next chapter start (touching spans merge), and the last chapter runs to the end of the episode. `Cut to the end of the episode` starts at the first match only. Generated chapters only exist after a run. When chapters match, the run adds a marker for each span no marker already covers and recuts the episode once. This needs the retained original; without it no recut is queued. A recut never triggers another. The marker's reason reads `Chapter: <title>`. On a later recut, each chapter-derived marker stays while the pattern still matches its title. Changing the mode re-ends it: to the episode end, or the stored span for the next-chapter mode. The automatic trim runs only when chapters are enabled for the feed (mode not off), and the manual Regenerate Chapters action does not queue a trim.
+The pattern also matches the episode's chapters, whether the feed publishes them or MinusPod generates them. Chapters built from the description's own timestamp lines (see Show-notes chapters below) are left out, since the description match above already covers them. Chapters the LLM adds beside them still count. `Cut until the next chapter` cuts every matching chapter, each ending at the next chapter start (touching spans merge), and the last chapter runs to the end of the episode. `Cut to the end of the episode` starts at the first match only. Generated chapters only exist after a run. When chapters match, the run adds a marker for each span no marker already covers and recuts the episode once. This needs the retained original; without it no recut is queued. A recut never triggers another. The marker's reason reads `Chapter: <title>`. On a later recut, each chapter-derived marker stays while the pattern still matches its title. Changing the mode re-ends it: to the episode end, or the stored span for the next-chapter mode. The automatic trim runs only when chapters are enabled for the feed (mode not off), and the manual Regenerate Chapters action does not queue a trim.
 
 Timestamp lines accepted at the start of a line: `(mm:ss)`, `(h:mm:ss)`, `mm:ss -`, `[mm:ss]`.
 
@@ -504,7 +506,7 @@ A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback
 
 ### Per-feed retention
 
-Global retention lives in Settings > Storage & Retention and applies to every feed. Any single feed can override it from its own settings page with the **Retention** control, which offers three choices:
+Global retention lives in Settings > Data and security > Storage and retention and applies to every feed. Any single feed can override it from its own settings page with the **Retention** control, which offers three choices:
 
 - **Use global** (default) follows the global window.
 - **Keep for N days** sets a window for this feed alone. Use a short window on a daily news show you never revisit, or a long one on a show you catch up with slowly.
@@ -520,7 +522,7 @@ API: `retentionDaysOverride` (integer, `null` to inherit, `0` to archive, 1 to 3
 
 ### Unfetched-episode retention
 
-A podcast app that is offline for a while can come back to find episodes already deleted by retention. Settings > Storage and retention > **Keep never-downloaded episodes for** keeps a processed episode that no client has downloaded for that many days after processing, instead of the normal window. The default is 0, which turns this off. It only applies when it is longer than the feed's window (the global retention or the feed's own override), so it never makes anything expire sooner. If a feed's own override is shorter, unheard episodes are kept for the longer of the two. Archived feeds, local feeds, and a globally disabled retention are not swept at all, so they are unaffected.
+A podcast app that is offline for a while can come back to find episodes already deleted by retention. Settings > Data and security > Storage and retention > **Keep never-downloaded episodes for** keeps a processed episode that no client has downloaded for that many days after processing, instead of the normal window. The default is 0, which turns this off. It only applies when it is longer than the feed's window (the global retention or the feed's own override), so it never makes anything expire sooner. If a feed's own override is shorter, unheard episodes are kept for the longer of the two. Archived feeds, local feeds, and a globally disabled retention are not swept at all, so they are unaffected.
 
 Once an episode has been downloaded, **Keep after first download for** (default 3 days) keeps it at least that long after the first download, so an app whose download failed partway can retry. After that the episode follows the normal window. If the normal window has already passed, it is swept on the next cleanup.
 
@@ -532,7 +534,7 @@ API: `unfetchedRetentionDays` (0 to 3650) and `fetchedRetentionGraceDays` (0 to 
 
 ### Blocked user agents for just-in-time processing
 
-Settings > Security has an **Agents that skip processing** list, empty by default. If a listed User-Agent asks for an episode MinusPod has not processed yet, MinusPod answers with a 302 to the original audio URL rather than queueing a transcription and ad-detection run. Already-processed episodes are unaffected and still serve the cut version to every client, listed or not.
+Settings > Data and security > Security has an **Agents that skip processing** list, empty by default. If a listed User-Agent asks for an episode MinusPod has not processed yet, MinusPod answers with a 302 to the original audio URL rather than queueing a transcription and ad-detection run. Already-processed episodes are unaffected and still serve the cut version to every client, listed or not.
 
 Matching is case-insensitive, and a bare pattern matches anywhere in the agent string. Start a pattern with `^` to anchor it to the beginning, which short strings like `atc/` need so they cannot match in the middle of an unrelated agent. Each entry is limited to 200 characters; blank or whitespace-only entries are dropped when saved. The [opawg/user-agents](https://github.com/opawg/user-agents) registry lists the real strings crawlers and podcast apps send, useful when picking a pattern.
 
@@ -540,11 +542,11 @@ API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detec
 
 ### Local upload size limit
 
-Caps the size of one local-feed upload request (a single episode or a batch of staged import files). Set it in Settings > Audio > Max upload size, or with `localUploadMaxMb` on `PUT /api/v1/settings/ad-detection`. Default 1024 MB, range 1 to 4096 MB. A reverse proxy or Cloudflare in front of the server may cap uploads lower than this setting; see [Upload size behind a proxy](DEPLOYMENT.md#upload-size-behind-a-proxy).
+Caps the size of one local-feed upload request (a single episode or a batch of staged import files). Set it in Settings > Output > Audio > Max upload size, or with `localUploadMaxMb` on `PUT /api/v1/settings/ad-detection`. Default 1024 MB, range 1 to 4096 MB. A reverse proxy or Cloudflare in front of the server may cap uploads lower than this setting; see [Upload size behind a proxy](DEPLOYMENT.md#upload-size-behind-a-proxy).
 
 ### Dormant feeds
 
-Settings > Global Defaults > **Pause auto-process for unrequested feeds** stops spending transcription and LLM money on feeds nobody listens to. Set it to a number of days. A subscribed feed whose served RSS no client has fetched in that many days goes dormant, and new episodes found by a refresh are no longer queued for processing. A feed that has never been fetched counts from the day it was added. The default is 0, which turns this off.
+Settings > Global defaults > **Pause auto-process for unrequested feeds** stops spending transcription and LLM money on feeds nobody listens to. Set it to a number of days. A subscribed feed whose served RSS no client has fetched in that many days goes dormant, and new episodes found by a refresh are no longer queued for processing. A feed that has never been fetched counts from the day it was added. The default is 0, which turns this off.
 
 A dormant feed still refreshes, at the adaptive maximum wait, so its episode list stays current. Playing an episode still processes it on demand, and so does a manual reprocess. The next time a podcast app fetches the feed, auto-process resumes. The next refresh then queues any episode still inside the auto-process window that has not been processed. A feed with Auto-Process set to Enabled in Feed Settings is never paused. Local feeds and the recents feed are never dormant.
 
@@ -588,11 +590,11 @@ These settings are stored in the database, without environment variables.
 
 ## Experiments
 
-The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
+The Experiments group under Settings > Detection holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
 
 ### Ad Addressing Mode
 
-Settings > Experiments has an Ad addressing mode select, marked experimental. Timestamps, the default, asks the model for a start and end time for each ad. Segment IDs asks the model to name numbered transcript lines instead; MinusPod then maps those line numbers back to the exact Whisper times, so the model never has to guess a timestamp. Random draws one of the two per detection run (and independently again for the verification pass), so production traffic accumulates an unbiased comparison over time. Segment IDs is still being benchmarked against Timestamps, and the results decide whether the default ever changes.
+Settings > Detection > Ad addressing mode has a select, marked experimental. Timestamps, the default, asks the model for a start and end time for each ad. Segment IDs asks the model to name numbered transcript lines instead; MinusPod then maps those line numbers back to the exact Whisper times, so the model never has to guess a timestamp. Random draws one of the two per detection run (and independently again for the verification pass), so production traffic accumulates an unbiased comparison over time. Segment IDs is still being benchmarked against Timestamps, and the results decide whether the default ever changes.
 
 How often each mode's LLM contract is actually honored shows up on the Stats page, under Addressing modes: runs, windows judged, and compliance percentage per mode. Random-mode runs count toward whichever mode was drawn for that pass.
 
@@ -631,7 +633,7 @@ suggesting trims, splits, sponsor renames, and retirements for patterns that
 carry extra show content or have stopped matching. Off by default, and
 nothing it suggests changes a pattern until you approve it on the Patterns
 page. Choose its provider, model, UTC cron schedule, model-review batch size,
-and unused-days threshold under Settings > Experiments. Run now also works
+and unused-days threshold under Settings > Detection > Pattern cleanup. Run now also works
 with scheduling off. Statistics checks can flag new false positives without
 repeating model reviews. Full documentation, including force recheck,
 approve/reject/undo, and the API: [Pattern Cleanup](pattern-cleanup.md).
@@ -697,7 +699,7 @@ Audio analysis reads the whole episode with ffmpeg and numpy on the MinusPod hos
 | Run local audio analysis (`audioAnalysisEnabled`) | on | Skips loudness, transition, silence, cue and splice analysis in pass 1 and in verification. Detection and validation use the transcript alone, so cue and silence snapping have nothing to snap to and the splice hold never fires. Feeds in Cue-only mode still analyse in pass 1 (their cue detection needs it); they run no verification pass. |
 | Collect splice evidence (`spliceEvidenceEnabled`) | on | Skips only the splice detector, the second full decode inside audio analysis. Long cuts are no longer held for missing splice evidence. |
 
-Both are in Settings > Ad detection and in `PUT /api/v1/settings/ad-detection`. For a low-CPU setup also consider `differentialFetchMode` `off` (no second download and decode), `skipSecondPass` (no verification re-transcription) and, for MP3 episodes sent to a remote API, [Send raw MP3 chunks](transcription.md#raw-mp3-chunks).
+Both are in Settings > Detection > Ad detection and in `PUT /api/v1/settings/ad-detection`. For a low-CPU setup also consider `differentialFetchMode` `off` (no second download and decode), `skipSecondPass` (no verification re-transcription) and, for MP3 episodes sent to a remote API, [Send raw MP3 chunks](transcription.md#raw-mp3-chunks).
 
 ## Offline Queue
 
@@ -728,7 +730,7 @@ Only a reset further out than five minutes triggers a hold. Shorter ones keep th
 
 While a hold is active, a probe re-checks it instead of waiting out the provider's stated reset. With a usage endpoint configured it is checked first and can clear the hold early or push it out to a fresher reset; without one, a single minimal completion call does the same check.
 
-A hold on one provider is lifted automatically when you update that provider's own credentials in Settings > AI and processing > LLM Provider, or when you turn this toggle off. Changing several provider settings together in one save does not clear a hold that belongs to just one of them.
+A hold on one provider is lifted automatically when you update that provider's own credentials in Settings > AI and transcription > LLM provider, or when you turn this toggle off. Changing several provider settings together in one save does not clear a hold that belongs to just one of them.
 
 Holds are scoped per credential, not just per provider type. If Provider A and Provider B use the same provider type, for example two Anthropic accounts, a 429 on one does not pause the other. Updating a slot's credentials lifts only that slot's hold.
 
@@ -740,7 +742,7 @@ The rate-limit hold above reacts to a 429 after it happens. Manual request-rate 
 
 Limits are scoped to one provider account, meaning one credential slot on one provider type: Provider A and Provider B count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
 
-All are off by default (0 means unlimited). Configure them under **Settings > AI and processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+All are off by default (0 means unlimited). Configure them under **Settings > AI and transcription > LLM provider**, or via `PUT /api/v1/settings/ad-detection`:
 
 - `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
 - `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.
@@ -820,7 +822,7 @@ fields described above.
 
 MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.
 
-Both ship with working defaults and are editable in **Settings > Data & Security > Outbound Requests**. A host that starts refusing yours is fixed by pasting in a new string rather than by waiting for a release.
+Both ship with working defaults and are editable in **Settings > Data and security > Outbound requests**. A host that starts refusing yours is fixed by pasting in a new string rather than by waiting for a release.
 
 | Setting | Default | Sent when |
 |---|---|---|
@@ -849,13 +851,13 @@ Podcast and episode artwork fetches do the same: after a 403 with the download U
 
 ## Scheduled Database Backups
 
-MinusPod can snapshot its SQLite database to a directory on a cron schedule. The feature is off by default. The "Back up now" button runs a snapshot immediately whether or not the schedule is enabled, and is rate-limited to 6 runs per hour. Configure it in **Settings > Data & Security > Scheduled Backups**.
+MinusPod can snapshot its SQLite database to a directory on a cron schedule. The feature is off by default. The "Back up now" button runs a snapshot immediately whether or not the schedule is enabled, and is rate-limited to 6 runs per hour. Configure it in **Settings > Data and security > Scheduled backups**.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Enabled | off | Turn on the cron schedule. Back up now works regardless. |
 | Schedule | `30 3 * * *` | Cron expression, interpreted as UTC. |
-| Destination | `/app/data/backups` | Directory path inside the container. Empty uses the default. |
+| Destination | `/app/data/backups` | Directory path inside the container. Empty uses the default. A directory MinusPod serves over HTTP, or one inside it, is refused. |
 | Keep last | 1 | 1 overwrites a single file; higher keeps timestamped copies and prunes the oldest. |
 
 Cron examples (all UTC):
@@ -863,6 +865,8 @@ Cron examples (all UTC):
 - `30 3 * * *` - daily at 03:30
 - `0 */6 * * *` - every 6 hours, on the hour
 - `0 4 * * 0` - weekly, Sunday at 04:00
+
+A destination that fails validation is refused when you save it and on every run. Back up now then answers 409 with the reason and logs a warning, and `GET /api/v1/settings/db-backup` returns the reason as `destError`.
 
 The snapshots are plain SQLite files and are never encrypted, even with `MINUSPOD_MASTER_PASSPHRASE` set. For filenames, restore steps, and how destination directory permissions are handled, see [Scheduled database backups](security-and-storage.md#scheduled-database-backups) in the security guide.
 
@@ -874,11 +878,11 @@ Podping is an opt-in accelerator that can trigger an immediate refresh of a sing
 
 | Setting | Default | Notes |
 |---|---|---|
-| Feed refresh interval | 15 minutes | The shortest wait between checks of a feed. Range 5-1440. Settings > Global Defaults. Lowering it pulls healthy feeds' next checks in at once; raising it applies after the wait already in progress finishes. |
+| Feed refresh interval | 15 minutes | The shortest wait between checks of a feed. Range 5-1440. Settings > Global defaults. Lowering it pulls healthy feeds' next checks in at once; raising it applies after the wait already in progress finishes. |
 | Adaptive refresh | on | Adapt each feed's wait to how it publishes. When off, feeds refresh on the fixed interval; Retry-After and failure backoff still apply. |
 | Adaptive refresh maximum | 60 minutes | The longest wait for a healthy feed. Range from the refresh interval to 1440. Lowering it applies at once. |
-| Pause auto-process for unrequested feeds | 0 (off) | Days without a client fetching a feed before it stops auto-processing new episodes. Range 0-3650. Settings > Global Defaults. See [Dormant feeds](#dormant-feeds). |
-| Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. While enabled, it checks every RPC node at startup and every five minutes. System Health can run the same check on demand while the listener is off. Settings > Global Defaults. |
+| Pause auto-process for unrequested feeds | 0 (off) | Days without a client fetching a feed before it stops auto-processing new episodes. Range 0-3650. Settings > Global defaults. See [Dormant feeds](#dormant-feeds). |
+| Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. While enabled, it checks every RPC node at startup and every five minutes. System Health can run the same check on demand while the listener is off. Settings > Global defaults. |
 
 How each signal changes the wait. The shortest wait any signal justifies wins, and the result always stays between the refresh interval and the adaptive maximum.
 
