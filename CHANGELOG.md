@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- LLMTR pricing for the OpenAI-compatible provider. With `OPENAI_BASE_URL` set to `https://llmtr.com/v1`, the pricing refresh reads input, output and cache-read rates from LLMTR's own `/v1/models` list, which uses OpenRouter's pricing format, and LiteLLM fills the gaps. The LLM providers guide gains an LLMTR setup section.
+
 ## [2.102.27] - 2026-11-27
 
 ### Changed

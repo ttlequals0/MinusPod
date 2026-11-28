@@ -1864,6 +1864,7 @@ PROVIDER_PRICING_SLUGS = {
 # Fetched with the OpenRouter parser from the given URL.
 OPENROUTER_FORMAT_PRICING_URLS = {
     'api.martllm.com': 'https://api.martllm.com/v1/models',
+    'llmtr.com': 'https://llmtr.com/v1/models',
 }
 
 # Pricing cache TTL (seconds) - how often to re-fetch pricing data
