@@ -101,7 +101,7 @@ https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
 | [Installation](https://docs.minuspod.app/installation/) | Requirements, sizing, quick start, CPU image |
 | [Environment variables](https://docs.minuspod.app/environment-variables/) | Every env var |
 | [LLM providers](https://docs.minuspod.app/llm-providers/) | Providers, recommended models, pricing |
-| [Transcription](https://docs.minuspod.app/transcription/) | faster-whisper, Parakeet, remote APIs, [OpenVINO](https://docs.minuspod.app/transcription-openvino/) |
+| [Transcription](https://docs.minuspod.app/transcription/) | faster-whisper, Parakeet, remote APIs, [OpenVINO](https://docs.minuspod.app/transcription-openvino/), [AMD ROCm](https://docs.minuspod.app/amd-whisper/) |
 | [Web interface](https://docs.minuspod.app/web-interface/) | Management UI and the ad editor |
 | [How it works](https://docs.minuspod.app/how-it-works/) | The detection pipeline in depth |
 | [Workflows](https://docs.minuspod.app/workflows/) | Processing modes, re-runs, failure paths |

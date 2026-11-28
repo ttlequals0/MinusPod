@@ -14,6 +14,7 @@
   - [whisper.cpp with Docker (NVIDIA GPU)](#whispercpp-with-docker-nvidia-gpu)
   - [whisper.cpp on Apple Silicon (native)](#whispercpp-on-apple-silicon-native)
   - [Intel GPU (OpenVINO Model Server)](#intel-gpu-openvino-model-server)
+  - [AMD GPU (ROCm whisper.cpp)](#amd-gpu-rocm-whispercpp)
   - [Testing a remote endpoint](#testing-a-remote-endpoint)
   - [Groq](#groq)
   - [OpenAI Whisper API](#openai-whisper-api)
@@ -174,6 +175,10 @@ WHISPER_DEVICE=cpu
 ### Intel GPU (OpenVINO Model Server)
 
 On an Intel host with a capable integrated or discrete GPU, you can offload transcription to the GPU instead of the CPU. OpenVINO Model Server runs Whisper as a remote OpenAI-compatible backend with word-level timestamps, so the CPU image's transcription stops pinning every core. See the dedicated [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) guide for the full setup.
+
+### AMD GPU (ROCm whisper.cpp)
+
+whisper.cpp's official images are CUDA-only. A community-contributed guide builds whisper.cpp against AMD ROCm and runs it as a remote OpenAI-compatible backend. It was tested on one AMD GPU by its contributor and is not built or tested by the project's CI. It also records CPU transcription speed measurements for whisper.cpp. See [AMD GPU Transcription (ROCm)](amd-whisper.md).
 
 ### Testing a remote endpoint
 
