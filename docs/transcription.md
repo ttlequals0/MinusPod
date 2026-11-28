@@ -76,6 +76,8 @@ NVIDIA Parakeet TDT 0.6B v3 is the recommended local transcription backend. It r
 
 Parakeet does not use compute types. It runs float32 on CUDA through ONNX Runtime and needs cuDNN, which the GPU image pins to the last release that still supports GTX 10-series and older cards (#988).
 
+Parakeet works on RTX 50-series cards. One user confirmed it on an RTX 5070 (#990). Expect the first chunk after the model loads to be slow, about a minute in that report, probably a one-time kernel compile for the new architecture. Later chunks ran in seconds.
+
 Select it in Settings > Transcription > Backend with "Local (Parakeet TDT 0.6B v3)", or set:
 
 ```bash

@@ -29,6 +29,7 @@ release notes.
 
 - **Adaptive refresh is on by default after you upgrade.** Healthy feeds may now be checked as rarely as every 60 minutes instead of at your fixed refresh interval. New episodes are still picked up at the refresh interval when one is due. To keep the old behavior, turn off **Adapt refresh to each feed** under Settings > Global Defaults. `adaptiveRefreshEnabled` and `adaptiveRefreshMaxMinutes` are the API fields.
 - Scheduled database backups refuse a destination inside a directory MinusPod serves over HTTP, when you save the setting and on every run. `GET /api/v1/settings/db-backup` returns `destError` with the reason a stored destination is refused.
+- The docs now say Parakeet runs on the GPU on RTX 50-series cards, confirmed by a user on an RTX 5070. The first chunk after the model loads was slow (about a minute), probably a one-time kernel compile. Later chunks took seconds.
 - Served feeds, chapters, transcripts and the OPML export now send `Cache-Control: private, no-cache`, so a CDN or shared proxy that honors the header does not store them. That prevents a stale copy and keeps one subscriber's keyed feed away from another. Episode audio already sent `no-cache`.
 - A run that closes held detections because hold for review is off now logs how many it closed.
 - The security docs have a note on Cloudflare caching, and the feeds docs explain the Pocket Casts workaround of adding a feed URL with a query string such as `?fresh=1`.
