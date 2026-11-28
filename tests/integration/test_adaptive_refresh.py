@@ -320,6 +320,37 @@ class TestSettings:
             feed['db'].set_setting('rss_refresh_interval_minutes', '15', is_default=False)
 
 
+class TestSettingsClampSchedule:
+    def _put(self, client, body):
+        _authed(client)
+        return client.put('/api/v1/settings/ad-detection', json=body)
+
+    def test_a_lowered_ceiling_pulls_healthy_feeds_in(self, app_client, feed):
+        db, slug = feed['db'], feed['slug']
+        db.update_podcast(slug, next_refresh_at=_iso(24 * 60))
+        assert self._put(app_client, {'adaptiveRefreshMaxMinutes': 30}).status_code == 200
+        assert _minutes_until(_row(feed)) <= 30
+
+    def test_feeds_in_backoff_or_held_by_retry_after_keep_their_time(self, app_client, feed):
+        db = feed['db']
+        db.create_podcast('adaptive-held', 'https://held.example.com/rss', 'Held')
+        far = _iso(24 * 60)
+        try:
+            db.update_podcast(feed['slug'], next_refresh_at=far, refresh_failure_count=2)
+            db.update_podcast('adaptive-held', next_refresh_at=far, retry_after_until=_iso(23 * 60))
+            assert self._put(app_client, {'adaptiveRefreshEnabled': False}).status_code == 200
+            assert _row(feed)['next_refresh_at'] == far
+            assert db.get_podcast_row('adaptive-held')['next_refresh_at'] == far
+        finally:
+            db.delete_podcast('adaptive-held')
+
+    def test_an_unrelated_setting_leaves_the_schedule_alone(self, app_client, feed):
+        far = _iso(24 * 60)
+        feed['db'].update_podcast(feed['slug'], next_refresh_at=far)
+        assert self._put(app_client, {'podpingEnabled': True}).status_code == 200
+        assert _row(feed)['next_refresh_at'] == far
+
+
 class TestFetchMetaIsolation:
     def test_one_feeds_retry_after_never_reaches_the_next_feed(self, feed, monkeypatch):
         db = feed['db']

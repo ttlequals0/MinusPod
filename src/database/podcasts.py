@@ -241,6 +241,23 @@ class PodcastMixin:
         ).fetchall()
         return [row['slug'] for row in rows]
 
+    def clamp_next_refresh_at(self, ceiling_seconds: int) -> int:
+        """Pull every healthy feed's next_refresh_at in to at most now + ceiling_seconds.
+
+        Feeds held by a Retry-After or by failure backoff keep their time. Returns rows changed.
+        Runs in the caller's transaction (the settings save)."""
+        now = datetime.now(timezone.utc)
+        latest = (now + timedelta(seconds=ceiling_seconds)).strftime(ISO_FORMAT)
+        return self.get_connection().execute(
+            """UPDATE podcasts SET next_refresh_at = ?
+               WHERE feed_type NOT IN ('local', 'recents')
+                 AND source_url IS NOT NULL AND source_url != ''
+                 AND next_refresh_at > ?
+                 AND COALESCE(refresh_failure_count, 0) = 0
+                 AND (retry_after_until IS NULL OR retry_after_until <= ?)""",
+            (latest, latest, now.strftime(ISO_FORMAT)),
+        ).rowcount
+
     def get_recent_episode_dates(self, podcast_id: int, limit: int = 30) -> list[str]:
         """Newest published_at values of a feed's episodes (ISO text), for cadence estimation."""
         rows = self.get_connection().execute(

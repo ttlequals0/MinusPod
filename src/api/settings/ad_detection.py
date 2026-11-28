@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    HELD_WIDEN_MAX_SECONDS, RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN, global_hold_for_review, resolve_refresh_floor_seconds,
+    HELD_WIDEN_MAX_SECONDS, RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN, global_hold_for_review, resolve_adaptive_refresh, resolve_refresh_floor_seconds,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -994,6 +994,12 @@ def _apply_feed_refresh_fields(db, data):
                        is_default=False)
         logger.info(f"Updated adaptive refresh maximum to: {int(data['adaptiveRefreshMaxMinutes'])} minutes")
 
+    if _SCHEDULE_PAYLOAD_KEYS.intersection(data):
+        adaptive, max_seconds, floor_seconds = resolve_adaptive_refresh(db)
+        clamped = db.clamp_next_refresh_at(max_seconds if adaptive else floor_seconds)
+        if clamped:
+            logger.info(f"Pulled {clamped} feed refresh time(s) in to the new interval")
+
     if 'podpingEnabled' in data:
         value = 'true' if data['podpingEnabled'] else 'false'
         db.set_setting('podping_enabled', value, is_default=False)
@@ -1001,6 +1007,8 @@ def _apply_feed_refresh_fields(db, data):
     return None
 
 
+_SCHEDULE_PAYLOAD_KEYS = frozenset(
+    ('rssRefreshIntervalMinutes', 'adaptiveRefreshEnabled', 'adaptiveRefreshMaxMinutes'))
 _RSS_REFRESH_FIELD = (
     ('rssRefreshIntervalMinutes', 'rss_refresh_interval_minutes',
      RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX),)
