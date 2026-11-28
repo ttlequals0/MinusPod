@@ -155,6 +155,7 @@ class TestMigrationBackfill:
             "first_seen_at, last_seen_at) VALUES (?, 'downloaded', '10.0.0.1', ?, ?)",
             (podcast_id, _days_ago(4), _days_ago(2)))
         conn.execute("ALTER TABLE episodes DROP COLUMN first_fetched_at")
+        conn.execute("DELETE FROM schema_migrations WHERE name = 'fetch_tracking_baseline_v1'")
         conn.commit()
         Database._instance = None
         db = Database(data_dir=str(tmp_path))

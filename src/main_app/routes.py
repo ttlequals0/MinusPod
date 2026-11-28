@@ -403,13 +403,21 @@ def _record_download(slug, episode_id):
         feed_logger.debug(f"[{slug}:{episode_id}] download not recorded: {exc}")
 
 
-# Per-process memo of the last served-RSS stamp per slug, so a pod catcher
-# polling every few minutes costs no database write between stamps.
+# Per-process memo of the last served-RSS stamp per slug, so a client polling
+# every few minutes costs no database write between stamps.
 _feed_request_stamped_at: dict[str, float] = {}
+
+
+def _is_client_fetch():
+    """A GET from a podcast client; HEAD probes and the web UI's own same-origin player do not count."""
+    return (request.method == 'GET'
+            and request.headers.get('Sec-Fetch-Site') != 'same-origin')
 
 
 def _note_feed_request(slug):
     """Stamp a served-RSS fetch for dormant-feed tracking; never affects serving."""
+    if not _is_client_fetch():
+        return
     now = time.monotonic()
     last = _feed_request_stamped_at.get(slug)
     if last is not None and now - last < FEED_REQUEST_TOUCH_INTERVAL_SECONDS:
@@ -425,8 +433,9 @@ def _note_feed_request(slug):
 
 
 def _note_episode_fetch(slug, episode_id):
-    """Stamp the first processed-audio serve for unfetched retention; never
-    affects serving."""
+    """Stamp the first processed-audio serve for unfetched retention; never affects serving."""
+    if not _is_client_fetch():
+        return
     try:
         db.mark_episode_fetched(slug, episode_id)
     except Exception as exc:
@@ -720,7 +729,7 @@ def register_routes(app):
                     f"[{slug}:{episode_id}] Cache hit for published audio"
                 )
                 _record_download(slug, episode_id)
-                if request.method == 'GET' and not episode.get('first_fetched_at'):
+                if not episode.get('first_fetched_at'):
                     _note_episode_fetch(slug, episode_id)
                 return send_file(file_path, mimetype='audio/mpeg')
             else:

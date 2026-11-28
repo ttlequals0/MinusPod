@@ -405,18 +405,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
-        # Unfetched-episode retention. Seed processed episodes from download
-        # history so episodes already downloaded do not count as unfetched.
-        if (self._add_column_if_missing(conn, 'episodes', 'first_fetched_at',
-                                        'TEXT', ep_cols)
-                and self._table_exists(conn, 'episode_downloads')):
-            conn.execute(
-                """UPDATE episodes SET first_fetched_at = (
-                       SELECT MIN(d.first_seen_at) FROM episode_downloads d
-                       WHERE d.podcast_id = episodes.podcast_id
-                         AND d.episode_id = episodes.episode_id)
-                   WHERE status = 'processed'""")
-            conn.commit()
+        self._add_column_if_missing(conn, 'episodes', 'first_fetched_at', 'TEXT', ep_cols)
 
     # Tables whose rows mean an episode has real state and must never be
     # deleted as an orphan duplicate. ad_reviewer_log.podcast_id has TEXT
@@ -761,15 +750,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
-        # Feed request tracking for dormant feeds. Existing feeds start as
-        # requested now so turning dormancy on gives each a full grace window
-        # instead of treating every pre-upgrade feed as never requested.
-        if self._add_column_if_missing(conn, 'podcasts', 'last_feed_request_at',
-                                       'TEXT', pod_cols):
-            conn.execute(
-                "UPDATE podcasts SET last_feed_request_at = "
-                "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')")
-            conn.commit()
+        self._add_column_if_missing(conn, 'podcasts', 'last_feed_request_at', 'TEXT', pod_cols)
 
         if self._table_exists(conn, 'episodes'):
             episode_cols = self._get_table_columns(conn, 'episodes')
@@ -2678,6 +2659,29 @@ class SchemaMixin(DeferredUpgradeMixin):
         self._run_fingerprint_matches_drop_vanished_episodes(conn)
 
         self._run_trim_podcast_network_id_overrides(conn)
+
+        self._run_fetch_tracking_baseline(conn)
+
+    def _run_fetch_tracking_baseline(self, conn, gate='fetch_tracking_baseline_v1'):
+        """One-shot: stamp existing feeds as requested now and mark already-downloaded episodes fetched; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            # A NULL feed stamp would count from created_at and make old feeds dormant on upgrade
+            conn.execute(
+                "UPDATE podcasts SET last_feed_request_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                "WHERE last_feed_request_at IS NULL")
+            conn.execute(
+                """UPDATE episodes SET first_fetched_at = (
+                       SELECT MIN(d.first_seen_at) FROM episode_downloads d
+                       WHERE d.podcast_id = episodes.podcast_id
+                         AND d.episode_id = episodes.episode_id)
+                   WHERE status = 'processed' AND first_fetched_at IS NULL""")
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Fetch tracking baseline failed, retrying on the next start: {e}")
 
     def _run_trim_podcast_network_id_overrides(self, conn, gate='trim_podcast_network_id_overrides'):
         """One-shot: trim padded podcasts.network_id_override values and null blank ones; never raises."""

@@ -1133,3 +1133,22 @@ def test_changing_a_stored_over_long_override_to_another_is_rejected_on_import(t
     _local_entry(exported)['settings']['network_id_override'] = 'M' * 120
     with pytest.raises(ConfigTransferError):
         config_transfer.build_preview(temp_db, exported, 'everything')
+
+
+def test_dormant_and_unfetched_settings_round_trip(temp_db):
+    values = {'dormant_feed_days': 14, 'unfetched_retention_days': 90,
+              'fetched_retention_grace_days': 5}
+    document = _document(values)
+    preview = config_transfer.build_preview(temp_db, document, 'global')
+    config_transfer.apply_config(temp_db, document, 'global', None, preview['previewToken'])
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    assert {k: exported['settings'][k] for k in values} == values
+
+
+@pytest.mark.parametrize('key,value', [
+    ('dormant_feed_days', 3651), ('dormant_feed_days', -1), ('dormant_feed_days', True),
+    ('fetched_retention_grace_days', 366), ('unfetched_retention_days', '5'),
+])
+def test_dormant_and_unfetched_settings_reject_bad_values(temp_db, key, value):
+    with pytest.raises(ConfigTransferError):
+        config_transfer.build_preview(temp_db, _document({key: value}), 'global')
