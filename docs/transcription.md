@@ -213,6 +213,10 @@ WHISPER_DEVICE=cpu
 
 All settings can also be configured via the Settings UI under the Transcription section.
 
+### Raw MP3 chunks
+
+On a weak CPU, the loudness filters and re-encode that prepare each chunk can take longer than the upload budget. With **Send raw MP3 chunks** on (Settings > Transcription, off by default), each chunk of an MP3 episode sent to a remote API is stream-copied from the original instead. Extraction takes seconds. Hosted Whisper models normalise audio themselves, but a self-hosted server that relies on MinusPod's loudness filters may transcribe quieter audio less well. Chunk edges fall on MP3 frame boundaries, about 26 ms. Other source formats and the local backend are unchanged. API: `transcribeRawApiChunks` on `PUT /api/v1/settings/ad-detection`; `MINUSPOD_RAW_API_CHUNKS=true` sets the default.
+
 ## Chunked transcription
 
 Episodes longer than one chunk are transcribed in pieces. Local faster-whisper sizes chunks from available GPU memory; the log line "Calculated chunk duration" shows the result. Parakeet starts with 1,800-second outer chunks and decodes each through its 30-second windows. Outer chunks overlap by 30 seconds. Remote API chunk sizes come from their separate settings.

@@ -42,6 +42,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
 | `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. |
+| `MINUSPOD_RAW_API_CHUNKS` | `false` | `true` sets the default of the `transcribe_raw_api_chunks` setting: MP3 chunks for the API transcription backend are stream-copied, not decoded and re-encoded. Seeds the default only; a value saved in Settings > Transcription wins. See [Remote Whisper APIs](transcription.md#raw-mp3-chunks). |
 | `WHISPER_COMPUTE_TYPE` | `auto` | faster-whisper backend only. `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. See [GPU Compute Type](transcription.md#gpu-compute-type) for per-GPU recommendations. |
 | `VAD_GAP_DETECTION_ENABLED` | `true` | `true` or `false`. Toggles the VAD gap detector, which cuts audio regions Whisper's VAD dropped (sped-up disclaimers, distorted ad tails) that the transcript-based detectors never see. Advanced tuning, not surfaced in the UI. |
 | `VAD_GAP_START_MIN_SECONDS` | `3.0` | Minimum pre-transcript gap (seconds) at episode start that the VAD detector will cut. Anything shorter is left alone. |

@@ -1005,6 +1005,7 @@ export interface Settings {
   audioNormalizeEnabled: SettingValueBoolean;
   audioNormalizeIntensity: SettingValue;
   skipFlacCompression: SettingValueBoolean;
+  transcribeRawApiChunks: SettingValueBoolean;
   maxArtworkBytes: SettingValueNumber;
   maxRssBytes: SettingValueNumber;
   maxAudioDownloadMb: SettingValueNumber;
@@ -1064,6 +1065,8 @@ export interface Settings {
   heldWidenSeconds: SettingValueNumber;
   daiDifferentialOverridesKeep: SettingValueBoolean;
   spliceVetoEnabled: SettingValueBoolean;
+  audioAnalysisEnabled: SettingValueBoolean;
+  spliceEvidenceEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersMode: SettingValue;
@@ -1220,6 +1223,7 @@ export interface Settings {
     audioNormalizeEnabled: boolean;
     audioNormalizeIntensity: string;
     skipFlacCompression: boolean;
+    transcribeRawApiChunks: boolean;
     maxArtworkBytes: number;
     maxRssBytes: number;
     maxAudioDownloadMb: number;
@@ -1290,6 +1294,8 @@ export interface Settings {
     heldWidenSeconds: number;
     daiDifferentialOverridesKeep: boolean;
     spliceVetoEnabled: boolean;
+    audioAnalysisEnabled: boolean;
+    spliceEvidenceEnabled: boolean;
   };
 }
 
@@ -1370,6 +1376,7 @@ export interface UpdateSettingsPayload {
   audioNormalizeEnabled?: boolean;
   audioNormalizeIntensity?: string;
   skipFlacCompression?: boolean;
+  transcribeRawApiChunks?: boolean;
   maxArtworkBytes?: number;
   maxRssBytes?: number;
   maxAudioDownloadMb?: number;
@@ -1429,6 +1436,8 @@ export interface UpdateSettingsPayload {
   heldWidenSeconds?: number;
   daiDifferentialOverridesKeep?: boolean;
   spliceVetoEnabled?: boolean;
+  audioAnalysisEnabled?: boolean;
+  spliceEvidenceEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersMode?: 'auto' | 'generate' | 'off';

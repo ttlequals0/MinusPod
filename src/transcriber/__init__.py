@@ -1121,6 +1121,7 @@ class Transcriber:
         # Subset of the above that ran out of clock rather than failing to decode (#644).
         extraction_timeouts: list[int] = []
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
+        raw_api_chunks = bool(whisper_settings.get('raw_api_chunks', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
             if ctx.switch_event.is_set():
@@ -1128,7 +1129,7 @@ class Transcriber:
             try:
                 chunk_path = chunking.extract_audio_chunk(
                     audio_path, c_start, c_end,
-                    preprocess=True, flac=extract_as_flac,
+                    preprocess=True, flac=extract_as_flac, raw_copy=raw_api_chunks,
                 )
             except AudioExtractionTimeout as e:
                 logger.error(f"{prefix}Chunk {chunk_idx + 1}: {e}")

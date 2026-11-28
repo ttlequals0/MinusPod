@@ -79,6 +79,8 @@ SEED_SNAPSHOT = {
     'queue_order': 'queued',
     'dai_differential_overrides_keep': 'true',
     'splice_veto_enabled': 'true',
+    'audio_analysis_enabled': 'true',
+    'splice_evidence_enabled': 'true',
     'differential_hold_min_seconds': '10',
     'held_widen_seconds': '0',
     'differential_measured_corr_max': '0.60',
@@ -223,7 +225,7 @@ EXPECTED_AD_RESET_KEYS = {
     'openrouter_api_key',
     'whisper_backend', 'whisper_api_base_url', 'whisper_api_key',
     'whisper_api_model', 'whisper_compute_type', 'whisper_language',
-    'skip_flac_compression', 'vad_gap_detection_enabled',
+    'skip_flac_compression', 'transcribe_raw_api_chunks', 'vad_gap_detection_enabled',
     'vad_gap_start_min_seconds', 'vad_gap_mid_min_seconds',
     'vad_gap_tail_min_seconds',
     'audio_cue_detection_enabled', 'audio_cue_freq_min_hz',
@@ -258,6 +260,7 @@ EXPECTED_AD_RESET_KEYS = {
     'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
     'dai_differential_overrides_keep', 'splice_veto_enabled',
+    'audio_analysis_enabled', 'splice_evidence_enabled',
     'ad_detection_exclude_start_seconds',
     # Provider failover (#806).
     'whisper_max_attempts',
@@ -493,6 +496,7 @@ class TestGetDefaults:
             'audioNormalizeEnabled': False,
             'audioNormalizeIntensity': 'normal',
             'skipFlacCompression': False,
+            'transcribeRawApiChunks': False,
             'adDetectionParallelWindows': 4,
             'adReviewerParallelAds': 4,
             'maxArtworkBytes': 26214400,
@@ -534,7 +538,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 190
+        assert len(payload_keys) == 193
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

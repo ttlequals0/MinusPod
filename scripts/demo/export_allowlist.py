@@ -223,7 +223,7 @@ _ALLOW_LLM_PROVIDER = (
     'download_history_enabled', 'download_geo_lookup_enabled',
     'download_history_retention_days', 'artwork_watermark_enabled',
     'artwork_badge_position', 'audio_bitrate', 'audio_encoder_compression_level',
-    'skip_flac_compression', 'ad_detection_max_failed_window_ratio',
+    'skip_flac_compression', 'transcribe_raw_api_chunks', 'ad_detection_max_failed_window_ratio',
     'low_ad_yield_action', 'episode_log_retention_days', 'episode_log_level',
     'local_upload_max_mb', 'youtube_enabled', 'youtube_llm_fallback',
     'youtube_captions_as_transcript', 'youtube_hide_private',
@@ -260,7 +260,7 @@ _ALLOW_DETECTION_TUNING = (
     'verification_miss_autocut_min_confidence', 'learning_min_confidence',
     'learning_min_confidence_long', 'learning_min_pattern_duration',
     'learning_max_pattern_duration', 'differential_measured_corr_max',
-    'dai_differential_overrides_keep', 'splice_veto_enabled',
+    'dai_differential_overrides_keep', 'splice_veto_enabled', 'audio_analysis_enabled', 'splice_evidence_enabled',
     'differential_hold_min_seconds', 'held_widen_seconds',
 )
 

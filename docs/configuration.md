@@ -663,6 +663,17 @@ The per-feed **Splice check** setting, under Advanced on the feed's settings pag
 
 Turning it off gives up a safety net, so it suits a feed you have already watched cut correctly. Held ads are never lost either way: they stay in the audio and wait on the episode page.
 
+### Local processing switches
+
+Audio analysis reads the whole episode with ffmpeg and numpy on the MinusPod host. When transcription and detection run on remote services it is the main CPU cost left, which matters on a small box. Both switches are global and on by default.
+
+| Setting (API key) | Default | Off |
+|---|---|---|
+| Run local audio analysis (`audioAnalysisEnabled`) | on | Skips loudness, transition, silence, cue and splice analysis in pass 1 and in verification. Detection and validation use the transcript alone, so cue and silence snapping have nothing to snap to and the splice hold never fires. Feeds in Cue-only mode still analyse. |
+| Collect splice evidence (`spliceEvidenceEnabled`) | on | Skips only the splice detector, the second full decode inside audio analysis. Long cuts are no longer held for missing splice evidence. |
+
+Both are in Settings > Ad detection and in `PUT /api/v1/settings/ad-detection`. For a low-CPU setup also consider `differentialFetchMode` `off` (no second download and decode), `skipSecondPass` (no verification re-transcription) and, for MP3 episodes sent to a remote API, [Send raw MP3 chunks](transcription.md#raw-mp3-chunks).
+
 ## Offline Queue
 
 If your LLM or Whisper server only runs part of the day (a desktop PC that hosts Ollama, for example), episodes that arrive while it is off normally retry a few times, trip the circuit breaker, and end up permanently failed until you reprocess them by hand. The offline queue changes that: an episode that fails because the endpoint is unreachable is parked with a "queued (offline)" status instead. Every few minutes MinusPod probes the endpoint, and once it answers again the parked episodes go back into the processing queue on their own.

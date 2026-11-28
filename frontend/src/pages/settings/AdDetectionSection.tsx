@@ -42,6 +42,10 @@ interface AdDetectionSectionProps {
   onHoldForReviewChange: (value: boolean) => void;
   spliceVetoEnabled: boolean;
   onSpliceVetoEnabledChange: (value: boolean) => void;
+  audioAnalysisEnabled: boolean;
+  onAudioAnalysisEnabledChange: (value: boolean) => void;
+  spliceEvidenceEnabled: boolean;
+  onSpliceEvidenceEnabledChange: (value: boolean) => void;
   transcriptDifferentialEnabled: boolean;
   onTranscriptDifferentialEnabledChange: (value: boolean) => void;
 }
@@ -108,6 +112,10 @@ function AdDetectionSection({
   onHoldForReviewChange,
   spliceVetoEnabled,
   onSpliceVetoEnabledChange,
+  audioAnalysisEnabled,
+  onAudioAnalysisEnabledChange,
+  spliceEvidenceEnabled,
+  onSpliceEvidenceEnabledChange,
   transcriptDifferentialEnabled,
   onTranscriptDifferentialEnabledChange,
 }: AdDetectionSectionProps) {
@@ -252,6 +260,32 @@ function AdDetectionSection({
           </label>
           <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
             A long cut found only in the transcript is held for review unless the audio shows an edit point at its edges. Each feed can override this.
+          </p>
+        </div>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={audioAnalysisEnabled}
+              onChange={onAudioAnalysisEnabledChange}
+              ariaLabel="Run local audio analysis"
+            />
+            <span className="text-sm font-medium text-foreground">Run local audio analysis</span>
+          </label>
+          <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
+            Off: no loudness, silence, cue or splice evidence, so boundaries rely on the transcript only. Saves CPU on small hosts. Cue-only feeds still analyse.
+          </p>
+        </div>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={spliceEvidenceEnabled}
+              onChange={onSpliceEvidenceEnabledChange}
+              ariaLabel="Collect splice evidence"
+            />
+            <span className="text-sm font-medium text-foreground">Collect splice evidence</span>
+          </label>
+          <p className={`${underToggle} mt-2 text-sm text-muted-foreground`}>
+            Off: no splice evidence, so long cuts are no longer held for missing edit points. Saves one full decode of the episode.
           </p>
         </div>
         <div>

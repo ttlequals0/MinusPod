@@ -862,6 +862,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         in_ad_reset=True, payload_key='skipFlacCompression',
         payload_factory=lambda: coerce_bool_setting(
             resolve_env_backed_default('skip_flac_compression'))),
+    'transcribe_raw_api_chunks': SettingSpec(
+        env_backed=True,
+        in_ad_reset=True, payload_key='transcribeRawApiChunks',
+        payload_factory=lambda: coerce_bool_setting(
+            resolve_env_backed_default('transcribe_raw_api_chunks'))),
     'ad_detection_parallel_windows': SettingSpec(
         env_backed=True,
         in_ad_reset=True, payload_key='adDetectionParallelWindows',
@@ -1069,6 +1074,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'dai_differential_overrides_keep': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='daiDifferentialOverridesKeep', payload_kind='bool'),
+    # Local-processing switches: off means the stage's consumers see no evidence, as when it finds nothing.
+    'audio_analysis_enabled': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='audioAnalysisEnabled', payload_kind='bool'),
+    'splice_evidence_enabled': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='spliceEvidenceEnabled', payload_kind='bool'),
     'splice_veto_enabled': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='spliceVetoEnabled', payload_kind='bool'),

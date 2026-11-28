@@ -230,6 +230,28 @@ def test_ad_detection_reset_turns_the_splice_veto_back_on(client):
     assert after['isDefault'] is True
 
 
+@pytest.mark.parametrize('field', [
+    'audioAnalysisEnabled', 'spliceEvidenceEnabled', 'transcribeRawApiChunks'])
+def test_local_processing_switches_round_trip_and_reject_non_booleans(client, field):
+    default = field != 'transcribeRawApiChunks'
+    assert client.get(BASE).get_json()[field]['value'] is default
+    for bad in (None, 'nope', 0):
+        r = client.put(f'{BASE}/ad-detection', data=json.dumps({field: bad}),
+                       content_type='application/json')
+        assert r.status_code == 400, r.get_data(as_text=True)
+    for value in (not default, default):
+        r = client.put(f'{BASE}/ad-detection', data=json.dumps({field: value}),
+                       content_type='application/json')
+        assert r.status_code in (200, 204), r.get_data(as_text=True)
+        assert client.get(BASE).get_json()[field]['value'] is value
+    client.put(f'{BASE}/ad-detection', data=json.dumps({field: not default}),
+               content_type='application/json')
+    assert client.post(f'{BASE}/ad-detection/reset').status_code == 200
+    after = client.get(BASE).get_json()[field]
+    assert after['value'] is default
+    assert after['isDefault'] is True
+
+
 @pytest.mark.parametrize('field,key,default', [
     ('audioReplacementSoundEnabled', 'audio_replacement_sound_enabled', True),
     ('audioMp3StreamCopyEnabled', 'audio_mp3_stream_copy_enabled', False),

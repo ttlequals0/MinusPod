@@ -75,6 +75,7 @@ def _get_whisper_settings() -> dict[str, str]:
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
         'skip_flac_compression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
+        'raw_api_chunks': coerce_bool_setting(os.environ.get('MINUSPOD_RAW_API_CHUNKS', 'false')),
         'api_timeout': _clamp_api_timeout(
             os.environ.get('WHISPER_API_TIMEOUT') or HTTP_TIMEOUT_WHISPER),
         'max_attempts': 2,
@@ -100,6 +101,10 @@ def _get_whisper_settings() -> dict[str, str]:
         if skip_flac_raw is not None:
             defaults['skip_flac_compression'] = coerce_bool_setting(skip_flac_raw)
 
+        raw_chunks_raw = db.get_setting('transcribe_raw_api_chunks')
+        if raw_chunks_raw is not None:
+            defaults['raw_api_chunks'] = coerce_bool_setting(raw_chunks_raw)
+
         defaults['api_timeout'] = _clamp_api_timeout(db.get_setting_float(
             'whisper_api_timeout_seconds', defaults['api_timeout']))
         defaults['max_attempts'] = db.get_setting_int(
@@ -120,6 +125,7 @@ def _get_failover_whisper_settings() -> dict[str, str]:
         'api_model': 'whisper-1',
         'language': active['language'],
         'skip_flac_compression': active['skip_flac_compression'],
+        'raw_api_chunks': active['raw_api_chunks'],
         'api_timeout': active['api_timeout'],
         'max_attempts': active['max_attempts'],
         'local_model': '',

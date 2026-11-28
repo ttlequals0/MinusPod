@@ -272,6 +272,7 @@ function Settings() {
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
   const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
   const [skipFlacCompression, setSkipFlacCompression] = useState(false);
+  const [transcribeRawApiChunks, setTranscribeRawApiChunks] = useState(false);
   const [maxArtworkBytes, setMaxArtworkBytes] = useState(26214400);
   const [maxRssBytes, setMaxRssBytes] = useState(209715200);
   const [maxAudioDownloadMb, setMaxAudioDownloadMb] = useState(500);
@@ -303,6 +304,8 @@ function Settings() {
   const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
   const [daiDifferentialOverridesKeep, setDaiDifferentialOverridesKeep] = useState(true);
   const [spliceVetoEnabled, setSpliceVetoEnabled] = useState(true);
+  const [audioAnalysisEnabled, setAudioAnalysisEnabled] = useState(true);
+  const [spliceEvidenceEnabled, setSpliceEvidenceEnabled] = useState(true);
   const [transcriptDifferentialEnabled, setTranscriptDifferentialEnabled] = useState(true);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
@@ -913,6 +916,7 @@ function Settings() {
     { key: 'audioNormalizeEnabled', kind: 'val', useDefault: true, value: audioNormalizeEnabled, set: setAudioNormalizeEnabled },
     { key: 'audioNormalizeIntensity', kind: 'str', useDefault: true, value: audioNormalizeIntensity, set: setAudioNormalizeIntensity },
     { key: 'skipFlacCompression', kind: 'val', useDefault: true, value: skipFlacCompression, set: setSkipFlacCompression },
+    { key: 'transcribeRawApiChunks', kind: 'val', useDefault: true, value: transcribeRawApiChunks, set: setTranscribeRawApiChunks },
     { key: 'maxArtworkBytes', kind: 'val', useDefault: true, value: maxArtworkBytes, set: setMaxArtworkBytes },
     { key: 'maxRssBytes', kind: 'val', useDefault: true, value: maxRssBytes, set: setMaxRssBytes },
     { key: 'maxAudioDownloadMb', kind: 'val', useDefault: true, value: maxAudioDownloadMb, set: setMaxAudioDownloadMb },
@@ -960,6 +964,8 @@ function Settings() {
     { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
     { key: 'daiDifferentialOverridesKeep', kind: 'val', useDefault: true, literal: true, value: daiDifferentialOverridesKeep, set: setDaiDifferentialOverridesKeep },
     { key: 'spliceVetoEnabled', kind: 'val', useDefault: true, literal: true, value: spliceVetoEnabled, set: setSpliceVetoEnabled },
+    { key: 'audioAnalysisEnabled', kind: 'val', useDefault: true, literal: true, value: audioAnalysisEnabled, set: setAudioAnalysisEnabled },
+    { key: 'spliceEvidenceEnabled', kind: 'val', useDefault: true, literal: true, value: spliceEvidenceEnabled, set: setSpliceEvidenceEnabled },
     { key: 'transcriptDifferentialEnabled', kind: 'val', useDefault: true, literal: true, value: transcriptDifferentialEnabled, set: setTranscriptDifferentialEnabled },
     // Audio fingerprinting (nested `fingerprint` state)
     { key: 'fingerprintEnabled', kind: 'val', useDefault: true, literal: true, value: fingerprint.enabled, obj: 'fingerprint', prop: 'enabled' },
@@ -1583,6 +1589,8 @@ function Settings() {
         onTranscribeChunkOverlapSecondsChange={setTranscribeChunkOverlapSeconds}
         skipFlacCompression={skipFlacCompression}
         onSkipFlacCompressionChange={setSkipFlacCompression}
+        transcribeRawApiChunks={transcribeRawApiChunks}
+        onTranscribeRawApiChunksChange={setTranscribeRawApiChunks}
         whisperPoolEnabled={whisperPoolEnabled}
         onWhisperPoolEnabledChange={setWhisperPoolEnabled}
         whisperPoolMaxRequests={whisperPoolMaxRequests}
@@ -1640,6 +1648,10 @@ function Settings() {
         onHoldForReviewChange={(v) => tunableMutation.mutate({ holdForReview: v })}
         spliceVetoEnabled={spliceVetoEnabled}
         onSpliceVetoEnabledChange={setSpliceVetoEnabled}
+        audioAnalysisEnabled={audioAnalysisEnabled}
+        onAudioAnalysisEnabledChange={setAudioAnalysisEnabled}
+        spliceEvidenceEnabled={spliceEvidenceEnabled}
+        onSpliceEvidenceEnabledChange={setSpliceEvidenceEnabled}
         transcriptDifferentialEnabled={transcriptDifferentialEnabled}
         onTranscriptDifferentialEnabledChange={setTranscriptDifferentialEnabled}
         onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}

@@ -403,6 +403,8 @@ def _build_settings_payload():
     skip_flac_raw = common._setting_value(
         settings, 'skip_flac_compression', registry_default('skip_flac_compression'))
     skip_flac = coerce_bool_setting(skip_flac_raw)
+    raw_api_chunks = coerce_bool_setting(common._setting_value(
+        settings, 'transcribe_raw_api_chunks', registry_default('transcribe_raw_api_chunks')))
 
     default_parallel_windows = str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT)
     parallel_windows_raw = common._setting_value(
@@ -527,6 +529,10 @@ def _build_settings_payload():
         registry_default('dai_differential_overrides_keep')))
     splice_veto_enabled = coerce_bool_setting(common._setting_value(
         settings, 'splice_veto_enabled', registry_default('splice_veto_enabled')))
+    audio_analysis_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'audio_analysis_enabled', registry_default('audio_analysis_enabled')))
+    splice_evidence_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'splice_evidence_enabled', registry_default('splice_evidence_enabled')))
 
     # Compatibility fields (spec 1.4): derived from segment_category_actions,
     # not their own retired settings.
@@ -823,6 +829,8 @@ def _build_settings_payload():
         'daiDifferentialOverridesKeep': _sv(
             'dai_differential_overrides_keep', dai_differential_overrides_keep),
         'spliceVetoEnabled': _sv('splice_veto_enabled', splice_veto_enabled),
+        'audioAnalysisEnabled': _sv('audio_analysis_enabled', audio_analysis_enabled),
+        'spliceEvidenceEnabled': _sv('splice_evidence_enabled', splice_evidence_enabled),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioEncoderCompressionLevel': _sv(
@@ -832,6 +840,7 @@ def _build_settings_payload():
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
         'audioNormalizeIntensity': _sv('audio_normalize_intensity', audio_normalize_intensity),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
+        'transcribeRawApiChunks': _sv('transcribe_raw_api_chunks', raw_api_chunks),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
         'maxArtworkBytes': _sv('max_artwork_bytes', max_artwork_bytes),

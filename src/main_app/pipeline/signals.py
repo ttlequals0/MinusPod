@@ -39,6 +39,10 @@ audio_logger = logging.getLogger('podcast.audio')
 
 def _run_audio_analysis(slug, episode_id, audio_path, force_cue_detection=False):
     """Pipeline stage: Run volume + transition detection on audio."""
+    # Cue-only feeds exist to read cues, so the global switch does not apply to them.
+    if not force_cue_detection and not db.get_setting_bool('audio_analysis_enabled', default=True):
+        audio_logger.info(f"[{slug}:{episode_id}] Audio analysis disabled in settings, skipping")
+        return None
     common._publish_status('update_job_stage', slug, episode_id, "pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
     try:

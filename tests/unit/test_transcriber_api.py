@@ -661,6 +661,18 @@ class TestSkipFlacCompressionSetting:
             settings = _get_whisper_settings()
         assert settings['skip_flac_compression'] is True
 
+    def test_raw_api_chunks_reads_db_then_env_then_off(self):
+        mock_db = _mock_db_with_settings({'transcribe_raw_api_chunks': 'true'})
+        with patch('database.Database', return_value=mock_db):
+            assert _get_whisper_settings()['raw_api_chunks'] is True
+        with patch.dict(os.environ, {'MINUSPOD_RAW_API_CHUNKS': 'true'}):
+            with patch('database.Database', side_effect=Exception("no db")):
+                assert _get_whisper_settings()['raw_api_chunks'] is True
+        env = {k: v for k, v in os.environ.items() if k != 'MINUSPOD_RAW_API_CHUNKS'}
+        with patch.dict(os.environ, env, clear=True):
+            with patch('database.Database', side_effect=Exception("no db")):
+                assert _get_whisper_settings()['raw_api_chunks'] is False
+
     def test_get_whisper_settings_defaults_to_false(self):
         env = os.environ.copy()
         env.pop('SKIP_FLAC_COMPRESSION', None)
@@ -961,6 +973,29 @@ class TestExtractAudioChunkSinglePass:
         assert cmd[cmd.index('-c:a') + 1] == 'flac'
         assert path.endswith('.flac')
 
+    def test_raw_copy_stream_copies_an_mp3_source(self):
+        path, captured = self._run_extract(preprocess=True, flac=True, raw_copy=True)
+        cmd = captured['cmd']
+        assert cmd[cmd.index('-c:a') + 1] == 'copy'
+        for flag in ('-af', '-ar', '-ac'):
+            assert flag not in cmd
+        assert '-vn' in cmd
+        assert path.endswith('.mp3')
+        assert captured['timeout'] < FFMPEG_LONG_TIMEOUT
+
+    def test_raw_copy_ignored_for_a_non_mp3_source(self):
+        captured = {}
+
+        def fake_run(cmd, **run_kwargs):
+            captured['cmd'] = cmd
+            return MagicMock(returncode=0)
+
+        with patch('transcriber.utils.subprocess_registry.tracked_run', side_effect=fake_run):
+            path = extract_audio_chunk('/tmp/in.m4a', 0.0, 30.0, preprocess=True, flac=True, raw_copy=True)
+        os.unlink(path)
+        assert captured['cmd'][captured['cmd'].index('-c:a') + 1] == 'flac'
+        assert path.endswith('.flac')
+
 
 class TestPreprocessFiltersFor:
     @pytest.mark.parametrize('channels,expected', [
@@ -1173,6 +1208,24 @@ class TestChunkedSinglePass:
             assert cmd[cmd.index('-af') + 1] == PREPROCESS_AUDIO_FILTERS
             assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
         transcriber.preprocess_audio.assert_not_called()
+
+    def test_api_chunks_stream_copy_when_raw_api_chunks_is_on(self):
+        ffmpeg_cmds = []
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+
+        with patch('transcriber.utils.subprocess_registry.tracked_run',
+                   side_effect=self._fake_run_factory(ffmpeg_cmds)), \
+             patch('transcriber.remote.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber.settings._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
+            result = transcriber._transcribe_chunked_parallel_api(
+                '/tmp/full.mp3', 50.0, self._make_settings(raw_api_chunks=True))
+
+        assert result is not None
+        assert len(ffmpeg_cmds) == 2
+        for cmd in ffmpeg_cmds:
+            assert cmd[cmd.index('-c:a') + 1] == 'copy'
+            assert '-af' not in cmd
 
     def test_api_chunks_ignore_embedded_artwork(self):
         # A malformed embedded cover image (ID3 declares PNG, bytes are

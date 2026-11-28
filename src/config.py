@@ -2831,6 +2831,7 @@ ENV_BACKED_SETTINGS = (
         _validate_audio_encoder_compression_level,
     ),
     ('skip_flac_compression', 'SKIP_FLAC_COMPRESSION', 'false', _validate_bool_string),
+    ('transcribe_raw_api_chunks', 'MINUSPOD_RAW_API_CHUNKS', 'false', _validate_bool_string),
     (
         'ad_detection_parallel_windows',
         'AD_DETECTION_PARALLEL_WINDOWS',

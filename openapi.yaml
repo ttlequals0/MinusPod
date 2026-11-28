@@ -8453,6 +8453,14 @@ paths:
                     When true, skip the FLAC encode pass before uploading audio
                     to the remote transcription API. Send the preprocessed WAV directly.
                   example: false
+                transcribeRawApiChunks:
+                  type: boolean
+                  description: |
+                    API transcription backend with MP3 sources only: stream-copy
+                    each chunk from the original instead of decoding, normalising
+                    and re-encoding it. Must be a boolean (default false; the
+                    MINUSPOD_RAW_API_CHUNKS environment variable seeds it).
+                  example: false
                 audioNormalizeEnabled:
                   type: boolean
                   description: Loudness-normalize processed audio output.
@@ -8969,6 +8977,20 @@ paths:
                     Hold a long cut found only in the transcript for review
                     unless the audio shows an edit point at its edges. A feed's
                     own spliceVetoEnabled overrides this (default true).
+                audioAnalysisEnabled:
+                  type: boolean
+                  description: >-
+                    Run the local audio analysis stage (loudness, transitions,
+                    silence, cues, splice evidence) in pass 1 and in
+                    verification. Off, detection and validation use the
+                    transcript alone; cue-only feeds still analyse. Must be a
+                    boolean (default true).
+                spliceEvidenceEnabled:
+                  type: boolean
+                  description: >-
+                    Run the splice detector inside audio analysis. Off, no
+                    splice evidence is stored and the splice hold never fires.
+                    Must be a boolean (default true).
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -18864,6 +18886,35 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        audioAnalysisEnabled:
+          type: object
+          description: >-
+            Run local audio analysis in both passes. Off, detection runs from
+            the transcript alone (default true).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        spliceEvidenceEnabled:
+          type: object
+          description: >-
+            Run the splice detector inside audio analysis (default true).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        transcribeRawApiChunks:
+          type: object
+          description: >-
+            Stream-copy MP3 chunks to the remote transcription API instead of
+            re-encoding them (default false).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         differentialMeasuredCorrMax:
           type: object
           description: >-
@@ -20089,6 +20140,12 @@ components:
             positionalPriorEnabled:
               type: boolean
             spliceVetoEnabled:
+              type: boolean
+            audioAnalysisEnabled:
+              type: boolean
+            spliceEvidenceEnabled:
+              type: boolean
+            transcribeRawApiChunks:
               type: boolean
             vadGapDetectionEnabled:
               type: boolean

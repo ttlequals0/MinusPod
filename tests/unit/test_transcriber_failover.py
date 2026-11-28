@@ -17,7 +17,7 @@ from transcriber import ServiceUnavailableError, Transcriber
 from utils.errors import LocalTranscriptionUnavailableError, TranscriptionRejectedError
 
 ACTIVE = {'backend': 'openai-api', 'api_base_url': 'http://a.example.com/v1', 'api_key': 'k1',
-          'api_model': 'whisper-1', 'language': 'en', 'skip_flac_compression': True,
+          'api_model': 'whisper-1', 'language': 'en', 'skip_flac_compression': True, 'raw_api_chunks': False,
           'api_timeout': 60, 'max_attempts': 1}
 FAILOVER = {**ACTIVE, 'api_base_url': 'http://b.example.com/v1', 'api_key': 'k2', 'is_failover': True}
 

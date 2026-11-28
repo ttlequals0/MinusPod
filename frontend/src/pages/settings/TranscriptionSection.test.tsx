@@ -35,6 +35,7 @@ function renderSection(
     whisperApiTimeoutSeconds: 600, onWhisperApiTimeoutSecondsChange: noop,
     whisperMaxAttempts: 2, onWhisperMaxAttemptsChange: noop,
     skipFlacCompression: false, onSkipFlacCompressionChange: noop,
+    transcribeRawApiChunks: false, onTranscribeRawApiChunksChange: noop,
     softTimeoutMinutes: 60, hardTimeoutMinutes: 120, softMinMinutes: 5, hardMaxMinutes: 1440,
     onSoftTimeoutChange: noop, onHardTimeoutChange: noop,
     onTimeoutsSave: noop, timeoutsSaveIsPending: false, timeoutsSaveIsSuccess: false, timeoutsError: null,
@@ -254,5 +255,20 @@ describe('TranscriptionSection idle unload', () => {
     unmount();
     renderSection({ whisperBackend: 'openai-api' });
     expect(screen.queryByLabelText('Unload idle model after (seconds)')).toBeNull();
+  });
+});
+
+describe('TranscriptionSection raw MP3 chunks toggle', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('reports the change to the parent', () => {
+    const onChange = vi.fn();
+    renderSection({ transcribeRawApiChunks: false, onTranscribeRawApiChunksChange: onChange });
+    const toggle = screen.getByRole('switch', { name: 'Send raw MP3 chunks disabled' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 });

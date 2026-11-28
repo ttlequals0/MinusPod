@@ -44,6 +44,11 @@ from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_default, registry_get_default,
 )
+
+LOCAL_PROCESSING_BOOL_FIELDS = (
+    ('audioAnalysisEnabled', 'audio_analysis_enabled'),
+    ('spliceEvidenceEnabled', 'splice_evidence_enabled'),
+)
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
@@ -313,6 +318,9 @@ def _validate_processing_defaults_payload(data):
         return 'transcriptDifferentialEnabled must be a boolean', 400
     if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
         return 'spliceVetoEnabled must be a boolean', 400
+    for payload_key, _setting_key in LOCAL_PROCESSING_BOOL_FIELDS:
+        if payload_key in data and not isinstance(data[payload_key], bool):
+            return f'{payload_key} must be a boolean', 400
     for key in ('onlyExposeProcessedDefault', 'chaptersInNotes', 'reviewLinksInNotes', 'feedItunesBlock'):
         if key in data and not isinstance(data[key], bool):
             return f'{key} must be a boolean', 400
@@ -1781,6 +1789,11 @@ def _apply_positional_prior_fields(db, data):
         enabled = coerce_bool_setting(data['spliceVetoEnabled'])
         db.set_setting('splice_veto_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated splice_veto_enabled to: {enabled}")
+
+    for payload_key, setting_key in LOCAL_PROCESSING_BOOL_FIELDS:
+        if payload_key in data:
+            db.set_setting(setting_key, 'true' if data[payload_key] else 'false', is_default=False)
+            logger.info(f"Updated {setting_key} to: {data[payload_key]}")
     return
 
 

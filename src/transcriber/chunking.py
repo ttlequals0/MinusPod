@@ -41,16 +41,21 @@ def extract_audio_chunk(
     end_time: float,
     preprocess: bool = False,
     flac: bool = False,
+    raw_copy: bool = False,
 ) -> str | None:
     """Extract a time range (seconds) from an audio file using ffmpeg.
 
     preprocess: apply the preprocess_audio filter chain in this pass; callers must then
         skip preprocessing downstream (transcribe(..., preprocessed=True)).
     flac: encode FLAC (ready for API upload) instead of PCM WAV.
+    raw_copy: stream-copy the span of an MP3 source instead of decoding, filtering and re-encoding it,
+        for remote APIs that normalise on their own; ignored for other sources.
 
     Returns the temporary chunk path (caller cleans it up), or None on failure.
     """
-    tmp = tempfile.NamedTemporaryFile(suffix='.flac' if flac else '.wav', delete=False)
+    raw_copy = raw_copy and audio_path.lower().endswith('.mp3')
+    suffix = '.mp3' if raw_copy else '.flac' if flac else '.wav'
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     output_path = tmp.name
     tmp.close()
 
@@ -65,17 +70,23 @@ def extract_audio_chunk(
             # Ignore embedded cover art (#556): FLAC output can carry pictures, so a
             # malformed APIC frame (ID3 says PNG, bytes are JPEG) aborts the extract.
             '-vn',
-            '-ar', '16000',  # Whisper native sample rate
-            '-ac', '1',      # Mono
         ]
-        if preprocess:
-            cmd += ['-af', settings.preprocess_filters_for(audio_path)]
-        # FLAC for upload; otherwise uncompressed for faster processing
-        cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
+        if raw_copy:
+            cmd += ['-c:a', 'copy', output_path]
+        else:
+            cmd += [
+                '-ar', '16000',  # Whisper native sample rate
+                '-ac', '1',      # Mono
+            ]
+            if preprocess:
+                cmd += ['-af', settings.preprocess_filters_for(audio_path)]
+            # FLAC for upload; otherwise uncompressed for faster processing
+            cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
 
         # With filtering folded in, use the standalone preprocess budget (FFMPEG_LONG_TIMEOUT
         # floor). Scale by chunk length (#644): chunks grow with GPU memory, so a flat budget fails.
-        timeout = (FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
+        long_budget = preprocess and not raw_copy
+        timeout = (FFMPEG_LONG_TIMEOUT if long_budget else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
         result = utils.subprocess_registry.tracked_run(cmd, capture_output=True, timeout=timeout)
 
         if result.returncode == 0 and os.path.exists(output_path):

@@ -33,6 +33,15 @@ class VerificationPass:
         self.pattern_service = pattern_service
         self.db = db
 
+    def _audio_analysis_enabled(self) -> bool:
+        if self.db is None:
+            return True
+        try:
+            return self.db.get_setting_bool('audio_analysis_enabled', default=True)
+        except Exception as exc:
+            logger.warning(f"Failed to read audio_analysis_enabled: {exc}")
+            return True
+
     def verify(self, processed_audio_path: str, podcast_name: str,
                episode_title: str, slug: str, episode_id: str,
                pass1_cuts: list[dict] = None,
@@ -103,9 +112,10 @@ class VerificationPass:
         try:
             # The feed PK lets the cue analyzer pick the per-feed template matcher
             # instead of only the spectral fallback.
-            processed_analysis = self.audio_analyzer.analyze(
-                processed_audio_path, feed_id=feed_id,
-            )
+            if self._audio_analysis_enabled():
+                processed_analysis = self.audio_analyzer.analyze(
+                    processed_audio_path, feed_id=feed_id,
+                )
             if processed_analysis and processed_analysis.signals:
                 logger.info(f"[{slug}:{episode_id}] Verification: "
                            f"{len(processed_analysis.signals)} audio signals")
