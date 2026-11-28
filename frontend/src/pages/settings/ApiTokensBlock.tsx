@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_TOKENS_QUERY_KEY, ApiToken, createApiToken, listApiTokens, revokeAllApiTokens, revokeApiToken } from '../../api/apiTokens';
 import { getErrorMessage } from '../../api/client';
@@ -84,6 +84,14 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
   const [toRevoke, setToRevoke] = useState<ApiToken | null>(null);
   const [viewing, setViewing] = useState<ApiToken | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const [focusCreate, setFocusCreate] = useState(0);
+  // The revoked row's trigger is gone; move focus to the create input once the dialog has released the page.
+  useEffect(() => {
+    if (focusCreate === 0) return;
+    // The dialog restores focus in a microtask; run after it.
+    const timer = setTimeout(() => nameRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [focusCreate]);
   const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
   const creatingRef = useRef(false);
 
@@ -97,8 +105,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
     mutationFn: (id: number) => revokeApiToken(id),
     onSuccess: () => {
       setToRevoke(null);
-      // The row's trigger is gone; move focus after the modal restores its own.
-      setTimeout(() => nameRef.current?.focus(), 0);
+      setFocusCreate((n) => n + 1);
       queryClient.invalidateQueries({ queryKey: API_TOKENS_QUERY_KEY });
     },
     onError: (e) => {
@@ -111,7 +118,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
     mutationFn: revokeAllApiTokens,
     onSuccess: () => {
       setConfirmRevokeAll(false);
-      setTimeout(() => nameRef.current?.focus(), 0);
+      setFocusCreate((n) => n + 1);
       queryClient.invalidateQueries({ queryKey: API_TOKENS_QUERY_KEY });
     },
     onError: (e) => {
