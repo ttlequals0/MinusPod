@@ -58,10 +58,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     last_refresh_error TEXT,
     last_refresh_error_at TEXT,
     last_refresh_failure_at TEXT,
-    -- Adaptive refresh schedule: NULL next_refresh_at means due now;
-    -- retry_after_until is a host's Retry-After; http_hint_seconds the last
-    -- Cache-Control max-age; update_hint_seconds/feed_complete come from
-    -- podcast:updateFrequency or sy:*; last_refresh_error_kind classifies the error.
+    -- Adaptive refresh schedule; hints come from Cache-Control, Retry-After, podcast:updateFrequency, sy:*.
     next_refresh_at TEXT,
     refresh_interval_seconds INTEGER,
     refresh_interval_reason TEXT,
@@ -204,9 +201,7 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- stamped on finalize/recut. NULL for a pre-existing row backfilled
     -- lazily on render.
     processed_size_bytes INTEGER,
-    -- First GET that served the processed audio; retention can keep
-    -- never-fetched episodes longer (unfetched_retention_days). Cleared
-    -- when retention resets the episode.
+    -- First client GET of the processed audio; cleared when new audio is produced.
     first_fetched_at TEXT,
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,

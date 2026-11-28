@@ -43,7 +43,7 @@ def _mock_fetch(monkeypatch, result_or_fn):
     if callable(result_or_fn):
         fn = result_or_fn
     else:
-        def fn(url, etag=None, last_modified=None, podcast=None):
+        def fn(url, etag=None, last_modified=None, podcast=None, meta=None):
             return result_or_fn
     monkeypatch.setattr('main_app.feeds.rss_parser.fetch_feed_conditional', fn)
 

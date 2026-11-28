@@ -123,78 +123,68 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
                 # the next counted failure re-crosses the threshold and retries,
                 # otherwise this outage's one alert is lost.
                 db.update_podcast(slug, refresh_failure_count=count - 1)
-        _reschedule(slug, failed_attempt=True)
     except Exception:
         refresh_logger.exception(f"[{slug}] Failed to record refresh failure")
 
 
 def _update_hint_columns(channel_elem) -> dict:
-    """Publish-rate hint columns read from the raw channel; empty when nothing usable was found."""
+    """Publish-rate hint columns read from the raw channel."""
     hints = rss_parser.extract_update_hints(channel_elem)
-    period = hints.get('period_seconds') if isinstance(hints, dict) else None
-    return {
-        'update_hint_seconds': period if isinstance(period, int) else None,
-        'feed_complete': 1 if isinstance(hints, dict) and hints.get('complete') is True else 0,
-    }
+    return {'update_hint_seconds': hints['period_seconds'], 'feed_complete': int(hints['complete'])}
 
 
-def _outcome_kind(outcome, meta) -> str:
-    if outcome.status == 'parse_failed':
-        return 'invalid_xml'
-    return meta.get('kind') or 'unknown'
+_FAILED_STATUSES = ('fetch_failed', 'parse_failed', 'internal_error')
 
 
-def _schedule_after_attempt(slug: str, outcome):
-    """Persist what the attempt learned (Retry-After, max-age, error class) and set next_refresh_at."""
+def _schedule_after_attempt(slug: str, outcome, meta: dict, *, outage: bool = False):
+    """Store what the attempt learned and next_refresh_at in one write, from the final failure count.
+
+    outage: the failure was not counted (our network looks down), so retry at the floor."""
     if not isinstance(outcome, RefreshOutcome) or outcome.status in ('coalesced', 'failed'):
         return
     try:
-        meta = feed_schedule.get_fetch_meta()
+        podcast = db.get_podcast_row(slug)
+        if not podcast or not podcast.get('source_url') or is_local_feed(podcast) or is_recents_feed(podcast):
+            return
         now = datetime.now(timezone.utc)
-        failed = outcome.status in ('fetch_failed', 'parse_failed', 'internal_error')
+        failed = outcome.status in _FAILED_STATUSES
+        fields = {}
         if outcome.success:
-            db.update_podcast(slug, last_refresh_ok_at=now.strftime(ISO_FORMAT),
-                              retry_after_until=None,
-                              http_hint_seconds=meta.get('max_age'))
+            fields = {'last_refresh_ok_at': now.strftime(ISO_FORMAT), 'retry_after_until': None,
+                      'http_hint_seconds': meta.get('max_age')}
         elif failed:
-            retry_after = (feed_schedule.parse_retry_after(meta.get('retry_after'), now)
+            retry_after = (feed_schedule.retry_after_seconds(meta.get('retry_after'))
                            if meta.get('status') in (429, 503) else None)
             fields = {'retry_after_until': (
                 (now + timedelta(seconds=retry_after)).strftime(ISO_FORMAT) if retry_after else None)}
             if outcome.status != 'internal_error':
-                fields['last_refresh_error_kind'] = _outcome_kind(outcome, meta)
-            db.update_podcast(slug, **fields)
-        _reschedule(slug, failed_attempt=failed)
+                fields['last_refresh_error_kind'] = ('invalid_xml' if outcome.status == 'parse_failed'
+                                                     else meta.get('kind') or 'unknown')
+        state = {**podcast, **fields}
+        adaptive, max_seconds, floor_seconds = resolve_adaptive_refresh(db)
+        failures = state.get('refresh_failure_count') or 0
+        if failed:
+            failures = 0 if outage else max(failures, 1)
+        dates = [d for d in (parse_iso_utc(v) for v in db.get_recent_episode_dates(podcast['id'])) if d]
+        decision = feed_schedule.compute_refresh_interval(
+            now=now, floor_seconds=floor_seconds, max_seconds=max_seconds,
+            episode_dates=dates, update_period_seconds=state.get('update_hint_seconds'),
+            feed_complete=bool(state.get('feed_complete')),
+            http_max_age_seconds=state.get('http_hint_seconds'), failures=failures,
+            retry_after_until=parse_iso_utc(state.get('retry_after_until')),
+            adaptive=adaptive and not (failed and outage), dormant=db.is_feed_dormant(state))
+        db.update_podcast(
+            slug, **fields,
+            next_refresh_at=feed_schedule.next_refresh_at(now, decision).strftime(ISO_FORMAT),
+            refresh_interval_seconds=decision.interval_seconds,
+            refresh_interval_reason=decision.reason)
+        if decision.reason != podcast.get('refresh_interval_reason') or decision.reason in (
+                feed_schedule.REASON_BACKOFF, feed_schedule.REASON_RETRY_AFTER):
+            refresh_logger.info(
+                f"[{slug}] Next refresh in {decision.interval_seconds / 60:.0f} min "
+                f"({decision.reason}), host {safe_url_for_log(podcast['source_url'])}")
     except Exception:
         refresh_logger.exception(f"[{slug}] Failed to schedule the next refresh")
-
-
-def _reschedule(slug: str, failed_attempt: bool = False):
-    """Recompute and store next_refresh_at from the feed's cadence, hints and failure state."""
-    podcast = db.get_podcast_row(slug)
-    if not podcast or not podcast.get('source_url') or is_local_feed(podcast) or is_recents_feed(podcast):
-        return
-    now = datetime.now(timezone.utc)
-    adaptive, max_seconds = resolve_adaptive_refresh(db)
-    failures = podcast.get('refresh_failure_count') or 0
-    dates = [d for d in (parse_iso_utc(v) for v in db.get_recent_episode_dates(podcast['id'])) if d]
-    decision = feed_schedule.compute_refresh_interval(
-        now=now, floor_seconds=resolve_refresh_floor_seconds(db), max_seconds=max_seconds,
-        episode_dates=dates, update_period_seconds=podcast.get('update_hint_seconds'),
-        feed_complete=bool(podcast.get('feed_complete')),
-        http_max_age_seconds=podcast.get('http_hint_seconds'),
-        failures=max(failures, 1) if failed_attempt else failures,
-        retry_after_until=parse_iso_utc(podcast.get('retry_after_until')),
-        adaptive=adaptive, dormant=db.is_feed_dormant(podcast))
-    db.update_podcast(
-        slug, next_refresh_at=feed_schedule.next_refresh_at(now, decision).strftime(ISO_FORMAT),
-        refresh_interval_seconds=decision.interval_seconds,
-        refresh_interval_reason=decision.reason)
-    if decision.reason != podcast.get('refresh_interval_reason') or decision.reason in (
-            feed_schedule.REASON_BACKOFF, feed_schedule.REASON_RETRY_AFTER):
-        refresh_logger.info(
-            f"[{slug}] Next refresh in {decision.interval_seconds / 60:.0f} min "
-            f"({decision.reason}), host {safe_url_for_log(podcast['source_url'])}")
 
 
 def _rss_cache_stale(slug: str, podcast) -> bool:
@@ -380,16 +370,8 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
 
 
 def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
-                      record_failure: bool = True):
-    """Refresh one feed, then schedule its next refresh. See _refresh_rss_feed for the arguments."""
-    outcome = _refresh_rss_feed(slug, feed_url, force, record_failure)
-    _schedule_after_attempt(slug, outcome)
-    return outcome
-
-
-def _refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
-                      record_failure: bool = True):
-    """Refresh RSS feed for a podcast.
+                      record_failure: bool = True, meta: dict | None = None):
+    """Refresh RSS feed for a podcast, then schedule its next refresh.
 
     Args:
         slug: Podcast slug
@@ -400,9 +382,22 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         record_failure: If False, an origin fetch/parse failure is returned
                without touching refresh_failure_count or firing the alert;
                refresh_all_feeds passes False and counts itself once it knows
-               whether the batch looks like a shared outage.
+               whether the batch looks like a shared outage, and schedules too.
+        meta: filled with the fetch's HTTP facts; refresh_all_feeds keeps it per feed.
     """
-    feed_schedule.reset_fetch_meta()
+    meta = {} if meta is None else meta
+    try:
+        outcome = _refresh_rss_feed(slug, feed_url, force, record_failure, meta)
+    except Exception:
+        if record_failure:
+            _schedule_after_attempt(slug, RefreshOutcome(False, 'internal_error'), meta)
+        raise
+    if record_failure:
+        _schedule_after_attempt(slug, outcome, meta)
+    return outcome
+
+
+def _refresh_rss_feed(slug: str, feed_url: str, force: bool, record_failure: bool, meta: dict):
     podcast = db.get_podcast_row(slug)
     if is_local_feed(podcast):
         success = bool(local_feed_builder.rebuild_local_feed(slug, podcast))
@@ -450,7 +445,7 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             feed_url,
             etag=existing_etag,
             last_modified=existing_last_modified,
-            podcast=podcast,
+            podcast=podcast, meta=meta,
         )
 
         # Handle 304 Not Modified - feed hasn't changed
@@ -480,7 +475,7 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     refresh_logger.info(
                         f"[{slug}] Feed unchanged (304) but {forced_reason}, forcing full fetch")
                     feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                        feed_url, etag=None, last_modified=None, podcast=podcast
+                        feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta
                     )
                 else:
                     refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
@@ -496,12 +491,12 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     f"forcing full fetch for initial discovery"
                 )
                 feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                    feed_url, etag=None, last_modified=None, podcast=podcast
+                    feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta
                 )
 
         if not feed_content:
             refresh_logger.info(f"[{slug}] Feed refresh failed; will retry next refresh")
-            fetch_error = feed_problems.fetch_failure_detail(feed_schedule.get_fetch_meta())
+            fetch_error = feed_problems.fetch_failure_detail(meta)
             if record_failure:
                 _record_refresh_failure(slug, fetch_error, podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
@@ -517,7 +512,7 @@ def _refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             # One immediate refetch usually clears a body cut in transfer before falling back to backoff.
             refresh_logger.info(f"[{slug}] Feed body failed to parse; refetching once")
             feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                feed_url, etag=None, last_modified=None, podcast=podcast
+                feed_url, etag=None, last_modified=None, podcast=podcast, meta=meta
             )
             if feed_content:
                 parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
@@ -762,12 +757,9 @@ def refresh_all_feeds(force: bool = False):
     return _run_refresh_batch(force, label=f"all RSS feeds (force={force})")
 
 
-def refresh_due_feeds(batch_size: int, interval_seconds: float):
-    """Refresh only subscribed feeds last refreshed more than interval_seconds ago.
-
-    Oldest first, capped at batch_size. The scheduler calls this on a short tick
-    so feed writes spread across the interval instead of one whole-corpus burst."""
-    due = db.get_due_feed_slugs(interval_seconds, batch_size)
+def refresh_due_feeds(batch_size: int):
+    """Refresh feeds past next_refresh_at, most overdue first, capped at batch_size (one short tick)."""
+    due = db.get_due_feed_slugs(batch_size)
     if not due:
         return {'success': True, 'succeeded': 0, 'failed': 0, 'outcomes': {},
                 'outage': {'detected': False, 'affectedCount': 0, 'nextRetryAt': None}}
@@ -790,6 +782,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         # per-feed failure counting is deferred until the batch fraction is
         # known below, so a shared outage never marks healthy feeds broken.
         feed_rows = {r['slug']: r for r in db.get_podcast_feed_urls()}
+        metas = {}
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {}
             for slug in candidates:
@@ -800,8 +793,9 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
                 source_url = row.get('source_url')
                 if not source_url:
                     continue
+                metas[slug] = {}
                 futures[executor.submit(
-                    refresh_rss_feed, slug, source_url, force, False)] = slug
+                    refresh_rss_feed, slug, source_url, force, False, metas[slug])] = slug
             outcomes = {}
             for future in as_completed(futures):
                 slug = futures[future]
@@ -866,6 +860,10 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
             if db.get_setting('feeds_refresh_outage_active') == '1':
                 db.set_setting('feeds_refresh_outage_active', '0')
                 db.set_setting('feeds_next_refresh_retry_at', '')
+
+        # Scheduled here, not per feed, so each feed sees its final failure count.
+        for slug, outcome in outcomes.items():
+            _schedule_after_attempt(slug, outcome, metas.get(slug, {}), outage=outage_detected)
 
         # The dashboard "all feeds fresh as of T" indicator is computed on read
         # from MIN(last_checked_at); no sweep-completion timestamp is written.

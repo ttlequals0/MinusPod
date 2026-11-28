@@ -65,6 +65,7 @@ from pattern_cleanup_hash import review_hash
 from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
+    RSS_REFRESH_MINUTES_DEFAULT, RSS_REFRESH_MINUTES_MAX, RSS_REFRESH_MINUTES_MIN,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS, resolve_segment_category_actions_map,
 )
 from utils.markers import EDGE_TOLERANCE, collapse_duplicate_markers
@@ -638,7 +639,7 @@ class SchemaMixin(DeferredUpgradeMixin):
             ('last_refresh_error', 'TEXT'),
             ('last_refresh_error_at', 'TEXT'),
             ('last_refresh_failure_at', 'TEXT'),
-            # Adaptive refresh schedule; NULL next_refresh_at means due now
+            # Adaptive refresh schedule; NULL next_refresh_at is due now
             ('next_refresh_at', 'TEXT'),
             ('refresh_interval_seconds', 'INTEGER'),
             ('refresh_interval_reason', 'TEXT'),
@@ -2672,6 +2673,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         self._run_trim_podcast_network_id_overrides(conn)
 
         self._run_fetch_tracking_baseline(conn)
+        self._run_adaptive_refresh_baseline(conn)
 
     def _run_fetch_tracking_baseline(self, conn, gate='fetch_tracking_baseline_v1'):
         """One-shot: stamp existing feeds as requested now and mark already-downloaded episodes fetched; never raises."""
@@ -2693,6 +2695,29 @@ class SchemaMixin(DeferredUpgradeMixin):
         except Exception as e:
             conn.rollback()
             logger.error(f"Fetch tracking baseline failed, retrying on the next start: {e}")
+
+    def _run_adaptive_refresh_baseline(self, conn, gate='adaptive_refresh_baseline_v1'):
+        """One-shot: give existing feeds a next_refresh_at one interval after their last attempt (never-attempted: due now); never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'rss_refresh_interval_minutes'").fetchone()
+            try:
+                minutes = int(row[0])
+            except (TypeError, ValueError):
+                minutes = RSS_REFRESH_MINUTES_DEFAULT
+            seconds = min(max(minutes, RSS_REFRESH_MINUTES_MIN), RSS_REFRESH_MINUTES_MAX) * 60
+            conn.execute(
+                """UPDATE podcasts SET next_refresh_at = COALESCE(
+                       strftime('%Y-%m-%dT%H:%M:%SZ', last_refresh_attempt_at, ?),
+                       '1970-01-01T00:00:00Z')
+                   WHERE next_refresh_at IS NULL""", (f'+{seconds} seconds',))
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Adaptive refresh baseline failed, retrying on the next start: {e}")
 
     def _run_trim_podcast_network_id_overrides(self, conn, gate='trim_podcast_network_id_overrides'):
         """One-shot: trim padded podcasts.network_id_override values and null blank ones; never raises."""

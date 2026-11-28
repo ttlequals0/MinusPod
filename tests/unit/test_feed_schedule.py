@@ -1,11 +1,12 @@
 """Table-driven tests for the pure adaptive refresh interval."""
 import random
+from email.utils import format_datetime
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 import feed_schedule as fs
-from feed_schedule import compute_refresh_interval, parse_retry_after
+from feed_schedule import compute_refresh_interval
 
 NOW = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
 FLOOR = 15 * 60
@@ -204,18 +205,18 @@ def test_max_below_floor_is_raised_to_floor():
 
 @pytest.mark.parametrize('value,expected', [
     ('120', 120), (' 45 ', 45), ('0', None), ('-5', None), ('', None), (None, None),
-    ('soon', None), ('1e3', None), ('99999999999', 24 * H), ('12.5', None),
+    ('soon', None), ('nan', None), ('99999999999', 24 * H), ('12.5', 12), ('0.5', None),
 ])
-def test_parse_retry_after_seconds(value, expected):
-    assert parse_retry_after(value, NOW) == expected
+def test_retry_after_seconds(value, expected):
+    assert fs.retry_after_seconds(value) == expected
 
 
-def test_parse_retry_after_http_date():
-    future = 'Mon, 01 Jun 2026 14:00:00 GMT'
-    assert parse_retry_after(future, NOW) == 2 * H
-    assert parse_retry_after('Mon, 01 Jun 2026 11:00:00 GMT', NOW) is None
-    assert parse_retry_after('Mon, 01 Jun 2030 11:00:00 GMT', NOW) == 24 * H
-    assert parse_retry_after('Mon, 99 Foo 2026 99:00:00 GMT', NOW) is None
+def test_retry_after_http_date():
+    now = datetime.now(timezone.utc)
+    assert 2 * H - 5 <= fs.retry_after_seconds(format_datetime(now + timedelta(hours=2))) <= 2 * H
+    assert fs.retry_after_seconds(format_datetime(now - timedelta(hours=1))) is None
+    assert fs.retry_after_seconds(format_datetime(now + timedelta(days=5))) == 24 * H
+    assert fs.retry_after_seconds('Mon, 99 Foo 2026 99:00:00 GMT') is None
 
 
 @pytest.mark.parametrize('value,expected', [
@@ -248,11 +249,3 @@ def test_parse_sy(period, freq, expected):
 def test_next_refresh_at_adds_the_interval():
     d = fs.RefreshDecision(900, 'floor')
     assert fs.next_refresh_at(NOW, d) == NOW + timedelta(seconds=900)
-
-
-def test_fetch_meta_is_per_thread_and_resettable():
-    fs.reset_fetch_meta()
-    fs.note_fetch_meta(status=429)
-    assert fs.get_fetch_meta() == {'status': 429}
-    fs.reset_fetch_meta()
-    assert fs.get_fetch_meta() == {}

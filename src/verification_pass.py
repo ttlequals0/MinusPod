@@ -9,7 +9,7 @@ import logging
 from copy import deepcopy
 
 from audio_processor import get_replacement_duration
-from config import UNREVIEWABLE_GAP_SECONDS
+from config import UNREVIEWABLE_GAP_SECONDS, resolve_audio_analysis_enabled
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError, AudioExtractionError
 from utils.language import get_feed_language_override
@@ -32,15 +32,6 @@ class VerificationPass:
         self.audio_analyzer = audio_analyzer
         self.pattern_service = pattern_service
         self.db = db
-
-    def _audio_analysis_enabled(self) -> bool:
-        if self.db is None:
-            return True
-        try:
-            return self.db.get_setting_bool('audio_analysis_enabled', default=True)
-        except Exception as exc:
-            logger.warning(f"Failed to read audio_analysis_enabled: {exc}")
-            return True
 
     def verify(self, processed_audio_path: str, podcast_name: str,
                episode_title: str, slug: str, episode_id: str,
@@ -112,7 +103,7 @@ class VerificationPass:
         try:
             # The feed PK lets the cue analyzer pick the per-feed template matcher
             # instead of only the spectral fallback.
-            if self._audio_analysis_enabled():
+            if resolve_audio_analysis_enabled(self.db):
                 processed_analysis = self.audio_analyzer.analyze(
                     processed_audio_path, feed_id=feed_id,
                 )

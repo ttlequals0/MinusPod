@@ -215,7 +215,7 @@ def _build_settings_payload():
     except (ValueError, TypeError):
         rss_refresh_interval_minutes = registry_get_default('rss_refresh_interval_minutes')
 
-    adaptive_refresh_enabled, adaptive_max_seconds = resolve_adaptive_refresh(db)
+    adaptive_refresh_enabled, adaptive_max_seconds, _floor = resolve_adaptive_refresh(db)
     adaptive_refresh_max_minutes = adaptive_max_seconds // 60
 
     def _int_setting(key):

@@ -1455,46 +1455,52 @@ RSS_REFRESH_MINUTES_DEFAULT = 15
 ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT = 60
 
 
+def _clamped_setting_int(db, key: str, default: int, lo: int, hi: int) -> int:
+    return min(max(db.get_setting_int(key, default), lo), hi)
+
+
 def resolve_refresh_floor_seconds(db) -> int:
-    """The global refresh interval in seconds, clamped 5-1440 minutes; the adaptive floor."""
-    try:
-        minutes = int(db.get_setting('rss_refresh_interval_minutes') or RSS_REFRESH_MINUTES_DEFAULT)
-    except (TypeError, ValueError):
-        minutes = RSS_REFRESH_MINUTES_DEFAULT
-    return min(max(minutes, RSS_REFRESH_MINUTES_MIN), RSS_REFRESH_MINUTES_MAX) * 60
+    """The global refresh interval in seconds; the adaptive floor."""
+    return 60 * _clamped_setting_int(db, 'rss_refresh_interval_minutes', RSS_REFRESH_MINUTES_DEFAULT,
+                                     RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX)
 
 
-def resolve_adaptive_refresh(db) -> tuple[bool, int]:
-    """(enabled, max interval in seconds); the max is never below the floor."""
-    enabled = db.get_setting_bool('adaptive_refresh_enabled', True)
+def resolve_adaptive_refresh(db) -> tuple[bool, int, int]:
+    """(enabled, max interval in seconds, floor in seconds); the max is never below the floor."""
+    floor = resolve_refresh_floor_seconds(db)
+    max_seconds = 60 * _clamped_setting_int(
+        db, 'adaptive_refresh_max_minutes', ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT,
+        RSS_REFRESH_MINUTES_MIN, RSS_REFRESH_MINUTES_MAX)
+    return db.get_setting_bool('adaptive_refresh_enabled', True), max(max_seconds, floor), floor
+
+
+def resolve_audio_analysis_enabled(db) -> bool:
+    """Global audio analysis switch; an unreadable setting counts as on."""
+    if db is None:
+        return True
     try:
-        minutes = int(db.get_setting('adaptive_refresh_max_minutes')
-                      or ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT)
-    except (TypeError, ValueError):
-        minutes = ADAPTIVE_REFRESH_MAX_MINUTES_DEFAULT
-    minutes = min(max(minutes, RSS_REFRESH_MINUTES_MIN), RSS_REFRESH_MINUTES_MAX)
-    return enabled, max(minutes * 60, resolve_refresh_floor_seconds(db))
+        return db.get_setting_bool('audio_analysis_enabled', default=True)
+    except Exception as exc:
+        _tunable_logger.warning(f"Failed to read audio_analysis_enabled: {exc}")
+        return True
 
 
 def resolve_dormant_feed_days(db) -> int:
-    """Idle days before a feed goes dormant, clamped; 0 means off."""
-    days = db.get_setting_int('dormant_feed_days', DORMANT_FEED_DAYS_DEFAULT)
-    return min(max(days, DORMANT_FEED_DAYS_MIN), DORMANT_FEED_DAYS_MAX)
+    """Idle days before a feed goes dormant; 0 means off."""
+    return _clamped_setting_int(db, 'dormant_feed_days', DORMANT_FEED_DAYS_DEFAULT,
+                                DORMANT_FEED_DAYS_MIN, DORMANT_FEED_DAYS_MAX)
 
 
 def resolve_unfetched_retention_days(db) -> int:
-    """Days a never-fetched processed episode is kept, clamped; 0 means off."""
-    days = db.get_setting_int('unfetched_retention_days',
-                              UNFETCHED_RETENTION_DAYS_DEFAULT)
-    return min(max(days, UNFETCHED_RETENTION_DAYS_MIN), UNFETCHED_RETENTION_DAYS_MAX)
+    """Days a never-fetched processed episode is kept; 0 means off."""
+    return _clamped_setting_int(db, 'unfetched_retention_days', UNFETCHED_RETENTION_DAYS_DEFAULT,
+                                UNFETCHED_RETENTION_DAYS_MIN, UNFETCHED_RETENTION_DAYS_MAX)
 
 
 def resolve_fetched_retention_grace_days(db) -> int:
-    """Days a fetched episode is kept past its first fetch, clamped."""
-    days = db.get_setting_int('fetched_retention_grace_days',
-                              FETCHED_RETENTION_GRACE_DAYS_DEFAULT)
-    return min(max(days, FETCHED_RETENTION_GRACE_DAYS_MIN),
-               FETCHED_RETENTION_GRACE_DAYS_MAX)
+    """Days a fetched episode is kept past its first fetch."""
+    return _clamped_setting_int(db, 'fetched_retention_grace_days', FETCHED_RETENTION_GRACE_DAYS_DEFAULT,
+                                FETCHED_RETENTION_GRACE_DAYS_MIN, FETCHED_RETENTION_GRACE_DAYS_MAX)
 
 
 def resolve_max_llm_window_ad_seconds(db) -> float:

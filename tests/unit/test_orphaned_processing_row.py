@@ -64,7 +64,7 @@ class TestWaiterOrphanDetection:
         mock_queue.get_current.return_value = []
         mock_db = MagicMock()
         mock_db.claim_next_queued_episode.side_effect = [queue_row, None]
-        mock_db.is_auto_process_enabled_for_podcast.return_value = True
+        mock_db.auto_process_block.return_value = None
         mock_db.get_episode.return_value = episode
 
         stop_after = {'n': 0}

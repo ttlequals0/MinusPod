@@ -414,24 +414,22 @@ def effective_channel_text(override, source, *, sanitize=False):
 
 
 
-def _note_response_meta(response):
+def _note_response_meta(response, meta):
     """Record status and the response headers the refresh scheduler reads."""
     headers = response.headers
-    feed_schedule.note_fetch_meta(
+    meta.update(
         status=response.status_code,
         max_age=feed_schedule.parse_cache_control_max_age(headers.get('Cache-Control')),
         retry_after=headers.get('Retry-After'))
 
 
-def _note_exception_meta(exc):
+def _note_exception_meta(exc, meta):
     """Record the failure class; a response on the exception also carries its Retry-After."""
     kind, detail = feed_problems.classify_exception(exc)
-    facts = {'kind': kind, 'detail': detail}
+    meta.update(kind=kind, detail=detail)
     response = getattr(exc, 'response', None)
     if response is not None:
-        facts.update(status=response.status_code,
-                     retry_after=response.headers.get('Retry-After'))
-    feed_schedule.note_fetch_meta(**facts)
+        meta.update(status=response.status_code, retry_after=response.headers.get('Retry-After'))
 
 
 class RSSParser:
@@ -538,16 +536,19 @@ class RSSParser:
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
                                last_modified: str = None, timeout: int = 30,
-                               podcast=None):
+                               podcast=None, meta: dict | None = None):
         """Fetch RSS feed with conditional GET support.
 
         Sends If-None-Match / If-Modified-Since to skip unchanged feeds. etag and last_modified are
         the previously received header values; podcast supplies its feed UA override, if any.
 
+        meta, when given, is cleared and filled with this fetch's status, max-age, Retry-After and failure class.
+
         Returns (content, new_etag, new_last_modified); on 304 (None, etag, last_modified);
         on error (None, None, None).
         """
-        feed_schedule.reset_fetch_meta()
+        meta = {} if meta is None else meta
+        meta.clear()
         headers = _identity_headers(url, {'User-Agent': feed_user_agent(podcast)})
         if etag:
             headers['If-None-Match'] = etag
@@ -560,7 +561,7 @@ class RSSParser:
             probe_token = breaker.check()
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS conditional fetch skipped: {redact_exc_urls(e)}")
-            feed_schedule.note_fetch_meta(kind='connection', detail='Paused after repeated failures')
+            meta.update(kind='connection', detail='Paused after repeated failures')
             return None, None, None
 
         try:
@@ -573,7 +574,7 @@ class RSSParser:
                 headers=headers,
             )
 
-            _note_response_meta(response)
+            _note_response_meta(response, meta)
             if response.status_code == 304:
                 logger.debug(f"Feed not modified (304): {safe_url_for_log(url)}")
                 breaker.record_success(token=probe_token)
@@ -588,7 +589,7 @@ class RSSParser:
                 )
                 response.close()
                 breaker.record_failure(token=probe_token)
-                feed_schedule.note_fetch_meta(kind='not_feed', detail='Response was not a feed')
+                meta.update(kind='not_feed', detail='Response was not a feed')
                 return None, None, None
 
             new_etag = response.headers.get('ETag')
@@ -596,7 +597,7 @@ class RSSParser:
 
             body = _read_capped_feed_body(response, url, breaker, probe_token)
             if body is None:
-                feed_schedule.note_fetch_meta(kind='not_feed', detail='Response too large')
+                meta.update(kind='not_feed', detail='Response too large')
                 return None, None, None
 
             logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
@@ -605,7 +606,7 @@ class RSSParser:
 
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            feed_schedule.note_fetch_meta(kind='blocked_address', detail='Address blocked')
+            meta.update(kind='blocked_address', detail='Address blocked')
             logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
             return None, None, None
 
@@ -624,7 +625,7 @@ class RSSParser:
                     stream=True,
                     headers={**headers, 'Accept-Encoding': 'identity'},
                 )
-                _note_response_meta(response)
+                _note_response_meta(response, meta)
                 if response.status_code == 304:
                     breaker.record_success(token=probe_token)
                     response.close()
@@ -649,14 +650,14 @@ class RSSParser:
                     new_last_modified,
                 )
             except (SSRFError, requests.RequestException) as retry_e:
-                _note_exception_meta(retry_e)
+                _note_exception_meta(retry_e, meta)
                 logger.warning(
                     f"Conditional fetch failed from {safe_url_for_log(url)} (retry): {redact_exc_urls(retry_e)}")
                 breaker.record_failure(token=probe_token)
                 return None, None, None
 
         except requests.RequestException as e:
-            _note_exception_meta(e)
+            _note_exception_meta(e, meta)
             logger.warning(f"Conditional fetch failed from {safe_url_for_log(url)}: {redact_exc_urls(e)}")
             breaker.record_failure(token=probe_token)
             return None, None, None
@@ -763,10 +764,8 @@ class RSSParser:
 
     @staticmethod
     def extract_update_hints(channel) -> dict:
-        """Channel-level publish-rate hints: ``{'period_seconds': int|None, 'complete': bool}``.
-
-        Reads ``<podcast:updateFrequency rrule=... complete=...>`` and ``sy:updatePeriod`` /
-        ``sy:updateFrequency``; anything malformed is ignored."""
+        """Channel publish-rate hints, ``{'period_seconds': int|None, 'complete': bool}``, from
+        podcast:updateFrequency and sy:*; malformed values are ignored."""
         hints = {'period_seconds': None, 'complete': False}
         if channel is None:
             return hints

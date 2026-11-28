@@ -223,28 +223,21 @@ class PodcastMixin:
             )
             return cursor.rowcount > 0
 
-    def get_due_feed_slugs(self, interval_seconds: float, limit: int) -> list[str]:
-        """Upstream feeds whose next_refresh_at has passed, most overdue first, capped at limit.
+    def get_due_feed_slugs(self, limit: int) -> list[str]:
+        """Upstream feeds past next_refresh_at (NULL counts as due), most overdue first, capped at limit.
 
-        A feed with no next_refresh_at yet (first run after upgrade, or a refresh that crashed before
-        scheduling) falls back to the fixed rule: due when not attempted within interval_seconds,
-        never-attempted first. Local and recents feeds are excluded. Timestamps are fixed-width UTC
-        ISO, so string compare is chronological."""
+        A feed attempted in the last 30s is excluded so a crash cannot re-select it every tick."""
         now = datetime.now(timezone.utc)
-        cutoff = (now - timedelta(seconds=interval_seconds)).strftime(ISO_FORMAT)
-        # An attempt in the last 30s is in flight or just finished; never re-select it on a crash.
         settled = (now - timedelta(seconds=30)).strftime(ISO_FORMAT)
         rows = self.get_connection().execute(
             """SELECT slug FROM podcasts
                WHERE feed_type NOT IN ('local', 'recents')
                  AND source_url IS NOT NULL AND source_url != ''
-                 AND ((next_refresh_at IS NOT NULL AND next_refresh_at <= ?
-                       AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?))
-                      OR (next_refresh_at IS NULL
-                          AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)))
-               ORDER BY COALESCE(next_refresh_at, last_refresh_attempt_at, '') ASC
+                 AND (next_refresh_at IS NULL OR next_refresh_at <= ?)
+                 AND (last_refresh_attempt_at IS NULL OR last_refresh_attempt_at < ?)
+               ORDER BY COALESCE(next_refresh_at, '') ASC
                LIMIT ?""",
-            (now.strftime(ISO_FORMAT), settled, cutoff, limit),
+            (now.strftime(ISO_FORMAT), settled, limit),
         ).fetchall()
         return [row['slug'] for row in rows]
 

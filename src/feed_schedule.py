@@ -3,10 +3,10 @@ import math
 import random
 import re
 import statistics
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
+
+from utils.rate_limit import parse_retry_after
 
 CADENCE_DIVISOR = 12
 MIN_CADENCE_EPISODES = 3
@@ -17,13 +17,13 @@ FAILURE_JITTER_FRACTION = 0.10
 RETRY_AFTER_MAX_SECONDS = 24 * 3600
 MAX_FAILURE_EXPONENT = 16
 
-REASON_FIXED = 'fixed'
-REASON_FLOOR = 'floor'
-REASON_CADENCE = 'cadence'
-REASON_DUE = 'due'
-REASON_HINT = 'hint'
-REASON_MAX = 'max'
-REASON_DORMANT = 'dormant'
+_REASON_FIXED = 'fixed'
+_REASON_FLOOR = 'floor'
+_REASON_CADENCE = 'cadence'
+_REASON_DUE = 'due'
+_REASON_HINT = 'hint'
+_REASON_MAX = 'max'
+_REASON_DORMANT = 'dormant'
 REASON_BACKOFF = 'backoff'
 REASON_RETRY_AFTER = 'retry_after'
 
@@ -41,9 +41,7 @@ class RefreshDecision:
 
 
 def _aware(value):
-    if value is not None and value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def observed_cadence_seconds(episode_dates, now) -> float | None:
@@ -59,27 +57,10 @@ def observed_cadence_seconds(episode_dates, now) -> float | None:
     return median if median > 0 else None
 
 
-def parse_retry_after(value, now) -> int | None:
-    """Seconds from a Retry-After header (delta-seconds or HTTP date), capped at 24 hours; None if unusable."""
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    seconds = None
-    if re.fullmatch(r'\d{1,12}', text):
-        seconds = int(text)
-    else:
-        try:
-            when = _aware(parsedate_to_datetime(text))
-        except (TypeError, ValueError, IndexError, OverflowError):
-            return None
-        if when is None:
-            return None
-        seconds = int((when - now).total_seconds())
-    if seconds <= 0:
-        return None
-    return min(seconds, RETRY_AFTER_MAX_SECONDS)
+def retry_after_seconds(value) -> int | None:
+    """Whole seconds from a Retry-After header, capped at 24 hours; None when absent, past or unusable."""
+    seconds = parse_retry_after(value, max_seconds=RETRY_AFTER_MAX_SECONDS)
+    return int(seconds) if seconds and seconds > 0 else None
 
 
 def parse_cache_control_max_age(value) -> int | None:
@@ -144,10 +125,8 @@ def compute_refresh_interval(*, now, floor_seconds, max_seconds, episode_dates=(
                              http_max_age_seconds=None, failures=0,
                              retry_after_until=None, adaptive=True, dormant=False,
                              rng=None) -> RefreshDecision:
-    """How long to wait before the next fetch of one feed, and why.
-
-    Healthy feeds take the shortest interval any signal justifies, clamped to [floor, max]. Failures
-    back off from the floor and Retry-After lengthens whatever was chosen, in every mode."""
+    """Wait before the next fetch of one feed, and why: shortest healthy interval clamped to
+    [floor, max]; failures back off from the floor; Retry-After lengthens either."""
     now = _aware(now)
     floor = max(int(floor_seconds), 1)
     ceiling = max(int(max_seconds), floor)
@@ -156,11 +135,11 @@ def compute_refresh_interval(*, now, floor_seconds, max_seconds, episode_dates=(
     if failures > 0:
         decision = RefreshDecision(int(_failure_backoff(floor, failures, rng)), REASON_BACKOFF)
     elif not adaptive:
-        decision = RefreshDecision(floor, REASON_FIXED)
+        decision = RefreshDecision(floor, _REASON_FIXED)
     elif feed_complete:
-        decision = RefreshDecision(ceiling, REASON_HINT)
+        decision = RefreshDecision(ceiling, _REASON_HINT)
     elif dormant:
-        decision = RefreshDecision(ceiling, REASON_DORMANT)
+        decision = RefreshDecision(ceiling, _REASON_DORMANT)
     else:
         decision = _healthy_interval(now, floor, ceiling, episode_dates, update_period_seconds,
                                      http_max_age_seconds)
@@ -176,20 +155,20 @@ def _healthy_interval(now, floor, ceiling, episode_dates, update_period_seconds,
     candidates = []
     cadence = observed_cadence_seconds(episode_dates, now)
     if cadence:
-        candidates.append((cadence / CADENCE_DIVISOR, REASON_CADENCE))
+        candidates.append((cadence / CADENCE_DIVISOR, _REASON_CADENCE))
     if update_period_seconds and update_period_seconds > 0:
-        candidates.append((update_period_seconds / CADENCE_DIVISOR, REASON_HINT))
-    interval, reason = min(candidates) if candidates else (floor, REASON_FLOOR)
+        candidates.append((update_period_seconds / CADENCE_DIVISOR, _REASON_HINT))
+    interval, reason = min(candidates) if candidates else (floor, _REASON_FLOOR)
 
     if cadence and _episode_due(now, episode_dates, cadence):
-        return RefreshDecision(floor, REASON_DUE)
+        return RefreshDecision(floor, _REASON_DUE)
 
     if http_max_age_seconds and http_max_age_seconds > interval:
-        interval, reason = http_max_age_seconds, REASON_HINT
+        interval, reason = http_max_age_seconds, _REASON_HINT
     if interval >= ceiling:
-        return RefreshDecision(ceiling, REASON_MAX)
+        return RefreshDecision(ceiling, _REASON_MAX)
     if interval <= floor:
-        return RefreshDecision(floor, REASON_FLOOR)
+        return RefreshDecision(floor, _REASON_FLOOR)
     return RefreshDecision(int(interval), reason)
 
 
@@ -204,21 +183,3 @@ def _episode_due(now, episode_dates, cadence) -> bool:
 def next_refresh_at(now, decision) -> datetime:
     return now + timedelta(seconds=decision.interval_seconds)
 
-
-# Response facts from the most recent fetch on this thread, for the scheduler to read
-# without widening fetch_feed_conditional's return value.
-_fetch_meta = threading.local()
-
-
-def reset_fetch_meta():
-    _fetch_meta.value = {}
-
-
-def note_fetch_meta(**facts):
-    if not hasattr(_fetch_meta, 'value'):
-        _fetch_meta.value = {}
-    _fetch_meta.value.update(facts)
-
-
-def get_fetch_meta() -> dict:
-    return dict(getattr(_fetch_meta, 'value', {}))

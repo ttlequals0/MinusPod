@@ -1,6 +1,5 @@
 """HTTP hints (Retry-After, max-age, error class) fetch_feed_conditional hands the adaptive scheduler."""
 import itertools
-import threading
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from unittest.mock import MagicMock, patch
@@ -37,37 +36,37 @@ def _response(status=200, headers=None):
 
 
 def _fetch(url, response=None, error=None, etag=None):
+    meta = {}
     with patch('rss_parser.safe_get', return_value=response, side_effect=error), \
             patch('rss_parser.read_response_capped', return_value=BODY):
-        result = RSSParser().fetch_feed_conditional(url, etag=etag)
-    return result, feed_schedule.get_fetch_meta()
-
-
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        result = RSSParser().fetch_feed_conditional(url, etag=etag, meta=meta)
+    return result, meta
 
 
 def _http_date(seconds):
-    return format_datetime(NOW + timedelta(seconds=seconds), usegmt=True)
+    return format_datetime(datetime.now(timezone.utc) + timedelta(seconds=seconds), usegmt=True)
 
 
 @pytest.mark.parametrize('status', [429, 503])
 @pytest.mark.parametrize('header,expected', [
     ('120', 120),
-    (_http_date(300), 300),
+    (300, pytest.approx(300, abs=5)),
     ('99999999999', feed_schedule.RETRY_AFTER_MAX_SECONDS),
-    (_http_date(10 * 86400), feed_schedule.RETRY_AFTER_MAX_SECONDS),
+    (10 * 86400, feed_schedule.RETRY_AFTER_MAX_SECONDS),
     ('-5', None),
     ('0', None),
     ('soon', None),
     ('', None),
-    (_http_date(-60), None),
+    (-60, None),
 ])
 def test_retry_after_captured_and_bounded(url, status, header, expected):
+    if isinstance(header, int):
+        header = _http_date(header)
     result, meta = _fetch(url, _response(status, {'Retry-After': header}))
     assert result == (None, None, None)
     assert meta['status'] == status
     assert meta['retry_after'] == header
-    assert feed_schedule.parse_retry_after(meta['retry_after'], NOW) == expected
+    assert feed_schedule.retry_after_seconds(meta['retry_after']) == expected
 
 
 def test_retry_after_absent_on_429(url):
@@ -120,60 +119,45 @@ def test_network_errors_map_to_kind(url, error, kind):
 
 
 def test_open_circuit_reports_connection(url):
+    meta = {}
     with patch('rss_parser._get_rss_circuit_breaker') as get_breaker:
         get_breaker.return_value.check.side_effect = CircuitBreakerOpen('rss', 30)
-        result = RSSParser().fetch_feed_conditional(url)
+        result = RSSParser().fetch_feed_conditional(url, meta=meta)
     assert result == (None, None, None)
-    assert feed_schedule.get_fetch_meta()['kind'] == 'connection'
+    assert meta['kind'] == 'connection'
 
 
-def test_meta_does_not_leak_into_next_fetch_on_same_thread(url):
-    _fetch(url, _response(429, {'Retry-After': '900', 'Cache-Control': 'max-age=60'}))
-    _, meta = _fetch(url + '2', _response(200))
+def test_each_fetch_starts_the_meta_it_is_given_empty(url):
+    meta = {'status': 429, 'retry_after': '900', 'kind': 'rate_limited'}
+    with patch('rss_parser.safe_get', return_value=_response(200)), \
+            patch('rss_parser.read_response_capped', return_value=BODY):
+        RSSParser().fetch_feed_conditional(url, meta=meta)
     assert meta == {'status': 200, 'max_age': None, 'retry_after': None}
 
-    _fetch(url, _response(200, {'Cache-Control': 'max-age=60'}))
-    _, meta = _fetch(url + '3', error=requests.exceptions.SSLError('bad'))
-    assert meta['kind'] == 'tls'
-    assert 'max_age' not in meta and 'retry_after' not in meta
+
+def test_separate_meta_objects_never_share_values(url):
+    first = _fetch(url, _response(429, {'Retry-After': '900'}))[1]
+    second = _fetch(url + '2', _response(200))[1]
+    assert first['retry_after'] == '900'
+    assert second == {'status': 200, 'max_age': None, 'retry_after': None}
 
 
-def test_meta_does_not_leak_after_open_circuit(url):
-    _fetch(url, _response(429, {'Retry-After': '900'}))
+def test_open_circuit_meta_has_no_stale_http_facts(url):
+    meta = {'status': 429, 'retry_after': '900'}
     with patch('rss_parser._get_rss_circuit_breaker') as get_breaker:
         get_breaker.return_value.check.side_effect = CircuitBreakerOpen('rss', 30)
-        RSSParser().fetch_feed_conditional(url)
-    meta = feed_schedule.get_fetch_meta()
+        RSSParser().fetch_feed_conditional(url, meta=meta)
     assert 'retry_after' not in meta and 'status' not in meta
-
-
-def test_meta_is_per_thread(url):
-    _fetch(url, _response(429, {'Retry-After': '900'}))
-    seen = {}
-
-    def worker():
-        seen['meta'] = feed_schedule.get_fetch_meta()
-
-    t = threading.Thread(target=worker)
-    t.start()
-    t.join()
-    assert seen['meta'] == {}
-    assert feed_schedule.get_fetch_meta()['retry_after'] == '900'
-
-
-def test_reset_clears_previous_values():
-    feed_schedule.note_fetch_meta(status=429, retry_after='900')
-    feed_schedule.reset_fetch_meta()
-    assert feed_schedule.get_fetch_meta() == {}
 
 
 def test_gzip_retry_records_the_retry_response_headers(url):
     first = _response(200, {'Cache-Control': 'max-age=100'})
     retry = _response(200, {'Cache-Control': 'max-age=900'})
+    meta = {}
     with patch('rss_parser.safe_get', side_effect=[first, retry]), \
             patch('rss_parser._read_capped_feed_body',
                   side_effect=[requests.exceptions.ContentDecodingError('bad gzip'), BODY]), \
             patch('rss_parser._mark_gzip_broken'):
-        result = RSSParser().fetch_feed_conditional(url)
+        result = RSSParser().fetch_feed_conditional(url, meta=meta)
     assert result[0] == BODY.decode()
-    assert feed_schedule.get_fetch_meta()['max_age'] == 900
+    assert meta['max_age'] == 900
