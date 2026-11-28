@@ -817,7 +817,9 @@ function Settings() {
   useSyncFromQuery(retention, (r, previous) => {
     if (previous && (retentionDays !== (previous.retentionDays || 30)
       || originalRetentionDays !== (previous.originalRetentionDays ?? previous.retentionDays ?? 30)
-      || retentionEnabled !== previous.enabled)) return;
+      || retentionEnabled !== previous.enabled
+      || unfetchedRetentionDays !== (previous.unfetchedRetentionDays ?? 0)
+      || fetchedRetentionGraceDays !== (previous.fetchedRetentionGraceDays ?? 3))) return;
     setRetentionDays(r.retentionDays || 30);
     setOriginalRetentionDays(r.originalRetentionDays ?? r.retentionDays ?? 30);
     setRetentionEnabled(r.enabled);
@@ -1147,7 +1149,9 @@ function Settings() {
   useUnsavedChanges(hasChanges || podcastIndexApiKey !== '' || podcastIndexApiSecret !== ''
     || (!!retention && (retentionDays !== (retention.retentionDays || 30)
       || originalRetentionDays !== (retention.originalRetentionDays ?? retention.retentionDays ?? 30)
-      || retentionEnabled !== retention.enabled))
+      || retentionEnabled !== retention.enabled
+      || unfetchedRetentionDays !== (retention.unfetchedRetentionDays ?? 0)
+      || fetchedRetentionGraceDays !== (retention.fetchedRetentionGraceDays ?? 3)))
     || (!!processingTimeouts && (softTimeoutMinutes !== Math.round(processingTimeouts.softTimeoutSeconds / 60)
       || hardTimeoutMinutes !== Math.round(processingTimeouts.hardTimeoutSeconds / 60))));
 
@@ -2037,9 +2041,9 @@ function Settings() {
       {(hasChanges || hasInvalidField) && (
         <div
           data-viewport-inset="bottom"
-          className="pb-[env(safe-area-inset-bottom)] max-md:pb-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed above-bottom-nav left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
+          className="safe-x safe-x-fill safe-x-wide pb-[env(safe-area-inset-bottom)] max-md:pb-0 fixed above-bottom-nav left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
         >
-          <div className="max-w-3xl lg:max-w-5xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
+          <div className="max-w-3xl lg:max-w-5xl mx-auto flex items-center justify-between gap-4 py-3">
             <ConfirmResetButton
               label="Reset all"
               title="Also clears your AI model choices; you may need to pick them again."

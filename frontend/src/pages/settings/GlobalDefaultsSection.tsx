@@ -185,7 +185,7 @@ function GlobalDefaultsSection({
             <span className="text-sm text-muted-foreground">days, 0 to turn off</span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            A feed no podcast app has fetched for this many days stops auto-processing new episodes. Episodes still process when played, and auto-process resumes on the next feed fetch. A feed with Auto-Process set to Enabled is never paused.
+            A feed no podcast app has fetched for this many days is dormant and stops auto-processing new episodes. Episodes still process when played, and auto-process resumes on the next feed fetch. A feed with Auto-Process set to Enabled is never paused.
           </p>
         </div>
 
@@ -218,7 +218,7 @@ function GlobalDefaultsSection({
             <span className="text-sm font-medium text-foreground">Adapt refresh to each feed</span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Check busy feeds often and quiet feeds less often, and back off when a host is failing or asks us to wait. When off, every feed is checked on the interval above; a host's request to wait and failure backoff still apply.
+            Adaptive refresh checks busy feeds often and quiet feeds less often, and backs off when a host is failing or asks us to wait. When off, every feed is checked on the interval above; a host's request to wait and failure backoff still apply.
           </p>
           {adaptiveRefreshEnabled && (
             <div className="mt-3">
