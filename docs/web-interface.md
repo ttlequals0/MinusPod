@@ -409,6 +409,8 @@ Every theme and mode on the dashboard. Pick one under Settings, Appearance.
 
 <img src="screenshots/dashboard-themes.png" alt="The dashboard in every theme, light and dark" width="700">
 
+On a device with a side display cutout, Settings > Appearance also offers **Use full width beside a side cutout**. By default the page keeps clear of the cutout. Turning it on lets page content and the bottom tab bar extend into the area beside it, while the header, status bar, menus, dialogs, toasts and the Back to top button stay inside the safe area. The choice is stored in this browser only and is not a server setting.
+
 #### Feed Detail
 | Desktop | Mobile |
 |---------|--------|

@@ -209,8 +209,11 @@ input[type="time"]::-webkit-date-and-time-value { text-align: left; }
 .clear-bottom-nav { padding-bottom: calc(5rem + var(--bottom-nav-height)); }
 /* Top safe-area inset the header pads itself when no status bar already sits above it (the bar's measured height includes it). */
 :root { --header-top-pad: max(0px, calc(env(safe-area-inset-top) - var(--status-bar-height, 0px))); }
+/* Page body and bottom bar drop the side inset when the per-device cutout option is on; header, dialogs and toasts read env() directly. */
+:root { --safe-left: env(safe-area-inset-left); --safe-right: env(safe-area-inset-right); }
 /* Side gutters that grow with the horizontal safe-area insets (foldable outer display, landscape). */
-.safe-x { --safe-gutter: 1rem; padding-left: max(var(--safe-gutter), env(safe-area-inset-left)); padding-right: max(var(--safe-gutter), env(safe-area-inset-right)); }
+.safe-x { --safe-gutter: 1rem; padding-left: max(var(--safe-gutter), var(--safe-left)); padding-right: max(var(--safe-gutter), var(--safe-right)); }
+[data-side-cutout="fill"] .safe-x-fill { --safe-left: 0px; --safe-right: 0px; }
 @media (min-width: 640px) { .safe-x-wide { --safe-gutter: 1.5rem; } }
 @media (min-width: 1024px) { .safe-x-wide { --safe-gutter: 2rem; } }
 /* Half-folded two-segment display: keep dialogs inside the right-hand segment; env() is undefined elsewhere. */

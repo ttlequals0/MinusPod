@@ -25,6 +25,7 @@ release notes.
 - `MINUSPOD_PRIVATE_FEED_HOSTS` lets feed sources on named private hosts, IP addresses or CIDR ranges work without opening every private address. Loopback, link-local and cloud metadata addresses need a single-address entry. A range does not open them. Episode audio and artwork stay strict.
 - A community guide for running whisper.cpp on an AMD GPU with ROCm, with CPU transcription speed measurements. Contributed by no84by.
 - A **Back to top** button appears on every page after you scroll down a long way, and returns focus to the page heading.
+- **Use full width beside a side cutout** (Settings > Appearance, off by default). On a device with a side display cutout, page content can extend into the area beside it instead of leaving that band empty. The choice is stored in this browser only, and the option appears only on a device that reports a side cutout.
 
 ### Changed
 

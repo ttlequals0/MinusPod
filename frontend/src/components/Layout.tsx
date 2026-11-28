@@ -209,14 +209,14 @@ function Layout() {
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-fill safe-x-wide max-w-7xl mx-auto py-8 clear-bottom-nav">
         <UpdateBanner />
         <Outlet />
       </main>
       <nav
         aria-label="Primary"
         data-viewport-inset="bottom"
-        className="safe-x safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
+        className="safe-x safe-x-fill safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card md:hidden"
       >
         <ul className="grid grid-cols-5">
           {TAB_ITEMS.map(({ to, label, Icon }) => {

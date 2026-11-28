@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_GROUPS, GROUPED_THEMES } from '../../themes';
 import { focusRing } from '../../components/fieldStyles';
+import SideCutoutToggle from './SideCutoutToggle';
 
 function AppearanceSection() {
   const { themeId, setThemeId } = useTheme();
@@ -60,6 +61,7 @@ function AppearanceSection() {
           );
         })}
       </div>
+      <SideCutoutToggle />
     </CollapsibleSection>
   );
 }

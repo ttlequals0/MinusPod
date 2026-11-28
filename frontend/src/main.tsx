@@ -7,8 +7,10 @@ import './index.css';
 import { offerAppUpdate } from './utils/appUpdate';
 import { UI_BASE } from './urlPrefix';
 import { DEMO_BOOT_ERROR } from './demo/copy';
+import { applyStoredSideCutout } from './utils/sideCutout';
 
 async function boot() {
+  applyStoredSideCutout();
   if (__DEMO__) {
     const { startDemo } = await import('./demo/start');
     await startDemo();
