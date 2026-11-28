@@ -55,6 +55,8 @@ interface CollapsibleSectionProps {
   forceOpen?: boolean;
   // DOM id for /settings#<anchorId> deep links: the section opens, scrolls into view and takes focus.
   anchorId?: string;
+  // Element inside the section that a deep link scrolls to instead of the section top.
+  scrollToId?: string;
 }
 
 function CollapsibleSection({
@@ -69,6 +71,7 @@ function CollapsibleSection({
   unmountWhenClosed = false,
   forceOpen = false,
   anchorId,
+  scrollToId,
 }: CollapsibleSectionProps) {
   const subsection = variant === 'subsection';
   const resolvedKey = storageKey || `settings-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
@@ -116,7 +119,7 @@ function CollapsibleSection({
     if (targetSeq === null || !rootRef.current) return;
     setIsOpen(true);
     onToggle?.(true);
-    return revealSection(rootRef.current, toggleRef.current);
+    return revealSection((scrollToId && document.getElementById(scrollToId)) || rootRef.current, toggleRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetSeq]);
 

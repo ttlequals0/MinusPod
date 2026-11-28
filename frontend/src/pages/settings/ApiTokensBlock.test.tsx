@@ -99,7 +99,7 @@ describe('ApiTokensBlock', () => {
     await user.click(screen.getByRole('button', { name: 'Create token' }));
     await waitFor(() => expect(mockCreate).toHaveBeenCalledWith('cron'));
     const dialog = await screen.findByRole('dialog');
-    expect((within(dialog).getByLabelText('New API token') as HTMLInputElement).value).toBe(PLAINTEXT);
+    expect((within(dialog).getByLabelText('New API token') as HTMLTextAreaElement).value).toBe(PLAINTEXT);
     expect(within(dialog).getByText(/will not be shown again/i)).toBeTruthy();
     expect(within(dialog).getByText(/including provider keys in an export/i)).toBeTruthy();
     expect(within(dialog).getByText(/Authorization: Bearer <token>/)).toBeTruthy();

@@ -32,12 +32,13 @@ function RevealDialog({ token, onClose }: { token: string; onClose: () => void }
           Treat it like your password: it can read your configuration, including provider keys in an export.
         </p>
         <div className="flex gap-2">
-          <input
+          <textarea
             readOnly
+            rows={3}
             value={token}
             aria-label="New API token"
             onFocus={(e) => e.currentTarget.select()}
-            className="h-auto min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 font-mono text-xs"
+            className="h-auto min-w-0 flex-1 resize-none break-all rounded border border-input bg-background px-2 py-1 font-mono text-xs"
           />
           <CopyButton text={token} label="Copy token" className={`shrink-0 px-3 py-1 ${btnOutline}`} />
         </div>
@@ -148,7 +149,7 @@ function ApiTokensBlock({ isPasswordSet }: { isPasswordSet: boolean }) {
   };
 
   return (
-    <div className="mt-6 pt-6 border-t border-border">
+    <div id="api-tokens-block" className="mt-6 pt-6 border-t border-border scroll-mt-[calc(var(--status-bar-height,0px)+5rem)]">
       <h3 className={`${subHeading} mb-1`}>API tokens</h3>
       {!isPasswordSet ? (
         <p className="text-sm text-muted-foreground">

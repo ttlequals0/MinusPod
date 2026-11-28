@@ -247,6 +247,18 @@ describe('Settings deep links', () => {
     await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
   });
 
+  it('#api-tokens scrolls to the tokens block, not the Security card top', async () => {
+    nav.hash = '#api-tokens';
+    renderSettings();
+    const block = await waitFor(() => {
+      const el = document.getElementById('api-tokens-block');
+      if (!el) throw new Error('tokens block not rendered');
+      return el;
+    });
+    await waitFor(() => expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).toContain(block));
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.contexts).not.toContain(document.getElementById('api-tokens'));
+  });
+
   it('derives the category for an anchor outside any lookup table', async () => {
     const client = makeClient();
     const { container, rerender } = renderSettings(client);

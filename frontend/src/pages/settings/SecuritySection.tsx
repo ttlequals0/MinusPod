@@ -232,6 +232,7 @@ function SecuritySection({
     <CollapsibleSection
       title="Security"
       anchorId="api-tokens"
+      scrollToId="api-tokens-block"
       subtitle={isPasswordSet ? 'Password protection is enabled' : 'No password set - app is publicly accessible'}
     >
       <div className="flex justify-end mb-4">
