@@ -1893,7 +1893,7 @@ class TestCloseQueueRowsForEpisode:
         assert self._queue_status(temp_db, pid_a, 'shared-id') == 'completed'
         assert self._queue_status(temp_db, pid_b, 'shared-id') == 'pending'
 
-    def test_close_all_closes_every_open_row_across_feeds(self, temp_db):
+    def test_close_all_closes_pending_and_claimed_rows_but_not_failed(self, temp_db):
         temp_db.create_podcast('pod-a', 'https://example.com/a.xml', 'pod-a')
         temp_db.create_podcast('pod-b', 'https://example.com/b.xml', 'pod-b')
         pid_a = self._podcast_id(temp_db, 'pod-a')
@@ -1903,9 +1903,10 @@ class TestCloseQueueRowsForEpisode:
         self._insert_queue(temp_db, pid_b, 'ep3', 'failed')
         self._insert_queue(temp_db, pid_b, 'ep4', 'completed')
 
-        assert temp_db.close_all_queue_rows() == 3
-        for pid, ep in ((pid_a, 'ep1'), (pid_a, 'ep2'), (pid_b, 'ep3'), (pid_b, 'ep4')):
+        assert temp_db.close_all_queue_rows() == 2
+        for pid, ep in ((pid_a, 'ep1'), (pid_a, 'ep2'), (pid_b, 'ep4')):
             assert self._queue_status(temp_db, pid, ep) == 'completed'
+        assert self._queue_status(temp_db, pid_b, 'ep3') == 'failed'
         assert temp_db.close_all_queue_rows() == 0
 
 

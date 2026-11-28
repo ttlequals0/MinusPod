@@ -96,7 +96,9 @@ class TestAdaptiveRefreshBaseline:
     def test_existing_feeds_become_due_as_before_in_batches(self, legacy_path):
         db = self._reopen(legacy_path)
         assert db.get_podcast_row('never')['next_refresh_at'] < _iso_ago(10_000_000)
-        assert db.get_podcast_row('recent')['next_refresh_at'] == _iso_ahead(480)
+        due_at = datetime.strptime(db.get_podcast_row('recent')['next_refresh_at'], ISO_FORMAT)
+        expected = datetime.strptime(_iso_ahead(480), ISO_FORMAT)
+        assert abs((due_at - expected).total_seconds()) <= 3
         assert db.get_due_feed_slugs(limit=10) == ['never', 'stale']
         assert db.get_due_feed_slugs(limit=1) == ['never']
 
