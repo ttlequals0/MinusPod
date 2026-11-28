@@ -49,7 +49,12 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 
 ### Feeds on a private or LAN host
 
-MinusPod validates feed source URLs and blocks private/loopback/LAN addresses by default (SSRF protection). If a feed source is on a private address (a LAN Audiobookshelf server or a self-hosted feed), set `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true`.
+MinusPod validates feed source URLs and blocks private/loopback/LAN addresses by default (SSRF protection). If a feed source is on a private address (a LAN Audiobookshelf server or a self-hosted feed), you have two options:
+
+- Recommended: list only the hosts you need in `MINUSPOD_PRIVATE_FEED_HOSTS`, a comma-separated mix of hostnames, IP addresses and CIDR ranges, for example `MINUSPOD_PRIVATE_FEED_HOSTS=nas.lan,192.168.1.0/24`. A hostname entry allows that exact name (case-insensitive) on any private address. An IP or CIDR entry allows any hostname that resolves entirely inside the range. Loopback, link-local and cloud metadata addresses are allowed only by an IP or CIDR entry, never by a hostname alone. Other private hosts stay blocked.
+- All or nothing: `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true` allows every private feed source address.
+
+Both apply to feed source URLs only (adding, editing, importing and refreshing a feed, and redirects from them). Episode audio and artwork URLs found inside a feed stay on the strict check. Neither can be changed from the UI.
 
 ## Served feeds are marked private
 

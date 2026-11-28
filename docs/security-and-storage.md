@@ -100,6 +100,8 @@ metadata and link-local addresses are refused at both tiers. Redirects are
 rechecked on every hop, HTTPS to HTTP downgrades are refused, and IPv4-mapped
 IPv6 addresses are normalized before policy checks.
 
+Feed source URLs may be allowed on private hosts through `MINUSPOD_PRIVATE_FEED_HOSTS` (a narrow allow-list) or `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS` (everything). The allow-list is checked against the addresses the connection actually uses, including on redirects; enclosure, audio and artwork fetches ignore it. See [Feeds on a private or LAN host](feeds-and-usage.md#feeds-on-a-private-or-lan-host).
+
 The resolved address is also pinned. A hostname is resolved once per hop, every
 returned address is checked, and the connection goes to one of those addresses,
 so a DNS record that answers with a public address for the check and a private

@@ -16,6 +16,7 @@ from utils.paths import resolve_data_dir
 from utils.trusted_proxy import PeerGatedProxyFix, parse_trusted_networks
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
+from utils.url import get_private_feed_hosts
 # SingleLineFormatter stays importable from main_app for its test.
 from utils.log_format import (  # noqa: F401
     QueryStringRedactingFilter, SingleLineFormatter, guard_handler_errors,
@@ -242,6 +243,7 @@ def _validate_configured_base_urls():
 
 
 _validate_configured_base_urls()
+get_private_feed_hosts()  # logs invalid MINUSPOD_PRIVATE_FEED_HOSTS entries once
 
 
 # Re-encrypt any legacy plaintext provider secrets under the current master

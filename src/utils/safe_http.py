@@ -7,6 +7,8 @@ Two trust tiers:
   multicast, and reserved.
 - ``FEED_CONTENT``: URLs parsed out of fetched RSS (artwork, enclosures).
   Blocks every private range.
+- ``FEED_SOURCE_LISTED``: feed source URLs when MINUSPOD_PRIVATE_FEED_HOSTS is set.
+  Strict, except listed hosts and addresses may be private.
 
 Layered defenses:
 
@@ -33,7 +35,7 @@ import requests
 from config import HTTP_MAX_REDIRECTS_API, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
 from utils.http import safe_url_for_log
 from utils.pinned_transport import PinnedHTTPAdapter
-from utils.url import SSRFError, validate_base_url, validate_url
+from utils.url import SSRFError, get_private_feed_hosts, validate_base_url, validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,7 @@ logger = logging.getLogger(__name__)
 class URLTrust(enum.Enum):
     OPERATOR_CONFIGURED = "operator_configured"
     FEED_CONTENT = "feed_content"
+    FEED_SOURCE_LISTED = "feed_source_listed"
 
 
 class ResponseTooLargeError(Exception):
@@ -131,20 +134,25 @@ def stream_to_file_capped(response, fh, max_bytes, *, already=0, chunk_size=8192
     return total
 
 
-def _validate_for_tier(url: str, trust: URLTrust) -> None:
+def _validate_for_tier(url: str, trust: URLTrust, private_hosts=None) -> None:
     """Run the tier-appropriate SSRF validator. Raises ``SSRFError`` on reject."""
     if trust is URLTrust.OPERATOR_CONFIGURED:
         validate_base_url(url)
+    elif trust is URLTrust.FEED_SOURCE_LISTED:
+        validate_url(url, private_hosts=private_hosts or get_private_feed_hosts())
     else:
         validate_url(url)
 
 
 def feed_trust() -> URLTrust:
     """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
-    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true."""
+    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true, or only the hosts
+    and ranges in MINUSPOD_PRIVATE_FEED_HOSTS."""
     opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
     if opt_in in ('1', 'true', 'yes', 'on'):
         return URLTrust.OPERATOR_CONFIGURED
+    if get_private_feed_hosts():
+        return URLTrust.FEED_SOURCE_LISTED
     return URLTrust.FEED_CONTENT
 
 
@@ -166,13 +174,16 @@ class _RevalidatingSession(requests.Session):
     def __init__(self, trust: URLTrust, max_redirects: int):
         super().__init__()
         self._trust = trust
+        self._private_hosts = (
+            get_private_feed_hosts() if trust is URLTrust.FEED_SOURCE_LISTED else None)
         self.max_redirects = max_redirects
         # Explicit falsey list, not coerce_bool_setting: unknown values must
         # keep the security control ON (fail secure), not fall back to False.
         pinning = os.environ.get('SSRF_IP_PINNING', 'true').strip().lower()
         if pinning not in ('0', 'false', 'no', 'off'):
             adapter = PinnedHTTPAdapter(
-                allow_private=trust is URLTrust.OPERATOR_CONFIGURED
+                allow_private=trust is URLTrust.OPERATOR_CONFIGURED,
+                private_hosts=self._private_hosts,
             )
             self.mount('http://', adapter)
             self.mount('https://', adapter)
@@ -182,7 +193,7 @@ class _RevalidatingSession(requests.Session):
         super().rebuild_auth(prepared_request, response)
         target = prepared_request.url
         _reject_https_downgrade(response.url, target)
-        _validate_for_tier(target, self._trust)
+        _validate_for_tier(target, self._trust, self._private_hosts)
         # requests' rebuild_auth strips Authorization on a cross-host redirect
         # but not provider-specific auth headers; drop those too so a 3xx to an
         # attacker-controlled host cannot exfiltrate an API key (creds-5).

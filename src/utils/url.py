@@ -4,7 +4,9 @@ Validates URLs before fetch to prevent SSRF: blocks private/reserved IPs,
 restricted schemes and cloud metadata endpoints.
 """
 import ipaddress
+import functools
 import logging
+import os
 import re
 import socket
 import time
@@ -19,6 +21,10 @@ _CLOUD_METADATA_IPS = frozenset({
     ipaddress.ip_address('169.254.169.254'),  # AWS, GCP metadata
     ipaddress.ip_address('168.63.129.16'),    # Azure metadata
 })
+
+
+# AWS IPv6 metadata endpoint; a listed hostname may not reach it.
+_IPV6_METADATA_IP = ipaddress.ip_address('fd00:ec2::254')
 
 
 class SSRFError(ValueError):
@@ -45,12 +51,74 @@ def url_has_userinfo(url) -> bool:
     return bool(parts.username or parts.password)
 
 
-def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
+PRIVATE_FEED_HOSTS_ENV = 'MINUSPOD_PRIVATE_FEED_HOSTS'
+_HOSTNAME_RE = re.compile(r'^(?=.{1,253}$)[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?)*$')
+
+
+def normalize_host(host: str) -> str:
+    return host.strip().strip('[]').lower().rstrip('.')
+
+
+class PrivateFeedHosts:
+    """Feed source hosts allowed on private addresses (MINUSPOD_PRIVATE_FEED_HOSTS)."""
+
+    def __init__(self, hostnames=(), networks=()):
+        self.hostnames = frozenset(hostnames)
+        self.networks = tuple(networks)
+
+    def __bool__(self):
+        return bool(self.hostnames or self.networks)
+
+    def permits(self, host: str | None, addr) -> bool:
+        """True when a non-public address is allowed for this connection host."""
+        if any(addr in net for net in self.networks):
+            return True
+        if host is None or normalize_host(host) not in self.hostnames:
+            return False
+        # A listed name must not be re-pointed at loopback, link-local or metadata.
+        return not (addr.is_loopback or addr.is_link_local or addr.is_multicast
+                    or addr.is_reserved or addr.is_unspecified
+                    or addr in _CLOUD_METADATA_IPS or addr == _IPV6_METADATA_IP)
+
+
+def parse_private_feed_hosts(raw: str) -> PrivateFeedHosts:
+    """Parse the allow-list; invalid entries are skipped with a warning."""
+    hostnames, networks = set(), []
+    for entry in (raw or '').split(','):
+        entry = entry.strip()
+        if not entry:
+            continue
+        candidate = entry.strip('[]') if entry.startswith('[') and ']' in entry and '/' not in entry else entry
+        try:
+            networks.append(ipaddress.ip_network(candidate, strict=False))
+            continue
+        except ValueError:
+            pass
+        name = normalize_host(entry)
+        if _HOSTNAME_RE.match(name) and '/' not in entry:
+            hostnames.add(name)
+        else:
+            logger.warning("Ignoring invalid %s entry: %r", PRIVATE_FEED_HOSTS_ENV, entry)
+    return PrivateFeedHosts(hostnames, networks)
+
+
+@functools.lru_cache(maxsize=8)
+def _cached_private_feed_hosts(raw: str) -> PrivateFeedHosts:
+    return parse_private_feed_hosts(raw)
+
+
+def get_private_feed_hosts() -> PrivateFeedHosts:
+    """Current allow-list from the environment (parsed once per distinct value)."""
+    return _cached_private_feed_hosts(os.environ.get(PRIVATE_FEED_HOSTS_ENV, ''))
+
+
+def check_resolved_ip(ip_str: str, *, allow_private: bool, host: str | None = None,
+                      private_hosts: PrivateFeedHosts | None = None) -> None:
     """Per-IP SSRF policy shared by pre-validation and the pinned connect.
 
     Cloud metadata and link-local addresses are blocked at every tier;
     loopback/private/multicast/reserved and any non-global address are allowed
-    only when allow_private.
+    only when allow_private, or when private_hosts permits this host/address.
     """
     try:
         addr = ipaddress.ip_address(ip_str)
@@ -58,6 +126,8 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
         raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
     if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
         addr = addr.ipv4_mapped
+    if private_hosts and not allow_private and private_hosts.permits(host, addr):
+        return
     if addr in _CLOUD_METADATA_IPS:
         raise SSRFError(f"Blocked cloud metadata IP: {ip_str}")
     if addr.is_link_local:
@@ -93,7 +163,8 @@ def _resolve_with_retry(host: str, port: int, *, attempts: int = 3,
             time.sleep(base_delay * (attempt + 1))
 
 
-def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tuple]:
+def resolve_and_check(host: str, port: int, *, allow_private: bool,
+                      private_hosts: PrivateFeedHosts | None = None) -> list[tuple]:
     """Resolve ``host``:``port`` and run check_resolved_ip on every address.
 
     Returns the addrinfo list. socket.gaierror propagates (an empty result is
@@ -104,7 +175,8 @@ def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tupl
         raise socket.gaierror(
             socket.EAI_NONAME, f"No addresses found for hostname: {host!r}")
     for _family, _type, _proto, _canonname, sockaddr in infos:
-        check_resolved_ip(sockaddr[0], allow_private=allow_private)
+        check_resolved_ip(sockaddr[0], allow_private=allow_private,
+                          host=host, private_hosts=private_hosts)
     return infos
 
 
@@ -118,10 +190,11 @@ def reject_url_whitespace(url: str) -> None:
         raise SSRFError("URL contains whitespace or control characters")
 
 
-def validate_url(url: str) -> str:
+def validate_url(url: str, private_hosts: PrivateFeedHosts | None = None) -> str:
     """Validate a URL for safe outbound requests.
 
-    Checks scheme, hostname, port and resolved IPs against blocklists.
+    Checks scheme, hostname, port and resolved IPs against blocklists;
+    private_hosts exempts listed hosts/addresses (feed sources only).
 
     Returns the stripped URL; raises SSRFError on any failed check.
     """
@@ -152,7 +225,7 @@ def validate_url(url: str) -> str:
     # this check and connect time is closed by utils.pinned_transport, which
     # re-runs check_resolved_ip on the address it actually connects to.
     try:
-        resolve_and_check(hostname, port, allow_private=False)
+        resolve_and_check(hostname, port, allow_private=False, private_hosts=private_hosts)
     except socket.gaierror:
         raise SSRFError(f"Cannot resolve hostname: {hostname!r}") from None
 
