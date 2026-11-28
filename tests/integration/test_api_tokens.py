@@ -281,8 +281,14 @@ def test_log_redaction_covers_token_and_bearer_shapes():
     assert jwt not in redact_log_text(f'Authorization: Bearer {jwt}')
 
 
+@pytest.mark.parametrize('key', ['abc123XYZ9', 'k3y-with.19chars_x', 'AbCdEfGh12345678'])
+def test_log_redaction_covers_short_bearer_keys(key):
+    assert key not in redact_log_text(f'Authorization: Bearer {key}')
+
+
 @pytest.mark.parametrize('prose', [
     'Missing Bearer authorization header', 'Invalid bearer credentials', 'expected a Bearer token',
+    'Bearer token required',
 ])
 def test_log_redaction_leaves_bearer_prose_alone(prose):
     assert redact_log_text(prose) == prose

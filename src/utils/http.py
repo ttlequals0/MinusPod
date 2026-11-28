@@ -10,7 +10,9 @@ from flask import request
 _FEED_CREDENTIAL_RE = re.compile(r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64,}')
 # MinusPod API token and any bearer credential, wherever it lands in a log line.
 _API_TOKEN_RE = re.compile(r'(?<![A-Za-z0-9_-])mp_[A-Za-z0-9_-]{8,}')
-_BEARER_RE = re.compile(r'(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}')
+# The lookahead spares prose such as "Missing Bearer authorization header".
+_BEARER_RE = re.compile(
+    r'(?i)\bbearer\s+(?!(?:tokens?|authorization|credentials?|header|auth|scheme)\b)[A-Za-z0-9._~+/=-]{8,}')
 # Every str.splitlines break; a break does not end a token, so a query continued on the next line is caught.
 _LINE_BREAKS = '\n\x0b\x0c\r\x1c\x1d\x1e\x85\u2028\u2029'
 # Whitespace that is not a line break: only this ends a token or takes a length cut.
