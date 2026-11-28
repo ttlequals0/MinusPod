@@ -277,6 +277,12 @@ class TestGetPricingSources:
         assert [s['type'] for s in chain] == ['openrouter_api', 'litellm']
         assert chain[0]['url'] == 'https://api.martllm.com/v1/models'
 
+    def test_llmtr_domain_chain_uses_its_model_list_then_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openai-compatible', 'https://llmtr.com/v1')
+        assert [s['type'] for s in chain] == ['openrouter_api', 'litellm']
+        assert chain[0]['url'] == 'https://llmtr.com/v1/models'
+
     def test_unknown_public_domain_chain_is_litellm_unfiltered(self):
         from config import get_pricing_sources
         chain = get_pricing_sources('openai-compatible', 'https://mystery.example.com/v1')
