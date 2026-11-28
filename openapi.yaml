@@ -7005,8 +7005,9 @@ paths:
         frontend handler redirects to `/ui/login` on that event. An
         authenticated connect opens the real data stream.
 
-        A password change or removal revokes the stream on its next state
-        poll with `event: auth-failed`.
+        A password change or removal revokes a session stream on its next
+        state poll with `event: auth-failed`. An API token can open the
+        stream; it ends when the token is revoked.
       operationId: streamStatus
       responses:
         '200':
@@ -14226,7 +14227,8 @@ components:
         accepted on routes that manage tokens, the password or sessions, the
         provider passphrase, configuration import, or revealing stored secrets. A token can export
         configuration and download encrypted database backups; an unencrypted backup is 403. An unknown, revoked or
-        malformed ``mp_`` token is a 401 and counts toward the sign-in lockout.
+        malformed ``mp_`` token is a 401 and counts toward a token lockout kept apart
+        from the sign-in lockout.
 
   parameters:
     correction_id:

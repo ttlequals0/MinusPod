@@ -18,7 +18,7 @@
 
 This is a community-contributed setup, written and tested by @no84by on one AMD Radeon RX 7900 XTX (gfx1100). The project's CI does not build or test it, and the Dockerfile below is specific to that GPU family. Treat it as a starting point and expect to adjust `AMDGPU_TARGETS` and the device paths for your card. Credit for the setup and the measurements below goes to the contributor, who ported it from [no84by/MinusPod](https://github.com/no84by/MinusPod/tree/amd-whisper-rocmm).
 
-The contributor's conclusion is that CPU transcription is usually enough, and ROCm is worth adding only when throughput or concurrency hurts. See [CPU benchmark](#cpu-benchmark) for the numbers behind that.
+The contributor found CPU transcription usually enough. ROCm is worth adding only when throughput or concurrency (many files at once) becomes a problem. See [CPU benchmark](#cpu-benchmark) for the numbers behind that.
 
 ## How it fits together
 
@@ -162,7 +162,7 @@ Measured by the contributor on 2026-11-01 on an AMD Ryzen 9 7950X3D (16 cores, 3
 
 The full 900 s clip at `-t 16` took 144 s, which is 6.25x real time. The transcript was clean and accurate, and the language was auto-detected as `en`.
 
-The contributor's conclusion: CPU-first is adequate. A 90 min podcast transcribes in about 16 min wall time at `-t 16`, comfortably inside an overnight or scheduled-worker window, so the CPU path was not the bottleneck on that host. Use `-t 16` on that CPU and never `-t 32`, which thrashes. Consider ROCm only if throughput or concurrency (many files at once) becomes a problem. Results on other hardware will differ.
+On that host CPU transcription is adequate. A 90 min podcast transcribes in about 16 min wall time at `-t 16`, comfortably inside an overnight or scheduled-worker window, so the CPU path was not the bottleneck on that host. Use `-t 16` on that CPU and never `-t 32`, which thrashes. Results on other hardware will differ.
 
 ## Notes
 

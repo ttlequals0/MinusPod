@@ -519,7 +519,7 @@ API: `retentionDaysOverride` (integer, `null` to inherit, `0` to archive, 1 to 3
 
 ### Unfetched-episode retention
 
-A podcast app that is offline for a while can come back to find episodes already deleted by retention. Settings > Storage and retention > **Keep never-downloaded episodes for** keeps a processed episode that no client has downloaded for that many days after processing, instead of the normal window. The default is 0, which turns this off. It only takes effect when it is longer than the feed's window, either the global retention or the feed's own override, so it never makes anything expire sooner. A feed's own retention override shorter than this window does not delete unheard episodes: they are kept for the longer of the two. Archived feeds, local feeds, and a globally disabled retention are not swept at all, so they are unaffected.
+A podcast app that is offline for a while can come back to find episodes already deleted by retention. Settings > Storage and retention > **Keep never-downloaded episodes for** keeps a processed episode that no client has downloaded for that many days after processing, instead of the normal window. The default is 0, which turns this off. It only applies when it is longer than the feed's window (the global retention or the feed's own override), so it never makes anything expire sooner. If a feed's own override is shorter, unheard episodes are kept for the longer of the two. Archived feeds, local feeds, and a globally disabled retention are not swept at all, so they are unaffected.
 
 Once an episode has been downloaded, **Keep after first download for** (default 3 days) keeps it at least that long after the first download, so an app whose download failed partway can retry. After that the episode follows the normal window. If the normal window has already passed, it is swept on the next cleanup.
 
@@ -873,9 +873,9 @@ Podping is an opt-in accelerator that can trigger an immediate refresh of a sing
 
 | Setting | Default | Notes |
 |---|---|---|
-| Feed refresh interval | 15 minutes | The shortest wait between checks of a feed. Range 5-1440. Settings > Global Defaults. A change applies after the wait already in progress finishes. |
+| Feed refresh interval | 15 minutes | The shortest wait between checks of a feed. Range 5-1440. Settings > Global Defaults. Lowering it pulls healthy feeds' next checks in at once; raising it applies after the wait already in progress finishes. |
 | Adaptive refresh | on | Adapt each feed's wait to how it publishes. When off, feeds refresh on the fixed interval; Retry-After and failure backoff still apply. |
-| Adaptive refresh maximum | 60 minutes | The longest wait for a healthy feed. Range from the refresh interval to 1440. |
+| Adaptive refresh maximum | 60 minutes | The longest wait for a healthy feed. Range from the refresh interval to 1440. Lowering it applies at once. |
 | Pause auto-process for unrequested feeds | 0 (off) | Days without a client fetching a feed before it stops auto-processing new episodes. Range 0-3650. Settings > Global Defaults. See [Dormant feeds](#dormant-feeds). |
 | Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. While enabled, it checks every RPC node at startup and every five minutes. System Health can run the same check on demand while the listener is off. Settings > Global Defaults. |
 
