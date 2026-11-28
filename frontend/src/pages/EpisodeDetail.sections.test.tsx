@@ -28,6 +28,8 @@ vi.mock('../api/feeds', () => ({
   getOriginalSegments: vi.fn(),
   getFinalSegments: vi.fn(),
   getOriginalTranscript: vi.fn(),
+  rateEpisode: vi.fn().mockResolvedValue({ rating: 'up' }),
+  clearEpisodeRating: vi.fn(),
   episodeOriginalUrl: (slug: string, id: string) => `/api/v1/feeds/${slug}/episodes/${id}/original.mp3`,
 }));
 vi.mock('../api/patterns', () => ({
@@ -173,6 +175,32 @@ describe('EpisodeDetail tabs', () => {
     const row = (await screen.findByText('Brought to you by Acme.')).closest('li');
     expect(selected()).toEqual(['episode-sections-tab-transcript']);
     await vi.waitFor(() => expect(row?.className).toContain('bg-primary/20'));
+  });
+
+  it('keeps the rating card at the bottom of the Ads tab only', async () => {
+    renderAt(BASE);
+    await screen.findAllByRole('tab');
+    expect(panel('ads').querySelector('#episode-rating-card')).not.toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: 'Transcript' }));
+    expect(panel('ads').hidden).toBe(true);
+    expect(document.querySelectorAll('#episode-rating-card')).toHaveLength(1);
+  });
+
+  it('shows the rating card below the page when there is no Ads tab', async () => {
+    renderAt(BASE, episode({ adMarkers: [], pendingReviewMarkers: [], rejectedAdMarkers: [] }));
+    await screen.findAllByRole('tab');
+    const card = document.getElementById('episode-rating-card')!;
+    expect(card).not.toBeNull();
+    expect(card.closest('[role=tabpanel]')).toBeNull();
+  });
+
+  it('opens the Ads tab and scrolls to the rating card for a review link', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    renderAt(`${BASE}?section=transcript&rate=up`);
+    await screen.findAllByRole('tab');
+    expect(selected()).toEqual(['episode-sections-tab-ads']);
+    await vi.waitFor(() => expect(scroll).toHaveBeenCalled());
   });
 
   it('leaves no focusable control in a hidden panel', async () => {

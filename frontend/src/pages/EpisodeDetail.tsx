@@ -806,8 +806,14 @@ function EpisodeDetail() {
   const sectionValues = sectionDefs.map((section) => section.value);
   const hashId = safeDecode(location.hash.slice(1));
   const hashSection = SECTION_HASHES[hashId];
-  const activeSection = sectionValues.includes(hashSection) ? hashSection
+  const rateRequested = urlParams.read('rate') !== '';
+  const activeSection = rateRequested && hasAdsSection ? 'ads'
+    : sectionValues.includes(hashSection) ? hashSection
     : urlParams.readOneOf('section', sectionValues, sectionValues[0] ?? 'ads');
+  // A review-link ?rate= opens the Ads tab and brings the rating card into view.
+  useEffect(() => {
+    if (rateRequested && hasAdsSection) document.getElementById('episode-rating-card')?.scrollIntoView?.({ block: 'center' });
+  }, [rateRequested, hasAdsSection]);
   const selectSection = (value: EpisodeSection) => urlParams.write({ section: value });
   // A tab mounts on first visit and then stays mounted (hidden), so drafts and open editors survive a tab switch.
   const [mountedSections, setMountedSections] = useState<ReadonlySet<EpisodeSection>>(new Set());
@@ -1198,6 +1204,33 @@ function EpisodeDetail() {
         ? 'Verified: a second scan of the output audio found no remaining ads.'
         : `Verified: a second scan of the output audio found ${verificationAdsCut} more ad${verificationAdsCut === 1 ? '' : 's'} and cut ${verificationAdsCut === 1 ? 'it' : 'them'}.`
       : null;
+
+  const ratingBlock = (
+    <>
+      {episode.status === 'completed' && slug && episodeId && (
+        <div id="episode-rating-card" className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
+          <EpisodeRating
+            slug={slug}
+            episodeId={episodeId}
+            rating={episode.rating}
+            requestedRating={parseRateParam(urlParams.read('rate'))}
+            onRequestedRatingHandled={clearRateParam}
+          />
+          {episode.sponsorBlock && (
+            <div className="pt-4 border-t border-border">
+              <SponsorBlockSubmit
+                slug={slug}
+                episodeId={episodeId}
+                hasOriginalAudio={episode.hasOriginalAudio}
+                submitAllowed={episode.sponsorBlock.submitAllowed}
+                blockReason={episode.sponsorBlock.submitBlockReason}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
 
   const candidatesBlock = slug && episodeId && episode.hasOriginalAudio ? (
     <div className="mb-6">
@@ -2313,6 +2346,7 @@ function EpisodeDetail() {
         </>
       )}
       {candidatesBlock}
+              {ratingBlock}
             </>
           )}
         </div>
@@ -2350,29 +2384,8 @@ function EpisodeDetail() {
       )}
 
       {!hasAdsSection && candidatesBlock}
+      {!hasAdsSection && ratingBlock}
 
-      {episode.status === 'completed' && slug && episodeId && (
-        <div className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
-          <EpisodeRating
-            slug={slug}
-            episodeId={episodeId}
-            rating={episode.rating}
-            requestedRating={parseRateParam(urlParams.read('rate'))}
-            onRequestedRatingHandled={clearRateParam}
-          />
-          {episode.sponsorBlock && (
-            <div className="pt-4 border-t border-border">
-              <SponsorBlockSubmit
-                slug={slug}
-                episodeId={episodeId}
-                hasOriginalAudio={episode.hasOriginalAudio}
-                submitAllowed={episode.sponsorBlock.submitAllowed}
-                blockReason={episode.sponsorBlock.submitBlockReason}
-              />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

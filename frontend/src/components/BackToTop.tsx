@@ -68,7 +68,7 @@ function BackToTop() {
       insetRef.current = bottomInset();
       setInset(insetRef.current);
       setModal(dialogOpen());
-      setBlocked(coversControl(insetRef.current, buttonRef.current));
+      setBlocked(buttonRef.current !== document.activeElement && coversControl(insetRef.current, buttonRef.current));
       bars?.disconnect();
       document.querySelectorAll('[data-viewport-inset="bottom"]').forEach((bar) => bars?.observe(bar));
     };
@@ -93,7 +93,7 @@ function BackToTop() {
     focusMain();
   }, []);
 
-  if (!scrolled || modal || (blocked && buttonRef.current !== document.activeElement)) return null;
+  if (!scrolled || modal || blocked) return null;
   return (
     <button
       ref={buttonRef}
