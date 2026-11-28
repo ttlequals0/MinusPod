@@ -604,6 +604,8 @@ interface ThinkingCompatibilityNotice {
 export interface EpisodeProcessingRun {
   runNumber: number;
   processedAt: string;
+  // MinusPod version that made the run; null for runs recorded before 2.78.4.
+  appVersion?: string | null;
   status: 'completed' | 'failed';
   adsDetected: number;
   processingDurationSeconds: number | null;

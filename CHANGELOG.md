@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.103.1] - 2026-11-28
+
+### Added
+
+- Each processing run shows the MinusPod version that made it. The Processing tab on the episode page has a **Version** column, and `processingRuns[].appVersion` in the episode API carries it. Runs recorded before 2.78.4 have no version and show nothing.
+
 ## [2.103.0] - 2026-11-27
 
 ### Added
