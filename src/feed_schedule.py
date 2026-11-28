@@ -1,4 +1,5 @@
 """Adaptive per-feed refresh interval: a pure function plus the hint parsers it consumes."""
+import logging
 import math
 import random
 import re
@@ -32,6 +33,23 @@ _PERIOD_SECONDS = {
     'MONTHLY': 30 * 86400, 'YEARLY': 365 * 86400,
 }
 _SY_PERIODS = {k.lower(): v for k, v in _PERIOD_SECONDS.items()}
+
+_ALWAYS_LOGGED_REASONS = frozenset({REASON_BACKOFF, REASON_RETRY_AFTER})
+
+
+def reason_log_level(old, new) -> int | None:
+    """Log level for a refresh-reason change, None when nothing changed and nothing is worth a line."""
+    if new in _ALWAYS_LOGGED_REASONS:
+        return logging.INFO
+    if new == old:
+        return None
+    if old is None:
+        return logging.DEBUG
+    # due <-> normal flaps around every expected episode; dormant, backoff and retry_after stay INFO
+    other = old if new == _REASON_DUE else new if old == _REASON_DUE else None
+    if other is not None and other != _REASON_DORMANT and other not in _ALWAYS_LOGGED_REASONS:
+        return logging.DEBUG
+    return logging.INFO
 
 
 @dataclass(frozen=True)

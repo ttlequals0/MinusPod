@@ -1,6 +1,7 @@
 """Adaptive refresh wiring: scheduling after an attempt, due selection, client holds,
 problem notifications, the problems endpoint and the two settings."""
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -127,15 +128,55 @@ class TestScheduling:
         row = _row(feed)
         assert (row['refresh_interval_seconds'], row['refresh_interval_reason']) == (7200, 'cadence')
 
-    def test_reason_log_only_when_it_changes(self, feed, caplog):
-        caplog.set_level('INFO', logger='podcast.refresh')
+    def test_first_reason_logs_at_debug_and_repeat_is_silent(self, feed, caplog):
+        caplog.set_level('DEBUG', logger='podcast.refresh')
         outcome = feeds_mod.RefreshOutcome(True, 'refreshed')
         feeds_mod._schedule_after_attempt(feed['slug'], outcome, {})
         feeds_mod._schedule_after_attempt(feed['slug'], outcome, {})
-        lines = [r.getMessage() for r in caplog.records if 'Next refresh in' in r.getMessage()]
-        assert len(lines) == 1
-        assert 'TOKEN123' not in lines[0]
-        assert urlparse(lines[0].rsplit(' ', 1)[1]).hostname == 'feed.example.com'
+        records = [r for r in caplog.records if 'Next refresh in' in r.getMessage()]
+        assert [r.levelname for r in records] == ['DEBUG']
+        line = records[0].getMessage()
+        assert 'TOKEN123' not in line
+        assert urlparse(line.rsplit(' ', 1)[1]).hostname == 'feed.example.com'
+
+    def test_real_change_logs_at_info(self, feed, caplog):
+        caplog.set_level('DEBUG', logger='podcast.refresh')
+        feed['db'].update_podcast(feed['slug'], refresh_interval_reason='max')
+        feeds_mod._schedule_after_attempt(feed['slug'], feeds_mod.RefreshOutcome(True, 'refreshed'), {})
+        records = [r for r in caplog.records if 'Next refresh in' in r.getMessage()]
+        assert [r.levelname for r in records] == ['INFO']
+
+    def test_first_backoff_stays_at_info(self, feed, caplog):
+        caplog.set_level('DEBUG', logger='podcast.refresh')
+        outcome = feeds_mod.RefreshOutcome(False, 'fetch_failed')
+        feeds_mod._schedule_after_attempt(feed['slug'], outcome, {})
+        records = [r for r in caplog.records if 'Next refresh in' in r.getMessage()]
+        assert [r.levelname for r in records] == ['INFO'] and '(backoff)' in records[0].getMessage()
+
+
+@pytest.mark.parametrize('old,new,expected', [
+    (None, 'max', logging.DEBUG),
+    (None, 'floor', logging.DEBUG),
+    (None, 'backoff', logging.INFO),
+    (None, 'retry_after', logging.INFO),
+    ('max', 'max', None),
+    ('max', 'backoff', logging.INFO),
+    ('backoff', 'backoff', logging.INFO),
+    ('retry_after', 'retry_after', logging.INFO),
+    ('cadence', 'max', logging.INFO),
+    ('cadence', 'due', logging.DEBUG),
+    ('due', 'cadence', logging.DEBUG),
+    ('max', 'due', logging.DEBUG),
+    ('due', 'max', logging.DEBUG),
+    ('dormant', 'due', logging.INFO),
+    ('due', 'dormant', logging.INFO),
+    ('backoff', 'due', logging.INFO),
+    ('due', 'backoff', logging.INFO),
+    ('due', 'retry_after', logging.INFO),
+])
+def test_reason_log_level(old, new, expected):
+    from feed_schedule import reason_log_level
+    assert reason_log_level(old, new) == expected
 
 
 class TestDueSelection:

@@ -177,9 +177,10 @@ def _schedule_after_attempt(slug: str, outcome, meta: dict, *, outage: bool = Fa
             next_refresh_at=feed_schedule.next_refresh_at(now, decision).strftime(ISO_FORMAT),
             refresh_interval_seconds=decision.interval_seconds,
             refresh_interval_reason=decision.reason)
-        if decision.reason != podcast.get('refresh_interval_reason') or decision.reason in (
-                feed_schedule.REASON_BACKOFF, feed_schedule.REASON_RETRY_AFTER):
-            refresh_logger.info(
+        level = feed_schedule.reason_log_level(podcast.get('refresh_interval_reason'), decision.reason)
+        if level is not None:
+            refresh_logger.log(
+                level,
                 f"[{slug}] Next refresh in {decision.interval_seconds / 60:.0f} min "
                 f"({decision.reason}), host {safe_url_for_log(podcast['source_url'])}")
     except Exception:
