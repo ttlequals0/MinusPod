@@ -46,7 +46,7 @@ from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_cipher
 from utils.cron import is_valid_expression
 from utils.safe_http import validate_feed_source_url
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from utils.url import SSRFError, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
+from utils.url import SSRFError, ssrf_reject_text, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_slug
 from utils.feed_guid import compute_feed_guid
@@ -932,8 +932,9 @@ def _validate_import_feed_urls(feeds):
             reject_url_whitespace(source_url)
             validate_feed_source_url(source_url)
         except SSRFError as exc:
-            raise ConfigTransferError(
-                f"Feed {feed['slug']} source URL failed security validation: {exc}") from None
+            raise ConfigTransferError(ssrf_reject_text(
+                exc, f"source URL of feed {feed['slug']}",
+                f"Feed {feed['slug']} source URL failed security validation: {exc}")) from None
 
 
 def build_preview(db, document, scope, selected_feeds=None):

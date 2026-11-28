@@ -749,7 +749,7 @@ class TestFireTestEvent:
             _prepare_and_dispatch({'url': url}, {'event': EVENT_AUTH_FAILURE}, max_attempts=1)
 
         if exception_type is webhook_service.SSRFError:
-            expected_message = 'Webhook URL blocked by SSRF check: https://hook.example.com (SSRFError)'
+            expected_message = 'Blocked address in webhook delivery (https://hook.example.com)'
         else:
             expected_message = 'Webhook attempt 1/1 failed for https://hook.example.com (RuntimeError)'
         assert [record.getMessage() for record in caplog.records] == [expected_message]

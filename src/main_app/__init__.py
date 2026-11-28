@@ -16,6 +16,7 @@ from utils.paths import resolve_data_dir
 from utils.trusted_proxy import PeerGatedProxyFix, parse_trusted_networks
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
+from utils.http import safe_url_for_log
 from utils.url import get_private_feed_hosts
 # SingleLineFormatter stays importable from main_app for its test.
 from utils.log_format import (  # noqa: F401
@@ -238,7 +239,7 @@ def _validate_configured_base_urls():
         except SSRFError as exc:
             audio_logger.error(
                 "Configured base URL failed SSRF validation at startup: source=%s url=%s reason=%s",
-                source, url, exc,
+                source, safe_url_for_log(url), exc,
             )
 
 

@@ -11,7 +11,7 @@ from api import (
 )
 from database.settings import SETTINGS_REGISTRY
 from utils.url import (
-    SSRFError, validate_base_url,
+    SSRFError, ssrf_reject_text, validate_base_url,
     validate_outbound_host,
 )
 from utils.http import safe_url_for_log
@@ -68,7 +68,7 @@ def _validate_webhook_url(url):
     try:
         validate_base_url(url)
     except SSRFError as e:
-        return error_response(f'Invalid webhook URL: {e}', 400)
+        return error_response(ssrf_reject_text(e, 'webhook URL'), 400)
     return None
 
 
@@ -348,7 +348,7 @@ def update_email_notification_settings():
             try:
                 host = validate_outbound_host(host)
             except SSRFError as e:
-                return error_response(str(e), 400)
+                return error_response(ssrf_reject_text(e, 'SMTP host', str(e)), 400)
         staged['email_smtp_host'] = host
     if 'smtpUsername' in data:
         username = (data['smtpUsername'] or '').strip()

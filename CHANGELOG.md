@@ -44,6 +44,7 @@ release notes.
 - Adding or editing a feed, and OPML import, now honor `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS`. A feed on a LAN or loopback address was rejected even though refresh allowed it. Contributed by amcfague.
 - A brief DNS failure no longer fails a feed refresh. The check retries up to three times and still fails at once for a name that does not exist. Contributed by SimpleHonors.
 - The header no longer sits under a top screen cutout when no status bar is showing, and the browser theme color now follows the selected theme, so system areas beside the page match it.
+- Adding a feed, editing its URL or importing OPML with a host name that does not resolve now reports that the name could not be resolved, and the server logs it at INFO instead of as a blocked address. Other rejections (private, loopback or metadata addresses, blocked ports, bad schemes, HTTPS to HTTP redirects) still return 400 and log a warning that names the cause.
 
 ## [2.102.26] - 2026-11-27
 

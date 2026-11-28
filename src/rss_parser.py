@@ -36,7 +36,7 @@ from utils.text import collapse_whitespace, is_timezone_drift, normalize_title_f
 from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
-from utils.http import redact_exc_urls, safe_url_for_log
+from utils.http import log_ssrf_failure, redact_exc_urls, safe_url_for_log
 from utils.safe_http import (
     IncompleteResponseError, ResponseTooLargeError, feed_trust,
     read_response_capped, safe_get,
@@ -490,7 +490,7 @@ class RSSParser:
                 response.close()
         except SSRFError as e:
             breaker.release_probe(probe_token)
-            logger.warning(f"SSRF blocked in fetch_feed: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
+            log_ssrf_failure(logger, 'fetch_feed', e, url)
             return None
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
@@ -607,7 +607,7 @@ class RSSParser:
         except SSRFError as e:
             breaker.release_probe(probe_token)
             _note_exception_meta(e, meta)
-            logger.warning(f"SSRF blocked in fetch_feed_conditional: {redact_exc_urls(e)} (url={safe_url_for_log(url)})")
+            log_ssrf_failure(logger, 'fetch_feed_conditional', e, url)
             return None, None, None
 
         except requests.exceptions.ContentDecodingError as e:
